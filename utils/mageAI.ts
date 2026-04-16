@@ -6,7 +6,8 @@ const CACHE_PREFIX = "mage_ai_cache_";
 
 interface MageAIParams {
   prompt: string;
-  schema?: any;
+  schema?: any;           // Zod schema — used client-side for validation only, NOT sent to edge function
+  schemaHint?: object;    // Plain JSON example — sent to edge function so Gemini knows the shape
   tier?: "fast" | "smart";
   maxTokens?: number;
   cacheKey?: string;
@@ -38,17 +39,42 @@ async function setCache(key: string, result: MageAIResult, hours: number) {
 }
 
 export async function mageAI(params: MageAIParams): Promise<MageAIResult> {
-  const { prompt, schema, tier = "fast", maxTokens = 1000, cacheKey, cacheHours = 2 } = params;
+  const { prompt, schema, schemaHint, tier = "fast", maxTokens = 1000, cacheKey, cacheHours = 2 } = params;
   if (cacheKey) { const c = await getCache(cacheKey); if (c) return c; }
   try {
+    // Never send Zod schema objects to the edge function — JSON.stringify(zodSchema)
+    // produces Zod internal structure, not a usable JSON example for the model.
+    // Use schemaHint (a plain JS object) for the model, and schema (Zod) for client-side validation.
+    const payload: Record<string, unknown> = { prompt, tier, maxTokens };
+    if (schemaHint) {
+      payload.schemaHint = schemaHint;
+      payload.jsonMode = true;
+    } else if (schema) {
+      // No schemaHint provided — still enable JSON mode so Gemini returns parseable JSON
+      payload.jsonMode = true;
+    }
+
     const r = await fetch(AI_URL, {
       method: "POST",
       headers: { "Authorization": "Bearer " + AI_KEY, "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt, schema, tier, maxTokens }),
+      body: JSON.stringify(payload),
     });
     if (!r.ok) return { success: false, data: null, error: "AI unavailable (" + r.status + ")" };
     const j = await r.json();
     if (!j.success) return { success: false, data: null, error: j.error || "AI failed" };
+
+    // Validate and coerce with Zod client-side — schema .default() values fill any missing fields
+    if (schema && j.data) {
+      try {
+        const parsed = schema.parse(j.data);
+        const result: MageAIResult = { success: true, data: parsed, raw: j.raw, cached: false };
+        if (cacheKey) await setCache(cacheKey, result, cacheHours);
+        return result;
+      } catch (zodErr) {
+        console.warn("[mageAI] Zod validation warning, using raw data:", zodErr);
+      }
+    }
+
     const result: MageAIResult = { success: true, data: j.data, raw: j.raw, cached: false };
     if (cacheKey) await setCache(cacheKey, result, cacheHours);
     return result;

@@ -876,25 +876,25 @@ export async function generateQuickEstimate(
   console.log('[AI Quick Estimate] Generating for:', description.substring(0, 60));
 
   const aiResult = await mageAI({
-    prompt: `You are an expert construction estimator. Generate a detailed construction estimate as valid JSON.
+    prompt: `You are an expert construction estimator with current 2025-2026 pricing knowledge. Generate a detailed, realistic construction estimate for this project.
 
 PROJECT: ${description}
 Type: ${projectType || 'General Construction'} | SqFt: ${squareFootage || 'unspecified'} | Quality: ${qualityTier || 'standard'} | Location: ${location || 'US'}
 
-Return JSON with:
-- projectSummary: 1-2 sentence overview
-- materials: 8-15 items, each with name, category (lumber/concrete/roofing/flooring/plumbing/electrical/hvac/drywall/paint/hardware), unit, quantity (number), unitPrice (number, 2025 market rate), supplier (Home Depot/Lowes/ABC Supply/Ferguson), optional notes
-- labor: 3-6 trades, each with trade name, hourlyRate (number), hours (number), crew name, optional notes
-- assemblies: 2-5 relevant assemblies, each with name, category, quantity (number), unit, optional notes
-- additionalCosts: object with permits (number), dumpsterRental (number), equipmentRental (number), cleanup (number), contingencyPercent (number 5-15), overheadPercent (number 10-15)
-- estimatedDuration: string like "4-6 weeks"
-- costPerSqFt: number
-- confidenceScore: number 1-100
-- warnings: array of 2-3 strings
-- savingsTips: array of 2-3 strings
-
-Use realistic 2025-2026 pricing for ${qualityTier || 'standard'} quality. Keep response concise.`,
+Generate 8-15 material line items with real quantities and 2025 market pricing (reference Home Depot, Lowe's, ABC Supply). Include 3-6 labor trades with realistic hourly rates and hours. Add 2-4 relevant assemblies. Set contingency 8-12% and overhead 10-14%. Include 2-3 warnings and 2-3 money-saving tips.`,
     schema: aiQuickEstimateSchema,
+    schemaHint: {
+      projectSummary: "Brief project overview",
+      materials: [{ name: "Lumber 2x4x8", category: "lumber", unit: "ea", quantity: 120, unitPrice: 8.50, supplier: "Home Depot", notes: "framing" }],
+      labor: [{ trade: "Carpenter", hourlyRate: 75, hours: 40, crew: "Framing crew", notes: "framing and rough carpentry" }],
+      assemblies: [{ name: "Frame Interior Wall", category: "framing", quantity: 4, unit: "lf" }],
+      additionalCosts: { permits: 800, dumpsterRental: 450, equipmentRental: 600, cleanup: 300, contingencyPercent: 10, overheadPercent: 12 },
+      estimatedDuration: "6-8 weeks",
+      costPerSqFt: 85,
+      confidenceScore: 78,
+      warnings: ["Permit timeline may add 2-3 weeks"],
+      savingsTips: ["Buy lumber in bulk for 15% savings"],
+    },
     tier: 'smart',
     maxTokens: 3000,
   });
