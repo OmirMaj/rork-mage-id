@@ -89,6 +89,7 @@ interface TaskDraft {
   title: string;
   phase: string;
   durationDays: string;
+  startDayOverride: string;
   crew: string;
   crewSize: string;
   notes: string;
@@ -97,15 +98,18 @@ interface TaskDraft {
   isCriticalPath: boolean;
   isWeatherSensitive: boolean;
   dependencyLinks: DependencyLink[];
+  status: ScheduleTask['status'];
+  progress: string;
 }
 
 type ScheduleViewMode = 'today' | 'lookahead' | 'board' | 'gantt' | 'resources' | 'summary';
 type FilterMode = 'all' | 'critical' | 'milestones' | 'overdue';
 
 const EMPTY_DRAFT: TaskDraft = {
-  title: '', phase: 'General', durationDays: '5', crew: '', crewSize: '2',
-  notes: '', isMilestone: false, wbsCode: '', isCriticalPath: false,
-  isWeatherSensitive: false, dependencyLinks: [],
+  title: '', phase: 'General', durationDays: '5', startDayOverride: '',
+  crew: '', crewSize: '2', notes: '', isMilestone: false, wbsCode: '',
+  isCriticalPath: false, isWeatherSensitive: false, dependencyLinks: [],
+  status: 'not_started', progress: '0',
 };
 
 export default function ScheduleScreen() {
@@ -242,15 +246,23 @@ export default function ScheduleScreen() {
     const depIds = depLinks.map(l => l.taskId);
 
     if (editing) {
+      const progress = Math.max(0, Math.min(100, parseInt(draft.progress, 10) || 0));
+      const startDayOverride = parseInt(draft.startDayOverride, 10);
       const nextTasks: ScheduleTask[] = sortedTasks.map(item => {
         if (item.id !== editing.id) return item;
-        return {
+        const updated: ScheduleTask = {
           ...item, title, phase: draft.phase, crew: draft.crew.trim() || 'General crew',
           crewSize, durationDays, notes: draft.notes.trim(),
           isMilestone: draft.isMilestone, wbsCode: draft.wbsCode.trim() || undefined,
           isCriticalPath: draft.isCriticalPath, isWeatherSensitive: draft.isWeatherSensitive,
           dependencies: depIds, dependencyLinks: depLinks,
+          status: draft.status, progress,
         };
+        // Only apply start day override when no deps are set (deps control start day automatically)
+        if (!Number.isNaN(startDayOverride) && startDayOverride > 0 && depLinks.length === 0) {
+          updated.startDay = startDayOverride;
+        }
+        return updated;
       });
       const scheduleName = activeSchedule?.name ?? 'Project Schedule';
       const nextSchedule = buildScheduleFromTasks(scheduleName, selectedProject?.id ?? null, nextTasks, activeSchedule?.baseline);
@@ -302,11 +314,14 @@ export default function ScheduleScreen() {
     setEditingTask(task);
     setTaskDraft({
       title: task.title, phase: task.phase, durationDays: String(task.durationDays),
+      startDayOverride: String(task.startDay),
       crew: task.crew, crewSize: String(task.crewSize || 1), notes: task.notes,
       isMilestone: task.isMilestone ?? false, wbsCode: task.wbsCode ?? '',
       isCriticalPath: task.isCriticalPath ?? false,
       isWeatherSensitive: task.isWeatherSensitive ?? false,
       dependencyLinks: getDepLinks(task),
+      status: task.status,
+      progress: String(task.progress),
     });
     setIsEditModalOpen(true);
     setTaskDetailModal(null);
@@ -2113,15 +2128,70 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                   </View>
                 </ScrollView>
 
+                {/* Status */}
+                {editingTask && (
+                  <>
+                    <Text style={styles.fieldLabel}>Status</Text>
+                    <View style={styles.statusChipRow}>
+                      {(['not_started', 'in_progress', 'on_hold', 'done'] as ScheduleTask['status'][]).map(s => {
+                        const colors: Record<string, string> = { done: '#34C759', in_progress: '#007AFF', on_hold: '#FF9500', not_started: '#8E8E93' };
+                        const labels: Record<string, string> = { done: 'Done', in_progress: 'In Progress', on_hold: 'On Hold', not_started: 'Not Started' };
+                        const active = taskDraft.status === s;
+                        return (
+                          <TouchableOpacity
+                            key={s}
+                            style={[styles.statusChip, { borderColor: colors[s], backgroundColor: active ? colors[s] : 'transparent' }]}
+                            onPress={() => {
+                              const autoProgress = s === 'done' ? '100' : s === 'not_started' ? '0' : taskDraft.progress;
+                              setTaskDraft(p => ({ ...p, status: s, progress: autoProgress }));
+                            }}
+                          >
+                            <Text style={[styles.statusChipText, { color: active ? '#FFF' : colors[s] }]}>{labels[s]}</Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+
+                    <Text style={styles.fieldLabel}>Progress — {taskDraft.progress}%</Text>
+                    <View style={styles.progressRow}>
+                      {[0, 25, 50, 75, 100].map(pct => (
+                        <TouchableOpacity
+                          key={pct}
+                          style={[styles.progressBtn, parseInt(taskDraft.progress, 10) === pct && styles.progressBtnActive]}
+                          onPress={() => {
+                            const nextStatus = pct >= 100 ? 'done' as const : pct > 0 ? 'in_progress' as const : 'not_started' as const;
+                            setTaskDraft(p => ({ ...p, progress: String(pct), status: nextStatus }));
+                          }}
+                        >
+                          <Text style={[styles.progressBtnText, parseInt(taskDraft.progress, 10) === pct && styles.progressBtnTextActive]}>{pct}%</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </>
+                )}
+
                 <View style={styles.dualRow}>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.fieldLabel}>Duration (days)</Text>
                     <TextInput style={styles.input} value={taskDraft.durationDays} onChangeText={val => setTaskDraft(p => ({ ...p, durationDays: val }))} keyboardType="number-pad" />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.fieldLabel}>Crew</Text>
+                    <Text style={styles.fieldLabel}>Crew Size</Text>
+                    <TextInput style={styles.input} value={taskDraft.crewSize} onChangeText={val => setTaskDraft(p => ({ ...p, crewSize: val }))} keyboardType="number-pad" placeholder="# people" placeholderTextColor={Colors.textMuted} />
+                  </View>
+                </View>
+
+                <View style={styles.dualRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.fieldLabel}>Crew / Trade</Text>
                     <TextInput style={styles.input} value={taskDraft.crew} onChangeText={val => setTaskDraft(p => ({ ...p, crew: val }))} placeholder="Crew name" placeholderTextColor={Colors.textMuted} />
                   </View>
+                  {editingTask && taskDraft.dependencyLinks.length === 0 && (
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.fieldLabel}>Start Day Override</Text>
+                      <TextInput style={styles.input} value={taskDraft.startDayOverride} onChangeText={val => setTaskDraft(p => ({ ...p, startDayOverride: val }))} keyboardType="number-pad" placeholder="Auto" placeholderTextColor={Colors.textMuted} />
+                    </View>
+                  )}
                 </View>
 
                 <View style={styles.toggleRow}>
@@ -2137,11 +2207,59 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                   <Switch value={taskDraft.isWeatherSensitive} onValueChange={val => setTaskDraft(p => ({ ...p, isWeatherSensitive: val }))} trackColor={{ false: Colors.border, true: '#007AFF' }} thumbColor="#FFF" />
                 </View>
 
-                <Text style={styles.fieldLabel}>Predecessors</Text>
+                <Text style={styles.fieldLabel}>Predecessors {taskDraft.dependencyLinks.length > 0 ? '(controls start day)' : '(optional)'}</Text>
                 <TouchableOpacity style={styles.depPickerBtn} onPress={() => setShowDepPicker(true)}>
                   <Link2 size={14} color={Colors.info} />
-                  <Text style={styles.depPickerBtnText}>{taskDraft.dependencyLinks.length > 0 ? `${taskDraft.dependencyLinks.length} linked` : 'Tap to link'}</Text>
+                  <Text style={styles.depPickerBtnText}>{taskDraft.dependencyLinks.length > 0 ? `${taskDraft.dependencyLinks.length} predecessor${taskDraft.dependencyLinks.length > 1 ? 's' : ''} linked` : 'Tap to link predecessors'}</Text>
                 </TouchableOpacity>
+                {/* Dep type and lag per link */}
+                {taskDraft.dependencyLinks.length > 0 && (
+                  <View style={styles.depDetailList}>
+                    {taskDraft.dependencyLinks.map(link => {
+                      const depTask = sortedTasks.find(t => t.id === link.taskId);
+                      if (!depTask) return null;
+                      return (
+                        <View key={link.taskId} style={styles.depDetailRow}>
+                          <Text style={styles.depDetailName} numberOfLines={1}>{depTask.title}</Text>
+                          <View style={styles.depTypeRow}>
+                            {(['FS', 'SS', 'FF', 'SF'] as DependencyType[]).map(type => (
+                              <TouchableOpacity
+                                key={type}
+                                style={[styles.depTypeBtn, link.type === type && styles.depTypeBtnActive]}
+                                onPress={() => setTaskDraft(p => ({
+                                  ...p,
+                                  dependencyLinks: p.dependencyLinks.map(l =>
+                                    l.taskId === link.taskId ? { ...l, type } : l
+                                  ),
+                                }))}
+                              >
+                                <Text style={[styles.depTypeBtnText, link.type === type && styles.depTypeBtnTextActive]}>{type}</Text>
+                              </TouchableOpacity>
+                            ))}
+                            <TextInput
+                              style={styles.lagInput}
+                              value={String(link.lagDays || 0)}
+                              onChangeText={val => setTaskDraft(p => ({
+                                ...p,
+                                dependencyLinks: p.dependencyLinks.map(l =>
+                                  l.taskId === link.taskId ? { ...l, lagDays: parseInt(val, 10) || 0 } : l
+                                ),
+                              }))}
+                              keyboardType="number-pad"
+                              placeholder="+lag"
+                              placeholderTextColor={Colors.textMuted}
+                            />
+                          </View>
+                        </View>
+                      );
+                    })}
+                  </View>
+                )}
+                {editingTask && taskDraft.dependencyLinks.length > 0 && (
+                  <View style={styles.cascadeNote}>
+                    <Text style={styles.cascadeNoteText}>Linked successors will auto-shift when duration changes</Text>
+                  </View>
+                )}
 
                 <Text style={styles.fieldLabel}>Notes</Text>
                 <TextInput style={[styles.input, { minHeight: 70, textAlignVertical: 'top' as const }]} value={taskDraft.notes} onChangeText={val => setTaskDraft(p => ({ ...p, notes: val }))} placeholder="Notes..." placeholderTextColor={Colors.textMuted} multiline />
@@ -2539,6 +2657,33 @@ const styles = StyleSheet.create({
   depOptionMeta: { fontSize: 11, color: Colors.textSecondary },
   depDoneBtn: { marginTop: 8, minHeight: 44, borderRadius: 12, backgroundColor: '#007AFF', alignItems: 'center', justifyContent: 'center' },
   depDoneBtnText: { fontSize: 14, fontWeight: '700' as const, color: '#FFF' },
+
+  // Status chips
+  statusChipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 },
+  statusChip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1.5 },
+  statusChipText: { fontSize: 12, fontWeight: '700' as const },
+
+  // Progress buttons
+  progressRow: { flexDirection: 'row', gap: 6, marginBottom: 12 },
+  progressBtn: { flex: 1, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: Colors.border, alignItems: 'center' },
+  progressBtnActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  progressBtnText: { fontSize: 12, fontWeight: '600' as const, color: Colors.textMuted },
+  progressBtnTextActive: { color: '#FFF' },
+
+  // Dep detail
+  depDetailList: { marginTop: 6, marginBottom: 8, gap: 8 },
+  depDetailRow: { backgroundColor: Colors.surfaceAlt, borderRadius: 10, padding: 10 },
+  depDetailName: { fontSize: 12, fontWeight: '600' as const, color: Colors.text, marginBottom: 6 },
+  depTypeRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  depTypeBtn: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, borderWidth: 1, borderColor: Colors.border },
+  depTypeBtnActive: { backgroundColor: '#007AFF', borderColor: '#007AFF' },
+  depTypeBtnText: { fontSize: 11, fontWeight: '700' as const, color: Colors.textMuted },
+  depTypeBtnTextActive: { color: '#FFF' },
+  lagInput: { flex: 1, backgroundColor: Colors.card, borderRadius: 6, borderWidth: 1, borderColor: Colors.border, paddingHorizontal: 8, paddingVertical: 4, fontSize: 12, color: Colors.text, textAlign: 'center' as const, maxWidth: 56 },
+
+  // Cascade note
+  cascadeNote: { backgroundColor: '#007AFF10', borderRadius: 8, padding: 8, marginBottom: 8, flexDirection: 'row', alignItems: 'center' },
+  cascadeNoteText: { fontSize: 11, color: '#007AFF', fontStyle: 'italic' as const },
 
   detailBadges: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 },
   detailGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 },

@@ -31,7 +31,7 @@ export default function DailyReportScreen() {
   const router = useRouter();
   const { projectId, reportId } = useLocalSearchParams<{ projectId: string; reportId?: string }>();
   const {
-    getProject, getDailyReportsForProject, addDailyReport, updateDailyReport, contacts, settings,
+    getProject, getDailyReportsForProject, addDailyReport, updateDailyReport, contacts, settings, addProjectPhoto,
   } = useProjects();
   const { isProOrAbove } = useSubscription();
   const [voiceLoading, setVoiceLoading] = useState(false);
@@ -240,11 +240,22 @@ export default function DailyReportScreen() {
         updatedAt: now,
       };
       addDailyReport(report);
+      // Sync DFR photos into project photo gallery
+      for (const p of photos) {
+        addProjectPhoto({
+          id: p.id,
+          projectId,
+          uri: p.uri,
+          timestamp: p.timestamp,
+          tag: 'Daily Report',
+          createdAt: p.timestamp,
+        });
+      }
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert('Created', `Daily report has been ${status === 'sent' ? `sent${recipientInfo}` : 'saved as draft'}.`);
     }
     router.back();
-  }, [projectId, weather, manpower, workPerformed, materialsDelivered, issuesAndDelays, photos, existingReport, addDailyReport, updateDailyReport, router]);
+  }, [projectId, weather, manpower, workPerformed, materialsDelivered, issuesAndDelays, photos, existingReport, addDailyReport, updateDailyReport, addProjectPhoto, router]);
 
   const handleSendPress = useCallback(() => {
     setShowSendRecipient(true);

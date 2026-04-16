@@ -1,12 +1,12 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  Alert, Platform, KeyboardAvoidingView,
+  Alert, Platform, KeyboardAvoidingView, Modal, Pressable,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { Save, Plus } from 'lucide-react-native';
+import { Save, Plus, Link2, X, CheckCircle2, ChevronDown } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import type { SubmittalStatus } from '@/types';
@@ -44,10 +44,15 @@ export default function SubmittalScreen() {
   const [submittedBy, setSubmittedBy] = useState(existingSubmittal?.submittedBy ?? '');
   const [requiredDate, setRequiredDate] = useState(existingSubmittal?.requiredDate ?? '');
 
+  const [linkedTaskId, setLinkedTaskId] = useState('');
+  const [showTaskPicker, setShowTaskPicker] = useState(false);
   const [newReviewer, setNewReviewer] = useState('');
   const [newCycleStatus, setNewCycleStatus] = useState<SubmittalStatus>('pending');
   const [newCycleComments, setNewCycleComments] = useState('');
   const [showAddCycle, setShowAddCycle] = useState(false);
+
+  const scheduleTasks = useMemo(() => project?.schedule?.tasks ?? [], [project]);
+  const linkedTask = useMemo(() => scheduleTasks.find(t => t.id === linkedTaskId), [scheduleTasks, linkedTaskId]);
 
   const handleSave = useCallback(() => {
     if (!title.trim()) {
@@ -222,11 +227,56 @@ export default function SubmittalScreen() {
           </>
         )}
 
+        {scheduleTasks.length > 0 && (
+          <>
+            <Text style={styles.fieldLabel}>Linked Schedule Task</Text>
+            <TouchableOpacity style={styles.pickerBtn} onPress={() => setShowTaskPicker(true)} activeOpacity={0.7}>
+              <Link2 size={15} color={Colors.info} />
+              <Text style={styles.pickerBtnText} numberOfLines={1}>
+                {linkedTask ? linkedTask.title : 'None — tap to link a task'}
+              </Text>
+              <ChevronDown size={16} color={Colors.textMuted} />
+            </TouchableOpacity>
+            {linkedTask && (
+              <View style={styles.linkedTaskBadge}>
+                <Text style={styles.linkedTaskPhase}>{linkedTask.phase}</Text>
+                <Text style={styles.linkedTaskName} numberOfLines={1}>{linkedTask.title}</Text>
+                <TouchableOpacity onPress={() => setLinkedTaskId('')}><X size={14} color={Colors.error} /></TouchableOpacity>
+              </View>
+            )}
+          </>
+        )}
+
         <TouchableOpacity style={styles.saveBtn} onPress={handleSave} activeOpacity={0.85} testID="submittal-save">
           <Save size={18} color="#fff" />
           <Text style={styles.saveBtnText}>{existingSubmittal ? 'Update Submittal' : 'Create Submittal'}</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      <Modal visible={showTaskPicker} transparent animationType="fade" onRequestClose={() => setShowTaskPicker(false)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setShowTaskPicker(false)}>
+          <Pressable style={styles.taskPickerCard} onPress={() => undefined}>
+            <View style={styles.taskPickerHeader}>
+              <Text style={styles.taskPickerTitle}>Link Schedule Task</Text>
+              <TouchableOpacity onPress={() => setShowTaskPicker(false)}><X size={20} color={Colors.textMuted} /></TouchableOpacity>
+            </View>
+            <ScrollView style={{ maxHeight: 360 }}>
+              <TouchableOpacity style={[styles.taskOption, !linkedTaskId && styles.taskOptionActive]} onPress={() => { setLinkedTaskId(''); setShowTaskPicker(false); }}>
+                <Text style={[styles.taskOptionText, !linkedTaskId && styles.taskOptionTextActive]}>None</Text>
+              </TouchableOpacity>
+              {scheduleTasks.map(task => (
+                <TouchableOpacity key={task.id} style={[styles.taskOption, linkedTaskId === task.id && styles.taskOptionActive]} onPress={() => { setLinkedTaskId(task.id); setShowTaskPicker(false); }}>
+                  {linkedTaskId === task.id && <CheckCircle2 size={14} color={Colors.primary} />}
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.taskOptionText, linkedTaskId === task.id && styles.taskOptionTextActive]} numberOfLines={1}>{task.title}</Text>
+                    <Text style={styles.taskOptionMeta}>{task.phase} · {task.durationDays}d</Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -398,4 +448,18 @@ const styles = StyleSheet.create({
     fontWeight: '600' as const,
     color: '#fff',
   },
+  pickerBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, backgroundColor: Colors.surface, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, borderWidth: 1, borderColor: Colors.cardBorder },
+  pickerBtnText: { flex: 1, fontSize: 15, color: Colors.text },
+  linkedTaskBadge: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, backgroundColor: Colors.primary + '10', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, marginTop: 6 },
+  linkedTaskPhase: { fontSize: 11, fontWeight: '700' as const, color: Colors.primary },
+  linkedTaskName: { flex: 1, fontSize: 13, color: Colors.text },
+  modalOverlay: { flex: 1, backgroundColor: '#00000060', justifyContent: 'center' as const, alignItems: 'center' as const, padding: 24 },
+  taskPickerCard: { backgroundColor: Colors.surface, borderRadius: 16, width: '100%', overflow: 'hidden' as const },
+  taskPickerHeader: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'space-between' as const, padding: 16, borderBottomWidth: 1, borderBottomColor: Colors.cardBorder },
+  taskPickerTitle: { fontSize: 16, fontWeight: '700' as const, color: Colors.text },
+  taskOption: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, padding: 12, borderBottomWidth: 1, borderBottomColor: Colors.cardBorder + '80' },
+  taskOptionActive: { backgroundColor: Colors.primary + '10' },
+  taskOptionText: { fontSize: 14, fontWeight: '500' as const, color: Colors.text },
+  taskOptionTextActive: { fontWeight: '700' as const, color: Colors.primary },
+  taskOptionMeta: { fontSize: 11, color: Colors.textSecondary ?? Colors.textMuted, marginTop: 1 },
 });

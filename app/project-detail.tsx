@@ -1659,22 +1659,35 @@ export default function ProjectDetailScreen() {
                 <Globe size={24} color={'#5856D6'} />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.portalTitle}>Share Project with Client</Text>
-                  <Text style={styles.portalDesc}>Give your client a read-only link to view project progress, schedule, and invoices.</Text>
+                  <Text style={styles.portalDesc}>Give clients a read-only link to view schedule, invoices, photos & more. Control exactly what they see.</Text>
                 </View>
-              </View>
-              <View style={styles.portalBadge}>
-                <Text style={styles.portalBadgeText}>Business Tier Feature</Text>
               </View>
               {project.clientPortal?.enabled ? (
-                <View style={styles.portalLinkRow}>
-                  <View style={styles.portalLinkBox}>
-                    <Link size={12} color={Colors.info} />
-                    <Text style={styles.portalLinkText} numberOfLines={1}>mageid.app/project/{id?.slice(0, 8)}</Text>
+                <>
+                  <View style={styles.portalLinkRow}>
+                    <View style={styles.portalLinkBox}>
+                      <Link size={12} color={Colors.info} />
+                      <Text style={styles.portalLinkText} numberOfLines={1}>mageid.app/portal/{project.clientPortal.portalId}</Text>
+                    </View>
+                    <TouchableOpacity style={styles.portalCopyBtn} onPress={() => { Alert.alert('Copied', 'Portal link copied to clipboard.'); }}>
+                      <Copy size={14} color={Colors.primary} />
+                    </TouchableOpacity>
                   </View>
-                  <TouchableOpacity style={styles.portalCopyBtn} onPress={() => { Alert.alert('Copied', 'Portal link copied to clipboard.'); }}>
-                    <Copy size={14} color={Colors.primary} />
+                  <View style={styles.portalInviteCount}>
+                    <Users size={13} color={Colors.textMuted} />
+                    <Text style={styles.portalInviteCountText}>
+                      {project.clientPortal.invites?.length ?? 0} client{(project.clientPortal.invites?.length ?? 0) !== 1 ? 's' : ''} invited
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.portalEnableBtn}
+                    onPress={() => router.push({ pathname: '/client-portal-setup', params: { id } })}
+                    activeOpacity={0.7}
+                  >
+                    <Globe size={16} color={'#5856D6'} />
+                    <Text style={styles.portalEnableBtnText}>Manage Portal Settings</Text>
                   </TouchableOpacity>
-                </View>
+                </>
               ) : (
                 <TouchableOpacity
                   style={styles.portalEnableBtn}
@@ -1682,15 +1695,21 @@ export default function ProjectDetailScreen() {
                     updateProject(id ?? '', {
                       clientPortal: {
                         enabled: true,
-                        portalId: `portal-${id?.slice(0, 8)}`,
+                        portalId: `portal-${id?.slice(0, 8)}-${Date.now().toString(36)}`,
                         showSchedule: true,
                         showChangeOrders: true,
                         showInvoices: true,
                         showPhotos: true,
+                        showBudgetSummary: false,
+                        showDailyReports: false,
+                        showPunchList: false,
+                        showRFIs: false,
+                        showDocuments: false,
+                        invites: [],
                       },
                     });
                     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                    Alert.alert('Portal Enabled', 'Client portal link has been generated.');
+                    router.push({ pathname: '/client-portal-setup', params: { id } });
                   }}
                   activeOpacity={0.7}
                 >
@@ -2271,6 +2290,8 @@ const styles = StyleSheet.create({
   portalCopyBtn: { width: 40, height: 40, borderRadius: 10, backgroundColor: Colors.primary + '12', alignItems: 'center', justifyContent: 'center' },
   portalEnableBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12, borderRadius: 10, backgroundColor: '#5856D6' + '12', borderWidth: 1, borderColor: '#5856D6' + '20' },
   portalEnableBtnText: { fontSize: 14, fontWeight: '600' as const, color: '#5856D6' },
+  portalInviteCount: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 5, marginBottom: 10 },
+  portalInviteCountText: { fontSize: 12, color: Colors.textMuted },
   commEmpty: { alignItems: 'center' as const, paddingVertical: 20, gap: 8 },
   commEmptyText: { fontSize: 13, color: Colors.textMuted, textAlign: 'center' as const, lineHeight: 18 },
   commEventRow: { flexDirection: 'row' as const, alignItems: 'flex-start' as const, gap: 10, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.borderLight },

@@ -553,13 +553,31 @@ export interface SubscriptionInfo {
   endDate?: string;
 }
 
+export interface ClientPortalInvite {
+  id: string;
+  email: string;
+  name: string;
+  invitedAt: string;
+  accessedAt?: string;
+  status: 'pending' | 'viewed';
+}
+
 export interface ClientPortalSettings {
   enabled: boolean;
   portalId: string;
+  // What clients can see
   showSchedule: boolean;
   showChangeOrders: boolean;
   showInvoices: boolean;
   showPhotos: boolean;
+  showBudgetSummary: boolean;
+  showDailyReports: boolean;
+  showPunchList: boolean;
+  showRFIs: boolean;
+  showDocuments: boolean;
+  // Client communication
+  welcomeMessage?: string;
+  invites?: ClientPortalInvite[];
 }
 
 export type ContactRole = 'Client' | 'Architect' | 'Owner\'s Rep' | 'Engineer' | 'Sub' | 'Supplier' | 'Lender' | 'Inspector' | 'Other';
