@@ -825,43 +825,43 @@ export const projectReportSchema = z.object({
 export type ProjectReportResult = z.infer<typeof projectReportSchema>;
 
 export const aiQuickEstimateSchema = z.object({
-  projectSummary: z.string(),
+  projectSummary: z.string().default(''),
   materials: z.array(z.object({
     name: z.string(),
-    category: z.string(),
-    unit: z.string(),
+    category: z.string().default('hardware'),
+    unit: z.string().default('ea'),
     quantity: z.number(),
     unitPrice: z.number(),
-    supplier: z.string(),
+    supplier: z.string().default('Home Depot'),
     notes: z.string().optional(),
-  })),
+  })).default([]),
   labor: z.array(z.object({
     trade: z.string(),
     hourlyRate: z.number(),
     hours: z.number(),
-    crew: z.string(),
+    crew: z.string().default('General crew'),
     notes: z.string().optional(),
-  })),
+  })).default([]),
   assemblies: z.array(z.object({
     name: z.string(),
-    category: z.string(),
-    quantity: z.number(),
-    unit: z.string(),
+    category: z.string().default('general'),
+    quantity: z.number().default(1),
+    unit: z.string().default('ea'),
     notes: z.string().optional(),
-  })),
+  })).default([]),
   additionalCosts: z.object({
-    permits: z.number(),
-    dumpsterRental: z.number(),
-    equipmentRental: z.number(),
-    cleanup: z.number(),
-    contingencyPercent: z.number(),
-    overheadPercent: z.number(),
-  }),
-  estimatedDuration: z.string(),
-  costPerSqFt: z.number(),
-  confidenceScore: z.number(),
-  warnings: z.array(z.string()),
-  savingsTips: z.array(z.string()),
+    permits: z.number().default(0),
+    dumpsterRental: z.number().default(0),
+    equipmentRental: z.number().default(0),
+    cleanup: z.number().default(0),
+    contingencyPercent: z.number().default(10),
+    overheadPercent: z.number().default(12),
+  }).default({}),
+  estimatedDuration: z.string().default('TBD'),
+  costPerSqFt: z.number().default(0),
+  confidenceScore: z.number().default(70),
+  warnings: z.array(z.string()).default([]),
+  savingsTips: z.array(z.string()).default([]),
 });
 
 export type AIQuickEstimateResult = z.infer<typeof aiQuickEstimateSchema>;
@@ -899,7 +899,27 @@ Use realistic 2025-2026 pricing for ${qualityTier || 'standard'} quality. Keep r
     maxTokens: 3000,
   });
   if (!aiResult.success) {
-    throw new Error(aiResult.error || 'Quick estimate generation unavailable');
+    console.warn('[AI Quick Estimate] AI failed, returning stub:', aiResult.error);
+    // Return a starter estimate the user can edit rather than crashing
+    return {
+      projectSummary: `Estimate for ${projectType || 'construction'} project — ${description.substring(0, 80)}`,
+      materials: [
+        { name: 'General Materials', category: 'hardware', unit: 'lot', quantity: 1, unitPrice: 5000, supplier: 'TBD' },
+        { name: 'Lumber', category: 'lumber', unit: 'bf', quantity: 500, unitPrice: 1.20, supplier: 'Home Depot' },
+        { name: 'Concrete', category: 'concrete', unit: 'cy', quantity: 10, unitPrice: 140, supplier: 'Local Supplier' },
+      ],
+      labor: [
+        { trade: 'General Laborer', hourlyRate: 45, hours: 80, crew: 'General crew' },
+        { trade: 'Carpenter', hourlyRate: 75, hours: 40, crew: 'Framing crew' },
+      ],
+      assemblies: [],
+      additionalCosts: { permits: 500, dumpsterRental: 400, equipmentRental: 300, cleanup: 200, contingencyPercent: 10, overheadPercent: 12 },
+      estimatedDuration: 'To be determined',
+      costPerSqFt: squareFootage > 0 ? Math.round(8000 / squareFootage) : 0,
+      confidenceScore: 30,
+      warnings: ['AI estimate unavailable — this is a placeholder. Please edit with actual quantities and pricing.'],
+      savingsTips: ['Get at least 3 contractor bids', 'Buy materials in bulk where possible'],
+    };
   }
   const result = aiResult.data;
   console.log('[AI Quick Estimate] Generated:', result.materials.length, 'materials,', result.labor.length, 'labor,', result.assemblies.length, 'assemblies');
