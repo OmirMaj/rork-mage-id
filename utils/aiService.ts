@@ -665,6 +665,11 @@ ${projectSummaries}
 
 DATE: ${new Date().toLocaleDateString()}`,
     schema: homeBriefingSchema,
+    schemaHint: {
+      briefing: "2-3 sentence portfolio overview highlighting what needs attention today",
+      projects: [{ name: "Project Name", status: "on_track", keyInsight: "Key insight for today", actionItem: "Specific action to take" }],
+      urgentItems: ["Overdue invoice for Project X"],
+    },
     tier: 'fast',
   });
   if (!aiResult.success) {

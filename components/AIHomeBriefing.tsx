@@ -128,7 +128,7 @@ export default React.memo(function AIHomeBriefing({ projects, invoices, subscrip
 
       <Text style={styles.briefingText}>{result.briefing}</Text>
 
-      {result.projects.map((proj, idx) => {
+      {(result.projects ?? []).map((proj, idx) => {
         const config = STATUS_ICONS[proj.status] ?? STATUS_ICONS.on_track;
         const StatusIcon = config.Icon;
         return (
@@ -147,7 +147,7 @@ export default React.memo(function AIHomeBriefing({ projects, invoices, subscrip
         );
       })}
 
-      {result.urgentItems.length > 0 && (
+      {(result.urgentItems ?? []).length > 0 && (
         <View style={styles.urgentSection}>
           {result.urgentItems.map((item, idx) => (
             <View key={idx} style={styles.urgentRow}>
