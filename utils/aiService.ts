@@ -876,36 +876,27 @@ export async function generateQuickEstimate(
   console.log('[AI Quick Estimate] Generating for:', description.substring(0, 60));
 
   const aiResult = await mageAI({
-    prompt: `You are an expert construction estimator with 25+ years of experience and access to current 2025-2026 material pricing from Home Depot, Lowe's, and wholesale suppliers. Generate a COMPLETE, detailed construction estimate.
+    prompt: `You are an expert construction estimator. Generate a detailed construction estimate as valid JSON.
 
-PROJECT DESCRIPTION:
-${description}
+PROJECT: ${description}
+Type: ${projectType || 'General Construction'} | SqFt: ${squareFootage || 'unspecified'} | Quality: ${qualityTier || 'standard'} | Location: ${location || 'US'}
 
-PROJECT DETAILS:
-- Type: ${projectType || 'General Construction'}
-- Square Footage: ${squareFootage || 'Not specified'}
-- Quality Tier: ${qualityTier || 'standard'}
-- Location: ${location || 'US National Average'}
+Return JSON with:
+- projectSummary: 1-2 sentence overview
+- materials: 8-15 items, each with name, category (lumber/concrete/roofing/flooring/plumbing/electrical/hvac/drywall/paint/hardware), unit, quantity (number), unitPrice (number, 2025 market rate), supplier (Home Depot/Lowes/ABC Supply/Ferguson), optional notes
+- labor: 3-6 trades, each with trade name, hourlyRate (number), hours (number), crew name, optional notes
+- assemblies: 2-5 relevant assemblies, each with name, category, quantity (number), unit, optional notes
+- additionalCosts: object with permits (number), dumpsterRental (number), equipmentRental (number), cleanup (number), contingencyPercent (number 5-15), overheadPercent (number 10-15)
+- estimatedDuration: string like "4-6 weeks"
+- costPerSqFt: number
+- confidenceScore: number 1-100
+- warnings: array of 2-3 strings
+- savingsTips: array of 2-3 strings
 
-REQUIREMENTS:
-1. Generate 10-25 material line items with REALISTIC quantities for this project scope
-2. Use CURRENT market prices — reference Home Depot, Lowe's, Ferguson, ABC Supply pricing
-3. Match materials to these categories: lumber, concrete, roofing, insulation, siding, windows, flooring, plumbing, electrical, hvac, drywall, paint, decking, fencing, steel, hardware, landscape
-4. Include 3-8 labor trades with realistic hourly rates and hours needed
-5. Match labor trades to: Carpenter, Electrician, Plumber, HVAC Technician, Painter, Roofer, Mason / Bricklayer, Concrete Finisher, Drywall Installer, Flooring Installer, Equipment Operator, General Laborer, Insulation Worker, Demolition Worker, Landscaper
-6. Suggest relevant assemblies from: Frame Interior Wall, Frame Exterior Wall, Drywall Hang & Finish, Electrical Outlet, Electrical Circuit, Recessed Light, Kitchen Plumbing, Bathroom Plumbing, Tile Floor, LVP Floor, Interior Paint, Exterior Paint, Composite Deck, Wood Deck, Shingle Roof, Concrete Slab, Batt Insulation, Privacy Fence, Vinyl Siding, HVAC Mini-Split, Kitchen Cabinet Base, Interior Demo
-7. Include permits, dumpster rental, equipment rental, cleanup costs
-8. Set contingency 5-15% based on project complexity
-9. Overhead typically 10-15%
-10. Calculate realistic cost per square foot
-11. Rate your confidence 1-100 in this estimate's accuracy
-12. Include 2-4 warnings about potential issues
-13. Include 2-4 money-saving tips specific to this project
-14. estimatedDuration as readable string like "4-6 weeks"
-
-Be thorough and realistic. This estimate should be professional-grade and ready for a client proposal. Use the ${qualityTier || 'standard'} quality tier to inform material selections and pricing.`,
+Use realistic 2025-2026 pricing for ${qualityTier || 'standard'} quality. Keep response concise.`,
     schema: aiQuickEstimateSchema,
-    tier: 'fast',
+    tier: 'smart',
+    maxTokens: 3000,
   });
   if (!aiResult.success) {
     throw new Error(aiResult.error || 'Quick estimate generation unavailable');
