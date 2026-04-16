@@ -1,0 +1,2707 @@
+=== SECTION 8: Schedule Components ===
+--- FILE: components/schedule/GanttChart.tsx ---
+import React, { useMemo, useCallback } from 'react';
+import {
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  StyleSheet,
+  Dimensions,
+} from 'react-native';
+import { Flag, GitBranch } from 'lucide-react-native';
+import { Colors } from '@/constants/colors';
+import type { ScheduleTask, ProjectSchedule } from '@/types';
+import {
+  formatShortDate,
+  getStatusColor,
+  getPhaseColor,
+} from '@/utils/scheduleEngine';
+
+const SCREEN_WIDTH = Dimensions.get('window').width;
+
+interface GanttChartProps {
+  schedule: ProjectSchedule;
+  tasks: ScheduleTask[];
+  projectStartDate: Date;
+  onTaskPress: (task: ScheduleTask) => void;
+  showBaseline: boolean;
+}
+
+function GanttChart({ schedule, tasks, projectStartDate, onTaskPress, showBaseline }: GanttChartProps) {
+  const totalDays = schedule.totalDurationDays;
+  const ganttWidth = Math.max(SCREEN_WIDTH * 1.5, totalDays * 14 + 200);
+
+  const phaseGroups = useMemo(() => {
+    const groups: Record<string, ScheduleTask[]> = {};
+    for (const task of tasks) {
+      if (!groups[task.phase]) groups[task.phase] = [];
+      groups[task.phase].push(task);
+    }
+    return groups;
+  }, [tasks]);
+
+  const todayOffset = useMemo(() => {
+    const now = new Date();
+    const diff = Math.ceil((now.getTime() - projectStartDate.getTime()) / (1000 * 60 * 60 * 24));
+    if (diff < 0 || diff > totalDays) return null;
+    return (diff / totalDays) * 100;
+  }, [projectStartDate, totalDays]);
+
+  const renderGanttRow = useCallback((task: ScheduleTask) => {
+    const statusColor = getStatusColor(task.status);
+    const barLeft = totalDays > 0 ? ((task.startDay - 1) / totalDays) * 100 : 0;
+    const barWidth = totalDays > 0 ? Math.max((task.durationDays / totalDays) * 100, 1.5) : 3;
+
+    const baselineTask = showBaseline && schedule.baseline
+      ? schedule.baseline.tasks.find(b => b.id === task.id)
+      : null;
+    const baselineLeft = baselineTask && totalDays > 0
+      ? ((baselineTask.startDay - 1) / totalDays) * 100 : null;
+    const baselineWidth = baselineTask && totalDays > 0
+      ? Math.max(((baselineTask.endDay - baselineTask.startDay) / totalDays) * 100, 1.5) : null;
+
+    return (
+      <TouchableOpacity
+        key={task.id}
+        style={s.ganttRow}
+        onPress={() => onTaskPress(task)}
+        activeOpacity={0.7}
+      >
+        <View style={s.ganttLabel}>
+          <View style={s.ganttLabelIcons}>
+            {task.isMilestone && <Flag size={9} color="#FF9500" />}
+            {task.isCriticalPath && <GitBranch size={9} color={Colors.error} />}
+          </View>
+          <Text style={s.ganttLabelText} numberOfLines={1}>{task.title}</Text>
+          <Text style={s.ganttLabelPercent}>{task.progress}%</Text>
+        </View>
+        <View style={s.ganttBarArea}>
+          {baselineLeft !== null && baselineWidth !== null && (
+            <View
+              style={[
+                s.ganttBaselineBar,
+                { left: `${baselineLeft}%` as any, width: `${baselineWidth}%` as any },
+              ]}
+            />
+          )}
+          {task.isMilestone ? (
+            <View
+              style={[
+                s.ganttDiamond,
+                { left: `${barLeft}%` as any, backgroundColor: '#007AFF' },
+              ]}
+            />
+          ) : (
+            <View
+              style={[
+                s.ganttBar,
+                {
+                  left: `${barLeft}%` as any,
+                  width: `${barWidth}%` as any,
+                  backgroundColor: task.isCriticalPath ? Colors.error : statusColor,
+                },
+              ]}
+            >
+              {task.progress > 0 && (
+                <View style={[s.ganttBarProgress, { width: `${task.progress}%` as any }]} />
+              )}
+            </View>
+          )}
+        </View>
+      </TouchableOpacity>
+    );
+  }, [totalDays, schedule, showBaseline, onTaskPress]);
+
+  return (
+    <View style={s.container}>
+      <ScrollView horizontal showsHorizontalScrollIndicator style={s.horizontalScroll}>
+        <View style={{ width: ganttWidth }}>
+          <View style={s.headerRow}>
+            <View style={s.headerLabel}>
+              <Text style={s.headerLabelText}>Task</Text>
+            </View>
+            <View style={s.headerTimeline}>
+              {Array.from({ length: Math.ceil(totalDays / 7) }, (_, i) => {
+                const weekStart = addDays(projectStartDate, i * 7);
+                return (
+                  <View key={i} style={[s.weekColumn, { width: `${(7 / totalDays) * 100}%` as any }]}>
+                    <Text style={s.weekLabel}>{formatShortDate(weekStart)}</Text>
+                  </View>
+                );
+              })}
+              {todayOffset !== null && (
+                <View style={[s.todayLine, { left: `${todayOffset}%` as any }]} />
+              )}
+            </View>
+          </View>
+
+          {Object.entries(phaseGroups).map(([phase, phaseTasks]) => (
+            <View key={phase}>
+              <View style={[s.phaseHeader, { borderLeftColor: getPhaseColor(phase) }]}>
+                <Text style={s.phaseHeaderText}>{phase}</Text>
+                <Text style={s.phaseHeaderCount}>{phaseTasks.length}</Text>
+              </View>
+              {phaseTasks.map(renderGanttRow)}
+            </View>
+          ))}
+        </View>
+      </ScrollView>
+    </View>
+  );
+}
+
+function addDays(date: Date, days: number): Date {
+  const result = new Date(date);
+  result.setDate(result.getDate() + days);
+  return result;
+}
+
+const s = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  horizontalScroll: {
+    flex: 1,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.borderLight,
+    height: 32,
+  },
+  headerLabel: {
+    width: 130,
+    justifyContent: 'center',
+    paddingLeft: 12,
+    borderRightWidth: 1,
+    borderRightColor: Colors.borderLight,
+  },
+  headerLabelText: {
+    fontSize: 11,
+    fontWeight: '600' as const,
+    color: Colors.textMuted,
+    textTransform: 'uppercase' as const,
+    letterSpacing: 0.5,
+  },
+  headerTimeline: {
+    flex: 1,
+    flexDirection: 'row',
+    position: 'relative' as any,
+  },
+  weekColumn: {
+    borderRightWidth: 0.5,
+    borderRightColor: Colors.borderLight,
+    justifyContent: 'center',
+    paddingLeft: 4,
+  },
+  weekLabel: {
+    fontSize: 9,
+    color: Colors.textMuted,
+    fontWeight: '500' as const,
+  },
+  todayLine: {
+    position: 'absolute' as const,
+    top: 0,
+    bottom: 0,
+    width: 2,
+    backgroundColor: '#FF3B30',
+    zIndex: 10,
+  },
+  phaseHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: Colors.surfaceAlt,
+    borderLeftWidth: 3,
+  },
+  phaseHeaderText: {
+    fontSize: 12,
+    fontWeight: '700' as const,
+    color: Colors.text,
+  },
+  phaseHeaderCount: {
+    fontSize: 11,
+    color: Colors.textMuted,
+    fontWeight: '500' as const,
+  },
+  ganttRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 32,
+    borderBottomWidth: 0.5,
+    borderBottomColor: Colors.borderLight,
+  },
+  ganttLabel: {
+    width: 130,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 8,
+    borderRightWidth: 1,
+    borderRightColor: Colors.borderLight,
+  },
+  ganttLabelIcons: {
+    flexDirection: 'row',
+    gap: 2,
+  },
+  ganttLabelText: {
+    flex: 1,
+    fontSize: 11,
+    fontWeight: '500' as const,
+    color: Colors.text,
+  },
+  ganttLabelPercent: {
+    fontSize: 10,
+    fontWeight: '600' as const,
+    color: Colors.textMuted,
+  },
+  ganttBarArea: {
+    flex: 1,
+    height: 20,
+    justifyContent: 'center',
+    marginHorizontal: 2,
+  },
+  ganttBar: {
+    position: 'absolute' as const,
+    height: 16,
+    borderRadius: 4,
+    minWidth: 4,
+    overflow: 'hidden' as const,
+  },
+  ganttBarProgress: {
+    position: 'absolute' as const,
+    top: 0,
+    left: 0,
+    height: '100%',
+    backgroundColor: 'rgba(255,255,255,0.3)',
+    borderRadius: 4,
+  },
+  ganttBaselineBar: {
+    position: 'absolute' as const,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: 'rgba(120,120,128,0.2)',
+    top: 14,
+  },
+  ganttDiamond: {
+    position: 'absolute' as const,
+    width: 10,
+    height: 10,
+    borderRadius: 2,
+    transform: [{ rotate: '45deg' }],
+  },
+});
+
+export default React.memo(GanttChart);
+
+--- FILE: components/schedule/LookaheadView.tsx ---
+import React, { useMemo, useCallback, useState, useRef } from 'react';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  FlatList,
+  Platform,
+  Animated,
+  PanResponder,
+} from 'react-native';
+import * as Haptics from 'expo-haptics';
+import {
+  Plus,
+  AlertTriangle,
+  ChevronRight,
+} from 'lucide-react-native';
+import { Colors } from '@/constants/colors';
+import type { ScheduleTask, ProjectSchedule } from '@/types';
+import {
+  getPhaseColor,
+  getTaskDateRange,
+  getPredecessors,
+} from '@/utils/scheduleEngine';
+import { getSimulatedForecast, getConditionIcon } from '@/utils/weatherService';
+import type { DayForecast } from '@/utils/weatherService';
+
+interface LookaheadViewProps {
+  tasks: ScheduleTask[];
+  schedule: ProjectSchedule;
+  projectStartDate: Date;
+  onProgressUpdate: (task: ScheduleTask, progress: number) => void;
+  onTaskPress: (task: ScheduleTask) => void;
+}
+
+interface WeekGroup {
+  weekStart: Date;
+  weekEnd: Date;
+  label: string;
+  tasks: ScheduleTask[];
+  forecast: DayForecast[];
+}
+
+function getMonday(date: Date): Date {
+  const d = new Date(date);
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+  d.setDate(diff);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+const SwipeableLookaheadCard = React.memo(function SwipeableLookaheadCard({
+  task,
+  allTasks,
+  schedule,
+  projectStartDate,
+  onProgressUpdate,
+  onTaskPress,
+}: {
+  task: ScheduleTask;
+  allTasks: ScheduleTask[];
+  schedule: ProjectSchedule;
+  projectStartDate: Date;
+  onProgressUpdate: (task: ScheduleTask, progress: number) => void;
+  onTaskPress: (task: ScheduleTask) => void;
+}) {
+  const phaseColor = getPhaseColor(task.phase);
+  const preds = getPredecessors(task, allTasks);
+  const isBlocked = preds.some(p => p.status !== 'done');
+  const dateRange = getTaskDateRange(task, projectStartDate, schedule.workingDaysPerWeek);
+  const totalDays = task.durationDays;
+  const daysPassed = Math.max(
+    0,
+    Math.ceil((new Date().getTime() - dateRange.start.getTime()) / (1000 * 60 * 60 * 24))
+  );
+  const dayOfN = Math.min(Math.max(1, daysPassed), totalDays);
+
+  const translateX = useRef(new Animated.Value(0)).current;
+  const flashOpacity = useRef(new Animated.Value(0)).current;
+  const startProg = useRef(task.progress);
+
+  const flashGreen = useCallback(() => {
+    Animated.sequence([
+      Animated.timing(flashOpacity, { toValue: 1, duration: 150, useNativeDriver: true }),
+      Animated.timing(flashOpacity, { toValue: 0, duration: 400, useNativeDriver: true }),
+    ]).start();
+  }, [flashOpacity]);
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (_e, gs) =>
+        Math.abs(gs.dx) > 15 && Math.abs(gs.dx) > Math.abs(gs.dy) * 1.5,
+      onPanResponderGrant: () => {
+        startProg.current = task.progress;
+      },
+      onPanResponderMove: (_e, gs) => {
+        if (gs.dx > 0) {
+          translateX.setValue(Math.min(gs.dx * 0.5, 60));
+        }
+      },
+      onPanResponderRelease: (_e, gs) => {
+        if (gs.dx > 50) {
+          const next = Math.min(100, Math.ceil((startProg.current + 25) / 25) * 25);
+          if (next !== startProg.current) {
+            onProgressUpdate(task, next);
+            flashGreen();
+            if (next >= 100 && Platform.OS !== 'web') {
+              void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            } else if (Platform.OS !== 'web') {
+              void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            }
+          }
+        }
+        Animated.spring(translateX, { toValue: 0, useNativeDriver: true, tension: 80, friction: 10 }).start();
+      },
+      onPanResponderTerminate: () => {
+        Animated.spring(translateX, { toValue: 0, useNativeDriver: true, tension: 80, friction: 10 }).start();
+      },
+    })
+  ).current;
+
+  const handleIncrement = useCallback(() => {
+    const next = Math.min(100, task.progress + 25);
+    onProgressUpdate(task, next);
+    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  }, [task, onProgressUpdate]);
+
+  return (
+    <View style={s.swipeWrapper}>
+      <View style={s.swipeBg}>
+        <ChevronRight size={14} color="#FFF" />
+        <Text style={s.swipeBgText}>+25%</Text>
+      </View>
+
+      <Animated.View
+        style={{ transform: [{ translateX }] }}
+        {...panResponder.panHandlers}
+      >
+        <TouchableOpacity
+          style={[s.taskCard, isBlocked && s.taskCardBlocked]}
+          onPress={() => onTaskPress(task)}
+          activeOpacity={0.7}
+        >
+          <View style={[s.taskPhaseBar, { backgroundColor: phaseColor }]} />
+          <View style={s.taskCardBody}>
+            <View style={s.taskCardTop}>
+              <Text style={s.taskCardTitle} numberOfLines={1}>{task.title}</Text>
+              {isBlocked && (
+                <View style={s.blockedTag}>
+                  <AlertTriangle size={9} color="#FF3B30" />
+                  <Text style={s.blockedTagText}>BLOCKED</Text>
+                </View>
+              )}
+            </View>
+            <View style={s.taskCardMeta}>
+              {task.crew ? (
+                <Text style={s.taskCardCrewText}>{task.crew}{task.crewSize ? ` (${task.crewSize})` : ''}</Text>
+              ) : null}
+              <Text style={s.taskCardDayText}>Day {dayOfN}/{totalDays}</Text>
+            </View>
+            <View style={s.taskCardProgressRow}>
+              <View style={s.taskCardProgressTrack}>
+                <View style={[s.taskCardProgressFill, { width: `${task.progress}%` as any, backgroundColor: phaseColor }]} />
+              </View>
+              <Text style={s.taskCardProgressText}>{task.progress}%</Text>
+              <TouchableOpacity style={s.incrementBtn} onPress={handleIncrement}>
+                <Plus size={12} color={Colors.primary} />
+              </TouchableOpacity>
+            </View>
+          </View>
+        </TouchableOpacity>
+
+        <Animated.View
+          style={[s.flashOverlay, { opacity: flashOpacity }]}
+          pointerEvents="none"
+        />
+      </Animated.View>
+    </View>
+  );
+});
+
+function LookaheadView({
+  tasks,
+  schedule,
+  projectStartDate,
+  onProgressUpdate,
+  onTaskPress,
+}: LookaheadViewProps) {
+  const [weekCount, setWeekCount] = useState<3 | 6>(3);
+  const now = useMemo(() => new Date(), []);
+
+  const forecast = useMemo(
+    () => getSimulatedForecast(now, weekCount * 7),
+    [now, weekCount]
+  );
+
+  const weekGroups = useMemo<WeekGroup[]>(() => {
+    const groups: WeekGroup[] = [];
+    const monday = getMonday(now);
+
+    for (let w = 0; w < weekCount; w++) {
+      const weekStart = new Date(monday);
+      weekStart.setDate(weekStart.getDate() + w * 7);
+      const weekEnd = new Date(weekStart);
+      weekEnd.setDate(weekEnd.getDate() + 4);
+
+      const weekTasks = tasks.filter(t => {
+        if (t.isMilestone && t.durationDays === 0) return false;
+        const { start, end } = getTaskDateRange(t, projectStartDate, schedule.workingDaysPerWeek);
+        return start <= weekEnd && end >= weekStart;
+      });
+
+      const weekForecast = forecast.filter(f => {
+        const d = new Date(f.date);
+        return d >= weekStart && d <= weekEnd;
+      });
+
+      const monthDay = weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      const endDay = weekEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+      groups.push({
+        weekStart,
+        weekEnd,
+        label: `${monthDay} – ${endDay}`,
+        tasks: weekTasks,
+        forecast: weekForecast,
+      });
+    }
+    return groups;
+  }, [tasks, schedule, projectStartDate, now, weekCount, forecast]);
+
+  const renderWeekHeader = useCallback((week: WeekGroup) => {
+    const taskCount = week.tasks.length;
+    const crewSet = new Set(week.tasks.map(t => t.crew).filter(Boolean));
+    const blocked = week.tasks.filter(t => {
+      const preds = getPredecessors(t, tasks);
+      return preds.some(p => p.status !== 'done');
+    }).length;
+
+    return (
+      <View style={s.weekHeader}>
+        <View style={s.weekHeaderTop}>
+          <Text style={s.weekLabel}>{week.label}</Text>
+          <Text style={s.weekSummary}>
+            {taskCount} tasks · {crewSet.size} crews{blocked > 0 ? ` · ${blocked} blocked` : ''}
+          </Text>
+        </View>
+        {week.forecast.length > 0 && (
+          <View style={s.weekWeatherRow}>
+            {week.forecast.map(f => {
+              const d = new Date(f.date);
+              const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
+              const hasWeatherSensitive = week.tasks.some(t => t.isWeatherSensitive);
+              const isRisky = !f.isWorkable && hasWeatherSensitive;
+              return (
+                <View key={f.date} style={[s.weekWeatherDay, !f.isWorkable && s.weekWeatherDayBad]}>
+                  <Text style={s.weekWeatherDayName}>{dayName}</Text>
+                  <Text style={s.weekWeatherIcon}>{getConditionIcon(f.condition)}</Text>
+                  {isRisky && <Text style={s.weatherRisk}>⚠️</Text>}
+                </View>
+              );
+            })}
+          </View>
+        )}
+      </View>
+    );
+  }, [tasks]);
+
+  const renderItem = useCallback(({ item }: { item: WeekGroup }) => (
+    <View style={s.weekSection}>
+      {renderWeekHeader(item)}
+      {item.tasks.length === 0 ? (
+        <View style={s.weekEmpty}>
+          <Text style={s.weekEmptyText}>No tasks this week</Text>
+        </View>
+      ) : (
+        item.tasks.map(task => (
+          <SwipeableLookaheadCard
+            key={task.id}
+            task={task}
+            allTasks={tasks}
+            schedule={schedule}
+            projectStartDate={projectStartDate}
+            onProgressUpdate={onProgressUpdate}
+            onTaskPress={onTaskPress}
+          />
+        ))
+      )}
+    </View>
+  ), [tasks, schedule, projectStartDate, onProgressUpdate, onTaskPress, renderWeekHeader]);
+
+  return (
+    <View style={s.container}>
+      <View style={s.segmentControl}>
+        <TouchableOpacity
+          style={[s.segmentBtn, weekCount === 3 && s.segmentBtnActive]}
+          onPress={() => setWeekCount(3)}
+        >
+          <Text style={[s.segmentBtnText, weekCount === 3 && s.segmentBtnTextActive]}>3 Week</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[s.segmentBtn, weekCount === 6 && s.segmentBtnActive]}
+          onPress={() => setWeekCount(6)}
+        >
+          <Text style={[s.segmentBtnText, weekCount === 6 && s.segmentBtnTextActive]}>6 Week</Text>
+        </TouchableOpacity>
+      </View>
+
+      <FlatList
+        data={weekGroups}
+        renderItem={renderItem}
+        keyExtractor={(item) => item.label}
+        scrollEnabled={false}
+        contentContainerStyle={s.weekList}
+      />
+    </View>
+  );
+}
+
+const s = StyleSheet.create({
+  container: { paddingHorizontal: 16, gap: 12 },
+
+  segmentControl: {
+    flexDirection: 'row',
+    backgroundColor: Colors.fillTertiary,
+    borderRadius: 12,
+    padding: 3,
+    alignSelf: 'flex-start',
+  },
+  segmentBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 10,
+  },
+  segmentBtnActive: { backgroundColor: Colors.primary },
+  segmentBtnText: { fontSize: 13, fontWeight: '600' as const, color: Colors.textSecondary },
+  segmentBtnTextActive: { color: '#FFF' },
+
+  weekList: { gap: 16 },
+
+  weekSection: { gap: 8 },
+  weekHeader: {
+    backgroundColor: Colors.surface,
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+    gap: 8,
+  },
+  weekHeaderTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  weekLabel: { fontSize: 15, fontWeight: '800' as const, color: Colors.text },
+  weekSummary: { fontSize: 11, color: Colors.textSecondary, fontWeight: '500' as const },
+
+  weekWeatherRow: { flexDirection: 'row', gap: 6, justifyContent: 'space-around' },
+  weekWeatherDay: { alignItems: 'center', gap: 1 },
+  weekWeatherDayBad: { opacity: 0.5 },
+  weekWeatherDayName: { fontSize: 10, fontWeight: '600' as const, color: Colors.textMuted },
+  weekWeatherIcon: { fontSize: 14 },
+  weatherRisk: { fontSize: 10 },
+
+  weekEmpty: {
+    alignItems: 'center',
+    paddingVertical: 16,
+    backgroundColor: Colors.fillSecondary,
+    borderRadius: 12,
+  },
+  weekEmptyText: { fontSize: 13, color: Colors.textMuted },
+
+  swipeWrapper: {
+    position: 'relative' as const,
+    borderRadius: 14,
+    overflow: 'hidden' as const,
+  },
+  swipeBg: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#34C759',
+    borderRadius: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingLeft: 12,
+    gap: 3,
+  },
+  swipeBgText: { fontSize: 12, fontWeight: '800' as const, color: '#FFF' },
+  flashOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#34C75920',
+    borderRadius: 14,
+  },
+
+  taskCard: {
+    flexDirection: 'row',
+    backgroundColor: Colors.surface,
+    borderRadius: 14,
+    overflow: 'hidden' as const,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+  },
+  taskCardBlocked: { borderColor: '#FF3B3025' },
+  taskPhaseBar: { width: 4 },
+  taskCardBody: { flex: 1, padding: 12, gap: 6 },
+  taskCardTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  taskCardTitle: { fontSize: 14, fontWeight: '700' as const, color: Colors.text, flex: 1, marginRight: 8 },
+  blockedTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: '#FF3B3012',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  blockedTagText: { fontSize: 9, fontWeight: '800' as const, color: '#FF3B30' },
+  taskCardMeta: { flexDirection: 'row', gap: 10 },
+  taskCardCrewText: { fontSize: 11, color: Colors.textSecondary, fontWeight: '500' as const },
+  taskCardDayText: { fontSize: 11, color: Colors.textMuted },
+  taskCardProgressRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  taskCardProgressTrack: {
+    flex: 1,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: Colors.fillSecondary,
+    overflow: 'hidden' as const,
+  },
+  taskCardProgressFill: { height: '100%', borderRadius: 3 },
+  taskCardProgressText: { fontSize: 11, fontWeight: '700' as const, color: Colors.text, minWidth: 28, textAlign: 'right' as const },
+  incrementBtn: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: Colors.fillTertiary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+});
+
+export default React.memo(LookaheadView);
+
+--- FILE: components/schedule/QuickBuildModal.tsx ---
+import React, { useState, useCallback, useMemo } from 'react';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  ScrollView,
+  Platform,
+  Modal,
+  Pressable,
+} from 'react-native';
+import * as Haptics from 'expo-haptics';
+import {
+  ChevronRight,
+  X,
+  Zap,
+  Home,
+  Building2,
+  Wrench,
+  Trees,
+} from 'lucide-react-native';
+import { Colors } from '@/constants/colors';
+import { SCHEDULE_TEMPLATES } from '@/constants/scheduleTemplates';
+import type { ScheduleTemplate } from '@/constants/scheduleTemplates';
+
+interface QuickBuildModalProps {
+  visible: boolean;
+  onClose: () => void;
+  onTemplateSelect: (template: ScheduleTemplate, startDate: Date) => void;
+}
+
+type ProjectSize = 'small' | 'medium' | 'large';
+
+const SIZE_LABELS: Record<ProjectSize, { label: string; factor: number; desc: string }> = {
+  small: { label: 'Small', factor: 0.7, desc: 'Compact scope' },
+  medium: { label: 'Medium', factor: 1.0, desc: 'Standard scope' },
+  large: { label: 'Large', factor: 1.5, desc: 'Extended scope' },
+};
+
+const TEMPLATE_ICONS: Record<string, typeof Home> = {
+  'kitchen-remodel': Wrench,
+  'bathroom-remodel': Wrench,
+  'basement-finish': Home,
+  'roof-replacement': Home,
+  'new-home': Building2,
+  'commercial-ti': Building2,
+  'exterior-renovation': Home,
+  'parking-lot': Trees,
+};
+
+function getNextMonday(): Date {
+  const now = new Date();
+  const dow = now.getDay();
+  const daysUntilMonday = dow === 0 ? 1 : dow === 1 ? 7 : 8 - dow;
+  const nextMon = new Date(now);
+  nextMon.setDate(nextMon.getDate() + daysUntilMonday);
+  nextMon.setHours(0, 0, 0, 0);
+  return nextMon;
+}
+
+function QuickBuildModal({ visible, onClose, onTemplateSelect }: QuickBuildModalProps) {
+  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [selectedTemplate, setSelectedTemplate] = useState<ScheduleTemplate | null>(null);
+  const [selectedSize, setSelectedSize] = useState<ProjectSize>('medium');
+
+  const startDate = useMemo(() => getNextMonday(), []);
+
+  const handleSelectTemplate = useCallback((template: ScheduleTemplate) => {
+    setSelectedTemplate(template);
+    setStep(2);
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+  }, []);
+
+  const handleSelectSize = useCallback((size: ProjectSize) => {
+    setSelectedSize(size);
+    setStep(3);
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+  }, []);
+
+  const scaledTemplate = useMemo<ScheduleTemplate | null>(() => {
+    if (!selectedTemplate) return null;
+    const factor = SIZE_LABELS[selectedSize].factor;
+    return {
+      ...selectedTemplate,
+      tasks: selectedTemplate.tasks.map(t => ({
+        ...t,
+        duration: t.isMilestone ? 0 : Math.max(1, Math.round(t.duration * factor)),
+      })),
+    };
+  }, [selectedTemplate, selectedSize]);
+
+  const totalDuration = useMemo(() => {
+    if (!scaledTemplate) return 0;
+    return scaledTemplate.tasks.reduce((sum, t) => sum + t.duration, 0);
+  }, [scaledTemplate]);
+
+  const handleCreate = useCallback(() => {
+    if (!scaledTemplate) return;
+    onTemplateSelect(scaledTemplate, startDate);
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setStep(1);
+    setSelectedTemplate(null);
+    setSelectedSize('medium');
+  }, [scaledTemplate, startDate, onTemplateSelect]);
+
+  const handleClose = useCallback(() => {
+    setStep(1);
+    setSelectedTemplate(null);
+    setSelectedSize('medium');
+    onClose();
+  }, [onClose]);
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose}>
+      <View style={s.overlay}>
+        <Pressable style={{ flex: 1 }} onPress={handleClose} />
+        <View style={s.sheet}>
+          <View style={s.handle} />
+          <View style={s.header}>
+            <View style={s.headerLeft}>
+              <Zap size={20} color={Colors.accent} />
+              <Text style={s.headerTitle}>Quick Build</Text>
+            </View>
+            <TouchableOpacity onPress={handleClose}>
+              <X size={20} color={Colors.textMuted} />
+            </TouchableOpacity>
+          </View>
+
+          <View style={s.stepIndicator}>
+            {[1, 2, 3].map(n => (
+              <View key={n} style={[s.stepDot, step >= n && s.stepDotActive]} />
+            ))}
+          </View>
+
+          {step === 1 && (
+            <>
+              <Text style={s.stepTitle}>What type of project?</Text>
+              <ScrollView showsVerticalScrollIndicator={false} style={s.scrollContent}>
+                {SCHEDULE_TEMPLATES.map(template => {
+                  const Icon = TEMPLATE_ICONS[template.id] ?? Wrench;
+                  return (
+                    <TouchableOpacity
+                      key={template.id}
+                      style={s.templateCard}
+                      onPress={() => handleSelectTemplate(template)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={s.templateIconWrap}>
+                        <Icon size={18} color={Colors.primary} />
+                      </View>
+                      <View style={s.templateInfo}>
+                        <Text style={s.templateName}>{template.name}</Text>
+                        <Text style={s.templateMeta}>{template.taskCount} tasks · {template.typicalDuration}</Text>
+                      </View>
+                      <ChevronRight size={16} color={Colors.textMuted} />
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            </>
+          )}
+
+          {step === 2 && (
+            <>
+              <Text style={s.stepTitle}>How big is the project?</Text>
+              <Text style={s.stepSubtitle}>{selectedTemplate?.name}</Text>
+              <View style={s.sizeOptions}>
+                {(Object.keys(SIZE_LABELS) as ProjectSize[]).map(size => {
+                  const info = SIZE_LABELS[size];
+                  const isActive = selectedSize === size;
+                  return (
+                    <TouchableOpacity
+                      key={size}
+                      style={[s.sizeCard, isActive && s.sizeCardActive]}
+                      onPress={() => handleSelectSize(size)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[s.sizeLabel, isActive && s.sizeLabelActive]}>{info.label}</Text>
+                      <Text style={[s.sizeDesc, isActive && s.sizeDescActive]}>{info.desc}</Text>
+                      <Text style={[s.sizeFactor, isActive && s.sizeFactorActive]}>{info.factor}x</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </>
+          )}
+
+          {step === 3 && scaledTemplate && (
+            <>
+              <Text style={s.stepTitle}>Review & Go</Text>
+              <View style={s.reviewCard}>
+                <Text style={s.reviewLabel}>Template</Text>
+                <Text style={s.reviewValue}>{scaledTemplate.name}</Text>
+              </View>
+              <View style={s.reviewRow}>
+                <View style={s.reviewCard}>
+                  <Text style={s.reviewLabel}>Tasks</Text>
+                  <Text style={s.reviewValue}>{scaledTemplate.tasks.length}</Text>
+                </View>
+                <View style={s.reviewCard}>
+                  <Text style={s.reviewLabel}>Est. Duration</Text>
+                  <Text style={s.reviewValue}>{totalDuration}d</Text>
+                </View>
+                <View style={s.reviewCard}>
+                  <Text style={s.reviewLabel}>Size</Text>
+                  <Text style={s.reviewValue}>{SIZE_LABELS[selectedSize].label}</Text>
+                </View>
+              </View>
+              <View style={s.reviewCard}>
+                <Text style={s.reviewLabel}>Start Date</Text>
+                <Text style={s.reviewValue}>
+                  {startDate.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
+                </Text>
+              </View>
+
+              <ScrollView style={s.taskPreview} showsVerticalScrollIndicator={false}>
+                {scaledTemplate.tasks.filter(t => !t.isMilestone).map(t => (
+                  <View key={t.id} style={s.previewRow}>
+                    <Text style={s.previewName} numberOfLines={1}>{t.name}</Text>
+                    <Text style={s.previewDur}>{t.duration}d</Text>
+                  </View>
+                ))}
+              </ScrollView>
+
+              <TouchableOpacity style={s.createBtn} onPress={handleCreate} activeOpacity={0.85}>
+                <Zap size={16} color="#FFF" />
+                <Text style={s.createBtnText}>Create Schedule</Text>
+              </TouchableOpacity>
+            </>
+          )}
+
+          {step > 1 && (
+            <TouchableOpacity style={s.backBtn} onPress={() => setStep(prev => (prev - 1) as 1 | 2 | 3)}>
+              <Text style={s.backBtnText}>Back</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const s = StyleSheet.create({
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
+  sheet: {
+    backgroundColor: Colors.surface,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 20,
+    maxHeight: '80%',
+    gap: 10,
+  },
+  handle: { width: 36, height: 4, borderRadius: 2, backgroundColor: Colors.fillTertiary, alignSelf: 'center', marginBottom: 4 },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  headerTitle: { fontSize: 20, fontWeight: '800' as const, color: Colors.text },
+
+  stepIndicator: { flexDirection: 'row', gap: 6, alignSelf: 'center' },
+  stepDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.fillTertiary },
+  stepDotActive: { backgroundColor: Colors.primary },
+
+  stepTitle: { fontSize: 17, fontWeight: '700' as const, color: Colors.text },
+  stepSubtitle: { fontSize: 13, color: Colors.textSecondary, marginTop: -4 },
+
+  scrollContent: { maxHeight: 380 },
+
+  templateCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.surfaceAlt,
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 8,
+    gap: 12,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+  },
+  templateIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: Colors.primary + '12',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  templateInfo: { flex: 1, gap: 2 },
+  templateName: { fontSize: 15, fontWeight: '700' as const, color: Colors.text },
+  templateMeta: { fontSize: 12, color: Colors.textSecondary },
+
+  sizeOptions: { flexDirection: 'row', gap: 10, marginTop: 6 },
+  sizeCard: {
+    flex: 1,
+    alignItems: 'center',
+    backgroundColor: Colors.surfaceAlt,
+    borderRadius: 16,
+    padding: 18,
+    gap: 6,
+    borderWidth: 2,
+    borderColor: Colors.borderLight,
+  },
+  sizeCardActive: { borderColor: Colors.primary, backgroundColor: Colors.primary + '08' },
+  sizeLabel: { fontSize: 16, fontWeight: '800' as const, color: Colors.text },
+  sizeLabelActive: { color: Colors.primary },
+  sizeDesc: { fontSize: 11, color: Colors.textSecondary, textAlign: 'center' as const },
+  sizeDescActive: { color: Colors.primary },
+  sizeFactor: { fontSize: 13, fontWeight: '700' as const, color: Colors.textMuted },
+  sizeFactorActive: { color: Colors.primary },
+
+  reviewCard: {
+    backgroundColor: Colors.surfaceAlt,
+    borderRadius: 12,
+    padding: 12,
+    gap: 2,
+    flex: 1,
+  },
+  reviewRow: { flexDirection: 'row', gap: 8 },
+  reviewLabel: { fontSize: 10, fontWeight: '600' as const, color: Colors.textMuted, textTransform: 'uppercase' as const },
+  reviewValue: { fontSize: 14, fontWeight: '700' as const, color: Colors.text },
+
+  taskPreview: { maxHeight: 200, marginTop: 4 },
+  previewRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 6,
+    borderBottomWidth: 0.5,
+    borderBottomColor: Colors.borderLight,
+  },
+  previewName: { flex: 1, fontSize: 13, color: Colors.text, fontWeight: '500' as const },
+  previewDur: { fontSize: 12, fontWeight: '700' as const, color: Colors.textMuted },
+
+  createBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    minHeight: 52,
+    borderRadius: 16,
+    backgroundColor: Colors.primary,
+    marginTop: 6,
+  },
+  createBtnText: { fontSize: 16, fontWeight: '700' as const, color: '#FFF' },
+
+  backBtn: { alignSelf: 'center', paddingVertical: 8 },
+  backBtnText: { fontSize: 14, fontWeight: '600' as const, color: Colors.textSecondary },
+});
+
+export default React.memo(QuickBuildModal);
+
+--- FILE: components/schedule/ScheduleShareSheet.tsx ---
+import React, { useState, useCallback } from 'react';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  Modal,
+  Pressable,
+  Alert,
+  Platform,
+  ActivityIndicator,
+  ScrollView,
+} from 'react-native';
+import * as Haptics from 'expo-haptics';
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
+import {
+  Share2,
+  X,
+  FileText,
+  Users,
+} from 'lucide-react-native';
+import { Colors } from '@/constants/colors';
+import type { ScheduleTask, ProjectSchedule } from '@/types';
+import {
+  formatShortDate,
+  getPhaseColor,
+  getStatusLabel,
+  getTaskDateRange,
+  addWorkingDays,
+} from '@/utils/scheduleEngine';
+
+interface ScheduleShareSheetProps {
+  visible: boolean;
+  onClose: () => void;
+  schedule: ProjectSchedule;
+  tasks: ScheduleTask[];
+  projectStartDate: Date;
+  projectName: string;
+  companyName?: string;
+}
+
+function ScheduleShareSheet({
+  visible,
+  onClose,
+  schedule,
+  tasks,
+  projectStartDate,
+  projectName,
+  companyName,
+}: ScheduleShareSheetProps) {
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [shareMode, setShareMode] = useState<'full' | 'trade'>('full');
+  const [selectedPhase, setSelectedPhase] = useState<string | null>(null);
+
+  const phases = React.useMemo(() => {
+    const set = new Set(tasks.map(t => t.phase));
+    return Array.from(set);
+  }, [tasks]);
+
+  const generatePdfHtml = useCallback((filteredTasks: ScheduleTask[]): string => {
+    const endDate = addWorkingDays(projectStartDate, schedule.totalDurationDays, schedule.workingDaysPerWeek);
+    const totalProgress = filteredTasks.length > 0
+      ? Math.round(filteredTasks.reduce((s, t) => s + t.progress, 0) / filteredTasks.length)
+      : 0;
+
+    const taskRows = filteredTasks.map(t => {
+      const dr = getTaskDateRange(t, projectStartDate, schedule.workingDaysPerWeek);
+      const phaseColor = getPhaseColor(t.phase);
+      return `
+        <tr>
+          <td style="padding:8px 10px;border-bottom:1px solid #eee;">
+            <span style="display:inline-block;width:8px;height:8px;border-radius:4px;background:${phaseColor};margin-right:6px;"></span>
+            ${t.title}${t.isMilestone ? ' ⚑' : ''}${t.isCriticalPath ? ' ⚡' : ''}
+          </td>
+          <td style="padding:8px 10px;border-bottom:1px solid #eee;color:#666;">${t.phase}</td>
+          <td style="padding:8px 10px;border-bottom:1px solid #eee;">${formatShortDate(dr.start)}</td>
+          <td style="padding:8px 10px;border-bottom:1px solid #eee;">${formatShortDate(dr.end)}</td>
+          <td style="padding:8px 10px;border-bottom:1px solid #eee;text-align:center;">${t.durationDays}d</td>
+          <td style="padding:8px 10px;border-bottom:1px solid #eee;">
+            <div style="background:#e5e5e5;border-radius:4px;height:8px;overflow:hidden;">
+              <div style="background:${phaseColor};height:100%;width:${t.progress}%;border-radius:4px;"></div>
+            </div>
+          </td>
+          <td style="padding:8px 10px;border-bottom:1px solid #eee;text-align:center;font-weight:600;">${t.progress}%</td>
+          <td style="padding:8px 10px;border-bottom:1px solid #eee;color:#888;">${getStatusLabel(t.status)}</td>
+        </tr>
+      `;
+    }).join('');
+
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8" />
+        <style>
+          body { font-family: -apple-system, Helvetica, Arial, sans-serif; margin: 0; padding: 30px; color: #1a1a1a; }
+          h1 { font-size: 22px; margin-bottom: 4px; }
+          .subtitle { color: #666; font-size: 13px; margin-bottom: 20px; }
+          .stats { display: flex; gap: 20px; margin-bottom: 24px; }
+          .stat { background: #f5f5f5; border-radius: 10px; padding: 12px 16px; text-align: center; flex: 1; }
+          .stat-value { font-size: 22px; font-weight: 800; }
+          .stat-label { font-size: 11px; color: #888; text-transform: uppercase; }
+          table { width: 100%; border-collapse: collapse; font-size: 12px; }
+          th { text-align: left; padding: 8px 10px; background: #f8f8f8; border-bottom: 2px solid #ddd; font-size: 10px; text-transform: uppercase; color: #888; letter-spacing: 0.5px; }
+          .footer { margin-top: 30px; font-size: 10px; color: #aaa; text-align: center; }
+        </style>
+      </head>
+      <body>
+        ${companyName ? `<div style="font-size:11px;color:#888;margin-bottom:4px;">${companyName}</div>` : ''}
+        <h1>${projectName} — Schedule</h1>
+        <div class="subtitle">
+          ${formatShortDate(projectStartDate)} – ${formatShortDate(endDate)} · ${schedule.totalDurationDays} working days
+          ${shareMode === 'trade' && selectedPhase ? ` · ${selectedPhase} only` : ''}
+        </div>
+        <div class="stats">
+          <div class="stat"><div class="stat-value">${totalProgress}%</div><div class="stat-label">Complete</div></div>
+          <div class="stat"><div class="stat-value">${filteredTasks.length}</div><div class="stat-label">Tasks</div></div>
+          <div class="stat"><div class="stat-value">${schedule.totalDurationDays}</div><div class="stat-label">Duration</div></div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Task</th><th>Phase</th><th>Start</th><th>End</th><th>Duration</th><th style="width:80px;">Progress</th><th>%</th><th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${taskRows}
+          </tbody>
+        </table>
+        <div class="footer">Generated by MAGE ID · ${new Date().toLocaleDateString()}</div>
+      </body>
+      </html>
+    `;
+  }, [schedule, projectStartDate, projectName, companyName, shareMode, selectedPhase]);
+
+  const handleShare = useCallback(async () => {
+    setIsGenerating(true);
+    try {
+      const filteredTasks = shareMode === 'trade' && selectedPhase
+        ? tasks.filter(t => t.phase === selectedPhase)
+        : tasks;
+
+      const html = generatePdfHtml(filteredTasks);
+      const { uri } = await Print.printToFileAsync({ html });
+
+      const isAvailable = await Sharing.isAvailableAsync();
+      if (isAvailable) {
+        await Sharing.shareAsync(uri, {
+          mimeType: 'application/pdf',
+          dialogTitle: `${projectName} Schedule`,
+          UTI: 'com.adobe.pdf',
+        });
+      } else {
+        Alert.alert('Sharing not available', 'Sharing is not supported on this device.');
+      }
+
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      onClose();
+    } catch (err) {
+      console.log('[ScheduleShare] Error generating PDF:', err);
+      Alert.alert('Error', 'Failed to generate schedule PDF.');
+    } finally {
+      setIsGenerating(false);
+    }
+  }, [tasks, shareMode, selectedPhase, generatePdfHtml, projectName, onClose]);
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={st.overlay}>
+        <Pressable style={{ flex: 1 }} onPress={onClose} />
+        <View style={st.sheet}>
+          <View style={st.handle} />
+          <View style={st.header}>
+            <View style={st.headerLeft}>
+              <Share2 size={18} color={Colors.primary} />
+              <Text style={st.headerTitle}>Share Schedule</Text>
+            </View>
+            <TouchableOpacity onPress={onClose}>
+              <X size={20} color={Colors.textMuted} />
+            </TouchableOpacity>
+          </View>
+
+          <View style={st.modeRow}>
+            <TouchableOpacity
+              style={[st.modeBtn, shareMode === 'full' && st.modeBtnActive]}
+              onPress={() => setShareMode('full')}
+            >
+              <FileText size={14} color={shareMode === 'full' ? '#FFF' : Colors.textSecondary} />
+              <Text style={[st.modeBtnText, shareMode === 'full' && st.modeBtnTextActive]}>Full Schedule</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[st.modeBtn, shareMode === 'trade' && st.modeBtnActive]}
+              onPress={() => setShareMode('trade')}
+            >
+              <Users size={14} color={shareMode === 'trade' ? '#FFF' : Colors.textSecondary} />
+              <Text style={[st.modeBtnText, shareMode === 'trade' && st.modeBtnTextActive]}>By Trade</Text>
+            </TouchableOpacity>
+          </View>
+
+          {shareMode === 'trade' && (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={st.phaseScroll}>
+              <View style={st.phaseRow}>
+                {phases.map(phase => (
+                  <TouchableOpacity
+                    key={phase}
+                    style={[st.phaseChip, selectedPhase === phase && st.phaseChipActive]}
+                    onPress={() => setSelectedPhase(phase)}
+                  >
+                    <View style={[st.phaseChipDot, { backgroundColor: getPhaseColor(phase) }]} />
+                    <Text style={[st.phaseChipText, selectedPhase === phase && st.phaseChipTextActive]}>{phase}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </ScrollView>
+          )}
+
+          <TouchableOpacity
+            style={[st.shareBtn, isGenerating && { opacity: 0.6 }]}
+            onPress={handleShare}
+            disabled={isGenerating || (shareMode === 'trade' && !selectedPhase)}
+            activeOpacity={0.85}
+          >
+            {isGenerating ? (
+              <ActivityIndicator color="#FFF" size="small" />
+            ) : (
+              <Share2 size={16} color="#FFF" />
+            )}
+            <Text style={st.shareBtnText}>
+              {isGenerating ? 'Generating PDF...' : 'Generate & Share PDF'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const st = StyleSheet.create({
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
+  sheet: {
+    backgroundColor: Colors.surface,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 20,
+    gap: 14,
+  },
+  handle: { width: 36, height: 4, borderRadius: 2, backgroundColor: Colors.fillTertiary, alignSelf: 'center', marginBottom: 4 },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  headerTitle: { fontSize: 18, fontWeight: '700' as const, color: Colors.text },
+
+  modeRow: { flexDirection: 'row', gap: 8 },
+  modeBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: Colors.fillTertiary,
+  },
+  modeBtnActive: { backgroundColor: Colors.primary },
+  modeBtnText: { fontSize: 14, fontWeight: '600' as const, color: Colors.textSecondary },
+  modeBtnTextActive: { color: '#FFF' },
+
+  phaseScroll: { marginVertical: 2 },
+  phaseRow: { flexDirection: 'row', gap: 6 },
+  phaseChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    backgroundColor: Colors.fillTertiary,
+  },
+  phaseChipActive: { backgroundColor: Colors.primary + '18', borderWidth: 1, borderColor: Colors.primary },
+  phaseChipDot: { width: 6, height: 6, borderRadius: 3 },
+  phaseChipText: { fontSize: 12, fontWeight: '600' as const, color: Colors.textSecondary },
+  phaseChipTextActive: { color: Colors.primary },
+
+  shareBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    minHeight: 52,
+    borderRadius: 14,
+    backgroundColor: Colors.primary,
+  },
+  shareBtnText: { fontSize: 15, fontWeight: '700' as const, color: '#FFF' },
+});
+
+export default React.memo(ScheduleShareSheet);
+
+--- FILE: components/schedule/SwipeableTaskCard.tsx ---
+import React, { useRef, useCallback } from 'react';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  Animated,
+  PanResponder,
+  Platform,
+} from 'react-native';
+import * as Haptics from 'expo-haptics';
+import { CheckCircle2, ChevronRight } from 'lucide-react-native';
+import { Colors } from '@/constants/colors';
+import type { ScheduleTask } from '@/types';
+import { getPhaseColor, getStatusColor } from '@/utils/scheduleEngine';
+
+interface SwipeableTaskCardProps {
+  task: ScheduleTask;
+  onProgressUpdate: (task: ScheduleTask, progress: number) => void;
+  onPress: (task: ScheduleTask) => void;
+  children: React.ReactNode;
+}
+
+function SwipeableTaskCard({
+  task,
+  onProgressUpdate,
+  onPress,
+  children,
+}: SwipeableTaskCardProps) {
+  const translateX = useRef(new Animated.Value(0)).current;
+  const progressAnim = useRef(new Animated.Value(task.progress)).current;
+  const flashOpacity = useRef(new Animated.Value(0)).current;
+  const cardWidth = useRef(0);
+  const startProgress = useRef(task.progress);
+  const currentSnap = useRef(task.progress);
+
+  const triggerHaptic = useCallback(() => {
+    if (Platform.OS !== 'web') {
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+  }, []);
+
+  const flashGreen = useCallback(() => {
+    Animated.sequence([
+      Animated.timing(flashOpacity, {
+        toValue: 1,
+        duration: 150,
+        useNativeDriver: true,
+      }),
+      Animated.timing(flashOpacity, {
+        toValue: 0,
+        duration: 400,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [flashOpacity]);
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (_evt, gestureState) => {
+        return Math.abs(gestureState.dx) > 15 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy) * 1.5;
+      },
+      onPanResponderGrant: () => {
+        startProgress.current = task.progress;
+        currentSnap.current = task.progress;
+      },
+      onPanResponderMove: (_evt, gestureState) => {
+        if (gestureState.dx > 0 && cardWidth.current > 0) {
+          const swipeRatio = gestureState.dx / cardWidth.current;
+          const progressIncrease = swipeRatio * 100;
+          const newProgress = Math.min(100, Math.max(0, startProgress.current + progressIncrease));
+          const snapped = Math.round(newProgress / 25) * 25;
+
+          if (snapped !== currentSnap.current) {
+            currentSnap.current = snapped;
+            triggerHaptic();
+          }
+
+          progressAnim.setValue(newProgress);
+          translateX.setValue(Math.min(gestureState.dx, 80));
+        }
+      },
+      onPanResponderRelease: (_evt, gestureState) => {
+        if (gestureState.dx > 30 && cardWidth.current > 0) {
+          const swipeRatio = gestureState.dx / cardWidth.current;
+          const progressIncrease = swipeRatio * 100;
+          const newProgress = Math.min(100, Math.max(0, startProgress.current + progressIncrease));
+          const snapped = Math.round(newProgress / 25) * 25;
+          const finalProgress = Math.max(snapped, startProgress.current);
+
+          if (finalProgress !== startProgress.current) {
+            onProgressUpdate(task, finalProgress);
+            flashGreen();
+
+            if (finalProgress >= 100) {
+              if (Platform.OS !== 'web') {
+                void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              }
+            }
+          }
+        }
+
+        Animated.spring(translateX, {
+          toValue: 0,
+          useNativeDriver: true,
+          tension: 80,
+          friction: 10,
+        }).start();
+
+        progressAnim.setValue(task.progress);
+      },
+      onPanResponderTerminate: () => {
+        Animated.spring(translateX, {
+          toValue: 0,
+          useNativeDriver: true,
+          tension: 80,
+          friction: 10,
+        }).start();
+        progressAnim.setValue(task.progress);
+      },
+    })
+  ).current;
+
+  const phaseColor = getPhaseColor(task.phase);
+  const swipeProgressWidth = progressAnim.interpolate({
+    inputRange: [0, 100],
+    outputRange: ['0%', '100%'],
+    extrapolate: 'clamp',
+  });
+
+  return (
+    <View
+      style={s.wrapper}
+      onLayout={(e) => { cardWidth.current = e.nativeEvent.layout.width; }}
+    >
+      <View style={s.swipeBackground}>
+        <View style={s.swipeBgContent}>
+          <ChevronRight size={16} color="#FFF" />
+          <Text style={s.swipeBgText}>+25%</Text>
+        </View>
+        <Animated.View
+          style={[
+            s.swipeProgressOverlay,
+            { width: swipeProgressWidth as any, backgroundColor: phaseColor + '40' },
+          ]}
+        />
+      </View>
+
+      <Animated.View
+        style={[
+          s.cardContainer,
+          { transform: [{ translateX }] },
+        ]}
+        {...panResponder.panHandlers}
+      >
+        <TouchableOpacity
+          style={s.cardTouchable}
+          onPress={() => onPress(task)}
+          activeOpacity={0.85}
+        >
+          {children}
+        </TouchableOpacity>
+
+        <Animated.View
+          style={[
+            s.flashOverlay,
+            { opacity: flashOpacity, backgroundColor: '#34C75920' },
+          ]}
+          pointerEvents="none"
+        />
+      </Animated.View>
+    </View>
+  );
+}
+
+const s = StyleSheet.create({
+  wrapper: {
+    position: 'relative' as const,
+    overflow: 'hidden' as const,
+    borderRadius: 16,
+  },
+  swipeBackground: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#34C759',
+    borderRadius: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingLeft: 16,
+    overflow: 'hidden' as const,
+  },
+  swipeBgContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    zIndex: 2,
+  },
+  swipeBgText: {
+    fontSize: 13,
+    fontWeight: '800' as const,
+    color: '#FFF',
+  },
+  swipeProgressOverlay: {
+    position: 'absolute' as const,
+    top: 0,
+    left: 0,
+    bottom: 0,
+    zIndex: 1,
+  },
+  cardContainer: {
+    borderRadius: 16,
+    overflow: 'hidden' as const,
+  },
+  cardTouchable: {
+    borderRadius: 16,
+  },
+  flashOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 16,
+  },
+});
+
+export default React.memo(SwipeableTaskCard);
+
+--- FILE: components/schedule/TodayView.tsx ---
+import React, { useMemo, useCallback, useRef } from 'react';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  FlatList,
+  Platform,
+  Animated,
+  PanResponder,
+  Image,
+} from 'react-native';
+import * as Haptics from 'expo-haptics';
+import * as ImagePicker from 'expo-image-picker';
+import {
+  CheckCircle2,
+  Plus,
+  Camera,
+  MessageSquare,
+  Clock,
+  AlertTriangle,
+  ChevronRight,
+  Trophy,
+  Sun,
+  ImageIcon,
+} from 'lucide-react-native';
+import { Colors } from '@/constants/colors';
+import type { ScheduleTask, ProjectSchedule } from '@/types';
+import {
+  formatShortDate,
+  getPhaseColor,
+  getTaskDateRange,
+  getPredecessors,
+  getSuccessors,
+} from '@/utils/scheduleEngine';
+import { getSimulatedForecast, getConditionIcon } from '@/utils/weatherService';
+
+interface TodayViewProps {
+  tasks: ScheduleTask[];
+  schedule: ProjectSchedule;
+  projectStartDate: Date;
+  onProgressUpdate: (task: ScheduleTask, progress: number) => void;
+  onTaskPress: (task: ScheduleTask) => void;
+  onPhotoPress?: (task: ScheduleTask) => void;
+  onPhotoAdded?: (task: ScheduleTask, photo: { uri: string; timestamp: string; note?: string }) => void;
+  healthScore: number;
+  daysRemaining: number;
+}
+
+const SwipeableActiveCard = React.memo(function SwipeableActiveCard({
+  task,
+  schedule,
+  projectStartDate,
+  allTasks,
+  onProgressUpdate,
+  onTaskPress,
+  onPhotoAdded,
+}: {
+  task: ScheduleTask;
+  schedule: ProjectSchedule;
+  projectStartDate: Date;
+  allTasks: ScheduleTask[];
+  onProgressUpdate: (task: ScheduleTask, progress: number) => void;
+  onTaskPress: (task: ScheduleTask) => void;
+  onPhotoAdded?: (task: ScheduleTask, photo: { uri: string; timestamp: string; note?: string }) => void;
+}) {
+  const phaseColor = getPhaseColor(task.phase);
+  const dateRange = getTaskDateRange(task, projectStartDate, schedule.workingDaysPerWeek);
+  const totalDays = task.durationDays;
+  const daysPassed = Math.max(
+    1,
+    Math.ceil((new Date().getTime() - dateRange.start.getTime()) / (1000 * 60 * 60 * 24))
+  );
+  const dayOfN = Math.min(daysPassed, totalDays);
+
+  const preds = getPredecessors(task, allTasks);
+  const predsComplete = preds.every(p => p.status === 'done');
+  const predsInProgress = preds.some(p => p.status === 'in_progress');
+
+  const succs = getSuccessors(task.id, allTasks);
+  const willUnblock = succs.filter(s => {
+    const sPreds = getPredecessors(s, allTasks);
+    const otherPreds = sPreds.filter(p => p.id !== task.id);
+    return otherPreds.every(p => p.status === 'done');
+  });
+
+  const translateX = useRef(new Animated.Value(0)).current;
+  const flashOpacity = useRef(new Animated.Value(0)).current;
+  const readyGlow = useRef(new Animated.Value(0)).current;
+  const cardWidth = useRef(0);
+  const startProg = useRef(task.progress);
+
+  const flashGreen = useCallback(() => {
+    Animated.sequence([
+      Animated.timing(flashOpacity, { toValue: 1, duration: 150, useNativeDriver: true }),
+      Animated.timing(flashOpacity, { toValue: 0, duration: 400, useNativeDriver: true }),
+    ]).start();
+  }, [flashOpacity]);
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (_e, gs) =>
+        Math.abs(gs.dx) > 15 && Math.abs(gs.dx) > Math.abs(gs.dy) * 1.5,
+      onPanResponderGrant: () => {
+        startProg.current = task.progress;
+      },
+      onPanResponderMove: (_e, gs) => {
+        if (gs.dx > 0) {
+          translateX.setValue(Math.min(gs.dx * 0.5, 60));
+        }
+      },
+      onPanResponderRelease: (_e, gs) => {
+        if (gs.dx > 50) {
+          const increment = 25;
+          const next = Math.min(100, Math.ceil((startProg.current + increment) / 25) * 25);
+          if (next !== startProg.current) {
+            onProgressUpdate(task, next);
+            flashGreen();
+            if (next >= 100 && Platform.OS !== 'web') {
+              void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            } else if (Platform.OS !== 'web') {
+              void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            }
+          }
+        }
+        Animated.spring(translateX, { toValue: 0, useNativeDriver: true, tension: 80, friction: 10 }).start();
+      },
+      onPanResponderTerminate: () => {
+        Animated.spring(translateX, { toValue: 0, useNativeDriver: true, tension: 80, friction: 10 }).start();
+      },
+    })
+  ).current;
+
+  const handleIncrement = useCallback(() => {
+    const next = Math.min(100, task.progress + 10);
+    onProgressUpdate(task, next);
+    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+    if (next >= 100 && willUnblock.length > 0) {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(readyGlow, { toValue: 1, duration: 600, useNativeDriver: true }),
+          Animated.timing(readyGlow, { toValue: 0, duration: 600, useNativeDriver: true }),
+        ]),
+        { iterations: 3 }
+      ).start();
+    }
+  }, [task, onProgressUpdate, willUnblock, readyGlow]);
+
+  const handleComplete = useCallback(() => {
+    onProgressUpdate(task, 100);
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  }, [task, onProgressUpdate]);
+
+  const handlePhotoCapture = useCallback(async () => {
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        const libResult = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ['images'],
+          quality: 0.7,
+          allowsEditing: true,
+        });
+        if (!libResult.canceled && libResult.assets[0]) {
+          onPhotoAdded?.(task, {
+            uri: libResult.assets[0].uri,
+            timestamp: new Date().toISOString(),
+          });
+          if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        }
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        quality: 0.7,
+        allowsEditing: true,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        onPhotoAdded?.(task, {
+          uri: result.assets[0].uri,
+          timestamp: new Date().toISOString(),
+        });
+        if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      }
+    } catch (err) {
+      console.log('[TodayView] Photo capture error:', err);
+      try {
+        const libResult = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ['images'],
+          quality: 0.7,
+          allowsEditing: true,
+        });
+        if (!libResult.canceled && libResult.assets[0]) {
+          onPhotoAdded?.(task, {
+            uri: libResult.assets[0].uri,
+            timestamp: new Date().toISOString(),
+          });
+        }
+      } catch (libErr) {
+        console.log('[TodayView] Library pick error:', libErr);
+      }
+    }
+  }, [task, onPhotoAdded]);
+
+  const photoCount = task.photos?.length ?? 0;
+
+  return (
+    <View
+      style={s.swipeWrapper}
+      onLayout={(e) => { cardWidth.current = e.nativeEvent.layout.width; }}
+    >
+      <View style={s.swipeBg}>
+        <ChevronRight size={16} color="#FFF" />
+        <Text style={s.swipeBgText}>+25%</Text>
+      </View>
+
+      <Animated.View
+        style={{ transform: [{ translateX }] }}
+        {...panResponder.panHandlers}
+      >
+        <TouchableOpacity
+          style={s.activeCard}
+          onPress={() => onTaskPress(task)}
+          activeOpacity={0.85}
+        >
+          <View style={[s.activeCardPhaseBar, { backgroundColor: phaseColor }]} />
+          <View style={s.activeCardContent}>
+            <View style={s.activeCardHeader}>
+              <Text style={s.activeCardTitle} numberOfLines={1}>{task.title}</Text>
+              <View style={s.dayIndicator}>
+                <Text style={s.dayIndicatorText}>Day {dayOfN} of {totalDays}</Text>
+              </View>
+            </View>
+
+            {task.crew ? (
+              <Text style={s.activeCardCrew}>{task.crew}{task.crewSize ? ` (${task.crewSize})` : ''}</Text>
+            ) : null}
+
+            {preds.length > 0 && (
+              <View style={s.predRow}>
+                {predsComplete ? (
+                  <View style={s.predBadgeGreen}>
+                    <CheckCircle2 size={10} color="#34C759" />
+                    <Text style={s.predBadgeTextGreen}>Predecessors done</Text>
+                  </View>
+                ) : predsInProgress ? (
+                  <View style={s.predBadgeYellow}>
+                    <Clock size={10} color="#FF9500" />
+                    <Text style={s.predBadgeTextYellow}>Predecessors in progress</Text>
+                  </View>
+                ) : (
+                  <View style={s.predBadgeRed}>
+                    <AlertTriangle size={10} color="#FF3B30" />
+                    <Text style={s.predBadgeTextRed}>Blocked</Text>
+                  </View>
+                )}
+              </View>
+            )}
+
+            <TouchableOpacity
+              style={s.progressBarContainer}
+              onPress={handleIncrement}
+              activeOpacity={0.8}
+            >
+              <View style={s.progressTrack}>
+                <View
+                  style={[s.progressFill, { width: `${task.progress}%` as any, backgroundColor: phaseColor }]}
+                />
+              </View>
+              <Text style={[s.progressPercent, { color: phaseColor }]}>{task.progress}%</Text>
+            </TouchableOpacity>
+
+            <View style={s.quickActions}>
+              <TouchableOpacity style={s.quickActionBtn} onPress={handleIncrement}>
+                <Plus size={14} color={Colors.primary} />
+                <Text style={s.quickActionLabel}>+10%</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[s.quickActionBtn, s.quickActionBtnComplete]}
+                onPress={handleComplete}
+              >
+                <CheckCircle2 size={14} color="#34C759" />
+                <Text style={[s.quickActionLabel, { color: '#34C759' }]}>Done</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={s.quickActionBtn} onPress={handlePhotoCapture}>
+                <Camera size={14} color={Colors.info} />
+                {photoCount > 0 && (
+                  <Text style={[s.quickActionLabel, { color: Colors.info }]}>{photoCount}</Text>
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity style={s.quickActionBtn} onPress={() => onTaskPress(task)}>
+                <MessageSquare size={14} color={Colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            {photoCount > 0 && (
+              <View style={s.photoStrip}>
+                {task.photos!.slice(-3).map((photo, idx) => (
+                  <View key={idx} style={s.photoThumb}>
+                    <Image source={{ uri: photo.uri }} style={s.photoThumbImg} />
+                  </View>
+                ))}
+                {photoCount > 3 && (
+                  <View style={s.photoMore}>
+                    <ImageIcon size={10} color={Colors.textMuted} />
+                    <Text style={s.photoMoreText}>+{photoCount - 3}</Text>
+                  </View>
+                )}
+              </View>
+            )}
+          </View>
+        </TouchableOpacity>
+
+        <Animated.View
+          style={[s.flashOverlay, { opacity: flashOpacity }]}
+          pointerEvents="none"
+        />
+      </Animated.View>
+    </View>
+  );
+});
+
+function TodayView({
+  tasks,
+  schedule,
+  projectStartDate,
+  onProgressUpdate,
+  onTaskPress,
+  onPhotoAdded,
+  healthScore,
+  daysRemaining,
+}: TodayViewProps) {
+  const now = useMemo(() => new Date(), []);
+
+  const forecast = useMemo(() => getSimulatedForecast(now, 4), [now]);
+  const todayWeather = forecast[0];
+
+  const activeTasks = useMemo(() => {
+    return tasks.filter(t => {
+      if (t.status === 'done') return false;
+      if (t.isMilestone) return false;
+      const { start, end } = getTaskDateRange(t, projectStartDate, schedule.workingDaysPerWeek);
+      return start <= now && end >= now;
+    });
+  }, [tasks, projectStartDate, schedule, now]);
+
+  const comingUpTasks = useMemo(() => {
+    const threeDaysOut = new Date(now);
+    threeDaysOut.setDate(threeDaysOut.getDate() + 3);
+    return tasks.filter(t => {
+      if (t.status === 'done') return false;
+      if (t.isMilestone) return false;
+      const { start } = getTaskDateRange(t, projectStartDate, schedule.workingDaysPerWeek);
+      return start > now && start <= threeDaysOut;
+    }).slice(0, 8);
+  }, [tasks, projectStartDate, schedule, now]);
+
+  const overdueTasks = useMemo(() => {
+    return tasks.filter(t => {
+      if (t.status === 'done') return false;
+      if (t.isMilestone) return false;
+      const { end } = getTaskDateRange(t, projectStartDate, schedule.workingDaysPerWeek);
+      return end < now && t.progress < 100;
+    });
+  }, [tasks, projectStartDate, schedule, now]);
+
+  const completedToday = useMemo(() => {
+    return tasks.filter(t => t.status === 'done').slice(0, 5);
+  }, [tasks]);
+
+  const blockedComingUp = useMemo(() => {
+    return comingUpTasks.filter(t => {
+      const preds = getPredecessors(t, tasks);
+      return preds.some(p => p.status !== 'done');
+    });
+  }, [comingUpTasks, tasks]);
+
+  const dateFormatted = useMemo(() => {
+    const options: Intl.DateTimeFormatOptions = {
+      weekday: 'long',
+      month: 'long',
+      day: 'numeric',
+    };
+    return now.toLocaleDateString('en-US', options);
+  }, [now]);
+
+  const renderActiveItem = useCallback(
+    ({ item }: { item: ScheduleTask }) => (
+      <SwipeableActiveCard
+        task={item}
+        schedule={schedule}
+        projectStartDate={projectStartDate}
+        allTasks={tasks}
+        onProgressUpdate={onProgressUpdate}
+        onTaskPress={onTaskPress}
+        onPhotoAdded={onPhotoAdded}
+      />
+    ),
+    [schedule, projectStartDate, tasks, onProgressUpdate, onTaskPress, onPhotoAdded]
+  );
+
+  return (
+    <View style={s.container}>
+      <View style={s.todayHeader}>
+        <View style={s.todayHeaderLeft}>
+          <Text style={s.todayDate}>{dateFormatted}</Text>
+          <View style={s.todayBadges}>
+            <View style={s.healthMini}>
+              <View style={[s.healthMiniDot, { backgroundColor: healthScore >= 80 ? '#34C759' : healthScore >= 60 ? '#FF9500' : '#FF3B30' }]} />
+              <Text style={s.healthMiniText}>{healthScore}</Text>
+            </View>
+            <View style={s.daysLeftMini}>
+              <Clock size={10} color={Colors.textSecondary} />
+              <Text style={s.daysLeftMiniText}>{daysRemaining}d left</Text>
+            </View>
+          </View>
+        </View>
+        {todayWeather && (
+          <View style={s.weatherCard}>
+            <Text style={s.weatherIcon}>{getConditionIcon(todayWeather.condition)}</Text>
+            <Text style={s.weatherTemp}>{todayWeather.tempHigh}°F</Text>
+            <Text style={s.weatherPrecip}>{todayWeather.precipChance}%💧</Text>
+          </View>
+        )}
+      </View>
+
+      {forecast.length > 1 && (
+        <View style={s.forecastRow}>
+          {forecast.slice(1).map((f) => {
+            const d = new Date(f.date);
+            const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
+            return (
+              <View key={f.date} style={[s.forecastDay, !f.isWorkable && s.forecastDayBad]}>
+                <Text style={s.forecastDayName}>{dayName}</Text>
+                <Text style={s.forecastDayIcon}>{getConditionIcon(f.condition)}</Text>
+                <Text style={s.forecastDayTemp}>{f.tempHigh}°</Text>
+              </View>
+            );
+          })}
+        </View>
+      )}
+
+      {overdueTasks.length > 0 && (
+        <View style={s.section}>
+          <View style={s.sectionHeaderOverdue}>
+            <AlertTriangle size={14} color="#FF3B30" />
+            <Text style={s.sectionTitleOverdue}>Overdue ({overdueTasks.length})</Text>
+          </View>
+          {overdueTasks.map(task => {
+            const { end } = getTaskDateRange(task, projectStartDate, schedule.workingDaysPerWeek);
+            const daysOver = Math.ceil((now.getTime() - end.getTime()) / (1000 * 60 * 60 * 24));
+            return (
+              <TouchableOpacity
+                key={task.id}
+                style={s.overdueCard}
+                onPress={() => onTaskPress(task)}
+                activeOpacity={0.7}
+              >
+                <View style={s.overdueLeft}>
+                  <Text style={s.overdueTitle} numberOfLines={1}>{task.title}</Text>
+                  <Text style={s.overdueMeta}>{daysOver}d overdue · {task.progress}% done</Text>
+                </View>
+                <View style={s.overdueActions}>
+                  <TouchableOpacity
+                    style={s.overdueResolveBtn}
+                    onPress={() => onProgressUpdate(task, 100)}
+                  >
+                    <Text style={s.overdueResolveBtnText}>Mark Done</Text>
+                  </TouchableOpacity>
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      )}
+
+      <View style={s.section}>
+        <View style={s.sectionHeader}>
+          <Sun size={14} color={Colors.accent} />
+          <Text style={s.sectionTitle}>Active Now ({activeTasks.length})</Text>
+        </View>
+        {activeTasks.length > 0 && (
+          <View style={s.swipeHint}>
+            <ChevronRight size={10} color={Colors.textMuted} />
+            <Text style={s.swipeHintText}>Swipe right on a task to update progress</Text>
+          </View>
+        )}
+        {activeTasks.length === 0 ? (
+          <View style={s.emptyActive}>
+            <CheckCircle2 size={28} color={Colors.success} />
+            <Text style={s.emptyActiveText}>No tasks active today</Text>
+          </View>
+        ) : (
+          <FlatList
+            data={activeTasks}
+            renderItem={renderActiveItem}
+            keyExtractor={item => item.id}
+            scrollEnabled={false}
+            contentContainerStyle={s.activeList}
+          />
+        )}
+      </View>
+
+      {comingUpTasks.length > 0 && (
+        <View style={s.section}>
+          <View style={s.sectionHeader}>
+            <ChevronRight size={14} color={Colors.info} />
+            <Text style={s.sectionTitle}>Coming Up (Next 3 Days)</Text>
+          </View>
+          {comingUpTasks.map(task => {
+            const { start } = getTaskDateRange(task, projectStartDate, schedule.workingDaysPerWeek);
+            const isBlocked = blockedComingUp.includes(task);
+            return (
+              <TouchableOpacity
+                key={task.id}
+                style={[s.compactCard, isBlocked && s.compactCardBlocked]}
+                onPress={() => onTaskPress(task)}
+                activeOpacity={0.7}
+              >
+                <View style={[s.compactDot, { backgroundColor: getPhaseColor(task.phase) }]} />
+                <View style={s.compactInfo}>
+                  <Text style={s.compactTitle} numberOfLines={1}>{task.title}</Text>
+                  <Text style={s.compactMeta}>
+                    {formatShortDate(start)} · {task.durationDays}d{task.crew ? ` · ${task.crew}` : ''}
+                  </Text>
+                </View>
+                {isBlocked && (
+                  <View style={s.blockedBadge}>
+                    <AlertTriangle size={10} color="#FF3B30" />
+                  </View>
+                )}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      )}
+
+      {completedToday.length > 0 && (
+        <View style={s.section}>
+          <View style={s.sectionHeaderGreen}>
+            <Trophy size={14} color="#34C759" />
+            <Text style={s.sectionTitleGreen}>Completed ({completedToday.length})</Text>
+          </View>
+          {completedToday.map(task => (
+            <View key={task.id} style={s.completedCard}>
+              <CheckCircle2 size={14} color="#34C759" />
+              <Text style={s.completedTitle} numberOfLines={1}>{task.title}</Text>
+            </View>
+          ))}
+        </View>
+      )}
+    </View>
+  );
+}
+
+const s = StyleSheet.create({
+  container: { paddingHorizontal: 16, gap: 16 },
+
+  todayHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  todayHeaderLeft: { flex: 1, gap: 6 },
+  todayDate: { fontSize: 18, fontWeight: '700' as const, color: Colors.text },
+  todayBadges: { flexDirection: 'row', gap: 8 },
+  healthMini: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: Colors.fillTertiary,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
+  },
+  healthMiniDot: { width: 6, height: 6, borderRadius: 3 },
+  healthMiniText: { fontSize: 12, fontWeight: '700' as const, color: Colors.text },
+  daysLeftMini: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: Colors.fillTertiary,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
+  },
+  daysLeftMiniText: { fontSize: 12, fontWeight: '600' as const, color: Colors.textSecondary },
+
+  weatherCard: {
+    alignItems: 'center',
+    backgroundColor: Colors.surface,
+    borderRadius: 14,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+    minWidth: 70,
+    gap: 2,
+  },
+  weatherIcon: { fontSize: 22 },
+  weatherTemp: { fontSize: 14, fontWeight: '700' as const, color: Colors.text },
+  weatherPrecip: { fontSize: 10, color: Colors.textSecondary },
+
+  forecastRow: {
+    flexDirection: 'row',
+    gap: 8,
+    justifyContent: 'space-around',
+    backgroundColor: Colors.surface,
+    borderRadius: 14,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+  },
+  forecastDay: { alignItems: 'center', gap: 2, flex: 1 },
+  forecastDayBad: { opacity: 0.6 },
+  forecastDayName: { fontSize: 11, fontWeight: '600' as const, color: Colors.textSecondary },
+  forecastDayIcon: { fontSize: 16 },
+  forecastDayTemp: { fontSize: 12, fontWeight: '700' as const, color: Colors.text },
+
+  section: { gap: 8 },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  sectionTitle: { fontSize: 15, fontWeight: '700' as const, color: Colors.text },
+  sectionHeaderOverdue: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  sectionTitleOverdue: { fontSize: 15, fontWeight: '700' as const, color: '#FF3B30' },
+  sectionHeaderGreen: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  sectionTitleGreen: { fontSize: 15, fontWeight: '700' as const, color: '#34C759' },
+
+  swipeHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingLeft: 4,
+  },
+  swipeHintText: { fontSize: 11, color: Colors.textMuted, fontStyle: 'italic' as const },
+
+  emptyActive: {
+    alignItems: 'center',
+    paddingVertical: 30,
+    gap: 8,
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+  },
+  emptyActiveText: { fontSize: 14, color: Colors.textSecondary },
+
+  activeList: { gap: 10 },
+
+  swipeWrapper: {
+    position: 'relative' as const,
+    borderRadius: 16,
+    overflow: 'hidden' as const,
+  },
+  swipeBg: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#34C759',
+    borderRadius: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingLeft: 16,
+    gap: 4,
+  },
+  swipeBgText: { fontSize: 13, fontWeight: '800' as const, color: '#FFF' },
+  flashOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#34C75920',
+    borderRadius: 16,
+  },
+
+  activeCard: {
+    flexDirection: 'row',
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    overflow: 'hidden' as const,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+  },
+  activeCardPhaseBar: { width: 5 },
+  activeCardContent: { flex: 1, padding: 14, gap: 8 },
+  activeCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  activeCardTitle: { fontSize: 16, fontWeight: '700' as const, color: Colors.text, flex: 1, marginRight: 8 },
+  dayIndicator: {
+    backgroundColor: Colors.fillTertiary,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  dayIndicatorText: { fontSize: 11, fontWeight: '600' as const, color: Colors.textSecondary },
+  activeCardCrew: { fontSize: 12, color: Colors.textSecondary, fontWeight: '500' as const },
+
+  predRow: { flexDirection: 'row' },
+  predBadgeGreen: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#34C75912',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  predBadgeTextGreen: { fontSize: 10, fontWeight: '600' as const, color: '#34C759' },
+  predBadgeYellow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FF950012',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  predBadgeTextYellow: { fontSize: 10, fontWeight: '600' as const, color: '#FF9500' },
+  predBadgeRed: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FF3B3012',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  predBadgeTextRed: { fontSize: 10, fontWeight: '600' as const, color: '#FF3B30' },
+
+  progressBarContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  progressTrack: {
+    flex: 1,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: Colors.fillSecondary,
+    overflow: 'hidden' as const,
+  },
+  progressFill: { height: '100%', borderRadius: 5 },
+  progressPercent: { fontSize: 14, fontWeight: '800' as const, minWidth: 36, textAlign: 'right' as const },
+
+  quickActions: { flexDirection: 'row', gap: 8 },
+  quickActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 10,
+    backgroundColor: Colors.fillTertiary,
+  },
+  quickActionBtnComplete: { backgroundColor: '#34C75912' },
+  quickActionLabel: { fontSize: 12, fontWeight: '700' as const, color: Colors.text },
+
+  photoStrip: { flexDirection: 'row', gap: 6, marginTop: 2 },
+  photoThumb: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    overflow: 'hidden' as const,
+    backgroundColor: Colors.fillTertiary,
+  },
+  photoThumbImg: { width: 40, height: 40, borderRadius: 8 },
+  photoMore: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    backgroundColor: Colors.fillTertiary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 1,
+  },
+  photoMoreText: { fontSize: 9, fontWeight: '700' as const, color: Colors.textMuted },
+
+  overdueCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FF3B3008',
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#FF3B3020',
+    gap: 10,
+  },
+  overdueLeft: { flex: 1, gap: 2 },
+  overdueTitle: { fontSize: 14, fontWeight: '600' as const, color: Colors.text },
+  overdueMeta: { fontSize: 12, color: '#FF3B30', fontWeight: '500' as const },
+  overdueActions: { flexDirection: 'row', gap: 6 },
+  overdueResolveBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: '#34C75918',
+  },
+  overdueResolveBtnText: { fontSize: 12, fontWeight: '700' as const, color: '#34C759' },
+
+  compactCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    padding: 12,
+    gap: 10,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+  },
+  compactCardBlocked: { borderColor: '#FF3B3030' },
+  compactDot: { width: 8, height: 8, borderRadius: 4 },
+  compactInfo: { flex: 1, gap: 2 },
+  compactTitle: { fontSize: 14, fontWeight: '600' as const, color: Colors.text },
+  compactMeta: { fontSize: 12, color: Colors.textSecondary },
+  blockedBadge: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: '#FF3B3012',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  completedCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#34C75908',
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#34C75918',
+  },
+  completedTitle: { flex: 1, fontSize: 14, fontWeight: '500' as const, color: Colors.text },
+});
+
+export default React.memo(TodayView);
+
+--- FILE: components/schedule/VerticalGantt.tsx ---
+import React, { useMemo, useCallback } from 'react';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  ScrollView,
+} from 'react-native';
+import { GitBranch } from 'lucide-react-native';
+import { Colors } from '@/constants/colors';
+import type { ScheduleTask, ProjectSchedule } from '@/types';
+import {
+  formatShortDate,
+  getPhaseColor,
+  getTaskDateRange,
+} from '@/utils/scheduleEngine';
+import { getSimulatedForecast, getConditionIcon } from '@/utils/weatherService';
+
+interface VerticalGanttProps {
+  schedule: ProjectSchedule;
+  tasks: ScheduleTask[];
+  projectStartDate: Date;
+  onTaskPress: (task: ScheduleTask) => void;
+  showBaseline: boolean;
+}
+
+interface DayRow {
+  date: Date;
+  dateStr: string;
+  isToday: boolean;
+  isWeekend: boolean;
+  dayLabel: string;
+  weekdayLabel: string;
+  tasks: ScheduleTask[];
+  weatherIcon?: string;
+  isWorkable?: boolean;
+}
+
+function VerticalGantt({ schedule, tasks, projectStartDate, onTaskPress, showBaseline: _showBaseline }: VerticalGanttProps) {
+  const now = useMemo(() => new Date(), []);
+  const totalDays = schedule.totalDurationDays;
+
+  const forecast = useMemo(() => {
+    return getSimulatedForecast(now, 21);
+  }, [now]);
+
+  const dayRows = useMemo<DayRow[]>(() => {
+    const rows: DayRow[] = [];
+    const displayDays = Math.min(totalDays + 5, 90);
+
+    for (let d = 0; d < displayDays; d++) {
+      const date = new Date(projectStartDate);
+      date.setDate(date.getDate() + d);
+      const dateStr = date.toISOString().split('T')[0];
+      const dow = date.getDay();
+      const isWeekend = dow === 0 || dow === 6;
+      const todayStr = now.toISOString().split('T')[0];
+      const isToday = dateStr === todayStr;
+
+      const dayTasks = tasks.filter(t => {
+        const range = getTaskDateRange(t, projectStartDate, schedule.workingDaysPerWeek);
+        return date >= range.start && date <= range.end && !t.isMilestone;
+      });
+
+      const weather = forecast.find(f => f.date === dateStr);
+
+      rows.push({
+        date,
+        dateStr,
+        isToday,
+        isWeekend,
+        dayLabel: formatShortDate(date),
+        weekdayLabel: date.toLocaleDateString('en-US', { weekday: 'short' }),
+        tasks: dayTasks,
+        weatherIcon: weather ? getConditionIcon(weather.condition) : undefined,
+        isWorkable: weather?.isWorkable,
+      });
+    }
+    return rows;
+  }, [tasks, projectStartDate, schedule, totalDays, now, forecast]);
+
+  const renderTaskBar = useCallback((task: ScheduleTask) => {
+    const phaseColor = getPhaseColor(task.phase);
+
+    return (
+      <TouchableOpacity
+        key={task.id}
+        style={[s.taskBar, { backgroundColor: task.isCriticalPath ? Colors.error + '18' : phaseColor + '18' }]}
+        onPress={() => onTaskPress(task)}
+        activeOpacity={0.7}
+      >
+        <View style={[s.taskBarFill, { width: `${task.progress}%` as any, backgroundColor: phaseColor + '30' }]} />
+        <View style={s.taskBarContent}>
+          <View style={s.taskBarIcons}>
+            {task.isCriticalPath && <GitBranch size={9} color={Colors.error} />}
+          </View>
+          <Text style={[s.taskBarTitle, { color: phaseColor }]} numberOfLines={1}>{task.title}</Text>
+          <Text style={s.taskBarPercent}>{task.progress}%</Text>
+        </View>
+      </TouchableOpacity>
+    );
+  }, [onTaskPress]);
+
+  const renderDayRow = useCallback((row: DayRow) => {
+    if (row.isWeekend && row.tasks.length === 0) return null;
+
+    return (
+      <View key={row.dateStr} style={[s.dayRow, row.isToday && s.dayRowToday, row.isWeekend && s.dayRowWeekend]}>
+        {row.isToday && <View style={s.todayIndicator} />}
+        <View style={s.dayLabel}>
+          <Text style={[s.dayWeekday, row.isToday && s.dayWeekdayToday]}>{row.weekdayLabel}</Text>
+          <Text style={[s.dayDate, row.isToday && s.dayDateToday]}>{row.dayLabel}</Text>
+          {row.weatherIcon && (
+            <Text style={s.dayWeather}>{row.weatherIcon}</Text>
+          )}
+        </View>
+        <View style={s.dayTasks}>
+          {row.tasks.length === 0 ? (
+            <View style={s.emptyDay} />
+          ) : (
+            row.tasks.map(renderTaskBar)
+          )}
+        </View>
+      </View>
+    );
+  }, [renderTaskBar]);
+
+  return (
+    <View style={s.container}>
+      <ScrollView showsVerticalScrollIndicator={false}>
+        <View style={s.header}>
+          <View style={s.headerDateCol}>
+            <Text style={s.headerLabel}>DATE</Text>
+          </View>
+          <View style={s.headerTaskCol}>
+            <Text style={s.headerLabel}>TASKS</Text>
+          </View>
+        </View>
+        {dayRows.map(renderDayRow)}
+      </ScrollView>
+    </View>
+  );
+}
+
+const s = StyleSheet.create({
+  container: { flex: 1 },
+  header: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.borderLight,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+  },
+  headerDateCol: { width: 80, paddingLeft: 8 },
+  headerTaskCol: { flex: 1, paddingLeft: 8 },
+  headerLabel: {
+    fontSize: 10,
+    fontWeight: '700' as const,
+    color: Colors.textMuted,
+    textTransform: 'uppercase' as const,
+    letterSpacing: 0.5,
+  },
+  dayRow: {
+    flexDirection: 'row',
+    minHeight: 44,
+    borderBottomWidth: 0.5,
+    borderBottomColor: Colors.borderLight,
+    alignItems: 'stretch',
+  },
+  dayRowToday: {
+    backgroundColor: Colors.primary + '06',
+  },
+  dayRowWeekend: {
+    backgroundColor: Colors.fillSecondary,
+  },
+  todayIndicator: {
+    position: 'absolute' as const,
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 3,
+    backgroundColor: Colors.error,
+    borderRadius: 1.5,
+  },
+  dayLabel: {
+    width: 80,
+    paddingVertical: 8,
+    paddingLeft: 10,
+    justifyContent: 'center',
+    gap: 1,
+  },
+  dayWeekday: {
+    fontSize: 10,
+    fontWeight: '600' as const,
+    color: Colors.textMuted,
+  },
+  dayWeekdayToday: { color: Colors.error, fontWeight: '800' as const },
+  dayDate: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: Colors.text,
+  },
+  dayDateToday: { color: Colors.error, fontWeight: '800' as const },
+  dayWeather: { fontSize: 12, marginTop: 1 },
+  dayTasks: {
+    flex: 1,
+    paddingVertical: 4,
+    paddingHorizontal: 4,
+    gap: 3,
+    justifyContent: 'center',
+  },
+  emptyDay: { height: 20 },
+  taskBar: {
+    borderRadius: 8,
+    overflow: 'hidden' as const,
+    position: 'relative' as const,
+  },
+  taskBarFill: {
+    position: 'absolute' as const,
+    top: 0,
+    left: 0,
+    bottom: 0,
+    borderRadius: 8,
+  },
+  taskBarContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+  },
+  taskBarIcons: { flexDirection: 'row', gap: 2 },
+  taskBarTitle: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: '600' as const,
+  },
+  taskBarPercent: {
+    fontSize: 10,
+    fontWeight: '700' as const,
+    color: Colors.textMuted,
+  },
+});
+
+export default React.memo(VerticalGantt);
+

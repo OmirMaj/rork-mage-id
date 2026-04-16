@@ -1,0 +1,5225 @@
+=== SECTION 7: Components (Non-AI) ===
+--- FILE: components/CashFlowAlerts.tsx ---
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Animated } from 'react-native';
+import { AlertTriangle, TrendingUp, Clock, X, ChevronRight } from 'lucide-react-native';
+import { Colors } from '@/constants/colors';
+import { useRouter } from 'expo-router';
+import type { CashFlowWeek } from '@/utils/cashFlowEngine';
+import { formatCurrency } from '@/utils/cashFlowEngine';
+import type { Invoice } from '@/types';
+
+export interface CashFlowAlert {
+  id: string;
+  type: 'critical' | 'warning' | 'positive' | 'payment_due' | 'overdue';
+  title: string;
+  message: string;
+  actionLabel?: string;
+}
+
+interface CashFlowAlertsProps {
+  forecast: CashFlowWeek[] | null;
+  invoices: Invoice[];
+}
+
+function generateAlerts(forecast: CashFlowWeek[] | null, invoices: Invoice[]): CashFlowAlert[] {
+  const alerts: CashFlowAlert[] = [];
+  const now = new Date();
+
+  if (forecast && forecast.length > 0) {
+    const negativeWeeks = forecast.filter((w, i) => w.runningBalance < 0 && i < 6);
+    if (negativeWeeks.length > 0) {
+      const first = negativeWeeks[0];
+      const weekIdx = forecast.indexOf(first);
+      const weeksAway = weekIdx + 1;
+      alerts.push({
+        id: `critical-${first.weekStart}`,
+        type: 'critical',
+        title: `Balance goes negative in ${weeksAway} week${weeksAway > 1 ? 's' : ''}`,
+        message: `Projected ${formatCurrency(first.runningBalance)} on ${new Date(first.weekStart).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}. Open Cash Flow to see solutions.`,
+        actionLabel: 'View Forecast',
+      });
+    }
+
+    const lowWeeks = forecast.filter((w, i) => w.runningBalance > 0 && w.runningBalance < 5000 && i < 8);
+    if (lowWeeks.length > 0 && negativeWeeks.length === 0) {
+      const first = lowWeeks[0];
+      const weekIdx = forecast.indexOf(first);
+      alerts.push({
+        id: `warning-${first.weekStart}`,
+        type: 'warning',
+        title: `Low balance in ${weekIdx + 1} weeks`,
+        message: `Balance will drop to ${formatCurrency(first.runningBalance)}. Consider invoicing early.`,
+        actionLabel: 'View Forecast',
+      });
+    }
+
+    const allPositive = forecast.slice(0, 4).every(w => w.runningBalance > 10000);
+    if (allPositive && forecast.length > 0) {
+      alerts.push({
+        id: 'positive-outlook',
+        type: 'positive',
+        title: 'Strong cash position',
+        message: 'Good time to invest in materials or take on new projects.',
+      });
+    }
+  }
+
+  invoices.forEach(inv => {
+    if (inv.status === 'paid') return;
+    const due = new Date(inv.dueDate);
+    const remaining = inv.totalDue - inv.amountPaid;
+    if (remaining <= 0) return;
+
+    const diffDays = Math.floor((now.getTime() - due.getTime()) / (1000 * 60 * 60 * 24));
+
+    if (diffDays > 0) {
+      alerts.push({
+        id: `overdue-${inv.id}`,
+        type: 'overdue',
+        title: `Invoice #${inv.number} is ${diffDays} days overdue`,
+        message: `${formatCurrency(remaining)} outstanding. Send a reminder.`,
+        actionLabel: 'View Invoice',
+      });
+    } else if (diffDays >= -1 && diffDays <= 0) {
+      alerts.push({
+        id: `due-${inv.id}`,
+        type: 'payment_due',
+        title: `Invoice #${inv.number} due today`,
+        message: `${formatCurrency(remaining)} payment expected. Follow up with client.`,
+      });
+    }
+  });
+
+  return alerts.slice(0, 3);
+}
+
+const ALERT_CONFIG: Record<CashFlowAlert['type'], { bg: string; border: string; iconColor: string; icon: typeof AlertTriangle }> = {
+  critical: { bg: Colors.errorLight, border: Colors.error + '40', iconColor: Colors.error, icon: AlertTriangle },
+  warning: { bg: Colors.warningLight, border: Colors.warning + '40', iconColor: Colors.warning, icon: AlertTriangle },
+  positive: { bg: Colors.successLight, border: Colors.success + '40', iconColor: Colors.success, icon: TrendingUp },
+  payment_due: { bg: Colors.infoLight, border: Colors.info + '40', iconColor: Colors.info, icon: Clock },
+  overdue: { bg: Colors.errorLight, border: Colors.error + '40', iconColor: Colors.error, icon: Clock },
+};
+
+const AlertCard = React.memo(function AlertCard({
+  alert,
+  onDismiss,
+  onAction,
+}: {
+  alert: CashFlowAlert;
+  onDismiss: (id: string) => void;
+  onAction: () => void;
+}) {
+  const config = ALERT_CONFIG[alert.type];
+  const IconComponent = config.icon;
+
+  return (
+    <View style={[styles.alertCard, { backgroundColor: config.bg, borderColor: config.border }]}>
+      <View style={styles.alertTop}>
+        <IconComponent size={18} color={config.iconColor} />
+        <Text style={[styles.alertTitle, { color: config.iconColor }]} numberOfLines={1}>
+          {alert.title}
+        </Text>
+        <TouchableOpacity onPress={() => onDismiss(alert.id)} style={styles.dismissBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <X size={14} color={Colors.textMuted} />
+        </TouchableOpacity>
+      </View>
+      <Text style={styles.alertMessage} numberOfLines={2}>{alert.message}</Text>
+      {alert.actionLabel && (
+        <TouchableOpacity style={styles.alertAction} onPress={onAction} activeOpacity={0.7}>
+          <Text style={[styles.alertActionText, { color: config.iconColor }]}>{alert.actionLabel}</Text>
+          <ChevronRight size={14} color={config.iconColor} />
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+});
+
+export default function CashFlowAlerts({ forecast, invoices }: CashFlowAlertsProps) {
+  const router = useRouter();
+  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
+
+  const alerts = useMemo(() => generateAlerts(forecast, invoices), [forecast, invoices]);
+  const visibleAlerts = useMemo(() => alerts.filter(a => !dismissed.has(a.id)), [alerts, dismissed]);
+
+  const handleDismiss = useCallback((id: string) => {
+    setDismissed(prev => new Set(prev).add(id));
+  }, []);
+
+  const handleAction = useCallback(() => {
+    router.push('/cash-flow' as any);
+  }, [router]);
+
+  if (visibleAlerts.length === 0) return null;
+
+  return (
+    <View style={styles.container}>
+      {visibleAlerts.map(alert => (
+        <AlertCard
+          key={alert.id}
+          alert={alert}
+          onDismiss={handleDismiss}
+          onAction={handleAction}
+        />
+      ))}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    paddingHorizontal: 20,
+    gap: 8,
+    marginBottom: 16,
+  },
+  alertCard: {
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    gap: 6,
+  },
+  alertTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  alertTitle: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '700' as const,
+  },
+  dismissBtn: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(0,0,0,0.06)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  alertMessage: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+    lineHeight: 18,
+    paddingLeft: 26,
+  },
+  alertAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingLeft: 26,
+    marginTop: 2,
+  },
+  alertActionText: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+  },
+});
+
+--- FILE: components/CashFlowChart.tsx ---
+import React, { useMemo, useRef, useCallback } from 'react';
+import {
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated,
+} from 'react-native';
+import { Colors } from '@/constants/colors';
+import type { CashFlowWeek } from '@/utils/cashFlowEngine';
+import { formatCurrencyShort } from '@/utils/cashFlowEngine';
+
+interface CashFlowChartProps {
+  weeks: CashFlowWeek[];
+  onWeekPress?: (weekIndex: number) => void;
+  selectedWeek?: number | null;
+}
+
+const BAR_WIDTH = 44;
+const CHART_HEIGHT = 200;
+const LABEL_HEIGHT = 28;
+
+const CashFlowChart = React.memo(function CashFlowChart({
+  weeks,
+  onWeekPress,
+  selectedWeek,
+}: CashFlowChartProps) {
+  const scrollRef = useRef<ScrollView>(null);
+
+  const { maxAbsNet, maxAbsBalance, balancePoints } = useMemo(() => {
+    let maxNet = 0;
+    let maxBal = 0;
+    weeks.forEach(w => {
+      maxNet = Math.max(maxNet, Math.abs(w.netCashFlow));
+      maxBal = Math.max(maxBal, Math.abs(w.runningBalance));
+    });
+    if (maxNet === 0) maxNet = 1;
+    if (maxBal === 0) maxBal = 1;
+
+    const points = weeks.map((w, i) => {
+      const normalized = (w.runningBalance + maxBal) / (2 * maxBal);
+      const y = CHART_HEIGHT - (normalized * (CHART_HEIGHT - 20)) - 10;
+      const x = i * (BAR_WIDTH + 8) + BAR_WIDTH / 2;
+      return { x, y, balance: w.runningBalance };
+    });
+
+    return { maxAbsNet: maxNet, maxAbsBalance: maxBal, balancePoints: points };
+  }, [weeks]);
+
+  const handleWeekPress = useCallback((index: number) => {
+    onWeekPress?.(index);
+  }, [onWeekPress]);
+
+  const totalWidth = weeks.length * (BAR_WIDTH + 8) + 16;
+  const midY = CHART_HEIGHT / 2;
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.yAxisLabels}>
+        <Text style={styles.yLabel}>{formatCurrencyShort(maxAbsNet)}</Text>
+        <Text style={[styles.yLabel, { color: Colors.textMuted }]}>$0</Text>
+        <Text style={[styles.yLabel, { color: Colors.error }]}>-{formatCurrencyShort(maxAbsNet)}</Text>
+      </View>
+
+      <ScrollView
+        ref={scrollRef}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ width: Math.max(totalWidth, 300), paddingRight: 16 }}
+      >
+        <View style={{ height: CHART_HEIGHT + LABEL_HEIGHT }}>
+          <View style={[styles.zeroLine, { top: midY }]} />
+
+          {balancePoints.length > 1 && (
+            <View style={StyleSheet.absoluteFill} pointerEvents="none">
+              {balancePoints.map((pt, i) => {
+                if (i === 0) return null;
+                const prev = balancePoints[i - 1];
+                const dx = pt.x - prev.x;
+                const dy = pt.y - prev.y;
+                const length = Math.sqrt(dx * dx + dy * dy);
+                const angle = Math.atan2(dy, dx) * (180 / Math.PI);
+                return (
+                  <View
+                    key={`line-${i}`}
+                    style={{
+                      position: 'absolute',
+                      left: prev.x,
+                      top: prev.y,
+                      width: length,
+                      height: 2,
+                      backgroundColor: Colors.info,
+                      transform: [{ rotate: `${angle}deg` }],
+                      transformOrigin: 'left center',
+                      opacity: 0.7,
+                    }}
+                  />
+                );
+              })}
+              {balancePoints.map((pt, i) => (
+                <View
+                  key={`dot-${i}`}
+                  style={{
+                    position: 'absolute',
+                    left: pt.x - 3,
+                    top: pt.y - 3,
+                    width: 6,
+                    height: 6,
+                    borderRadius: 3,
+                    backgroundColor: Colors.info,
+                  }}
+                />
+              ))}
+            </View>
+          )}
+
+          <View style={styles.barsContainer}>
+            {weeks.map((week, i) => {
+              const isPositive = week.netCashFlow >= 0;
+              const barHeight = maxAbsNet > 0
+                ? (Math.abs(week.netCashFlow) / maxAbsNet) * (CHART_HEIGHT / 2 - 10)
+                : 0;
+              const isSelected = selectedWeek === i;
+              const isDanger = week.runningBalance < 0;
+
+              return (
+                <TouchableOpacity
+                  key={i}
+                  style={[styles.barColumn, isSelected && styles.barColumnSelected]}
+                  onPress={() => handleWeekPress(i)}
+                  activeOpacity={0.7}
+                >
+                  <View style={{ height: CHART_HEIGHT, justifyContent: 'center' }}>
+                    {isPositive ? (
+                      <View style={{ alignItems: 'center', justifyContent: 'flex-end', height: CHART_HEIGHT / 2 - 5 }}>
+                        <View
+                          style={[
+                            styles.bar,
+                            {
+                              height: Math.max(barHeight, 2),
+                              backgroundColor: isDanger ? Colors.warning : Colors.success,
+                            },
+                          ]}
+                        />
+                      </View>
+                    ) : (
+                      <>
+                        <View style={{ height: CHART_HEIGHT / 2 - 5 }} />
+                        <View style={{ alignItems: 'center', height: CHART_HEIGHT / 2 - 5 }}>
+                          <View
+                            style={[
+                              styles.bar,
+                              {
+                                height: Math.max(barHeight, 2),
+                                backgroundColor: Colors.error,
+                              },
+                            ]}
+                          />
+                        </View>
+                      </>
+                    )}
+                  </View>
+                  <View style={styles.barLabel}>
+                    <Text style={[styles.barLabelText, isDanger && { color: Colors.error }]}>
+                      W{i + 1}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+      </ScrollView>
+
+      <View style={styles.legend}>
+        <View style={styles.legendItem}>
+          <View style={[styles.legendDot, { backgroundColor: Colors.success }]} />
+          <Text style={styles.legendText}>Positive Week</Text>
+        </View>
+        <View style={styles.legendItem}>
+          <View style={[styles.legendDot, { backgroundColor: Colors.error }]} />
+          <Text style={styles.legendText}>Negative Week</Text>
+        </View>
+        <View style={styles.legendItem}>
+          <View style={[styles.legendLine, { backgroundColor: Colors.info }]} />
+          <Text style={styles.legendText}>Balance</Text>
+        </View>
+      </View>
+    </View>
+  );
+});
+
+const styles = StyleSheet.create({
+  container: {
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+  },
+  yAxisLabels: {
+    position: 'absolute',
+    left: 4,
+    top: 16,
+    height: CHART_HEIGHT,
+    justifyContent: 'space-between',
+    zIndex: 2,
+  },
+  yLabel: {
+    fontSize: 10,
+    fontWeight: '600' as const,
+    color: Colors.success,
+  },
+  zeroLine: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    height: 1,
+    backgroundColor: Colors.border,
+  },
+  barsContainer: {
+    flexDirection: 'row',
+    paddingLeft: 8,
+    gap: 8,
+  },
+  barColumn: {
+    width: BAR_WIDTH,
+    alignItems: 'center',
+    borderRadius: 8,
+    paddingHorizontal: 2,
+  },
+  barColumnSelected: {
+    backgroundColor: Colors.fillSecondary,
+  },
+  bar: {
+    width: 28,
+    borderRadius: 4,
+    minHeight: 2,
+  },
+  barLabel: {
+    height: LABEL_HEIGHT,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  barLabelText: {
+    fontSize: 10,
+    fontWeight: '600' as const,
+    color: Colors.textMuted,
+  },
+  legend: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 16,
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: Colors.borderLight,
+  },
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  legendDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  legendLine: {
+    width: 16,
+    height: 2,
+    borderRadius: 1,
+  },
+  legendText: {
+    fontSize: 11,
+    color: Colors.textMuted,
+    fontWeight: '500' as const,
+  },
+});
+
+export default CashFlowChart;
+
+--- FILE: components/CashFlowSetup.tsx ---
+import React, { useState, useCallback } from 'react';
+import {
+  View, Text, StyleSheet, TouchableOpacity, TextInput, Modal, ScrollView,
+  Platform, KeyboardAvoidingView,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Haptics from 'expo-haptics';
+import { DollarSign, Wallet, Clock, CheckCircle, ChevronRight, Plus, X, Trash2 } from 'lucide-react-native';
+import { Colors } from '@/constants/colors';
+import type { CashFlowExpense, ExpenseCategory, ExpenseFrequency } from '@/utils/cashFlowEngine';
+import type { CashFlowData } from '@/utils/cashFlowStorage';
+
+interface CashFlowSetupProps {
+  visible: boolean;
+  onComplete: (data: CashFlowData) => void;
+  onClose: () => void;
+}
+
+const EXPENSE_SUGGESTIONS: Array<{ name: string; category: ExpenseCategory; frequency: ExpenseFrequency }> = [
+  { name: 'Payroll', category: 'payroll', frequency: 'weekly' },
+  { name: 'Insurance', category: 'insurance', frequency: 'monthly' },
+  { name: 'Office Overhead', category: 'overhead', frequency: 'monthly' },
+  { name: 'Vehicle Payments', category: 'loan', frequency: 'monthly' },
+  { name: 'Equipment Rental', category: 'equipment_rental', frequency: 'monthly' },
+];
+
+const TERMS_OPTIONS = [
+  { value: 'net_15', label: 'Net 15' },
+  { value: 'net_30', label: 'Net 30' },
+  { value: 'net_45', label: 'Net 45' },
+  { value: 'due_on_receipt', label: 'Due on Receipt' },
+];
+
+export default function CashFlowSetup({ visible, onComplete, onClose }: CashFlowSetupProps) {
+  const insets = useSafeAreaInsets();
+  const [step, setStep] = useState(0);
+  const [startingBalance, setStartingBalance] = useState('');
+  const [expenses, setExpenses] = useState<CashFlowExpense[]>([]);
+  const [defaultTerms, setDefaultTerms] = useState('net_30');
+
+  const handleAddSuggestion = useCallback((suggestion: typeof EXPENSE_SUGGESTIONS[0]) => {
+    const exists = expenses.some(e => e.name === suggestion.name);
+    if (exists) return;
+    const newExpense: CashFlowExpense = {
+      id: `exp-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      name: suggestion.name,
+      amount: 0,
+      frequency: suggestion.frequency,
+      category: suggestion.category,
+      startDate: new Date().toISOString(),
+    };
+    setExpenses(prev => [...prev, newExpense]);
+    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  }, [expenses]);
+
+  const handleUpdateExpenseAmount = useCallback((id: string, amount: string) => {
+    setExpenses(prev => prev.map(e => e.id === id ? { ...e, amount: parseFloat(amount) || 0 } : e));
+  }, []);
+
+  const handleRemoveExpense = useCallback((id: string) => {
+    setExpenses(prev => prev.filter(e => e.id !== id));
+  }, []);
+
+  const handleNext = useCallback(() => {
+    if (step < 3) {
+      setStep(step + 1);
+      if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+  }, [step]);
+
+  const handleBack = useCallback(() => {
+    if (step > 0) setStep(step - 1);
+  }, [step]);
+
+  const handleFinish = useCallback(() => {
+    const data: CashFlowData = {
+      startingBalance: parseFloat(startingBalance) || 0,
+      expenses: expenses.filter(e => e.amount > 0),
+      expectedPayments: [],
+      defaultPaymentTerms: defaultTerms,
+      dailyOverheadCost: 350,
+      lastUpdated: new Date().toISOString(),
+    };
+    onComplete(data);
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setStep(0);
+    setStartingBalance('');
+    setExpenses([]);
+    setDefaultTerms('net_30');
+  }, [startingBalance, expenses, defaultTerms, onComplete]);
+
+  const freqLabel = (f: ExpenseFrequency) => {
+    switch (f) {
+      case 'weekly': return '/week';
+      case 'biweekly': return '/2 weeks';
+      case 'monthly': return '/month';
+      case 'one_time': return 'one-time';
+    }
+  };
+
+  const renderStep0 = () => (
+    <View style={styles.stepContent}>
+      <View style={[styles.stepIconWrap, { backgroundColor: Colors.primary + '15' }]}>
+        <Wallet size={32} color={Colors.primary} />
+      </View>
+      <Text style={styles.stepTitle}>Current Bank Balance</Text>
+      <Text style={styles.stepDesc}>
+        This is your starting point. We'll project forward from here.
+      </Text>
+      <View style={styles.balanceInputWrap}>
+        <Text style={styles.dollarSign}>$</Text>
+        <TextInput
+          style={styles.balanceInput}
+          value={startingBalance}
+          onChangeText={setStartingBalance}
+          keyboardType="numeric"
+          placeholder="0"
+          placeholderTextColor={Colors.textMuted}
+          testID="starting-balance-input"
+        />
+      </View>
+    </View>
+  );
+
+  const renderStep1 = () => (
+    <View style={styles.stepContent}>
+      <View style={[styles.stepIconWrap, { backgroundColor: Colors.error + '15' }]}>
+        <DollarSign size={32} color={Colors.error} />
+      </View>
+      <Text style={styles.stepTitle}>Recurring Expenses</Text>
+      <Text style={styles.stepDesc}>
+        Add your regular business expenses. You can always add more later.
+      </Text>
+
+      <View style={styles.suggestionsRow}>
+        {EXPENSE_SUGGESTIONS.map(s => {
+          const added = expenses.some(e => e.name === s.name);
+          return (
+            <TouchableOpacity
+              key={s.name}
+              style={[styles.suggestionChip, added && styles.suggestionChipAdded]}
+              onPress={() => handleAddSuggestion(s)}
+              activeOpacity={0.7}
+              disabled={added}
+            >
+              {added ? <CheckCircle size={14} color={Colors.success} /> : <Plus size={14} color={Colors.primary} />}
+              <Text style={[styles.suggestionText, added && { color: Colors.success }]}>{s.name}</Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
+      <ScrollView style={styles.expenseList} showsVerticalScrollIndicator={false}>
+        {expenses.map(exp => (
+          <View key={exp.id} style={styles.expenseRow}>
+            <View style={styles.expenseInfo}>
+              <Text style={styles.expenseName}>{exp.name}</Text>
+              <Text style={styles.expenseFreq}>{freqLabel(exp.frequency)}</Text>
+            </View>
+            <View style={styles.expenseAmountWrap}>
+              <Text style={styles.expenseDollar}>$</Text>
+              <TextInput
+                style={styles.expenseAmountInput}
+                value={exp.amount > 0 ? exp.amount.toString() : ''}
+                onChangeText={(v) => handleUpdateExpenseAmount(exp.id, v)}
+                keyboardType="numeric"
+                placeholder="0"
+                placeholderTextColor={Colors.textMuted}
+              />
+            </View>
+            <TouchableOpacity onPress={() => handleRemoveExpense(exp.id)} style={styles.removeBtn}>
+              <Trash2 size={14} color={Colors.error} />
+            </TouchableOpacity>
+          </View>
+        ))}
+        {expenses.length === 0 && (
+          <Text style={styles.emptyText}>Tap suggestions above to add expenses</Text>
+        )}
+      </ScrollView>
+    </View>
+  );
+
+  const renderStep2 = () => (
+    <View style={styles.stepContent}>
+      <View style={[styles.stepIconWrap, { backgroundColor: Colors.info + '15' }]}>
+        <Clock size={32} color={Colors.info} />
+      </View>
+      <Text style={styles.stepTitle}>Default Payment Terms</Text>
+      <Text style={styles.stepDesc}>
+        When you invoice clients, how long do they typically take to pay?
+      </Text>
+
+      <View style={styles.termsGrid}>
+        {TERMS_OPTIONS.map(opt => (
+          <TouchableOpacity
+            key={opt.value}
+            style={[styles.termsChip, defaultTerms === opt.value && styles.termsChipActive]}
+            onPress={() => setDefaultTerms(opt.value)}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.termsChipText, defaultTerms === opt.value && styles.termsChipTextActive]}>
+              {opt.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+    </View>
+  );
+
+  const renderStep3 = () => {
+    const totalMonthly = expenses.reduce((sum, e) => {
+      switch (e.frequency) {
+        case 'weekly': return sum + e.amount * 4.33;
+        case 'biweekly': return sum + e.amount * 2.17;
+        case 'monthly': return sum + e.amount;
+        case 'one_time': return sum;
+        default: return sum;
+      }
+    }, 0);
+
+    return (
+      <View style={styles.stepContent}>
+        <View style={[styles.stepIconWrap, { backgroundColor: Colors.success + '15' }]}>
+          <CheckCircle size={32} color={Colors.success} />
+        </View>
+        <Text style={styles.stepTitle}>You're All Set!</Text>
+        <Text style={styles.stepDesc}>
+          As you create invoices and track expenses in MAGE ID, your forecast gets smarter automatically.
+        </Text>
+
+        <View style={styles.summaryCard}>
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Starting Balance</Text>
+            <Text style={styles.summaryValue}>${(parseFloat(startingBalance) || 0).toLocaleString()}</Text>
+          </View>
+          <View style={styles.summaryDivider} />
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Recurring Expenses</Text>
+            <Text style={styles.summaryValue}>{expenses.filter(e => e.amount > 0).length} items</Text>
+          </View>
+          <View style={styles.summaryDivider} />
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Est. Monthly Burn</Text>
+            <Text style={[styles.summaryValue, { color: Colors.error }]}>
+              ${totalMonthly.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+            </Text>
+          </View>
+          <View style={styles.summaryDivider} />
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Payment Terms</Text>
+            <Text style={styles.summaryValue}>
+              {TERMS_OPTIONS.find(t => t.value === defaultTerms)?.label}
+            </Text>
+          </View>
+        </View>
+      </View>
+    );
+  };
+
+  const steps = [renderStep0, renderStep1, renderStep2, renderStep3];
+  const isLast = step === 3;
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : undefined} onRequestClose={onClose}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <View style={[styles.container, { paddingTop: Platform.OS === 'ios' ? 12 : insets.top + 8 }]}>
+          <View style={styles.handle} />
+          <View style={styles.header}>
+            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+              <X size={20} color={Colors.textMuted} />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Cash Flow Setup</Text>
+            <Text style={styles.stepIndicator}>{step + 1}/4</Text>
+          </View>
+
+          <View style={styles.progressTrack}>
+            <View style={[styles.progressFill, { width: `${((step + 1) / 4) * 100}%` }]} />
+          </View>
+
+          <ScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            {steps[step]()}
+          </ScrollView>
+
+          <View style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}>
+            {step > 0 && (
+              <TouchableOpacity style={styles.backButton} onPress={handleBack} activeOpacity={0.7}>
+                <Text style={styles.backButtonText}>Back</Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity
+              style={[styles.nextButton, step === 0 && { flex: 1 }]}
+              onPress={isLast ? handleFinish : handleNext}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.nextButtonText}>{isLast ? 'Start Forecasting' : 'Continue'}</Text>
+              {!isLast && <ChevronRight size={18} color={Colors.textOnPrimary} />}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: Colors.background },
+  handle: { width: 36, height: 5, borderRadius: 3, backgroundColor: Colors.border, alignSelf: 'center', marginBottom: 8 },
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingBottom: 12, gap: 12 },
+  closeBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { flex: 1, fontSize: 18, fontWeight: '700' as const, color: Colors.text },
+  stepIndicator: { fontSize: 14, fontWeight: '600' as const, color: Colors.textMuted },
+  progressTrack: { height: 4, backgroundColor: Colors.fillTertiary, marginHorizontal: 20, borderRadius: 2, overflow: 'hidden' as const },
+  progressFill: { height: 4, backgroundColor: Colors.primary, borderRadius: 2 },
+  stepContent: { paddingHorizontal: 20, paddingTop: 32, alignItems: 'center' },
+  stepIconWrap: { width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center', marginBottom: 20 },
+  stepTitle: { fontSize: 24, fontWeight: '800' as const, color: Colors.text, textAlign: 'center', marginBottom: 8 },
+  stepDesc: { fontSize: 15, color: Colors.textSecondary, textAlign: 'center', lineHeight: 22, marginBottom: 24, paddingHorizontal: 16 },
+  balanceInputWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, borderRadius: 16, paddingHorizontal: 20, borderWidth: 2, borderColor: Colors.primary + '30', width: '100%', maxWidth: 280 },
+  dollarSign: { fontSize: 28, fontWeight: '800' as const, color: Colors.primary, marginRight: 4 },
+  balanceInput: { flex: 1, fontSize: 32, fontWeight: '800' as const, color: Colors.text, minHeight: 64, textAlign: 'center' },
+  suggestionsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, width: '100%', marginBottom: 16 },
+  suggestionChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, backgroundColor: Colors.fillTertiary },
+  suggestionChipAdded: { backgroundColor: Colors.successLight, borderWidth: 1, borderColor: Colors.success + '30' },
+  suggestionText: { fontSize: 13, fontWeight: '600' as const, color: Colors.text },
+  expenseList: { width: '100%', maxHeight: 280 },
+  expenseRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, borderRadius: 12, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: Colors.cardBorder, gap: 10 },
+  expenseInfo: { flex: 1, gap: 2 },
+  expenseName: { fontSize: 14, fontWeight: '600' as const, color: Colors.text },
+  expenseFreq: { fontSize: 12, color: Colors.textMuted },
+  expenseAmountWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surfaceAlt, borderRadius: 8, paddingHorizontal: 8 },
+  expenseDollar: { fontSize: 14, fontWeight: '700' as const, color: Colors.textSecondary },
+  expenseAmountInput: { width: 80, minHeight: 36, fontSize: 16, fontWeight: '700' as const, color: Colors.text, textAlign: 'right' },
+  removeBtn: { padding: 6 },
+  emptyText: { fontSize: 14, color: Colors.textMuted, textAlign: 'center', paddingVertical: 20 },
+  termsGrid: { width: '100%', gap: 10 },
+  termsChip: { paddingVertical: 16, paddingHorizontal: 20, borderRadius: 14, backgroundColor: Colors.surface, borderWidth: 1.5, borderColor: Colors.cardBorder, alignItems: 'center' },
+  termsChipActive: { borderColor: Colors.primary, backgroundColor: Colors.primary + '08' },
+  termsChipText: { fontSize: 16, fontWeight: '600' as const, color: Colors.text },
+  termsChipTextActive: { color: Colors.primary },
+  summaryCard: { width: '100%', backgroundColor: Colors.surface, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: Colors.cardBorder },
+  summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10 },
+  summaryLabel: { fontSize: 14, color: Colors.textSecondary },
+  summaryValue: { fontSize: 15, fontWeight: '700' as const, color: Colors.text },
+  summaryDivider: { height: 1, backgroundColor: Colors.borderLight },
+  footer: { paddingHorizontal: 20, paddingTop: 12, flexDirection: 'row', gap: 10, backgroundColor: Colors.background, borderTopWidth: 0.5, borderTopColor: Colors.borderLight },
+  backButton: { flex: 1, minHeight: 50, borderRadius: 14, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
+  backButtonText: { fontSize: 16, fontWeight: '700' as const, color: Colors.text },
+  nextButton: { flex: 2, minHeight: 50, borderRadius: 14, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 6 },
+  nextButtonText: { fontSize: 16, fontWeight: '700' as const, color: Colors.textOnPrimary },
+});
+
+--- FILE: components/ContactPickerModal.tsx ---
+import React, { useState, useMemo, useCallback } from 'react';
+import {
+  View, Text, StyleSheet, Modal, TouchableOpacity, TextInput,
+  FlatList, Pressable,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Search, X, User, Mail } from 'lucide-react-native';
+import { Colors } from '@/constants/colors';
+import type { Contact, ContactRole } from '@/types';
+
+interface ContactPickerModalProps {
+  visible: boolean;
+  onClose: () => void;
+  onSelect: (contact: Contact) => void;
+  contacts: Contact[];
+  title?: string;
+  filterRoles?: ContactRole[];
+}
+
+function getRoleColor(role: ContactRole): string {
+  switch (role) {
+    case 'Client': return Colors.primary;
+    case 'Architect': return Colors.info;
+    case "Owner's Rep": return Colors.accent;
+    case 'Engineer': return '#6B7280';
+    case 'Sub': return Colors.success;
+    case 'Supplier': return '#8B5CF6';
+    case 'Lender': return '#EC4899';
+    case 'Inspector': return '#F59E0B';
+    default: return Colors.textSecondary;
+  }
+}
+
+export default function ContactPickerModal({
+  visible,
+  onClose,
+  onSelect,
+  contacts,
+  title = 'Select Recipient',
+  filterRoles,
+}: ContactPickerModalProps) {
+  const insets = useSafeAreaInsets();
+  const [query, setQuery] = useState('');
+
+  const filtered = useMemo(() => {
+    let list = contacts;
+    if (filterRoles && filterRoles.length > 0) {
+      list = list.filter(c => filterRoles.includes(c.role));
+    }
+    if (query.trim()) {
+      const q = query.toLowerCase();
+      list = list.filter(c =>
+        c.firstName.toLowerCase().includes(q) ||
+        c.lastName.toLowerCase().includes(q) ||
+        c.companyName.toLowerCase().includes(q) ||
+        c.email.toLowerCase().includes(q) ||
+        c.role.toLowerCase().includes(q)
+      );
+    }
+    return list.sort((a, b) => a.lastName.localeCompare(b.lastName));
+  }, [contacts, query, filterRoles]);
+
+  const handleSelect = useCallback((contact: Contact) => {
+    onSelect(contact);
+    setQuery('');
+  }, [onSelect]);
+
+  const handleClose = useCallback(() => {
+    setQuery('');
+    onClose();
+  }, [onClose]);
+
+  const renderItem = useCallback(({ item }: { item: Contact }) => {
+    const roleColor = getRoleColor(item.role);
+    const displayName = `${item.firstName} ${item.lastName}`.trim() || item.companyName;
+    return (
+      <TouchableOpacity
+        style={styles.contactRow}
+        onPress={() => handleSelect(item)}
+        activeOpacity={0.7}
+        testID={`pick-contact-${item.id}`}
+      >
+        <View style={[styles.avatar, { backgroundColor: roleColor + '18' }]}>
+          <Text style={[styles.avatarText, { color: roleColor }]}>
+            {(item.firstName[0] || item.companyName[0] || '?').toUpperCase()}
+          </Text>
+        </View>
+        <View style={styles.contactInfo}>
+          <Text style={styles.contactName} numberOfLines={1}>{displayName}</Text>
+          {item.companyName && item.firstName ? (
+            <Text style={styles.contactCompany} numberOfLines={1}>{item.companyName}</Text>
+          ) : null}
+          <View style={styles.contactMeta}>
+            <View style={[styles.roleBadge, { backgroundColor: roleColor + '15' }]}>
+              <Text style={[styles.roleBadgeText, { color: roleColor }]}>{item.role}</Text>
+            </View>
+            {item.email ? (
+              <View style={styles.emailRow}>
+                <Mail size={10} color={Colors.textMuted} />
+                <Text style={styles.contactEmail} numberOfLines={1}>{item.email}</Text>
+              </View>
+            ) : null}
+          </View>
+        </View>
+      </TouchableOpacity>
+    );
+  }, [handleSelect]);
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose}>
+      <View style={styles.overlay}>
+        <Pressable style={styles.overlayTouch} onPress={handleClose} />
+        <View style={[styles.sheet, { paddingBottom: insets.bottom + 16 }]}>
+          <View style={styles.handle} />
+
+          <View style={styles.header}>
+            <Text style={styles.headerTitle}>{title}</Text>
+            <TouchableOpacity onPress={handleClose} style={styles.closeBtn}>
+              <X size={18} color={Colors.textMuted} />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.searchBar}>
+            <Search size={16} color={Colors.textMuted} />
+            <TextInput
+              style={styles.searchInput}
+              value={query}
+              onChangeText={setQuery}
+              placeholder="Search contacts..."
+              placeholderTextColor={Colors.textMuted}
+              autoFocus={false}
+              testID="contact-picker-search"
+            />
+            {query.length > 0 && (
+              <TouchableOpacity onPress={() => setQuery('')}>
+                <X size={14} color={Colors.textMuted} />
+              </TouchableOpacity>
+            )}
+          </View>
+
+          <FlatList
+            data={filtered}
+            keyExtractor={item => item.id}
+            renderItem={renderItem}
+            style={styles.list}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            ListEmptyComponent={
+              <View style={styles.emptyState}>
+                <User size={32} color={Colors.textMuted} />
+                <Text style={styles.emptyTitle}>
+                  {query ? 'No contacts found' : 'No contacts yet'}
+                </Text>
+                <Text style={styles.emptyDesc}>
+                  {query ? 'Try a different search term' : 'Add contacts from the Contacts screen'}
+                </Text>
+              </View>
+            }
+          />
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const styles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: Colors.overlay,
+    justifyContent: 'flex-end',
+  },
+  overlayTouch: {
+    flex: 1,
+  },
+  sheet: {
+    backgroundColor: Colors.surface,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    maxHeight: '75%',
+  },
+  handle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: Colors.fillTertiary,
+    alignSelf: 'center',
+    marginTop: 10,
+    marginBottom: 6,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 22,
+    paddingVertical: 12,
+    borderBottomWidth: 0.5,
+    borderBottomColor: Colors.borderLight,
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '700' as const,
+    color: Colors.text,
+  },
+  closeBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: Colors.fillTertiary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.fillTertiary,
+    borderRadius: 12,
+    marginHorizontal: 22,
+    marginTop: 12,
+    marginBottom: 8,
+    paddingHorizontal: 12,
+    gap: 8,
+    height: 42,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 15,
+    color: Colors.text,
+  },
+  list: {
+    flex: 1,
+  },
+  listContent: {
+    paddingHorizontal: 22,
+    paddingTop: 4,
+    paddingBottom: 12,
+  },
+  contactRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 12,
+    borderBottomWidth: 0.5,
+    borderBottomColor: Colors.borderLight,
+  },
+  avatar: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarText: {
+    fontSize: 17,
+    fontWeight: '700' as const,
+  },
+  contactInfo: {
+    flex: 1,
+    gap: 2,
+  },
+  contactName: {
+    fontSize: 15,
+    fontWeight: '600' as const,
+    color: Colors.text,
+  },
+  contactCompany: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+  },
+  contactMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 2,
+  },
+  roleBadge: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 5,
+  },
+  roleBadgeText: {
+    fontSize: 10,
+    fontWeight: '700' as const,
+  },
+  emailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    flex: 1,
+  },
+  contactEmail: {
+    fontSize: 11,
+    color: Colors.textMuted,
+    flex: 1,
+  },
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: 40,
+    gap: 8,
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: Colors.text,
+  },
+  emptyDesc: {
+    fontSize: 13,
+    color: Colors.textMuted,
+    textAlign: 'center' as const,
+  },
+});
+
+--- FILE: components/CostBreakdownReport.tsx ---
+import React, { useMemo } from 'react';
+import { View, Text, StyleSheet } from 'react-native';
+import { Package, Percent, MapPin, Clock } from 'lucide-react-native';
+import { Colors } from '@/constants/colors';
+import { CATEGORY_META, CATEGORY_COST_FACTORS } from '@/constants/materials';
+import type { MaterialItem } from '@/constants/materials';
+import type { LaborRate } from '@/constants/laborRates';
+import type { AssemblyItem } from '@/constants/assemblies';
+
+interface CartItem {
+  material: MaterialItem;
+  quantity: number;
+  markup: number;
+  usesBulk: boolean;
+}
+
+interface LaborCartItem {
+  labor: LaborRate;
+  hours: number;
+  adjustedRate: number;
+}
+
+interface AssemblyCartItem {
+  assembly: AssemblyItem;
+  quantity: number;
+  materialsCost: number;
+  laborCost: number;
+  totalCost: number;
+}
+
+interface CostBreakdownReportProps {
+  cart: CartItem[];
+  laborCart: LaborCartItem[];
+  assemblyCart: AssemblyCartItem[];
+  globalMarkup: number;
+  locationFactor: number;
+  locationName?: string;
+}
+
+interface CategoryBreakdown {
+  category: string;
+  label: string;
+  color: string;
+  materialCost: number;
+  laborCost: number;
+  equipmentCost: number;
+  total: number;
+}
+
+const CostBreakdownReport = React.memo(function CostBreakdownReport({
+  cart, laborCart, assemblyCart, globalMarkup, locationFactor, locationName: _locationName,
+}: CostBreakdownReportProps) {
+  const breakdown = useMemo(() => {
+    const categoryMap = new Map<string, CategoryBreakdown>();
+
+    for (const item of cart) {
+      const base = item.usesBulk ? item.material.baseBulkPrice : item.material.baseRetailPrice;
+      const totalMaterial = base * item.quantity;
+      const factors = CATEGORY_COST_FACTORS[item.material.category];
+      const laborCost = factors ? totalMaterial * factors.laborFactor : 0;
+      const equipmentCost = factors ? totalMaterial * factors.equipmentFactor : 0;
+
+      const cat = item.material.category;
+      const existing = categoryMap.get(cat);
+      if (existing) {
+        existing.materialCost += totalMaterial;
+        existing.laborCost += laborCost;
+        existing.equipmentCost += equipmentCost;
+        existing.total += totalMaterial + laborCost + equipmentCost;
+      } else {
+        const meta = CATEGORY_META[cat];
+        categoryMap.set(cat, {
+          category: cat,
+          label: meta?.label ?? cat,
+          color: meta?.color ?? Colors.primary,
+          materialCost: totalMaterial,
+          laborCost,
+          equipmentCost,
+          total: totalMaterial + laborCost + equipmentCost,
+        });
+      }
+    }
+
+    return Array.from(categoryMap.values()).sort((a, b) => b.total - a.total);
+  }, [cart]);
+
+  const totals = useMemo(() => {
+    let materialTotal = 0;
+    let laborTotal = 0;
+    let equipmentTotal = 0;
+
+    for (const b of breakdown) {
+      materialTotal += b.materialCost;
+      laborTotal += b.laborCost;
+      equipmentTotal += b.equipmentCost;
+    }
+
+    const directLaborTotal = laborCart.reduce((sum, i) => sum + i.adjustedRate * i.hours, 0);
+    const assemblyMaterialTotal = assemblyCart.reduce((sum, i) => sum + i.materialsCost, 0);
+    const assemblyLaborTotal = assemblyCart.reduce((sum, i) => sum + i.laborCost, 0);
+    const laborHours = laborCart.reduce((sum, i) => sum + i.hours, 0);
+
+    const combinedMaterial = materialTotal + assemblyMaterialTotal;
+    const combinedLabor = laborTotal + directLaborTotal + assemblyLaborTotal;
+    const combinedEquipment = equipmentTotal;
+    const subtotal = combinedMaterial + combinedLabor + combinedEquipment;
+    const markupAmount = (materialTotal * globalMarkup / 100);
+    const grandTotal = subtotal + markupAmount;
+
+    const matPct = grandTotal > 0 ? (combinedMaterial / grandTotal) * 100 : 0;
+    const labPct = grandTotal > 0 ? (combinedLabor / grandTotal) * 100 : 0;
+    const eqPct = grandTotal > 0 ? (combinedEquipment / grandTotal) * 100 : 0;
+    const mkPct = grandTotal > 0 ? (markupAmount / grandTotal) * 100 : 0;
+
+    return {
+      materialTotal: combinedMaterial,
+      laborTotal: combinedLabor,
+      equipmentTotal: combinedEquipment,
+      markupAmount,
+      grandTotal,
+      laborHours,
+      matPct, labPct, eqPct, mkPct,
+      matLaborRatio: combinedLabor > 0 ? (combinedMaterial / combinedLabor).toFixed(1) : 'N/A',
+    };
+  }, [breakdown, laborCart, assemblyCart, globalMarkup]);
+
+  if (cart.length === 0 && laborCart.length === 0 && assemblyCart.length === 0) return null;
+
+  return (
+    <View style={s.container}>
+      <Text style={s.sectionTitle}>Cost Report</Text>
+
+      <View style={s.barContainer}>
+        <View style={s.barTrack}>
+          {totals.matPct > 0 && <View style={[s.barSegment, { width: `${totals.matPct}%`, backgroundColor: Colors.primary }]} />}
+          {totals.labPct > 0 && <View style={[s.barSegment, { width: `${totals.labPct}%`, backgroundColor: Colors.accent }]} />}
+          {totals.eqPct > 0 && <View style={[s.barSegment, { width: `${totals.eqPct}%`, backgroundColor: Colors.info }]} />}
+          {totals.mkPct > 0 && <View style={[s.barSegment, { width: `${totals.mkPct}%`, backgroundColor: '#9CA3AF' }]} />}
+        </View>
+        <View style={s.legendRow}>
+          <View style={s.legendItem}>
+            <View style={[s.legendDot, { backgroundColor: Colors.primary }]} />
+            <Text style={s.legendText}>Material {totals.matPct.toFixed(0)}%</Text>
+          </View>
+          <View style={s.legendItem}>
+            <View style={[s.legendDot, { backgroundColor: Colors.accent }]} />
+            <Text style={s.legendText}>Labor {totals.labPct.toFixed(0)}%</Text>
+          </View>
+          <View style={s.legendItem}>
+            <View style={[s.legendDot, { backgroundColor: Colors.info }]} />
+            <Text style={s.legendText}>Equip {totals.eqPct.toFixed(0)}%</Text>
+          </View>
+          {totals.mkPct > 0 && (
+            <View style={s.legendItem}>
+              <View style={[s.legendDot, { backgroundColor: '#9CA3AF' }]} />
+              <Text style={s.legendText}>Markup {totals.mkPct.toFixed(0)}%</Text>
+            </View>
+          )}
+        </View>
+      </View>
+
+      {breakdown.length > 0 && (
+        <View style={s.divisionTable}>
+          <View style={s.tableHeader}>
+            <Text style={[s.tableHeaderCell, { flex: 2 }]}>Division</Text>
+            <Text style={s.tableHeaderCell}>Material</Text>
+            <Text style={s.tableHeaderCell}>Labor</Text>
+            <Text style={s.tableHeaderCell}>Total</Text>
+          </View>
+          {breakdown.slice(0, 6).map(b => (
+            <View key={b.category} style={s.tableRow}>
+              <View style={[s.tableCell, { flex: 2, flexDirection: 'row', alignItems: 'center', gap: 6 }]}>
+                <View style={[s.tableDot, { backgroundColor: b.color }]} />
+                <Text style={s.tableCellText} numberOfLines={1}>{b.label}</Text>
+              </View>
+              <Text style={[s.tableCellText, { flex: 1, textAlign: 'right' as const }]}>${b.materialCost.toFixed(0)}</Text>
+              <Text style={[s.tableCellText, { flex: 1, textAlign: 'right' as const }]}>${b.laborCost.toFixed(0)}</Text>
+              <Text style={[s.tableCellBold, { flex: 1, textAlign: 'right' as const }]}>${b.total.toFixed(0)}</Text>
+            </View>
+          ))}
+        </View>
+      )}
+
+      <View style={s.metricsGrid}>
+        <View style={s.metricCard}>
+          <Package size={14} color={Colors.primary} />
+          <Text style={s.metricLabel}>Mat:Labor</Text>
+          <Text style={s.metricValue}>{totals.matLaborRatio}:1</Text>
+        </View>
+        <View style={s.metricCard}>
+          <Percent size={14} color={Colors.accent} />
+          <Text style={s.metricLabel}>Markup</Text>
+          <Text style={s.metricValue}>${totals.markupAmount.toFixed(0)}</Text>
+        </View>
+        <View style={s.metricCard}>
+          <Clock size={14} color={Colors.info} />
+          <Text style={s.metricLabel}>Labor Hrs</Text>
+          <Text style={s.metricValue}>{totals.laborHours.toFixed(0)}</Text>
+        </View>
+        {locationFactor !== 1 && (
+          <View style={s.metricCard}>
+            <MapPin size={14} color={Colors.warning} />
+            <Text style={s.metricLabel}>Location</Text>
+            <Text style={s.metricValue}>{locationFactor.toFixed(2)}x</Text>
+          </View>
+        )}
+      </View>
+    </View>
+  );
+});
+
+export default CostBreakdownReport;
+
+const s = StyleSheet.create({
+  container: { gap: 12 },
+  sectionTitle: {
+    fontSize: 16, fontWeight: '700' as const, color: Colors.text,
+    paddingHorizontal: 16, paddingTop: 8,
+  },
+  barContainer: {
+    marginHorizontal: 16, backgroundColor: Colors.surface, borderRadius: 12, padding: 12,
+    borderWidth: 1, borderColor: Colors.cardBorder, gap: 8,
+  },
+  barTrack: {
+    flexDirection: 'row', height: 12, borderRadius: 6, overflow: 'hidden' as const,
+    backgroundColor: Colors.fillTertiary,
+  },
+  barSegment: { height: '100%' },
+  legendRow: { flexDirection: 'row', flexWrap: 'wrap' as const, gap: 10 },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  legendDot: { width: 8, height: 8, borderRadius: 4 },
+  legendText: { fontSize: 10, fontWeight: '600' as const, color: Colors.textSecondary },
+  divisionTable: {
+    marginHorizontal: 16, backgroundColor: Colors.surface, borderRadius: 12,
+    borderWidth: 1, borderColor: Colors.cardBorder, overflow: 'hidden' as const,
+  },
+  tableHeader: {
+    flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 8,
+    backgroundColor: Colors.fillSecondary, gap: 4,
+  },
+  tableHeaderCell: {
+    flex: 1, fontSize: 10, fontWeight: '700' as const, color: Colors.textMuted,
+    textTransform: 'uppercase' as const, letterSpacing: 0.3,
+  },
+  tableRow: {
+    flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 8,
+    borderTopWidth: 0.5, borderTopColor: Colors.borderLight, alignItems: 'center', gap: 4,
+  },
+  tableCell: { flex: 1 },
+  tableDot: { width: 6, height: 6, borderRadius: 3 },
+  tableCellText: { fontSize: 12, color: Colors.textSecondary },
+  tableCellBold: { fontSize: 12, fontWeight: '700' as const, color: Colors.text },
+  metricsGrid: {
+    flexDirection: 'row', flexWrap: 'wrap' as const, paddingHorizontal: 16, gap: 8,
+  },
+  metricCard: {
+    flex: 1, minWidth: 70, backgroundColor: Colors.surface, borderRadius: 10, padding: 10,
+    alignItems: 'center', gap: 4, borderWidth: 1, borderColor: Colors.cardBorder,
+  },
+  metricLabel: { fontSize: 10, fontWeight: '600' as const, color: Colors.textMuted },
+  metricValue: { fontSize: 14, fontWeight: '800' as const, color: Colors.text },
+});
+
+--- FILE: components/DesktopSidebar.tsx ---
+import React, { useState, useCallback } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform } from 'react-native';
+import { useRouter, usePathname } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import {
+  Home, Compass, Wrench, Settings, BarChart3, CalendarDays,
+  Hammer, FileText, Building2, Search, HardHat,
+} from 'lucide-react-native';
+import { Colors } from '@/constants/colors';
+
+interface NavItem {
+  key: string;
+  label: string;
+  icon: typeof Home;
+  route: string;
+  section: string;
+}
+
+const NAV_ITEMS: NavItem[] = [
+  { key: 'home', label: 'Projects', icon: Home, route: '/(tabs)/(home)', section: 'PROJECT' },
+  { key: 'estimate', label: 'Estimate', icon: BarChart3, route: '/(tabs)/tools/estimate', section: 'PROJECT' },
+  { key: 'schedule', label: 'Schedule', icon: CalendarDays, route: '/(tabs)/tools/schedule', section: 'PROJECT' },
+  { key: 'equipment', label: 'Equipment', icon: Hammer, route: '/(tabs)/equipment', section: 'FIELD' },
+  { key: 'bids', label: 'Bids', icon: FileText, route: '/(tabs)/bids', section: 'FIELD' },
+  { key: 'companies', label: 'Companies', icon: Building2, route: '/(tabs)/companies', section: 'NETWORK' },
+  { key: 'discover', label: 'Discover', icon: Search, route: '/(tabs)/discover', section: 'NETWORK' },
+  { key: 'hire', label: 'Hire', icon: HardHat, route: '/(tabs)/hire', section: 'NETWORK' },
+  { key: 'settings', label: 'Settings', icon: Settings, route: '/(tabs)/settings', section: 'ACCOUNT' },
+];
+
+const SECTIONS = ['PROJECT', 'FIELD', 'NETWORK', 'ACCOUNT'];
+
+function isActiveRoute(pathname: string, navKey: string): boolean {
+  if (navKey === 'home') return pathname === '/' || pathname.includes('(home)');
+  if (navKey === 'estimate') return pathname.includes('estimate');
+  if (navKey === 'schedule') return pathname.includes('schedule');
+  if (navKey === 'equipment') return pathname.includes('equipment');
+  if (navKey === 'bids') return pathname.includes('bids');
+  if (navKey === 'companies') return pathname.includes('companies');
+  if (navKey === 'discover') return pathname.includes('discover');
+  if (navKey === 'hire') return pathname.includes('hire');
+  if (navKey === 'settings') return pathname.includes('settings');
+  return false;
+}
+
+interface DesktopSidebarProps {
+  width: number;
+}
+
+const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSidebarProps) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const insets = useSafeAreaInsets();
+  const [hoveredKey, setHoveredKey] = useState<string | null>(null);
+
+  const handleNav = useCallback((route: string) => {
+    router.push(route as any);
+  }, [router]);
+
+  const groupedItems = SECTIONS.map(section => ({
+    section,
+    items: NAV_ITEMS.filter(item => item.section === section),
+  }));
+
+  return (
+    <View style={[styles.container, { width, paddingTop: insets.top + 16, paddingBottom: insets.bottom + 16 }]}>
+      <View style={styles.brandSection}>
+        <View style={styles.brandIcon}>
+          <Wrench size={20} color={Colors.textOnPrimary} />
+        </View>
+        <Text style={styles.brandName}>MAGE ID</Text>
+        <Text style={styles.brandTagline}>Construction Suite</Text>
+      </View>
+
+      <ScrollView style={styles.navScroll} showsVerticalScrollIndicator={false}>
+        {groupedItems.map(({ section, items }) => (
+          <View key={section} style={styles.navSection}>
+            <Text style={styles.sectionLabel}>{section}</Text>
+            {items.map(item => {
+              const active = isActiveRoute(pathname, item.key);
+              const hovered = hoveredKey === item.key;
+              const Icon = item.icon;
+
+              return (
+                <TouchableOpacity
+                  key={item.key}
+                  style={[
+                    styles.navItem,
+                    active && styles.navItemActive,
+                    hovered && !active && styles.navItemHovered,
+                  ]}
+                  onPress={() => handleNav(item.route)}
+                  activeOpacity={0.7}
+                  {...(Platform.OS === 'web' ? {
+                    onMouseEnter: () => setHoveredKey(item.key),
+                    onMouseLeave: () => setHoveredKey(null),
+                  } as any : {})}
+                  testID={`sidebar-${item.key}`}
+                >
+                  {active && <View style={styles.activeIndicator} />}
+                  <Icon
+                    size={18}
+                    color={active ? Colors.primary : hovered ? Colors.text : Colors.textSecondary}
+                    strokeWidth={active ? 2.2 : 1.8}
+                  />
+                  <Text style={[
+                    styles.navLabel,
+                    active && styles.navLabelActive,
+                    hovered && !active && styles.navLabelHovered,
+                  ]}>
+                    {item.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        ))}
+      </ScrollView>
+
+      <View style={styles.footer}>
+        <View style={styles.footerDivider} />
+        <Text style={styles.footerText}>MAGE ID v2.0</Text>
+        <Text style={styles.footerSubtext}>Desktop Mode</Text>
+      </View>
+    </View>
+  );
+});
+
+export default DesktopSidebar;
+
+const styles = StyleSheet.create({
+  container: {
+    backgroundColor: '#1C1C1E',
+    borderRightWidth: 1,
+    borderRightColor: 'rgba(255,255,255,0.06)',
+    paddingHorizontal: 12,
+  },
+  brandSection: {
+    alignItems: 'center' as const,
+    paddingBottom: 20,
+    marginBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.06)',
+  },
+  brandIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: Colors.primary,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    marginBottom: 8,
+  },
+  brandName: {
+    fontSize: 16,
+    fontWeight: '800' as const,
+    color: '#FFFFFF',
+    letterSpacing: 1,
+  },
+  brandTagline: {
+    fontSize: 10,
+    color: 'rgba(255,255,255,0.4)',
+    fontWeight: '500' as const,
+    letterSpacing: 0.5,
+    marginTop: 2,
+  },
+  navScroll: {
+    flex: 1,
+  },
+  navSection: {
+    marginBottom: 16,
+  },
+  sectionLabel: {
+    fontSize: 10,
+    fontWeight: '700' as const,
+    color: 'rgba(255,255,255,0.3)',
+    letterSpacing: 1.2,
+    paddingHorizontal: 12,
+    marginBottom: 6,
+  },
+  navItem: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    marginBottom: 2,
+    position: 'relative' as const,
+  },
+  navItemActive: {
+    backgroundColor: Colors.primary + '15',
+  },
+  navItemHovered: {
+    backgroundColor: 'rgba(255,255,255,0.06)',
+  },
+  activeIndicator: {
+    position: 'absolute' as const,
+    left: 0,
+    top: 8,
+    bottom: 8,
+    width: 3,
+    borderRadius: 2,
+    backgroundColor: Colors.primary,
+  },
+  navLabel: {
+    fontSize: 14,
+    fontWeight: '500' as const,
+    color: 'rgba(255,255,255,0.6)',
+  },
+  navLabelActive: {
+    color: Colors.primary,
+    fontWeight: '600' as const,
+  },
+  navLabelHovered: {
+    color: '#FFFFFF',
+  },
+  footer: {
+    alignItems: 'center' as const,
+    paddingTop: 12,
+  },
+  footerDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    alignSelf: 'stretch' as const,
+    marginBottom: 12,
+  },
+  footerText: {
+    fontSize: 11,
+    fontWeight: '700' as const,
+    color: 'rgba(255,255,255,0.25)',
+    letterSpacing: 0.5,
+  },
+  footerSubtext: {
+    fontSize: 9,
+    color: 'rgba(255,255,255,0.15)',
+    marginTop: 2,
+  },
+});
+
+--- FILE: components/EmptyState.tsx ---
+import React from 'react';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { Colors } from '@/constants/colors';
+
+interface EmptyStateProps {
+  icon: React.ReactNode;
+  title: string;
+  message: string;
+  actionLabel?: string;
+  onAction?: () => void;
+}
+
+export default function EmptyState({ icon, title, message, actionLabel, onAction }: EmptyStateProps) {
+  return (
+    <View style={styles.container} testID="empty-state">
+      <View style={styles.iconContainer}>{icon}</View>
+      <Text style={styles.title}>{title}</Text>
+      <Text style={styles.message}>{message}</Text>
+      {actionLabel && onAction && (
+        <TouchableOpacity style={styles.button} onPress={onAction} activeOpacity={0.8}>
+          <Text style={styles.buttonText}>{actionLabel}</Text>
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 40,
+    paddingVertical: 60,
+  },
+  iconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 24,
+    backgroundColor: '#E8F5EE',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+  },
+  title: {
+    fontSize: 22,
+    fontWeight: '700' as const,
+    color: Colors.text,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  message: {
+    fontSize: 16,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 24,
+  },
+  button: {
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 28,
+    paddingVertical: 14,
+    borderRadius: 12,
+  },
+  buttonText: {
+    color: Colors.textOnPrimary,
+    fontSize: 16,
+    fontWeight: '600' as const,
+  },
+});
+
+--- FILE: components/ErrorBoundary.tsx ---
+import React, { Component, ErrorInfo, ReactNode } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { AlertTriangle, RefreshCw } from 'lucide-react-native';
+
+interface Props {
+  children: ReactNode;
+  fallbackMessage?: string;
+}
+
+interface State {
+  hasError: boolean;
+  error: Error | null;
+}
+
+export default class ErrorBoundary extends Component<Props, State> {
+  constructor(props: Props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error): State {
+    console.log('[ErrorBoundary] Caught error:', error.message);
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.log('[ErrorBoundary] Error details:', error.message);
+    console.log('[ErrorBoundary] Component stack:', errorInfo.componentStack);
+  }
+
+  handleReset = () => {
+    console.log('[ErrorBoundary] Resetting error state');
+    this.setState({ hasError: false, error: null });
+  };
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <View style={styles.container}>
+          <View style={styles.card}>
+            <View style={styles.iconWrap}>
+              <AlertTriangle size={32} color="#FF3B30" strokeWidth={1.8} />
+            </View>
+            <Text style={styles.title}>Something went wrong</Text>
+            <Text style={styles.message}>
+              {this.props.fallbackMessage || 'The app encountered an unexpected error. Please try again.'}
+            </Text>
+            {this.state.error && (
+              <ScrollView style={styles.errorBox} horizontal={false}>
+                <Text style={styles.errorText}>{this.state.error.message}</Text>
+              </ScrollView>
+            )}
+            <TouchableOpacity
+              style={styles.retryButton}
+              onPress={this.handleReset}
+              activeOpacity={0.8}
+              testID="error-boundary-retry"
+            >
+              <RefreshCw size={16} color="#FFFFFF" strokeWidth={2} />
+              <Text style={styles.retryText}>Try Again</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#F2F2F7',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  card: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 28,
+    alignItems: 'center',
+    width: '100%',
+    maxWidth: 380,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 4,
+  },
+  iconWrap: {
+    width: 64,
+    height: 64,
+    borderRadius: 20,
+    backgroundColor: '#FFF0EF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: '700' as const,
+    color: '#000000',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  message: {
+    fontSize: 15,
+    color: 'rgba(60,60,67,0.6)',
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 16,
+  },
+  errorBox: {
+    backgroundColor: '#F2F2F7',
+    borderRadius: 10,
+    padding: 12,
+    width: '100%',
+    maxHeight: 80,
+    marginBottom: 20,
+  },
+  errorText: {
+    fontSize: 12,
+    color: '#FF3B30',
+    fontFamily: 'monospace',
+  },
+  retryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#1A6B3C',
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    width: '100%',
+  },
+  retryText: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: '#FFFFFF',
+  },
+});
+
+--- FILE: components/EstimateComparison.tsx ---
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import {
+  View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, Platform, Alert,
+} from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Haptics from 'expo-haptics';
+import { X, GitCompare, TrendingUp, TrendingDown, Minus, Save, Clock } from 'lucide-react-native';
+import { Colors } from '@/constants/colors';
+import type { MaterialItem } from '@/constants/materials';
+import type { LaborRate } from '@/constants/laborRates';
+import type { AssemblyItem } from '@/constants/assemblies';
+
+interface CartItem {
+  material: MaterialItem;
+  quantity: number;
+  markup: number;
+  usesBulk: boolean;
+}
+
+interface LaborCartItem {
+  labor: LaborRate;
+  hours: number;
+  adjustedRate: number;
+}
+
+interface AssemblyCartItem {
+  assembly: AssemblyItem;
+  quantity: number;
+  materialsCost: number;
+  laborCost: number;
+  totalCost: number;
+}
+
+interface SavedEstimateVersion {
+  id: string;
+  name: string;
+  savedAt: string;
+  materialsTotal: number;
+  laborTotal: number;
+  assemblyTotal: number;
+  grandTotal: number;
+  materialCount: number;
+  laborCount: number;
+  assemblyCount: number;
+  items: Array<{ id: string; name: string; category: string; total: number; quantity: number }>;
+}
+
+interface EstimateComparisonProps {
+  visible: boolean;
+  onClose: () => void;
+  currentCart: CartItem[];
+  currentLaborCart: LaborCartItem[];
+  currentAssemblyCart: AssemblyCartItem[];
+  currentMaterialsTotal: number;
+  currentLaborTotal: number;
+  currentAssemblyTotal: number;
+  currentGrandTotal: number;
+}
+
+const STORAGE_KEY = 'mageid_estimate_versions';
+
+function formatDelta(current: number, saved: number): { text: string; color: string; icon: typeof TrendingUp } {
+  const delta = current - saved;
+  const pct = saved > 0 ? ((delta / saved) * 100).toFixed(1) : '0.0';
+  if (delta > 0) return { text: `+$${delta.toFixed(0)} (+${pct}%)`, color: Colors.error, icon: TrendingUp };
+  if (delta < 0) return { text: `-$${Math.abs(delta).toFixed(0)} (${pct}%)`, color: Colors.success, icon: TrendingDown };
+  return { text: '$0 (0%)', color: Colors.textMuted, icon: Minus };
+}
+
+const EstimateComparison = React.memo(function EstimateComparison({
+  visible, onClose,
+  currentCart, currentLaborCart, currentAssemblyCart,
+  currentMaterialsTotal, currentLaborTotal, currentAssemblyTotal, currentGrandTotal,
+}: EstimateComparisonProps) {
+  const [savedVersions, setSavedVersions] = useState<SavedEstimateVersion[]>([]);
+  const [selectedVersion, setSelectedVersion] = useState<SavedEstimateVersion | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (visible) {
+      loadVersions();
+    }
+  }, [visible]);
+
+  const loadVersions = useCallback(async () => {
+    setLoading(true);
+    try {
+      const stored = await AsyncStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        setSavedVersions(JSON.parse(stored));
+      }
+    } catch (err) {
+      console.error('[EstimateComparison] Failed to load versions:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const handleSaveCurrentVersion = useCallback(async () => {
+    if (currentGrandTotal <= 0) {
+      Alert.alert('Nothing to Save', 'Add items to your estimate first.');
+      return;
+    }
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+    const items = currentCart.map(i => ({
+      id: i.material.id,
+      name: i.material.name,
+      category: i.material.category,
+      total: (i.usesBulk ? i.material.baseBulkPrice : i.material.baseRetailPrice) * (1 + i.markup / 100) * i.quantity,
+      quantity: i.quantity,
+    }));
+
+    const version: SavedEstimateVersion = {
+      id: `v-${Date.now()}`,
+      name: `V${savedVersions.length + 1} — ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`,
+      savedAt: new Date().toISOString(),
+      materialsTotal: currentMaterialsTotal,
+      laborTotal: currentLaborTotal,
+      assemblyTotal: currentAssemblyTotal,
+      grandTotal: currentGrandTotal,
+      materialCount: currentCart.length,
+      laborCount: currentLaborCart.length,
+      assemblyCount: currentAssemblyCart.length,
+      items,
+    };
+
+    const updated = [version, ...savedVersions].slice(0, 10);
+    setSavedVersions(updated);
+    try {
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    } catch (err) {
+      console.error('[EstimateComparison] Failed to save version:', err);
+    }
+    Alert.alert('Saved', `Estimate saved as "${version.name}"`);
+  }, [currentCart, currentLaborCart, currentAssemblyCart, currentMaterialsTotal, currentLaborTotal, currentAssemblyTotal, currentGrandTotal, savedVersions]);
+
+  const handleDeleteVersion = useCallback(async (id: string) => {
+    const updated = savedVersions.filter(v => v.id !== id);
+    setSavedVersions(updated);
+    if (selectedVersion?.id === id) setSelectedVersion(null);
+    try {
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    } catch (err) {
+      console.error('[EstimateComparison] Failed to delete version:', err);
+    }
+  }, [savedVersions, selectedVersion]);
+
+  const comparison = useMemo(() => {
+    if (!selectedVersion) return null;
+    const matDelta = formatDelta(currentMaterialsTotal, selectedVersion.materialsTotal);
+    const labDelta = formatDelta(currentLaborTotal, selectedVersion.laborTotal);
+    const asmDelta = formatDelta(currentAssemblyTotal, selectedVersion.assemblyTotal);
+    const totalDelta = formatDelta(currentGrandTotal, selectedVersion.grandTotal);
+
+    const currentItemMap = new Map(currentCart.map(i => {
+      const total = (i.usesBulk ? i.material.baseBulkPrice : i.material.baseRetailPrice) * (1 + i.markup / 100) * i.quantity;
+      return [i.material.id, { name: i.material.name, total, quantity: i.quantity }];
+    }));
+    const savedItemMap = new Map(selectedVersion.items.map(i => [i.id, i]));
+
+    const changedItems: Array<{ name: string; currentTotal: number; savedTotal: number; type: 'changed' | 'new' | 'removed' }> = [];
+
+    for (const [id, curr] of currentItemMap) {
+      const saved = savedItemMap.get(id);
+      if (!saved) {
+        changedItems.push({ name: curr.name, currentTotal: curr.total, savedTotal: 0, type: 'new' });
+      } else if (Math.abs(curr.total - saved.total) > 0.50) {
+        changedItems.push({ name: curr.name, currentTotal: curr.total, savedTotal: saved.total, type: 'changed' });
+      }
+    }
+    for (const [id, saved] of savedItemMap) {
+      if (!currentItemMap.has(id)) {
+        changedItems.push({ name: saved.name, currentTotal: 0, savedTotal: saved.total, type: 'removed' });
+      }
+    }
+
+    return { matDelta, labDelta, asmDelta, totalDelta, changedItems };
+  }, [selectedVersion, currentMaterialsTotal, currentLaborTotal, currentAssemblyTotal, currentGrandTotal, currentCart]);
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : undefined} onRequestClose={onClose}>
+      <View style={s.container}>
+        <View style={s.header}>
+          <View>
+            <Text style={s.headerTitle}>Compare Estimates</Text>
+            <Text style={s.headerSub}>Track changes across versions</Text>
+          </View>
+          <TouchableOpacity onPress={onClose} style={s.closeBtn}>
+            <X size={20} color={Colors.text} />
+          </TouchableOpacity>
+        </View>
+
+        <ScrollView style={s.body} showsVerticalScrollIndicator={false}>
+          <TouchableOpacity style={s.saveBtn} onPress={handleSaveCurrentVersion} activeOpacity={0.85}>
+            <Save size={16} color={Colors.textOnPrimary} />
+            <Text style={s.saveBtnText}>Save Current as Version</Text>
+          </TouchableOpacity>
+
+          {savedVersions.length === 0 && !loading && (
+            <View style={s.emptyState}>
+              <GitCompare size={40} color={Colors.textMuted} />
+              <Text style={s.emptyTitle}>No saved versions yet</Text>
+              <Text style={s.emptyDesc}>Save your current estimate to start tracking changes over time.</Text>
+            </View>
+          )}
+
+          {savedVersions.length > 0 && (
+            <>
+              <Text style={s.sectionTitle}>Saved Versions</Text>
+              {savedVersions.map(version => {
+                const isSelected = selectedVersion?.id === version.id;
+                return (
+                  <TouchableOpacity
+                    key={version.id}
+                    style={[s.versionCard, isSelected && s.versionCardSelected]}
+                    onPress={() => {
+                      setSelectedVersion(isSelected ? null : version);
+                      if (Platform.OS !== 'web') void Haptics.selectionAsync();
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <View style={s.versionTop}>
+                      <View style={s.versionInfo}>
+                        <Text style={[s.versionName, isSelected && s.versionNameSelected]}>{version.name}</Text>
+                        <View style={s.versionMeta}>
+                          <Clock size={10} color={Colors.textMuted} />
+                          <Text style={s.versionDate}>
+                            {new Date(version.savedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          </Text>
+                        </View>
+                      </View>
+                      <View style={s.versionRight}>
+                        <Text style={[s.versionTotal, isSelected && s.versionTotalSelected]}>${version.grandTotal.toFixed(0)}</Text>
+                        <Text style={s.versionCount}>{version.materialCount + version.laborCount + version.assemblyCount} items</Text>
+                      </View>
+                    </View>
+                    {isSelected && (
+                      <TouchableOpacity
+                        style={s.deleteBtn}
+                        onPress={() => handleDeleteVersion(version.id)}
+                      >
+                        <X size={12} color={Colors.error} />
+                        <Text style={s.deleteBtnText}>Delete</Text>
+                      </TouchableOpacity>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </>
+          )}
+
+          {comparison && selectedVersion && (
+            <View style={s.comparisonSection}>
+              <Text style={s.sectionTitle}>Comparison</Text>
+              <View style={s.compTable}>
+                <View style={s.compHeader}>
+                  <Text style={[s.compHeaderCell, { flex: 2 }]} />
+                  <Text style={s.compHeaderCell}>Current</Text>
+                  <Text style={s.compHeaderCell}>{selectedVersion.name}</Text>
+                  <Text style={s.compHeaderCell}>Delta</Text>
+                </View>
+
+                {[
+                  { label: 'Materials', current: currentMaterialsTotal, saved: selectedVersion.materialsTotal, delta: comparison.matDelta },
+                  { label: 'Labor', current: currentLaborTotal, saved: selectedVersion.laborTotal, delta: comparison.labDelta },
+                  { label: 'Assemblies', current: currentAssemblyTotal, saved: selectedVersion.assemblyTotal, delta: comparison.asmDelta },
+                ].map(row => (
+                  <View key={row.label} style={s.compRow}>
+                    <Text style={[s.compCell, { flex: 2, fontWeight: '600' as const }]}>{row.label}</Text>
+                    <Text style={s.compCell}>${row.current.toFixed(0)}</Text>
+                    <Text style={[s.compCell, { color: Colors.textMuted }]}>${row.saved.toFixed(0)}</Text>
+                    <Text style={[s.compCell, { color: row.delta.color, fontWeight: '600' as const, fontSize: 11 }]}>{row.delta.text}</Text>
+                  </View>
+                ))}
+
+                <View style={s.compDivider} />
+                <View style={s.compRow}>
+                  <Text style={[s.compCell, { flex: 2, fontWeight: '700' as const, fontSize: 14 }]}>Grand Total</Text>
+                  <Text style={[s.compCell, { fontWeight: '700' as const, color: Colors.primary }]}>${currentGrandTotal.toFixed(0)}</Text>
+                  <Text style={[s.compCell, { color: Colors.textMuted }]}>${selectedVersion.grandTotal.toFixed(0)}</Text>
+                  <Text style={[s.compCell, { color: comparison.totalDelta.color, fontWeight: '700' as const, fontSize: 12 }]}>{comparison.totalDelta.text}</Text>
+                </View>
+              </View>
+
+              {comparison.changedItems.length > 0 && (
+                <View style={s.changesSection}>
+                  <Text style={s.changesSectionTitle}>Line Item Changes</Text>
+                  {comparison.changedItems.slice(0, 15).map((item, idx) => {
+                    const bgColor = item.type === 'new' ? Colors.successLight : item.type === 'removed' ? Colors.errorLight : Colors.warningLight;
+                    const textColor = item.type === 'new' ? Colors.success : item.type === 'removed' ? Colors.error : Colors.warning;
+                    const label = item.type === 'new' ? 'NEW' : item.type === 'removed' ? 'REMOVED' : 'CHANGED';
+                    return (
+                      <View key={`${item.name}-${idx}`} style={[s.changeRow, { backgroundColor: bgColor }]}>
+                        <View style={s.changeInfo}>
+                          <Text style={s.changeName} numberOfLines={1}>{item.name}</Text>
+                          <View style={s.changeBadge}>
+                            <Text style={[s.changeBadgeText, { color: textColor }]}>{label}</Text>
+                          </View>
+                        </View>
+                        <View style={s.changeAmounts}>
+                          {item.type !== 'new' && <Text style={s.changeOld}>${item.savedTotal.toFixed(0)}</Text>}
+                          {item.type !== 'removed' && <Text style={[s.changeNew, { color: textColor }]}>${item.currentTotal.toFixed(0)}</Text>}
+                        </View>
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
+            </View>
+          )}
+
+          <View style={{ height: 40 }} />
+        </ScrollView>
+      </View>
+    </Modal>
+  );
+});
+
+export default EstimateComparison;
+
+const s = StyleSheet.create({
+  container: { flex: 1, backgroundColor: Colors.background },
+  header: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12,
+    backgroundColor: Colors.surface, borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight,
+  },
+  headerTitle: { fontSize: 22, fontWeight: '700' as const, color: Colors.text, letterSpacing: -0.3 },
+  headerSub: { fontSize: 13, color: Colors.textSecondary, marginTop: 2 },
+  closeBtn: {
+    width: 34, height: 34, borderRadius: 17, backgroundColor: Colors.fillTertiary,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  body: { flex: 1, paddingHorizontal: 16, paddingTop: 12 },
+  saveBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: Colors.primary, borderRadius: 14, paddingVertical: 14, marginBottom: 16,
+  },
+  saveBtnText: { fontSize: 15, fontWeight: '700' as const, color: Colors.textOnPrimary },
+  emptyState: { alignItems: 'center', paddingVertical: 40, gap: 10 },
+  emptyTitle: { fontSize: 17, fontWeight: '600' as const, color: Colors.text },
+  emptyDesc: { fontSize: 13, color: Colors.textMuted, textAlign: 'center' as const, lineHeight: 18 },
+  sectionTitle: {
+    fontSize: 15, fontWeight: '700' as const, color: Colors.text, marginBottom: 8, marginTop: 4,
+  },
+  versionCard: {
+    backgroundColor: Colors.surface, borderRadius: 12, padding: 14, marginBottom: 8,
+    borderWidth: 1.5, borderColor: Colors.cardBorder, gap: 8,
+  },
+  versionCardSelected: { borderColor: Colors.primary, backgroundColor: Colors.primary + '06' },
+  versionTop: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  versionInfo: { flex: 1, gap: 3 },
+  versionName: { fontSize: 14, fontWeight: '600' as const, color: Colors.text },
+  versionNameSelected: { color: Colors.primary },
+  versionMeta: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  versionDate: { fontSize: 11, color: Colors.textMuted },
+  versionRight: { alignItems: 'flex-end', gap: 2 },
+  versionTotal: { fontSize: 16, fontWeight: '700' as const, color: Colors.text },
+  versionTotalSelected: { color: Colors.primary },
+  versionCount: { fontSize: 10, color: Colors.textMuted },
+  deleteBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-end' as const,
+    paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: Colors.errorLight,
+  },
+  deleteBtnText: { fontSize: 11, fontWeight: '600' as const, color: Colors.error },
+  comparisonSection: { marginTop: 8, gap: 8 },
+  compTable: {
+    backgroundColor: Colors.surface, borderRadius: 12, borderWidth: 1, borderColor: Colors.cardBorder,
+    overflow: 'hidden' as const,
+  },
+  compHeader: {
+    flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 8,
+    backgroundColor: Colors.fillSecondary, gap: 4,
+  },
+  compHeaderCell: {
+    flex: 1, fontSize: 10, fontWeight: '700' as const, color: Colors.textMuted,
+    textTransform: 'uppercase' as const, letterSpacing: 0.3, textAlign: 'right' as const,
+  },
+  compRow: {
+    flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 10,
+    borderTopWidth: 0.5, borderTopColor: Colors.borderLight, alignItems: 'center', gap: 4,
+  },
+  compCell: { flex: 1, fontSize: 12, color: Colors.textSecondary, textAlign: 'right' as const },
+  compDivider: { height: 1, backgroundColor: Colors.border, marginHorizontal: 12 },
+  changesSection: { marginTop: 12, gap: 6 },
+  changesSectionTitle: { fontSize: 13, fontWeight: '700' as const, color: Colors.text, marginBottom: 2 },
+  changeRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    borderRadius: 10, padding: 10, gap: 8,
+  },
+  changeInfo: { flex: 1, gap: 4 },
+  changeName: { fontSize: 12, fontWeight: '500' as const, color: Colors.text },
+  changeBadge: { alignSelf: 'flex-start' as const },
+  changeBadgeText: { fontSize: 9, fontWeight: '700' as const, letterSpacing: 0.5 },
+  changeAmounts: { alignItems: 'flex-end', gap: 2 },
+  changeOld: { fontSize: 11, color: Colors.textMuted, textDecorationLine: 'line-through' as const },
+  changeNew: { fontSize: 13, fontWeight: '700' as const },
+});
+
+--- FILE: components/PDFPreSendSheet.tsx ---
+import React, { useState, useMemo, useCallback } from 'react';
+import {
+  View, Text, StyleSheet, Modal, TouchableOpacity, TextInput,
+  ScrollView, Platform, KeyboardAvoidingView, Pressable, Switch, Alert,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Haptics from 'expo-haptics';
+import {
+  X, FileText, Send, Mail, ChevronDown, ChevronUp, User, BookUser,
+} from 'lucide-react-native';
+import { Colors } from '@/constants/colors';
+import ContactPickerModal from '@/components/ContactPickerModal';
+import type { Contact, PDFNamingSettings } from '@/types';
+
+export type PDFDocumentType = 'estimate' | 'invoice' | 'change_order' | 'schedule' | 'daily_report' | 'status_report' | 'closeout';
+
+interface PDFSection {
+  id: string;
+  label: string;
+  enabled: boolean;
+}
+
+interface PDFPreSendSheetProps {
+  visible: boolean;
+  onClose: () => void;
+  onSend: (options: PDFSendOptions) => void;
+  documentType: PDFDocumentType;
+  projectName: string;
+  documentNumber?: number;
+  defaultRecipient?: string;
+  sections?: PDFSection[];
+  contacts?: Contact[];
+  pdfNaming?: PDFNamingSettings;
+  onPdfNumberUsed?: () => void;
+}
+
+export interface PDFSendOptions {
+  fileName: string;
+  recipient: string;
+  message: string;
+  sections: PDFSection[];
+  method: 'share' | 'email';
+}
+
+function getDocTypeString(type: PDFDocumentType): string {
+  switch (type) {
+    case 'estimate': return 'Estimate';
+    case 'invoice': return 'Invoice';
+    case 'change_order': return 'Change Order';
+    case 'schedule': return 'Schedule';
+    case 'daily_report': return 'Daily Report';
+    case 'status_report': return 'Status Report';
+    case 'closeout': return 'Closeout';
+    default: return 'Document';
+  }
+}
+
+function getDefaultFileName(type: PDFDocumentType, projectName: string, docNumber?: number, pdfNaming?: PDFNamingSettings): string {
+  if (pdfNaming?.enabled) {
+    const sep = pdfNaming.separator;
+    const parts: string[] = [];
+    if (pdfNaming.prefix.trim()) parts.push(pdfNaming.prefix.trim());
+    if (pdfNaming.includeProjectName) parts.push(projectName);
+    if (pdfNaming.includeDocType) parts.push(getDocTypeString(type));
+    if (pdfNaming.includeDate) {
+      const now = new Date();
+      parts.push(now.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }));
+    }
+    const numStr = String(pdfNaming.nextNumber).padStart(3, '0');
+    return parts.join(sep) + sep + numStr;
+  }
+
+  const now = new Date();
+  const monthYear = now.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+  const dateStr = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
+  switch (type) {
+    case 'estimate':
+      return `${projectName} - Estimate - ${monthYear}`;
+    case 'invoice':
+      return `${projectName} - Invoice #${docNumber ?? 1} - ${monthYear}`;
+    case 'change_order':
+      return `${projectName} - CO #${docNumber ?? 1} - ${monthYear}`;
+    case 'schedule':
+      return `${projectName} - Schedule - ${monthYear}`;
+    case 'daily_report':
+      return `${projectName} - Daily Report - ${dateStr}`;
+    case 'status_report':
+      return `${projectName} - Status Report - ${dateStr}`;
+    case 'closeout':
+      return `${projectName} - Closeout - ${monthYear}`;
+    default:
+      return `${projectName} - Document - ${monthYear}`;
+  }
+}
+
+function getDefaultSections(type: PDFDocumentType): PDFSection[] {
+  switch (type) {
+    case 'estimate':
+      return [
+        { id: 'line_items', label: 'Line Items', enabled: true },
+        { id: 'cost_summary', label: 'Cost Summary', enabled: true },
+        { id: 'bulk_savings', label: 'Bulk Savings Breakdown', enabled: true },
+        { id: 'schedule_summary', label: 'Schedule Summary', enabled: false },
+        { id: 'branding', label: 'Company Branding', enabled: true },
+      ];
+    case 'invoice':
+      return [
+        { id: 'line_items', label: 'Line Items', enabled: true },
+        { id: 'payment_terms', label: 'Payment Terms', enabled: true },
+        { id: 'tax_breakdown', label: 'Tax Breakdown', enabled: true },
+        { id: 'branding', label: 'Company Branding', enabled: true },
+      ];
+    case 'change_order':
+      return [
+        { id: 'original_scope', label: 'Original Scope', enabled: true },
+        { id: 'changes', label: 'Changes & Line Items', enabled: true },
+        { id: 'new_total', label: 'New Contract Total', enabled: true },
+        { id: 'approval_status', label: 'Approval Status', enabled: true },
+      ];
+    case 'daily_report':
+      return [
+        { id: 'weather', label: 'Weather Conditions', enabled: true },
+        { id: 'manpower', label: 'Manpower Log', enabled: true },
+        { id: 'work_performed', label: 'Work Performed', enabled: true },
+        { id: 'issues', label: 'Issues & Delays', enabled: true },
+        { id: 'photos', label: 'Photos', enabled: true },
+      ];
+    default:
+      return [
+        { id: 'full_content', label: 'Full Content', enabled: true },
+        { id: 'branding', label: 'Company Branding', enabled: true },
+      ];
+  }
+}
+
+function getDocTypeLabel(type: PDFDocumentType): string {
+  switch (type) {
+    case 'estimate': return 'Estimate';
+    case 'invoice': return 'Invoice';
+    case 'change_order': return 'Change Order';
+    case 'schedule': return 'Schedule';
+    case 'daily_report': return 'Daily Report';
+    case 'status_report': return 'Status Report';
+    case 'closeout': return 'Closeout Package';
+    default: return 'Document';
+  }
+}
+
+export default function PDFPreSendSheet({
+  visible,
+  onClose,
+  onSend,
+  documentType,
+  projectName,
+  documentNumber,
+  defaultRecipient = '',
+  sections: propSections,
+  contacts,
+  pdfNaming,
+  onPdfNumberUsed,
+}: PDFPreSendSheetProps) {
+  const insets = useSafeAreaInsets();
+
+  const [fileName, setFileName] = useState('');
+  const [recipient, setRecipient] = useState(defaultRecipient);
+  const [recipientName, setRecipientName] = useState('');
+  const [message, setMessage] = useState('');
+  const [sections, setSections] = useState<PDFSection[]>([]);
+  const [showSections, setShowSections] = useState(false);
+  const [showContactPicker, setShowContactPicker] = useState(false);
+
+  React.useEffect(() => {
+    if (visible) {
+      setFileName(getDefaultFileName(documentType, projectName, documentNumber, pdfNaming));
+      setRecipient(defaultRecipient);
+      setRecipientName('');
+      setMessage('');
+      setSections(propSections ?? getDefaultSections(documentType));
+      setShowSections(false);
+      setShowContactPicker(false);
+    }
+  }, [visible, documentType, projectName, documentNumber, defaultRecipient, propSections, pdfNaming]);
+
+  const toggleSection = useCallback((id: string) => {
+    setSections(prev => prev.map(s => s.id === id ? { ...s, enabled: !s.enabled } : s));
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+  }, []);
+
+  const handleSend = useCallback((method: 'share' | 'email') => {
+    if (!fileName.trim()) {
+      Alert.alert('Missing Name', 'Please enter a file name.');
+      return;
+    }
+    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    onSend({
+      fileName: fileName.trim(),
+      recipient: recipient.trim(),
+      message: message.trim(),
+      sections,
+      method,
+    });
+    if (pdfNaming?.enabled && onPdfNumberUsed) {
+      onPdfNumberUsed();
+    }
+  }, [fileName, recipient, message, sections, onSend, pdfNaming, onPdfNumberUsed]);
+
+  const docLabel = useMemo(() => getDocTypeLabel(documentType), [documentType]);
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+    >
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <View style={styles.overlay}>
+          <Pressable style={styles.overlayTouch} onPress={onClose} />
+          <View style={[styles.sheet, { paddingBottom: insets.bottom + 16 }]}>
+            <View style={styles.handle} />
+
+            <View style={styles.header}>
+              <View>
+                <Text style={styles.headerTitle}>Send {docLabel}</Text>
+                <Text style={styles.headerSubtitle}>{projectName}</Text>
+              </View>
+              <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+                <X size={18} color={Colors.textMuted} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView
+              style={styles.body}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
+              <Text style={styles.fieldLabel}>FILE NAME</Text>
+              <View style={styles.fileNameRow}>
+                <FileText size={16} color={Colors.primary} />
+                <TextInput
+                  style={styles.fileNameInput}
+                  value={fileName}
+                  onChangeText={setFileName}
+                  placeholder="Document name"
+                  placeholderTextColor={Colors.textMuted}
+                  testID="pdf-filename-input"
+                />
+                <Text style={styles.pdfExt}>.pdf</Text>
+              </View>
+
+              <Text style={styles.fieldLabel}>INCLUDE IN PDF</Text>
+              <TouchableOpacity
+                style={styles.sectionsToggle}
+                onPress={() => setShowSections(!showSections)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.sectionsToggleText}>
+                  {sections.filter(s => s.enabled).length} of {sections.length} sections selected
+                </Text>
+                {showSections
+                  ? <ChevronUp size={16} color={Colors.textSecondary} />
+                  : <ChevronDown size={16} color={Colors.textSecondary} />
+                }
+              </TouchableOpacity>
+              {showSections && (
+                <View style={styles.sectionsList}>
+                  {sections.map(section => (
+                    <View key={section.id} style={styles.sectionRow}>
+                      <Text style={styles.sectionLabel}>{section.label}</Text>
+                      <Switch
+                        value={section.enabled}
+                        onValueChange={() => toggleSection(section.id)}
+                        trackColor={{ false: Colors.fillTertiary, true: Colors.primary + '50' }}
+                        thumbColor={section.enabled ? Colors.primary : Colors.textMuted}
+                      />
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              <Text style={styles.fieldLabel}>RECIPIENT</Text>
+              {recipientName ? (
+                <View style={styles.selectedRecipient}>
+                  <User size={14} color={Colors.primary} />
+                  <View style={styles.selectedRecipientInfo}>
+                    <Text style={styles.selectedRecipientName}>{recipientName}</Text>
+                    <Text style={styles.selectedRecipientEmail}>{recipient}</Text>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => { setRecipient(''); setRecipientName(''); }}
+                    style={styles.clearRecipientBtn}
+                  >
+                    <X size={12} color={Colors.textMuted} />
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <View style={styles.recipientRow}>
+                  <User size={16} color={Colors.textMuted} />
+                  <TextInput
+                    style={styles.recipientInput}
+                    value={recipient}
+                    onChangeText={setRecipient}
+                    placeholder="client@email.com"
+                    placeholderTextColor={Colors.textMuted}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    testID="pdf-recipient-input"
+                  />
+                </View>
+              )}
+              {(contacts && contacts.length > 0) ? (
+                <TouchableOpacity
+                  style={styles.pickContactBtn}
+                  onPress={() => setShowContactPicker(true)}
+                  activeOpacity={0.7}
+                  testID="pdf-pick-contact-btn"
+                >
+                  <BookUser size={14} color={Colors.primary} />
+                  <Text style={styles.pickContactText}>Pick from Contacts</Text>
+                </TouchableOpacity>
+              ) : null}
+
+              <Text style={styles.fieldLabel}>MESSAGE (OPTIONAL)</Text>
+              <TextInput
+                style={styles.messageInput}
+                value={message}
+                onChangeText={setMessage}
+                placeholder="Add a note to the recipient..."
+                placeholderTextColor={Colors.textMuted}
+                multiline
+                textAlignVertical="top"
+                testID="pdf-message-input"
+              />
+
+              <View style={{ height: 20 }} />
+            </ScrollView>
+
+            <View style={styles.footer}>
+              {recipient.trim() ? (
+                <TouchableOpacity
+                  style={styles.emailBtn}
+                  onPress={() => handleSend('email')}
+                  activeOpacity={0.85}
+                  testID="pdf-send-email-btn"
+                >
+                  <Mail size={16} color={Colors.textOnPrimary} />
+                  <Text style={styles.emailBtnText}>Send via Email</Text>
+                </TouchableOpacity>
+              ) : null}
+              <TouchableOpacity
+                style={[styles.shareBtn, !recipient.trim() && styles.shareBtnFull]}
+                onPress={() => handleSend('share')}
+                activeOpacity={0.85}
+                testID="pdf-share-btn"
+              >
+                <Send size={16} color={recipient.trim() ? Colors.primary : Colors.textOnPrimary} />
+                <Text style={[styles.shareBtnText, !recipient.trim() && styles.shareBtnTextFull]}>
+                  {recipient.trim() ? 'Share Sheet' : 'Generate & Share'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+
+      {contacts && contacts.length > 0 && (
+        <ContactPickerModal
+          visible={showContactPicker}
+          onClose={() => setShowContactPicker(false)}
+          contacts={contacts}
+          title="Select Recipient"
+          onSelect={(contact) => {
+            const name = `${contact.firstName} ${contact.lastName}`.trim() || contact.companyName;
+            setRecipient(contact.email);
+            setRecipientName(name);
+            setShowContactPicker(false);
+          }}
+        />
+      )}
+    </Modal>
+  );
+}
+
+const styles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: Colors.overlay,
+    justifyContent: 'flex-end',
+  },
+  overlayTouch: {
+    flex: 1,
+  },
+  sheet: {
+    backgroundColor: Colors.surface,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    maxHeight: '85%',
+  },
+  handle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: Colors.fillTertiary,
+    alignSelf: 'center',
+    marginTop: 10,
+    marginBottom: 6,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    paddingHorizontal: 22,
+    paddingVertical: 12,
+    borderBottomWidth: 0.5,
+    borderBottomColor: Colors.borderLight,
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '700' as const,
+    color: Colors.text,
+  },
+  headerSubtitle: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
+  closeBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: Colors.fillTertiary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  body: {
+    paddingHorizontal: 22,
+    paddingTop: 16,
+  },
+  fieldLabel: {
+    fontSize: 11,
+    fontWeight: '700' as const,
+    color: Colors.textMuted,
+    letterSpacing: 0.8,
+    marginBottom: 6,
+    marginTop: 14,
+  },
+  fileNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.surfaceAlt,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+  },
+  fileNameInput: {
+    flex: 1,
+    height: 48,
+    fontSize: 15,
+    color: Colors.text,
+    fontWeight: '500' as const,
+  },
+  pdfExt: {
+    fontSize: 13,
+    color: Colors.textMuted,
+    fontWeight: '600' as const,
+  },
+  sectionsToggle: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: Colors.surfaceAlt,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+  },
+  sectionsToggleText: {
+    fontSize: 14,
+    color: Colors.text,
+    fontWeight: '500' as const,
+  },
+  sectionsList: {
+    backgroundColor: Colors.surfaceAlt,
+    borderRadius: 12,
+    marginTop: 6,
+    paddingHorizontal: 14,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+  },
+  sectionRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderBottomWidth: 0.5,
+    borderBottomColor: Colors.borderLight,
+  },
+  sectionLabel: {
+    fontSize: 14,
+    color: Colors.text,
+    fontWeight: '500' as const,
+  },
+  recipientRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.surfaceAlt,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+  },
+  recipientInput: {
+    flex: 1,
+    height: 48,
+    fontSize: 15,
+    color: Colors.text,
+  },
+  selectedRecipient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.primary + '10',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 10,
+    borderWidth: 1,
+    borderColor: Colors.primary + '25',
+  },
+  selectedRecipientInfo: {
+    flex: 1,
+    gap: 1,
+  },
+  selectedRecipientName: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: Colors.text,
+  },
+  selectedRecipientEmail: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+  },
+  clearRecipientBtn: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: Colors.fillTertiary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pickContactBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    alignSelf: 'flex-start',
+    marginTop: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    backgroundColor: Colors.primary + '10',
+  },
+  pickContactText: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: Colors.primary,
+  },
+  messageInput: {
+    minHeight: 80,
+    backgroundColor: Colors.surfaceAlt,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingTop: 12,
+    fontSize: 15,
+    color: Colors.text,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+  },
+  footer: {
+    flexDirection: 'row',
+    paddingHorizontal: 22,
+    paddingTop: 12,
+    gap: 10,
+    borderTopWidth: 0.5,
+    borderTopColor: Colors.borderLight,
+  },
+  emailBtn: {
+    flex: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: Colors.primary,
+    borderRadius: 14,
+    paddingVertical: 14,
+  },
+  emailBtnText: {
+    fontSize: 15,
+    fontWeight: '700' as const,
+    color: Colors.textOnPrimary,
+  },
+  shareBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: Colors.primary + '12',
+    borderRadius: 14,
+    paddingVertical: 14,
+  },
+  shareBtnFull: {
+    flex: 1,
+    backgroundColor: Colors.primary,
+  },
+  shareBtnText: {
+    fontSize: 14,
+    fontWeight: '700' as const,
+    color: Colors.primary,
+  },
+  shareBtnTextFull: {
+    color: Colors.textOnPrimary,
+  },
+});
+
+--- FILE: components/ProductivityCalculator.tsx ---
+import React, { useState, useMemo, useCallback } from 'react';
+import {
+  View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Modal, Platform,
+} from 'react-native';
+import * as Haptics from 'expo-haptics';
+import { X, Search, Clock, Users, DollarSign, ChevronDown, ChevronUp } from 'lucide-react-native';
+import { Colors } from '@/constants/colors';
+import { PRODUCTIVITY_RATES, PRODUCTIVITY_CATEGORIES, type ProductivityRate } from '@/constants/productivityRates';
+
+interface ProductivityCalculatorProps {
+  visible: boolean;
+  onClose: () => void;
+  onAddToEstimate?: (item: { name: string; materialCost: number; laborCost: number; equipmentCost: number; totalCost: number }) => void;
+}
+
+const ProductivityCalculator = React.memo(function ProductivityCalculator({ visible, onClose, onAddToEstimate }: ProductivityCalculatorProps) {
+  const [query, setQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [selectedRate, setSelectedRate] = useState<ProductivityRate | null>(null);
+  const [quantityInput, setQuantityInput] = useState('');
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  const filteredRates = useMemo(() => {
+    let results = PRODUCTIVITY_RATES;
+    if (selectedCategory !== 'all') results = results.filter(r => r.category === selectedCategory);
+    if (query.trim()) {
+      const q = query.toLowerCase();
+      results = results.filter(r => r.task.toLowerCase().includes(q) || r.crew.toLowerCase().includes(q));
+    }
+    return results;
+  }, [query, selectedCategory]);
+
+  const handleSelect = useCallback((rate: ProductivityRate) => {
+    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setSelectedRate(rate);
+    setQuantityInput('100');
+  }, []);
+
+  const qty = useMemo(() => parseFloat(quantityInput) || 0, [quantityInput]);
+
+  const calculation = useMemo(() => {
+    if (!selectedRate || qty <= 0) return null;
+    const materialCost = selectedRate.materialCostPerUnit * qty;
+    const laborCost = selectedRate.laborCostPerUnit * qty;
+    const equipmentCost = selectedRate.equipmentCostPerUnit * qty;
+    const totalCost = materialCost + laborCost + equipmentCost;
+    const daysToComplete = selectedRate.dailyOutput > 0 ? qty / selectedRate.dailyOutput : 0;
+    return { materialCost, laborCost, equipmentCost, totalCost, daysToComplete };
+  }, [selectedRate, qty]);
+
+  const handleAddToEstimate = useCallback(() => {
+    if (!selectedRate || !calculation || !onAddToEstimate) return;
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    onAddToEstimate({
+      name: `${selectedRate.task} (${qty} ${selectedRate.unit})`,
+      materialCost: calculation.materialCost,
+      laborCost: calculation.laborCost,
+      equipmentCost: calculation.equipmentCost,
+      totalCost: calculation.totalCost,
+    });
+    setSelectedRate(null);
+    setQuantityInput('');
+    onClose();
+  }, [selectedRate, calculation, qty, onAddToEstimate, onClose]);
+
+  const handleClose = useCallback(() => {
+    setSelectedRate(null);
+    setQuery('');
+    onClose();
+  }, [onClose]);
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : undefined} onRequestClose={handleClose}>
+      <View style={s.container}>
+        <View style={s.header}>
+          <View>
+            <Text style={s.headerTitle}>Productivity Calc</Text>
+            <Text style={s.headerSub}>Crew output & cost estimator</Text>
+          </View>
+          <TouchableOpacity onPress={handleClose} style={s.closeBtn}>
+            <X size={20} color={Colors.text} />
+          </TouchableOpacity>
+        </View>
+
+        {selectedRate ? (
+          <ScrollView style={s.body} showsVerticalScrollIndicator={false}>
+            <TouchableOpacity style={s.backBtn} onPress={() => setSelectedRate(null)}>
+              <Text style={s.backBtnText}>← Select different task</Text>
+            </TouchableOpacity>
+
+            <Text style={s.taskTitle}>{selectedRate.task}</Text>
+
+            <View style={s.crewCard}>
+              <View style={s.crewRow}>
+                <Users size={14} color={Colors.primary} />
+                <Text style={s.crewLabel}>Crew:</Text>
+                <Text style={s.crewValue}>{selectedRate.crew}</Text>
+              </View>
+              <View style={s.crewRow}>
+                <Clock size={14} color={Colors.accent} />
+                <Text style={s.crewLabel}>Daily Output:</Text>
+                <Text style={s.crewValue}>{selectedRate.dailyOutput} {selectedRate.unit}/day</Text>
+              </View>
+            </View>
+
+            <Text style={s.fieldLabel}>Quantity ({selectedRate.unit})</Text>
+            <TextInput
+              style={s.qtyInput}
+              value={quantityInput}
+              onChangeText={setQuantityInput}
+              keyboardType="decimal-pad"
+              textAlign="center"
+              placeholder={`Enter ${selectedRate.unit}`}
+              placeholderTextColor={Colors.textMuted}
+            />
+
+            {calculation && (
+              <View style={s.resultCard}>
+                <Text style={s.resultTitle}>Cost Breakdown</Text>
+
+                <View style={s.costRow}>
+                  <Text style={s.costLabel}>Materials</Text>
+                  <Text style={s.costSub}>${selectedRate.materialCostPerUnit.toFixed(2)}/{selectedRate.unit}</Text>
+                  <Text style={s.costValue}>${calculation.materialCost.toFixed(2)}</Text>
+                </View>
+                <View style={s.costRow}>
+                  <Text style={s.costLabel}>Labor</Text>
+                  <Text style={s.costSub}>${selectedRate.laborCostPerUnit.toFixed(2)}/{selectedRate.unit}</Text>
+                  <Text style={s.costValue}>${calculation.laborCost.toFixed(2)}</Text>
+                </View>
+                <View style={s.costRow}>
+                  <Text style={s.costLabel}>Equipment</Text>
+                  <Text style={s.costSub}>${selectedRate.equipmentCostPerUnit.toFixed(2)}/{selectedRate.unit}</Text>
+                  <Text style={s.costValue}>${calculation.equipmentCost.toFixed(2)}</Text>
+                </View>
+
+                <View style={s.divider} />
+
+                <View style={s.totalRow}>
+                  <Text style={s.totalLabel}>Total Cost</Text>
+                  <Text style={s.totalValue}>${calculation.totalCost.toFixed(2)}</Text>
+                </View>
+
+                <View style={s.scheduleCard}>
+                  <View style={s.scheduleRow}>
+                    <Clock size={14} color={Colors.info} />
+                    <Text style={s.scheduleLabel}>Estimated Duration:</Text>
+                    <Text style={s.scheduleValue}>
+                      {calculation.daysToComplete < 1
+                        ? `${(calculation.daysToComplete * 8).toFixed(1)} hours`
+                        : `${calculation.daysToComplete.toFixed(1)} days`}
+                    </Text>
+                  </View>
+                  <View style={s.scheduleRow}>
+                    <Users size={14} color={Colors.info} />
+                    <Text style={s.scheduleLabel}>Crew:</Text>
+                    <Text style={s.scheduleValue}>{selectedRate.crew}</Text>
+                  </View>
+                </View>
+
+                {selectedRate.notes ? (
+                  <Text style={s.notes}>{selectedRate.notes}</Text>
+                ) : null}
+
+                {onAddToEstimate && (
+                  <TouchableOpacity style={s.addBtn} onPress={handleAddToEstimate} activeOpacity={0.85}>
+                    <DollarSign size={16} color={Colors.textOnPrimary} />
+                    <Text style={s.addBtnText}>Add to Estimate</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
+            <View style={{ height: 40 }} />
+          </ScrollView>
+        ) : (
+          <View style={s.body}>
+            <View style={s.searchBar}>
+              <Search size={16} color={Colors.textMuted} />
+              <TextInput
+                style={s.searchInput}
+                value={query}
+                onChangeText={setQuery}
+                placeholder="Search tasks..."
+                placeholderTextColor={Colors.textMuted}
+              />
+              {query.length > 0 && (
+                <TouchableOpacity onPress={() => setQuery('')}>
+                  <X size={14} color={Colors.textMuted} />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.catScroll} contentContainerStyle={s.catContent}>
+              {PRODUCTIVITY_CATEGORIES.map(cat => {
+                const isActive = selectedCategory === cat.id;
+                return (
+                  <TouchableOpacity key={cat.id} style={[s.catChip, isActive && s.catChipActive]} onPress={() => setSelectedCategory(cat.id)}>
+                    <Text style={[s.catChipText, isActive && s.catChipTextActive]}>{cat.label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+
+            <ScrollView style={s.rateList} showsVerticalScrollIndicator={false}>
+              {filteredRates.map(rate => {
+                const isExpanded = expandedId === rate.id;
+                const unitCost = rate.materialCostPerUnit + rate.laborCostPerUnit + rate.equipmentCostPerUnit;
+                return (
+                  <View key={rate.id} style={s.rateCard}>
+                    <TouchableOpacity style={s.rateCardTop} onPress={() => handleSelect(rate)} activeOpacity={0.7}>
+                      <View style={s.rateInfo}>
+                        <Text style={s.rateName}>{rate.task}</Text>
+                        <Text style={s.rateCrew}>{rate.crew}</Text>
+                      </View>
+                      <View style={s.rateRight}>
+                        <Text style={s.rateUnitCost}>${unitCost.toFixed(2)}</Text>
+                        <Text style={s.rateUnit}>/{rate.unit}</Text>
+                      </View>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={s.expandToggle}
+                      onPress={() => setExpandedId(isExpanded ? null : rate.id)}
+                    >
+                      <Text style={s.expandText}>{rate.dailyOutput} {rate.unit}/day</Text>
+                      {isExpanded ? <ChevronUp size={12} color={Colors.textMuted} /> : <ChevronDown size={12} color={Colors.textMuted} />}
+                    </TouchableOpacity>
+                    {isExpanded && (
+                      <View style={s.expandedContent}>
+                        <Text style={s.expandedRow}>Mat: ${rate.materialCostPerUnit.toFixed(2)} · Lab: ${rate.laborCostPerUnit.toFixed(2)} · Equip: ${rate.equipmentCostPerUnit.toFixed(2)}</Text>
+                        {rate.notes ? <Text style={s.expandedNotes}>{rate.notes}</Text> : null}
+                      </View>
+                    )}
+                  </View>
+                );
+              })}
+              <View style={{ height: 20 }} />
+            </ScrollView>
+          </View>
+        )}
+      </View>
+    </Modal>
+  );
+});
+
+export default ProductivityCalculator;
+
+const s = StyleSheet.create({
+  container: { flex: 1, backgroundColor: Colors.background },
+  header: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12,
+    backgroundColor: Colors.surface, borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight,
+  },
+  headerTitle: { fontSize: 22, fontWeight: '700' as const, color: Colors.text, letterSpacing: -0.3 },
+  headerSub: { fontSize: 13, color: Colors.textSecondary, marginTop: 2 },
+  closeBtn: {
+    width: 34, height: 34, borderRadius: 17, backgroundColor: Colors.fillTertiary,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  body: { flex: 1, paddingHorizontal: 16, paddingTop: 12 },
+  backBtn: { marginBottom: 8 },
+  backBtnText: { fontSize: 13, color: Colors.primary, fontWeight: '600' as const },
+  taskTitle: { fontSize: 20, fontWeight: '700' as const, color: Colors.text, marginBottom: 12 },
+  searchBar: {
+    flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.fillTertiary,
+    borderRadius: 12, paddingHorizontal: 12, gap: 8, height: 42, marginBottom: 8,
+  },
+  searchInput: { flex: 1, fontSize: 14, color: Colors.text },
+  catScroll: { maxHeight: 40, marginBottom: 8 },
+  catContent: { gap: 6, paddingRight: 16 },
+  catChip: {
+    paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, backgroundColor: Colors.fillTertiary,
+  },
+  catChipActive: { backgroundColor: Colors.primary },
+  catChipText: { fontSize: 12, fontWeight: '600' as const, color: Colors.textSecondary },
+  catChipTextActive: { color: Colors.textOnPrimary },
+  rateList: { flex: 1 },
+  rateCard: {
+    backgroundColor: Colors.surface, borderRadius: 12, marginBottom: 6,
+    borderWidth: 1, borderColor: Colors.cardBorder, overflow: 'hidden' as const,
+  },
+  rateCardTop: { flexDirection: 'row', alignItems: 'center', padding: 12, gap: 10 },
+  rateInfo: { flex: 1, gap: 2 },
+  rateName: { fontSize: 14, fontWeight: '600' as const, color: Colors.text },
+  rateCrew: { fontSize: 11, color: Colors.textMuted },
+  rateRight: { alignItems: 'flex-end' },
+  rateUnitCost: { fontSize: 15, fontWeight: '700' as const, color: Colors.success },
+  rateUnit: { fontSize: 10, color: Colors.textMuted },
+  expandToggle: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 12, paddingBottom: 8, gap: 6,
+  },
+  expandText: { fontSize: 11, color: Colors.info, fontWeight: '500' as const },
+  expandedContent: {
+    padding: 12, paddingTop: 8, borderTopWidth: 0.5, borderTopColor: Colors.borderLight,
+    backgroundColor: Colors.surfaceAlt, gap: 4,
+  },
+  expandedRow: { fontSize: 11, color: Colors.textSecondary },
+  expandedNotes: { fontSize: 11, color: Colors.textMuted, fontStyle: 'italic' as const },
+  crewCard: {
+    backgroundColor: Colors.surface, borderRadius: 12, padding: 14, gap: 10, marginBottom: 16,
+    borderWidth: 1, borderColor: Colors.cardBorder,
+  },
+  crewRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  crewLabel: { fontSize: 13, fontWeight: '600' as const, color: Colors.textSecondary },
+  crewValue: { fontSize: 13, fontWeight: '600' as const, color: Colors.text },
+  fieldLabel: { fontSize: 13, fontWeight: '600' as const, color: Colors.textSecondary, marginBottom: 6 },
+  qtyInput: {
+    height: 52, backgroundColor: Colors.surface, borderRadius: 12, fontSize: 22,
+    fontWeight: '700' as const, color: Colors.text, borderWidth: 1, borderColor: Colors.border, marginBottom: 16,
+  },
+  resultCard: {
+    backgroundColor: Colors.surface, borderRadius: 16, padding: 16, gap: 10,
+    borderWidth: 1, borderColor: Colors.primary + '30',
+  },
+  resultTitle: { fontSize: 16, fontWeight: '700' as const, color: Colors.text },
+  costRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+  },
+  costLabel: { fontSize: 14, color: Colors.textSecondary, width: 80 },
+  costSub: { flex: 1, fontSize: 11, color: Colors.textMuted },
+  costValue: { fontSize: 14, fontWeight: '600' as const, color: Colors.text },
+  divider: { height: 1, backgroundColor: Colors.borderLight },
+  totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  totalLabel: { fontSize: 16, fontWeight: '700' as const, color: Colors.text },
+  totalValue: { fontSize: 22, fontWeight: '800' as const, color: Colors.primary },
+  scheduleCard: {
+    backgroundColor: Colors.infoLight, borderRadius: 10, padding: 12, gap: 8,
+  },
+  scheduleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  scheduleLabel: { fontSize: 12, color: Colors.info, fontWeight: '500' as const },
+  scheduleValue: { fontSize: 12, fontWeight: '700' as const, color: Colors.info },
+  notes: { fontSize: 11, color: Colors.textMuted, lineHeight: 16, fontStyle: 'italic' as const },
+  addBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: Colors.primary, borderRadius: 14, paddingVertical: 14, marginTop: 4,
+  },
+  addBtnText: { fontSize: 16, fontWeight: '700' as const, color: Colors.textOnPrimary },
+});
+
+--- FILE: components/ProjectCard.tsx ---
+import React from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Animated } from 'react-native';
+import {
+  Building2, Hammer, Plus, PenLine, Store, Trees, Home,
+  LayoutGrid, Paintbrush, Droplets, Zap, Boxes, ChevronRight, MapPin,
+} from 'lucide-react-native';
+import { Colors } from '@/constants/colors';
+import { formatMoney } from '@/utils/formatters';
+import type { Project, ProjectType } from '@/types';
+
+const ICON_MAP: Record<string, React.ComponentType<{ size: number; color: string; strokeWidth?: number }>> = {
+  Building2, Hammer, Plus, PenLine, Store, Trees, Home, LayoutGrid, Paintbrush, Droplets, Zap, Boxes,
+};
+
+const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
+  draft: { label: 'Draft', color: Colors.warning },
+  estimated: { label: 'Estimated', color: Colors.success },
+  in_progress: { label: 'In Progress', color: Colors.info },
+  completed: { label: 'Completed', color: Colors.textSecondary },
+};
+
+const TYPE_ICON_MAP: Record<ProjectType, string> = {
+  new_build: 'Building2', renovation: 'Hammer', addition: 'Plus', remodel: 'PenLine',
+  commercial: 'Store', landscape: 'Trees', roofing: 'Home', flooring: 'LayoutGrid',
+  painting: 'Paintbrush', plumbing: 'Droplets', electrical: 'Zap', concrete: 'Boxes',
+};
+
+function getTypeIcon(type: ProjectType) {
+  return ICON_MAP[TYPE_ICON_MAP[type]] ?? Building2;
+}
+
+interface ProjectCardProps {
+  project: Project;
+  onPress: () => void;
+}
+
+function ProjectCard({ project, onPress }: ProjectCardProps) {
+  const scaleAnim = React.useRef(new Animated.Value(1)).current;
+  const IconComponent = getTypeIcon(project.type);
+  const status = STATUS_CONFIG[project.status] ?? STATUS_CONFIG.draft;
+
+  const handlePressIn = () => {
+    Animated.spring(scaleAnim, { toValue: 0.975, useNativeDriver: true, speed: 60, bounciness: 0 }).start();
+  };
+
+  const handlePressOut = () => {
+    Animated.spring(scaleAnim, { toValue: 1, useNativeDriver: true, speed: 40, bounciness: 0 }).start();
+  };
+
+  const linkedEstimate = project.linkedEstimate;
+  const legacyEstimate = project.estimate;
+  const hasEstimate = !!(linkedEstimate && linkedEstimate.items.length > 0) || !!legacyEstimate;
+  const estimateTotal = linkedEstimate && linkedEstimate.items.length > 0
+    ? linkedEstimate.grandTotal
+    : legacyEstimate?.grandTotal ?? 0;
+
+  return (
+    <Animated.View style={[styles.wrapper, { transform: [{ scale: scaleAnim }] }]}>
+      <TouchableOpacity
+        onPress={onPress}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        activeOpacity={1}
+        testID={`project-card-${project.id}`}
+      >
+        <View style={styles.card}>
+          <View style={styles.topRow}>
+            <View style={styles.iconWrap}>
+              <IconComponent size={20} color={Colors.primary} strokeWidth={1.8} />
+            </View>
+            <View style={styles.titleBlock}>
+              <Text style={styles.name} numberOfLines={1}>{project.name}</Text>
+              {project.location ? (
+                <View style={styles.locationRow}>
+                  <MapPin size={11} color={Colors.textMuted} />
+                  <Text style={styles.locationText} numberOfLines={1}>{project.location}</Text>
+                </View>
+              ) : null}
+            </View>
+            <View style={[styles.statusDot, { backgroundColor: status.color + '20' }]}>
+              <View style={[styles.statusDotInner, { backgroundColor: status.color }]} />
+              <Text style={[styles.statusLabel, { color: status.color }]}>{status.label}</Text>
+            </View>
+          </View>
+
+          <View style={styles.separator} />
+
+          <View style={styles.bottomRow}>
+            <View style={styles.metaItem}>
+              <Text style={styles.metaLabel}>Area</Text>
+              <Text style={styles.metaValue}>{project.squareFootage > 0 ? `${project.squareFootage.toLocaleString()} sf` : '—'}</Text>
+            </View>
+            <View style={styles.metaDivider} />
+            <View style={styles.metaItem}>
+              <Text style={styles.metaLabel}>Quality</Text>
+              <Text style={styles.metaValue}>{project.quality.charAt(0).toUpperCase() + project.quality.slice(1)}</Text>
+            </View>
+            <View style={styles.metaDivider} />
+            <View style={styles.metaItem}>
+              <Text style={styles.metaLabel}>Estimate</Text>
+              <Text style={[styles.metaValue, hasEstimate && styles.estimateHighlight]}>
+                {hasEstimate ? formatMoney(estimateTotal) : '—'}
+              </Text>
+            </View>
+            <ChevronRight size={16} color={Colors.textMuted} strokeWidth={1.8} style={styles.chevron} />
+          </View>
+        </View>
+      </TouchableOpacity>
+    </Animated.View>
+  );
+}
+
+export default React.memo(ProjectCard);
+
+const styles = StyleSheet.create({
+  wrapper: {
+    marginHorizontal: 16,
+    marginBottom: 10,
+  },
+  card: {
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    elevation: 3,
+    overflow: 'hidden' as const,
+  },
+  topRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    gap: 12,
+  },
+  iconWrap: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    backgroundColor: Colors.primary + '12',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  titleBlock: {
+    flex: 1,
+    gap: 3,
+  },
+  name: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: Colors.text,
+    letterSpacing: -0.2,
+  },
+  locationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+  },
+  locationText: {
+    fontSize: 12,
+    color: Colors.textMuted,
+  },
+  statusDot: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 20,
+  },
+  statusDotInner: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  statusLabel: {
+    fontSize: 11,
+    fontWeight: '600' as const,
+  },
+  separator: {
+    height: 0.5,
+    backgroundColor: Colors.borderLight,
+    marginHorizontal: 16,
+  },
+  bottomRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    gap: 4,
+  },
+  metaItem: {
+    flex: 1,
+    gap: 2,
+  },
+  metaLabel: {
+    fontSize: 11,
+    color: Colors.textMuted,
+    fontWeight: '400' as const,
+  },
+  metaValue: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: Colors.text,
+    letterSpacing: -0.2,
+  },
+  estimateHighlight: {
+    color: Colors.primary,
+  },
+  metaDivider: {
+    width: 0.5,
+    height: 28,
+    backgroundColor: Colors.borderLight,
+    marginHorizontal: 8,
+  },
+  chevron: {
+    marginLeft: 4,
+  },
+});
+
+--- FILE: components/SignaturePad.tsx ---
+import React, { useRef, useState, useCallback } from 'react';
+import {
+  View,
+  StyleSheet,
+  PanResponder,
+  Text,
+  TouchableOpacity,
+  Platform,
+} from 'react-native';
+import Svg, { Path } from 'react-native-svg';
+import { Trash2, Check } from 'lucide-react-native';
+import { Colors } from '@/constants/colors';
+
+interface SignaturePadProps {
+  initialPaths?: string[];
+  onSave: (paths: string[]) => void;
+  onClear: () => void;
+  width?: number;
+  height?: number;
+}
+
+export default function SignaturePad({
+  initialPaths,
+  onSave,
+  onClear,
+  width = 300,
+  height = 150,
+}: SignaturePadProps) {
+  const [paths, setPaths] = useState<string[]>(initialPaths ?? []);
+  const [currentPath, setCurrentPath] = useState<string>('');
+  const containerRef = useRef<View>(null);
+  const offsetRef = useRef({ x: 0, y: 0 });
+
+  const measureContainer = useCallback(() => {
+    if (containerRef.current) {
+      containerRef.current.measure((_x, _y, _w, _h, pageX, pageY) => {
+        offsetRef.current = { x: pageX, y: pageY };
+      });
+    }
+  }, []);
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: (evt) => {
+        const touch = evt.nativeEvent;
+        let x: number;
+        let y: number;
+        if (Platform.OS === 'web') {
+          x = touch.locationX;
+          y = touch.locationY;
+        } else {
+          x = touch.pageX - offsetRef.current.x;
+          y = touch.pageY - offsetRef.current.y;
+        }
+        setCurrentPath(`M${x.toFixed(1)},${y.toFixed(1)}`);
+      },
+      onPanResponderMove: (evt) => {
+        const touch = evt.nativeEvent;
+        let x: number;
+        let y: number;
+        if (Platform.OS === 'web') {
+          x = touch.locationX;
+          y = touch.locationY;
+        } else {
+          x = touch.pageX - offsetRef.current.x;
+          y = touch.pageY - offsetRef.current.y;
+        }
+        setCurrentPath(prev => `${prev} L${x.toFixed(1)},${y.toFixed(1)}`);
+      },
+      onPanResponderRelease: () => {
+        setCurrentPath(prev => {
+          if (prev.length > 0) {
+            setPaths(old => [...old, prev]);
+          }
+          return '';
+        });
+      },
+    })
+  ).current;
+
+  const handleClear = useCallback(() => {
+    setPaths([]);
+    setCurrentPath('');
+    onClear();
+  }, [onClear]);
+
+  const handleSave = useCallback(() => {
+    onSave(paths);
+  }, [paths, onSave]);
+
+  const hasPaths = paths.length > 0 || currentPath.length > 0;
+
+  return (
+    <View style={styles.container}>
+      <View
+        ref={containerRef}
+        style={[styles.canvas, { width, height }]}
+        onLayout={measureContainer}
+        {...panResponder.panHandlers}
+      >
+        <Svg width={width} height={height} style={StyleSheet.absoluteFill}>
+          {paths.map((d, i) => (
+            <Path
+              key={i}
+              d={d}
+              stroke="#1a1a1a"
+              strokeWidth={2.5}
+              fill="none"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          ))}
+          {currentPath.length > 0 && (
+            <Path
+              d={currentPath}
+              stroke="#1a1a1a"
+              strokeWidth={2.5}
+              fill="none"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          )}
+        </Svg>
+        {!hasPaths && (
+          <View style={styles.placeholder} pointerEvents="none">
+            <Text style={styles.placeholderText}>Sign here</Text>
+          </View>
+        )}
+        <View style={styles.signLine} pointerEvents="none" />
+      </View>
+      <View style={styles.actions}>
+        <TouchableOpacity
+          style={styles.clearBtn}
+          onPress={handleClear}
+          activeOpacity={0.7}
+        >
+          <Trash2 size={14} color={Colors.error} />
+          <Text style={styles.clearBtnText}>Clear</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.saveBtn, !hasPaths && styles.saveBtnDisabled]}
+          onPress={handleSave}
+          activeOpacity={hasPaths ? 0.7 : 1}
+          disabled={!hasPaths}
+        >
+          <Check size={14} color={hasPaths ? Colors.textOnPrimary : Colors.textMuted} />
+          <Text style={[styles.saveBtnText, !hasPaths && styles.saveBtnTextDisabled]}>
+            Save Signature
+          </Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    gap: 10,
+  },
+  canvas: {
+    backgroundColor: '#FAFAFA',
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+    borderStyle: 'dashed' as const,
+    overflow: 'hidden' as const,
+  },
+  placeholder: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  placeholderText: {
+    fontSize: 16,
+    color: Colors.textMuted,
+    fontStyle: 'italic' as const,
+  },
+  signLine: {
+    position: 'absolute' as const,
+    bottom: 30,
+    left: 20,
+    right: 20,
+    height: 1,
+    backgroundColor: 'rgba(0,0,0,0.15)',
+  },
+  actions: {
+    flexDirection: 'row' as const,
+    gap: 10,
+  },
+  clearBtn: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: Colors.errorLight,
+  },
+  clearBtnText: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: Colors.error,
+  },
+  saveBtn: {
+    flex: 1,
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: Colors.primary,
+  },
+  saveBtnDisabled: {
+    backgroundColor: Colors.fillTertiary,
+  },
+  saveBtnText: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: Colors.textOnPrimary,
+  },
+  saveBtnTextDisabled: {
+    color: Colors.textMuted,
+  },
+});
+
+--- FILE: components/SquareFootEstimator.tsx ---
+import React, { useState, useMemo, useCallback } from 'react';
+import {
+  View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Modal, Platform,
+} from 'react-native';
+import * as Haptics from 'expo-haptics';
+import { X, ChevronRight, Building2, Home, Hammer, Trees, Calculator, TrendingUp, TrendingDown, Minus as MinusIcon } from 'lucide-react-native';
+import { Colors } from '@/constants/colors';
+import { SQUARE_FOOT_MODELS, QUALITY_TIERS, SF_CATEGORIES, type SquareFootModel, type QualityTier } from '@/constants/squareFootCosts';
+
+interface SquareFootEstimatorProps {
+  visible: boolean;
+  onClose: () => void;
+  locationFactor?: number;
+}
+
+const CATEGORY_ICONS: Record<string, typeof Home> = {
+  residential: Home,
+  renovation: Hammer,
+  commercial: Building2,
+  exterior: Trees,
+};
+
+function formatCurrency(value: number): string {
+  if (value >= 1000000) return `$${(value / 1000000).toFixed(2)}M`;
+  if (value >= 1000) return `$${(value / 1000).toFixed(1)}K`;
+  return `$${value.toFixed(0)}`;
+}
+
+const SquareFootEstimator = React.memo(function SquareFootEstimator({ visible, onClose, locationFactor = 1 }: SquareFootEstimatorProps) {
+  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [selectedModel, setSelectedModel] = useState<SquareFootModel | null>(null);
+  const [selectedQuality, setSelectedQuality] = useState<QualityTier>('standard');
+  const [sqftInput, setSqftInput] = useState('');
+
+  const resetState = useCallback(() => {
+    setStep(1);
+    setSelectedCategory('all');
+    setSelectedModel(null);
+    setSelectedQuality('standard');
+    setSqftInput('');
+  }, []);
+
+  const handleClose = useCallback(() => {
+    onClose();
+    setTimeout(resetState, 300);
+  }, [onClose, resetState]);
+
+  const filteredModels = useMemo(() => {
+    if (selectedCategory === 'all') return SQUARE_FOOT_MODELS;
+    return SQUARE_FOOT_MODELS.filter(m => m.category === selectedCategory);
+  }, [selectedCategory]);
+
+  const handleSelectModel = useCallback((model: SquareFootModel) => {
+    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setSelectedModel(model);
+    setSqftInput(String(Math.round((model.typicalSizeRange.min + model.typicalSizeRange.max) / 2)));
+    setStep(2);
+  }, []);
+
+  const handleSelectQuality = useCallback((tier: QualityTier) => {
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+    setSelectedQuality(tier);
+  }, []);
+
+  const sqft = useMemo(() => parseInt(sqftInput, 10) || 0, [sqftInput]);
+
+  const costResult = useMemo(() => {
+    if (!selectedModel || sqft <= 0) return null;
+    const tierData = selectedModel.costPerSF[selectedQuality];
+    return {
+      low: Math.round(tierData.low * sqft * locationFactor),
+      mid: Math.round(tierData.mid * sqft * locationFactor),
+      high: Math.round(tierData.high * sqft * locationFactor),
+      perSfLow: Number((tierData.low * locationFactor).toFixed(0)),
+      perSfMid: Number((tierData.mid * locationFactor).toFixed(0)),
+      perSfHigh: Number((tierData.high * locationFactor).toFixed(0)),
+    };
+  }, [selectedModel, sqft, selectedQuality, locationFactor]);
+
+  const renderStep1 = () => (
+    <>
+      <Text style={s.stepTitle}>Select Building Type</Text>
+      <View style={s.categoryRow}>
+        {SF_CATEGORIES.map(cat => {
+          const isActive = selectedCategory === cat.id;
+          return (
+            <TouchableOpacity
+              key={cat.id}
+              style={[s.catChip, isActive && s.catChipActive]}
+              onPress={() => setSelectedCategory(cat.id)}
+              activeOpacity={0.7}
+            >
+              <Text style={[s.catChipText, isActive && s.catChipTextActive]}>{cat.label}</Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+      <ScrollView style={s.modelList} showsVerticalScrollIndicator={false}>
+        {filteredModels.map(model => {
+          const CatIcon = CATEGORY_ICONS[model.category] ?? Building2;
+          const midRange = model.costPerSF.standard;
+          return (
+            <TouchableOpacity
+              key={model.id}
+              style={s.modelCard}
+              onPress={() => handleSelectModel(model)}
+              activeOpacity={0.7}
+            >
+              <View style={s.modelCardTop}>
+                <View style={[s.modelIconWrap, { backgroundColor: Colors.primary + '12' }]}>
+                  <CatIcon size={18} color={Colors.primary} />
+                </View>
+                <View style={s.modelCardInfo}>
+                  <Text style={s.modelName}>{model.buildingType}</Text>
+                  <Text style={s.modelDesc} numberOfLines={1}>{model.description}</Text>
+                </View>
+                <ChevronRight size={16} color={Colors.textMuted} />
+              </View>
+              <View style={s.modelCardBottom}>
+                <Text style={s.modelRange}>${midRange.low}-${midRange.high}/SF</Text>
+                <Text style={s.modelSize}>{model.typicalSizeRange.min.toLocaleString()}-{model.typicalSizeRange.max.toLocaleString()} SF</Text>
+              </View>
+            </TouchableOpacity>
+          );
+        })}
+        <View style={{ height: 20 }} />
+      </ScrollView>
+    </>
+  );
+
+  const renderStep2 = () => {
+    if (!selectedModel) return null;
+    return (
+      <>
+        <TouchableOpacity style={s.backBtn} onPress={() => setStep(1)}>
+          <Text style={s.backBtnText}>← Change type</Text>
+        </TouchableOpacity>
+        <Text style={s.stepTitle}>{selectedModel.buildingType}</Text>
+        <Text style={s.stepSubtitle}>Select quality level & enter size</Text>
+
+        <View style={s.qualityGrid}>
+          {QUALITY_TIERS.map(tier => {
+            const isActive = selectedQuality === tier.id;
+            const tierCost = selectedModel.costPerSF[tier.id];
+            return (
+              <TouchableOpacity
+                key={tier.id}
+                style={[s.qualityCard, isActive && s.qualityCardActive]}
+                onPress={() => handleSelectQuality(tier.id)}
+                activeOpacity={0.7}
+              >
+                <Text style={[s.qualityLabel, isActive && s.qualityLabelActive]}>{tier.label}</Text>
+                <Text style={[s.qualityRange, isActive && s.qualityRangeActive]}>
+                  ${tierCost.low}-${tierCost.high}
+                </Text>
+                <Text style={[s.qualityUnit, isActive && s.qualityUnitActive]}>per SF</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        <Text style={s.fieldLabel}>Square Footage</Text>
+        <View style={s.sqftRow}>
+          <TouchableOpacity style={s.sqftBtn} onPress={() => setSqftInput(String(Math.max(0, sqft - 100)))}>
+            <MinusIcon size={18} color={Colors.primary} />
+          </TouchableOpacity>
+          <TextInput
+            style={s.sqftInput}
+            value={sqftInput}
+            onChangeText={setSqftInput}
+            keyboardType="number-pad"
+            textAlign="center"
+            placeholder="Enter SF"
+            placeholderTextColor={Colors.textMuted}
+          />
+          <TouchableOpacity style={s.sqftBtn} onPress={() => setSqftInput(String(sqft + 100))}>
+            <Text style={s.sqftBtnText}>+</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={s.presetRow}>
+          {[selectedModel.typicalSizeRange.min, Math.round((selectedModel.typicalSizeRange.min + selectedModel.typicalSizeRange.max) / 2), selectedModel.typicalSizeRange.max].map(val => (
+            <TouchableOpacity key={val} style={s.presetChip} onPress={() => setSqftInput(String(val))}>
+              <Text style={s.presetText}>{val.toLocaleString()} SF</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {costResult && (
+          <View style={s.resultCard}>
+            <View style={s.resultHeader}>
+              <Calculator size={16} color={Colors.primary} />
+              <Text style={s.resultTitle}>Estimated Cost Range</Text>
+            </View>
+            {locationFactor !== 1 && (
+              <View style={s.locationBadge}>
+                <Text style={s.locationText}>Location factor: {locationFactor.toFixed(2)}x</Text>
+              </View>
+            )}
+            <View style={s.resultRow}>
+              <View style={s.resultCol}>
+                <TrendingDown size={14} color={Colors.success} />
+                <Text style={s.resultLabel}>Low</Text>
+                <Text style={s.resultValueLow}>{formatCurrency(costResult.low)}</Text>
+                <Text style={s.resultPerSf}>${costResult.perSfLow}/SF</Text>
+              </View>
+              <View style={[s.resultCol, s.resultColMid]}>
+                <Calculator size={14} color={Colors.primary} />
+                <Text style={s.resultLabel}>Mid</Text>
+                <Text style={s.resultValueMid}>{formatCurrency(costResult.mid)}</Text>
+                <Text style={s.resultPerSf}>${costResult.perSfMid}/SF</Text>
+              </View>
+              <View style={s.resultCol}>
+                <TrendingUp size={14} color={Colors.error} />
+                <Text style={s.resultLabel}>High</Text>
+                <Text style={s.resultValueHigh}>{formatCurrency(costResult.high)}</Text>
+                <Text style={s.resultPerSf}>${costResult.perSfHigh}/SF</Text>
+              </View>
+            </View>
+            {selectedModel.notes ? (
+              <Text style={s.resultNotes}>{selectedModel.notes}</Text>
+            ) : null}
+          </View>
+        )}
+      </>
+    );
+  };
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : undefined} onRequestClose={handleClose}>
+      <View style={s.container}>
+        <View style={s.header}>
+          <View>
+            <Text style={s.headerTitle}>Quick Estimate</Text>
+            <Text style={s.headerSub}>Square foot cost calculator</Text>
+          </View>
+          <TouchableOpacity onPress={handleClose} style={s.closeBtn}>
+            <X size={20} color={Colors.text} />
+          </TouchableOpacity>
+        </View>
+        <View style={s.body}>
+          {step === 1 && renderStep1()}
+          {step === 2 && renderStep2()}
+        </View>
+      </View>
+    </Modal>
+  );
+});
+
+export default SquareFootEstimator;
+
+const s = StyleSheet.create({
+  container: { flex: 1, backgroundColor: Colors.background },
+  header: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12,
+    backgroundColor: Colors.surface, borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight,
+  },
+  headerTitle: { fontSize: 22, fontWeight: '700' as const, color: Colors.text, letterSpacing: -0.3 },
+  headerSub: { fontSize: 13, color: Colors.textSecondary, marginTop: 2 },
+  closeBtn: {
+    width: 34, height: 34, borderRadius: 17, backgroundColor: Colors.fillTertiary,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  body: { flex: 1, paddingHorizontal: 16, paddingTop: 12 },
+  stepTitle: { fontSize: 18, fontWeight: '700' as const, color: Colors.text, marginBottom: 4 },
+  stepSubtitle: { fontSize: 13, color: Colors.textSecondary, marginBottom: 12 },
+  categoryRow: { flexDirection: 'row', gap: 6, marginBottom: 12, flexWrap: 'wrap' },
+  catChip: {
+    paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20,
+    backgroundColor: Colors.fillTertiary,
+  },
+  catChipActive: { backgroundColor: Colors.primary },
+  catChipText: { fontSize: 12, fontWeight: '600' as const, color: Colors.textSecondary },
+  catChipTextActive: { color: Colors.textOnPrimary },
+  modelList: { flex: 1 },
+  modelCard: {
+    backgroundColor: Colors.surface, borderRadius: 14, padding: 14, marginBottom: 8,
+    borderWidth: 1, borderColor: Colors.cardBorder, gap: 10,
+  },
+  modelCardTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  modelIconWrap: {
+    width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center',
+  },
+  modelCardInfo: { flex: 1, gap: 2 },
+  modelName: { fontSize: 15, fontWeight: '600' as const, color: Colors.text },
+  modelDesc: { fontSize: 12, color: Colors.textMuted },
+  modelCardBottom: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingTop: 6, borderTopWidth: 0.5, borderTopColor: Colors.borderLight,
+  },
+  modelRange: { fontSize: 14, fontWeight: '700' as const, color: Colors.success },
+  modelSize: { fontSize: 11, color: Colors.textMuted },
+  backBtn: { marginBottom: 8 },
+  backBtnText: { fontSize: 13, color: Colors.primary, fontWeight: '600' as const },
+  qualityGrid: { flexDirection: 'row', gap: 8, marginBottom: 16, marginTop: 4 },
+  qualityCard: {
+    flex: 1, backgroundColor: Colors.surface, borderRadius: 12, padding: 12,
+    alignItems: 'center', gap: 4, borderWidth: 1.5, borderColor: Colors.cardBorder,
+  },
+  qualityCardActive: { borderColor: Colors.primary, backgroundColor: Colors.primary + '08' },
+  qualityLabel: { fontSize: 12, fontWeight: '700' as const, color: Colors.textSecondary },
+  qualityLabelActive: { color: Colors.primary },
+  qualityRange: { fontSize: 14, fontWeight: '700' as const, color: Colors.text },
+  qualityRangeActive: { color: Colors.primary },
+  qualityUnit: { fontSize: 10, color: Colors.textMuted },
+  qualityUnitActive: { color: Colors.primary },
+  fieldLabel: { fontSize: 13, fontWeight: '600' as const, color: Colors.textSecondary, marginBottom: 6 },
+  sqftRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8 },
+  sqftBtn: {
+    width: 44, height: 44, borderRadius: 12, backgroundColor: Colors.primary + '12',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  sqftBtnText: { fontSize: 22, color: Colors.primary, fontWeight: '600' as const },
+  sqftInput: {
+    flex: 1, height: 48, backgroundColor: Colors.surface, borderRadius: 12,
+    fontSize: 20, fontWeight: '700' as const, color: Colors.text,
+    borderWidth: 1, borderColor: Colors.border,
+  },
+  presetRow: { flexDirection: 'row', gap: 6, marginBottom: 16 },
+  presetChip: {
+    paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16,
+    backgroundColor: Colors.fillTertiary,
+  },
+  presetText: { fontSize: 12, fontWeight: '500' as const, color: Colors.textSecondary },
+  resultCard: {
+    backgroundColor: Colors.surface, borderRadius: 16, padding: 16, gap: 12,
+    borderWidth: 1, borderColor: Colors.primary + '30',
+  },
+  resultHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  resultTitle: { fontSize: 15, fontWeight: '700' as const, color: Colors.text },
+  locationBadge: {
+    backgroundColor: Colors.infoLight, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4,
+    alignSelf: 'flex-start',
+  },
+  locationText: { fontSize: 11, fontWeight: '600' as const, color: Colors.info },
+  resultRow: { flexDirection: 'row', gap: 8 },
+  resultCol: {
+    flex: 1, backgroundColor: Colors.background, borderRadius: 12, padding: 12,
+    alignItems: 'center', gap: 4,
+  },
+  resultColMid: { backgroundColor: Colors.primary + '10', borderWidth: 1, borderColor: Colors.primary + '25' },
+  resultLabel: { fontSize: 10, fontWeight: '600' as const, color: Colors.textMuted, textTransform: 'uppercase' as const },
+  resultValueLow: { fontSize: 16, fontWeight: '800' as const, color: Colors.success },
+  resultValueMid: { fontSize: 16, fontWeight: '800' as const, color: Colors.primary },
+  resultValueHigh: { fontSize: 16, fontWeight: '800' as const, color: Colors.error },
+  resultPerSf: { fontSize: 10, color: Colors.textMuted },
+  resultNotes: { fontSize: 11, color: Colors.textMuted, lineHeight: 16, fontStyle: 'italic' as const },
+});
+
+--- FILE: components/VoiceCommandModal.tsx ---
+import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import {
+  View, Text, StyleSheet, TouchableOpacity, Modal, TextInput,
+  KeyboardAvoidingView, Platform, Animated, ActivityIndicator,
+  Pressable, ScrollView, FlatList,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Haptics from 'expo-haptics';
+import {
+  Mic, Send, X, CheckCircle2, AlertTriangle, HelpCircle,
+  RotateCcw, ChevronRight, Clock, Sparkles, MessageSquare,
+} from 'lucide-react-native';
+import { Colors } from '@/constants/colors';
+import type { ScheduleTask } from '@/types';
+import {
+  parseVoiceCommand,
+  parseBatchVoiceCommand,
+  parseDailyReportVoice,
+  isBatchCommand,
+  isDailyReport,
+  type ParsedVoiceCommand,
+} from '@/utils/voiceCommandParser';
+import {
+  executeVoiceCommand,
+  executeBatchCommands,
+  saveVoiceHistory,
+  getVoiceHistory,
+  saveVoiceIssue,
+  findTaskByName,
+  type VoiceCommandResult,
+  type VoiceUpdateFunctions,
+  type VoiceHistoryItem,
+} from '@/utils/voiceCommandExecutor';
+
+interface VoiceCommandModalProps {
+  visible: boolean;
+  onClose: () => void;
+  tasks: ScheduleTask[];
+  projectName: string;
+  projectId: string;
+  updateFunctions: VoiceUpdateFunctions;
+  activeTodayTask?: ScheduleTask | null;
+}
+
+type ModalState = 'input' | 'processing' | 'success' | 'error' | 'clarification' | 'batch_success';
+
+interface BatchResultItem {
+  taskName: string;
+  success: boolean;
+  message: string;
+}
+
+const QUICK_COMMANDS = [
+  { label: 'Update progress', template: 'Update [task] to [%] percent' },
+  { label: 'Mark complete', template: 'Mark [task] complete' },
+  { label: 'Log issue', template: 'Log issue: ' },
+  { label: 'Add note', template: 'Add note to [task]: ' },
+  { label: "What's the status?", template: "What's the status of my project?" },
+  { label: "What's next?", template: 'What tasks are coming up next?' },
+];
+
+const HistoryItem = React.memo(function HistoryItem({
+  item, onTap,
+}: { item: VoiceHistoryItem; onTap: (text: string) => void }) {
+  const timeAgo = useMemo(() => {
+    const diff = Date.now() - new Date(item.timestamp).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return `${mins} min ago`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours} hr ago`;
+    return `${Math.floor(hours / 24)}d ago`;
+  }, [item.timestamp]);
+
+  return (
+    <TouchableOpacity
+      style={histStyles.historyItem}
+      onPress={() => onTap(item.spokenText)}
+      activeOpacity={0.7}
+    >
+      {item.success ? (
+        <CheckCircle2 size={13} color={Colors.success} />
+      ) : (
+        <X size={13} color={Colors.error} />
+      )}
+      <Text style={histStyles.historyText} numberOfLines={1}>{item.spokenText}</Text>
+      <Text style={histStyles.historyTime}>{timeAgo}</Text>
+    </TouchableOpacity>
+  );
+});
+
+export default function VoiceCommandModal({
+  visible, onClose, tasks, projectName, projectId, updateFunctions, activeTodayTask,
+}: VoiceCommandModalProps) {
+  const insets = useSafeAreaInsets();
+  const [inputText, setInputText] = useState('');
+  const [modalState, setModalState] = useState<ModalState>('input');
+  const [resultMessage, setResultMessage] = useState('');
+  const [undoAction, setUndoAction] = useState<(() => void) | null>(null);
+  const [clarificationTasks, setClarificationTasks] = useState<ScheduleTask[]>([]);
+  const [pendingParsed, setPendingParsed] = useState<ParsedVoiceCommand | null>(null);
+  const [batchResults, setBatchResults] = useState<BatchResultItem[]>([]);
+  const [history, setHistory] = useState<VoiceHistoryItem[]>([]);
+  const inputRef = useRef<TextInput>(null);
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const autoDismissTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (visible) {
+      setModalState('input');
+      setInputText('');
+      setResultMessage('');
+      setUndoAction(null);
+      setClarificationTasks([]);
+      setBatchResults([]);
+      getVoiceHistory().then(setHistory);
+      setTimeout(() => inputRef.current?.focus(), 300);
+    }
+    return () => {
+      if (autoDismissTimer.current) clearTimeout(autoDismissTimer.current);
+    };
+  }, [visible]);
+
+  const startAutoDismiss = useCallback(() => {
+    if (autoDismissTimer.current) clearTimeout(autoDismissTimer.current);
+    autoDismissTimer.current = setTimeout(() => {
+      onClose();
+    }, 4000);
+  }, [onClose]);
+
+  const taskContext = useMemo(() => {
+    return tasks.map(t => ({
+      title: t.title,
+      phase: t.phase,
+      progress: t.progress,
+      status: t.status,
+      crew: t.crew,
+    }));
+  }, [tasks]);
+
+  const processCommand = useCallback(async (text: string) => {
+    if (!text.trim()) return;
+
+    setModalState('processing');
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+
+    try {
+      if (isDailyReport(text)) {
+        const reportData = await parseDailyReportVoice(text, projectName);
+        setResultMessage('Daily report data extracted! Open Daily Report to review.');
+        setModalState('success');
+        if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+        await saveVoiceHistory({
+          id: `vh-${Date.now()}`,
+          spokenText: text,
+          parsedAction: 'daily_report',
+          success: true,
+          timestamp: new Date().toISOString(),
+          projectId,
+        });
+        startAutoDismiss();
+        return;
+      }
+
+      if (isBatchCommand(text)) {
+        const batchParsed = await parseBatchVoiceCommand(text, taskContext, projectName);
+        if (batchParsed.commands.length > 1) {
+          const { results, allSuccess } = executeBatchCommands(batchParsed, tasks, updateFunctions);
+          const batchItems: BatchResultItem[] = batchParsed.commands.map((cmd, i) => ({
+            taskName: cmd.taskName,
+            success: results[i]?.success ?? false,
+            message: results[i]?.message ?? 'Unknown error',
+          }));
+          setBatchResults(batchItems);
+          setUndoAction(results[0]?.undoAction ? () => results[0].undoAction?.() : null);
+          setModalState('batch_success');
+
+          if (Platform.OS !== 'web') {
+            void Haptics.notificationAsync(
+              allSuccess ? Haptics.NotificationFeedbackType.Success : Haptics.NotificationFeedbackType.Warning
+            );
+          }
+
+          await saveVoiceHistory({
+            id: `vh-${Date.now()}`,
+            spokenText: text,
+            parsedAction: 'batch',
+            success: allSuccess,
+            timestamp: new Date().toISOString(),
+            projectId,
+          });
+          startAutoDismiss();
+          return;
+        }
+      }
+
+      const parsed = await parseVoiceCommand(text, taskContext, projectName);
+
+      if (parsed.action === 'log_issue' && parsed.text) {
+        await saveVoiceIssue(projectId, parsed.text);
+      }
+
+      const result = executeVoiceCommand(parsed, tasks, updateFunctions);
+
+      if (result.needsClarification && result.matchedTasks) {
+        setClarificationTasks(result.matchedTasks);
+        setPendingParsed(parsed);
+        setModalState('clarification');
+        if (Platform.OS !== 'web') void Haptics.selectionAsync();
+      } else if (result.success) {
+        setResultMessage(result.message);
+        setUndoAction(result.undoAction ? () => result.undoAction?.() : null);
+        setModalState('success');
+        if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        startAutoDismiss();
+      } else {
+        setResultMessage(result.message);
+        setModalState('error');
+        if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      }
+
+      await saveVoiceHistory({
+        id: `vh-${Date.now()}`,
+        spokenText: text,
+        parsedAction: parsed.action,
+        taskName: parsed.taskName,
+        success: result.success,
+        timestamp: new Date().toISOString(),
+        projectId,
+      });
+    } catch (err) {
+      console.log('[VoiceModal] Processing error:', err);
+      setResultMessage('Voice processing unavailable. Try typing your update instead.');
+      setModalState('error');
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    }
+  }, [projectName, projectId, taskContext, tasks, updateFunctions, startAutoDismiss]);
+
+  const handleClarificationSelect = useCallback((task: ScheduleTask) => {
+    if (!pendingParsed) return;
+    const result = executeVoiceCommand(
+      { ...pendingParsed, taskName: task.title },
+      tasks,
+      updateFunctions,
+    );
+    if (result.success) {
+      setResultMessage(result.message);
+      setUndoAction(result.undoAction ? () => result.undoAction?.() : null);
+      setModalState('success');
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      startAutoDismiss();
+    } else {
+      setResultMessage(result.message);
+      setModalState('error');
+    }
+  }, [pendingParsed, tasks, updateFunctions, startAutoDismiss]);
+
+  const handleQuickCommand = useCallback((template: string) => {
+    let filled = template;
+    if (activeTodayTask) {
+      filled = filled.replace('[task]', activeTodayTask.title);
+    }
+    setInputText(filled);
+    setTimeout(() => inputRef.current?.focus(), 100);
+  }, [activeTodayTask]);
+
+  const handleNewCommand = useCallback(() => {
+    if (autoDismissTimer.current) clearTimeout(autoDismissTimer.current);
+    setModalState('input');
+    setInputText('');
+    setResultMessage('');
+    setUndoAction(null);
+    setClarificationTasks([]);
+    setBatchResults([]);
+    getVoiceHistory().then(setHistory);
+    setTimeout(() => inputRef.current?.focus(), 200);
+  }, []);
+
+  const handleUndo = useCallback(() => {
+    if (autoDismissTimer.current) clearTimeout(autoDismissTimer.current);
+    if (undoAction) {
+      undoAction();
+      setResultMessage('Action undone');
+      setUndoAction(null);
+      if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
+  }, [undoAction]);
+
+  const renderInput = () => (
+    <>
+      <View style={s.inputSection}>
+        <TextInput
+          ref={inputRef}
+          style={s.textInput}
+          value={inputText}
+          onChangeText={setInputText}
+          placeholder={'Say something like "Mark framing 80% complete"'}
+          placeholderTextColor={Colors.textMuted}
+          multiline
+          returnKeyType="send"
+          onSubmitEditing={() => processCommand(inputText)}
+          testID="voice-command-input"
+        />
+        <View style={s.inputHint}>
+          <Mic size={14} color={Colors.textMuted} />
+          <Text style={s.inputHintText}>Tap mic on keyboard to speak</Text>
+        </View>
+      </View>
+
+      <Text style={s.sectionLabel}>Quick Commands</Text>
+      <View style={s.chipsRow}>
+        {QUICK_COMMANDS.map((cmd, i) => (
+          <TouchableOpacity
+            key={i}
+            style={s.chip}
+            onPress={() => handleQuickCommand(cmd.template)}
+            activeOpacity={0.7}
+          >
+            <Text style={s.chipText}>{cmd.label}</Text>
+            <ChevronRight size={11} color={Colors.textSecondary} />
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      {history.length > 0 && (
+        <>
+          <Text style={s.sectionLabel}>Recent</Text>
+          <View style={s.historyList}>
+            {history.slice(0, 5).map(item => (
+              <HistoryItem
+                key={item.id}
+                item={item}
+                onTap={(text) => { setInputText(text); }}
+              />
+            ))}
+          </View>
+        </>
+      )}
+    </>
+  );
+
+  const renderProcessing = () => (
+    <View style={s.stateContainer}>
+      <ActivityIndicator size="large" color={Colors.primary} />
+      <Text style={s.stateTitle}>Understanding...</Text>
+      <Text style={s.stateSubtitle}>Analyzing your command</Text>
+    </View>
+  );
+
+  const renderSuccess = () => (
+    <View style={s.stateContainer}>
+      <View style={s.successIcon}>
+        <CheckCircle2 size={36} color={Colors.success} />
+      </View>
+      <Text style={s.stateTitle}>Done!</Text>
+      <Text style={s.stateMessage}>{resultMessage}</Text>
+      <View style={s.actionRow}>
+        {undoAction && (
+          <TouchableOpacity style={s.undoBtn} onPress={handleUndo} activeOpacity={0.7}>
+            <RotateCcw size={14} color={Colors.primary} />
+            <Text style={s.undoBtnText}>Undo</Text>
+          </TouchableOpacity>
+        )}
+        <TouchableOpacity style={s.newCmdBtn} onPress={handleNewCommand} activeOpacity={0.7}>
+          <Mic size={14} color="#fff" />
+          <Text style={s.newCmdBtnText}>New Command</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
+  const renderBatchSuccess = () => (
+    <View style={s.stateContainer}>
+      <View style={s.successIcon}>
+        <CheckCircle2 size={36} color={Colors.success} />
+      </View>
+      <Text style={s.stateTitle}>{batchResults.filter(r => r.success).length} updates applied</Text>
+      <View style={s.batchList}>
+        {batchResults.map((r, i) => (
+          <View key={i} style={s.batchItem}>
+            {r.success ? (
+              <CheckCircle2 size={14} color={Colors.success} />
+            ) : (
+              <AlertTriangle size={14} color={Colors.error} />
+            )}
+            <Text style={[s.batchItemText, !r.success && { color: Colors.error }]}>{r.message}</Text>
+          </View>
+        ))}
+      </View>
+      <View style={s.actionRow}>
+        {undoAction && (
+          <TouchableOpacity style={s.undoBtn} onPress={handleUndo} activeOpacity={0.7}>
+            <RotateCcw size={14} color={Colors.primary} />
+            <Text style={s.undoBtnText}>Undo All</Text>
+          </TouchableOpacity>
+        )}
+        <TouchableOpacity style={s.newCmdBtn} onPress={handleNewCommand} activeOpacity={0.7}>
+          <Text style={s.newCmdBtnText}>Done</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
+  const renderError = () => (
+    <View style={s.stateContainer}>
+      <View style={s.errorIcon}>
+        <HelpCircle size={36} color={Colors.warning} />
+      </View>
+      <Text style={s.stateTitle}>Didn't catch that</Text>
+      <Text style={s.stateMessage}>{resultMessage}</Text>
+      <View style={s.helpSection}>
+        <Text style={s.helpTitle}>Try something like:</Text>
+        <Text style={s.helpExample}>• "Update framing to 75%"</Text>
+        <Text style={s.helpExample}>• "Mark drywall complete"</Text>
+        <Text style={s.helpExample}>• "Add note to plumbing task"</Text>
+      </View>
+      <View style={s.actionRow}>
+        <TouchableOpacity style={s.newCmdBtn} onPress={handleNewCommand} activeOpacity={0.7}>
+          <Text style={s.newCmdBtnText}>Try Again</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
+  const renderClarification = () => (
+    <View style={s.stateContainer}>
+      <View style={s.clarifyIcon}>
+        <HelpCircle size={36} color={Colors.info} />
+      </View>
+      <Text style={s.stateTitle}>Which task?</Text>
+      <Text style={s.stateMessage}>
+        I found {clarificationTasks.length} matching tasks:
+      </Text>
+      <View style={s.clarifyList}>
+        {clarificationTasks.map(task => (
+          <TouchableOpacity
+            key={task.id}
+            style={s.clarifyTask}
+            onPress={() => handleClarificationSelect(task)}
+            activeOpacity={0.7}
+          >
+            <View style={[s.clarifyDot, { backgroundColor: Colors.primary }]} />
+            <View style={s.clarifyTaskInfo}>
+              <Text style={s.clarifyTaskName}>{task.title}</Text>
+              <Text style={s.clarifyTaskMeta}>{task.phase} · {task.progress}%</Text>
+            </View>
+            <ChevronRight size={14} color={Colors.textMuted} />
+          </TouchableOpacity>
+        ))}
+      </View>
+      <TouchableOpacity style={s.undoBtn} onPress={handleNewCommand} activeOpacity={0.7}>
+        <Text style={s.undoBtnText}>Cancel</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+    >
+      <Pressable style={s.overlay} onPress={onClose}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={s.keyboardView}
+        >
+          <Pressable
+            style={[s.sheet, { paddingBottom: Math.max(insets.bottom, 16) }]}
+            onPress={() => undefined}
+          >
+            <View style={s.handle} />
+            <View style={s.header}>
+              <View style={s.headerLeft}>
+                <Mic size={18} color={Colors.primary} />
+                <Text style={s.headerTitle}>MAGE Voice</Text>
+                <View style={s.aiBadge}>
+                  <Sparkles size={9} color={Colors.primary} />
+                  <Text style={s.aiBadgeText}>AI</Text>
+                </View>
+              </View>
+              <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <X size={20} color={Colors.textMuted} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView
+              style={s.content}
+              contentContainerStyle={s.contentInner}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
+              {modalState === 'input' && renderInput()}
+              {modalState === 'processing' && renderProcessing()}
+              {modalState === 'success' && renderSuccess()}
+              {modalState === 'batch_success' && renderBatchSuccess()}
+              {modalState === 'error' && renderError()}
+              {modalState === 'clarification' && renderClarification()}
+            </ScrollView>
+
+            {modalState === 'input' && (
+              <View style={s.bottomBar}>
+                <TouchableOpacity
+                  style={[s.sendBtn, !inputText.trim() && s.sendBtnDisabled]}
+                  onPress={() => processCommand(inputText)}
+                  disabled={!inputText.trim()}
+                  activeOpacity={0.7}
+                  testID="voice-send-btn"
+                >
+                  <Send size={18} color={inputText.trim() ? '#fff' : Colors.textMuted} />
+                </TouchableOpacity>
+              </View>
+            )}
+          </Pressable>
+        </KeyboardAvoidingView>
+      </Pressable>
+    </Modal>
+  );
+}
+
+const s = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: Colors.overlay,
+    justifyContent: 'flex-end',
+  },
+  keyboardView: {
+    justifyContent: 'flex-end',
+  },
+  sheet: {
+    backgroundColor: Colors.surface,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: '75%',
+    minHeight: 360,
+  },
+  handle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: Colors.fillTertiary,
+    alignSelf: 'center',
+    marginTop: 10,
+    marginBottom: 6,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderBottomWidth: 0.5,
+    borderBottomColor: Colors.borderLight,
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  headerTitle: {
+    fontSize: 17,
+    fontWeight: '700' as const,
+    color: Colors.text,
+  },
+  aiBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: Colors.primary + '12',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  aiBadgeText: {
+    fontSize: 10,
+    fontWeight: '700' as const,
+    color: Colors.primary,
+  },
+  content: {
+    flex: 1,
+  },
+  contentInner: {
+    padding: 20,
+    paddingBottom: 8,
+  },
+  inputSection: {
+    marginBottom: 20,
+  },
+  textInput: {
+    backgroundColor: Colors.surfaceAlt,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 14,
+    fontSize: 17,
+    color: Colors.text,
+    minHeight: 80,
+    textAlignVertical: 'top',
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+  },
+  inputHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 8,
+    paddingHorizontal: 4,
+  },
+  inputHintText: {
+    fontSize: 12,
+    color: Colors.textMuted,
+  },
+  sectionLabel: {
+    fontSize: 13,
+    fontWeight: '700' as const,
+    color: Colors.textSecondary,
+    marginBottom: 8,
+    textTransform: 'uppercase' as const,
+    letterSpacing: 0.5,
+  },
+  chipsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 20,
+  },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: Colors.surfaceAlt,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+  },
+  chipText: {
+    fontSize: 13,
+    fontWeight: '500' as const,
+    color: Colors.text,
+  },
+  historyList: {
+    gap: 4,
+    marginBottom: 16,
+  },
+  stateContainer: {
+    alignItems: 'center',
+    paddingVertical: 24,
+    gap: 12,
+  },
+  successIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: Colors.successLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  errorIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: Colors.warningLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  clarifyIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: Colors.infoLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stateTitle: {
+    fontSize: 20,
+    fontWeight: '800' as const,
+    color: Colors.text,
+  },
+  stateSubtitle: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+  },
+  stateMessage: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 20,
+    paddingHorizontal: 8,
+  },
+  actionRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 8,
+  },
+  undoBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 14,
+    backgroundColor: Colors.fillTertiary,
+  },
+  undoBtnText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: Colors.primary,
+  },
+  newCmdBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 14,
+    backgroundColor: Colors.primary,
+  },
+  newCmdBtnText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: '#fff',
+  },
+  batchList: {
+    width: '100%',
+    gap: 8,
+    paddingHorizontal: 12,
+  },
+  batchItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: Colors.surfaceAlt,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+  },
+  batchItemText: {
+    fontSize: 14,
+    fontWeight: '500' as const,
+    color: Colors.text,
+    flex: 1,
+  },
+  helpSection: {
+    alignSelf: 'stretch',
+    backgroundColor: Colors.surfaceAlt,
+    borderRadius: 14,
+    padding: 16,
+    gap: 6,
+    marginHorizontal: 12,
+  },
+  helpTitle: {
+    fontSize: 13,
+    fontWeight: '700' as const,
+    color: Colors.textSecondary,
+    marginBottom: 2,
+  },
+  helpExample: {
+    fontSize: 14,
+    color: Colors.text,
+    lineHeight: 22,
+  },
+  clarifyList: {
+    width: '100%',
+    gap: 6,
+    paddingHorizontal: 8,
+  },
+  clarifyTask: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: Colors.surfaceAlt,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+  },
+  clarifyDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  clarifyTaskInfo: {
+    flex: 1,
+    gap: 2,
+  },
+  clarifyTaskName: {
+    fontSize: 15,
+    fontWeight: '600' as const,
+    color: Colors.text,
+  },
+  clarifyTaskMeta: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+  },
+  bottomBar: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderTopWidth: 0.5,
+    borderTopColor: Colors.borderLight,
+  },
+  sendBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sendBtnDisabled: {
+    backgroundColor: Colors.fillTertiary,
+  },
+});
+
+const histStyles = StyleSheet.create({
+  historyItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    backgroundColor: Colors.surfaceAlt,
+  },
+  historyText: {
+    flex: 1,
+    fontSize: 13,
+    color: Colors.text,
+  },
+  historyTime: {
+    fontSize: 11,
+    color: Colors.textMuted,
+  },
+});
+
+--- FILE: components/VoiceFieldButton.tsx ---
+import React, { useRef, useEffect, useCallback, useState } from 'react';
+import {
+  View, Text, StyleSheet, TouchableOpacity, Platform, Animated,
+} from 'react-native';
+import { Mic } from 'lucide-react-native';
+import * as Haptics from 'expo-haptics';
+import { Colors } from '@/constants/colors';
+import type { ScheduleTask } from '@/types';
+import type { VoiceUpdateFunctions } from '@/utils/voiceCommandExecutor';
+import VoiceCommandModal from './VoiceCommandModal';
+
+interface VoiceFieldButtonProps {
+  tasks: ScheduleTask[];
+  projectName: string;
+  projectId: string;
+  updateFunctions: VoiceUpdateFunctions;
+  activeTodayTask?: ScheduleTask | null;
+  bottomOffset?: number;
+}
+
+export default function VoiceFieldButton({
+  tasks, projectName, projectId, updateFunctions, activeTodayTask, bottomOffset = 16,
+}: VoiceFieldButtonProps) {
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const scaleAnim = useRef(new Animated.Value(0)).current;
+  const glowAnim = useRef(new Animated.Value(0.3)).current;
+
+  useEffect(() => {
+    Animated.spring(scaleAnim, {
+      toValue: 1,
+      friction: 6,
+      tension: 80,
+      useNativeDriver: true,
+    }).start();
+
+    const glow = Animated.loop(
+      Animated.sequence([
+        Animated.timing(glowAnim, { toValue: 0.7, duration: 1500, useNativeDriver: true }),
+        Animated.timing(glowAnim, { toValue: 0.3, duration: 1500, useNativeDriver: true }),
+      ])
+    );
+    glow.start();
+    return () => glow.stop();
+  }, [scaleAnim, glowAnim]);
+
+  const handlePress = useCallback(() => {
+    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setIsModalOpen(true);
+  }, []);
+
+  if (Platform.OS === 'web') return null;
+
+  return (
+    <>
+      <Animated.View
+        style={[
+          styles.container,
+          { bottom: bottomOffset, transform: [{ scale: scaleAnim }] },
+        ]}
+      >
+        <Animated.View style={[styles.glow, { opacity: glowAnim }]} />
+        <TouchableOpacity
+          style={styles.button}
+          onPress={handlePress}
+          activeOpacity={0.8}
+          testID="voice-field-btn"
+        >
+          <Mic size={24} color="#fff" />
+        </TouchableOpacity>
+      </Animated.View>
+
+      <VoiceCommandModal
+        visible={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        tasks={tasks}
+        projectName={projectName}
+        projectId={projectId}
+        updateFunctions={updateFunctions}
+        activeTodayTask={activeTodayTask}
+      />
+    </>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    position: 'absolute',
+    left: 20,
+    zIndex: 90,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  glow: {
+    position: 'absolute',
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    backgroundColor: Colors.primary,
+  },
+  button: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+});
+
+--- FILE: components/VoiceRecorder.tsx ---
+import React, { useState, useRef, useCallback } from 'react';
+import {
+  View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Platform,
+  Animated,
+} from 'react-native';
+import { Mic, MicOff, Lock } from 'lucide-react-native';
+import { Colors } from '@/constants/colors';
+
+interface VoiceRecorderProps {
+  onTranscriptReady: (transcript: string) => void;
+  isLoading: boolean;
+  isLocked?: boolean;
+  onLockedPress?: () => void;
+}
+
+export default function VoiceRecorder({ onTranscriptReady, isLoading, isLocked, onLockedPress }: VoiceRecorderProps) {
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingRef, setRecordingRef] = useState<any>(null);
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const pulseLoop = useRef<Animated.CompositeAnimation | null>(null);
+
+  const startPulse = useCallback(() => {
+    pulseLoop.current = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 1.3, duration: 600, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1, duration: 600, useNativeDriver: true }),
+      ])
+    );
+    pulseLoop.current.start();
+  }, [pulseAnim]);
+
+  const stopPulse = useCallback(() => {
+    pulseLoop.current?.stop();
+    pulseAnim.setValue(1);
+  }, [pulseAnim]);
+
+  const handlePress = useCallback(async () => {
+    if (isLocked) {
+      onLockedPress?.();
+      return;
+    }
+
+    if (Platform.OS === 'web') {
+      return;
+    }
+
+    if (isRecording && recordingRef) {
+      try {
+        console.log('[VoiceDFR] Stopping recording');
+        stopPulse();
+        setIsRecording(false);
+        await recordingRef.stopAndUnloadAsync();
+        const { Audio } = require('expo-av');
+        await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
+        const uri = recordingRef.getURI();
+        setRecordingRef(null);
+
+        if (uri) {
+          console.log('[VoiceDFR] Sending audio for transcription');
+          const uriParts = uri.split('.');
+          const fileType = uriParts[uriParts.length - 1];
+          const formData = new FormData();
+          const audioFile = { uri, name: `recording.${fileType}`, type: `audio/${fileType}` };
+          formData.append('audio', audioFile as any);
+
+          const response = await fetch('https://toolkit.rork.com/stt/transcribe/', {
+            method: 'POST',
+            body: formData,
+          });
+          const data = await response.json();
+          if (data.text) {
+            console.log('[VoiceDFR] Transcription received:', data.text.substring(0, 50));
+            onTranscriptReady(data.text);
+          }
+        }
+      } catch (err) {
+        console.log('[VoiceDFR] Recording stop error:', err);
+      }
+    } else {
+      try {
+        const { Audio } = require('expo-av');
+        console.log('[VoiceDFR] Requesting permissions');
+        const { granted } = await Audio.requestPermissionsAsync();
+        if (!granted) return;
+
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: true,
+          playsInSilentModeIOS: true,
+        });
+
+        const recording = new Audio.Recording();
+        await recording.prepareToRecordAsync({
+          android: {
+            extension: '.m4a',
+            outputFormat: 3,
+            audioEncoder: 3,
+          },
+          ios: {
+            extension: '.wav',
+            outputFormat: 6,
+            audioQuality: 127,
+          },
+          web: {},
+        });
+        await recording.startAsync();
+        setRecordingRef(recording);
+        setIsRecording(true);
+        startPulse();
+        console.log('[VoiceDFR] Recording started');
+      } catch (err) {
+        console.log('[VoiceDFR] Recording start error:', err);
+      }
+    }
+  }, [isRecording, recordingRef, isLocked, onLockedPress, onTranscriptReady, startPulse, stopPulse]);
+
+  if (Platform.OS === 'web') {
+    return (
+      <View style={styles.container}>
+        <View style={[styles.micBtn, styles.micBtnDisabled]}>
+          <MicOff size={20} color={Colors.textMuted} />
+        </View>
+        <Text style={styles.webLabel}>Voice input not available on web</Text>
+      </View>
+    );
+  }
+
+  if (isLocked) {
+    return (
+      <TouchableOpacity style={styles.container} onPress={onLockedPress} activeOpacity={0.7}>
+        <View style={[styles.micBtn, styles.micBtnLocked]}>
+          <Lock size={18} color={Colors.textMuted} />
+        </View>
+        <Text style={styles.lockedLabel}>Pro feature — tap to upgrade</Text>
+      </TouchableOpacity>
+    );
+  }
+
+  return (
+    <View style={styles.container}>
+      <TouchableOpacity onPress={handlePress} activeOpacity={0.7} disabled={isLoading} testID="voice-record-btn">
+        <Animated.View style={[
+          styles.micBtn,
+          isRecording && styles.micBtnRecording,
+          { transform: [{ scale: isRecording ? pulseAnim : 1 }] },
+        ]}>
+          {isLoading ? (
+            <ActivityIndicator color="#fff" size="small" />
+          ) : (
+            <Mic size={20} color={isRecording ? '#fff' : Colors.primary} />
+          )}
+        </Animated.View>
+      </TouchableOpacity>
+      <Text style={styles.label}>
+        {isLoading ? 'Processing...' : isRecording ? 'Tap to stop' : 'Tap to dictate'}
+      </Text>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: Colors.surface,
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+    marginBottom: 12,
+  },
+  micBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: Colors.primary + '15',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  micBtnRecording: {
+    backgroundColor: Colors.error,
+  },
+  micBtnDisabled: {
+    backgroundColor: Colors.fillTertiary,
+  },
+  micBtnLocked: {
+    backgroundColor: Colors.fillTertiary,
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: '500' as const,
+    color: Colors.text,
+  },
+  webLabel: {
+    fontSize: 13,
+    color: Colors.textMuted,
+  },
+  lockedLabel: {
+    fontSize: 13,
+    color: Colors.textMuted,
+    fontStyle: 'italic',
+  },
+});
+

@@ -1,0 +1,4000 @@
+          ...costs,
+        };
+      })
+      .filter((item): item is AssemblyCartItem => item !== null);
+
+    onApplyEstimate(materialItems, laborItems, assemblyItems);
+    handleClose();
+
+    Alert.alert(
+      'Estimate Generated',
+      `Added ${materialItems.length} materials, ${laborItems.length} labor items, and ${assemblyItems.length} assemblies to your estimate.`,
+    );
+  }, [result, matchMaterial, globalMarkup, calculateAssemblyCost, onApplyEstimate, handleClose]);
+
+  const estimatedTotals = useMemo(() => {
+    if (!result) return { materials: 0, labor: 0, assemblies: 0, additional: 0, grand: 0 };
+    const materials = result.materials.reduce((s, m) => s + m.unitPrice * m.quantity, 0);
+    const labor = result.labor.reduce((s, l) => s + l.hourlyRate * l.hours, 0);
+    const assemblies = result.assemblies.length;
+    const add = result.additionalCosts;
+    const additional = add.permits + add.dumpsterRental + add.equipmentRental + add.cleanup;
+    const subtotal = materials + labor + additional;
+    const contingency = subtotal * (add.contingencyPercent / 100);
+    const overhead = subtotal * (add.overheadPercent / 100);
+    const grand = subtotal + contingency + overhead;
+    return { materials, labor, assemblies, additional, grand };
+  }, [result]);
+
+  const progressWidth = progressAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0%', '92%'],
+  });
+
+  const renderInput = () => (
+    <ScrollView style={s.scrollBody} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+      <View style={s.heroSection}>
+        <View style={s.heroIconWrap}>
+          <Wand2 size={28} color={Colors.primary} />
+        </View>
+        <Text style={s.heroTitle}>AI Quick Estimate</Text>
+        <Text style={s.heroDesc}>
+          Describe your project and MAGE AI will generate a complete itemized estimate with materials, labor, and assemblies.
+        </Text>
+      </View>
+
+      <View style={s.quickPromptsSection}>
+        <Text style={s.sectionLabel}>Quick Start</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.quickPromptsRow}>
+          {QUICK_PROMPTS.map((p, i) => (
+            <TouchableOpacity
+              key={i}
+              style={[s.quickChip, description === p.prompt && s.quickChipActive]}
+              onPress={() => handleQuickPrompt(p)}
+              activeOpacity={0.7}
+            >
+              <Text style={[s.quickChipText, description === p.prompt && s.quickChipTextActive]}>{p.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
+
+      <View style={s.inputSection}>
+        <Text style={s.sectionLabel}>Project Description</Text>
+        <TextInput
+          style={s.descInput}
+          value={description}
+          onChangeText={setDescription}
+          placeholder="e.g., 2,500 sqft kitchen remodel with mid-range finishes, new cabinets, countertops, flooring, lighting..."
+          placeholderTextColor={Colors.textMuted}
+          multiline
+          numberOfLines={4}
+          textAlignVertical="top"
+          testID="ai-estimate-desc"
+        />
+      </View>
+
+      <View style={s.detailsRow}>
+        <View style={s.detailField}>
+          <Text style={s.detailLabel}>
+            <Ruler size={12} color={Colors.textSecondary} /> Sq Ft
+          </Text>
+          <TextInput
+            style={s.detailInput}
+            value={sqft}
+            onChangeText={setSqft}
+            placeholder="0"
+            placeholderTextColor={Colors.textMuted}
+            keyboardType="numeric"
+          />
+        </View>
+        <View style={s.detailField}>
+          <Text style={s.detailLabel}>
+            <MapPin size={12} color={Colors.textSecondary} /> Location
+          </Text>
+          <View style={s.locationBadge}>
+            <Text style={s.locationText} numberOfLines={1}>{location || 'US Avg'}</Text>
+          </View>
+        </View>
+      </View>
+
+      <View style={s.inputSection}>
+        <Text style={s.sectionLabel}>Project Type</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.typeRow}>
+          {PROJECT_TYPES.slice(0, 8).map(pt => (
+            <TouchableOpacity
+              key={pt.id}
+              style={[s.typeChip, projectType === pt.id && s.typeChipActive]}
+              onPress={() => { setProjectType(pt.id); if (Platform.OS !== 'web') void Haptics.selectionAsync(); }}
+              activeOpacity={0.7}
+            >
+              <Text style={[s.typeChipText, projectType === pt.id && s.typeChipTextActive]}>{pt.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
+
+      <View style={s.inputSection}>
+        <Text style={s.sectionLabel}>Quality Tier</Text>
+        <View style={s.qualityRow}>
+          {QUALITY_TIERS.map(q => (
+            <TouchableOpacity
+              key={q.id}
+              style={[s.qualityChip, quality === q.id && s.qualityChipActive]}
+              onPress={() => { setQuality(q.id); if (Platform.OS !== 'web') void Haptics.selectionAsync(); }}
+              activeOpacity={0.7}
+            >
+              <Text style={[s.qualityChipLabel, quality === q.id && s.qualityChipLabelActive]}>{q.label}</Text>
+              <Text style={[s.qualityChipDesc, quality === q.id && s.qualityChipDescActive]}>{q.desc}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+
+      {error && (
+        <View style={s.errorBanner}>
+          <AlertTriangle size={16} color={Colors.error} />
+          <Text style={s.errorText}>{error}</Text>
+        </View>
+      )}
+
+      <TouchableOpacity
+        style={[s.generateBtn, !description.trim() && s.generateBtnDisabled]}
+        onPress={handleGenerate}
+        disabled={!description.trim()}
+        activeOpacity={0.8}
+        testID="ai-generate-btn"
+      >
+        <Sparkles size={20} color="#FFF" />
+        <Text style={s.generateBtnText}>Generate Estimate with AI</Text>
+      </TouchableOpacity>
+
+      <View style={s.disclaimer}>
+        <Text style={s.disclaimerText}>
+          Uses 1 advanced AI credit. Estimate is based on current market data and should be reviewed before sending to clients.
+        </Text>
+      </View>
+
+      <View style={{ height: 40 }} />
+    </ScrollView>
+  );
+
+  const renderLoading = () => (
+    <View style={s.loadingContainer}>
+      <Animated.View style={[s.loadingIcon, { opacity: pulseAnim }]}>
+        <Wand2 size={48} color={Colors.primary} />
+      </Animated.View>
+      <Text style={s.loadingTitle}>Building Your Estimate</Text>
+      <Text style={s.loadingDesc}>
+        Analyzing project scope, calculating materials, matching labor rates, and optimizing costs...
+      </Text>
+      <View style={s.progressBar}>
+        <Animated.View style={[s.progressFill, { width: progressWidth }]} />
+      </View>
+      <View style={s.loadingSteps}>
+        {[
+          'Analyzing project requirements...',
+          'Calculating material quantities...',
+          'Matching labor rates for your area...',
+          'Identifying cost-saving opportunities...',
+          'Finalizing estimate...',
+        ].map((step2, i) => (
+          <View key={i} style={s.loadingStepRow}>
+            <Sparkles size={12} color={Colors.primary + '60'} />
+            <Text style={s.loadingStepText}>{step2}</Text>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+
+  const renderResult = () => {
+    if (!result) return null;
+
+    const confidenceColor = result.confidenceScore >= 75 ? Colors.success :
+      result.confidenceScore >= 50 ? Colors.warning : Colors.error;
+
+    return (
+      <Animated.View style={[s.resultContainer, { opacity: fadeAnim }]}>
+        <ScrollView showsVerticalScrollIndicator={false}>
+          <View style={s.resultHeader}>
+            <View style={s.resultBadge}>
+              <Sparkles size={14} color={Colors.primary} />
+              <Text style={s.resultBadgeText}>AI Generated</Text>
+            </View>
+            <View style={[s.confidenceBadge, { backgroundColor: confidenceColor + '15' }]}>
+              <Text style={[s.confidenceText, { color: confidenceColor }]}>{result.confidenceScore}% confidence</Text>
+            </View>
+          </View>
+
+          <Text style={s.resultSummary}>{result.projectSummary}</Text>
+
+          <View style={s.totalCard}>
+            <View style={s.totalRow}>
+              <Text style={s.totalLabel}>Estimated Total</Text>
+              <Text style={s.totalValue}>${estimatedTotals.grand.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</Text>
+            </View>
+            <View style={s.totalDivider} />
+            <View style={s.totalBreakdownGrid}>
+              <View style={s.totalBreakdownItem}>
+                <Package size={14} color={Colors.primary} />
+                <Text style={s.totalBreakdownLabel}>Materials</Text>
+                <Text style={s.totalBreakdownValue}>${estimatedTotals.materials.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
+              </View>
+              <View style={s.totalBreakdownItem}>
+                <HardHat size={14} color={Colors.accent} />
+                <Text style={s.totalBreakdownLabel}>Labor</Text>
+                <Text style={s.totalBreakdownValue}>${estimatedTotals.labor.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
+              </View>
+              <View style={s.totalBreakdownItem}>
+                <Shield size={14} color={Colors.info} />
+                <Text style={s.totalBreakdownLabel}>Other</Text>
+                <Text style={s.totalBreakdownValue}>${estimatedTotals.additional.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
+              </View>
+              <View style={s.totalBreakdownItem}>
+                <Clock size={14} color={Colors.textSecondary} />
+                <Text style={s.totalBreakdownLabel}>Duration</Text>
+                <Text style={s.totalBreakdownValue}>{result.estimatedDuration}</Text>
+              </View>
+            </View>
+            {result.costPerSqFt > 0 && (
+              <View style={s.costPerSqftRow}>
+                <DollarSign size={12} color={Colors.textSecondary} />
+                <Text style={s.costPerSqftText}>${result.costPerSqFt.toFixed(0)}/sq ft</Text>
+              </View>
+            )}
+          </View>
+
+          {renderCollapsible('materials', `Materials (${result.materials.length})`, Package, Colors.primary, () => (
+            <View style={s.itemsList}>
+              {result.materials.map((m, i) => (
+                <View key={i} style={s.itemRow}>
+                  <View style={s.itemLeft}>
+                    <Text style={s.itemName} numberOfLines={1}>{m.name}</Text>
+                    <Text style={s.itemMeta}>{m.quantity} {m.unit} · {m.supplier}</Text>
+                  </View>
+                  <Text style={s.itemPrice}>${(m.unitPrice * m.quantity).toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
+                </View>
+              ))}
+            </View>
+          ))}
+
+          {renderCollapsible('labor', `Labor (${result.labor.length})`, HardHat, Colors.accent, () => (
+            <View style={s.itemsList}>
+              {result.labor.map((l, i) => (
+                <View key={i} style={s.itemRow}>
+                  <View style={s.itemLeft}>
+                    <Text style={s.itemName}>{l.trade}</Text>
+                    <Text style={s.itemMeta}>{l.hours} hrs @ ${l.hourlyRate}/hr · {l.crew}</Text>
+                  </View>
+                  <Text style={s.itemPrice}>${(l.hourlyRate * l.hours).toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
+                </View>
+              ))}
+            </View>
+          ))}
+
+          {result.assemblies.length > 0 && renderCollapsible('assemblies', `Assemblies (${result.assemblies.length})`, Boxes, Colors.info, () => (
+            <View style={s.itemsList}>
+              {result.assemblies.map((a, i) => (
+                <View key={i} style={s.itemRow}>
+                  <View style={s.itemLeft}>
+                    <Text style={s.itemName}>{a.name}</Text>
+                    <Text style={s.itemMeta}>{a.quantity} {a.unit}</Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+          ))}
+
+          {renderCollapsible('additional', 'Additional Costs', DollarSign, Colors.textSecondary, () => (
+            <View style={s.itemsList}>
+              {result.additionalCosts.permits > 0 && (
+                <View style={s.itemRow}>
+                  <Text style={s.itemName}>Permits</Text>
+                  <Text style={s.itemPrice}>${result.additionalCosts.permits.toLocaleString()}</Text>
+                </View>
+              )}
+              {result.additionalCosts.dumpsterRental > 0 && (
+                <View style={s.itemRow}>
+                  <Text style={s.itemName}>Dumpster Rental</Text>
+                  <Text style={s.itemPrice}>${result.additionalCosts.dumpsterRental.toLocaleString()}</Text>
+                </View>
+              )}
+              {result.additionalCosts.equipmentRental > 0 && (
+                <View style={s.itemRow}>
+                  <Text style={s.itemName}>Equipment Rental</Text>
+                  <Text style={s.itemPrice}>${result.additionalCosts.equipmentRental.toLocaleString()}</Text>
+                </View>
+              )}
+              {result.additionalCosts.cleanup > 0 && (
+                <View style={s.itemRow}>
+                  <Text style={s.itemName}>Cleanup</Text>
+                  <Text style={s.itemPrice}>${result.additionalCosts.cleanup.toLocaleString()}</Text>
+                </View>
+              )}
+              <View style={s.itemRow}>
+                <Text style={s.itemName}>Contingency ({result.additionalCosts.contingencyPercent}%)</Text>
+                <Text style={s.itemPrice}>${((estimatedTotals.materials + estimatedTotals.labor + estimatedTotals.additional) * result.additionalCosts.contingencyPercent / 100).toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
+              </View>
+              <View style={s.itemRow}>
+                <Text style={s.itemName}>Overhead ({result.additionalCosts.overheadPercent}%)</Text>
+                <Text style={s.itemPrice}>${((estimatedTotals.materials + estimatedTotals.labor + estimatedTotals.additional) * result.additionalCosts.overheadPercent / 100).toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
+              </View>
+            </View>
+          ))}
+
+          {result.warnings.length > 0 && (
+            <View style={s.warningsCard}>
+              <View style={s.warningsHeader}>
+                <AlertTriangle size={14} color={Colors.warning} />
+                <Text style={s.warningsTitle}>Watch Out</Text>
+              </View>
+              {result.warnings.map((w, i) => (
+                <Text key={i} style={s.warningItem}>• {w}</Text>
+              ))}
+            </View>
+          )}
+
+          {result.savingsTips.length > 0 && (
+            <View style={s.tipsCard}>
+              <View style={s.tipsHeader}>
+                <TrendingDown size={14} color={Colors.success} />
+                <Text style={s.tipsTitle}>Savings Tips</Text>
+              </View>
+              {result.savingsTips.map((t, i) => (
+                <Text key={i} style={s.tipItem}>• {t}</Text>
+              ))}
+            </View>
+          )}
+
+          <TouchableOpacity style={s.applyBtn} onPress={handleApply} activeOpacity={0.8} testID="ai-apply-btn">
+            <Zap size={20} color="#FFF" />
+            <Text style={s.applyBtnText}>Add All to Estimate</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={s.regenerateBtn} onPress={handleReset} activeOpacity={0.7}>
+            <Sparkles size={14} color={Colors.primary} />
+            <Text style={s.regenerateBtnText}>Start Over</Text>
+          </TouchableOpacity>
+
+          <View style={{ height: 40 }} />
+        </ScrollView>
+      </Animated.View>
+    );
+  };
+
+  const renderCollapsible = (
+    id: string,
+    title: string,
+    Icon: typeof Package,
+    color: string,
+    content: () => React.ReactNode,
+  ) => {
+    const isOpen = expandedSection === id;
+    return (
+      <View style={s.collapsibleCard}>
+        <TouchableOpacity
+          style={s.collapsibleHeader}
+          onPress={() => { setExpandedSection(isOpen ? null : id); if (Platform.OS !== 'web') void Haptics.selectionAsync(); }}
+          activeOpacity={0.7}
+        >
+          <View style={s.collapsibleLeft}>
+            <View style={[s.collapsibleIcon, { backgroundColor: color + '15' }]}>
+              <Icon size={16} color={color} />
+            </View>
+            <Text style={s.collapsibleTitle}>{title}</Text>
+          </View>
+          {isOpen ? <ChevronUp size={18} color={Colors.textMuted} /> : <ChevronDown size={18} color={Colors.textMuted} />}
+        </TouchableOpacity>
+        {isOpen && content()}
+      </View>
+    );
+  };
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={handleClose}>
+      <KeyboardAvoidingView style={s.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <View style={s.modalHeader}>
+          <View style={s.modalHandle} />
+          <View style={s.modalTitleRow}>
+            <View style={s.modalTitleLeft}>
+              <Sparkles size={20} color={Colors.primary} />
+              <Text style={s.modalTitle}>AI Estimator</Text>
+            </View>
+            <TouchableOpacity onPress={handleClose} style={s.closeBtn} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+              <X size={20} color={Colors.textSecondary} />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {step === 'input' && renderInput()}
+        {step === 'loading' && renderLoading()}
+        {step === 'result' && renderResult()}
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+});
+
+const s = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+  modalHeader: {
+    paddingTop: 8,
+    paddingHorizontal: 20,
+    paddingBottom: 12,
+    backgroundColor: Colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.borderLight,
+  },
+  modalHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: Colors.fillTertiary,
+    alignSelf: 'center',
+    marginBottom: 12,
+  },
+  modalTitleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  modalTitleLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700' as const,
+    color: Colors.text,
+  },
+  closeBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Colors.fillSecondary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scrollBody: {
+    flex: 1,
+    paddingHorizontal: 20,
+  },
+  heroSection: {
+    alignItems: 'center',
+    paddingTop: 24,
+    paddingBottom: 20,
+    gap: 8,
+  },
+  heroIconWrap: {
+    width: 64,
+    height: 64,
+    borderRadius: 20,
+    backgroundColor: Colors.primary + '12',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  heroTitle: {
+    fontSize: 22,
+    fontWeight: '800' as const,
+    color: Colors.text,
+  },
+  heroDesc: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 20,
+    paddingHorizontal: 20,
+  },
+  quickPromptsSection: {
+    marginBottom: 16,
+  },
+  sectionLabel: {
+    fontSize: 13,
+    fontWeight: '700' as const,
+    color: Colors.textSecondary,
+    textTransform: 'uppercase' as const,
+    letterSpacing: 0.5,
+    marginBottom: 10,
+  },
+  quickPromptsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingRight: 20,
+  },
+  quickChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  quickChipActive: {
+    backgroundColor: Colors.primary + '12',
+    borderColor: Colors.primary,
+  },
+  quickChipText: {
+    fontSize: 13,
+    fontWeight: '500' as const,
+    color: Colors.textSecondary,
+  },
+  quickChipTextActive: {
+    color: Colors.primary,
+    fontWeight: '600' as const,
+  },
+  inputSection: {
+    marginBottom: 16,
+  },
+  descInput: {
+    minHeight: 100,
+    backgroundColor: Colors.surface,
+    borderRadius: 14,
+    padding: 14,
+    fontSize: 15,
+    color: Colors.text,
+    lineHeight: 22,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  detailsRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 16,
+  },
+  detailField: {
+    flex: 1,
+    gap: 6,
+  },
+  detailLabel: {
+    fontSize: 12,
+    fontWeight: '600' as const,
+    color: Colors.textSecondary,
+  },
+  detailInput: {
+    height: 44,
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: Colors.text,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  locationBadge: {
+    height: 44,
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  locationText: {
+    fontSize: 14,
+    fontWeight: '500' as const,
+    color: Colors.text,
+  },
+  typeRow: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingRight: 20,
+  },
+  typeChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  typeChipActive: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  typeChipText: {
+    fontSize: 13,
+    fontWeight: '500' as const,
+    color: Colors.textSecondary,
+  },
+  typeChipTextActive: {
+    color: Colors.textOnPrimary,
+    fontWeight: '600' as const,
+  },
+  qualityRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  qualityChip: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: 'center',
+    gap: 2,
+  },
+  qualityChipActive: {
+    backgroundColor: Colors.primary + '12',
+    borderColor: Colors.primary,
+  },
+  qualityChipLabel: {
+    fontSize: 13,
+    fontWeight: '700' as const,
+    color: Colors.text,
+  },
+  qualityChipLabelActive: {
+    color: Colors.primary,
+  },
+  qualityChipDesc: {
+    fontSize: 10,
+    color: Colors.textMuted,
+    textAlign: 'center' as const,
+  },
+  qualityChipDescActive: {
+    color: Colors.primary,
+  },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: Colors.errorLight,
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 12,
+  },
+  errorText: {
+    flex: 1,
+    fontSize: 13,
+    color: Colors.error,
+    fontWeight: '500' as const,
+  },
+  generateBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    backgroundColor: Colors.primary,
+    borderRadius: 16,
+    paddingVertical: 18,
+    marginTop: 8,
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    elevation: 4,
+  },
+  generateBtnDisabled: {
+    opacity: 0.5,
+  },
+  generateBtnText: {
+    fontSize: 17,
+    fontWeight: '700' as const,
+    color: '#FFF',
+  },
+  disclaimer: {
+    paddingTop: 12,
+    paddingHorizontal: 4,
+  },
+  disclaimerText: {
+    fontSize: 11,
+    color: Colors.textMuted,
+    textAlign: 'center',
+    lineHeight: 16,
+  },
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 40,
+    gap: 16,
+  },
+  loadingIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 24,
+    backgroundColor: Colors.primary + '12',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  loadingTitle: {
+    fontSize: 20,
+    fontWeight: '700' as const,
+    color: Colors.text,
+  },
+  loadingDesc: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  progressBar: {
+    width: '100%',
+    height: 4,
+    backgroundColor: Colors.fillTertiary,
+    borderRadius: 2,
+    overflow: 'hidden',
+    marginTop: 8,
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: Colors.primary,
+    borderRadius: 2,
+  },
+  loadingSteps: {
+    gap: 8,
+    marginTop: 16,
+    width: '100%',
+  },
+  loadingStepRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  loadingStepText: {
+    fontSize: 13,
+    color: Colors.textMuted,
+  },
+  resultContainer: {
+    flex: 1,
+    paddingHorizontal: 20,
+  },
+  resultHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 16,
+    paddingBottom: 8,
+  },
+  resultBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    backgroundColor: Colors.primary + '12',
+  },
+  resultBadgeText: {
+    fontSize: 12,
+    fontWeight: '600' as const,
+    color: Colors.primary,
+  },
+  confidenceBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  confidenceText: {
+    fontSize: 12,
+    fontWeight: '700' as const,
+  },
+  resultSummary: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    lineHeight: 20,
+    marginBottom: 16,
+  },
+  totalCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: Colors.primary + '20',
+  },
+  totalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  totalLabel: {
+    fontSize: 15,
+    fontWeight: '600' as const,
+    color: Colors.textSecondary,
+  },
+  totalValue: {
+    fontSize: 28,
+    fontWeight: '800' as const,
+    color: Colors.primary,
+  },
+  totalDivider: {
+    height: 1,
+    backgroundColor: Colors.borderLight,
+    marginVertical: 12,
+  },
+  totalBreakdownGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  totalBreakdownItem: {
+    flex: 1,
+    minWidth: '40%' as unknown as number,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: Colors.background,
+    borderRadius: 10,
+    padding: 10,
+  },
+  totalBreakdownLabel: {
+    fontSize: 11,
+    color: Colors.textMuted,
+  },
+  totalBreakdownValue: {
+    fontSize: 13,
+    fontWeight: '700' as const,
+    color: Colors.text,
+    marginLeft: 'auto' as const,
+  },
+  costPerSqftRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    marginTop: 12,
+  },
+  costPerSqftText: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: Colors.textSecondary,
+  },
+  collapsibleCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 14,
+    marginBottom: 10,
+    overflow: 'hidden',
+  },
+  collapsibleHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 14,
+  },
+  collapsibleLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  collapsibleIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  collapsibleTitle: {
+    fontSize: 15,
+    fontWeight: '600' as const,
+    color: Colors.text,
+  },
+  itemsList: {
+    paddingHorizontal: 14,
+    paddingBottom: 14,
+    gap: 6,
+  },
+  itemRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    backgroundColor: Colors.background,
+    borderRadius: 10,
+  },
+  itemLeft: {
+    flex: 1,
+    marginRight: 10,
+  },
+  itemName: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: Colors.text,
+  },
+  itemMeta: {
+    fontSize: 11,
+    color: Colors.textMuted,
+    marginTop: 2,
+  },
+  itemPrice: {
+    fontSize: 14,
+    fontWeight: '700' as const,
+    color: Colors.primary,
+  },
+  warningsCard: {
+    backgroundColor: Colors.warningLight,
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 10,
+    gap: 6,
+  },
+  warningsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 2,
+  },
+  warningsTitle: {
+    fontSize: 14,
+    fontWeight: '700' as const,
+    color: Colors.warning,
+  },
+  warningItem: {
+    fontSize: 13,
+    color: '#7A5400',
+    lineHeight: 18,
+  },
+  tipsCard: {
+    backgroundColor: Colors.successLight,
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 16,
+    gap: 6,
+  },
+  tipsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 2,
+  },
+  tipsTitle: {
+    fontSize: 14,
+    fontWeight: '700' as const,
+    color: Colors.success,
+  },
+  tipItem: {
+    fontSize: 13,
+    color: '#1B5E20',
+    lineHeight: 18,
+  },
+  applyBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    backgroundColor: Colors.primary,
+    borderRadius: 16,
+    paddingVertical: 18,
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    elevation: 4,
+  },
+  applyBtnText: {
+    fontSize: 17,
+    fontWeight: '700' as const,
+    color: '#FFF',
+  },
+  regenerateBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 14,
+    marginTop: 4,
+  },
+  regenerateBtnText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: Colors.primary,
+  },
+});
+
+
+========== FILE: ./components/AIScheduleRisk.tsx ==========
+import React, { useState, useCallback } from 'react';
+import {
+  View, Text, StyleSheet, TouchableOpacity, ActivityIndicator,
+} from 'react-native';
+import * as Haptics from 'expo-haptics';
+import { Sparkles, RefreshCw, AlertTriangle, CheckCircle2, Zap, TrendingDown } from 'lucide-react-native';
+import { Colors } from '@/constants/colors';
+import {
+  analyzeScheduleRisk, getCachedResult, setCachedResult,
+  type ScheduleRiskResult,
+} from '@/utils/aiService';
+import type { ProjectSchedule } from '@/types';
+
+interface Props {
+  schedule: ProjectSchedule;
+  projectId: string;
+  weatherData?: string;
+}
+
+const SEVERITY_STYLES = {
+  high: { bg: '#FFF0EF', border: '#FF3B30', icon: AlertTriangle, label: 'HIGH RISK', textColor: '#D32F2F' },
+  medium: { bg: '#FFF8E1', border: '#FF9500', icon: Zap, label: 'MEDIUM RISK', textColor: '#E65100' },
+  low: { bg: '#E8F5E9', border: '#34C759', icon: CheckCircle2, label: 'LOW RISK', textColor: '#2E7D32' },
+} as const;
+
+const TWO_HOURS = 2 * 60 * 60 * 1000;
+
+export default React.memo(function AIScheduleRisk({ schedule, projectId, weatherData }: Props) {
+  const [result, setResult] = useState<ScheduleRiskResult | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [lastAnalyzed, setLastAnalyzed] = useState<string | null>(null);
+  const [hasLoaded, setHasLoaded] = useState(false);
+
+  const cacheKey = `risk_${projectId}`;
+
+  const loadOrAnalyze = useCallback(async (forceRefresh = false) => {
+    if (isLoading) return;
+
+    if (!forceRefresh && !hasLoaded) {
+      const cached = await getCachedResult<ScheduleRiskResult & { analyzedAt: string }>(cacheKey, TWO_HOURS);
+      if (cached) {
+        setResult(cached);
+        setLastAnalyzed(cached.analyzedAt);
+        setHasLoaded(true);
+        return;
+      }
+    }
+
+    setIsLoading(true);
+    try {
+      const data = await analyzeScheduleRisk(schedule, weatherData);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      const now = new Date().toISOString();
+      setResult(data);
+      setLastAnalyzed(now);
+      setHasLoaded(true);
+      await setCachedResult(cacheKey, { ...data, analyzedAt: now });
+    } catch (err) {
+      console.error('[AI Risk] Failed:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [isLoading, schedule, weatherData, cacheKey, hasLoaded]);
+
+  React.useEffect(() => {
+    if (!hasLoaded && schedule.tasks.length > 0) {
+      loadOrAnalyze();
+    }
+  }, [hasLoaded, schedule.tasks.length, loadOrAnalyze]);
+
+  if (!hasLoaded && !isLoading) {
+    return (
+      <TouchableOpacity style={styles.initCard} onPress={() => loadOrAnalyze()}>
+        <Sparkles size={18} color={Colors.primary} />
+        <Text style={styles.initText}>Tap to run AI Risk Analysis</Text>
+      </TouchableOpacity>
+    );
+  }
+
+  if (isLoading && !result) {
+    return (
+      <View style={styles.card}>
+        <View style={styles.loadingRow}>
+          <ActivityIndicator size="small" color={Colors.primary} />
+          <Text style={styles.loadingText}>Analyzing schedule risks...</Text>
+        </View>
+      </View>
+    );
+  }
+
+  if (!result) return null;
+
+  const highRisks = result.risks.filter(r => r.severity === 'high');
+  const medRisks = result.risks.filter(r => r.severity === 'medium');
+  const lowCount = result.risks.filter(r => r.severity === 'low').length;
+  const otherCount = schedule.tasks.length - result.risks.length;
+
+  return (
+    <View style={styles.card}>
+      <View style={styles.header}>
+        <View style={styles.headerLeft}>
+          <Sparkles size={16} color={Colors.primary} />
+          <Text style={styles.headerTitle}>AI Risk Forecast</Text>
+        </View>
+        <TouchableOpacity
+          onPress={() => loadOrAnalyze(true)}
+          disabled={isLoading}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          {isLoading ? (
+            <ActivityIndicator size="small" color={Colors.primary} />
+          ) : (
+            <RefreshCw size={16} color={Colors.textSecondary} />
+          )}
+        </TouchableOpacity>
+      </View>
+
+      {highRisks.map((risk, idx) => {
+        const sev = SEVERITY_STYLES.high;
+        return (
+          <View key={`h-${idx}`} style={[styles.riskItem, { backgroundColor: sev.bg, borderLeftColor: sev.border }]}>
+            <View style={styles.riskHeader}>
+              <sev.icon size={14} color={sev.textColor} />
+              <Text style={[styles.riskSeverity, { color: sev.textColor }]}>{sev.label}: "{risk.taskName}"</Text>
+            </View>
+            <Text style={styles.riskProb}>{risk.delayProbability}% likely to be delayed {risk.delayDays}+ days</Text>
+            {risk.reasons.map((r, i) => (
+              <Text key={i} style={styles.riskReason}>• {r}</Text>
+            ))}
+            <Text style={styles.riskRec}>→ {risk.recommendation}</Text>
+          </View>
+        );
+      })}
+
+      {medRisks.map((risk, idx) => {
+        const sev = SEVERITY_STYLES.medium;
+        return (
+          <View key={`m-${idx}`} style={[styles.riskItem, { backgroundColor: sev.bg, borderLeftColor: sev.border }]}>
+            <View style={styles.riskHeader}>
+              <sev.icon size={14} color={sev.textColor} />
+              <Text style={[styles.riskSeverity, { color: sev.textColor }]}>{sev.label}: "{risk.taskName}"</Text>
+            </View>
+            <Text style={styles.riskProb}>{risk.delayProbability}% likely to slip {risk.delayDays} days</Text>
+            <Text style={styles.riskRec}>→ {risk.recommendation}</Text>
+          </View>
+        );
+      })}
+
+      {(lowCount + otherCount) > 0 && (
+        <View style={[styles.riskItem, { backgroundColor: '#E8F5E9', borderLeftColor: '#34C759' }]}>
+          <View style={styles.riskHeader}>
+            <CheckCircle2 size={14} color="#2E7D32" />
+            <Text style={[styles.riskSeverity, { color: '#2E7D32' }]}>
+              LOW RISK: {lowCount + otherCount} other tasks on track
+            </Text>
+          </View>
+        </View>
+      )}
+
+      <View style={styles.confidenceRow}>
+        <View style={styles.confItem}>
+          <Text style={styles.confLabel}>Completion Confidence</Text>
+          <Text style={[styles.confValue, { color: result.overallConfidence >= 70 ? Colors.success : Colors.warning }]}>
+            {result.overallConfidence}%
+          </Text>
+        </View>
+        <View style={styles.confItem}>
+          <Text style={styles.confLabel}>Predicted End</Text>
+          <Text style={styles.confValue}>{result.predictedEndDate}</Text>
+        </View>
+        {result.predictedDelay > 0 && (
+          <View style={styles.confItem}>
+            <Text style={styles.confLabel}>Delay</Text>
+            <Text style={[styles.confValue, { color: Colors.error }]}>+{result.predictedDelay}d</Text>
+          </View>
+        )}
+      </View>
+
+      {lastAnalyzed && (
+        <Text style={styles.timestamp}>
+          Last analyzed: {new Date(lastAnalyzed).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+        </Text>
+      )}
+    </View>
+  );
+});
+
+const styles = StyleSheet.create({
+  initCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 16,
+    backgroundColor: `${Colors.primary}08`,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: `${Colors.primary}20`,
+    borderStyle: 'dashed',
+    marginHorizontal: 16,
+    marginVertical: 8,
+  },
+  initText: {
+    fontSize: 14,
+    color: Colors.primary,
+    fontWeight: '600' as const,
+  },
+  card: {
+    backgroundColor: Colors.surface,
+    borderRadius: 14,
+    padding: 16,
+    marginHorizontal: 16,
+    marginVertical: 8,
+    borderWidth: 0.5,
+    borderColor: Colors.borderLight,
+    gap: 10,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  headerTitle: {
+    fontSize: 15,
+    fontWeight: '700' as const,
+    color: Colors.text,
+  },
+  loadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 8,
+  },
+  loadingText: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    fontStyle: 'italic' as const,
+  },
+  riskItem: {
+    padding: 12,
+    borderRadius: 10,
+    borderLeftWidth: 3,
+    gap: 4,
+  },
+  riskHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  riskSeverity: {
+    fontSize: 13,
+    fontWeight: '700' as const,
+  },
+  riskProb: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+  },
+  riskReason: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    marginLeft: 4,
+  },
+  riskRec: {
+    fontSize: 13,
+    color: Colors.primary,
+    fontWeight: '600' as const,
+    marginTop: 2,
+  },
+  confidenceRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 4,
+  },
+  confItem: {
+    flex: 1,
+    backgroundColor: Colors.fillSecondary,
+    padding: 10,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  confLabel: {
+    fontSize: 10,
+    color: Colors.textMuted,
+    fontWeight: '500' as const,
+  },
+  confValue: {
+    fontSize: 16,
+    fontWeight: '800' as const,
+    color: Colors.text,
+  },
+  timestamp: {
+    fontSize: 11,
+    color: Colors.textMuted,
+    textAlign: 'right',
+  },
+});
+
+
+========== FILE: ./components/AISubEvaluator.tsx ==========
+import React, { useState, useCallback } from 'react';
+import {
+  View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert,
+  Platform,
+} from 'react-native';
+import * as Haptics from 'expo-haptics';
+import { Sparkles, HelpCircle, DollarSign, AlertTriangle, CheckCircle2 } from 'lucide-react-native';
+import { Colors } from '@/constants/colors';
+import {
+  evaluateSubcontractor, getCachedResult, setCachedResult,
+  type SubEvaluationResult,
+} from '@/utils/aiService';
+import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
+import type { Subcontractor } from '@/types';
+import type { SubscriptionTierKey } from '@/utils/aiRateLimiter';
+
+interface Props {
+  sub: Subcontractor;
+  projectContext: string;
+  subscriptionTier: SubscriptionTierKey;
+}
+
+const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
+
+export default React.memo(function AISubEvaluator({ sub, projectContext, subscriptionTier }: Props) {
+  const [result, setResult] = useState<SubEvaluationResult | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleEvaluate = useCallback(async () => {
+    if (isLoading) return;
+
+    const cacheKey = `sub_eval_${sub.id}`;
+    const cached = await getCachedResult<SubEvaluationResult>(cacheKey, TWENTY_FOUR_HOURS);
+    if (cached) {
+      setResult(cached);
+      return;
+    }
+
+    const limit = await checkAILimit(subscriptionTier, 'fast');
+    if (!limit.allowed) {
+      Alert.alert('AI Limit Reached', limit.message ?? 'Try again tomorrow.');
+      return;
+    }
+
+    setIsLoading(true);
+    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      const data = await evaluateSubcontractor(sub, projectContext);
+      await recordAIUsage('fast');
+      await setCachedResult(cacheKey, data);
+      setResult(data);
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (err) {
+      console.log('[AI Sub] Evaluation failed:', err);
+      Alert.alert('AI Error', 'Could not evaluate this subcontractor. Try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [isLoading, sub, projectContext, subscriptionTier]);
+
+  if (!result) {
+    return (
+      <TouchableOpacity style={styles.triggerBtn} onPress={handleEvaluate} activeOpacity={0.7} disabled={isLoading}>
+        {isLoading ? (
+          <ActivityIndicator size="small" color={Colors.primary} />
+        ) : (
+          <Sparkles size={16} color={Colors.primary} />
+        )}
+        <Text style={styles.triggerText}>{isLoading ? 'Analyzing...' : 'AI Evaluate Sub'}</Text>
+      </TouchableOpacity>
+    );
+  }
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <Sparkles size={12} color={Colors.primary} />
+        <Text style={styles.headerTitle}>AI Sub Evaluation</Text>
+        <Text style={styles.aiTag}>AI-generated</Text>
+      </View>
+
+      <Text style={styles.recommendation}>{result.recommendation}</Text>
+
+      {result.trackRecord ? (
+        <View style={styles.trackRow}>
+          <CheckCircle2 size={12} color={Colors.success} />
+          <Text style={styles.trackText}>{result.trackRecord}</Text>
+        </View>
+      ) : null}
+
+      <Text style={styles.sectionLabel}>Questions to Ask</Text>
+      {result.questionsToAsk.map((q, idx) => (
+        <View key={idx} style={styles.questionRow}>
+          <HelpCircle size={12} color={Colors.info} />
+          <Text style={styles.questionText}>{q}</Text>
+        </View>
+      ))}
+
+      <Text style={styles.sectionLabel}>Typical Rates ({sub.trade})</Text>
+      <View style={styles.rateGrid}>
+        <View style={styles.rateItem}>
+          <Text style={styles.rateLabel}>Journeyman</Text>
+          <Text style={styles.rateValue}>{result.typicalRates.journeyman}</Text>
+        </View>
+        <View style={styles.rateItem}>
+          <Text style={styles.rateLabel}>Master</Text>
+          <Text style={styles.rateValue}>{result.typicalRates.master}</Text>
+        </View>
+        <View style={styles.rateItem}>
+          <Text style={styles.rateLabel}>Apprentice</Text>
+          <Text style={styles.rateValue}>{result.typicalRates.apprentice}</Text>
+        </View>
+      </View>
+
+      {result.redFlags.length > 0 && (
+        <>
+          <Text style={styles.sectionLabel}>Red Flags to Watch</Text>
+          {result.redFlags.map((flag, idx) => (
+            <View key={idx} style={styles.flagRow}>
+              <AlertTriangle size={12} color="#FF3B30" />
+              <Text style={styles.flagText}>{flag}</Text>
+            </View>
+          ))}
+        </>
+      )}
+    </View>
+  );
+});
+
+const styles = StyleSheet.create({
+  triggerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: Colors.primary + '10',
+    borderRadius: 12,
+    paddingVertical: 14,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: Colors.primary + '25',
+  },
+  triggerText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: Colors.primary,
+  },
+  container: {
+    backgroundColor: Colors.surface,
+    borderRadius: 14,
+    padding: 14,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 10,
+  },
+  headerTitle: {
+    fontSize: 13,
+    fontWeight: '700' as const,
+    color: Colors.text,
+    flex: 1,
+  },
+  aiTag: {
+    fontSize: 10,
+    color: Colors.textMuted,
+  },
+  recommendation: {
+    fontSize: 14,
+    color: Colors.text,
+    lineHeight: 20,
+    marginBottom: 12,
+    fontWeight: '500' as const,
+  },
+  trackRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+    backgroundColor: Colors.successLight,
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 12,
+  },
+  trackText: {
+    fontSize: 13,
+    color: Colors.success,
+    flex: 1,
+    lineHeight: 18,
+  },
+  sectionLabel: {
+    fontSize: 11,
+    fontWeight: '700' as const,
+    color: Colors.textMuted,
+    textTransform: 'uppercase' as const,
+    letterSpacing: 0.8,
+    marginBottom: 6,
+    marginTop: 4,
+  },
+  questionRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+    marginBottom: 6,
+  },
+  questionText: {
+    fontSize: 13,
+    color: Colors.text,
+    flex: 1,
+    lineHeight: 18,
+  },
+  rateGrid: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 8,
+  },
+  rateItem: {
+    flex: 1,
+    backgroundColor: Colors.fillSecondary,
+    borderRadius: 8,
+    padding: 10,
+    alignItems: 'center',
+  },
+  rateLabel: {
+    fontSize: 10,
+    color: Colors.textMuted,
+    fontWeight: '500' as const,
+  },
+  rateValue: {
+    fontSize: 13,
+    fontWeight: '700' as const,
+    color: Colors.text,
+  },
+  flagRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+    marginBottom: 4,
+  },
+  flagText: {
+    fontSize: 13,
+    color: '#D32F2F',
+    flex: 1,
+    lineHeight: 18,
+  },
+});
+
+
+========== FILE: ./components/AIWeeklySummary.tsx ==========
+import React, { useState, useCallback } from 'react';
+import {
+  View, Text, StyleSheet, TouchableOpacity, ActivityIndicator,
+  ScrollView, Modal,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Haptics from 'expo-haptics';
+import { Sparkles, X, TrendingUp, AlertTriangle, CheckCircle2, Share2 } from 'lucide-react-native';
+import { Colors } from '@/constants/colors';
+import { generateWeeklySummary, type WeeklySummaryResult } from '@/utils/aiService';
+import type { Project } from '@/types';
+
+interface Props {
+  projects: Project[];
+  visible: boolean;
+  onClose: () => void;
+}
+
+const STATUS_CONFIG = {
+  on_track: { icon: CheckCircle2, color: '#34C759', label: 'ON TRACK', bg: '#E8F5E9' },
+  at_risk: { icon: AlertTriangle, color: '#FF9500', label: 'AT RISK', bg: '#FFF3E0' },
+  behind: { icon: AlertTriangle, color: '#FF3B30', label: 'BEHIND', bg: '#FFF0EF' },
+  ahead: { icon: TrendingUp, color: '#007AFF', label: 'AHEAD', bg: '#EBF3FF' },
+} as const;
+
+function formatCurrency(n: number): string {
+  if (n >= 1000000) return `$${(n / 1000000).toFixed(1)}M`;
+  if (n >= 1000) return `$${(n / 1000).toFixed(0)}K`;
+  return `$${n.toLocaleString()}`;
+}
+
+export default function AIWeeklySummary({ projects, visible, onClose }: Props) {
+  const insets = useSafeAreaInsets();
+  const [result, setResult] = useState<WeeklySummaryResult | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleGenerate = useCallback(async () => {
+    if (isLoading || projects.length === 0) return;
+    setIsLoading(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      const data = await generateWeeklySummary(projects);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setResult(data);
+    } catch (err) {
+      console.error('[AI Weekly] Failed:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [isLoading, projects]);
+
+  React.useEffect(() => {
+    if (visible && !result && !isLoading && projects.length > 0) {
+      handleGenerate();
+    }
+  }, [visible, result, isLoading, projects.length, handleGenerate]);
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <View style={styles.header}>
+          <View style={styles.headerLeft}>
+            <Sparkles size={18} color={Colors.primary} />
+            <Text style={styles.headerTitle}>Weekly Executive Summary</Text>
+          </View>
+          <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <X size={22} color={Colors.textSecondary} />
+          </TouchableOpacity>
+        </View>
+
+        {isLoading && !result ? (
+          <View style={styles.loadingState}>
+            <ActivityIndicator size="large" color={Colors.primary} />
+            <Text style={styles.loadingText}>Analyzing your portfolio...</Text>
+            <Text style={styles.loadingSubtext}>Reviewing {projects.length} project(s)</Text>
+          </View>
+        ) : result ? (
+          <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+            <View style={styles.weekBadge}>
+              <Text style={styles.weekText}>{result.weekRange}</Text>
+            </View>
+
+            <View style={styles.overviewCard}>
+              <Text style={styles.sectionLabel}>PORTFOLIO OVERVIEW</Text>
+              <View style={styles.overviewGrid}>
+                <View style={styles.overviewItem}>
+                  <Text style={styles.overviewValue}>{result.portfolioSummary.totalProjects}</Text>
+                  <Text style={styles.overviewLabel}>Active</Text>
+                </View>
+                <View style={styles.overviewItem}>
+                  <Text style={[styles.overviewValue, { color: Colors.success }]}>{result.portfolioSummary.onTrack}</Text>
+                  <Text style={styles.overviewLabel}>On Track</Text>
+                </View>
+                <View style={styles.overviewItem}>
+                  <Text style={[styles.overviewValue, { color: Colors.warning }]}>{result.portfolioSummary.atRisk}</Text>
+                  <Text style={styles.overviewLabel}>At Risk</Text>
+                </View>
+                <View style={styles.overviewItem}>
+                  <Text style={styles.overviewValue}>{result.portfolioSummary.tasksCompletedThisWeek}</Text>
+                  <Text style={styles.overviewLabel}>Completed</Text>
+                </View>
+              </View>
+              <View style={styles.combinedValue}>
+                <Text style={styles.combinedLabel}>Combined portfolio value</Text>
+                <Text style={styles.combinedAmount}>{formatCurrency(result.portfolioSummary.combinedValue)}</Text>
+              </View>
+            </View>
+
+            {result.projects.map((proj, idx) => {
+              const config = STATUS_CONFIG[proj.status] ?? STATUS_CONFIG.on_track;
+              const StatusIcon = config.icon;
+              return (
+                <View key={idx} style={styles.projectCard}>
+                  <View style={styles.projectHeader}>
+                    <Text style={styles.projectName}>{proj.name}</Text>
+                    <View style={[styles.statusBadge, { backgroundColor: config.bg }]}>
+                      <StatusIcon size={12} color={config.color} />
+                      <Text style={[styles.statusText, { color: config.color }]}>{config.label}</Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.progressRow}>
+                    <Text style={styles.progressLabel}>Progress:</Text>
+                    <Text style={styles.progressValue}>
+                      {proj.progressStart}% → {proj.progressEnd}%{' '}
+                      <Text style={{ color: Colors.success }}>
+                        (+{proj.progressEnd - proj.progressStart}% this week)
+                      </Text>
+                    </Text>
+                  </View>
+
+                  <View style={styles.progressBar}>
+                    <View style={[styles.progressFill, { width: `${Math.min(proj.progressEnd, 100)}%` }]} />
+                  </View>
+
+                  <Text style={styles.keyLabel}>Key: {proj.keyAccomplishment}</Text>
+                  {proj.primaryRisk !== 'None' && (
+                    <Text style={styles.riskLabel}>Risk: {proj.primaryRisk}</Text>
+                  )}
+                  {proj.recommendation ? (
+                    <Text style={styles.recLabel}>→ {proj.recommendation}</Text>
+                  ) : null}
+                </View>
+              );
+            })}
+
+            {result.overallRecommendation ? (
+              <View style={styles.overallRec}>
+                <Sparkles size={14} color={Colors.primary} />
+                <Text style={styles.overallRecText}>{result.overallRecommendation}</Text>
+              </View>
+            ) : null}
+
+            <Text style={styles.aiDisclaimer}>Generated by MAGE AI</Text>
+          </ScrollView>
+        ) : (
+          <View style={styles.loadingState}>
+            <Text style={styles.loadingText}>No projects to analyze</Text>
+          </View>
+        )}
+      </View>
+    </Modal>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 0.5,
+    borderBottomColor: Colors.borderLight,
+    backgroundColor: Colors.surface,
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  headerTitle: {
+    fontSize: 17,
+    fontWeight: '700' as const,
+    color: Colors.text,
+  },
+  loadingState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  loadingText: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: Colors.text,
+  },
+  loadingSubtext: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+  },
+  scroll: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: 16,
+    paddingBottom: 40,
+    gap: 12,
+  },
+  weekBadge: {
+    alignSelf: 'center',
+    backgroundColor: Colors.fillTertiary,
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  weekText: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: Colors.textSecondary,
+  },
+  overviewCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 0.5,
+    borderColor: Colors.borderLight,
+    gap: 12,
+  },
+  sectionLabel: {
+    fontSize: 11,
+    fontWeight: '700' as const,
+    color: Colors.textMuted,
+    letterSpacing: 1,
+  },
+  overviewGrid: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  overviewItem: {
+    flex: 1,
+    alignItems: 'center',
+    padding: 10,
+    backgroundColor: Colors.fillSecondary,
+    borderRadius: 10,
+  },
+  overviewValue: {
+    fontSize: 22,
+    fontWeight: '800' as const,
+    color: Colors.text,
+  },
+  overviewLabel: {
+    fontSize: 11,
+    color: Colors.textMuted,
+    fontWeight: '500' as const,
+  },
+  combinedValue: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 8,
+    borderTopWidth: 0.5,
+    borderTopColor: Colors.borderLight,
+  },
+  combinedLabel: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+  },
+  combinedAmount: {
+    fontSize: 18,
+    fontWeight: '800' as const,
+    color: Colors.text,
+  },
+  projectCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 0.5,
+    borderColor: Colors.borderLight,
+    gap: 8,
+  },
+  projectHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  projectName: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: Colors.text,
+    flex: 1,
+  },
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  statusText: {
+    fontSize: 11,
+    fontWeight: '700' as const,
+  },
+  progressRow: {
+    flexDirection: 'row',
+    gap: 4,
+  },
+  progressLabel: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+  },
+  progressValue: {
+    fontSize: 13,
+    color: Colors.text,
+    fontWeight: '600' as const,
+  },
+  progressBar: {
+    height: 6,
+    backgroundColor: Colors.fillTertiary,
+    borderRadius: 3,
+  },
+  progressFill: {
+    height: 6,
+    backgroundColor: Colors.primary,
+    borderRadius: 3,
+  },
+  keyLabel: {
+    fontSize: 13,
+    color: Colors.text,
+  },
+  riskLabel: {
+    fontSize: 13,
+    color: Colors.warning,
+  },
+  recLabel: {
+    fontSize: 13,
+    color: Colors.primary,
+    fontWeight: '600' as const,
+  },
+  overallRec: {
+    flexDirection: 'row',
+    gap: 8,
+    padding: 16,
+    backgroundColor: `${Colors.primary}08`,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: `${Colors.primary}15`,
+  },
+  overallRecText: {
+    fontSize: 14,
+    color: Colors.text,
+    lineHeight: 20,
+    flex: 1,
+  },
+  aiDisclaimer: {
+    fontSize: 11,
+    color: Colors.textMuted,
+    textAlign: 'center',
+    marginTop: 8,
+  },
+});
+
+
+========== FILE: ./components/CashFlowAlerts.tsx ==========
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Animated } from 'react-native';
+import { AlertTriangle, TrendingUp, Clock, X, ChevronRight } from 'lucide-react-native';
+import { Colors } from '@/constants/colors';
+import { useRouter } from 'expo-router';
+import type { CashFlowWeek } from '@/utils/cashFlowEngine';
+import { formatCurrency } from '@/utils/cashFlowEngine';
+import type { Invoice } from '@/types';
+
+export interface CashFlowAlert {
+  id: string;
+  type: 'critical' | 'warning' | 'positive' | 'payment_due' | 'overdue';
+  title: string;
+  message: string;
+  actionLabel?: string;
+}
+
+interface CashFlowAlertsProps {
+  forecast: CashFlowWeek[] | null;
+  invoices: Invoice[];
+}
+
+function generateAlerts(forecast: CashFlowWeek[] | null, invoices: Invoice[]): CashFlowAlert[] {
+  const alerts: CashFlowAlert[] = [];
+  const now = new Date();
+
+  if (forecast && forecast.length > 0) {
+    const negativeWeeks = forecast.filter((w, i) => w.runningBalance < 0 && i < 6);
+    if (negativeWeeks.length > 0) {
+      const first = negativeWeeks[0];
+      const weekIdx = forecast.indexOf(first);
+      const weeksAway = weekIdx + 1;
+      alerts.push({
+        id: `critical-${first.weekStart}`,
+        type: 'critical',
+        title: `Balance goes negative in ${weeksAway} week${weeksAway > 1 ? 's' : ''}`,
+        message: `Projected ${formatCurrency(first.runningBalance)} on ${new Date(first.weekStart).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}. Open Cash Flow to see solutions.`,
+        actionLabel: 'View Forecast',
+      });
+    }
+
+    const lowWeeks = forecast.filter((w, i) => w.runningBalance > 0 && w.runningBalance < 5000 && i < 8);
+    if (lowWeeks.length > 0 && negativeWeeks.length === 0) {
+      const first = lowWeeks[0];
+      const weekIdx = forecast.indexOf(first);
+      alerts.push({
+        id: `warning-${first.weekStart}`,
+        type: 'warning',
+        title: `Low balance in ${weekIdx + 1} weeks`,
+        message: `Balance will drop to ${formatCurrency(first.runningBalance)}. Consider invoicing early.`,
+        actionLabel: 'View Forecast',
+      });
+    }
+
+    const allPositive = forecast.slice(0, 4).every(w => w.runningBalance > 10000);
+    if (allPositive && forecast.length > 0) {
+      alerts.push({
+        id: 'positive-outlook',
+        type: 'positive',
+        title: 'Strong cash position',
+        message: 'Good time to invest in materials or take on new projects.',
+      });
+    }
+  }
+
+  invoices.forEach(inv => {
+    if (inv.status === 'paid') return;
+    const due = new Date(inv.dueDate);
+    const remaining = inv.totalDue - inv.amountPaid;
+    if (remaining <= 0) return;
+
+    const diffDays = Math.floor((now.getTime() - due.getTime()) / (1000 * 60 * 60 * 24));
+
+    if (diffDays > 0) {
+      alerts.push({
+        id: `overdue-${inv.id}`,
+        type: 'overdue',
+        title: `Invoice #${inv.number} is ${diffDays} days overdue`,
+        message: `${formatCurrency(remaining)} outstanding. Send a reminder.`,
+        actionLabel: 'View Invoice',
+      });
+    } else if (diffDays >= -1 && diffDays <= 0) {
+      alerts.push({
+        id: `due-${inv.id}`,
+        type: 'payment_due',
+        title: `Invoice #${inv.number} due today`,
+        message: `${formatCurrency(remaining)} payment expected. Follow up with client.`,
+      });
+    }
+  });
+
+  return alerts.slice(0, 3);
+}
+
+const ALERT_CONFIG: Record<CashFlowAlert['type'], { bg: string; border: string; iconColor: string; icon: typeof AlertTriangle }> = {
+  critical: { bg: Colors.errorLight, border: Colors.error + '40', iconColor: Colors.error, icon: AlertTriangle },
+  warning: { bg: Colors.warningLight, border: Colors.warning + '40', iconColor: Colors.warning, icon: AlertTriangle },
+  positive: { bg: Colors.successLight, border: Colors.success + '40', iconColor: Colors.success, icon: TrendingUp },
+  payment_due: { bg: Colors.infoLight, border: Colors.info + '40', iconColor: Colors.info, icon: Clock },
+  overdue: { bg: Colors.errorLight, border: Colors.error + '40', iconColor: Colors.error, icon: Clock },
+};
+
+const AlertCard = React.memo(function AlertCard({
+  alert,
+  onDismiss,
+  onAction,
+}: {
+  alert: CashFlowAlert;
+  onDismiss: (id: string) => void;
+  onAction: () => void;
+}) {
+  const config = ALERT_CONFIG[alert.type];
+  const IconComponent = config.icon;
+
+  return (
+    <View style={[styles.alertCard, { backgroundColor: config.bg, borderColor: config.border }]}>
+      <View style={styles.alertTop}>
+        <IconComponent size={18} color={config.iconColor} />
+        <Text style={[styles.alertTitle, { color: config.iconColor }]} numberOfLines={1}>
+          {alert.title}
+        </Text>
+        <TouchableOpacity onPress={() => onDismiss(alert.id)} style={styles.dismissBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <X size={14} color={Colors.textMuted} />
+        </TouchableOpacity>
+      </View>
+      <Text style={styles.alertMessage} numberOfLines={2}>{alert.message}</Text>
+      {alert.actionLabel && (
+        <TouchableOpacity style={styles.alertAction} onPress={onAction} activeOpacity={0.7}>
+          <Text style={[styles.alertActionText, { color: config.iconColor }]}>{alert.actionLabel}</Text>
+          <ChevronRight size={14} color={config.iconColor} />
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+});
+
+export default function CashFlowAlerts({ forecast, invoices }: CashFlowAlertsProps) {
+  const router = useRouter();
+  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
+
+  const alerts = useMemo(() => generateAlerts(forecast, invoices), [forecast, invoices]);
+  const visibleAlerts = useMemo(() => alerts.filter(a => !dismissed.has(a.id)), [alerts, dismissed]);
+
+  const handleDismiss = useCallback((id: string) => {
+    setDismissed(prev => new Set(prev).add(id));
+  }, []);
+
+  const handleAction = useCallback(() => {
+    router.push('/cash-flow' as any);
+  }, [router]);
+
+  if (visibleAlerts.length === 0) return null;
+
+  return (
+    <View style={styles.container}>
+      {visibleAlerts.map(alert => (
+        <AlertCard
+          key={alert.id}
+          alert={alert}
+          onDismiss={handleDismiss}
+          onAction={handleAction}
+        />
+      ))}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    paddingHorizontal: 20,
+    gap: 8,
+    marginBottom: 16,
+  },
+  alertCard: {
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    gap: 6,
+  },
+  alertTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  alertTitle: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '700' as const,
+  },
+  dismissBtn: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(0,0,0,0.06)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  alertMessage: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+    lineHeight: 18,
+    paddingLeft: 26,
+  },
+  alertAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingLeft: 26,
+    marginTop: 2,
+  },
+  alertActionText: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+  },
+});
+
+
+========== FILE: ./components/CashFlowChart.tsx ==========
+import React, { useMemo, useRef, useCallback } from 'react';
+import {
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated,
+} from 'react-native';
+import { Colors } from '@/constants/colors';
+import type { CashFlowWeek } from '@/utils/cashFlowEngine';
+import { formatCurrencyShort } from '@/utils/cashFlowEngine';
+
+interface CashFlowChartProps {
+  weeks: CashFlowWeek[];
+  onWeekPress?: (weekIndex: number) => void;
+  selectedWeek?: number | null;
+}
+
+const BAR_WIDTH = 44;
+const CHART_HEIGHT = 200;
+const LABEL_HEIGHT = 28;
+
+const CashFlowChart = React.memo(function CashFlowChart({
+  weeks,
+  onWeekPress,
+  selectedWeek,
+}: CashFlowChartProps) {
+  const scrollRef = useRef<ScrollView>(null);
+
+  const { maxAbsNet, maxAbsBalance, balancePoints } = useMemo(() => {
+    let maxNet = 0;
+    let maxBal = 0;
+    weeks.forEach(w => {
+      maxNet = Math.max(maxNet, Math.abs(w.netCashFlow));
+      maxBal = Math.max(maxBal, Math.abs(w.runningBalance));
+    });
+    if (maxNet === 0) maxNet = 1;
+    if (maxBal === 0) maxBal = 1;
+
+    const points = weeks.map((w, i) => {
+      const normalized = (w.runningBalance + maxBal) / (2 * maxBal);
+      const y = CHART_HEIGHT - (normalized * (CHART_HEIGHT - 20)) - 10;
+      const x = i * (BAR_WIDTH + 8) + BAR_WIDTH / 2;
+      return { x, y, balance: w.runningBalance };
+    });
+
+    return { maxAbsNet: maxNet, maxAbsBalance: maxBal, balancePoints: points };
+  }, [weeks]);
+
+  const handleWeekPress = useCallback((index: number) => {
+    onWeekPress?.(index);
+  }, [onWeekPress]);
+
+  const totalWidth = weeks.length * (BAR_WIDTH + 8) + 16;
+  const midY = CHART_HEIGHT / 2;
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.yAxisLabels}>
+        <Text style={styles.yLabel}>{formatCurrencyShort(maxAbsNet)}</Text>
+        <Text style={[styles.yLabel, { color: Colors.textMuted }]}>$0</Text>
+        <Text style={[styles.yLabel, { color: Colors.error }]}>-{formatCurrencyShort(maxAbsNet)}</Text>
+      </View>
+
+      <ScrollView
+        ref={scrollRef}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ width: Math.max(totalWidth, 300), paddingRight: 16 }}
+      >
+        <View style={{ height: CHART_HEIGHT + LABEL_HEIGHT }}>
+          <View style={[styles.zeroLine, { top: midY }]} />
+
+          {balancePoints.length > 1 && (
+            <View style={StyleSheet.absoluteFill} pointerEvents="none">
+              {balancePoints.map((pt, i) => {
+                if (i === 0) return null;
+                const prev = balancePoints[i - 1];
+                const dx = pt.x - prev.x;
+                const dy = pt.y - prev.y;
+                const length = Math.sqrt(dx * dx + dy * dy);
+                const angle = Math.atan2(dy, dx) * (180 / Math.PI);
+                return (
+                  <View
+                    key={`line-${i}`}
+                    style={{
+                      position: 'absolute',
+                      left: prev.x,
+                      top: prev.y,
+                      width: length,
+                      height: 2,
+                      backgroundColor: Colors.info,
+                      transform: [{ rotate: `${angle}deg` }],
+                      transformOrigin: 'left center',
+                      opacity: 0.7,
+                    }}
+                  />
+                );
+              })}
+              {balancePoints.map((pt, i) => (
+                <View
+                  key={`dot-${i}`}
+                  style={{
+                    position: 'absolute',
+                    left: pt.x - 3,
+                    top: pt.y - 3,
+                    width: 6,
+                    height: 6,
+                    borderRadius: 3,
+                    backgroundColor: Colors.info,
+                  }}
+                />
+              ))}
+            </View>
+          )}
+
+          <View style={styles.barsContainer}>
+            {weeks.map((week, i) => {
+              const isPositive = week.netCashFlow >= 0;
+              const barHeight = maxAbsNet > 0
+                ? (Math.abs(week.netCashFlow) / maxAbsNet) * (CHART_HEIGHT / 2 - 10)
+                : 0;
+              const isSelected = selectedWeek === i;
+              const isDanger = week.runningBalance < 0;
+
+              return (
+                <TouchableOpacity
+                  key={i}
+                  style={[styles.barColumn, isSelected && styles.barColumnSelected]}
+                  onPress={() => handleWeekPress(i)}
+                  activeOpacity={0.7}
+                >
+                  <View style={{ height: CHART_HEIGHT, justifyContent: 'center' }}>
+                    {isPositive ? (
+                      <View style={{ alignItems: 'center', justifyContent: 'flex-end', height: CHART_HEIGHT / 2 - 5 }}>
+                        <View
+                          style={[
+                            styles.bar,
+                            {
+                              height: Math.max(barHeight, 2),
+                              backgroundColor: isDanger ? Colors.warning : Colors.success,
+                            },
+                          ]}
+                        />
+                      </View>
+                    ) : (
+                      <>
+                        <View style={{ height: CHART_HEIGHT / 2 - 5 }} />
+                        <View style={{ alignItems: 'center', height: CHART_HEIGHT / 2 - 5 }}>
+                          <View
+                            style={[
+                              styles.bar,
+                              {
+                                height: Math.max(barHeight, 2),
+                                backgroundColor: Colors.error,
+                              },
+                            ]}
+                          />
+                        </View>
+                      </>
+                    )}
+                  </View>
+                  <View style={styles.barLabel}>
+                    <Text style={[styles.barLabelText, isDanger && { color: Colors.error }]}>
+                      W{i + 1}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+      </ScrollView>
+
+      <View style={styles.legend}>
+        <View style={styles.legendItem}>
+          <View style={[styles.legendDot, { backgroundColor: Colors.success }]} />
+          <Text style={styles.legendText}>Positive Week</Text>
+        </View>
+        <View style={styles.legendItem}>
+          <View style={[styles.legendDot, { backgroundColor: Colors.error }]} />
+          <Text style={styles.legendText}>Negative Week</Text>
+        </View>
+        <View style={styles.legendItem}>
+          <View style={[styles.legendLine, { backgroundColor: Colors.info }]} />
+          <Text style={styles.legendText}>Balance</Text>
+        </View>
+      </View>
+    </View>
+  );
+});
+
+const styles = StyleSheet.create({
+  container: {
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+  },
+  yAxisLabels: {
+    position: 'absolute',
+    left: 4,
+    top: 16,
+    height: CHART_HEIGHT,
+    justifyContent: 'space-between',
+    zIndex: 2,
+  },
+  yLabel: {
+    fontSize: 10,
+    fontWeight: '600' as const,
+    color: Colors.success,
+  },
+  zeroLine: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    height: 1,
+    backgroundColor: Colors.border,
+  },
+  barsContainer: {
+    flexDirection: 'row',
+    paddingLeft: 8,
+    gap: 8,
+  },
+  barColumn: {
+    width: BAR_WIDTH,
+    alignItems: 'center',
+    borderRadius: 8,
+    paddingHorizontal: 2,
+  },
+  barColumnSelected: {
+    backgroundColor: Colors.fillSecondary,
+  },
+  bar: {
+    width: 28,
+    borderRadius: 4,
+    minHeight: 2,
+  },
+  barLabel: {
+    height: LABEL_HEIGHT,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  barLabelText: {
+    fontSize: 10,
+    fontWeight: '600' as const,
+    color: Colors.textMuted,
+  },
+  legend: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 16,
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: Colors.borderLight,
+  },
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  legendDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  legendLine: {
+    width: 16,
+    height: 2,
+    borderRadius: 1,
+  },
+  legendText: {
+    fontSize: 11,
+    color: Colors.textMuted,
+    fontWeight: '500' as const,
+  },
+});
+
+export default CashFlowChart;
+
+
+========== FILE: ./components/CashFlowSetup.tsx ==========
+import React, { useState, useCallback } from 'react';
+import {
+  View, Text, StyleSheet, TouchableOpacity, TextInput, Modal, ScrollView,
+  Platform, KeyboardAvoidingView,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Haptics from 'expo-haptics';
+import { DollarSign, Wallet, Clock, CheckCircle, ChevronRight, Plus, X, Trash2 } from 'lucide-react-native';
+import { Colors } from '@/constants/colors';
+import type { CashFlowExpense, ExpenseCategory, ExpenseFrequency } from '@/utils/cashFlowEngine';
+import type { CashFlowData } from '@/utils/cashFlowStorage';
+
+interface CashFlowSetupProps {
+  visible: boolean;
+  onComplete: (data: CashFlowData) => void;
+  onClose: () => void;
+}
+
+const EXPENSE_SUGGESTIONS: Array<{ name: string; category: ExpenseCategory; frequency: ExpenseFrequency }> = [
+  { name: 'Payroll', category: 'payroll', frequency: 'weekly' },
+  { name: 'Insurance', category: 'insurance', frequency: 'monthly' },
+  { name: 'Office Overhead', category: 'overhead', frequency: 'monthly' },
+  { name: 'Vehicle Payments', category: 'loan', frequency: 'monthly' },
+  { name: 'Equipment Rental', category: 'equipment_rental', frequency: 'monthly' },
+];
+
+const TERMS_OPTIONS = [
+  { value: 'net_15', label: 'Net 15' },
+  { value: 'net_30', label: 'Net 30' },
+  { value: 'net_45', label: 'Net 45' },
+  { value: 'due_on_receipt', label: 'Due on Receipt' },
+];
+
+export default function CashFlowSetup({ visible, onComplete, onClose }: CashFlowSetupProps) {
+  const insets = useSafeAreaInsets();
+  const [step, setStep] = useState(0);
+  const [startingBalance, setStartingBalance] = useState('');
+  const [expenses, setExpenses] = useState<CashFlowExpense[]>([]);
+  const [defaultTerms, setDefaultTerms] = useState('net_30');
+
+  const handleAddSuggestion = useCallback((suggestion: typeof EXPENSE_SUGGESTIONS[0]) => {
+    const exists = expenses.some(e => e.name === suggestion.name);
+    if (exists) return;
+    const newExpense: CashFlowExpense = {
+      id: `exp-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      name: suggestion.name,
+      amount: 0,
+      frequency: suggestion.frequency,
+      category: suggestion.category,
+      startDate: new Date().toISOString(),
+    };
+    setExpenses(prev => [...prev, newExpense]);
+    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  }, [expenses]);
+
+  const handleUpdateExpenseAmount = useCallback((id: string, amount: string) => {
+    setExpenses(prev => prev.map(e => e.id === id ? { ...e, amount: parseFloat(amount) || 0 } : e));
+  }, []);
+
+  const handleRemoveExpense = useCallback((id: string) => {
+    setExpenses(prev => prev.filter(e => e.id !== id));
+  }, []);
+
+  const handleNext = useCallback(() => {
+    if (step < 3) {
+      setStep(step + 1);
+      if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+  }, [step]);
+
+  const handleBack = useCallback(() => {
+    if (step > 0) setStep(step - 1);
+  }, [step]);
+
+  const handleFinish = useCallback(() => {
+    const data: CashFlowData = {
+      startingBalance: parseFloat(startingBalance) || 0,
+      expenses: expenses.filter(e => e.amount > 0),
+      expectedPayments: [],
+      defaultPaymentTerms: defaultTerms,
+      dailyOverheadCost: 350,
+      lastUpdated: new Date().toISOString(),
+    };
+    onComplete(data);
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setStep(0);
+    setStartingBalance('');
+    setExpenses([]);
+    setDefaultTerms('net_30');
+  }, [startingBalance, expenses, defaultTerms, onComplete]);
+
+  const freqLabel = (f: ExpenseFrequency) => {
+    switch (f) {
+      case 'weekly': return '/week';
+      case 'biweekly': return '/2 weeks';
+      case 'monthly': return '/month';
+      case 'one_time': return 'one-time';
+    }
+  };
+
+  const renderStep0 = () => (
+    <View style={styles.stepContent}>
+      <View style={[styles.stepIconWrap, { backgroundColor: Colors.primary + '15' }]}>
+        <Wallet size={32} color={Colors.primary} />
+      </View>
+      <Text style={styles.stepTitle}>Current Bank Balance</Text>
+      <Text style={styles.stepDesc}>
+        This is your starting point. We'll project forward from here.
+      </Text>
+      <View style={styles.balanceInputWrap}>
+        <Text style={styles.dollarSign}>$</Text>
+        <TextInput
+          style={styles.balanceInput}
+          value={startingBalance}
+          onChangeText={setStartingBalance}
+          keyboardType="numeric"
+          placeholder="0"
+          placeholderTextColor={Colors.textMuted}
+          testID="starting-balance-input"
+        />
+      </View>
+    </View>
+  );
+
+  const renderStep1 = () => (
+    <View style={styles.stepContent}>
+      <View style={[styles.stepIconWrap, { backgroundColor: Colors.error + '15' }]}>
+        <DollarSign size={32} color={Colors.error} />
+      </View>
+      <Text style={styles.stepTitle}>Recurring Expenses</Text>
+      <Text style={styles.stepDesc}>
+        Add your regular business expenses. You can always add more later.
+      </Text>
+
+      <View style={styles.suggestionsRow}>
+        {EXPENSE_SUGGESTIONS.map(s => {
+          const added = expenses.some(e => e.name === s.name);
+          return (
+            <TouchableOpacity
+              key={s.name}
+              style={[styles.suggestionChip, added && styles.suggestionChipAdded]}
+              onPress={() => handleAddSuggestion(s)}
+              activeOpacity={0.7}
+              disabled={added}
+            >
+              {added ? <CheckCircle size={14} color={Colors.success} /> : <Plus size={14} color={Colors.primary} />}
+              <Text style={[styles.suggestionText, added && { color: Colors.success }]}>{s.name}</Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
+      <ScrollView style={styles.expenseList} showsVerticalScrollIndicator={false}>
+        {expenses.map(exp => (
+          <View key={exp.id} style={styles.expenseRow}>
+            <View style={styles.expenseInfo}>
+              <Text style={styles.expenseName}>{exp.name}</Text>
+              <Text style={styles.expenseFreq}>{freqLabel(exp.frequency)}</Text>
+            </View>
+            <View style={styles.expenseAmountWrap}>
+              <Text style={styles.expenseDollar}>$</Text>
+              <TextInput
+                style={styles.expenseAmountInput}
+                value={exp.amount > 0 ? exp.amount.toString() : ''}
+                onChangeText={(v) => handleUpdateExpenseAmount(exp.id, v)}
+                keyboardType="numeric"
+                placeholder="0"
+                placeholderTextColor={Colors.textMuted}
+              />
+            </View>
+            <TouchableOpacity onPress={() => handleRemoveExpense(exp.id)} style={styles.removeBtn}>
+              <Trash2 size={14} color={Colors.error} />
+            </TouchableOpacity>
+          </View>
+        ))}
+        {expenses.length === 0 && (
+          <Text style={styles.emptyText}>Tap suggestions above to add expenses</Text>
+        )}
+      </ScrollView>
+    </View>
+  );
+
+  const renderStep2 = () => (
+    <View style={styles.stepContent}>
+      <View style={[styles.stepIconWrap, { backgroundColor: Colors.info + '15' }]}>
+        <Clock size={32} color={Colors.info} />
+      </View>
+      <Text style={styles.stepTitle}>Default Payment Terms</Text>
+      <Text style={styles.stepDesc}>
+        When you invoice clients, how long do they typically take to pay?
+      </Text>
+
+      <View style={styles.termsGrid}>
+        {TERMS_OPTIONS.map(opt => (
+          <TouchableOpacity
+            key={opt.value}
+            style={[styles.termsChip, defaultTerms === opt.value && styles.termsChipActive]}
+            onPress={() => setDefaultTerms(opt.value)}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.termsChipText, defaultTerms === opt.value && styles.termsChipTextActive]}>
+              {opt.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+    </View>
+  );
+
+  const renderStep3 = () => {
+    const totalMonthly = expenses.reduce((sum, e) => {
+      switch (e.frequency) {
+        case 'weekly': return sum + e.amount * 4.33;
+        case 'biweekly': return sum + e.amount * 2.17;
+        case 'monthly': return sum + e.amount;
+        case 'one_time': return sum;
+        default: return sum;
+      }
+    }, 0);
+
+    return (
+      <View style={styles.stepContent}>
+        <View style={[styles.stepIconWrap, { backgroundColor: Colors.success + '15' }]}>
+          <CheckCircle size={32} color={Colors.success} />
+        </View>
+        <Text style={styles.stepTitle}>You're All Set!</Text>
+        <Text style={styles.stepDesc}>
+          As you create invoices and track expenses in MAGE ID, your forecast gets smarter automatically.
+        </Text>
+
+        <View style={styles.summaryCard}>
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Starting Balance</Text>
+            <Text style={styles.summaryValue}>${(parseFloat(startingBalance) || 0).toLocaleString()}</Text>
+          </View>
+          <View style={styles.summaryDivider} />
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Recurring Expenses</Text>
+            <Text style={styles.summaryValue}>{expenses.filter(e => e.amount > 0).length} items</Text>
+          </View>
+          <View style={styles.summaryDivider} />
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Est. Monthly Burn</Text>
+            <Text style={[styles.summaryValue, { color: Colors.error }]}>
+              ${totalMonthly.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+            </Text>
+          </View>
+          <View style={styles.summaryDivider} />
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Payment Terms</Text>
+            <Text style={styles.summaryValue}>
+              {TERMS_OPTIONS.find(t => t.value === defaultTerms)?.label}
+            </Text>
+          </View>
+        </View>
+      </View>
+    );
+  };
+
+  const steps = [renderStep0, renderStep1, renderStep2, renderStep3];
+  const isLast = step === 3;
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : undefined} onRequestClose={onClose}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <View style={[styles.container, { paddingTop: Platform.OS === 'ios' ? 12 : insets.top + 8 }]}>
+          <View style={styles.handle} />
+          <View style={styles.header}>
+            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+              <X size={20} color={Colors.textMuted} />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Cash Flow Setup</Text>
+            <Text style={styles.stepIndicator}>{step + 1}/4</Text>
+          </View>
+
+          <View style={styles.progressTrack}>
+            <View style={[styles.progressFill, { width: `${((step + 1) / 4) * 100}%` }]} />
+          </View>
+
+          <ScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            {steps[step]()}
+          </ScrollView>
+
+          <View style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}>
+            {step > 0 && (
+              <TouchableOpacity style={styles.backButton} onPress={handleBack} activeOpacity={0.7}>
+                <Text style={styles.backButtonText}>Back</Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity
+              style={[styles.nextButton, step === 0 && { flex: 1 }]}
+              onPress={isLast ? handleFinish : handleNext}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.nextButtonText}>{isLast ? 'Start Forecasting' : 'Continue'}</Text>
+              {!isLast && <ChevronRight size={18} color={Colors.textOnPrimary} />}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: Colors.background },
+  handle: { width: 36, height: 5, borderRadius: 3, backgroundColor: Colors.border, alignSelf: 'center', marginBottom: 8 },
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingBottom: 12, gap: 12 },
+  closeBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { flex: 1, fontSize: 18, fontWeight: '700' as const, color: Colors.text },
+  stepIndicator: { fontSize: 14, fontWeight: '600' as const, color: Colors.textMuted },
+  progressTrack: { height: 4, backgroundColor: Colors.fillTertiary, marginHorizontal: 20, borderRadius: 2, overflow: 'hidden' as const },
+  progressFill: { height: 4, backgroundColor: Colors.primary, borderRadius: 2 },
+  stepContent: { paddingHorizontal: 20, paddingTop: 32, alignItems: 'center' },
+  stepIconWrap: { width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center', marginBottom: 20 },
+  stepTitle: { fontSize: 24, fontWeight: '800' as const, color: Colors.text, textAlign: 'center', marginBottom: 8 },
+  stepDesc: { fontSize: 15, color: Colors.textSecondary, textAlign: 'center', lineHeight: 22, marginBottom: 24, paddingHorizontal: 16 },
+  balanceInputWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, borderRadius: 16, paddingHorizontal: 20, borderWidth: 2, borderColor: Colors.primary + '30', width: '100%', maxWidth: 280 },
+  dollarSign: { fontSize: 28, fontWeight: '800' as const, color: Colors.primary, marginRight: 4 },
+  balanceInput: { flex: 1, fontSize: 32, fontWeight: '800' as const, color: Colors.text, minHeight: 64, textAlign: 'center' },
+  suggestionsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, width: '100%', marginBottom: 16 },
+  suggestionChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, backgroundColor: Colors.fillTertiary },
+  suggestionChipAdded: { backgroundColor: Colors.successLight, borderWidth: 1, borderColor: Colors.success + '30' },
+  suggestionText: { fontSize: 13, fontWeight: '600' as const, color: Colors.text },
+  expenseList: { width: '100%', maxHeight: 280 },
+  expenseRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, borderRadius: 12, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: Colors.cardBorder, gap: 10 },
+  expenseInfo: { flex: 1, gap: 2 },
+  expenseName: { fontSize: 14, fontWeight: '600' as const, color: Colors.text },
+  expenseFreq: { fontSize: 12, color: Colors.textMuted },
+  expenseAmountWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surfaceAlt, borderRadius: 8, paddingHorizontal: 8 },
+  expenseDollar: { fontSize: 14, fontWeight: '700' as const, color: Colors.textSecondary },
+  expenseAmountInput: { width: 80, minHeight: 36, fontSize: 16, fontWeight: '700' as const, color: Colors.text, textAlign: 'right' },
+  removeBtn: { padding: 6 },
+  emptyText: { fontSize: 14, color: Colors.textMuted, textAlign: 'center', paddingVertical: 20 },
+  termsGrid: { width: '100%', gap: 10 },
+  termsChip: { paddingVertical: 16, paddingHorizontal: 20, borderRadius: 14, backgroundColor: Colors.surface, borderWidth: 1.5, borderColor: Colors.cardBorder, alignItems: 'center' },
+  termsChipActive: { borderColor: Colors.primary, backgroundColor: Colors.primary + '08' },
+  termsChipText: { fontSize: 16, fontWeight: '600' as const, color: Colors.text },
+  termsChipTextActive: { color: Colors.primary },
+  summaryCard: { width: '100%', backgroundColor: Colors.surface, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: Colors.cardBorder },
+  summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10 },
+  summaryLabel: { fontSize: 14, color: Colors.textSecondary },
+  summaryValue: { fontSize: 15, fontWeight: '700' as const, color: Colors.text },
+  summaryDivider: { height: 1, backgroundColor: Colors.borderLight },
+  footer: { paddingHorizontal: 20, paddingTop: 12, flexDirection: 'row', gap: 10, backgroundColor: Colors.background, borderTopWidth: 0.5, borderTopColor: Colors.borderLight },
+  backButton: { flex: 1, minHeight: 50, borderRadius: 14, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
+  backButtonText: { fontSize: 16, fontWeight: '700' as const, color: Colors.text },
+  nextButton: { flex: 2, minHeight: 50, borderRadius: 14, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 6 },
+  nextButtonText: { fontSize: 16, fontWeight: '700' as const, color: Colors.textOnPrimary },
+});
+
+
+========== FILE: ./components/ContactPickerModal.tsx ==========
+import React, { useState, useMemo, useCallback } from 'react';
+import {
+  View, Text, StyleSheet, Modal, TouchableOpacity, TextInput,
+  FlatList, Pressable,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Search, X, User, Mail } from 'lucide-react-native';
+import { Colors } from '@/constants/colors';
+import type { Contact, ContactRole } from '@/types';
+
+interface ContactPickerModalProps {
+  visible: boolean;
+  onClose: () => void;
+  onSelect: (contact: Contact) => void;
+  contacts: Contact[];
+  title?: string;
+  filterRoles?: ContactRole[];
+}
+
+function getRoleColor(role: ContactRole): string {
+  switch (role) {
+    case 'Client': return Colors.primary;
+    case 'Architect': return Colors.info;
+    case "Owner's Rep": return Colors.accent;
+    case 'Engineer': return '#6B7280';
+    case 'Sub': return Colors.success;
+    case 'Supplier': return '#8B5CF6';
+    case 'Lender': return '#EC4899';
+    case 'Inspector': return '#F59E0B';
+    default: return Colors.textSecondary;
+  }
+}
+
+export default function ContactPickerModal({
+  visible,
+  onClose,
+  onSelect,
+  contacts,
+  title = 'Select Recipient',
+  filterRoles,
+}: ContactPickerModalProps) {
+  const insets = useSafeAreaInsets();
+  const [query, setQuery] = useState('');
+
+  const filtered = useMemo(() => {
+    let list = contacts;
+    if (filterRoles && filterRoles.length > 0) {
+      list = list.filter(c => filterRoles.includes(c.role));
+    }
+    if (query.trim()) {
+      const q = query.toLowerCase();
+      list = list.filter(c =>
+        c.firstName.toLowerCase().includes(q) ||
+        c.lastName.toLowerCase().includes(q) ||
+        c.companyName.toLowerCase().includes(q) ||
+        c.email.toLowerCase().includes(q) ||
+        c.role.toLowerCase().includes(q)
+      );
+    }
+    return list.sort((a, b) => a.lastName.localeCompare(b.lastName));
+  }, [contacts, query, filterRoles]);
+
+  const handleSelect = useCallback((contact: Contact) => {
+    onSelect(contact);
+    setQuery('');
+  }, [onSelect]);
+
+  const handleClose = useCallback(() => {
+    setQuery('');
+    onClose();
+  }, [onClose]);
+
+  const renderItem = useCallback(({ item }: { item: Contact }) => {
+    const roleColor = getRoleColor(item.role);
+    const displayName = `${item.firstName} ${item.lastName}`.trim() || item.companyName;
+    return (
+      <TouchableOpacity
+        style={styles.contactRow}
+        onPress={() => handleSelect(item)}
+        activeOpacity={0.7}
+        testID={`pick-contact-${item.id}`}
+      >
+        <View style={[styles.avatar, { backgroundColor: roleColor + '18' }]}>
+          <Text style={[styles.avatarText, { color: roleColor }]}>
+            {(item.firstName[0] || item.companyName[0] || '?').toUpperCase()}
+          </Text>
+        </View>
+        <View style={styles.contactInfo}>
+          <Text style={styles.contactName} numberOfLines={1}>{displayName}</Text>
+          {item.companyName && item.firstName ? (
+            <Text style={styles.contactCompany} numberOfLines={1}>{item.companyName}</Text>
+          ) : null}
+          <View style={styles.contactMeta}>
+            <View style={[styles.roleBadge, { backgroundColor: roleColor + '15' }]}>
+              <Text style={[styles.roleBadgeText, { color: roleColor }]}>{item.role}</Text>
+            </View>
+            {item.email ? (
+              <View style={styles.emailRow}>
+                <Mail size={10} color={Colors.textMuted} />
+                <Text style={styles.contactEmail} numberOfLines={1}>{item.email}</Text>
+              </View>
+            ) : null}
+          </View>
+        </View>
+      </TouchableOpacity>
+    );
+  }, [handleSelect]);
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose}>
+      <View style={styles.overlay}>
+        <Pressable style={styles.overlayTouch} onPress={handleClose} />
+        <View style={[styles.sheet, { paddingBottom: insets.bottom + 16 }]}>
+          <View style={styles.handle} />
+
+          <View style={styles.header}>
+            <Text style={styles.headerTitle}>{title}</Text>
+            <TouchableOpacity onPress={handleClose} style={styles.closeBtn}>
+              <X size={18} color={Colors.textMuted} />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.searchBar}>
+            <Search size={16} color={Colors.textMuted} />
+            <TextInput
+              style={styles.searchInput}
+              value={query}
+              onChangeText={setQuery}
+              placeholder="Search contacts..."
+              placeholderTextColor={Colors.textMuted}
+              autoFocus={false}
+              testID="contact-picker-search"
+            />
+            {query.length > 0 && (
+              <TouchableOpacity onPress={() => setQuery('')}>
+                <X size={14} color={Colors.textMuted} />
+              </TouchableOpacity>
+            )}
+          </View>
+
+          <FlatList
+            data={filtered}
+            keyExtractor={item => item.id}
+            renderItem={renderItem}
+            style={styles.list}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            ListEmptyComponent={
+              <View style={styles.emptyState}>
+                <User size={32} color={Colors.textMuted} />
+                <Text style={styles.emptyTitle}>
+                  {query ? 'No contacts found' : 'No contacts yet'}
+                </Text>
+                <Text style={styles.emptyDesc}>
+                  {query ? 'Try a different search term' : 'Add contacts from the Contacts screen'}
+                </Text>
+              </View>
+            }
+          />
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const styles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: Colors.overlay,
+    justifyContent: 'flex-end',
+  },
+  overlayTouch: {
+    flex: 1,
+  },
+  sheet: {
+    backgroundColor: Colors.surface,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    maxHeight: '75%',
+  },
+  handle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: Colors.fillTertiary,
+    alignSelf: 'center',
+    marginTop: 10,
+    marginBottom: 6,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 22,
+    paddingVertical: 12,
+    borderBottomWidth: 0.5,
+    borderBottomColor: Colors.borderLight,
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '700' as const,
+    color: Colors.text,
+  },
+  closeBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: Colors.fillTertiary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.fillTertiary,
+    borderRadius: 12,
+    marginHorizontal: 22,
+    marginTop: 12,
+    marginBottom: 8,
+    paddingHorizontal: 12,
+    gap: 8,
+    height: 42,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 15,
+    color: Colors.text,
+  },
+  list: {
+    flex: 1,
+  },
+  listContent: {
+    paddingHorizontal: 22,
+    paddingTop: 4,
+    paddingBottom: 12,
+  },
+  contactRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 12,
+    borderBottomWidth: 0.5,
+    borderBottomColor: Colors.borderLight,
+  },
+  avatar: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarText: {
+    fontSize: 17,
+    fontWeight: '700' as const,
+  },
+  contactInfo: {
+    flex: 1,
+    gap: 2,
+  },
+  contactName: {
+    fontSize: 15,
+    fontWeight: '600' as const,
+    color: Colors.text,
+  },
+  contactCompany: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+  },
+  contactMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 2,
+  },
+  roleBadge: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 5,
+  },
+  roleBadgeText: {
+    fontSize: 10,
+    fontWeight: '700' as const,
+  },
+  emailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    flex: 1,
+  },
+  contactEmail: {
+    fontSize: 11,
+    color: Colors.textMuted,
+    flex: 1,
+  },
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: 40,
+    gap: 8,
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: Colors.text,
+  },
+  emptyDesc: {
+    fontSize: 13,
+    color: Colors.textMuted,
+    textAlign: 'center' as const,
+  },
+});
+
+
+========== FILE: ./components/CostBreakdownReport.tsx ==========
+import React, { useMemo } from 'react';
+import { View, Text, StyleSheet } from 'react-native';
+import { Package, Percent, MapPin, Clock } from 'lucide-react-native';
+import { Colors } from '@/constants/colors';
+import { CATEGORY_META, CATEGORY_COST_FACTORS } from '@/constants/materials';
+import type { MaterialItem } from '@/constants/materials';
+import type { LaborRate } from '@/constants/laborRates';
+import type { AssemblyItem } from '@/constants/assemblies';
+
+interface CartItem {
+  material: MaterialItem;
+  quantity: number;
+  markup: number;
+  usesBulk: boolean;
+}
+
+interface LaborCartItem {
+  labor: LaborRate;
+  hours: number;
+  adjustedRate: number;
+}
+
+interface AssemblyCartItem {
+  assembly: AssemblyItem;
+  quantity: number;
+  materialsCost: number;
+  laborCost: number;
+  totalCost: number;
+}
+
+interface CostBreakdownReportProps {
+  cart: CartItem[];
+  laborCart: LaborCartItem[];
+  assemblyCart: AssemblyCartItem[];
+  globalMarkup: number;
+  locationFactor: number;
+  locationName?: string;
+}
+
+interface CategoryBreakdown {
+  category: string;
+  label: string;
+  color: string;
+  materialCost: number;
+  laborCost: number;
+  equipmentCost: number;
+  total: number;
+}
+
+const CostBreakdownReport = React.memo(function CostBreakdownReport({
+  cart, laborCart, assemblyCart, globalMarkup, locationFactor, locationName: _locationName,
+}: CostBreakdownReportProps) {
+  const breakdown = useMemo(() => {
+    const categoryMap = new Map<string, CategoryBreakdown>();
+
+    for (const item of cart) {
+      const base = item.usesBulk ? item.material.baseBulkPrice : item.material.baseRetailPrice;
+      const totalMaterial = base * item.quantity;
+      const factors = CATEGORY_COST_FACTORS[item.material.category];
+      const laborCost = factors ? totalMaterial * factors.laborFactor : 0;
+      const equipmentCost = factors ? totalMaterial * factors.equipmentFactor : 0;
+
+      const cat = item.material.category;
+      const existing = categoryMap.get(cat);
+      if (existing) {
+        existing.materialCost += totalMaterial;
+        existing.laborCost += laborCost;
+        existing.equipmentCost += equipmentCost;
+        existing.total += totalMaterial + laborCost + equipmentCost;
+      } else {
+        const meta = CATEGORY_META[cat];
+        categoryMap.set(cat, {
+          category: cat,
+          label: meta?.label ?? cat,
+          color: meta?.color ?? Colors.primary,
+          materialCost: totalMaterial,
+          laborCost,
+          equipmentCost,
+          total: totalMaterial + laborCost + equipmentCost,
+        });
+      }
+    }
+
+    return Array.from(categoryMap.values()).sort((a, b) => b.total - a.total);
+  }, [cart]);
+
+  const totals = useMemo(() => {
+    let materialTotal = 0;
+    let laborTotal = 0;
+    let equipmentTotal = 0;
+
+    for (const b of breakdown) {
+      materialTotal += b.materialCost;
+      laborTotal += b.laborCost;
+      equipmentTotal += b.equipmentCost;
+    }
+
+    const directLaborTotal = laborCart.reduce((sum, i) => sum + i.adjustedRate * i.hours, 0);
+    const assemblyMaterialTotal = assemblyCart.reduce((sum, i) => sum + i.materialsCost, 0);
+    const assemblyLaborTotal = assemblyCart.reduce((sum, i) => sum + i.laborCost, 0);
+    const laborHours = laborCart.reduce((sum, i) => sum + i.hours, 0);
+
+    const combinedMaterial = materialTotal + assemblyMaterialTotal;
+    const combinedLabor = laborTotal + directLaborTotal + assemblyLaborTotal;
+    const combinedEquipment = equipmentTotal;
+    const subtotal = combinedMaterial + combinedLabor + combinedEquipment;
+    const markupAmount = (materialTotal * globalMarkup / 100);
+    const grandTotal = subtotal + markupAmount;
+
+    const matPct = grandTotal > 0 ? (combinedMaterial / grandTotal) * 100 : 0;
+    const labPct = grandTotal > 0 ? (combinedLabor / grandTotal) * 100 : 0;
+    const eqPct = grandTotal > 0 ? (combinedEquipment / grandTotal) * 100 : 0;
+    const mkPct = grandTotal > 0 ? (markupAmount / grandTotal) * 100 : 0;
+
+    return {
+      materialTotal: combinedMaterial,
+      laborTotal: combinedLabor,
+      equipmentTotal: combinedEquipment,
+      markupAmount,
+      grandTotal,
+      laborHours,
+      matPct, labPct, eqPct, mkPct,
+      matLaborRatio: combinedLabor > 0 ? (combinedMaterial / combinedLabor).toFixed(1) : 'N/A',
+    };
+  }, [breakdown, laborCart, assemblyCart, globalMarkup]);
+
+  if (cart.length === 0 && laborCart.length === 0 && assemblyCart.length === 0) return null;
+
+  return (
+    <View style={s.container}>
+      <Text style={s.sectionTitle}>Cost Report</Text>
+
+      <View style={s.barContainer}>
+        <View style={s.barTrack}>
+          {totals.matPct > 0 && <View style={[s.barSegment, { width: `${totals.matPct}%`, backgroundColor: Colors.primary }]} />}
+          {totals.labPct > 0 && <View style={[s.barSegment, { width: `${totals.labPct}%`, backgroundColor: Colors.accent }]} />}
+          {totals.eqPct > 0 && <View style={[s.barSegment, { width: `${totals.eqPct}%`, backgroundColor: Colors.info }]} />}
+          {totals.mkPct > 0 && <View style={[s.barSegment, { width: `${totals.mkPct}%`, backgroundColor: '#9CA3AF' }]} />}
+        </View>
+        <View style={s.legendRow}>
+          <View style={s.legendItem}>
+            <View style={[s.legendDot, { backgroundColor: Colors.primary }]} />
+            <Text style={s.legendText}>Material {totals.matPct.toFixed(0)}%</Text>
+          </View>
+          <View style={s.legendItem}>
+            <View style={[s.legendDot, { backgroundColor: Colors.accent }]} />
+            <Text style={s.legendText}>Labor {totals.labPct.toFixed(0)}%</Text>
+          </View>
+          <View style={s.legendItem}>
+            <View style={[s.legendDot, { backgroundColor: Colors.info }]} />
+            <Text style={s.legendText}>Equip {totals.eqPct.toFixed(0)}%</Text>
+          </View>
+          {totals.mkPct > 0 && (
+            <View style={s.legendItem}>
+              <View style={[s.legendDot, { backgroundColor: '#9CA3AF' }]} />
+              <Text style={s.legendText}>Markup {totals.mkPct.toFixed(0)}%</Text>
+            </View>
+          )}
+        </View>
+      </View>
+
+      {breakdown.length > 0 && (
+        <View style={s.divisionTable}>
+          <View style={s.tableHeader}>
+            <Text style={[s.tableHeaderCell, { flex: 2 }]}>Division</Text>
+            <Text style={s.tableHeaderCell}>Material</Text>
+            <Text style={s.tableHeaderCell}>Labor</Text>
+            <Text style={s.tableHeaderCell}>Total</Text>
+          </View>
+          {breakdown.slice(0, 6).map(b => (
+            <View key={b.category} style={s.tableRow}>
+              <View style={[s.tableCell, { flex: 2, flexDirection: 'row', alignItems: 'center', gap: 6 }]}>
+                <View style={[s.tableDot, { backgroundColor: b.color }]} />
+                <Text style={s.tableCellText} numberOfLines={1}>{b.label}</Text>
+              </View>
+              <Text style={[s.tableCellText, { flex: 1, textAlign: 'right' as const }]}>${b.materialCost.toFixed(0)}</Text>
+              <Text style={[s.tableCellText, { flex: 1, textAlign: 'right' as const }]}>${b.laborCost.toFixed(0)}</Text>
+              <Text style={[s.tableCellBold, { flex: 1, textAlign: 'right' as const }]}>${b.total.toFixed(0)}</Text>
+            </View>
+          ))}
+        </View>
+      )}
+
+      <View style={s.metricsGrid}>
+        <View style={s.metricCard}>
+          <Package size={14} color={Colors.primary} />
+          <Text style={s.metricLabel}>Mat:Labor</Text>
+          <Text style={s.metricValue}>{totals.matLaborRatio}:1</Text>
+        </View>
+        <View style={s.metricCard}>
+          <Percent size={14} color={Colors.accent} />
+          <Text style={s.metricLabel}>Markup</Text>
+          <Text style={s.metricValue}>${totals.markupAmount.toFixed(0)}</Text>
+        </View>
+        <View style={s.metricCard}>
+          <Clock size={14} color={Colors.info} />
+          <Text style={s.metricLabel}>Labor Hrs</Text>
+          <Text style={s.metricValue}>{totals.laborHours.toFixed(0)}</Text>
+        </View>
+        {locationFactor !== 1 && (
+          <View style={s.metricCard}>
+            <MapPin size={14} color={Colors.warning} />
+            <Text style={s.metricLabel}>Location</Text>
+            <Text style={s.metricValue}>{locationFactor.toFixed(2)}x</Text>
+          </View>
+        )}
+      </View>
+    </View>
+  );
+});
+
+export default CostBreakdownReport;
+
+const s = StyleSheet.create({
+  container: { gap: 12 },
+  sectionTitle: {
+    fontSize: 16, fontWeight: '700' as const, color: Colors.text,
+    paddingHorizontal: 16, paddingTop: 8,
+  },
+  barContainer: {
+    marginHorizontal: 16, backgroundColor: Colors.surface, borderRadius: 12, padding: 12,
+    borderWidth: 1, borderColor: Colors.cardBorder, gap: 8,
+  },
+  barTrack: {
+    flexDirection: 'row', height: 12, borderRadius: 6, overflow: 'hidden' as const,
+    backgroundColor: Colors.fillTertiary,
+  },
+  barSegment: { height: '100%' },
+  legendRow: { flexDirection: 'row', flexWrap: 'wrap' as const, gap: 10 },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  legendDot: { width: 8, height: 8, borderRadius: 4 },
+  legendText: { fontSize: 10, fontWeight: '600' as const, color: Colors.textSecondary },
+  divisionTable: {
+    marginHorizontal: 16, backgroundColor: Colors.surface, borderRadius: 12,
+    borderWidth: 1, borderColor: Colors.cardBorder, overflow: 'hidden' as const,
+  },
+  tableHeader: {
+    flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 8,
+    backgroundColor: Colors.fillSecondary, gap: 4,
+  },
+  tableHeaderCell: {
+    flex: 1, fontSize: 10, fontWeight: '700' as const, color: Colors.textMuted,
+    textTransform: 'uppercase' as const, letterSpacing: 0.3,
+  },
+  tableRow: {
+    flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 8,
+    borderTopWidth: 0.5, borderTopColor: Colors.borderLight, alignItems: 'center', gap: 4,
+  },
+  tableCell: { flex: 1 },
+  tableDot: { width: 6, height: 6, borderRadius: 3 },
+  tableCellText: { fontSize: 12, color: Colors.textSecondary },
+  tableCellBold: { fontSize: 12, fontWeight: '700' as const, color: Colors.text },
+  metricsGrid: {
+    flexDirection: 'row', flexWrap: 'wrap' as const, paddingHorizontal: 16, gap: 8,
+  },
+  metricCard: {
+    flex: 1, minWidth: 70, backgroundColor: Colors.surface, borderRadius: 10, padding: 10,
+    alignItems: 'center', gap: 4, borderWidth: 1, borderColor: Colors.cardBorder,
+  },
+  metricLabel: { fontSize: 10, fontWeight: '600' as const, color: Colors.textMuted },
+  metricValue: { fontSize: 14, fontWeight: '800' as const, color: Colors.text },
+});
+
+
+========== FILE: ./components/DesktopSidebar.tsx ==========
+import React, { useState, useCallback } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform } from 'react-native';
+import { useRouter, usePathname } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import {
+  Home, Compass, Wrench, Settings, BarChart3, CalendarDays,
+  Hammer, FileText, Building2, Search, HardHat,
+} from 'lucide-react-native';
+import { Colors } from '@/constants/colors';
+
+interface NavItem {
+  key: string;
+  label: string;
+  icon: typeof Home;
+  route: string;
+  section: string;
+}
+
+const NAV_ITEMS: NavItem[] = [
+  { key: 'home', label: 'Projects', icon: Home, route: '/(tabs)/(home)', section: 'PROJECT' },
+  { key: 'estimate', label: 'Estimate', icon: BarChart3, route: '/(tabs)/tools/estimate', section: 'PROJECT' },
+  { key: 'schedule', label: 'Schedule', icon: CalendarDays, route: '/(tabs)/tools/schedule', section: 'PROJECT' },
+  { key: 'equipment', label: 'Equipment', icon: Hammer, route: '/(tabs)/equipment', section: 'FIELD' },
+  { key: 'bids', label: 'Bids', icon: FileText, route: '/(tabs)/bids', section: 'FIELD' },
+  { key: 'companies', label: 'Companies', icon: Building2, route: '/(tabs)/companies', section: 'NETWORK' },
+  { key: 'discover', label: 'Discover', icon: Search, route: '/(tabs)/discover', section: 'NETWORK' },
+  { key: 'hire', label: 'Hire', icon: HardHat, route: '/(tabs)/hire', section: 'NETWORK' },
+  { key: 'settings', label: 'Settings', icon: Settings, route: '/(tabs)/settings', section: 'ACCOUNT' },
+];
+
+const SECTIONS = ['PROJECT', 'FIELD', 'NETWORK', 'ACCOUNT'];
+
+function isActiveRoute(pathname: string, navKey: string): boolean {
+  if (navKey === 'home') return pathname === '/' || pathname.includes('(home)');
+  if (navKey === 'estimate') return pathname.includes('estimate');
+  if (navKey === 'schedule') return pathname.includes('schedule');
+  if (navKey === 'equipment') return pathname.includes('equipment');
+  if (navKey === 'bids') return pathname.includes('bids');
+  if (navKey === 'companies') return pathname.includes('companies');
+  if (navKey === 'discover') return pathname.includes('discover');
+  if (navKey === 'hire') return pathname.includes('hire');
+  if (navKey === 'settings') return pathname.includes('settings');
+  return false;
+}
+
+interface DesktopSidebarProps {
+  width: number;
+}
+
+const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSidebarProps) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const insets = useSafeAreaInsets();
+  const [hoveredKey, setHoveredKey] = useState<string | null>(null);
+
+  const handleNav = useCallback((route: string) => {
+    router.push(route as any);
+  }, [router]);
+
+  const groupedItems = SECTIONS.map(section => ({
+    section,
+    items: NAV_ITEMS.filter(item => item.section === section),
+  }));
+
+  return (
+    <View style={[styles.container, { width, paddingTop: insets.top + 16, paddingBottom: insets.bottom + 16 }]}>
+      <View style={styles.brandSection}>
+        <View style={styles.brandIcon}>
+          <Wrench size={20} color={Colors.textOnPrimary} />
+        </View>
+        <Text style={styles.brandName}>MAGE ID</Text>
+        <Text style={styles.brandTagline}>Construction Suite</Text>
+      </View>
+
+      <ScrollView style={styles.navScroll} showsVerticalScrollIndicator={false}>
+        {groupedItems.map(({ section, items }) => (
+          <View key={section} style={styles.navSection}>
+            <Text style={styles.sectionLabel}>{section}</Text>
+            {items.map(item => {
+              const active = isActiveRoute(pathname, item.key);
+              const hovered = hoveredKey === item.key;
+              const Icon = item.icon;
+
+              return (
+                <TouchableOpacity
+                  key={item.key}
+                  style={[
+                    styles.navItem,
+                    active && styles.navItemActive,
+                    hovered && !active && styles.navItemHovered,
+                  ]}
+                  onPress={() => handleNav(item.route)}
+                  activeOpacity={0.7}
+                  {...(Platform.OS === 'web' ? {
+                    onMouseEnter: () => setHoveredKey(item.key),
+                    onMouseLeave: () => setHoveredKey(null),
+                  } as any : {})}
+                  testID={`sidebar-${item.key}`}
+                >
+                  {active && <View style={styles.activeIndicator} />}
+                  <Icon
+                    size={18}
+                    color={active ? Colors.primary : hovered ? Colors.text : Colors.textSecondary}
+                    strokeWidth={active ? 2.2 : 1.8}
+                  />
+                  <Text style={[
+                    styles.navLabel,
+                    active && styles.navLabelActive,
+                    hovered && !active && styles.navLabelHovered,
+                  ]}>
+                    {item.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        ))}
+      </ScrollView>
+
+      <View style={styles.footer}>
+        <View style={styles.footerDivider} />
+        <Text style={styles.footerText}>MAGE ID v2.0</Text>
+        <Text style={styles.footerSubtext}>Desktop Mode</Text>
+      </View>
+    </View>
+  );
+});
+
+export default DesktopSidebar;
+
+const styles = StyleSheet.create({
+  container: {
+    backgroundColor: '#1C1C1E',
+    borderRightWidth: 1,
+    borderRightColor: 'rgba(255,255,255,0.06)',
+    paddingHorizontal: 12,
+  },
+  brandSection: {
+    alignItems: 'center' as const,
+    paddingBottom: 20,
+    marginBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.06)',
+  },
+  brandIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: Colors.primary,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    marginBottom: 8,
+  },
+  brandName: {
+    fontSize: 16,
+    fontWeight: '800' as const,
+    color: '#FFFFFF',
+    letterSpacing: 1,
+  },
+  brandTagline: {
+    fontSize: 10,
+    color: 'rgba(255,255,255,0.4)',
+    fontWeight: '500' as const,
+    letterSpacing: 0.5,
+    marginTop: 2,
+  },
+  navScroll: {
+    flex: 1,
+  },
+  navSection: {
+    marginBottom: 16,
+  },
+  sectionLabel: {
+    fontSize: 10,
+    fontWeight: '700' as const,
+    color: 'rgba(255,255,255,0.3)',
+    letterSpacing: 1.2,
+    paddingHorizontal: 12,
+    marginBottom: 6,
+  },
+  navItem: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    marginBottom: 2,
+    position: 'relative' as const,
+  },
+  navItemActive: {
+    backgroundColor: Colors.primary + '15',
+  },
+  navItemHovered: {
+    backgroundColor: 'rgba(255,255,255,0.06)',
+  },
+  activeIndicator: {
+    position: 'absolute' as const,
+    left: 0,
+    top: 8,
+    bottom: 8,
+    width: 3,
+    borderRadius: 2,
+    backgroundColor: Colors.primary,
+  },
+  navLabel: {
+    fontSize: 14,
+    fontWeight: '500' as const,
+    color: 'rgba(255,255,255,0.6)',
+  },
+  navLabelActive: {
+    color: Colors.primary,
+    fontWeight: '600' as const,
+  },
+  navLabelHovered: {
+    color: '#FFFFFF',
+  },
+  footer: {
+    alignItems: 'center' as const,
+    paddingTop: 12,
+  },
+  footerDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    alignSelf: 'stretch' as const,
+    marginBottom: 12,
+  },
+  footerText: {
+    fontSize: 11,
+    fontWeight: '700' as const,
+    color: 'rgba(255,255,255,0.25)',
+    letterSpacing: 0.5,
+  },
+  footerSubtext: {
+    fontSize: 9,
+    color: 'rgba(255,255,255,0.15)',
+    marginTop: 2,
+  },
+});
+
+
+========== FILE: ./components/EmptyState.tsx ==========
+import React from 'react';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { Colors } from '@/constants/colors';
+
+interface EmptyStateProps {
+  icon: React.ReactNode;
+  title: string;
+  message: string;
+  actionLabel?: string;
+  onAction?: () => void;
+}
+
+export default function EmptyState({ icon, title, message, actionLabel, onAction }: EmptyStateProps) {
+  return (
+    <View style={styles.container} testID="empty-state">
+      <View style={styles.iconContainer}>{icon}</View>
+      <Text style={styles.title}>{title}</Text>
+      <Text style={styles.message}>{message}</Text>
+      {actionLabel && onAction && (
+        <TouchableOpacity style={styles.button} onPress={onAction} activeOpacity={0.8}>
+          <Text style={styles.buttonText}>{actionLabel}</Text>
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 40,
+    paddingVertical: 60,
+  },
+  iconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 24,
+    backgroundColor: '#E8F5EE',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+  },
+  title: {
+    fontSize: 22,
+    fontWeight: '700' as const,
+    color: Colors.text,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  message: {
+    fontSize: 16,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 24,
+  },
+  button: {
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 28,
+    paddingVertical: 14,
+    borderRadius: 12,
+  },
+  buttonText: {
+    color: Colors.textOnPrimary,
+    fontSize: 16,
+    fontWeight: '600' as const,
+  },
+});
+
+
+========== FILE: ./components/ErrorBoundary.tsx ==========
+import React, { Component, ErrorInfo, ReactNode } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { AlertTriangle, RefreshCw } from 'lucide-react-native';
+
+interface Props {
+  children: ReactNode;
+  fallbackMessage?: string;
+}
+
+interface State {
+  hasError: boolean;
+  error: Error | null;
+}
+
+export default class ErrorBoundary extends Component<Props, State> {
+  constructor(props: Props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error): State {
+    console.log('[ErrorBoundary] Caught error:', error.message);
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.log('[ErrorBoundary] Error details:', error.message);
+    console.log('[ErrorBoundary] Component stack:', errorInfo.componentStack);
+  }
+
+  handleReset = () => {
+    console.log('[ErrorBoundary] Resetting error state');
+    this.setState({ hasError: false, error: null });
+  };
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <View style={styles.container}>
+          <View style={styles.card}>
+            <View style={styles.iconWrap}>
+              <AlertTriangle size={32} color="#FF3B30" strokeWidth={1.8} />
+            </View>
+            <Text style={styles.title}>Something went wrong</Text>
+            <Text style={styles.message}>
+              {this.props.fallbackMessage || 'The app encountered an unexpected error. Please try again.'}
+            </Text>
+            {this.state.error && (
+              <ScrollView style={styles.errorBox} horizontal={false}>
+                <Text style={styles.errorText}>{this.state.error.message}</Text>
+              </ScrollView>
+            )}
+            <TouchableOpacity
+              style={styles.retryButton}
+              onPress={this.handleReset}
+              activeOpacity={0.8}
+              testID="error-boundary-retry"
+            >
+              <RefreshCw size={16} color="#FFFFFF" strokeWidth={2} />
+              <Text style={styles.retryText}>Try Again</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#F2F2F7',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  card: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 28,
+    alignItems: 'center',
+    width: '100%',
+    maxWidth: 380,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 4,
+  },
+  iconWrap: {
+    width: 64,
+    height: 64,
+    borderRadius: 20,
+    backgroundColor: '#FFF0EF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: '700' as const,
+    color: '#000000',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  message: {
+    fontSize: 15,
+    color: 'rgba(60,60,67,0.6)',
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 16,
+  },
+  errorBox: {
+    backgroundColor: '#F2F2F7',
+    borderRadius: 10,
+    padding: 12,
+    width: '100%',
+    maxHeight: 80,
+    marginBottom: 20,
+  },
+  errorText: {
+    fontSize: 12,
+    color: '#FF3B30',
+    fontFamily: 'monospace',
+  },
+  retryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#1A6B3C',
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    width: '100%',
+  },
+  retryText: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: '#FFFFFF',
+  },
+});
+
+
+========== FILE: ./components/EstimateComparison.tsx ==========
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import {
+  View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, Platform, Alert,
+} from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Haptics from 'expo-haptics';
+import { X, GitCompare, TrendingUp, TrendingDown, Minus, Save, Clock } from 'lucide-react-native';
+import { Colors } from '@/constants/colors';
+import type { MaterialItem } from '@/constants/materials';
+import type { LaborRate } from '@/constants/laborRates';
+import type { AssemblyItem } from '@/constants/assemblies';
+
+interface CartItem {
+  material: MaterialItem;
+  quantity: number;
+  markup: number;
+  usesBulk: boolean;
+}
+
+interface LaborCartItem {
+  labor: LaborRate;
+  hours: number;
+  adjustedRate: number;
+}
+
+interface AssemblyCartItem {
+  assembly: AssemblyItem;
+  quantity: number;
+  materialsCost: number;
+  laborCost: number;
+  totalCost: number;
+}
+
+interface SavedEstimateVersion {
+  id: string;
+  name: string;
+  savedAt: string;
+  materialsTotal: number;
+  laborTotal: number;
+  assemblyTotal: number;
+  grandTotal: number;
+  materialCount: number;
+  laborCount: number;
+  assemblyCount: number;
+  items: Array<{ id: string; name: string; category: string; total: number; quantity: number }>;
+}
+
+interface EstimateComparisonProps {
+  visible: boolean;
+  onClose: () => void;
+  currentCart: CartItem[];
+  currentLaborCart: LaborCartItem[];
+  currentAssemblyCart: AssemblyCartItem[];
+  currentMaterialsTotal: number;
+  currentLaborTotal: number;
+  currentAssemblyTotal: number;
+  currentGrandTotal: number;
+}
+
+const STORAGE_KEY = 'mageid_estimate_versions';
+
+function formatDelta(current: number, saved: number): { text: string; color: string; icon: typeof TrendingUp } {
+  const delta = current - saved;
+  const pct = saved > 0 ? ((delta / saved) * 100).toFixed(1) : '0.0';
+  if (delta > 0) return { text: `+$${delta.toFixed(0)} (+${pct}%)`, color: Colors.error, icon: TrendingUp };
+  if (delta < 0) return { text: `-$${Math.abs(delta).toFixed(0)} (${pct}%)`, color: Colors.success, icon: TrendingDown };
+  return { text: '$0 (0%)', color: Colors.textMuted, icon: Minus };
+}
+
+const EstimateComparison = React.memo(function EstimateComparison({
+  visible, onClose,
+  currentCart, currentLaborCart, currentAssemblyCart,
+  currentMaterialsTotal, currentLaborTotal, currentAssemblyTotal, currentGrandTotal,
+}: EstimateComparisonProps) {
+  const [savedVersions, setSavedVersions] = useState<SavedEstimateVersion[]>([]);
+  const [selectedVersion, setSelectedVersion] = useState<SavedEstimateVersion | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (visible) {
+      loadVersions();
+    }
+  }, [visible]);
+
+  const loadVersions = useCallback(async () => {
+    setLoading(true);
+    try {
+      const stored = await AsyncStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        setSavedVersions(JSON.parse(stored));
+      }
+    } catch (err) {
+      console.error('[EstimateComparison] Failed to load versions:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const handleSaveCurrentVersion = useCallback(async () => {
+    if (currentGrandTotal <= 0) {
+      Alert.alert('Nothing to Save', 'Add items to your estimate first.');
+      return;
+    }
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+    const items = currentCart.map(i => ({
+      id: i.material.id,
+      name: i.material.name,
+      category: i.material.category,
+      total: (i.usesBulk ? i.material.baseBulkPrice : i.material.baseRetailPrice) * (1 + i.markup / 100) * i.quantity,
+      quantity: i.quantity,
+    }));
+
+    const version: SavedEstimateVersion = {
+      id: `v-${Date.now()}`,
+      name: `V${savedVersions.length + 1} — ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`,
+      savedAt: new Date().toISOString(),
+      materialsTotal: currentMaterialsTotal,
+      laborTotal: currentLaborTotal,
+      assemblyTotal: currentAssemblyTotal,
+      grandTotal: currentGrandTotal,
+      materialCount: currentCart.length,
+      laborCount: currentLaborCart.length,
+      assemblyCount: currentAssemblyCart.length,
+      items,
+    };
+
+    const updated = [version, ...savedVersions].slice(0, 10);
+    setSavedVersions(updated);
+    try {
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    } catch (err) {
+      console.error('[EstimateComparison] Failed to save version:', err);
+    }
+    Alert.alert('Saved', `Estimate saved as "${version.name}"`);
+  }, [currentCart, currentLaborCart, currentAssemblyCart, currentMaterialsTotal, currentLaborTotal, currentAssemblyTotal, currentGrandTotal, savedVersions]);
+
+  const handleDeleteVersion = useCallback(async (id: string) => {
+    const updated = savedVersions.filter(v => v.id !== id);
+    setSavedVersions(updated);
+    if (selectedVersion?.id === id) setSelectedVersion(null);
+    try {
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    } catch (err) {
+      console.error('[EstimateComparison] Failed to delete version:', err);
+    }
+  }, [savedVersions, selectedVersion]);
+
+  const comparison = useMemo(() => {
+    if (!selectedVersion) return null;
+    const matDelta = formatDelta(currentMaterialsTotal, selectedVersion.materialsTotal);
+    const labDelta = formatDelta(currentLaborTotal, selectedVersion.laborTotal);
+    const asmDelta = formatDelta(currentAssemblyTotal, selectedVersion.assemblyTotal);
+    const totalDelta = formatDelta(currentGrandTotal, selectedVersion.grandTotal);
+
+    const currentItemMap = new Map(currentCart.map(i => {
+      const total = (i.usesBulk ? i.material.baseBulkPrice : i.material.baseRetailPrice) * (1 + i.markup / 100) * i.quantity;
+      return [i.material.id, { name: i.material.name, total, quantity: i.quantity }];
+    }));
+    const savedItemMap = new Map(selectedVersion.items.map(i => [i.id, i]));
+
+    const changedItems: Array<{ name: string; currentTotal: number; savedTotal: number; type: 'changed' | 'new' | 'removed' }> = [];
+
+    for (const [id, curr] of currentItemMap) {
+      const saved = savedItemMap.get(id);
+      if (!saved) {
+        changedItems.push({ name: curr.name, currentTotal: curr.total, savedTotal: 0, type: 'new' });
+      } else if (Math.abs(curr.total - saved.total) > 0.50) {
+        changedItems.push({ name: curr.name, currentTotal: curr.total, savedTotal: saved.total, type: 'changed' });
+      }
+    }
+    for (const [id, saved] of savedItemMap) {
+      if (!currentItemMap.has(id)) {
+        changedItems.push({ name: saved.name, currentTotal: 0, savedTotal: saved.total, type: 'removed' });
+      }
+    }
+
+    return { matDelta, labDelta, asmDelta, totalDelta, changedItems };
+  }, [selectedVersion, currentMaterialsTotal, currentLaborTotal, currentAssemblyTotal, currentGrandTotal, currentCart]);
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : undefined} onRequestClose={onClose}>
+      <View style={s.container}>
+        <View style={s.header}>
+          <View>

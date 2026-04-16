@@ -1,0 +1,4000 @@
+
+========== FILE: ./app.json ==========
+{
+  "expo": {
+    "name": "MAGE ID",
+    "slug": "construction-cost-estimator-3g637fu",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "rork-app",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/images/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "app.rork.construction-cost-estimator-3g637fu"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "package": "app.rork.construction_cost_estimator_3g637fu"
+    },
+    "web": {
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-router",
+        {
+          "origin": "https://rork.com/"
+        }
+      ],
+      "expo-font",
+      "expo-web-browser",
+      "expo-mail-composer"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
+
+
+========== FILE: ./app/(tabs)/(home)/_layout.tsx ==========
+import { Stack } from 'expo-router';
+
+export default function HomeLayout() {
+  return (
+    <Stack screenOptions={{ headerShown: false }} />
+  );
+}
+
+
+========== FILE: ./app/(tabs)/(home)/index.tsx ==========
+import React, { useCallback, useState, useMemo, useEffect } from 'react';
+import {
+  View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator,
+  Platform, Modal, TextInput, Pressable, ScrollView, Alert, KeyboardAvoidingView,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
+import * as Haptics from 'expo-haptics';
+import {
+  Plus, TrendingUp, FolderOpen, Layers, X, ChevronRight, Calculator, CalendarDays,
+  BarChart3, TrendingDown, Package, DollarSign, Percent, ShoppingCart, ArrowDownRight,
+  Receipt, Wallet,
+} from 'lucide-react-native';
+import { Colors } from '@/constants/colors';
+import { useProjects } from '@/contexts/ProjectContext';
+import ProjectCard from '@/components/ProjectCard';
+import AIWeeklySummary from '@/components/AIWeeklySummary';
+import AICopilot from '@/components/AICopilot';
+import AIHomeBriefing from '@/components/AIHomeBriefing';
+import { useSubscription } from '@/contexts/SubscriptionContext';
+import EmptyState from '@/components/EmptyState';
+import CashFlowAlerts from '@/components/CashFlowAlerts';
+import { generateForecast } from '@/utils/cashFlowEngine';
+import type { CashFlowWeek } from '@/utils/cashFlowEngine';
+import { loadCashFlowData, isSetupComplete } from '@/utils/cashFlowStorage';
+import type { Project, ProjectType } from '@/types';
+import { PROJECT_TYPES } from '@/types';
+import { formatMoney, formatMoneyShort } from '@/utils/formatters';
+
+export default function HomeScreen() {
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const { projects, isLoading, addProject, getTotalOutstandingBalance, invoices } = useProjects();
+  const { tier } = useSubscription();
+
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [projectName, setProjectName] = useState('');
+  const [projectDescription, setProjectDescription] = useState('');
+  const [projectType, setProjectType] = useState<ProjectType>('renovation');
+  const [_createdProjectId, setCreatedProjectId] = useState<string | null>(null);
+  const [showNextStepModal, setShowNextStepModal] = useState(false);
+
+  const totalOutstanding = getTotalOutstandingBalance();
+
+  const [showTotalDetail, setShowTotalDetail] = useState(false);
+  const [showSavingsDetail, setShowSavingsDetail] = useState(false);
+  const [showWeeklySummary, setShowWeeklySummary] = useState(false);
+  const [cashFlowForecast, setCashFlowForecast] = useState<CashFlowWeek[] | null>(null);
+
+  useEffect(() => {
+    const loadForecast = async () => {
+      try {
+        const setupDone = await isSetupComplete();
+        if (!setupDone) return;
+        const data = await loadCashFlowData();
+        if (data.startingBalance > 0 || data.expenses.length > 0) {
+          const forecast = generateForecast(
+            data.startingBalance,
+            data.expenses,
+            [],
+            data.expectedPayments,
+            12,
+            data.defaultPaymentTerms
+          );
+          setCashFlowForecast(forecast);
+        }
+      } catch (err) {
+        console.log('[Home] Cash flow forecast load failed:', err);
+      }
+    };
+    void loadForecast();
+  }, [projects]);
+
+  const totalEstimated = projects.reduce((sum, p) => {
+    const linked = p.linkedEstimate;
+    if (linked && linked.items.length > 0) return sum + linked.grandTotal;
+    return sum + (p.estimate?.grandTotal ?? 0);
+  }, 0);
+  const totalSavings = projects.reduce((sum, p) => {
+    let savings = p.estimate?.bulkSavingsTotal ?? 0;
+    if (p.linkedEstimate) {
+      const linked = p.linkedEstimate;
+      linked.items.forEach(item => {
+        if (item.usesBulk) {
+          savings += (item.bulkPrice > 0 ? (item.unitPrice - item.bulkPrice) * item.quantity : 0);
+        }
+      });
+    }
+    return sum + savings;
+  }, 0);
+
+  const projectBreakdowns = useMemo(() => {
+    return projects.map(p => {
+      const linked = p.linkedEstimate;
+      const legacy = p.estimate;
+      let total = 0;
+      let materialCost = 0;
+      let laborCost = 0;
+      let markupCost = 0;
+      let bulkSavings = 0;
+      let itemCount = 0;
+
+      if (linked && linked.items.length > 0) {
+        total = linked.grandTotal;
+        materialCost = linked.baseTotal;
+        markupCost = linked.markupTotal;
+        itemCount = linked.items.length;
+        linked.items.forEach(item => {
+          if (item.usesBulk) {
+            bulkSavings += (item.unitPrice - item.bulkPrice) * item.quantity;
+          }
+        });
+      } else if (legacy) {
+        total = legacy.grandTotal;
+        materialCost = legacy.materialTotal;
+        laborCost = legacy.laborTotal;
+        bulkSavings = legacy.bulkSavingsTotal;
+        itemCount = legacy.materials.length;
+      }
+
+      return {
+        id: p.id,
+        name: p.name,
+        type: p.type,
+        total,
+        materialCost,
+        laborCost,
+        markupCost,
+        bulkSavings,
+        itemCount,
+        hasLinked: !!(linked && linked.items.length > 0),
+        hasLegacy: !!legacy,
+      };
+    }).filter(b => b.total > 0);
+  }, [projects]);
+
+  const portfolioStats = useMemo(() => {
+    const totalMaterials = projectBreakdowns.reduce((s, b) => s + b.materialCost, 0);
+    const totalLabor = projectBreakdowns.reduce((s, b) => s + b.laborCost, 0);
+    const totalMarkup = projectBreakdowns.reduce((s, b) => s + b.markupCost, 0);
+    const totalBulk = projectBreakdowns.reduce((s, b) => s + b.bulkSavings, 0);
+    const avgPerProject = projectBreakdowns.length > 0 ? totalEstimated / projectBreakdowns.length : 0;
+    return { totalMaterials, totalLabor, totalMarkup, totalBulk, avgPerProject };
+  }, [projectBreakdowns, totalEstimated]);
+
+  const handleProjectPress = useCallback((project: Project) => {
+    console.log('[Home] Opening project:', project.id);
+    router.push({ pathname: '/project-detail' as any, params: { id: project.id } });
+  }, [router]);
+
+  const handleCreateProject = useCallback(() => {
+    const name = projectName.trim();
+    if (!name) {
+      Alert.alert('Missing Name', 'Please enter a project name.');
+      return;
+    }
+    const now = new Date().toISOString();
+    const id = `project-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const newProject: Project = {
+      id,
+      name,
+      type: projectType,
+      location: 'United States',
+      squareFootage: 0,
+      quality: 'standard',
+      description: projectDescription.trim(),
+      createdAt: now,
+      updatedAt: now,
+      estimate: null,
+      schedule: null,
+      status: 'draft',
+    };
+    addProject(newProject);
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setShowCreateModal(false);
+    setCreatedProjectId(id);
+    setShowNextStepModal(true);
+    setProjectName('');
+    setProjectDescription('');
+    setProjectType('renovation');
+  }, [projectName, projectDescription, projectType, addProject]);
+
+  const handleNextStep = useCallback((step: 'estimate' | 'schedule' | 'later') => {
+    setShowNextStepModal(false);
+    if (step === 'estimate') {
+      router.push('/(tabs)/estimate' as any);
+    } else if (step === 'schedule') {
+      router.push('/(tabs)/schedule' as any);
+    }
+    setCreatedProjectId(null);
+  }, [router]);
+
+  const renderProject = useCallback(({ item }: { item: Project }) => (
+    <ProjectCard project={item} onPress={() => handleProjectPress(item)} />
+  ), [handleProjectPress]);
+
+  const keyExtractor = useCallback((item: Project) => item.id, []);
+
+  if (isLoading) {
+    return (
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <ActivityIndicator size="large" color={Colors.primary} style={{ flex: 1 }} />
+      </View>
+    );
+  }
+
+
+
+  return (
+    <View style={styles.container}>
+      <FlatList
+        data={projects}
+        renderItem={renderProject}
+        keyExtractor={keyExtractor}
+        contentContainerStyle={[
+          styles.listContent,
+          { paddingTop: insets.top, paddingBottom: insets.bottom + 90 },
+          projects.length === 0 && styles.emptyList,
+        ]}
+        ListHeaderComponent={
+          <View>
+            <View style={styles.navBar}>
+              <Text style={styles.navTitle}>MAGE ID</Text>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                {projects.length > 0 && (
+                  <TouchableOpacity
+                    style={[styles.addButton, { backgroundColor: Colors.fillTertiary }]}
+                    onPress={() => router.push('/cash-flow' as any)}
+                    activeOpacity={0.7}
+                    testID="cash-flow-btn"
+                  >
+                    <Wallet size={18} color={Colors.primary} strokeWidth={2} />
+                  </TouchableOpacity>
+                )}
+                {projects.length > 0 && (
+                  <TouchableOpacity
+                    style={[styles.addButton, { backgroundColor: Colors.fillTertiary }]}
+                    onPress={() => setShowWeeklySummary(true)}
+                    activeOpacity={0.7}
+                    testID="weekly-summary-btn"
+                  >
+                    <BarChart3 size={18} color={Colors.primary} strokeWidth={2} />
+                  </TouchableOpacity>
+                )}
+                <TouchableOpacity
+                  style={styles.addButton}
+                  onPress={() => setShowCreateModal(true)}
+                  activeOpacity={0.7}
+                  testID="new-project-btn"
+                >
+                  <Plus size={18} color={Colors.surface} strokeWidth={2.5} />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <Text style={styles.largeTitle}>Projects</Text>
+
+            {projects.length > 0 && (
+              <View style={styles.statsSection}>
+                <View style={styles.statsGrid}>
+                  <View style={styles.statCard}>
+                    <View style={[styles.statIconWrap, { backgroundColor: Colors.primary + '15' }]}>
+                      <Layers size={16} color={Colors.primary} />
+                    </View>
+                    <Text style={styles.statNumber}>{projects.length}</Text>
+                    <Text style={styles.statLabel}>Projects</Text>
+                  </View>
+                  {totalOutstanding > 0 && (
+                    <View style={styles.statCard}>
+                      <View style={[styles.statIconWrap, { backgroundColor: Colors.accent + '15' }]}>
+                        <Receipt size={16} color={Colors.accent} />
+                      </View>
+                      <Text style={[styles.statNumber, { color: Colors.accent }]}>{formatMoneyShort(totalOutstanding)}</Text>
+                      <Text style={styles.statLabel}>Outstanding</Text>
+                    </View>
+                  )}
+                  <TouchableOpacity
+                    style={[styles.statCard, styles.statCardMiddle]}
+                    onPress={() => {
+                      if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      setShowTotalDetail(true);
+                    }}
+                    activeOpacity={0.7}
+                    testID="total-value-tap"
+                  >
+                    <View style={[styles.statIconWrap, { backgroundColor: Colors.info + '15' }]}>
+                      <TrendingUp size={16} color={Colors.info} />
+                    </View>
+                    <Text style={styles.statNumber}>{formatMoneyShort(totalEstimated)}</Text>
+                    <Text style={styles.statLabel}>Total Value</Text>
+                    <ArrowDownRight size={10} color={Colors.textMuted} style={{ position: 'absolute', top: 10, right: 10 }} />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.statCard}
+                    onPress={() => {
+                      if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      setShowSavingsDetail(true);
+                    }}
+                    activeOpacity={0.7}
+                    testID="bulk-savings-tap"
+                  >
+                    <View style={[styles.statIconWrap, { backgroundColor: Colors.success + '15' }]}>
+                      <TrendingDown size={16} color={Colors.success} />
+                    </View>
+                    <Text style={[styles.statNumber, { color: Colors.success }]}>{formatMoneyShort(totalSavings)}</Text>
+                    <Text style={styles.statLabel}>Bulk Savings</Text>
+                    <ArrowDownRight size={10} color={Colors.textMuted} style={{ position: 'absolute', top: 10, right: 10 }} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+
+            {projects.length > 0 && (
+              <AIHomeBriefing
+                projects={projects}
+                invoices={invoices}
+                subscriptionTier={tier as any}
+                onViewFull={() => setShowWeeklySummary(true)}
+              />
+            )}
+
+            {projects.length > 0 && (
+              <CashFlowAlerts forecast={cashFlowForecast} invoices={[]} />
+            )}
+
+            {projects.length > 0 && (
+              <Text style={styles.sectionHeader}>RECENT</Text>
+            )}
+          </View>
+        }
+        ListEmptyComponent={
+          <EmptyState
+            icon={<FolderOpen size={36} color={Colors.textMuted} />}
+            title="No Projects Yet"
+            message="Create your first construction project to get started with estimates and scheduling."
+            actionLabel="Create Project"
+            onAction={() => setShowCreateModal(true)}
+          />
+        }
+        showsVerticalScrollIndicator={false}
+      />
+
+      <Modal visible={showCreateModal} transparent animationType="slide" onRequestClose={() => setShowCreateModal(false)}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <View style={styles.modalOverlay}>
+            <View style={[styles.createModalCard, { paddingBottom: insets.bottom + 20 }]}>
+              <View style={styles.createModalHeader}>
+                <Text style={styles.createModalTitle}>New Project</Text>
+                <TouchableOpacity onPress={() => setShowCreateModal(false)} style={styles.closeBtn}>
+                  <X size={20} color={Colors.textMuted} />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView showsVerticalScrollIndicator={false} style={styles.createModalScroll} keyboardShouldPersistTaps="handled">
+                <Text style={styles.fieldLabel}>Project Name</Text>
+                <TextInput
+                  style={styles.input}
+                  value={projectName}
+                  onChangeText={setProjectName}
+                  placeholder="e.g. Kitchen Renovation"
+                  placeholderTextColor={Colors.textMuted}
+                  autoFocus
+                  testID="project-name-input"
+                />
+
+                <Text style={styles.fieldLabel}>Description</Text>
+                <TextInput
+                  style={[styles.input, styles.descInput]}
+                  value={projectDescription}
+                  onChangeText={setProjectDescription}
+                  placeholder="Brief description of the project..."
+                  placeholderTextColor={Colors.textMuted}
+                  multiline
+                  textAlignVertical="top"
+                  testID="project-desc-input"
+                />
+
+                <Text style={styles.fieldLabel}>Project Type</Text>
+                <View style={styles.typeGrid}>
+                  {PROJECT_TYPES.map(pt => (
+                    <TouchableOpacity
+                      key={pt.id}
+                      style={[styles.typeChip, projectType === pt.id && styles.typeChipActive]}
+                      onPress={() => setProjectType(pt.id)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[styles.typeChipLabel, projectType === pt.id && styles.typeChipLabelActive]}>{pt.label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <View style={{ height: 20 }} />
+              </ScrollView>
+
+              <TouchableOpacity style={styles.createBtn} onPress={handleCreateProject} activeOpacity={0.85} testID="create-project-btn">
+                <Text style={styles.createBtnText}>Create Project</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      <Modal
+        visible={showTotalDetail}
+        animationType="slide"
+        presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : undefined}
+        onRequestClose={() => setShowTotalDetail(false)}
+      >
+        <View style={[detailStyles.modalContainer, { paddingTop: Platform.OS === 'ios' ? 12 : insets.top + 8 }]}>
+          <View style={detailStyles.modalHandle} />
+          <View style={detailStyles.modalHeader}>
+            <Text style={detailStyles.modalTitle}>Portfolio Value</Text>
+            <TouchableOpacity
+              style={detailStyles.modalCloseBtn}
+              onPress={() => setShowTotalDetail(false)}
+              activeOpacity={0.7}
+              testID="close-total-detail"
+            >
+              <X size={20} color={Colors.text} />
+            </TouchableOpacity>
+          </View>
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: insets.bottom + 30 }}>
+            <View style={detailStyles.heroSection}>
+              <View style={detailStyles.heroIconWrap}>
+                <BarChart3 size={28} color={Colors.primary} />
+              </View>
+              <Text style={detailStyles.heroAmount}>${totalEstimated.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</Text>
+              <Text style={detailStyles.heroSubtitle}>Total Portfolio Value</Text>
+              <View style={detailStyles.heroChips}>
+                <View style={detailStyles.heroChip}>
+                  <Text style={detailStyles.heroChipLabel}>{projectBreakdowns.length}</Text>
+                  <Text style={detailStyles.heroChipSub}>with estimates</Text>
+                </View>
+                <View style={[detailStyles.heroChip, { backgroundColor: Colors.infoLight }]}>
+                  <Text style={[detailStyles.heroChipLabel, { color: Colors.info }]}>
+                    ${portfolioStats.avgPerProject.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                  </Text>
+                  <Text style={[detailStyles.heroChipSub, { color: Colors.info }]}>avg / project</Text>
+                </View>
+              </View>
+            </View>
+
+            <Text style={detailStyles.sectionLabel}>Cost Composition</Text>
+            <View style={detailStyles.barChartWrap}>
+              {[
+                { label: 'Materials', value: portfolioStats.totalMaterials, color: '#1A6B3C', icon: Package },
+                { label: 'Labor', value: portfolioStats.totalLabor, color: '#007AFF', icon: DollarSign },
+                { label: 'Markup', value: portfolioStats.totalMarkup, color: '#FF9500', icon: Percent },
+              ].filter(r => r.value > 0).map(row => {
+                const pct = totalEstimated > 0 ? (row.value / totalEstimated) * 100 : 0;
+                return (
+                  <View key={row.label} style={detailStyles.barRow}>
+                    <View style={detailStyles.barLabelRow}>
+                      <row.icon size={14} color={row.color} />
+                      <Text style={detailStyles.barLabel}>{row.label}</Text>
+                      <Text style={detailStyles.barPct}>{pct.toFixed(1)}%</Text>
+                    </View>
+                    <View style={detailStyles.barTrack}>
+                      <View style={[detailStyles.barFill, { width: `${Math.min(pct, 100)}%`, backgroundColor: row.color }]} />
+                    </View>
+                    <Text style={detailStyles.barValue}>${row.value.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
+                  </View>
+                );
+              })}
+              {totalSavings > 0 && (
+                <View style={detailStyles.barRow}>
+                  <View style={detailStyles.barLabelRow}>
+                    <TrendingDown size={14} color={Colors.success} />
+                    <Text style={[detailStyles.barLabel, { color: Colors.success }]}>Bulk Savings</Text>
+                  </View>
+                  <Text style={[detailStyles.barValue, { color: Colors.success }]}>-${totalSavings.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
+                </View>
+              )}
+            </View>
+
+            <Text style={detailStyles.sectionLabel}>By Project</Text>
+            <View style={detailStyles.projectListCard}>
+              {projectBreakdowns.map((b, idx) => (
+                <View key={b.id}>
+                  <View style={detailStyles.projectRow}>
+                    <View style={detailStyles.projectRank}>
+                      <Text style={detailStyles.projectRankText}>#{idx + 1}</Text>
+                    </View>
+                    <View style={detailStyles.projectInfo}>
+                      <Text style={detailStyles.projectName} numberOfLines={1}>{b.name}</Text>
+                      <Text style={detailStyles.projectMeta}>
+                        {b.itemCount} items · {b.hasLinked ? 'Linked' : 'Estimated'}
+                      </Text>
+                    </View>
+                    <View style={detailStyles.projectValues}>
+                      <Text style={detailStyles.projectTotal}>${b.total.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
+                      <Text style={detailStyles.projectPct}>
+                        {totalEstimated > 0 ? ((b.total / totalEstimated) * 100).toFixed(0) : 0}%
+                      </Text>
+                    </View>
+                  </View>
+                  {idx < projectBreakdowns.length - 1 && <View style={detailStyles.projectDivider} />}
+                </View>
+              ))}
+              {projectBreakdowns.length === 0 && (
+                <View style={detailStyles.emptyProject}>
+                  <Text style={detailStyles.emptyProjectText}>No projects with estimates yet</Text>
+                </View>
+              )}
+            </View>
+          </ScrollView>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={showSavingsDetail}
+        animationType="slide"
+        presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : undefined}
+        onRequestClose={() => setShowSavingsDetail(false)}
+      >
+        <View style={[detailStyles.modalContainer, { paddingTop: Platform.OS === 'ios' ? 12 : insets.top + 8 }]}>
+          <View style={detailStyles.modalHandle} />
+          <View style={detailStyles.modalHeader}>
+            <Text style={detailStyles.modalTitle}>Bulk Savings</Text>
+            <TouchableOpacity
+              style={detailStyles.modalCloseBtn}
+              onPress={() => setShowSavingsDetail(false)}
+              activeOpacity={0.7}
+              testID="close-savings-detail"
+            >
+              <X size={20} color={Colors.text} />
+            </TouchableOpacity>
+          </View>
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: insets.bottom + 30 }}>
+            <View style={detailStyles.heroSection}>
+              <View style={[detailStyles.heroIconWrap, { backgroundColor: Colors.successLight }]}>
+                <TrendingDown size={28} color={Colors.success} />
+              </View>
+              <Text style={[detailStyles.heroAmount, { color: Colors.success }]}>
+                ${totalSavings.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+              </Text>
+              <Text style={detailStyles.heroSubtitle}>Total Bulk Savings</Text>
+              <View style={detailStyles.heroChips}>
+                <View style={[detailStyles.heroChip, { backgroundColor: Colors.successLight }]}>
+                  <Text style={[detailStyles.heroChipLabel, { color: Colors.success }]}>
+                    {totalEstimated > 0 ? ((totalSavings / (totalEstimated + totalSavings)) * 100).toFixed(1) : '0'}%
+                  </Text>
+                  <Text style={[detailStyles.heroChipSub, { color: Colors.success }]}>savings rate</Text>
+                </View>
+                <View style={detailStyles.heroChip}>
+                  <Text style={detailStyles.heroChipLabel}>
+                    {projectBreakdowns.filter(b => b.bulkSavings > 0).length}
+                  </Text>
+                  <Text style={detailStyles.heroChipSub}>projects saving</Text>
+                </View>
+              </View>
+            </View>
+
+            <Text style={detailStyles.sectionLabel}>How Bulk Savings Work</Text>
+            <View style={detailStyles.infoCard}>
+              <View style={detailStyles.infoRow}>
+                <View style={[detailStyles.infoStep, { backgroundColor: Colors.primary + '15' }]}>
+                  <Text style={[detailStyles.infoStepNum, { color: Colors.primary }]}>1</Text>
+                </View>
+                <View style={detailStyles.infoTextWrap}>
+                  <Text style={detailStyles.infoTitle}>Volume Thresholds</Text>
+                  <Text style={detailStyles.infoDesc}>Each material has a min bulk quantity. Once met, a lower per-unit price is unlocked.</Text>
+                </View>
+              </View>
+              <View style={detailStyles.infoRow}>
+                <View style={[detailStyles.infoStep, { backgroundColor: Colors.success + '15' }]}>
+                  <Text style={[detailStyles.infoStepNum, { color: Colors.success }]}>2</Text>
+                </View>
+                <View style={detailStyles.infoTextWrap}>
+                  <Text style={detailStyles.infoTitle}>Automatic Application</Text>
+                  <Text style={detailStyles.infoDesc}>When quantities exceed thresholds, savings are calculated automatically in your estimates.</Text>
+                </View>
+              </View>
+              <View style={detailStyles.infoRow}>
+                <View style={[detailStyles.infoStep, { backgroundColor: Colors.accent + '15' }]}>
+                  <Text style={[detailStyles.infoStepNum, { color: Colors.accent }]}>3</Text>
+                </View>
+                <View style={detailStyles.infoTextWrap}>
+                  <Text style={detailStyles.infoTitle}>Buy Direct</Text>
+                  <Text style={detailStyles.infoDesc}>Visit the Marketplace tab to buy materials directly from suppliers at bulk rates.</Text>
+                </View>
+              </View>
+            </View>
+
+            <Text style={detailStyles.sectionLabel}>Savings by Project</Text>
+            <View style={detailStyles.projectListCard}>
+              {projectBreakdowns.filter(b => b.bulkSavings > 0).map((b, idx) => (
+                <View key={b.id}>
+                  <View style={detailStyles.projectRow}>
+                    <View style={[detailStyles.projectRank, { backgroundColor: Colors.successLight }]}>
+                      <Text style={[detailStyles.projectRankText, { color: Colors.success }]}>#{idx + 1}</Text>
+                    </View>
+                    <View style={detailStyles.projectInfo}>
+                      <Text style={detailStyles.projectName} numberOfLines={1}>{b.name}</Text>
+                      <Text style={detailStyles.projectMeta}>{b.itemCount} items</Text>
+                    </View>
+                    <View style={detailStyles.projectValues}>
+                      <Text style={[detailStyles.projectTotal, { color: Colors.success }]}>
+                        -${b.bulkSavings.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                      </Text>
+                    </View>
+                  </View>
+                  {idx < projectBreakdowns.filter(bd => bd.bulkSavings > 0).length - 1 && (
+                    <View style={detailStyles.projectDivider} />
+                  )}
+                </View>
+              ))}
+              {projectBreakdowns.filter(b => b.bulkSavings > 0).length === 0 && (
+                <View style={detailStyles.emptyProject}>
+                  <Text style={detailStyles.emptyProjectText}>No bulk savings yet. Increase quantities to unlock bulk pricing.</Text>
+                </View>
+              )}
+            </View>
+
+            {projectBreakdowns.some(b => b.bulkSavings === 0 && b.total > 0) && (
+              <>
+                <Text style={detailStyles.sectionLabel}>Optimization Tips</Text>
+                <View style={[detailStyles.infoCard, { backgroundColor: Colors.warningLight, borderColor: Colors.warning + '30' }]}>
+                  <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10 }}>
+                    <ShoppingCart size={18} color={Colors.warning} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={[detailStyles.infoTitle, { marginBottom: 4 }]}>Unlock More Savings</Text>
+                      <Text style={detailStyles.infoDesc}>
+                        {projectBreakdowns.filter(b => b.bulkSavings === 0 && b.total > 0).length} project(s) have no bulk savings yet. Increase material quantities past bulk thresholds to save more.
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              </>
+            )}
+          </ScrollView>
+        </View>
+      </Modal>
+
+      <Modal visible={showNextStepModal} transparent animationType="fade" onRequestClose={() => setShowNextStepModal(false)}>
+        <Pressable style={styles.modalOverlayCenter} onPress={() => handleNextStep('later')}>
+          <Pressable style={styles.nextStepCard} onPress={() => undefined}>
+            <Text style={styles.nextStepTitle}>Project Created!</Text>
+            <Text style={styles.nextStepDesc}>What would you like to do next?</Text>
+
+            <TouchableOpacity style={styles.nextStepOption} onPress={() => handleNextStep('estimate')} activeOpacity={0.7}>
+              <View style={[styles.nextStepIconWrap, { backgroundColor: Colors.primary + '15' }]}>
+                <Calculator size={20} color={Colors.primary} />
+              </View>
+              <View style={styles.nextStepTextWrap}>
+                <Text style={styles.nextStepOptionTitle}>Create Estimate</Text>
+                <Text style={styles.nextStepOptionDesc}>Search materials and build a cost estimate</Text>
+              </View>
+              <ChevronRight size={18} color={Colors.textMuted} />
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.nextStepOption} onPress={() => handleNextStep('schedule')} activeOpacity={0.7}>
+              <View style={[styles.nextStepIconWrap, { backgroundColor: Colors.info + '15' }]}>
+                <CalendarDays size={20} color={Colors.info} />
+              </View>
+              <View style={styles.nextStepTextWrap}>
+                <Text style={styles.nextStepOptionTitle}>Create Schedule</Text>
+                <Text style={styles.nextStepOptionDesc}>Plan tasks and timeline for this project</Text>
+              </View>
+              <ChevronRight size={18} color={Colors.textMuted} />
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.laterBtn} onPress={() => handleNextStep('later')} activeOpacity={0.7}>
+              <Text style={styles.laterBtnText}>I'll do this later</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      <AIWeeklySummary
+        projects={projects}
+        visible={showWeeklySummary}
+        onClose={() => setShowWeeklySummary(false)}
+      />
+
+      <AICopilot />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+  listContent: {
+    paddingBottom: 20,
+  },
+  emptyList: {
+    flex: 1,
+  },
+  navBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 4,
+  },
+  navTitle: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: Colors.primary,
+    letterSpacing: 0.3,
+    textTransform: 'uppercase' as const,
+  },
+  addButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  largeTitle: {
+    fontSize: 34,
+    fontWeight: '700' as const,
+    color: Colors.text,
+    letterSpacing: -0.5,
+    paddingHorizontal: 20,
+    marginTop: 4,
+    marginBottom: 20,
+  },
+  statsSection: {
+    paddingHorizontal: 20,
+    marginBottom: 28,
+  },
+  statsGrid: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  statCard: {
+    flex: 1,
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    padding: 14,
+    alignItems: 'flex-start',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  statCardMiddle: {
+    backgroundColor: Colors.surface,
+  },
+  statIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  statNumber: {
+    fontSize: 20,
+    fontWeight: '700' as const,
+    color: Colors.text,
+    letterSpacing: -0.5,
+    marginBottom: 2,
+  },
+  statLabel: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    fontWeight: '400' as const,
+  },
+  sectionHeader: {
+    fontSize: 12,
+    fontWeight: '600' as const,
+    color: Colors.textSecondary,
+    letterSpacing: 0.6,
+    paddingHorizontal: 20,
+    marginBottom: 10,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: Colors.overlay,
+    justifyContent: 'flex-end',
+  },
+  modalOverlayCenter: {
+    flex: 1,
+    backgroundColor: Colors.overlay,
+    justifyContent: 'center',
+    padding: 24,
+  },
+  createModalCard: {
+    backgroundColor: Colors.surface,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    padding: 20,
+    maxHeight: '85%',
+  },
+  createModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  createModalTitle: {
+    fontSize: 22,
+    fontWeight: '700' as const,
+    color: Colors.text,
+    letterSpacing: -0.3,
+  },
+  closeBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: Colors.fillTertiary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  createModalScroll: {
+    marginBottom: 16,
+  },
+  fieldLabel: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: Colors.textSecondary,
+    marginBottom: 6,
+    marginTop: 12,
+  },
+  input: {
+    minHeight: 48,
+    borderRadius: 14,
+    backgroundColor: Colors.surfaceAlt,
+    paddingHorizontal: 14,
+    fontSize: 16,
+    color: Colors.text,
+  },
+  descInput: {
+    minHeight: 90,
+    paddingTop: 14,
+    textAlignVertical: 'top' as const,
+  },
+  typeGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 4,
+  },
+  typeChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: Colors.fillTertiary,
+  },
+  typeChipActive: {
+    backgroundColor: Colors.primary,
+  },
+  typeChipLabel: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: Colors.textSecondary,
+  },
+  typeChipLabelActive: {
+    color: Colors.textOnPrimary,
+  },
+  createBtn: {
+    backgroundColor: Colors.primary,
+    borderRadius: 14,
+    paddingVertical: 16,
+    alignItems: 'center',
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  createBtnText: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: Colors.textOnPrimary,
+  },
+  nextStepCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 24,
+    padding: 24,
+    gap: 16,
+  },
+  nextStepTitle: {
+    fontSize: 22,
+    fontWeight: '700' as const,
+    color: Colors.text,
+    textAlign: 'center',
+  },
+  nextStepDesc: {
+    fontSize: 15,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  nextStepOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.surfaceAlt,
+    borderRadius: 16,
+    padding: 16,
+    gap: 14,
+  },
+  nextStepIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  nextStepTextWrap: {
+    flex: 1,
+    gap: 2,
+  },
+  nextStepOptionTitle: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: Colors.text,
+  },
+  nextStepOptionDesc: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+  },
+  laterBtn: {
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  laterBtnText: {
+    fontSize: 15,
+    fontWeight: '500' as const,
+    color: Colors.textMuted,
+  },
+});
+
+const detailStyles = StyleSheet.create({
+  modalContainer: { flex: 1, backgroundColor: Colors.background },
+  modalHandle: { width: 36, height: 5, borderRadius: 3, backgroundColor: Colors.border, alignSelf: 'center', marginBottom: 8 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingBottom: 14, borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight, backgroundColor: Colors.background },
+  modalTitle: { fontSize: 20, fontWeight: '700' as const, color: Colors.text, letterSpacing: -0.3 },
+  modalCloseBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
+  heroSection: { alignItems: 'center', paddingVertical: 28, paddingHorizontal: 20, gap: 6 },
+  heroIconWrap: { width: 56, height: 56, borderRadius: 28, backgroundColor: Colors.primary + '12', alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
+  heroAmount: { fontSize: 38, fontWeight: '800' as const, color: Colors.text, letterSpacing: -1.5 },
+  heroSubtitle: { fontSize: 14, color: Colors.textSecondary, fontWeight: '500' as const },
+  heroChips: { flexDirection: 'row', gap: 10, marginTop: 14 },
+  heroChip: { backgroundColor: Colors.fillTertiary, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 8, alignItems: 'center', gap: 2 },
+  heroChipLabel: { fontSize: 16, fontWeight: '700' as const, color: Colors.text },
+  heroChipSub: { fontSize: 11, color: Colors.textMuted, fontWeight: '500' as const },
+  sectionLabel: { fontSize: 13, fontWeight: '600' as const, color: Colors.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.8, paddingHorizontal: 20, marginBottom: 8, marginTop: 4 },
+  barChartWrap: { marginHorizontal: 20, backgroundColor: Colors.surface, borderRadius: 16, padding: 16, gap: 16, marginBottom: 20, borderWidth: 1, borderColor: Colors.cardBorder },
+  barRow: { gap: 6 },
+  barLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  barLabel: { flex: 1, fontSize: 14, fontWeight: '500' as const, color: Colors.text },
+  barPct: { fontSize: 13, fontWeight: '700' as const, color: Colors.textSecondary },
+  barTrack: { height: 8, borderRadius: 4, backgroundColor: Colors.fillTertiary, overflow: 'hidden' as const },
+  barFill: { height: 8, borderRadius: 4 },
+  barValue: { fontSize: 13, fontWeight: '600' as const, color: Colors.text },
+  projectListCard: { marginHorizontal: 20, backgroundColor: Colors.surface, borderRadius: 16, padding: 14, marginBottom: 20, borderWidth: 1, borderColor: Colors.cardBorder },
+  projectRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10 },
+  projectRank: { width: 26, height: 26, borderRadius: 13, backgroundColor: Colors.infoLight, alignItems: 'center', justifyContent: 'center' },
+  projectRankText: { fontSize: 11, fontWeight: '700' as const, color: Colors.info },
+  projectInfo: { flex: 1, gap: 2 },
+  projectName: { fontSize: 14, fontWeight: '500' as const, color: Colors.text },
+  projectMeta: { fontSize: 12, color: Colors.textMuted },
+  projectValues: { alignItems: 'flex-end', gap: 1 },
+  projectTotal: { fontSize: 15, fontWeight: '700' as const, color: Colors.text },
+  projectPct: { fontSize: 11, fontWeight: '600' as const, color: Colors.textSecondary, backgroundColor: Colors.fillTertiary, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, overflow: 'hidden' as const },
+  projectDivider: { height: 1, backgroundColor: Colors.borderLight },
+  emptyProject: { alignItems: 'center', paddingVertical: 20 },
+  emptyProjectText: { fontSize: 14, color: Colors.textMuted, textAlign: 'center' as const },
+  infoCard: { marginHorizontal: 20, backgroundColor: Colors.surface, borderRadius: 16, padding: 16, gap: 16, marginBottom: 20, borderWidth: 1, borderColor: Colors.cardBorder },
+  infoRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  infoStep: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  infoStepNum: { fontSize: 13, fontWeight: '700' as const },
+  infoTextWrap: { flex: 1 },
+  infoTitle: { fontSize: 14, fontWeight: '600' as const, color: Colors.text },
+  infoDesc: { fontSize: 13, color: Colors.textSecondary, lineHeight: 19, marginTop: 2 },
+});
+
+
+========== FILE: ./app/(tabs)/_layout.tsx ==========
+import React from 'react';
+import { View, StyleSheet, Platform } from 'react-native';
+import { Tabs, Slot } from 'expo-router';
+import { Home, Compass, Wrench, Settings } from 'lucide-react-native';
+import { Colors } from '@/constants/colors';
+import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
+import DesktopSidebar from '@/components/DesktopSidebar';
+
+export default function TabLayout() {
+  const layout = useResponsiveLayout();
+
+  if (layout.showSidebar) {
+    return (
+      <View style={styles.desktopContainer}>
+        <DesktopSidebar width={layout.sidebarWidth} />
+        <View style={styles.desktopContent}>
+          <Tabs
+            screenOptions={{
+              headerShown: false,
+              tabBarStyle: { display: 'none' },
+            }}
+          >
+            <Tabs.Screen name="(home)" options={{ title: 'Projects' }} />
+            <Tabs.Screen name="discover" options={{ title: 'Discover' }} />
+            <Tabs.Screen name="tools" options={{ title: 'Tools' }} />
+            <Tabs.Screen name="settings" options={{ title: 'Settings' }} />
+            <Tabs.Screen name="bids" options={{ href: null }} />
+            <Tabs.Screen name="companies" options={{ href: null }} />
+            <Tabs.Screen name="hire" options={{ href: null }} />
+            <Tabs.Screen name="estimate" options={{ href: null }} />
+            <Tabs.Screen name="materials" options={{ href: null }} />
+            <Tabs.Screen name="schedule" options={{ href: null }} />
+            <Tabs.Screen name="marketplace" options={{ href: null }} />
+            <Tabs.Screen name="subs" options={{ href: null }} />
+            <Tabs.Screen name="equipment" options={{ href: null }} />
+          </Tabs>
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <Tabs
+      screenOptions={{
+        headerShown: false,
+        tabBarActiveTintColor: Colors.primary,
+        tabBarInactiveTintColor: Colors.textMuted,
+        tabBarStyle: {
+          backgroundColor: Colors.surface,
+          borderTopColor: Colors.borderLight,
+          borderTopWidth: 0.5,
+        },
+        tabBarLabelStyle: {
+          fontSize: 11,
+          fontWeight: '500',
+          letterSpacing: 0.2,
+          marginBottom: Platform.OS === 'ios' ? 0 : 4,
+        },
+        tabBarIconStyle: {
+          marginTop: 2,
+        },
+      }}
+    >
+      <Tabs.Screen
+        name="(home)"
+        options={{
+          title: 'Projects',
+          tabBarIcon: ({ color, focused }) => (
+            <Home size={23} color={color} strokeWidth={focused ? 2.2 : 1.8} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="discover"
+        options={{
+          title: 'Discover',
+          tabBarIcon: ({ color, focused }) => (
+            <Compass size={23} color={color} strokeWidth={focused ? 2.2 : 1.8} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="tools"
+        options={{
+          title: 'Tools',
+          tabBarIcon: ({ color, focused }) => (
+            <Wrench size={23} color={color} strokeWidth={focused ? 2.2 : 1.8} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="settings"
+        options={{
+          title: 'Settings',
+          tabBarIcon: ({ color, focused }) => (
+            <Settings size={23} color={color} strokeWidth={focused ? 2.2 : 1.8} />
+          ),
+        }}
+      />
+      <Tabs.Screen name="bids" options={{ href: null }} />
+      <Tabs.Screen name="companies" options={{ href: null }} />
+      <Tabs.Screen name="hire" options={{ href: null }} />
+      <Tabs.Screen name="estimate" options={{ href: null }} />
+      <Tabs.Screen name="materials" options={{ href: null }} />
+      <Tabs.Screen name="schedule" options={{ href: null }} />
+      <Tabs.Screen name="marketplace" options={{ href: null }} />
+      <Tabs.Screen name="subs" options={{ href: null }} />
+      <Tabs.Screen name="equipment" options={{ href: null }} />
+    </Tabs>
+  );
+}
+
+const styles = StyleSheet.create({
+  desktopContainer: {
+    flex: 1,
+    flexDirection: 'row',
+  },
+  desktopContent: {
+    flex: 1,
+  },
+});
+
+
+========== FILE: ./app/(tabs)/bids/_layout.tsx ==========
+import { Stack } from 'expo-router';
+export default function BidsLayout() {
+  return <Stack screenOptions={{ headerShown: false }} />;
+}
+
+
+========== FILE: ./app/(tabs)/bids/index.tsx ==========
+import React, { useState, useCallback, useRef, useMemo, useEffect } from 'react';
+import {
+  View, Text, StyleSheet, FlatList, TouchableOpacity,
+  Animated, ScrollView, ActivityIndicator, RefreshControl, Platform, Modal, TextInput,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { MapPin, Clock, DollarSign, Navigation, AlertCircle, Crosshair, ChevronDown, X, Filter, Building, Search, Heart, Bookmark, FileText, Tag, ChevronRight } from 'lucide-react-native';
+import * as Haptics from 'expo-haptics';
+import { useQuery } from '@tanstack/react-query';
+import { useRouter } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Colors } from '@/constants/colors';
+import { supabase } from '@/lib/supabase';
+import { useUserLocation, getDistanceMiles } from '@/utils/location';
+import { US_STATES } from '@/constants/states';
+
+interface CachedBid {
+  id: string;
+  title: string;
+  department: string;
+  deadline: string;
+  estimated_value: number;
+  city: string;
+  state: string;
+  latitude: number;
+  longitude: number;
+  source_url: string;
+  set_aside: string | null;
+  fetched_at: string;
+  description?: string;
+  bid_type?: string;
+  category?: string;
+  bond_required?: number;
+  contact_email?: string;
+  contact_phone?: string;
+  apply_url?: string;
+  source_name?: string;
+  posted_by?: string;
+  posted_date?: string;
+  naics_code?: string;
+  solicitation_number?: string;
+  pre_bid_date?: string;
+  scope_of_work?: string;
+  documents_url?: string;
+  required_certifications?: string[];
+}
+
+interface BidWithDistance extends CachedBid {
+  distance: number | null;
+}
+
+interface NearbyCity {
+  city: string;
+  state: string;
+  distance: number;
+  count: number;
+}
+
+export interface TrackedBid {
+  bidId: string;
+  status: 'saved' | 'interested' | 'preparing' | 'submitted' | 'won' | 'lost';
+  notes: string;
+  proposalAmount: number | null;
+  savedAt: string;
+}
+
+const TRACKED_BIDS_KEY = 'mageid_tracked_bids';
+const RADIUS_OPTIONS = [10, 25, 50, 100, 250] as const;
+const SET_ASIDE_TYPES = ['Small Business', 'MWBE', 'SDVOSB', 'HUBZone', '8(a)', 'WOSB', 'None'] as const;
+const VALUE_RANGES = [
+  { label: '<$50K', min: 0, max: 50000 },
+  { label: '$50K-$250K', min: 50000, max: 250000 },
+  { label: '$250K-$1M', min: 250000, max: 1000000 },
+  { label: '$1M+', min: 1000000, max: Infinity },
+] as const;
+const BID_TYPES = ['federal', 'state', 'municipal', 'county', 'private'] as const;
+const SORT_OPTIONS = ['nearest', 'newest', 'deadline', 'value'] as const;
+
+const BID_TYPE_LABELS: Record<string, string> = {
+  federal: 'Federal', state: 'State', municipal: 'Municipal', county: 'County', private: 'Private',
+};
+
+const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
+  saved: { bg: '#E3F2FD', text: '#1565C0' },
+  interested: { bg: '#FFF3E0', text: '#E65100' },
+  preparing: { bg: '#F3E5F5', text: '#7B1FA2' },
+  submitted: { bg: '#E8F5E9', text: '#2E7D32' },
+  won: { bg: '#E8F5E9', text: '#1B5E20' },
+  lost: { bg: '#FFEBEE', text: '#C62828' },
+};
+
+function formatCurrency(amount: number | null | undefined): string {
+  if (amount == null) return 'Not specified';
+  if (amount >= 1000000) return `$${(amount / 1000000).toFixed(1)}M`;
+  return `$${amount.toLocaleString()}`;
+}
+
+function getDeadlineInfo(deadline: string | null | undefined): { text: string; color: string; bgColor: string } {
+  if (!deadline) return { text: 'No deadline', color: '#9E9E9E', bgColor: '#F5F5F5' };
+  const diff = new Date(deadline).getTime() - Date.now();
+  if (isNaN(diff)) return { text: 'No deadline', color: '#9E9E9E', bgColor: '#F5F5F5' };
+  if (diff <= 0) return { text: 'Expired', color: '#9E9E9E', bgColor: '#F5F5F5' };
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+  if (days < 3) return { text: `${days}d ${Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))}h left`, color: '#D32F2F', bgColor: '#FFEBEE' };
+  if (days <= 7) return { text: `${days} days left`, color: '#F57F17', bgColor: '#FFF8E1' };
+  if (days > 30) return { text: `${Math.floor(days / 30)}mo ${days % 30}d left`, color: '#2E7D32', bgColor: '#E8F5E9' };
+  return { text: `${days} days left`, color: '#2E7D32', bgColor: '#E8F5E9' };
+}
+
+function BidCard({ bid, onPress, tracked }: { bid: BidWithDistance; onPress: () => void; tracked?: TrackedBid }) {
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const deadlineInfo = getDeadlineInfo(bid.deadline);
+
+  return (
+    <Animated.View style={[styles.bidCard, { transform: [{ scale: scaleAnim }] }]}>
+      <TouchableOpacity
+        onPress={onPress}
+        onPressIn={() => Animated.spring(scaleAnim, { toValue: 0.97, useNativeDriver: true, speed: 50 }).start()}
+        onPressOut={() => Animated.spring(scaleAnim, { toValue: 1, useNativeDriver: true, speed: 50 }).start()}
+        activeOpacity={1}
+        testID={`bid-card-${bid.id}`}
+      >
+        <View style={styles.bidHeader}>
+          <View style={styles.bidHeaderLeft}>
+            {bid.set_aside ? (
+              <View style={styles.setAsideBadge}>
+                <Text style={styles.setAsideText}>{bid.set_aside}</Text>
+              </View>
+            ) : (
+              <View style={styles.openBadge}>
+                <Text style={styles.openBadgeText}>Open</Text>
+              </View>
+            )}
+            {bid.bid_type && BID_TYPE_LABELS[bid.bid_type] && (
+              <View style={styles.bidTypeBadge}>
+                <Text style={styles.bidTypeText}>{BID_TYPE_LABELS[bid.bid_type]}</Text>
+              </View>
+            )}
+          </View>
+          <View style={styles.bidHeaderRight}>
+            {tracked && (
+              <View style={[styles.trackedBadge, { backgroundColor: STATUS_COLORS[tracked.status]?.bg ?? '#E3F2FD' }]}>
+                <Bookmark size={10} color={STATUS_COLORS[tracked.status]?.text ?? '#1565C0'} />
+              </View>
+            )}
+            <View style={[styles.countdownBadge, { backgroundColor: deadlineInfo.bgColor }]}>
+              <Clock size={11} color={deadlineInfo.color} />
+              <Text style={[styles.countdownText, { color: deadlineInfo.color }]}>{deadlineInfo.text}</Text>
+            </View>
+          </View>
+        </View>
+
+        <Text style={styles.bidTitle} numberOfLines={2}>{bid.title ?? 'Untitled Bid'}</Text>
+        <Text style={styles.bidDepartment} numberOfLines={1}>{bid.department ?? 'Department not listed'}</Text>
+
+        {bid.description ? (
+          <Text style={styles.bidDescription} numberOfLines={2}>{bid.description}</Text>
+        ) : null}
+
+        <View style={styles.bidMeta}>
+          <View style={styles.metaItem}>
+            <MapPin size={13} color={Colors.textSecondary} />
+            <Text style={styles.metaText}>{bid.city && bid.state ? `${bid.city}, ${bid.state}` : bid.city || bid.state || 'Location not available'}</Text>
+          </View>
+          <View style={styles.metaItem}>
+            <DollarSign size={13} color={Colors.primary} />
+            <Text style={[styles.metaText, { color: Colors.primary, fontWeight: '600' as const }]}>
+              {formatCurrency(bid.estimated_value)}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.bidFooter}>
+          <View style={styles.footerLeft}>
+            {bid.distance !== null && (
+              <View style={styles.distanceBadge}>
+                <Navigation size={11} color={Colors.info} />
+                <Text style={styles.distanceText}>{bid.distance} mi</Text>
+              </View>
+            )}
+            {bid.naics_code ? (
+              <View style={styles.naicsBadge}>
+                <Tag size={10} color={Colors.textMuted} />
+                <Text style={styles.naicsText}>{bid.naics_code}</Text>
+              </View>
+            ) : null}
+            {bid.solicitation_number ? (
+              <View style={styles.naicsBadge}>
+                <FileText size={10} color={Colors.textMuted} />
+                <Text style={styles.naicsText} numberOfLines={1}>{bid.solicitation_number}</Text>
+              </View>
+            ) : null}
+          </View>
+          <ChevronRight size={16} color={Colors.textMuted} />
+        </View>
+      </TouchableOpacity>
+    </Animated.View>
+  );
+}
+
+export default function BidsScreen() {
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const { location } = useUserLocation();
+  const [selectedRadius, setSelectedRadius] = useState<number | null>(null);
+  const [selectedSetAside, setSelectedSetAside] = useState<string | undefined>();
+  const [selectedState, setSelectedState] = useState<string | null>(null);
+  const [selectedCity, setSelectedCity] = useState<string | null>(null);
+  const [locationMode, setLocationMode] = useState<'all' | 'nearby' | 'state' | 'city'>('all');
+  const [showStateList, setShowStateList] = useState(false);
+  const [showSetAsideDropdown, setShowSetAsideDropdown] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedValueRange, setSelectedValueRange] = useState<number | null>(null);
+  const [selectedBidType, setSelectedBidType] = useState<string | null>(null);
+  const [sortBy, setSortBy] = useState<typeof SORT_OPTIONS[number]>('nearest');
+  const [trackedBids, setTrackedBids] = useState<TrackedBid[]>([]);
+  const [showMyBids, setShowMyBids] = useState(true);
+  const [myBidsFilter, setMyBidsFilter] = useState<string>('all');
+
+  useEffect(() => {
+    AsyncStorage.getItem(TRACKED_BIDS_KEY).then(data => {
+      if (data) {
+        try { setTrackedBids(JSON.parse(data)); } catch { /* ignore */ }
+      }
+    }).catch(() => {});
+  }, []);
+
+  const { data: bids, isLoading, refetch, isRefetching, error: bidsQueryError } = useQuery({
+    queryKey: ['cached_bids'],
+    queryFn: async () => {
+      console.log('[Bids] Fetching from cached_bids...');
+      const { data, error } = await supabase
+        .from('cached_bids')
+        .select('*')
+        .order('posted_date', { ascending: false });
+      console.log('Bids data:', data?.length, 'Error:', error);
+      if (error) throw new Error(`Supabase error: ${error.message}`);
+      return (data ?? []) as CachedBid[];
+    },
+    retry: 1,
+  });
+
+  const bidsWithDistance = useMemo<BidWithDistance[]>(() => {
+    if (!bids) return [];
+    return bids.map(bid => ({
+      ...bid,
+      distance: location && bid.latitude && bid.longitude
+        ? getDistanceMiles(location.latitude, location.longitude, bid.latitude, bid.longitude)
+        : null,
+    }));
+  }, [bids, location]);
+
+  const nearbyCities = useMemo<NearbyCity[]>(() => {
+    if (!bidsWithDistance.length) return [];
+    const cityMap = new Map<string, { city: string; state: string; distance: number; count: number }>();
+    for (const bid of bidsWithDistance) {
+      if (!bid.city) continue;
+      const key = `${bid.city}_${bid.state ?? ''}`.toLowerCase();
+      const existing = cityMap.get(key);
+      if (existing) {
+        existing.count += 1;
+        if (bid.distance !== null && bid.distance < existing.distance) existing.distance = bid.distance;
+      } else {
+        cityMap.set(key, { city: bid.city, state: bid.state ?? '', distance: bid.distance ?? 99999, count: 1 });
+      }
+    }
+    return Array.from(cityMap.values()).sort((a, b) => a.distance - b.distance).slice(0, 20);
+  }, [bidsWithDistance]);
+
+  const trackedBidMap = useMemo(() => {
+    const map = new Map<string, TrackedBid>();
+    for (const tb of trackedBids) map.set(tb.bidId, tb);
+    return map;
+  }, [trackedBids]);
+
+  const myTrackedBidsList = useMemo(() => {
+    if (!bidsWithDistance.length) return [];
+    return trackedBids
+      .filter(tb => myBidsFilter === 'all' || tb.status === myBidsFilter)
+      .map(tb => {
+        const bid = bidsWithDistance.find(b => b.id === tb.bidId);
+        return bid ? { bid, tracked: tb } : null;
+      })
+      .filter(Boolean) as Array<{ bid: BidWithDistance; tracked: TrackedBid }>;
+  }, [trackedBids, bidsWithDistance, myBidsFilter]);
+
+  const statusCounts = useMemo(() => {
+    const counts: Record<string, number> = { all: trackedBids.length };
+    for (const tb of trackedBids) counts[tb.status] = (counts[tb.status] ?? 0) + 1;
+    return counts;
+  }, [trackedBids]);
+
+  const filteredBids = useMemo(() => {
+    let result = bidsWithDistance;
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(b =>
+        (b.title ?? '').toLowerCase().includes(q) ||
+        (b.department ?? '').toLowerCase().includes(q) ||
+        (b.city ?? '').toLowerCase().includes(q) ||
+        (b.description ?? '').toLowerCase().includes(q) ||
+        (b.solicitation_number ?? '').toLowerCase().includes(q)
+      );
+    }
+
+    if (selectedSetAside) {
+      if (selectedSetAside === 'None') result = result.filter(b => !b.set_aside);
+      else result = result.filter(b => b.set_aside?.toLowerCase().includes(selectedSetAside.toLowerCase()));
+    }
+
+    if (locationMode === 'nearby' && location && selectedRadius !== null) {
+      result = result.filter(b => b.distance === null || b.distance <= selectedRadius);
+    }
+    if (locationMode === 'state' && selectedState) {
+      result = result.filter(b => b.state?.toUpperCase() === selectedState.toUpperCase());
+    }
+    if (locationMode === 'city' && selectedCity) {
+      result = result.filter(b => b.city?.toLowerCase() === selectedCity.toLowerCase());
+    }
+
+    if (selectedValueRange !== null) {
+      const range = VALUE_RANGES[selectedValueRange];
+      result = result.filter(b => b.estimated_value >= range.min && b.estimated_value < range.max);
+    }
+
+    if (selectedBidType) {
+      result = result.filter(b => b.bid_type === selectedBidType);
+    }
+
+    switch (sortBy) {
+      case 'nearest':
+        result.sort((a, b) => (a.distance ?? 99999) - (b.distance ?? 99999));
+        break;
+      case 'newest':
+        result.sort((a, b) => new Date(b.fetched_at).getTime() - new Date(a.fetched_at).getTime());
+        break;
+      case 'deadline':
+        result.sort((a, b) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime());
+        break;
+      case 'value':
+        result.sort((a, b) => (b.estimated_value ?? 0) - (a.estimated_value ?? 0));
+        break;
+    }
+
+    return result;
+  }, [bidsWithDistance, searchQuery, selectedRadius, selectedSetAside, location, locationMode, selectedState, selectedCity, selectedValueRange, selectedBidType, sortBy]);
+
+  const handleBidPress = useCallback((bid: CachedBid) => {
+    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push({ pathname: '/bid-detail', params: { id: bid.id, source: 'cached' } });
+  }, [router]);
+
+  const handleLocationModeChange = useCallback((mode: 'all' | 'nearby' | 'state' | 'city') => {
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+    setLocationMode(mode);
+    if (mode === 'nearby' && selectedRadius === null) setSelectedRadius(50);
+    if (mode !== 'state') setShowStateList(false);
+    if (mode === 'state') setShowStateList(true);
+    if (mode !== 'city') setSelectedCity(null);
+  }, [selectedRadius]);
+
+  const handleSetAsideSelect = useCallback((value: string | undefined) => {
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+    setSelectedSetAside(value);
+    setShowSetAsideDropdown(false);
+  }, []);
+
+  const renderBid = useCallback(({ item }: { item: BidWithDistance }) => (
+    <BidCard bid={item} onPress={() => handleBidPress(item)} tracked={trackedBidMap.get(item.id)} />
+  ), [handleBidPress, trackedBidMap]);
+
+  const loading = isLoading;
+
+  return (
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <View style={styles.header}>
+        <View style={styles.headerTop}>
+          <Text style={styles.headerTitle}>Public Bids</Text>
+          <View style={styles.countPill}>
+            <Text style={styles.countPillText}>{filteredBids.length}</Text>
+          </View>
+        </View>
+
+        <View style={[styles.searchBar]}>
+          <Search size={16} color={Colors.textMuted} />
+          <TextInput
+            style={styles.searchInput}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholder="Search bids, departments, solicitations..."
+            placeholderTextColor={Colors.textMuted}
+            autoCorrect={false}
+            returnKeyType="search"
+            testID="bid-search-input"
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <X size={14} color={Colors.textMuted} />
+            </TouchableOpacity>
+          )}
+        </View>
+
+        <View style={styles.filterRow}>
+          <View style={styles.filterBlock}>
+            <Text style={styles.filterSectionLabel}>LOCATION</Text>
+            <View style={styles.locationRow}>
+              <TouchableOpacity style={[styles.locationChip, locationMode === 'all' && styles.locationChipActive]} onPress={() => handleLocationModeChange('all')}>
+                <Text style={[styles.locationChipText, locationMode === 'all' && styles.locationChipTextActive]}>All</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.locationChip, locationMode === 'nearby' && styles.locationChipActive]} onPress={() => handleLocationModeChange('nearby')}>
+                <Crosshair size={12} color={locationMode === 'nearby' ? '#FFF' : Colors.textSecondary} />
+                <Text style={[styles.locationChipText, locationMode === 'nearby' && styles.locationChipTextActive]}>Near Me</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.locationChip, locationMode === 'city' && styles.locationChipActive]} onPress={() => handleLocationModeChange('city')}>
+                <Building size={12} color={locationMode === 'city' ? '#FFF' : Colors.textSecondary} />
+                <Text style={[styles.locationChipText, locationMode === 'city' && styles.locationChipTextActive]}>City</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.locationChip, locationMode === 'state' && styles.locationChipActive]} onPress={() => handleLocationModeChange('state')}>
+                <ChevronDown size={12} color={locationMode === 'state' ? '#FFF' : Colors.textSecondary} />
+                <Text style={[styles.locationChipText, locationMode === 'state' && styles.locationChipTextActive]}>
+                  {selectedState ? selectedState : 'State'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={styles.filterBlock}>
+            <Text style={styles.filterSectionLabel}>SET-ASIDE</Text>
+            <TouchableOpacity
+              style={styles.dropdownButton}
+              onPress={() => { setShowSetAsideDropdown(true); if (Platform.OS !== 'web') void Haptics.selectionAsync(); }}
+            >
+              <Filter size={13} color={selectedSetAside ? Colors.primary : Colors.textSecondary} />
+              <Text style={[styles.dropdownButtonText, selectedSetAside && styles.dropdownButtonTextActive]}>
+                {selectedSetAside ?? 'All Types'}
+              </Text>
+              <ChevronDown size={14} color={Colors.textSecondary} />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow}>
+          {VALUE_RANGES.map((range, idx) => (
+            <TouchableOpacity
+              key={range.label}
+              style={[styles.chip, selectedValueRange === idx && styles.chipActive]}
+              onPress={() => {
+                setSelectedValueRange(selectedValueRange === idx ? null : idx);
+                if (Platform.OS !== 'web') void Haptics.selectionAsync();
+              }}
+            >
+              <Text style={[styles.chipText, selectedValueRange === idx && styles.chipTextActive]}>{range.label}</Text>
+            </TouchableOpacity>
+          ))}
+          <View style={styles.chipDivider} />
+          {BID_TYPES.map(bt => (
+            <TouchableOpacity
+              key={bt}
+              style={[styles.chip, selectedBidType === bt && styles.chipActive]}
+              onPress={() => {
+                setSelectedBidType(selectedBidType === bt ? null : bt);
+                if (Platform.OS !== 'web') void Haptics.selectionAsync();
+              }}
+            >
+              <Text style={[styles.chipText, selectedBidType === bt && styles.chipTextActive]}>{BID_TYPE_LABELS[bt] ?? bt}</Text>
+            </TouchableOpacity>
+          ))}
+          <View style={styles.chipDivider} />
+          {SORT_OPTIONS.map(s => (
+            <TouchableOpacity
+              key={s}
+              style={[styles.chip, sortBy === s && styles.sortChipActive]}
+              onPress={() => { setSortBy(s); if (Platform.OS !== 'web') void Haptics.selectionAsync(); }}
+            >
+              <Text style={[styles.chipText, sortBy === s && styles.sortChipTextActive]}>
+                {s === 'nearest' ? '📍 Nearest' : s === 'newest' ? '🕐 Newest' : s === 'deadline' ? '⏰ Deadline' : '💰 Value'}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+
+        {locationMode === 'nearby' && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow}>
+            {RADIUS_OPTIONS.map(r => (
+              <TouchableOpacity
+                key={r}
+                style={[styles.chip, selectedRadius === r && styles.chipActive]}
+                onPress={() => { setSelectedRadius(r); if (Platform.OS !== 'web') void Haptics.selectionAsync(); }}
+              >
+                <Text style={[styles.chipText, selectedRadius === r && styles.chipTextActive]}>{r} mi</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        )}
+
+        {locationMode === 'city' && nearbyCities.length > 0 && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow}>
+            {nearbyCities.map(c => (
+              <TouchableOpacity
+                key={`${c.city}_${c.state}`}
+                style={[styles.cityChip, selectedCity?.toLowerCase() === c.city.toLowerCase() && styles.chipActive]}
+                onPress={() => {
+                  setSelectedCity(selectedCity?.toLowerCase() === c.city.toLowerCase() ? null : c.city);
+                  if (Platform.OS !== 'web') void Haptics.selectionAsync();
+                }}
+              >
+                <Text style={[styles.cityChipText, selectedCity?.toLowerCase() === c.city.toLowerCase() && styles.chipTextActive]} numberOfLines={1}>
+                  {c.city}{c.state ? `, ${c.state}` : ''}
+                </Text>
+                {c.distance < 99999 && (
+                  <Text style={[styles.cityChipMeta, selectedCity?.toLowerCase() === c.city.toLowerCase() && { color: 'rgba(255,255,255,0.7)' }]}>
+                    {c.distance}mi · {c.count}
+                  </Text>
+                )}
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        )}
+
+        {locationMode === 'state' && showStateList && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow}>
+            {US_STATES.map(s => (
+              <TouchableOpacity
+                key={s.abbr}
+                style={[styles.stateChip, selectedState === s.abbr && styles.chipActive]}
+                onPress={() => {
+                  setSelectedState(selectedState === s.abbr ? null : s.abbr);
+                  if (Platform.OS !== 'web') void Haptics.selectionAsync();
+                }}
+              >
+                <Text style={[styles.chipText, selectedState === s.abbr && styles.chipTextActive]}>{s.abbr}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        )}
+      </View>
+
+      <Modal visible={showSetAsideDropdown} transparent animationType="fade" onRequestClose={() => setShowSetAsideDropdown(false)}>
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowSetAsideDropdown(false)}>
+          <View style={styles.dropdownModal}>
+            <View style={styles.dropdownHeader}>
+              <Text style={styles.dropdownTitle}>Set-Aside Type</Text>
+              <TouchableOpacity onPress={() => setShowSetAsideDropdown(false)}><X size={20} color={Colors.text} /></TouchableOpacity>
+            </View>
+            <TouchableOpacity style={[styles.dropdownItem, !selectedSetAside && styles.dropdownItemActive]} onPress={() => handleSetAsideSelect(undefined)}>
+              <Text style={[styles.dropdownItemText, !selectedSetAside && styles.dropdownItemTextActive]}>All Types</Text>
+              {!selectedSetAside && <View style={styles.dropdownCheck} />}
+            </TouchableOpacity>
+            {SET_ASIDE_TYPES.map(sa => (
+              <TouchableOpacity key={sa} style={[styles.dropdownItem, selectedSetAside === sa && styles.dropdownItemActive]} onPress={() => handleSetAsideSelect(selectedSetAside === sa ? undefined : sa)}>
+                <Text style={[styles.dropdownItemText, selectedSetAside === sa && styles.dropdownItemTextActive]}>{sa}</Text>
+                {selectedSetAside === sa && <View style={styles.dropdownCheck} />}
+              </TouchableOpacity>
+            ))}
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {bidsQueryError ? (
+        <View style={styles.loadingContainer}>
+          <AlertCircle size={40} color="#D32F2F" />
+          <Text style={styles.emptyTitle}>Query Error</Text>
+          <Text style={styles.emptySubtitle}>{bidsQueryError.message}</Text>
+          <TouchableOpacity onPress={() => { void refetch(); }} style={styles.retryButton}>
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      ) : loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+          <Text style={styles.loadingText}>Loading bids...</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={filteredBids}
+          renderItem={renderBid}
+          keyExtractor={item => item.id}
+          contentContainerStyle={styles.list}
+          showsVerticalScrollIndicator={false}
+          refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => { void refetch(); }} tintColor={Colors.primary} />}
+          ListHeaderComponent={
+            trackedBids.length > 0 ? (
+              <View style={styles.myBidsSection}>
+                <TouchableOpacity style={styles.myBidsHeader} onPress={() => setShowMyBids(!showMyBids)} activeOpacity={0.7}>
+                  <View style={styles.myBidsTitleRow}>
+                    <Heart size={16} color={Colors.primary} />
+                    <Text style={styles.myBidsTitle}>My Tracked Bids</Text>
+                    <View style={styles.myBidsCount}><Text style={styles.myBidsCountText}>{trackedBids.length}</Text></View>
+                  </View>
+                  <ChevronDown size={16} color={Colors.textMuted} style={showMyBids ? { transform: [{ rotate: '180deg' }] } : undefined} />
+                </TouchableOpacity>
+                {showMyBids && (
+                  <>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.statusChipRow}>
+                      {['all', 'saved', 'preparing', 'submitted', 'won', 'lost'].map(s => (
+                        <TouchableOpacity
+                          key={s}
+                          style={[styles.statusChip, myBidsFilter === s && { backgroundColor: STATUS_COLORS[s]?.bg ?? Colors.primary + '15' }]}
+                          onPress={() => setMyBidsFilter(s)}
+                        >
+                          <Text style={[styles.statusChipText, myBidsFilter === s && { color: STATUS_COLORS[s]?.text ?? Colors.primary, fontWeight: '600' as const }]}>
+                            {s.charAt(0).toUpperCase() + s.slice(1)} {statusCounts[s] ? `(${statusCounts[s]})` : ''}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                    {myTrackedBidsList.slice(0, 3).map(({ bid, tracked }) => (
+                      <TouchableOpacity
+                        key={bid.id}
+                        style={styles.trackedBidRow}
+                        onPress={() => handleBidPress(bid)}
+                        activeOpacity={0.7}
+                      >
+                        <View style={styles.trackedBidInfo}>
+                          <Text style={styles.trackedBidTitle} numberOfLines={1}>{bid.title}</Text>
+                          <Text style={styles.trackedBidMeta}>{formatCurrency(bid.estimated_value)} · {bid.city}, {bid.state}</Text>
+                        </View>
+                        <View style={[styles.trackedStatusBadge, { backgroundColor: STATUS_COLORS[tracked.status]?.bg ?? '#E3F2FD' }]}>
+                          <Text style={[styles.trackedStatusText, { color: STATUS_COLORS[tracked.status]?.text ?? '#1565C0' }]}>
+                            {tracked.status}
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
+                    ))}
+                  </>
+                )}
+              </View>
+            ) : null
+          }
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <AlertCircle size={40} color={Colors.textMuted} />
+              <Text style={styles.emptyTitle}>No bids found</Text>
+              <Text style={styles.emptySubtitle}>Try changing your location or removing filters</Text>
+            </View>
+          }
+        />
+      )}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: Colors.background },
+  header: { backgroundColor: Colors.surface, borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight, paddingHorizontal: 16, paddingBottom: 8 },
+  headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, marginTop: 8 },
+  headerTitle: { fontSize: 28, fontWeight: '800' as const, color: Colors.text, letterSpacing: -0.5 },
+  countPill: { backgroundColor: Colors.primary + '15', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
+  countPillText: { fontSize: 13, fontWeight: '700' as const, color: Colors.primary },
+  searchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.fillTertiary, borderRadius: 12, paddingHorizontal: 12, height: 40, gap: 8, marginBottom: 8 },
+  searchInput: { flex: 1, fontSize: 14, color: Colors.text },
+  filterRow: { flexDirection: 'row', gap: 12, marginBottom: 4 },
+  filterBlock: { flex: 1 },
+  filterSectionLabel: { fontSize: 11, fontWeight: '600' as const, color: Colors.textMuted, letterSpacing: 0.5, marginBottom: 6 },
+  locationRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 5 },
+  locationChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 16, backgroundColor: Colors.background },
+  locationChipActive: { backgroundColor: Colors.primary },
+  locationChipText: { fontSize: 12, color: Colors.textSecondary, fontWeight: '500' as const },
+  locationChipTextActive: { color: '#FFF' },
+  dropdownButton: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.borderLight },
+  dropdownButtonText: { flex: 1, fontSize: 13, color: Colors.textSecondary, fontWeight: '500' as const },
+  dropdownButtonTextActive: { color: Colors.primary, fontWeight: '600' as const },
+  chipRow: { flexDirection: 'row', marginTop: 4, marginBottom: 4 },
+  chip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 18, backgroundColor: Colors.background, marginRight: 6 },
+  chipActive: { backgroundColor: Colors.primary },
+  chipText: { fontSize: 12, color: Colors.textSecondary, fontWeight: '500' as const },
+  chipTextActive: { color: '#FFF' },
+  chipDivider: { width: 1, height: 20, backgroundColor: Colors.borderLight, marginHorizontal: 4, alignSelf: 'center' as const },
+  sortChipActive: { backgroundColor: Colors.accent },
+  sortChipTextActive: { color: '#FFF', fontWeight: '600' as const },
+  cityChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 18, backgroundColor: Colors.background, marginRight: 6, alignItems: 'center' },
+  cityChipText: { fontSize: 12, color: Colors.textSecondary, fontWeight: '600' as const },
+  cityChipMeta: { fontSize: 10, color: Colors.textMuted, marginTop: 1 },
+  stateChip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 18, backgroundColor: Colors.background, marginRight: 6 },
+  list: { padding: 16, paddingBottom: 100 },
+  bidCard: { backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 },
+  bidHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  bidHeaderLeft: { flexDirection: 'row', gap: 6, alignItems: 'center', flex: 1 },
+  bidHeaderRight: { flexDirection: 'row', gap: 6, alignItems: 'center' },
+  setAsideBadge: { backgroundColor: '#E8F5E9', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  setAsideText: { fontSize: 11, fontWeight: '700' as const, color: '#2E7D32', textTransform: 'uppercase' as const },
+  openBadge: { backgroundColor: '#E3F2FD', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  openBadgeText: { fontSize: 11, fontWeight: '700' as const, color: '#1565C0', textTransform: 'uppercase' as const },
+  bidTypeBadge: { backgroundColor: Colors.primary + '12', paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6 },
+  bidTypeText: { fontSize: 10, fontWeight: '700' as const, color: Colors.primary, textTransform: 'uppercase' as const },
+  trackedBadge: { width: 22, height: 22, borderRadius: 11, alignItems: 'center' as const, justifyContent: 'center' as const },
+  countdownBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  countdownText: { fontSize: 11, fontWeight: '600' as const },
+  bidTitle: { fontSize: 16, fontWeight: '700' as const, color: Colors.text, marginBottom: 4, lineHeight: 22 },
+  bidDepartment: { fontSize: 13, color: Colors.textSecondary, marginBottom: 4 },
+  bidDescription: { fontSize: 12, color: Colors.textMuted, marginBottom: 8, lineHeight: 17 },
+  bidMeta: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+  metaItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  metaText: { fontSize: 13, color: Colors.textSecondary },
+  bidFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 6, paddingTop: 8, borderTopWidth: 0.5, borderTopColor: Colors.borderLight },
+  footerLeft: { flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 },
+  distanceBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: Colors.infoLight, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  distanceText: { fontSize: 12, fontWeight: '600' as const, color: Colors.info },
+  naicsBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: Colors.fillSecondary, paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6 },
+  naicsText: { fontSize: 10, fontWeight: '500' as const, color: Colors.textMuted },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
+  loadingText: { fontSize: 14, color: Colors.textSecondary },
+  emptyContainer: { alignItems: 'center', paddingTop: 60, gap: 8 },
+  emptyTitle: { fontSize: 18, fontWeight: '700' as const, color: Colors.text },
+  emptySubtitle: { fontSize: 14, color: Colors.textSecondary, textAlign: 'center' as const, paddingHorizontal: 32 },
+  retryButton: { marginTop: 12, backgroundColor: Colors.primary, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10 },
+  retryButtonText: { color: '#FFF', fontWeight: '600' as const },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center' },
+  dropdownModal: { width: '80%', backgroundColor: Colors.surface, borderRadius: 16, paddingVertical: 8, maxHeight: 400, shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.15, shadowRadius: 20, elevation: 10 },
+  dropdownHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight },
+  dropdownTitle: { fontSize: 17, fontWeight: '700' as const, color: Colors.text },
+  dropdownItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 14 },
+  dropdownItemActive: { backgroundColor: Colors.primary + '08' },
+  dropdownItemText: { fontSize: 15, color: Colors.text, fontWeight: '400' as const },
+  dropdownItemTextActive: { color: Colors.primary, fontWeight: '600' as const },
+  dropdownCheck: { width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.primary },
+  myBidsSection: { backgroundColor: Colors.surface, borderRadius: 14, padding: 14, marginBottom: 16, borderWidth: 1, borderColor: Colors.primary + '20' },
+  myBidsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  myBidsTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  myBidsTitle: { fontSize: 15, fontWeight: '700' as const, color: Colors.text },
+  myBidsCount: { backgroundColor: Colors.primary, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2 },
+  myBidsCountText: { fontSize: 11, fontWeight: '700' as const, color: '#FFF' },
+  statusChipRow: { flexDirection: 'row', marginTop: 10, marginBottom: 8 },
+  statusChip: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 14, backgroundColor: Colors.fillTertiary, marginRight: 6 },
+  statusChipText: { fontSize: 11, color: Colors.textSecondary, fontWeight: '500' as const },
+  trackedBidRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderTopWidth: 0.5, borderTopColor: Colors.borderLight, gap: 10 },
+  trackedBidInfo: { flex: 1, gap: 2 },
+  trackedBidTitle: { fontSize: 14, fontWeight: '600' as const, color: Colors.text },
+  trackedBidMeta: { fontSize: 12, color: Colors.textSecondary },
+  trackedStatusBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+  trackedStatusText: { fontSize: 11, fontWeight: '700' as const, textTransform: 'capitalize' as const },
+});
+
+========== FILE: ./app/(tabs)/companies/_layout.tsx ==========
+import { Stack } from 'expo-router';
+export default function CompaniesLayout() {
+  return <Stack screenOptions={{ headerShown: false }} />;
+}
+
+
+========== FILE: ./app/(tabs)/companies/index.tsx ==========
+import React, { useState, useCallback, useRef, useMemo } from 'react';
+import {
+  View, Text, StyleSheet, FlatList, TouchableOpacity,
+  Animated, ScrollView, ActivityIndicator, Linking, RefreshControl, Platform, Image,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { MapPin, Star, Navigation, AlertCircle, Phone, Globe, Crosshair, ChevronDown } from 'lucide-react-native';
+import * as Haptics from 'expo-haptics';
+import { useQuery } from '@tanstack/react-query';
+import { Colors } from '@/constants/colors';
+import { supabase } from '@/lib/supabase';
+import { useUserLocation, getDistanceMiles } from '@/utils/location';
+import { US_STATES } from '@/constants/states';
+
+interface CachedCompany {
+  id: string;
+  name: string;
+  trade_specialty: string;
+  rating: number;
+  review_count: number;
+  total_reviews: number;
+  address: string;
+  city: string;
+  state: string;
+  zip: string;
+  latitude: number;
+  longitude: number;
+  phone: string;
+  website: string;
+  photo_url: string | null;
+  fetched_at: string;
+}
+
+interface CompanyWithDistance extends CachedCompany {
+  distance: number | null;
+}
+
+const RADIUS_OPTIONS = [10, 25, 50, 100, 250] as const;
+
+const SPECIALTY_FILTERS = [
+  'General Contractor', 'Electrical', 'Plumbing', 'HVAC',
+  'Roofing', 'Building Materials Supply', 'Concrete Supply', 'Lumber Supply',
+] as const;
+
+function renderStars(rating: number | null | undefined): string {
+  if (rating == null) return '☆☆☆☆☆';
+  const full = Math.floor(rating);
+  const half = rating - full >= 0.5 ? 1 : 0;
+  return '★'.repeat(full) + (half ? '½' : '') + '☆'.repeat(5 - full - half);
+}
+
+function CompanyCard({ company, onPress }: { company: CompanyWithDistance; onPress: () => void }) {
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+
+  const handleCall = useCallback(() => {
+    if (!company.phone) return;
+    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const tel = `tel:${company.phone.replace(/[^\d+]/g, '')}`;
+    Linking.openURL(tel).catch(() => {
+      console.log('[Companies] Failed to open phone:', tel);
+    });
+  }, [company.phone]);
+
+  const handleWebsite = useCallback(() => {
+    if (!company.website) return;
+    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    let url = company.website;
+    if (url && !url.startsWith('http')) url = 'https://' + url;
+    Linking.openURL(url).catch(() => {
+      console.log('[Companies] Failed to open website:', url);
+    });
+  }, [company.website]);
+
+  const formattedAddress = useMemo(() => {
+    const parts = [company.address, company.city, company.state, company.zip].filter(Boolean);
+    return parts.join(', ');
+  }, [company.address, company.city, company.state, company.zip]);
+
+  return (
+    <Animated.View style={[styles.card, { transform: [{ scale: scaleAnim }] }]}>
+      <TouchableOpacity
+        onPress={onPress}
+        onPressIn={() => Animated.spring(scaleAnim, { toValue: 0.97, useNativeDriver: true, speed: 50 }).start()}
+        onPressOut={() => Animated.spring(scaleAnim, { toValue: 1, useNativeDriver: true, speed: 50 }).start()}
+        activeOpacity={1}
+        testID={`company-card-${company.id}`}
+      >
+        {company.photo_url ? (
+          <Image source={{ uri: company.photo_url }} style={styles.companyPhoto} resizeMode="cover" />
+        ) : null}
+
+        <View style={styles.cardTop}>
+          <View style={styles.avatarCircle}>
+            <Text style={styles.avatarText}>{company.name ? company.name.charAt(0) : '?'}</Text>
+          </View>
+          <View style={styles.cardTopInfo}>
+            <Text style={styles.companyName} numberOfLines={1}>{company.name ?? 'Unknown Company'}</Text>
+            <Text style={styles.specialtyText}>{company.trade_specialty ?? 'Specialty not listed'}</Text>
+          </View>
+        </View>
+
+        <View style={styles.ratingRow}>
+          <Star size={14} color="#F5A623" fill="#F5A623" />
+          <Text style={styles.ratingValue}>{company.rating != null ? company.rating.toFixed(1) : 'N/A'}</Text>
+          <Text style={styles.ratingStars}>{renderStars(company.rating)}</Text>
+          <Text style={styles.reviewCount}>({company.total_reviews ?? company.review_count ?? 0} reviews)</Text>
+        </View>
+
+        <View style={styles.addressRow}>
+          <MapPin size={13} color={Colors.textSecondary} />
+          <Text style={styles.addressText} numberOfLines={2}>{formattedAddress || 'Address not available'}</Text>
+        </View>
+
+        <View style={styles.cardFooter}>
+          {company.distance !== null && (
+            <View style={styles.distanceBadge}>
+              <Navigation size={11} color={Colors.info} />
+              <Text style={styles.distanceText}>{company.distance} mi</Text>
+            </View>
+          )}
+          <View style={{ flex: 1 }} />
+          {company.phone ? (
+            <TouchableOpacity
+              style={styles.actionBtn}
+              onPress={(e) => { e.stopPropagation(); handleCall(); }}
+              activeOpacity={0.7}
+            >
+              <Phone size={14} color="#FFF" />
+              <Text style={styles.actionBtnText}>Call</Text>
+            </TouchableOpacity>
+          ) : null}
+          {company.website ? (
+            <TouchableOpacity
+              style={[styles.actionBtn, styles.actionBtnOutline]}
+              onPress={(e) => { e.stopPropagation(); handleWebsite(); }}
+              activeOpacity={0.7}
+            >
+              <Globe size={14} color={Colors.primary} />
+              <Text style={[styles.actionBtnText, { color: Colors.primary }]}>Website</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+      </TouchableOpacity>
+    </Animated.View>
+  );
+}
+
+export default function CompaniesScreen() {
+  const insets = useSafeAreaInsets();
+  const { location } = useUserLocation();
+  const [selectedRadius, setSelectedRadius] = useState<number | null>(null);
+  const [selectedSpecialty, setSelectedSpecialty] = useState<string | undefined>();
+  const [selectedState, setSelectedState] = useState<string | null>(null);
+  const [locationMode, setLocationMode] = useState<'all' | 'nearby' | 'state'>('all');
+  const [showStateList, setShowStateList] = useState(false);
+
+  const { data: companies, isLoading, refetch, isRefetching, error: companiesQueryError } = useQuery({
+    queryKey: ['cached_companies'],
+    queryFn: async () => {
+      console.log('[Companies] Fetching from cached_companies...');
+      const { data, error } = await supabase
+        .from('cached_companies')
+        .select('*')
+        .order('fetched_at', { ascending: false });
+      console.log('Companies data:', data?.length, 'Error:', error);
+      if (error) {
+        throw new Error(`Supabase error: ${error.message}`);
+      }
+      return (data ?? []) as CachedCompany[];
+    },
+    retry: 1,
+  });
+
+  const companiesWithDistance = useMemo<CompanyWithDistance[]>(() => {
+    if (!companies) return [];
+    return companies.map(c => ({
+      ...c,
+      distance: location && c.latitude && c.longitude
+        ? getDistanceMiles(location.latitude, location.longitude, c.latitude, c.longitude)
+        : null,
+    }));
+  }, [companies, location]);
+
+  const filteredCompanies = useMemo(() => {
+    let result = companiesWithDistance;
+
+    if (selectedSpecialty) {
+      result = result.filter(c =>
+        c.trade_specialty?.toLowerCase().includes(selectedSpecialty.toLowerCase())
+      );
+    }
+
+    if (locationMode === 'nearby' && location && selectedRadius !== null) {
+      result = result.filter(c => c.distance === null || c.distance <= selectedRadius);
+    }
+
+    if (locationMode === 'state' && selectedState) {
+      result = result.filter(c => c.state?.toUpperCase() === selectedState.toUpperCase());
+    }
+
+    if (location) {
+      result.sort((a, b) => (a.distance ?? 99999) - (b.distance ?? 99999));
+    }
+
+    return result;
+  }, [companiesWithDistance, selectedRadius, selectedSpecialty, location, locationMode, selectedState]);
+
+  const handleCompanyPress = useCallback((_company: CachedCompany) => {
+    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  }, []);
+
+  const handleLocationModeChange = useCallback((mode: 'all' | 'nearby' | 'state') => {
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+    setLocationMode(mode);
+    if (mode === 'nearby' && selectedRadius === null) {
+      setSelectedRadius(50);
+    }
+    if (mode !== 'state') {
+      setShowStateList(false);
+    }
+    if (mode === 'state') {
+      setShowStateList(true);
+    }
+  }, [selectedRadius]);
+
+  const renderCompany = useCallback(({ item }: { item: CompanyWithDistance }) => (
+    <CompanyCard company={item} onPress={() => handleCompanyPress(item)} />
+  ), [handleCompanyPress]);
+
+  const loading = isLoading;
+
+  return (
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <View style={styles.header}>
+        <View style={styles.headerTop}>
+          <Text style={styles.headerTitle}>Companies</Text>
+          <View style={styles.countPill}>
+            <Text style={styles.countPillText}>{filteredCompanies.length}</Text>
+          </View>
+        </View>
+
+        <Text style={styles.filterSectionLabel}>LOCATION</Text>
+        <View style={styles.locationRow}>
+          <TouchableOpacity
+            style={[styles.locationChip, locationMode === 'all' && styles.locationChipActive]}
+            onPress={() => handleLocationModeChange('all')}
+          >
+            <Text style={[styles.locationChipText, locationMode === 'all' && styles.locationChipTextActive]}>All Locations</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.locationChip, locationMode === 'nearby' && styles.locationChipActive]}
+            onPress={() => handleLocationModeChange('nearby')}
+          >
+            <Crosshair size={13} color={locationMode === 'nearby' ? '#FFF' : Colors.textSecondary} />
+            <Text style={[styles.locationChipText, locationMode === 'nearby' && styles.locationChipTextActive]}>Near Me</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.locationChip, locationMode === 'state' && styles.locationChipActive]}
+            onPress={() => handleLocationModeChange('state')}
+          >
+            <ChevronDown size={13} color={locationMode === 'state' ? '#FFF' : Colors.textSecondary} />
+            <Text style={[styles.locationChipText, locationMode === 'state' && styles.locationChipTextActive]}>
+              {selectedState ? selectedState : 'Pick State'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {locationMode === 'nearby' && (
+          <>
+            <Text style={[styles.filterSectionLabel, { marginTop: 8 }]}>RADIUS</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow}>
+              {RADIUS_OPTIONS.map(r => (
+                <TouchableOpacity
+                  key={r}
+                  style={[styles.chip, selectedRadius === r && styles.chipActive]}
+                  onPress={() => { setSelectedRadius(r); if (Platform.OS !== 'web') void Haptics.selectionAsync(); }}
+                >
+                  <Text style={[styles.chipText, selectedRadius === r && styles.chipTextActive]}>{r} mi</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </>
+        )}
+
+        {locationMode === 'state' && showStateList && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.chipRow, { marginTop: 8 }]}>
+            {US_STATES.map(s => (
+              <TouchableOpacity
+                key={s.abbr}
+                style={[styles.stateChip, selectedState === s.abbr && styles.chipActive]}
+                onPress={() => {
+                  setSelectedState(selectedState === s.abbr ? null : s.abbr);
+                  if (Platform.OS !== 'web') void Haptics.selectionAsync();
+                }}
+              >
+                <Text style={[styles.chipText, selectedState === s.abbr && styles.chipTextActive]}>{s.abbr}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        )}
+
+        <Text style={[styles.filterSectionLabel, { marginTop: 8 }]}>SPECIALTY</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow}>
+          <TouchableOpacity
+            style={[styles.chip, !selectedSpecialty && styles.chipActive]}
+            onPress={() => { setSelectedSpecialty(undefined); if (Platform.OS !== 'web') void Haptics.selectionAsync(); }}
+          >
+            <Text style={[styles.chipText, !selectedSpecialty && styles.chipTextActive]}>All</Text>
+          </TouchableOpacity>
+          {SPECIALTY_FILTERS.map(s => (
+            <TouchableOpacity
+              key={s}
+              style={[styles.chip, selectedSpecialty === s && styles.chipActive]}
+              onPress={() => { setSelectedSpecialty(selectedSpecialty === s ? undefined : s); if (Platform.OS !== 'web') void Haptics.selectionAsync(); }}
+            >
+              <Text style={[styles.chipText, selectedSpecialty === s && styles.chipTextActive]}>{s}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
+
+      {companiesQueryError ? (
+        <View style={styles.loadingContainer}>
+          <AlertCircle size={40} color="#D32F2F" />
+          <Text style={styles.emptyTitle}>Query Error</Text>
+          <Text style={styles.emptySubtitle}>{companiesQueryError.message}</Text>
+          <TouchableOpacity onPress={() => { void refetch(); }} style={{ marginTop: 12, backgroundColor: Colors.primary, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10 }}>
+            <Text style={{ color: '#FFF', fontWeight: '600' as const }}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      ) : loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+          <Text style={styles.loadingText}>Loading companies...</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={filteredCompanies}
+          renderItem={renderCompany}
+          keyExtractor={item => item.id}
+          contentContainerStyle={styles.list}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={isRefetching} onRefresh={() => { void refetch(); }} tintColor={Colors.primary} />
+          }
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <AlertCircle size={40} color={Colors.textMuted} />
+              <Text style={styles.emptyTitle}>No companies found</Text>
+              <Text style={styles.emptySubtitle}>
+                Try changing your location or removing filters
+              </Text>
+            </View>
+          }
+        />
+      )}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: Colors.background },
+  header: { backgroundColor: Colors.surface, borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight, paddingHorizontal: 16, paddingBottom: 12 },
+  headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, marginTop: 8 },
+  headerTitle: { fontSize: 28, fontWeight: '800' as const, color: Colors.text, letterSpacing: -0.5 },
+  countPill: { backgroundColor: '#E8F5E9', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
+  countPillText: { fontSize: 13, fontWeight: '700' as const, color: '#2E7D32' },
+  filterSectionLabel: { fontSize: 11, fontWeight: '600' as const, color: Colors.textMuted, letterSpacing: 0.5, marginBottom: 6 },
+  locationRow: { flexDirection: 'row', gap: 6, marginBottom: 4 },
+  locationChip: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 14, paddingVertical: 7, borderRadius: 18, backgroundColor: Colors.background },
+  locationChipActive: { backgroundColor: Colors.primary },
+  locationChipText: { fontSize: 13, color: Colors.textSecondary, fontWeight: '500' as const },
+  locationChipTextActive: { color: '#FFF' },
+  chipRow: { flexDirection: 'row', marginBottom: 4 },
+  chip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 18, backgroundColor: Colors.background, marginRight: 6 },
+  chipActive: { backgroundColor: Colors.primary },
+  chipText: { fontSize: 13, color: Colors.textSecondary, fontWeight: '500' as const },
+  chipTextActive: { color: '#FFF' },
+  stateChip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 18, backgroundColor: Colors.background, marginRight: 6 },
+  list: { padding: 16, paddingBottom: 100 },
+  card: {
+    backgroundColor: Colors.surface, borderRadius: 14, marginBottom: 12, overflow: 'hidden' as const,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3,
+  },
+  companyPhoto: { width: '100%', height: 140 },
+  cardTop: { flexDirection: 'row', alignItems: 'center', padding: 16, paddingBottom: 8 },
+  avatarCircle: { width: 44, height: 44, borderRadius: 22, backgroundColor: Colors.primary + '15', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+  avatarText: { fontSize: 18, fontWeight: '800' as const, color: Colors.primary },
+  cardTopInfo: { flex: 1 },
+  companyName: { fontSize: 16, fontWeight: '700' as const, color: Colors.text },
+  specialtyText: { fontSize: 12, color: Colors.accent, fontWeight: '600' as const, marginTop: 2 },
+  ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 16, marginBottom: 8 },
+  ratingValue: { fontSize: 14, fontWeight: '700' as const, color: '#F5A623' },
+  ratingStars: { fontSize: 12, color: '#F5A623', letterSpacing: 1 },
+  reviewCount: { fontSize: 12, color: Colors.textMuted },
+  addressRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 4, paddingHorizontal: 16, marginBottom: 8 },
+  addressText: { flex: 1, fontSize: 13, color: Colors.textSecondary, lineHeight: 18 },
+  cardFooter: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingBottom: 14, paddingTop: 8, borderTopWidth: 0.5, borderTopColor: Colors.borderLight, gap: 8 },
+  distanceBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: Colors.infoLight, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
+  distanceText: { fontSize: 12, fontWeight: '600' as const, color: Colors.info },
+  actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: Colors.primary, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8 },
+  actionBtnOutline: { backgroundColor: Colors.primary + '12', borderWidth: 1, borderColor: Colors.primary + '30' },
+  actionBtnText: { fontSize: 12, fontWeight: '600' as const, color: '#FFF' },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
+  loadingText: { fontSize: 14, color: Colors.textSecondary },
+  emptyContainer: { alignItems: 'center', paddingTop: 60, gap: 8 },
+  emptyTitle: { fontSize: 18, fontWeight: '700' as const, color: Colors.text },
+  emptySubtitle: { fontSize: 14, color: Colors.textSecondary, textAlign: 'center' as const, paddingHorizontal: 32 },
+});
+
+
+========== FILE: ./app/(tabs)/discover/_layout.tsx ==========
+import { Stack } from 'expo-router';
+export default function DiscoverLayout() {
+  return <Stack screenOptions={{ headerShown: false }} />;
+}
+
+
+========== FILE: ./app/(tabs)/discover/bids.tsx ==========
+import React, { useState, useCallback, useRef, useMemo } from 'react';
+import {
+  View, Text, StyleSheet, FlatList, TouchableOpacity,
+  Animated, ScrollView, ActivityIndicator, Linking, RefreshControl, Platform, Modal,
+} from 'react-native';
+import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { MapPin, Clock, DollarSign, ArrowLeft, Navigation, AlertCircle, Crosshair, ChevronDown, X, Filter, Building } from 'lucide-react-native';
+import * as Haptics from 'expo-haptics';
+import { useQuery } from '@tanstack/react-query';
+import { Colors } from '@/constants/colors';
+import { supabase } from '@/lib/supabase';
+import { useUserLocation, getDistanceMiles } from '@/utils/location';
+import { US_STATES } from '@/constants/states';
+
+interface CachedBid {
+  id: string;
+  title: string;
+  department: string;
+  deadline: string;
+  estimated_value: number;
+  city: string;
+  state: string;
+  latitude: number;
+  longitude: number;
+  source_url: string;
+  set_aside: string | null;
+  fetched_at: string;
+}
+
+interface BidWithDistance extends CachedBid {
+  distance: number | null;
+}
+
+interface NearbyCity {
+  city: string;
+  state: string;
+  distance: number;
+  count: number;
+}
+
+const RADIUS_OPTIONS = [10, 25, 50, 100, 250] as const;
+
+const SET_ASIDE_TYPES = [
+  'Small Business', 'MWBE', 'SDVOSB', 'HUBZone', '8(a)', 'WOSB', 'None',
+] as const;
+
+function formatCurrency(amount: number | null | undefined): string {
+  if (amount == null) return 'Not specified';
+  if (amount >= 1000000) return `$${(amount / 1000000).toFixed(1)}M`;
+  return `$${amount.toLocaleString()}`;
+}
+
+function getDeadlineInfo(deadline: string | null | undefined): { text: string; color: string; bgColor: string } {
+  if (!deadline) return { text: 'No deadline', color: '#9E9E9E', bgColor: '#F5F5F5' };
+  const diff = new Date(deadline).getTime() - Date.now();
+  if (isNaN(diff)) return { text: 'No deadline', color: '#9E9E9E', bgColor: '#F5F5F5' };
+  if (diff <= 0) return { text: 'Expired', color: '#9E9E9E', bgColor: '#F5F5F5' };
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+  if (days < 3) return { text: `${days}d ${Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))}h left`, color: '#D32F2F', bgColor: '#FFEBEE' };
+  if (days <= 7) return { text: `${days} days left`, color: '#F57F17', bgColor: '#FFF8E1' };
+  if (days > 30) return { text: `${Math.floor(days / 30)}mo ${days % 30}d left`, color: '#2E7D32', bgColor: '#E8F5E9' };
+  return { text: `${days} days left`, color: '#2E7D32', bgColor: '#E8F5E9' };
+}
+
+function BidCard({ bid, onPress }: { bid: BidWithDistance; onPress: () => void }) {
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const deadlineInfo = getDeadlineInfo(bid.deadline);
+
+  return (
+    <Animated.View style={[styles.bidCard, { transform: [{ scale: scaleAnim }] }]}>
+      <TouchableOpacity
+        onPress={onPress}
+        onPressIn={() => Animated.spring(scaleAnim, { toValue: 0.97, useNativeDriver: true, speed: 50 }).start()}
+        onPressOut={() => Animated.spring(scaleAnim, { toValue: 1, useNativeDriver: true, speed: 50 }).start()}
+        activeOpacity={1}
+        testID={`cached-bid-${bid.id}`}
+      >
+        <View style={styles.bidHeader}>
+          {bid.set_aside ? (
+            <View style={styles.setAsideBadge}>
+              <Text style={styles.setAsideText}>{bid.set_aside}</Text>
+            </View>
+          ) : (
+            <View style={styles.openBadge}>
+              <Text style={styles.openBadgeText}>Open</Text>
+            </View>
+          )}
+          <View style={[styles.countdownBadge, { backgroundColor: deadlineInfo.bgColor }]}>
+            <Clock size={11} color={deadlineInfo.color} />
+            <Text style={[styles.countdownText, { color: deadlineInfo.color }]}>{deadlineInfo.text}</Text>
+          </View>
+        </View>
+
+        <Text style={styles.bidTitle} numberOfLines={2}>{bid.title ?? 'Untitled Bid'}</Text>
+        <Text style={styles.bidDepartment} numberOfLines={1}>{bid.department ?? 'Department not listed'}</Text>
+
+        <View style={styles.bidMeta}>
+          <View style={styles.metaItem}>
+            <MapPin size={13} color={Colors.textSecondary} />
+            <Text style={styles.metaText}>{bid.city && bid.state ? `${bid.city}, ${bid.state}` : bid.city || bid.state || 'Location not available'}</Text>
+          </View>
+          <View style={styles.metaItem}>
+            <DollarSign size={13} color={Colors.primary} />
+            <Text style={[styles.metaText, { color: Colors.primary, fontWeight: '600' as const }]}>
+              {formatCurrency(bid.estimated_value)}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.bidFooter}>
+          <View style={styles.footerLeft}>
+            {bid.distance !== null && (
+              <View style={styles.distanceBadge}>
+                <Navigation size={11} color={Colors.info} />
+                <Text style={styles.distanceText}>{bid.distance} mi</Text>
+              </View>
+            )}
+            {bid.city ? (
+              <View style={styles.cityBadge}>
+                <Building size={10} color={Colors.textSecondary} />
+                <Text style={styles.cityBadgeText}>{bid.city}</Text>
+              </View>
+            ) : null}
+          </View>
+          <Text style={styles.deadlineDate}>
+            {bid.deadline ? `Due: ${new Date(bid.deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : 'No deadline'}
+          </Text>
+        </View>
+      </TouchableOpacity>
+    </Animated.View>
+  );
+}
+
+export default function CachedBidsScreen() {
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const { location } = useUserLocation();
+  const [selectedRadius, setSelectedRadius] = useState<number | null>(null);
+  const [selectedSetAside, setSelectedSetAside] = useState<string | undefined>();
+  const [selectedState, setSelectedState] = useState<string | null>(null);
+  const [selectedCity, setSelectedCity] = useState<string | null>(null);
+  const [locationMode, setLocationMode] = useState<'all' | 'nearby' | 'state' | 'city'>('all');
+  const [showStateList, setShowStateList] = useState(false);
+  const [showSetAsideDropdown, setShowSetAsideDropdown] = useState(false);
+
+  const { data: bids, isLoading, refetch, isRefetching, error: bidsQueryError } = useQuery({
+    queryKey: ['cached_bids'],
+    queryFn: async () => {
+      console.log('[CachedBids] === START FETCH ===');
+      try {
+        const { data, error, status, statusText } = await supabase
+          .from('cached_bids')
+          .select('*')
+          .order('fetched_at', { ascending: false });
+        console.log('[CachedBids] Response status:', status, statusText);
+        console.log('[CachedBids] Error:', error ? JSON.stringify(error) : 'none');
+        console.log('[CachedBids] Data count:', data?.length ?? 'null');
+        if (error) {
+          console.log('[CachedBids] Supabase error, returning empty:', error.message);
+          return [];
+        }
+        return (data ?? []) as CachedBid[];
+      } catch (err: any) {
+        console.log('[CachedBids] Network/fetch error:', err?.message);
+        return [];
+      }
+    },
+    retry: 1,
+  });
+
+  const bidsWithDistance = useMemo<BidWithDistance[]>(() => {
+    if (!bids) return [];
+    return bids.map(bid => ({
+      ...bid,
+      distance: location && bid.latitude && bid.longitude
+        ? getDistanceMiles(location.latitude, location.longitude, bid.latitude, bid.longitude)
+        : null,
+    }));
+  }, [bids, location]);
+
+  const nearbyCities = useMemo<NearbyCity[]>(() => {
+    if (!bidsWithDistance.length) return [];
+    const cityMap = new Map<string, { city: string; state: string; distance: number; count: number }>();
+    for (const bid of bidsWithDistance) {
+      if (!bid.city) continue;
+      const key = `${bid.city}_${bid.state ?? ''}`.toLowerCase();
+      const existing = cityMap.get(key);
+      if (existing) {
+        existing.count += 1;
+        if (bid.distance !== null && bid.distance < existing.distance) {
+          existing.distance = bid.distance;
+        }
+      } else {
+        cityMap.set(key, {
+          city: bid.city,
+          state: bid.state ?? '',
+          distance: bid.distance ?? 99999,
+          count: 1,
+        });
+      }
+    }
+    return Array.from(cityMap.values())
+      .sort((a, b) => a.distance - b.distance)
+      .slice(0, 20);
+  }, [bidsWithDistance]);
+
+  const filteredBids = useMemo(() => {
+    let result = bidsWithDistance;
+
+    if (selectedSetAside) {
+      if (selectedSetAside === 'None') {
+        result = result.filter(b => !b.set_aside);
+      } else {
+        result = result.filter(b => b.set_aside?.toLowerCase().includes(selectedSetAside.toLowerCase()));
+      }
+    }
+
+    if (locationMode === 'nearby' && location && selectedRadius !== null) {
+      result = result.filter(b => b.distance === null || b.distance <= selectedRadius);
+    }
+
+    if (locationMode === 'state' && selectedState) {
+      result = result.filter(b => b.state?.toUpperCase() === selectedState.toUpperCase());
+    }
+
+    if (locationMode === 'city' && selectedCity) {
+      result = result.filter(b => b.city?.toLowerCase() === selectedCity.toLowerCase());
+    }
+
+    if (location) {
+      result.sort((a, b) => (a.distance ?? 99999) - (b.distance ?? 99999));
+    }
+
+    return result;
+  }, [bidsWithDistance, selectedRadius, selectedSetAside, location, locationMode, selectedState, selectedCity]);
+
+  const handleBidPress = useCallback((bid: CachedBid) => {
+    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (bid.source_url) {
+      Linking.openURL(bid.source_url).catch(() => {
+        console.log('[CachedBids] Failed to open URL:', bid.source_url);
+      });
+    }
+  }, []);
+
+  const handleLocationModeChange = useCallback((mode: 'all' | 'nearby' | 'state' | 'city') => {
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+    setLocationMode(mode);
+    if (mode === 'nearby' && selectedRadius === null) {
+      setSelectedRadius(50);
+    }
+    if (mode !== 'state') {
+      setShowStateList(false);
+    }
+    if (mode === 'state') {
+      setShowStateList(true);
+    }
+    if (mode !== 'city') {
+      setSelectedCity(null);
+    }
+  }, [selectedRadius]);
+
+  const handleSetAsideSelect = useCallback((value: string | undefined) => {
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+    setSelectedSetAside(value);
+    setShowSetAsideDropdown(false);
+  }, []);
+
+  const renderBid = useCallback(({ item }: { item: BidWithDistance }) => (
+    <BidCard bid={item} onPress={() => handleBidPress(item)} />
+  ), [handleBidPress]);
+
+  const loading = isLoading;
+
+  return (
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <View style={styles.header}>
+        <View style={styles.headerTop}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
+            <ArrowLeft size={20} color={Colors.text} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Public Bids</Text>
+          <View style={styles.countPill}>
+            <Text style={styles.countPillText}>{filteredBids.length}</Text>
+          </View>
+        </View>
+
+        <View style={styles.filterRow}>
+          <View style={styles.filterBlock}>
+            <Text style={styles.filterSectionLabel}>LOCATION</Text>
+            <View style={styles.locationRow}>
+              <TouchableOpacity
+                style={[styles.locationChip, locationMode === 'all' && styles.locationChipActive]}
+                onPress={() => handleLocationModeChange('all')}
+              >
+                <Text style={[styles.locationChipText, locationMode === 'all' && styles.locationChipTextActive]}>All</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.locationChip, locationMode === 'nearby' && styles.locationChipActive]}
+                onPress={() => handleLocationModeChange('nearby')}
+              >
+                <Crosshair size={12} color={locationMode === 'nearby' ? '#FFF' : Colors.textSecondary} />
+                <Text style={[styles.locationChipText, locationMode === 'nearby' && styles.locationChipTextActive]}>Near Me</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.locationChip, locationMode === 'city' && styles.locationChipActive]}
+                onPress={() => handleLocationModeChange('city')}
+              >
+                <Building size={12} color={locationMode === 'city' ? '#FFF' : Colors.textSecondary} />
+                <Text style={[styles.locationChipText, locationMode === 'city' && styles.locationChipTextActive]}>City</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.locationChip, locationMode === 'state' && styles.locationChipActive]}
+                onPress={() => handleLocationModeChange('state')}
+              >
+                <ChevronDown size={12} color={locationMode === 'state' ? '#FFF' : Colors.textSecondary} />
+                <Text style={[styles.locationChipText, locationMode === 'state' && styles.locationChipTextActive]}>
+                  {selectedState ? selectedState : 'State'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={styles.filterBlock}>
+            <Text style={styles.filterSectionLabel}>SET-ASIDE</Text>
+            <TouchableOpacity
+              style={styles.dropdownButton}
+              onPress={() => { setShowSetAsideDropdown(true); if (Platform.OS !== 'web') void Haptics.selectionAsync(); }}
+            >
+              <Filter size={13} color={selectedSetAside ? Colors.primary : Colors.textSecondary} />
+              <Text style={[styles.dropdownButtonText, selectedSetAside && styles.dropdownButtonTextActive]}>
+                {selectedSetAside ?? 'All Types'}
+              </Text>
+              <ChevronDown size={14} color={Colors.textSecondary} />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {locationMode === 'nearby' && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow}>
+            {RADIUS_OPTIONS.map(r => (
+              <TouchableOpacity
+                key={r}
+                style={[styles.chip, selectedRadius === r && styles.chipActive]}
+                onPress={() => { setSelectedRadius(r); if (Platform.OS !== 'web') void Haptics.selectionAsync(); }}
+              >
+                <Text style={[styles.chipText, selectedRadius === r && styles.chipTextActive]}>{r} mi</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        )}
+
+        {locationMode === 'city' && nearbyCities.length > 0 && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow}>
+            {nearbyCities.map(c => (
+              <TouchableOpacity
+                key={`${c.city}_${c.state}`}
+                style={[styles.cityChip, selectedCity?.toLowerCase() === c.city.toLowerCase() && styles.chipActive]}
+                onPress={() => {
+                  setSelectedCity(selectedCity?.toLowerCase() === c.city.toLowerCase() ? null : c.city);
+                  if (Platform.OS !== 'web') void Haptics.selectionAsync();
+                }}
+              >
+                <Text style={[styles.cityChipText, selectedCity?.toLowerCase() === c.city.toLowerCase() && styles.chipTextActive]} numberOfLines={1}>
+                  {c.city}{c.state ? `, ${c.state}` : ''}
+                </Text>
+                {c.distance < 99999 && (
+                  <Text style={[styles.cityChipMeta, selectedCity?.toLowerCase() === c.city.toLowerCase() && { color: 'rgba(255,255,255,0.7)' }]}>
+                    {c.distance}mi · {c.count}
+                  </Text>
+                )}
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        )}
+
+        {locationMode === 'state' && showStateList && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow}>
+            {US_STATES.map(s => (
+              <TouchableOpacity
+                key={s.abbr}
+                style={[styles.stateChip, selectedState === s.abbr && styles.chipActive]}
+                onPress={() => {
+                  setSelectedState(selectedState === s.abbr ? null : s.abbr);
+                  if (Platform.OS !== 'web') void Haptics.selectionAsync();
+                }}
+              >
+                <Text style={[styles.chipText, selectedState === s.abbr && styles.chipTextActive]}>{s.abbr}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        )}
+      </View>
+
+      <Modal
+        visible={showSetAsideDropdown}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowSetAsideDropdown(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowSetAsideDropdown(false)}
+        >
+          <View style={styles.dropdownModal}>
+            <View style={styles.dropdownHeader}>
+              <Text style={styles.dropdownTitle}>Set-Aside Type</Text>
+              <TouchableOpacity onPress={() => setShowSetAsideDropdown(false)}>
+                <X size={20} color={Colors.text} />
+              </TouchableOpacity>
+            </View>
+            <TouchableOpacity
+              style={[styles.dropdownItem, !selectedSetAside && styles.dropdownItemActive]}
+              onPress={() => handleSetAsideSelect(undefined)}
+            >
+              <Text style={[styles.dropdownItemText, !selectedSetAside && styles.dropdownItemTextActive]}>All Types</Text>
+              {!selectedSetAside && <View style={styles.dropdownCheck} />}
+            </TouchableOpacity>
+            {SET_ASIDE_TYPES.map(sa => (
+              <TouchableOpacity
+                key={sa}
+                style={[styles.dropdownItem, selectedSetAside === sa && styles.dropdownItemActive]}
+                onPress={() => handleSetAsideSelect(selectedSetAside === sa ? undefined : sa)}
+              >
+                <Text style={[styles.dropdownItemText, selectedSetAside === sa && styles.dropdownItemTextActive]}>{sa}</Text>
+                {selectedSetAside === sa && <View style={styles.dropdownCheck} />}
+              </TouchableOpacity>
+            ))}
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {bidsQueryError ? (
+        <View style={styles.loadingContainer}>
+          <AlertCircle size={40} color="#D32F2F" />
+          <Text style={styles.emptyTitle}>Query Error</Text>
+          <Text style={styles.emptySubtitle}>{bidsQueryError.message}</Text>
+          <TouchableOpacity onPress={() => { void refetch(); }} style={styles.retryButton}>
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      ) : loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+          <Text style={styles.loadingText}>Loading bids...</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={filteredBids}
+          renderItem={renderBid}
+          keyExtractor={item => item.id}
+          contentContainerStyle={styles.list}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={isRefetching} onRefresh={() => { void refetch(); }} tintColor={Colors.primary} />
+          }
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <AlertCircle size={40} color={Colors.textMuted} />
+              <Text style={styles.emptyTitle}>No bids found</Text>
+              <Text style={styles.emptySubtitle}>
+                Try changing your location or removing filters
+              </Text>
+            </View>
+          }
+        />
+      )}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: Colors.background },
+  header: { backgroundColor: Colors.surface, borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight, paddingHorizontal: 16, paddingBottom: 12 },
+  headerTop: { flexDirection: 'row', alignItems: 'center', marginBottom: 10, marginTop: 8, gap: 12 },
+  backBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { flex: 1, fontSize: 24, fontWeight: '800' as const, color: Colors.text, letterSpacing: -0.5 },
+  countPill: { backgroundColor: Colors.primary + '15', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
+  countPillText: { fontSize: 13, fontWeight: '700' as const, color: Colors.primary },
+  filterRow: { flexDirection: 'row', gap: 12, marginBottom: 4 },
+  filterBlock: { flex: 1 },
+  filterSectionLabel: { fontSize: 11, fontWeight: '600' as const, color: Colors.textMuted, letterSpacing: 0.5, marginBottom: 6 },
+  locationRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 5 },
+  locationChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 16, backgroundColor: Colors.background },
+  locationChipActive: { backgroundColor: Colors.primary },
+  locationChipText: { fontSize: 12, color: Colors.textSecondary, fontWeight: '500' as const },
+  locationChipTextActive: { color: '#FFF' },
+  dropdownButton: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8,
+    borderRadius: 10, backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.borderLight,
+  },
+  dropdownButtonText: { flex: 1, fontSize: 13, color: Colors.textSecondary, fontWeight: '500' as const },
+  dropdownButtonTextActive: { color: Colors.primary, fontWeight: '600' as const },
+  chipRow: { flexDirection: 'row', marginTop: 8, marginBottom: 4 },
+  chip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 18, backgroundColor: Colors.background, marginRight: 6 },
+  chipActive: { backgroundColor: Colors.primary },
+  chipText: { fontSize: 13, color: Colors.textSecondary, fontWeight: '500' as const },
+  chipTextActive: { color: '#FFF' },
+  cityChip: {
+    paddingHorizontal: 12, paddingVertical: 6, borderRadius: 18,
+    backgroundColor: Colors.background, marginRight: 6, alignItems: 'center',
+  },
+  cityChipText: { fontSize: 12, color: Colors.textSecondary, fontWeight: '600' as const },
+  cityChipMeta: { fontSize: 10, color: Colors.textMuted, marginTop: 1 },
+  stateChip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 18, backgroundColor: Colors.background, marginRight: 6 },
+  list: { padding: 16, paddingBottom: 100 },
+  bidCard: {
+    backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 12,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3,
+  },
+  bidHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  setAsideBadge: { backgroundColor: '#E8F5E9', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  setAsideText: { fontSize: 11, fontWeight: '700' as const, color: '#2E7D32', textTransform: 'uppercase' as const },
+  openBadge: { backgroundColor: '#E3F2FD', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  openBadgeText: { fontSize: 11, fontWeight: '700' as const, color: '#1565C0', textTransform: 'uppercase' as const },
+  countdownBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  countdownText: { fontSize: 11, fontWeight: '600' as const },
+  bidTitle: { fontSize: 16, fontWeight: '700' as const, color: Colors.text, marginBottom: 4, lineHeight: 22 },
+  bidDepartment: { fontSize: 13, color: Colors.textSecondary, marginBottom: 10 },
+  bidMeta: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+  metaItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  metaText: { fontSize: 13, color: Colors.textSecondary },
+  bidFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 6, paddingTop: 8, borderTopWidth: 0.5, borderTopColor: Colors.borderLight },
+  footerLeft: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  distanceBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: Colors.infoLight, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  distanceText: { fontSize: 12, fontWeight: '600' as const, color: Colors.info },
+  cityBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: Colors.fillSecondary, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6 },
+  cityBadgeText: { fontSize: 11, fontWeight: '500' as const, color: Colors.textSecondary },
+  deadlineDate: { fontSize: 12, color: Colors.textMuted },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
+  loadingText: { fontSize: 14, color: Colors.textSecondary },
+  emptyContainer: { alignItems: 'center', paddingTop: 60, gap: 8 },
+  emptyTitle: { fontSize: 18, fontWeight: '700' as const, color: Colors.text },
+  emptySubtitle: { fontSize: 14, color: Colors.textSecondary, textAlign: 'center' as const, paddingHorizontal: 32 },
+  retryButton: { marginTop: 12, backgroundColor: Colors.primary, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10 },
+  retryButtonText: { color: '#FFF', fontWeight: '600' as const },
+  modalOverlay: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center',
+  },
+  dropdownModal: {
+    width: '80%', backgroundColor: Colors.surface, borderRadius: 16, paddingVertical: 8, maxHeight: 400,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.15, shadowRadius: 20, elevation: 10,
+  },
+  dropdownHeader: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight,
+  },
+  dropdownTitle: { fontSize: 17, fontWeight: '700' as const, color: Colors.text },
+  dropdownItem: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 20, paddingVertical: 14,
+  },
+  dropdownItemActive: { backgroundColor: Colors.primary + '08' },
+  dropdownItemText: { fontSize: 15, color: Colors.text, fontWeight: '400' as const },
+  dropdownItemTextActive: { color: Colors.primary, fontWeight: '600' as const },
+  dropdownCheck: { width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.primary },
+});
+
+========== FILE: ./app/(tabs)/discover/companies.tsx ==========
+import React, { useState, useCallback, useRef, useMemo } from 'react';
+import {
+  View, Text, StyleSheet, FlatList, TouchableOpacity,
+  Animated, ScrollView, ActivityIndicator, Linking, RefreshControl, Platform, Image,
+} from 'react-native';
+import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { MapPin, Star, ArrowLeft, Navigation, AlertCircle, Phone, Globe } from 'lucide-react-native';
+import * as Haptics from 'expo-haptics';
+import { useQuery } from '@tanstack/react-query';
+import { Colors } from '@/constants/colors';
+import { supabase } from '@/lib/supabase';
+import { useUserLocation, getDistanceMiles } from '@/utils/location';
+
+interface CachedCompany {
+  id: string;
+  name: string;
+  trade_specialty: string;
+  rating: number;
+  review_count: number;
+  total_reviews: number;
+  address: string;
+  city: string;
+  state: string;
+  zip: string;
+  latitude: number;
+  longitude: number;
+  phone: string;
+  website: string;
+  photo_url: string | null;
+  fetched_at: string;
+}
+
+interface CompanyWithDistance extends CachedCompany {
+  distance: number | null;
+}
+
+const RADIUS_OPTIONS = [10, 25, 50, 100] as const;
+
+const SPECIALTY_FILTERS = [
+  'General Contractor', 'Electrical', 'Plumbing', 'HVAC',
+  'Roofing', 'Building Materials Supply', 'Concrete Supply', 'Lumber Supply',
+] as const;
+
+function renderStars(rating: number | null | undefined): string {
+  if (rating == null) return '☆☆☆☆☆';
+  const full = Math.floor(rating);
+  const half = rating - full >= 0.5 ? 1 : 0;
+  return '★'.repeat(full) + (half ? '½' : '') + '☆'.repeat(5 - full - half);
+}
+
+function CompanyCard({ company, onPress }: { company: CompanyWithDistance; onPress: () => void }) {
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+
+  const handleCall = useCallback(() => {
+    if (!company.phone) return;
+    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const tel = `tel:${company.phone.replace(/[^\d+]/g, '')}`;
+    Linking.openURL(tel).catch(() => {
+      console.log('[Companies] Failed to open phone:', tel);
+    });
+  }, [company.phone]);
+
+  const handleWebsite = useCallback(() => {
+    if (!company.website) return;
+    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    let url = company.website;
+    if (url && !url.startsWith('http')) url = 'https://' + url;
+    Linking.openURL(url).catch(() => {
+      console.log('[Companies] Failed to open website:', url);
+    });
+  }, [company.website]);
+
+  const formattedAddress = useMemo(() => {
+    const parts = [company.address, company.city, company.state, company.zip].filter(Boolean);
+    return parts.join(', ');
+  }, [company.address, company.city, company.state, company.zip]);
+
+  return (
+    <Animated.View style={[styles.card, { transform: [{ scale: scaleAnim }] }]}>
+      <TouchableOpacity
+        onPress={onPress}
+        onPressIn={() => Animated.spring(scaleAnim, { toValue: 0.97, useNativeDriver: true, speed: 50 }).start()}
+        onPressOut={() => Animated.spring(scaleAnim, { toValue: 1, useNativeDriver: true, speed: 50 }).start()}
+        activeOpacity={1}
+        testID={`cached-company-${company.id}`}
+      >
+        {company.photo_url ? (
+          <Image source={{ uri: company.photo_url }} style={styles.companyPhoto} resizeMode="cover" />
+        ) : null}
+
+        <View style={styles.cardTop}>
+          <View style={styles.avatarCircle}>
+            <Text style={styles.avatarText}>{company.name ? company.name.charAt(0) : '?'}</Text>
+          </View>
+          <View style={styles.cardTopInfo}>
+            <Text style={styles.companyName} numberOfLines={1}>{company.name ?? 'Unknown Company'}</Text>
+            <Text style={styles.specialtyText}>{company.trade_specialty ?? 'Specialty not listed'}</Text>
+          </View>
+        </View>
+
+        <View style={styles.ratingRow}>
+          <Star size={14} color="#F5A623" fill="#F5A623" />
+          <Text style={styles.ratingValue}>{company.rating != null ? company.rating.toFixed(1) : 'N/A'}</Text>
+          <Text style={styles.ratingStars}>{renderStars(company.rating)}</Text>
+          <Text style={styles.reviewCount}>({company.total_reviews ?? company.review_count ?? 0} reviews)</Text>
+        </View>
+
+        <View style={styles.addressRow}>
+          <MapPin size={13} color={Colors.textSecondary} />
+          <Text style={styles.addressText} numberOfLines={2}>{formattedAddress || 'Address not available'}</Text>
+        </View>
+
+        <View style={styles.cardFooter}>
+          {company.distance !== null && (
+            <View style={styles.distanceBadge}>
+              <Navigation size={11} color={Colors.info} />
+              <Text style={styles.distanceText}>{company.distance} mi</Text>
+            </View>
+          )}
+          <View style={{ flex: 1 }} />
+          {company.phone ? (
+            <TouchableOpacity
+              style={styles.actionBtn}
+              onPress={(e) => { e.stopPropagation(); handleCall(); }}
+              activeOpacity={0.7}
+            >
+              <Phone size={14} color="#FFF" />
+              <Text style={styles.actionBtnText}>Call</Text>
+            </TouchableOpacity>
+          ) : null}
+          {company.website ? (
+            <TouchableOpacity
+              style={[styles.actionBtn, styles.actionBtnOutline]}
+              onPress={(e) => { e.stopPropagation(); handleWebsite(); }}
+              activeOpacity={0.7}
+            >
+              <Globe size={14} color={Colors.primary} />
+              <Text style={[styles.actionBtnText, { color: Colors.primary }]}>Website</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+      </TouchableOpacity>
+    </Animated.View>
+  );
+}
+
+export default function CachedCompaniesScreen() {
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const { location, loading: locationLoading } = useUserLocation();
+  const [selectedRadius, setSelectedRadius] = useState<number>(50);
+  const [selectedSpecialty, setSelectedSpecialty] = useState<string | undefined>();
+
+  const { data: companies, isLoading, refetch, isRefetching, error: _companiesQueryError } = useQuery({
+    queryKey: ['cached_companies'],
+    queryFn: async () => {
+      console.log('[CachedCompanies] === START FETCH ===');
+      console.log('[CachedCompanies] Supabase URL:', process.env.EXPO_PUBLIC_SUPABASE_URL?.substring(0, 40));
+      try {
+        const { data, error, status, statusText } = await supabase
+          .from('cached_companies')
+          .select('*')
+          .order('fetched_at', { ascending: false });
+        console.log('[CachedCompanies] Response status:', status, statusText);
+        console.log('[CachedCompanies] Error:', error ? JSON.stringify(error) : 'none');
+        console.log('[CachedCompanies] Data count:', data?.length ?? 'null');
+        if (data && data.length > 0) {
+          console.log('[CachedCompanies] First row sample:', JSON.stringify(data[0]).substring(0, 200));
+        }
+        if (error) {
+          console.log('[CachedCompanies] Supabase error, returning empty:', error.message);
+          return [];
+        }
+        return (data ?? []) as CachedCompany[];
+      } catch (err: any) {
+        console.log('[CachedCompanies] Network/fetch error:', err?.message);
+        return [];
+      }
+    },
+    retry: 1,
+  });
+
+  const companiesWithDistance = useMemo<CompanyWithDistance[]>(() => {
+    if (!companies) return [];
+    return companies.map(c => ({
+      ...c,
+      distance: location && c.latitude && c.longitude
+        ? getDistanceMiles(location.latitude, location.longitude, c.latitude, c.longitude)
+        : null,
+    }));
+  }, [companies, location]);
+
+  const filteredCompanies = useMemo(() => {
+    let result = companiesWithDistance;
+
+    if (selectedSpecialty) {
+      result = result.filter(c =>
+        c.trade_specialty?.toLowerCase().includes(selectedSpecialty.toLowerCase())
+      );
+    }
+
+    if (location) {
+      result = result.filter(c => c.distance === null || c.distance <= selectedRadius);
+      result.sort((a, b) => (a.distance ?? 99999) - (b.distance ?? 99999));
+    }
+
+    return result;
+  }, [companiesWithDistance, selectedRadius, selectedSpecialty, location]);
+
+  const handleCompanyPress = useCallback((_company: CachedCompany) => {
+    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  }, []);
+
+  const renderCompany = useCallback(({ item }: { item: CompanyWithDistance }) => (
+    <CompanyCard company={item} onPress={() => handleCompanyPress(item)} />
+  ), [handleCompanyPress]);
+
+  const loading = isLoading || locationLoading;
+
+  return (
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <View style={styles.header}>
+        <View style={styles.headerTop}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
+            <ArrowLeft size={20} color={Colors.text} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Companies</Text>
+          <View style={styles.countPill}>
+            <Text style={styles.countPillText}>{filteredCompanies.length}</Text>
+          </View>
+        </View>
+
+        <Text style={styles.filterSectionLabel}>RADIUS</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow}>
+          {RADIUS_OPTIONS.map(r => (
+            <TouchableOpacity
+              key={r}
+              style={[styles.chip, selectedRadius === r && styles.chipActive]}
+              onPress={() => { setSelectedRadius(r); if (Platform.OS !== 'web') void Haptics.selectionAsync(); }}
+            >
+              <Text style={[styles.chipText, selectedRadius === r && styles.chipTextActive]}>{r} mi</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+
+        <Text style={[styles.filterSectionLabel, { marginTop: 8 }]}>SPECIALTY</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow}>
+          <TouchableOpacity
+            style={[styles.chip, !selectedSpecialty && styles.chipActive]}
+            onPress={() => { setSelectedSpecialty(undefined); if (Platform.OS !== 'web') void Haptics.selectionAsync(); }}
+          >
+            <Text style={[styles.chipText, !selectedSpecialty && styles.chipTextActive]}>All</Text>
+          </TouchableOpacity>
+          {SPECIALTY_FILTERS.map(s => (
+            <TouchableOpacity
+              key={s}
+              style={[styles.chip, selectedSpecialty === s && styles.chipActive]}
+              onPress={() => { setSelectedSpecialty(selectedSpecialty === s ? undefined : s); if (Platform.OS !== 'web') void Haptics.selectionAsync(); }}
+            >
+              <Text style={[styles.chipText, selectedSpecialty === s && styles.chipTextActive]}>{s}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
+
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+          <Text style={styles.loadingText}>Finding companies near you...</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={filteredCompanies}
+          renderItem={renderCompany}
+          keyExtractor={item => item.id}
+          contentContainerStyle={styles.list}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={isRefetching} onRefresh={() => { void refetch(); }} tintColor={Colors.primary} />
+          }
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <AlertCircle size={40} color={Colors.textMuted} />
+              <Text style={styles.emptyTitle}>No companies found</Text>
+              <Text style={styles.emptySubtitle}>
+                Try increasing the radius or changing the specialty filter
+              </Text>
+            </View>
+          }
+        />
+      )}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: Colors.background },
+  header: { backgroundColor: Colors.surface, borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight, paddingHorizontal: 16, paddingBottom: 12 },
+  headerTop: { flexDirection: 'row', alignItems: 'center', marginBottom: 12, marginTop: 8, gap: 12 },
+  backBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { flex: 1, fontSize: 24, fontWeight: '800' as const, color: Colors.text, letterSpacing: -0.5 },
+  countPill: { backgroundColor: '#E8F5E9', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
+  countPillText: { fontSize: 13, fontWeight: '700' as const, color: '#2E7D32' },
+  filterSectionLabel: { fontSize: 11, fontWeight: '600' as const, color: Colors.textMuted, letterSpacing: 0.5, marginBottom: 6 },
+  chipRow: { flexDirection: 'row', marginBottom: 4 },
+  chip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 18, backgroundColor: Colors.background, marginRight: 6 },
+  chipActive: { backgroundColor: Colors.primary },
+  chipText: { fontSize: 13, color: Colors.textSecondary, fontWeight: '500' as const },
+  chipTextActive: { color: '#FFF' },
+  list: { padding: 16, paddingBottom: 100 },
+  card: {
+    backgroundColor: Colors.surface, borderRadius: 14, marginBottom: 12, overflow: 'hidden' as const,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3,
+  },
+  companyPhoto: { width: '100%', height: 140 },
+  cardTop: { flexDirection: 'row', alignItems: 'center', padding: 16, paddingBottom: 8 },
+  avatarCircle: { width: 44, height: 44, borderRadius: 22, backgroundColor: Colors.primary + '15', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+  avatarText: { fontSize: 18, fontWeight: '800' as const, color: Colors.primary },
+  cardTopInfo: { flex: 1 },
+  companyName: { fontSize: 16, fontWeight: '700' as const, color: Colors.text },
+  specialtyText: { fontSize: 12, color: Colors.accent, fontWeight: '600' as const, marginTop: 2 },
+  ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 16, marginBottom: 8 },
+  ratingValue: { fontSize: 14, fontWeight: '700' as const, color: '#F5A623' },
+  ratingStars: { fontSize: 12, color: '#F5A623', letterSpacing: 1 },
+  reviewCount: { fontSize: 12, color: Colors.textMuted },
+  addressRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 4, paddingHorizontal: 16, marginBottom: 8 },
+  addressText: { flex: 1, fontSize: 13, color: Colors.textSecondary, lineHeight: 18 },
+  cardFooter: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingBottom: 14, paddingTop: 8, borderTopWidth: 0.5, borderTopColor: Colors.borderLight, gap: 8 },
+  distanceBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: Colors.infoLight, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
+  distanceText: { fontSize: 12, fontWeight: '600' as const, color: Colors.info },
+  actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: Colors.primary, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8 },
+  actionBtnOutline: { backgroundColor: Colors.primary + '12', borderWidth: 1, borderColor: Colors.primary + '30' },
+  actionBtnText: { fontSize: 12, fontWeight: '600' as const, color: '#FFF' },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
+  loadingText: { fontSize: 14, color: Colors.textSecondary },
+  emptyContainer: { alignItems: 'center', paddingTop: 60, gap: 8 },
+  emptyTitle: { fontSize: 18, fontWeight: '700' as const, color: Colors.text },
+  emptySubtitle: { fontSize: 14, color: Colors.textSecondary, textAlign: 'center' as const, paddingHorizontal: 32 },
+});
+
+
+========== FILE: ./app/(tabs)/discover/hire.tsx ==========
+import React, { useState, useCallback, useRef, useMemo } from 'react';
+import {
+  View, Text, StyleSheet, FlatList, TouchableOpacity,
+  Animated, ScrollView, ActivityIndicator, Linking, RefreshControl, Platform,
+} from 'react-native';
+import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { MapPin, DollarSign, ArrowLeft, Navigation, AlertCircle, Briefcase } from 'lucide-react-native';
+import * as Haptics from 'expo-haptics';
+import { useQuery } from '@tanstack/react-query';
+import { Colors } from '@/constants/colors';
+import { supabase } from '@/lib/supabase';
+import { useUserLocation, getDistanceMiles } from '@/utils/location';
+
+interface CachedJob {
+  id: string;
+  title: string;
+  company_name: string;
+  salary_min: number;
+  salary_max: number;
+  trade_category: string;
+  contract_type: string;
+  city: string;
+  state: string;
+  latitude: number;
+  longitude: number;
+  apply_url: string;
+  fetched_at: string;
+}
+
+interface JobWithDistance extends CachedJob {
+  distance: number | null;
+}
+
+const RADIUS_OPTIONS = [10, 25, 50, 100] as const;
+
+const TRADE_FILTERS = [
+  'Electrical', 'Plumbing', 'Carpentry', 'HVAC', 'Welding',
+  'Masonry', 'Roofing', 'Management', 'Labor', 'General Construction',
+] as const;
+
+const TRADE_BADGE_COLORS: Record<string, string> = {
+  'Electrical': '#F57F17',
+  'Plumbing': '#1565C0',
+  'Carpentry': '#6D4C41',
+  'HVAC': '#00838F',
+  'Welding': '#E65100',
+  'Masonry': '#78909C',
+  'Roofing': '#AD1457',
+  'Management': '#4527A0',
+  'Labor': '#2E7D32',
+  'General Construction': '#37474F',
+};
+
+function formatSalary(min: number | null | undefined, max: number | null | undefined): string {
+  if (min == null && max == null) return 'Salary not listed';
+  const fmtVal = (v: number) => {
+    if (v >= 1000) return `${(v / 1000).toFixed(0)}K`;
+    return `${v.toLocaleString()}`;
+  };
+  if (min != null && max != null) return `${fmtVal(min)} – ${fmtVal(max)}`;
+  if (min != null) return `From ${fmtVal(min)}`;
+  return `Up to ${fmtVal(max!)}`;
+}
+
+function getTradeColor(trade: string | null | undefined): string {
+  if (!trade) return Colors.primary;
+  const key = Object.keys(TRADE_BADGE_COLORS).find(
+    k => trade.toLowerCase().includes(k.toLowerCase())
+  );
+  return key ? TRADE_BADGE_COLORS[key] : Colors.primary;
+}
+
+function JobCard({ job, onPress }: { job: JobWithDistance; onPress: () => void }) {
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const tradeColor = getTradeColor(job.trade_category);
+
+  return (
+    <Animated.View style={[styles.card, { transform: [{ scale: scaleAnim }] }]}>
+      <TouchableOpacity
+        onPress={onPress}
+        onPressIn={() => Animated.spring(scaleAnim, { toValue: 0.97, useNativeDriver: true, speed: 50 }).start()}
+        onPressOut={() => Animated.spring(scaleAnim, { toValue: 1, useNativeDriver: true, speed: 50 }).start()}
+        activeOpacity={1}
+        testID={`cached-job-${job.id}`}
+      >
+        <View style={styles.cardTopRow}>
+          {job.trade_category ? (
+            <View style={[styles.tradeBadge, { backgroundColor: tradeColor + '15' }]}>
+              <Text style={[styles.tradeBadgeText, { color: tradeColor }]}>{job.trade_category}</Text>
+            </View>
+          ) : null}
+          {job.contract_type ? (
+            <View style={styles.contractBadge}>
+              <Text style={styles.contractBadgeText}>{job.contract_type}</Text>
+            </View>
+          ) : null}
+        </View>
+
+        <Text style={styles.cardTitle} numberOfLines={2}>{job.title ?? 'Untitled Job'}</Text>
+        <Text style={styles.cardCompany}>{job.company_name ?? 'Company not listed'}</Text>
+
+        <View style={styles.cardMeta}>
+          <View style={styles.metaItem}>
+            <MapPin size={13} color={Colors.textSecondary} />
+            <Text style={styles.metaText}>{job.city && job.state ? `${job.city}, ${job.state}` : job.city || job.state || 'Location not available'}</Text>
+          </View>
+          <View style={styles.metaItem}>
+            <DollarSign size={13} color={Colors.primary} />
+            <Text style={[styles.metaText, { color: Colors.primary, fontWeight: '600' as const }]}>
+              {formatSalary(job.salary_min, job.salary_max)}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.cardFooter}>
+          {job.distance !== null && (
+            <View style={styles.distanceBadge}>
+              <Navigation size={11} color={Colors.info} />
+              <Text style={styles.distanceText}>{job.distance} mi</Text>
+            </View>
+          )}
+          <View style={{ flex: 1 }} />
+          <View style={styles.applyHint}>
+            <Briefcase size={12} color={Colors.primary} />
+            <Text style={styles.applyHintText}>Tap to Apply</Text>
+          </View>
+        </View>
+      </TouchableOpacity>
+    </Animated.View>
+  );
+}
+
+export default function CachedHireScreen() {
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const { location, loading: locationLoading } = useUserLocation();
+  const [selectedRadius, setSelectedRadius] = useState<number>(50);
+  const [selectedTrade, setSelectedTrade] = useState<string | undefined>();
+
+  const { data: jobs, isLoading, refetch, isRefetching, error: _jobsQueryError } = useQuery({
+    queryKey: ['cached_jobs'],
+    queryFn: async () => {
+      console.log('[CachedJobs] === START FETCH ===');
+      console.log('[CachedJobs] Supabase URL:', process.env.EXPO_PUBLIC_SUPABASE_URL?.substring(0, 40));
+      try {
+        const { data, error, status, statusText } = await supabase
+          .from('cached_jobs')
+          .select('*')
+          .order('fetched_at', { ascending: false });
+        console.log('[CachedJobs] Response status:', status, statusText);
+        console.log('[CachedJobs] Error:', error ? JSON.stringify(error) : 'none');
+        console.log('[CachedJobs] Data count:', data?.length ?? 'null');
+        if (data && data.length > 0) {
+          console.log('[CachedJobs] First row sample:', JSON.stringify(data[0]).substring(0, 200));
+        }
+        if (error) {
+          console.log('[CachedJobs] Supabase error, returning empty:', error.message);
+          return [];
+        }
+        return (data ?? []) as CachedJob[];
+      } catch (err: any) {
+        console.log('[CachedJobs] Network/fetch error:', err?.message);
+        return [];
+      }
+    },
+    retry: 1,
+  });
+
+  const jobsWithDistance = useMemo<JobWithDistance[]>(() => {
+    if (!jobs) return [];
+    return jobs.map(job => ({
+      ...job,
+      distance: location && job.latitude && job.longitude
+        ? getDistanceMiles(location.latitude, location.longitude, job.latitude, job.longitude)
+        : null,
+    }));
+  }, [jobs, location]);
+
+  const filteredJobs = useMemo(() => {
+    let result = jobsWithDistance;
+
+    if (selectedTrade) {
+      result = result.filter(j =>
+        j.trade_category?.toLowerCase().includes(selectedTrade.toLowerCase())
+      );
+    }
+
+    if (location) {
+      result = result.filter(j => j.distance === null || j.distance <= selectedRadius);
+      result.sort((a, b) => (a.distance ?? 99999) - (b.distance ?? 99999));
+    }
+
+    return result;
+  }, [jobsWithDistance, selectedRadius, selectedTrade, location]);
+
+  const handleJobPress = useCallback((job: CachedJob) => {
+    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (job.apply_url) {
+      Linking.openURL(job.apply_url).catch(() => {
+        console.log('[CachedJobs] Failed to open URL:', job.apply_url);
+      });
+    }
+  }, []);
+
+  const renderJob = useCallback(({ item }: { item: JobWithDistance }) => (
+    <JobCard job={item} onPress={() => handleJobPress(item)} />
+  ), [handleJobPress]);
+
+  const loading = isLoading || locationLoading;
+
+  return (
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <View style={styles.header}>
+        <View style={styles.headerTop}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
+            <ArrowLeft size={20} color={Colors.text} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Direct Hire</Text>
+          <View style={styles.countPill}>
+            <Text style={styles.countPillText}>{filteredJobs.length}</Text>
+          </View>
+        </View>
+
+        <Text style={styles.filterSectionLabel}>RADIUS</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow}>
+          {RADIUS_OPTIONS.map(r => (
+            <TouchableOpacity
+              key={r}
+              style={[styles.chip, selectedRadius === r && styles.chipActive]}
+              onPress={() => { setSelectedRadius(r); if (Platform.OS !== 'web') void Haptics.selectionAsync(); }}
+            >
+              <Text style={[styles.chipText, selectedRadius === r && styles.chipTextActive]}>{r} mi</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+
+        <Text style={[styles.filterSectionLabel, { marginTop: 8 }]}>TRADE</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow}>
+          <TouchableOpacity
+            style={[styles.chip, !selectedTrade && styles.chipActive]}
+            onPress={() => { setSelectedTrade(undefined); if (Platform.OS !== 'web') void Haptics.selectionAsync(); }}
+          >
+            <Text style={[styles.chipText, !selectedTrade && styles.chipTextActive]}>All</Text>
+          </TouchableOpacity>
+          {TRADE_FILTERS.map(t => (
+            <TouchableOpacity
+              key={t}
+              style={[styles.chip, selectedTrade === t && styles.chipActive]}
+              onPress={() => { setSelectedTrade(selectedTrade === t ? undefined : t); if (Platform.OS !== 'web') void Haptics.selectionAsync(); }}
+            >
+              <Text style={[styles.chipText, selectedTrade === t && styles.chipTextActive]}>{t}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
+
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+          <Text style={styles.loadingText}>Finding jobs near you...</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={filteredJobs}
+          renderItem={renderJob}
+          keyExtractor={item => item.id}
+          contentContainerStyle={styles.list}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={isRefetching} onRefresh={() => { void refetch(); }} tintColor={Colors.primary} />
+          }
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <AlertCircle size={40} color={Colors.textMuted} />
+              <Text style={styles.emptyTitle}>No jobs found</Text>
+              <Text style={styles.emptySubtitle}>
+                Try increasing the radius or changing the trade filter
+              </Text>
+            </View>
+          }
+        />
+      )}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: Colors.background },
+  header: { backgroundColor: Colors.surface, borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight, paddingHorizontal: 16, paddingBottom: 12 },
+  headerTop: { flexDirection: 'row', alignItems: 'center', marginBottom: 12, marginTop: 8, gap: 12 },
+  backBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { flex: 1, fontSize: 24, fontWeight: '800' as const, color: Colors.text, letterSpacing: -0.5 },
+  countPill: { backgroundColor: Colors.accent + '15', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
+  countPillText: { fontSize: 13, fontWeight: '700' as const, color: Colors.accent },
+  filterSectionLabel: { fontSize: 11, fontWeight: '600' as const, color: Colors.textMuted, letterSpacing: 0.5, marginBottom: 6 },
+  chipRow: { flexDirection: 'row', marginBottom: 4 },
+  chip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 18, backgroundColor: Colors.background, marginRight: 6 },
+  chipActive: { backgroundColor: Colors.primary },
+  chipText: { fontSize: 13, color: Colors.textSecondary, fontWeight: '500' as const },
+  chipTextActive: { color: '#FFF' },
+  list: { padding: 16, paddingBottom: 100 },
+  card: {
+    backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 12,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3,
+  },
+  cardTopRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
+  tradeBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  tradeBadgeText: { fontSize: 11, fontWeight: '700' as const, textTransform: 'uppercase' as const, letterSpacing: 0.3 },
+  contractBadge: { backgroundColor: Colors.fillTertiary, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  contractBadgeText: { fontSize: 11, fontWeight: '600' as const, color: Colors.textSecondary },
+  cardTitle: { fontSize: 16, fontWeight: '700' as const, color: Colors.text, marginBottom: 2, lineHeight: 22 },
+  cardCompany: { fontSize: 13, color: Colors.textSecondary, marginBottom: 10 },
+  cardMeta: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+  metaItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  metaText: { fontSize: 13, color: Colors.textSecondary },
+  cardFooter: { flexDirection: 'row', alignItems: 'center', marginTop: 6, paddingTop: 8, borderTopWidth: 0.5, borderTopColor: Colors.borderLight },
+  distanceBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: Colors.infoLight, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  distanceText: { fontSize: 12, fontWeight: '600' as const, color: Colors.info },
+  applyHint: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  applyHintText: { fontSize: 12, fontWeight: '600' as const, color: Colors.primary },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
+  loadingText: { fontSize: 14, color: Colors.textSecondary },
+  emptyContainer: { alignItems: 'center', paddingTop: 60, gap: 8 },
+  emptyTitle: { fontSize: 18, fontWeight: '700' as const, color: Colors.text },
+  emptySubtitle: { fontSize: 14, color: Colors.textSecondary, textAlign: 'center' as const, paddingHorizontal: 32 },
+});
+
+
+========== FILE: ./app/(tabs)/discover/index.tsx ==========
+import React, { useCallback, useRef } from 'react';
+import {
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated, Linking, Platform,
+} from 'react-native';
+import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Haptics from 'expo-haptics';
+import { useQuery } from '@tanstack/react-query';
+import {
+  Gavel, Building2, Briefcase, ChevronRight, ExternalLink,
+  Plus, Search, Award,
+} from 'lucide-react-native';
+import { Colors } from '@/constants/colors';
+import { supabase } from '@/lib/supabase';
+
+interface BidSource {
+  name: string;
+  description: string;
+  url: string;
+  color: string;
+  type: string;
+}
+
+const LIVE_BID_SOURCES: BidSource[] = [
+  {
+    name: 'SAM.gov',
+    description: 'Federal contract opportunities — all US government bids',
+    url: 'https://sam.gov/search/?index=opp&sort=-modifiedDate&page=1&pageSize=25',
+    color: '#1565C0',
+    type: 'Federal',
+  },
+  {
+    name: 'NY State Contract Reporter',
+    description: 'All NYS agency procurement notices & bids',
+    url: 'https://nyspro.ogs.ny.gov/content/nys-contract-reporter',
+    color: '#2E7D32',
+    type: 'State',
+  },
+  {
+    name: 'NYC PASSPort',
+    description: 'New York City procurement portal — municipal bids',
+    url: 'https://passport.cityofnewyork.us/page.aspx/en/rfp/request_browse_public',
+    color: '#E65100',
+    type: 'Municipal',
+  },
+  {
+    name: 'BidNet Direct',
+    description: 'State & local government bids across all 50 states',
+    url: 'https://www.bidnetdirect.com/public/solicitations/open',
+    color: '#6A1B9A',
+    type: 'Multi-State',
+  },
+  {
+    name: 'Dodge Construction Network',
+    description: 'Private & public construction project leads',
+    url: 'https://www.construction.com/',
+    color: '#00695C',
+    type: 'Private + Public',
+  },
+  {
+    name: 'NYS ESD MWBE',
+    description: 'Empire State Development MWBE directory & opportunities',
+    url: 'https://ny.newnycontracts.com/',
+    color: '#AD1457',
+    type: 'MWBE',
+  },
+  {
+    name: 'NYC SBS M/WBE',
+    description: 'NYC Small Business Services — certified M/WBE opportunities',
+    url: 'https://www1.nyc.gov/nycbusiness/mwbe',
+    color: '#FF6F00',
+    type: 'MWBE',
+  },
+  {
+    name: 'USASpending.gov',
+    description: 'Track federal spending & find awarded contracts',
+    url: 'https://www.usaspending.gov/search',
+    color: '#37474F',
+    type: 'Federal',
+  },
+];
+
+function SectionCard({
+  icon: Icon,
+  iconColor,
+  iconBg,
+  title,
+  subtitle,
+  count,
+  onPress,
+}: {
+  icon: React.ElementType;
+  iconColor: string;
+  iconBg: string;
+  title: string;
+  subtitle: string;
+  count: number;
+  onPress: () => void;
+}) {
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+
+  return (
+    <Animated.View style={[styles.sectionCard, { transform: [{ scale: scaleAnim }] }]}>
+      <TouchableOpacity
+        onPress={onPress}
+        onPressIn={() => Animated.spring(scaleAnim, { toValue: 0.97, useNativeDriver: true, speed: 50 }).start()}
+        onPressOut={() => Animated.spring(scaleAnim, { toValue: 1, useNativeDriver: true, speed: 50 }).start()}
+        activeOpacity={1}
+        style={styles.sectionCardInner}
+      >
+        <View style={[styles.sectionIconWrap, { backgroundColor: iconBg }]}>
+          <Icon size={22} color={iconColor} />
+        </View>
+        <View style={styles.sectionInfo}>
+          <Text style={styles.sectionTitle}>{title}</Text>
+          <Text style={styles.sectionSubtitle}>{subtitle}</Text>
+        </View>
+        <View style={styles.sectionRight}>
+          <View style={[styles.countBadge, { backgroundColor: iconBg }]}>
+            <Text style={[styles.countText, { color: iconColor }]}>{count}</Text>
+          </View>
+          <ChevronRight size={18} color={Colors.textMuted} />
+        </View>
+      </TouchableOpacity>
+    </Animated.View>
+  );
+}
+
+export default function DiscoverScreen() {
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
+
+  const bidsCountQuery = useQuery({
+    queryKey: ['cached_bids_count'],
+    queryFn: async () => {
+      try {
+        const { count, error } = await supabase
+          .from('cached_bids')
+          .select('*', { count: 'exact', head: true });
+        console.log('[Discover] cached_bids count:', count, 'error:', error);
+        if (error) {
+          console.log('[Discover] cached_bids count error:', error.message);
+          return 0;
+        }
+        return count ?? 0;
+      } catch (err) {
+        console.log('[Discover] cached_bids count fetch failed:', err);
+        return 0;
+      }
+    },
+    retry: 1,
+  });
+
+  const jobsCountQuery = useQuery({
+    queryKey: ['cached_jobs_count'],
+    queryFn: async () => {
+      try {
+        const { count, error } = await supabase
+          .from('cached_jobs')
+          .select('*', { count: 'exact', head: true });
+        console.log('[Discover] cached_jobs count:', count, 'error:', error);
+        if (error) {
+          console.log('[Discover] cached_jobs count error:', error.message);
+          return 0;
+        }
+        return count ?? 0;
+      } catch (err) {
+        console.log('[Discover] cached_jobs count fetch failed:', err);
+        return 0;
+      }
+    },
+    retry: 1,
+  });
+
+  const companiesCountQuery = useQuery({
+    queryKey: ['cached_companies_count'],
+    queryFn: async () => {
+      try {
+        const { count, error } = await supabase
+          .from('cached_companies')
+          .select('*', { count: 'exact', head: true });
+        console.log('[Discover] cached_companies count:', count, 'error:', error);
+        if (error) {
+          console.log('[Discover] cached_companies count error:', error.message);
+          return 0;
+        }
+        return count ?? 0;
+      } catch (err) {
+        console.log('[Discover] cached_companies count fetch failed:', err);
+        return 0;
+      }
+    },
+    retry: 1,
+  });
+
+  const openBids = bidsCountQuery.data ?? 0;
+  const jobsCount = jobsCountQuery.data ?? 0;
+  const companiesCount = companiesCountQuery.data ?? 0;
+
+  const openBidSource = useCallback((url: string) => {
+    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    Linking.openURL(url).catch(() => {});
+  }, []);
+
+  const navigateTo = useCallback((path: string) => {
+    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push(path as any);
+  }, [router]);
+
+  return (
+    <View style={styles.container}>
+      <ScrollView
+        contentContainerStyle={{ paddingTop: insets.top, paddingBottom: insets.bottom + 100 }}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.header}>
+          <Text style={styles.largeTitle}>Discover</Text>
+          <Text style={styles.headerSubtitle}>Bids, companies & hiring</Text>
+        </View>
+
+        <View style={styles.quickActions}>
+          <TouchableOpacity
+            style={styles.quickAction}
+            onPress={() => navigateTo('/post-bid')}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.quickActionIcon, { backgroundColor: '#1565C0' + '15' }]}>
+              <Plus size={16} color="#1565C0" />
+            </View>
+            <Text style={styles.quickActionLabel}>Post Bid</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.quickAction}
+            onPress={() => navigateTo('/post-job')}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.quickActionIcon, { backgroundColor: Colors.primary + '15' }]}>
+              <Plus size={16} color={Colors.primary} />
+            </View>
+            <Text style={styles.quickActionLabel}>Post Job</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.quickAction}
+            onPress={() => navigateTo('/(tabs)/discover/bids')}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.quickActionIcon, { backgroundColor: Colors.accent + '15' }]}>
+              <Search size={16} color={Colors.accent} />
+            </View>
+            <Text style={styles.quickActionLabel}>Search</Text>
+          </TouchableOpacity>
+        </View>
+
+        <Text style={styles.sectionLabel}>BROWSE</Text>
+
+        <SectionCard
+          icon={Gavel}
+          iconColor="#1565C0"
+          iconBg={'#1565C012'}
+          title="Public Bids"
+          subtitle="Government & private bid opportunities"
+          count={openBids}
+          onPress={() => navigateTo('/(tabs)/discover/bids')}
+        />
+
+        <SectionCard
+          icon={Building2}
+          iconColor={Colors.primary}
+          iconBg={Colors.primary + '12'}
+          title="Companies"
+          subtitle="Bond capacity & certifications"
+          count={companiesCount}
+          onPress={() => navigateTo('/(tabs)/discover/companies')}
+        />
+
+        <SectionCard
+          icon={Briefcase}
+          iconColor={Colors.accent}
+          iconBg={Colors.accent + '12'}
+          title="Direct Hire"
+          subtitle="Jobs, workers & messaging"
+          count={jobsCount}
+          onPress={() => navigateTo('/(tabs)/discover/hire')}
+        />
+
+        <Text style={styles.sectionLabel}>LIVE BID DATABASES</Text>
+        <Text style={styles.sectionHint}>
+          Browse real government & private bid portals — updated daily
+        </Text>
+
+        <View style={styles.bidSourcesGrid}>
+          {LIVE_BID_SOURCES.map((source) => (
+            <TouchableOpacity
+              key={source.name}
+              style={styles.bidSourceCard}
+              onPress={() => openBidSource(source.url)}
+              activeOpacity={0.7}
+            >
+              <View style={styles.bidSourceTop}>
+                <View style={[styles.bidSourceDot, { backgroundColor: source.color }]} />
+                <View style={[styles.bidSourceTypeBadge, { backgroundColor: source.color + '14' }]}>
+                  <Text style={[styles.bidSourceTypeText, { color: source.color }]}>{source.type}</Text>
+                </View>
+              </View>
+              <Text style={styles.bidSourceName}>{source.name}</Text>
+              <Text style={styles.bidSourceDesc} numberOfLines={2}>{source.description}</Text>
+              <View style={styles.bidSourceFooter}>
+                <ExternalLink size={12} color={source.color} />
+                <Text style={[styles.bidSourceLink, { color: source.color }]}>Open Portal</Text>
+              </View>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        <View style={styles.tipCard}>
+          <View style={styles.tipHeader}>
+            <Award size={16} color={Colors.primary} />
+            <Text style={styles.tipTitle}>Pro Tip</Text>
+          </View>
+          <Text style={styles.tipText}>
+            Register your company certifications (MWBE, DBE, etc.) in the Companies section to get matched with bids that require your qualifications.
+          </Text>
+        </View>
+      </ScrollView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: Colors.background },
+  header: { paddingHorizontal: 20, paddingTop: 12, marginBottom: 16 },
+  largeTitle: { fontSize: 34, fontWeight: '700' as const, color: Colors.text, letterSpacing: -0.5 },
+  headerSubtitle: { fontSize: 15, color: Colors.textSecondary, marginTop: 2 },
+  quickActions: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    gap: 12,
+    marginBottom: 24,
+  },
+  quickAction: {
+    flex: 1,
+    alignItems: 'center',
+    backgroundColor: Colors.surface,
+    borderRadius: 14,
+    paddingVertical: 14,
+    gap: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  quickActionIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  quickActionLabel: {
+    fontSize: 12,
+    fontWeight: '600' as const,
+    color: Colors.text,
+  },
+  sectionLabel: {
+    fontSize: 12,
+    fontWeight: '600' as const,
+    color: Colors.textSecondary,
+    letterSpacing: 0.6,
+    paddingHorizontal: 20,
+    marginBottom: 8,
+  },
+  sectionHint: {
+    fontSize: 13,
+    color: Colors.textMuted,
+    paddingHorizontal: 20,
+    marginBottom: 12,
+    lineHeight: 18,
+  },
+  sectionCard: {
+    marginHorizontal: 16,
+    marginBottom: 10,
+    borderRadius: 16,
+    backgroundColor: Colors.surface,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  sectionCardInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    gap: 14,
+  },
+  sectionIconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sectionInfo: { flex: 1, gap: 2 },
+  sectionTitle: { fontSize: 17, fontWeight: '600' as const, color: Colors.text },
+  sectionSubtitle: { fontSize: 13, color: Colors.textSecondary },
+  sectionRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  countBadge: {
+    minWidth: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 6,
+  },
+  countText: { fontSize: 13, fontWeight: '700' as const },
+  bidSourcesGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 16,
+    gap: 10,
+    marginBottom: 20,
+  },
+  bidSourceCard: {
+    width: '47.5%' as any,
+    backgroundColor: Colors.surface,
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+  },
+  bidSourceTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },

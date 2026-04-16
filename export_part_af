@@ -1,0 +1,4000 @@
+          </TouchableOpacity>
+
+          {expandedSections.expenses && (
+            <View style={styles.expandedContent}>
+              {cashFlowData?.expenses.map(exp => (
+                <View key={exp.id} style={styles.expenseListRow}>
+                  <View style={styles.expenseListInfo}>
+                    <Text style={styles.expenseListName}>{exp.name}</Text>
+                    <Text style={styles.expenseListMeta}>{EXPENSE_CATEGORIES.find(c => c.value === exp.category)?.label} · {freqLabel(exp.frequency)}</Text>
+                  </View>
+                  <Text style={styles.expenseListAmount}>{formatCurrency(exp.amount)}</Text>
+                  <TouchableOpacity onPress={() => handleRemoveExpense(exp.id)} style={styles.expenseDeleteBtn}>
+                    <Trash2 size={14} color={Colors.error} />
+                  </TouchableOpacity>
+                </View>
+              ))}
+              {(!cashFlowData?.expenses || cashFlowData.expenses.length === 0) && (
+                <Text style={styles.emptyListText}>No recurring expenses added yet</Text>
+              )}
+              <TouchableOpacity style={styles.addItemBtn} onPress={() => setShowAddExpense(true)} activeOpacity={0.7}>
+                <Plus size={16} color={Colors.primary} />
+                <Text style={styles.addItemText}>Add Expense</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+
+        <View style={styles.section}>
+          <TouchableOpacity style={styles.sectionHeaderRow} onPress={() => toggleSection('income')} activeOpacity={0.7}>
+            <TrendingUp size={18} color={Colors.success} />
+            <Text style={styles.sectionTitle}>Expected Income</Text>
+            <Text style={[styles.sectionAmount, { color: Colors.success }]}>
+              {relevantInvoices.filter(i => i.status !== 'paid').length} pending
+            </Text>
+            {expandedSections.income ? <ChevronUp size={18} color={Colors.textMuted} /> : <ChevronDown size={18} color={Colors.textMuted} />}
+          </TouchableOpacity>
+
+          {expandedSections.income && (
+            <View style={styles.expandedContent}>
+              {relevantInvoices.filter(i => i.status !== 'paid').map(inv => {
+                const remaining = inv.totalDue - inv.amountPaid;
+                return (
+                  <View key={inv.id} style={styles.incomeListRow}>
+                    <View style={styles.incomeListInfo}>
+                      <Text style={styles.incomeListName}>Invoice #{inv.number}</Text>
+                      <Text style={styles.incomeListMeta}>
+                        Due: {new Date(inv.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} · {inv.paymentTerms?.replace('_', ' ')}
+                      </Text>
+                    </View>
+                    <Text style={styles.incomeListAmount}>{formatCurrency(remaining)}</Text>
+                  </View>
+                );
+              })}
+
+              {cashFlowData?.expectedPayments.map(ep => {
+                const badge = confidenceBadge(ep.confidence);
+                return (
+                  <View key={ep.id} style={styles.incomeListRow}>
+                    <View style={styles.incomeListInfo}>
+                      <Text style={styles.incomeListName}>{ep.description}</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Text style={styles.incomeListMeta}>
+                          {new Date(ep.expectedDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                        </Text>
+                        <View style={[styles.confidenceBadge, { backgroundColor: badge.bg }]}>
+                          <Text style={[styles.confidenceBadgeText, { color: badge.text }]}>{badge.label}</Text>
+                        </View>
+                      </View>
+                    </View>
+                    <Text style={styles.incomeListAmount}>{formatCurrency(ep.amount)}</Text>
+                    <TouchableOpacity onPress={() => handleRemovePayment(ep.id)} style={styles.expenseDeleteBtn}>
+                      <Trash2 size={14} color={Colors.error} />
+                    </TouchableOpacity>
+                  </View>
+                );
+              })}
+
+              {relevantInvoices.filter(i => i.status !== 'paid').length === 0 && (!cashFlowData?.expectedPayments || cashFlowData.expectedPayments.length === 0) && (
+                <Text style={styles.emptyListText}>No income expected. Add invoices or expected payments.</Text>
+              )}
+              <TouchableOpacity style={styles.addItemBtn} onPress={() => setShowAddPayment(true)} activeOpacity={0.7}>
+                <Plus size={16} color={Colors.success} />
+                <Text style={[styles.addItemText, { color: Colors.success }]}>Add Expected Payment</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+
+        <View style={styles.section}>
+          <TouchableOpacity
+            style={styles.aiButton}
+            onPress={handleAIAnalysis}
+            activeOpacity={0.85}
+            disabled={aiLoading}
+            testID="ai-analysis-btn"
+          >
+            {aiLoading ? (
+              <ActivityIndicator size="small" color={Colors.textOnPrimary} />
+            ) : (
+              <Sparkles size={18} color={Colors.textOnPrimary} />
+            )}
+            <Text style={styles.aiButtonText}>
+              {aiLoading ? 'Analyzing...' : 'Get AI Advice'}
+            </Text>
+          </TouchableOpacity>
+
+          {showAiResults && aiAnalysis && (
+            <View style={styles.aiResultsCard}>
+              <View style={styles.aiResultsHeader}>
+                <Sparkles size={16} color={Colors.primary} />
+                <Text style={styles.aiResultsTitle}>AI Cash Flow Analysis</Text>
+                <View style={[styles.healthBadge, { backgroundColor: healthColor(aiAnalysis.overallHealth) + '20' }]}>
+                  <Text style={[styles.healthBadgeText, { color: healthColor(aiAnalysis.overallHealth) }]}>
+                    {aiAnalysis.healthScore}/100
+                  </Text>
+                </View>
+              </View>
+
+              <Text style={styles.aiSummary}>{aiAnalysis.summary}</Text>
+
+              {aiAnalysis.criticalWeeks.length > 0 && (
+                <View style={styles.aiSection}>
+                  <Text style={styles.aiSectionTitle}>Critical Weeks</Text>
+                  {aiAnalysis.criticalWeeks.map((cw, i) => (
+                    <View key={i} style={styles.criticalWeekRow}>
+                      <AlertTriangle size={14} color={Colors.error} />
+                      <Text style={styles.criticalWeekText}>
+                        Week {cw.weekNumber}: {formatCurrency(cw.balance)} — {cw.problem}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              {aiAnalysis.recommendations.length > 0 && (
+                <View style={styles.aiSection}>
+                  <Text style={styles.aiSectionTitle}>Recommendations</Text>
+                  {aiAnalysis.recommendations.map((rec, i) => {
+                    const pc = priorityConfig(rec.priority);
+                    return (
+                      <View key={i} style={[styles.recCard, { backgroundColor: pc.bg, borderColor: pc.text + '30' }]}>
+                        <View style={styles.recHeader}>
+                          <View style={[styles.recPriorityBadge, { backgroundColor: pc.text + '20' }]}>
+                            <Text style={[styles.recPriorityText, { color: pc.text }]}>{rec.priority}</Text>
+                          </View>
+                          <View style={[styles.recDiffBadge, { backgroundColor: Colors.fillTertiary }]}>
+                            <Text style={styles.recDiffText}>{rec.difficulty}</Text>
+                          </View>
+                        </View>
+                        <Text style={styles.recAction}>{rec.action}</Text>
+                        <Text style={styles.recImpact}>{rec.impact}</Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
+
+              {aiAnalysis.billingOptimizations.length > 0 && (
+                <View style={styles.aiSection}>
+                  <Text style={styles.aiSectionTitle}>Billing Optimizations</Text>
+                  {aiAnalysis.billingOptimizations.map((opt, i) => (
+                    <View key={i} style={styles.bulletRow}>
+                      <CheckCircle size={14} color={Colors.success} />
+                      <Text style={styles.bulletText}>{opt}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              <Text style={styles.aiGenLabel}>✨ AI-generated</Text>
+            </View>
+          )}
+        </View>
+      </ScrollView>
+
+      <CashFlowSetup
+        visible={showSetup}
+        onComplete={handleSetupComplete}
+        onClose={() => setShowSetup(false)}
+      />
+
+      <Modal visible={showEditBalance} transparent animationType="fade" onRequestClose={() => setShowEditBalance(false)}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalCard}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Edit Balance</Text>
+                <TouchableOpacity onPress={() => setShowEditBalance(false)}>
+                  <X size={20} color={Colors.textMuted} />
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.modalFieldLabel}>Current Bank Balance</Text>
+              <View style={styles.modalInputRow}>
+                <Text style={styles.modalDollar}>$</Text>
+                <TextInput
+                  style={styles.modalInput}
+                  value={editBalanceValue}
+                  onChangeText={setEditBalanceValue}
+                  keyboardType="numeric"
+                  autoFocus
+                />
+              </View>
+              <TouchableOpacity style={styles.modalSaveBtn} onPress={handleUpdateBalance} activeOpacity={0.85}>
+                <Text style={styles.modalSaveBtnText}>Update Balance</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      <Modal visible={showAddExpense} transparent animationType="slide" onRequestClose={() => setShowAddExpense(false)}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalCardBottom, { paddingBottom: insets.bottom + 16 }]}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Add Expense</Text>
+                <TouchableOpacity onPress={() => setShowAddExpense(false)}>
+                  <X size={20} color={Colors.textMuted} />
+                </TouchableOpacity>
+              </View>
+              <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                <Text style={styles.modalFieldLabel}>Name</Text>
+                <TextInput style={styles.modalTextInput} value={newExpenseName} onChangeText={setNewExpenseName} placeholder="e.g. Payroll" placeholderTextColor={Colors.textMuted} />
+                <Text style={styles.modalFieldLabel}>Amount</Text>
+                <View style={styles.modalInputRow}>
+                  <Text style={styles.modalDollar}>$</Text>
+                  <TextInput style={styles.modalInput} value={newExpenseAmount} onChangeText={setNewExpenseAmount} keyboardType="numeric" placeholder="0" placeholderTextColor={Colors.textMuted} />
+                </View>
+                <Text style={styles.modalFieldLabel}>Frequency</Text>
+                <View style={styles.chipGrid}>
+                  {FREQUENCY_OPTIONS.map(opt => (
+                    <TouchableOpacity key={opt.value} style={[styles.chip, newExpenseFrequency === opt.value && styles.chipActive]} onPress={() => setNewExpenseFrequency(opt.value)} activeOpacity={0.7}>
+                      <Text style={[styles.chipText, newExpenseFrequency === opt.value && styles.chipTextActive]}>{opt.label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <Text style={styles.modalFieldLabel}>Category</Text>
+                <View style={styles.chipGrid}>
+                  {EXPENSE_CATEGORIES.map(cat => (
+                    <TouchableOpacity key={cat.value} style={[styles.chip, newExpenseCategory === cat.value && styles.chipActive]} onPress={() => setNewExpenseCategory(cat.value)} activeOpacity={0.7}>
+                      <Text style={[styles.chipText, newExpenseCategory === cat.value && styles.chipTextActive]}>{cat.label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </ScrollView>
+              <TouchableOpacity style={styles.modalSaveBtn} onPress={handleAddExpense} activeOpacity={0.85}>
+                <Plus size={18} color={Colors.textOnPrimary} />
+                <Text style={styles.modalSaveBtnText}>Add Expense</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      <Modal visible={showAddPayment} transparent animationType="slide" onRequestClose={() => setShowAddPayment(false)}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalCardBottom, { paddingBottom: insets.bottom + 16 }]}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Add Expected Payment</Text>
+                <TouchableOpacity onPress={() => setShowAddPayment(false)}>
+                  <X size={20} color={Colors.textMuted} />
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.modalFieldLabel}>Description</Text>
+              <TextInput style={styles.modalTextInput} value={newPaymentDesc} onChangeText={setNewPaymentDesc} placeholder="e.g. Deposit from River Oak" placeholderTextColor={Colors.textMuted} />
+              <Text style={styles.modalFieldLabel}>Amount</Text>
+              <View style={styles.modalInputRow}>
+                <Text style={styles.modalDollar}>$</Text>
+                <TextInput style={styles.modalInput} value={newPaymentAmount} onChangeText={setNewPaymentAmount} keyboardType="numeric" placeholder="0" placeholderTextColor={Colors.textMuted} />
+              </View>
+              <Text style={styles.modalFieldLabel}>Days from now</Text>
+              <TextInput style={styles.modalTextInput} value={newPaymentDate} onChangeText={setNewPaymentDate} keyboardType="numeric" placeholder="30" placeholderTextColor={Colors.textMuted} />
+              <Text style={styles.modalFieldLabel}>Confidence</Text>
+              <View style={styles.chipGrid}>
+                {(['confirmed', 'expected', 'hopeful'] as const).map(c => {
+                  const badge = confidenceBadge(c);
+                  return (
+                    <TouchableOpacity key={c} style={[styles.chip, newPaymentConfidence === c && { backgroundColor: badge.bg, borderColor: badge.text + '30', borderWidth: 1 }]} onPress={() => setNewPaymentConfidence(c)} activeOpacity={0.7}>
+                      <Text style={[styles.chipText, newPaymentConfidence === c && { color: badge.text }]}>{badge.label}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+              <TouchableOpacity style={[styles.modalSaveBtn, { backgroundColor: Colors.success }]} onPress={handleAddPayment} activeOpacity={0.85}>
+                <Plus size={18} color={Colors.textOnPrimary} />
+                <Text style={styles.modalSaveBtnText}>Add Payment</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: Colors.background },
+  center: { alignItems: 'center', justifyContent: 'center' },
+  heroCard: { marginHorizontal: 16, marginTop: 16, backgroundColor: Colors.primary, borderRadius: 20, padding: 20, gap: 16 },
+  heroRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  heroLeft: { gap: 4 },
+  heroLabel: { fontSize: 13, fontWeight: '600' as const, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' as const, letterSpacing: 0.5 },
+  heroAmount: { fontSize: 32, fontWeight: '800' as const, color: '#FFFFFF', letterSpacing: -1 },
+  editBalanceBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
+  editBalanceBtnText: { fontSize: 13, fontWeight: '600' as const, color: '#FFFFFF' },
+  forecastSelector: { flexDirection: 'row', gap: 6 },
+  forecastChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.15)' },
+  forecastChipActive: { backgroundColor: '#FFFFFF' },
+  forecastChipText: { fontSize: 12, fontWeight: '600' as const, color: 'rgba(255,255,255,0.8)' },
+  forecastChipTextActive: { color: Colors.primary },
+  section: { marginHorizontal: 16, marginTop: 20 },
+  sectionLabel: { fontSize: 12, fontWeight: '600' as const, color: Colors.textMuted, letterSpacing: 0.8, textTransform: 'uppercase' as const, marginBottom: 10 },
+  sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: Colors.surface, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: Colors.cardBorder },
+  sectionTitle: { flex: 1, fontSize: 15, fontWeight: '600' as const, color: Colors.text },
+  sectionAmount: { fontSize: 14, fontWeight: '700' as const, color: Colors.error, marginRight: 4 },
+  expandedContent: { backgroundColor: Colors.surface, borderRadius: 14, padding: 14, marginTop: 6, borderWidth: 1, borderColor: Colors.cardBorder, gap: 8 },
+  expenseListRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: Colors.borderLight },
+  expenseListInfo: { flex: 1, gap: 2 },
+  expenseListName: { fontSize: 14, fontWeight: '600' as const, color: Colors.text },
+  expenseListMeta: { fontSize: 12, color: Colors.textMuted },
+  expenseListAmount: { fontSize: 14, fontWeight: '700' as const, color: Colors.text },
+  expenseDeleteBtn: { padding: 6 },
+  incomeListRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: Colors.borderLight },
+  incomeListInfo: { flex: 1, gap: 2 },
+  incomeListName: { fontSize: 14, fontWeight: '600' as const, color: Colors.text },
+  incomeListMeta: { fontSize: 12, color: Colors.textMuted },
+  incomeListAmount: { fontSize: 14, fontWeight: '700' as const, color: Colors.success },
+  confidenceBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
+  confidenceBadgeText: { fontSize: 10, fontWeight: '700' as const },
+  emptyListText: { fontSize: 13, color: Colors.textMuted, textAlign: 'center', paddingVertical: 12 },
+  addItemBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, marginTop: 4 },
+  addItemText: { fontSize: 14, fontWeight: '600' as const, color: Colors.primary },
+  dangerCard: { backgroundColor: Colors.errorLight, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: Colors.error + '30', gap: 10 },
+  dangerHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  dangerTitle: { fontSize: 15, fontWeight: '700' as const, color: Colors.error },
+  dangerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingLeft: 26 },
+  dangerDate: { fontSize: 13, color: Colors.textSecondary },
+  dangerBalance: { fontSize: 14, fontWeight: '700' as const, color: Colors.error },
+  summaryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  summaryItem: { flex: 1, minWidth: '45%' as any, backgroundColor: Colors.surface, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: Colors.cardBorder, gap: 4 },
+  summaryItemLabel: { fontSize: 12, color: Colors.textMuted, fontWeight: '500' as const },
+  summaryItemValue: { fontSize: 18, fontWeight: '800' as const, color: Colors.text },
+  summaryItemSub: { fontSize: 11, color: Colors.textMuted },
+  weekDetailCard: { backgroundColor: Colors.surface, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: Colors.cardBorder },
+  weekDetailRow: { flexDirection: 'row', gap: 8 },
+  weekDetailItem: { flex: 1, alignItems: 'center', backgroundColor: Colors.surfaceAlt, borderRadius: 10, padding: 10, gap: 4 },
+  weekDetailLabel: { fontSize: 11, fontWeight: '500' as const, color: Colors.textMuted },
+  weekDetailValue: { fontSize: 16, fontWeight: '800' as const },
+  weekItemsGroup: { marginTop: 12, gap: 4 },
+  weekItemsLabel: { fontSize: 12, fontWeight: '600' as const, color: Colors.textMuted, marginBottom: 4, textTransform: 'uppercase' as const, letterSpacing: 0.5 },
+  weekItemRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 4 },
+  weekItemName: { flex: 1, fontSize: 13, color: Colors.text, marginRight: 8 },
+  weekItemAmount: { fontSize: 13, fontWeight: '700' as const },
+  emptyWeekText: { fontSize: 13, color: Colors.textMuted, textAlign: 'center', paddingVertical: 16 },
+  aiButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: Colors.primary, borderRadius: 14, paddingVertical: 14, shadowColor: Colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 12, elevation: 3 },
+  aiButtonText: { fontSize: 16, fontWeight: '700' as const, color: Colors.textOnPrimary },
+  aiResultsCard: { backgroundColor: Colors.surface, borderRadius: 16, padding: 16, marginTop: 12, borderWidth: 1, borderColor: Colors.cardBorder, gap: 12 },
+  aiResultsHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  aiResultsTitle: { flex: 1, fontSize: 16, fontWeight: '700' as const, color: Colors.text },
+  healthBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+  healthBadgeText: { fontSize: 13, fontWeight: '700' as const },
+  aiSummary: { fontSize: 14, color: Colors.textSecondary, lineHeight: 20 },
+  aiSection: { gap: 8, marginTop: 4 },
+  aiSectionTitle: { fontSize: 13, fontWeight: '700' as const, color: Colors.text, textTransform: 'uppercase' as const, letterSpacing: 0.5 },
+  criticalWeekRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingVertical: 4 },
+  criticalWeekText: { flex: 1, fontSize: 13, color: Colors.textSecondary, lineHeight: 18 },
+  recCard: { borderRadius: 12, padding: 12, borderWidth: 1, gap: 6 },
+  recHeader: { flexDirection: 'row', gap: 6 },
+  recPriorityBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4 },
+  recPriorityText: { fontSize: 10, fontWeight: '700' as const, textTransform: 'uppercase' as const },
+  recDiffBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4 },
+  recDiffText: { fontSize: 10, fontWeight: '600' as const, color: Colors.textMuted, textTransform: 'uppercase' as const },
+  recAction: { fontSize: 14, fontWeight: '600' as const, color: Colors.text, lineHeight: 19 },
+  recImpact: { fontSize: 12, color: Colors.textSecondary },
+  bulletRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  bulletText: { flex: 1, fontSize: 13, color: Colors.textSecondary, lineHeight: 18 },
+  aiGenLabel: { fontSize: 11, color: Colors.textMuted, textAlign: 'right', marginTop: 4 },
+  modalOverlay: { flex: 1, backgroundColor: Colors.overlay, justifyContent: 'center', padding: 24 },
+  modalCard: { backgroundColor: Colors.surface, borderRadius: 20, padding: 20, gap: 12 },
+  modalCardBottom: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: Colors.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 20, maxHeight: '80%', gap: 10 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  modalTitle: { fontSize: 18, fontWeight: '700' as const, color: Colors.text },
+  modalFieldLabel: { fontSize: 12, fontWeight: '600' as const, color: Colors.textSecondary, marginTop: 8 },
+  modalInputRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surfaceAlt, borderRadius: 12, paddingHorizontal: 12 },
+  modalDollar: { fontSize: 20, fontWeight: '800' as const, color: Colors.primary },
+  modalInput: { flex: 1, minHeight: 48, fontSize: 20, fontWeight: '700' as const, color: Colors.text, paddingHorizontal: 8 },
+  modalTextInput: { minHeight: 44, borderRadius: 12, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 14, fontSize: 15, color: Colors.text },
+  chipGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 6 },
+  chip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, backgroundColor: Colors.fillTertiary },
+  chipActive: { backgroundColor: Colors.primary },
+  chipText: { fontSize: 13, fontWeight: '600' as const, color: Colors.textSecondary },
+  chipTextActive: { color: Colors.textOnPrimary },
+  modalSaveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: Colors.primary, borderRadius: 14, paddingVertical: 14, marginTop: 12 },
+  modalSaveBtnText: { fontSize: 16, fontWeight: '700' as const, color: Colors.textOnPrimary },
+});
+
+
+========== FILE: ./app/change-order.tsx ==========
+import React, { useState, useMemo, useCallback } from 'react';
+import {
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
+  Alert, Platform, KeyboardAvoidingView, Modal, FlatList,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
+import * as Haptics from 'expo-haptics';
+import {
+  Plus, Trash2, X, FileText, Send, Search, Percent, BookUser, User,
+} from 'lucide-react-native';
+import { Colors } from '@/constants/colors';
+import { useProjects } from '@/contexts/ProjectContext';
+import ContactPickerModal from '@/components/ContactPickerModal';
+import { getLivePrices, getRegionMultiplier, CATEGORY_META, type MaterialItem } from '@/constants/materials';
+import { sendEmail, buildChangeOrderEmailHtml } from '@/utils/emailService';
+import AIChangeOrderImpact from '@/components/AIChangeOrderImpact';
+import type { ChangeOrderLineItem, ChangeOrder } from '@/types';
+
+function createId(prefix: string): string {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+export default function ChangeOrderScreen() {
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const { projectId, coId } = useLocalSearchParams<{ projectId: string; coId?: string }>();
+  const {
+    getProject, getChangeOrdersForProject, addChangeOrder, updateChangeOrder, contacts,
+  } = useProjects();
+
+  const project = useMemo(() => getProject(projectId ?? ''), [projectId, getProject]);
+  const existingCOs = useMemo(() => getChangeOrdersForProject(projectId ?? ''), [projectId, getChangeOrdersForProject]);
+  const existingCO = useMemo(() => coId ? existingCOs.find(c => c.id === coId) : null, [coId, existingCOs]);
+
+  const originalContractValue = useMemo(() => {
+    if (!project) return 0;
+    const linked = project.linkedEstimate;
+    const legacy = project.estimate;
+    let base = linked?.grandTotal ?? legacy?.grandTotal ?? 0;
+    const approvedCOs = existingCOs.filter(c => c.status === 'approved' && c.id !== coId);
+    approvedCOs.forEach(c => { base += c.changeAmount; });
+    return base;
+  }, [project, existingCOs, coId]);
+
+  const nextCoNumber = useMemo(() => {
+    if (existingCO) return existingCO.number;
+    return existingCOs.length + 1;
+  }, [existingCOs, existingCO]);
+
+  const [description, setDescription] = useState(existingCO?.description ?? '');
+  const [reason, setReason] = useState(existingCO?.reason ?? '');
+  const [lineItems, setLineItems] = useState<ChangeOrderLineItem[]>(
+    existingCO?.lineItems ?? []
+  );
+  const [showAddItem, setShowAddItem] = useState(false);
+  const [newItemName, setNewItemName] = useState('');
+  const [newItemQty, setNewItemQty] = useState('');
+  const [newItemUnit, setNewItemUnit] = useState('');
+  const [newItemPrice, setNewItemPrice] = useState('');
+  const [newItemDesc, setNewItemDesc] = useState('');
+  const [showEstimateItems, setShowEstimateItems] = useState(false);
+  const [showMaterialSearch, setShowMaterialSearch] = useState(false);
+  const [materialQuery, setMaterialQuery] = useState('');
+  const [selectedPriceType, setSelectedPriceType] = useState<'retail' | 'bulk'>('bulk');
+  const [itemMarkup, setItemMarkup] = useState('0');
+  const [overridePrice, setOverridePrice] = useState(false);
+  const [overrideReason, setOverrideReason] = useState('');
+  const [showSendRecipient, setShowSendRecipient] = useState(false);
+  const [sendRecipientName, setSendRecipientName] = useState('');
+  const [sendRecipientEmail, setSendRecipientEmail] = useState('');
+  const [showContactPicker, setShowContactPicker] = useState(false);
+  const [contactPicked, setContactPicked] = useState(false);
+
+  const { settings } = useProjects();
+  const locationMultiplier = useMemo(() => getRegionMultiplier(settings.location), [settings.location]);
+  const allMaterials = useMemo(() => getLivePrices(Date.now() / 10000, locationMultiplier), [locationMultiplier]);
+
+  const filteredMaterials = useMemo(() => {
+    if (!materialQuery.trim()) return allMaterials.slice(0, 30);
+    const q = materialQuery.toLowerCase();
+    return allMaterials.filter(m =>
+      m.name.toLowerCase().includes(q) ||
+      m.category.toLowerCase().includes(q) ||
+      m.supplier.toLowerCase().includes(q)
+    ).slice(0, 50);
+  }, [allMaterials, materialQuery]);
+
+  const changeAmount = useMemo(() => {
+    return lineItems.reduce((sum, item) => sum + item.total, 0);
+  }, [lineItems]);
+
+  const newContractTotal = useMemo(() => {
+    return originalContractValue + changeAmount;
+  }, [originalContractValue, changeAmount]);
+
+  const estimateItems = useMemo(() => {
+    if (!project) return [];
+    const linked = project.linkedEstimate;
+    if (linked && linked.items.length > 0) {
+      return linked.items.map(item => ({
+        name: item.name,
+        unit: item.unit,
+        unitPrice: item.usesBulk ? item.bulkPrice : item.unitPrice,
+        category: item.category,
+      }));
+    }
+    const legacy = project.estimate;
+    if (legacy) {
+      return legacy.materials.map(item => ({
+        name: item.name,
+        unit: item.unit,
+        unitPrice: item.unitPrice,
+        category: item.category,
+      }));
+    }
+    return [];
+  }, [project]);
+
+  const handleAddNewItem = useCallback(() => {
+    const name = newItemName.trim();
+    if (!name) {
+      Alert.alert('Missing Name', 'Please enter an item name.');
+      return;
+    }
+    const qty = parseFloat(newItemQty) || 0;
+    const price = parseFloat(newItemPrice) || 0;
+    const markup = parseFloat(itemMarkup) || 0;
+    const finalPrice = price * (1 + markup / 100);
+    const item: ChangeOrderLineItem = {
+      id: createId('coli'),
+      name,
+      description: newItemDesc.trim() + (overridePrice && overrideReason.trim() ? ` (${overrideReason.trim()})` : ''),
+      quantity: qty,
+      unit: newItemUnit.trim() || 'ea',
+      unitPrice: finalPrice,
+      total: qty * finalPrice,
+      isNew: true,
+    };
+    setLineItems(prev => [...prev, item]);
+    setNewItemName('');
+    setNewItemQty('');
+    setNewItemUnit('');
+    setNewItemPrice('');
+    setNewItemDesc('');
+    setItemMarkup('0');
+    setOverridePrice(false);
+    setOverrideReason('');
+    setShowAddItem(false);
+    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  }, [newItemName, newItemQty, newItemUnit, newItemPrice, newItemDesc, itemMarkup, overridePrice, overrideReason]);
+
+  const handleAddFromMaterials = useCallback((material: MaterialItem) => {
+    const price = selectedPriceType === 'bulk' ? material.baseBulkPrice : material.baseRetailPrice;
+    const markup = parseFloat(itemMarkup) || 0;
+    const finalPrice = price * (1 + markup / 100);
+    const originalEstPrice = estimateItems.find(e => e.name === material.name)?.unitPrice;
+    const desc = originalEstPrice ? `Original estimate: ${originalEstPrice.toFixed(2)}/${material.unit}` : '';
+    const item: ChangeOrderLineItem = {
+      id: createId('coli'),
+      name: material.name,
+      description: desc,
+      quantity: 1,
+      unit: material.unit,
+      unitPrice: finalPrice,
+      total: finalPrice,
+      isNew: true,
+    };
+    setLineItems(prev => [...prev, item]);
+    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  }, [selectedPriceType, itemMarkup, estimateItems]);
+
+  const handleAddFromEstimate = useCallback((item: { name: string; unit: string; unitPrice: number }) => {
+    const newItem: ChangeOrderLineItem = {
+      id: createId('coli'),
+      name: item.name,
+      description: '',
+      quantity: 1,
+      unit: item.unit,
+      unitPrice: item.unitPrice,
+      total: item.unitPrice,
+      isNew: false,
+    };
+    setLineItems(prev => [...prev, newItem]);
+    setShowEstimateItems(false);
+    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  }, []);
+
+  const handleRemoveItem = useCallback((id: string) => {
+    setLineItems(prev => prev.filter(item => item.id !== id));
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+  }, []);
+
+  const handleUpdateItemQty = useCallback((id: string, qtyStr: string) => {
+    const qty = parseFloat(qtyStr) || 0;
+    setLineItems(prev => prev.map(item =>
+      item.id === id ? { ...item, quantity: qty, total: qty * item.unitPrice } : item
+    ));
+  }, []);
+
+  const handleUpdateItemPrice = useCallback((id: string, priceStr: string) => {
+    const price = parseFloat(priceStr) || 0;
+    setLineItems(prev => prev.map(item =>
+      item.id === id ? { ...item, unitPrice: price, total: item.quantity * price } : item
+    ));
+  }, []);
+
+  const handleSave = useCallback((status: 'draft' | 'submitted', recipientName?: string, recipientEmail?: string) => {
+    if (!projectId) return;
+    if (!description.trim()) {
+      Alert.alert('Missing Description', 'Please enter a description for this change order.');
+      return;
+    }
+    if (lineItems.length === 0) {
+      Alert.alert('No Items', 'Please add at least one line item.');
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const recipientInfo = recipientName ? ` to ${recipientName}${recipientEmail ? ` (${recipientEmail})` : ''}` : '';
+
+    if (existingCO) {
+      updateChangeOrder(existingCO.id, {
+        description: description.trim(),
+        reason: reason.trim(),
+        lineItems,
+        originalContractValue,
+        changeAmount,
+        newContractTotal,
+        status,
+      });
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert('Updated', `Change Order #${existingCO.number} has been ${status === 'submitted' ? `submitted for approval${recipientInfo}` : 'saved as draft'}.`);
+    } else {
+      const co: ChangeOrder = {
+        id: createId('co'),
+        number: nextCoNumber,
+        projectId,
+        date: now,
+        description: description.trim(),
+        reason: reason.trim(),
+        lineItems,
+        originalContractValue,
+        changeAmount,
+        newContractTotal,
+        status,
+        createdAt: now,
+        updatedAt: now,
+      };
+      addChangeOrder(co);
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert('Created', `Change Order #${nextCoNumber} has been ${status === 'submitted' ? `submitted for approval${recipientInfo}` : 'saved as draft'}.`);
+    }
+
+    router.back();
+  }, [projectId, description, reason, lineItems, originalContractValue, changeAmount, newContractTotal, existingCO, nextCoNumber, addChangeOrder, updateChangeOrder, router]);
+
+  const handleSendPress = useCallback(() => {
+    setShowSendRecipient(true);
+  }, []);
+
+  const handleConfirmSend = useCallback(async () => {
+    if (!sendRecipientEmail.trim()) {
+      Alert.alert('Email Required', 'Please enter a recipient email address.');
+      return;
+    }
+    setShowSendRecipient(false);
+
+    if (sendRecipientEmail.trim()) {
+      const branding = settings.branding ?? { companyName: '', contactName: '', email: '', phone: '', address: '', licenseNumber: '', tagline: '' };
+      const html = buildChangeOrderEmailHtml({
+        companyName: branding.companyName,
+        recipientName: sendRecipientName,
+        projectName: project?.name ?? 'Project',
+        coNumber: existingCO?.number ?? nextCoNumber,
+        description: description.trim(),
+        changeAmount,
+        newContractTotal,
+        contactName: branding.contactName,
+        contactEmail: branding.email,
+      });
+
+      const result = await sendEmail({
+        to: sendRecipientEmail.trim(),
+        subject: `${branding.companyName || 'MAGE ID'} - Change Order #${existingCO?.number ?? nextCoNumber} - ${project?.name ?? 'Project'}`,
+        html,
+        replyTo: branding.email || undefined,
+      });
+
+      if (!result.success) {
+        if (result.error === 'cancelled') {
+          return;
+        }
+        console.warn('[ChangeOrder] Email send failed:', result.error);
+        Alert.alert('Email Notice', `Change order saved but email could not be sent: ${result.error}`);
+        return;
+      } else {
+        console.log('[ChangeOrder] Email sent successfully');
+      }
+    }
+
+    handleSave('submitted', sendRecipientName, sendRecipientEmail);
+  }, [handleSave, sendRecipientName, sendRecipientEmail, settings, project, existingCO, nextCoNumber, description, changeAmount, newContractTotal]);
+
+  if (!project) {
+    return (
+      <View style={[styles.container, styles.center]}>
+        <Stack.Screen options={{ title: 'Change Order' }} />
+        <Text style={styles.notFoundText}>Project not found</Text>
+        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+          <Text style={styles.backBtnText}>Go Back</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  const isLocked = existingCO?.status === 'approved' || existingCO?.status === 'rejected' || existingCO?.status === 'void';
+
+  return (
+    <View style={styles.container}>
+      <Stack.Screen options={{
+        title: existingCO ? `CO #${existingCO.number}` : `New Change Order`,
+        headerStyle: { backgroundColor: Colors.background },
+        headerTintColor: Colors.primary,
+        headerTitleStyle: { fontWeight: '700' as const, color: Colors.text },
+      }} />
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <ScrollView
+          contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.heroCard}>
+            <Text style={styles.heroLabel}>Change Order #{nextCoNumber}</Text>
+            <Text style={styles.heroProject}>{project.name}</Text>
+            {existingCO && (
+              <View style={[styles.statusBadge, statusColors[existingCO.status]]}>
+                <Text style={[styles.statusText, { color: statusTextColors[existingCO.status] }]}>
+                  {existingCO.status.charAt(0).toUpperCase() + existingCO.status.slice(1)}
+                </Text>
+              </View>
+            )}
+          </View>
+
+          <View style={styles.totalsCard}>
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabel}>Original Contract</Text>
+              <Text style={styles.totalValue}>${originalContractValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
+            </View>
+            <View style={styles.divider} />
+            <View style={styles.totalRow}>
+              <Text style={[styles.totalLabel, { color: changeAmount >= 0 ? Colors.accent : Colors.success }]}>
+                This CO Amount
+              </Text>
+              <Text style={[styles.totalValueBold, { color: changeAmount >= 0 ? Colors.accent : Colors.success }]}>
+                {changeAmount >= 0 ? '+' : ''}{formatCurrency(changeAmount)}
+              </Text>
+            </View>
+            <View style={styles.dividerThick} />
+            <View style={styles.totalRow}>
+              <Text style={styles.grandLabel}>New Contract Total</Text>
+              <Text style={styles.grandValue}>{formatCurrency(newContractTotal)}</Text>
+            </View>
+          </View>
+
+          {!isLocked && (
+            <>
+              <View style={styles.fieldSection}>
+                <Text style={styles.fieldLabel}>Description</Text>
+                <TextInput
+                  style={styles.textArea}
+                  value={description}
+                  onChangeText={setDescription}
+                  placeholder="Describe the change..."
+                  placeholderTextColor={Colors.textMuted}
+                  multiline
+                  textAlignVertical="top"
+                  testID="co-description-input"
+                />
+              </View>
+
+              <View style={styles.fieldSection}>
+                <Text style={styles.fieldLabel}>Reason</Text>
+                <TextInput
+                  style={styles.input}
+                  value={reason}
+                  onChangeText={setReason}
+                  placeholder="Why is this change needed?"
+                  placeholderTextColor={Colors.textMuted}
+                  testID="co-reason-input"
+                />
+              </View>
+
+              <View style={{ paddingHorizontal: 16 }}>
+                <AIChangeOrderImpact
+                  changeDescription={description}
+                  lineItems={lineItems.map(i => ({ name: i.name, quantity: i.quantity, unitPrice: i.unitPrice, total: i.total }))}
+                  schedule={project?.schedule ?? null}
+                />
+              </View>
+            </>
+          )}
+
+          {isLocked && (
+            <View style={styles.fieldSection}>
+              <View style={styles.lockedCard}>
+                <Text style={styles.lockedTitle}>{existingCO?.description}</Text>
+                {existingCO?.reason ? <Text style={styles.lockedSub}>Reason: {existingCO.reason}</Text> : null}
+              </View>
+            </View>
+          )}
+
+          <View style={styles.fieldSection}>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.fieldLabel}>Line Items</Text>
+              {!isLocked && (
+                <View style={styles.addBtnRow}>
+                  <TouchableOpacity
+                    style={styles.addSearchBtn}
+                    onPress={() => { setMaterialQuery(''); setShowMaterialSearch(true); }}
+                    activeOpacity={0.7}
+                    testID="search-materials-btn"
+                  >
+                    <Search size={14} color={Colors.success} />
+                    <Text style={styles.addSearchBtnText}>Materials</Text>
+                  </TouchableOpacity>
+                  {estimateItems.length > 0 && (
+                    <TouchableOpacity
+                      style={styles.addFromBtn}
+                      onPress={() => setShowEstimateItems(true)}
+                      activeOpacity={0.7}
+                    >
+                      <FileText size={14} color={Colors.info} />
+                      <Text style={styles.addFromBtnText}>Estimate</Text>
+                    </TouchableOpacity>
+                  )}
+                  <TouchableOpacity
+                    style={styles.addNewBtn}
+                    onPress={() => setShowAddItem(true)}
+                    activeOpacity={0.7}
+                    testID="add-co-item-btn"
+                  >
+                    <Plus size={14} color={Colors.primary} />
+                    <Text style={styles.addNewBtnText}>Custom</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+
+            {lineItems.length === 0 && (
+              <View style={styles.emptyItems}>
+                <Text style={styles.emptyItemsText}>No line items yet. Add items to define this change order.</Text>
+              </View>
+            )}
+
+            {lineItems.map((item) => (
+              <View key={item.id} style={styles.lineItemCard}>
+                <View style={styles.lineItemHeader}>
+                  <View style={styles.lineItemNameRow}>
+                    {item.isNew && <View style={styles.newBadge}><Text style={styles.newBadgeText}>NEW</Text></View>}
+                    <Text style={styles.lineItemName} numberOfLines={1}>{item.name}</Text>
+                  </View>
+                  {!isLocked && (
+                    <TouchableOpacity onPress={() => handleRemoveItem(item.id)} activeOpacity={0.7}>
+                      <Trash2 size={16} color={Colors.error} />
+                    </TouchableOpacity>
+                  )}
+                </View>
+                {!isLocked ? (
+                  <View style={styles.lineItemFields}>
+                    <View style={styles.lineItemFieldSmall}>
+                      <Text style={styles.lineItemFieldLabel}>Qty</Text>
+                      <TextInput
+                        style={styles.lineItemInput}
+                        value={item.quantity.toString()}
+                        onChangeText={(v) => handleUpdateItemQty(item.id, v)}
+                        keyboardType="numeric"
+                      />
+                    </View>
+                    <View style={styles.lineItemFieldSmall}>
+                      <Text style={styles.lineItemFieldLabel}>Unit</Text>
+                      <Text style={styles.lineItemUnitText}>{item.unit}</Text>
+                    </View>
+                    <View style={styles.lineItemFieldSmall}>
+                      <Text style={styles.lineItemFieldLabel}>Price</Text>
+                      <TextInput
+                        style={styles.lineItemInput}
+                        value={item.unitPrice.toString()}
+                        onChangeText={(v) => handleUpdateItemPrice(item.id, v)}
+                        keyboardType="numeric"
+                      />
+                    </View>
+                    <View style={styles.lineItemFieldSmall}>
+                      <Text style={styles.lineItemFieldLabel}>Total</Text>
+                      <Text style={styles.lineItemTotal}>{formatCurrency(item.total)}</Text>
+                    </View>
+                  </View>
+                ) : (
+                  <View style={styles.lineItemFields}>
+                    <Text style={styles.lockedFieldText}>{item.quantity} {item.unit} × {formatCurrency(item.unitPrice)}</Text>
+                    <Text style={styles.lineItemTotal}>{formatCurrency(item.total)}</Text>
+                  </View>
+                )}
+              </View>
+            ))}
+          </View>
+        </ScrollView>
+
+        {!isLocked && (
+          <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]}>
+            <TouchableOpacity
+              style={styles.saveDraftBtn}
+              onPress={() => handleSave('draft')}
+              activeOpacity={0.7}
+              testID="save-co-draft"
+            >
+              <Text style={styles.saveDraftBtnText}>Save Draft</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.sendBtn}
+              onPress={handleSendPress}
+              activeOpacity={0.7}
+              testID="send-co-btn"
+            >
+              <Send size={16} color={Colors.textOnPrimary} />
+              <Text style={styles.sendBtnText}>Send for Approval</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </KeyboardAvoidingView>
+
+      <Modal visible={showSendRecipient} transparent animationType="slide" onRequestClose={() => setShowSendRecipient(false)}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }]}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Send for Approval To</Text>
+                <TouchableOpacity onPress={() => setShowSendRecipient(false)}>
+                  <X size={20} color={Colors.textMuted} />
+                </TouchableOpacity>
+              </View>
+
+              {contactPicked ? (
+                <View style={styles.selectedRecipientCard}>
+                  <User size={16} color={Colors.primary} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.selectedRecipientName}>{sendRecipientName}</Text>
+                    {sendRecipientEmail ? <Text style={styles.selectedRecipientEmail}>{sendRecipientEmail}</Text> : null}
+                  </View>
+                  <TouchableOpacity onPress={() => { setSendRecipientName(''); setSendRecipientEmail(''); setContactPicked(false); }} style={styles.clearRecipientBtn}>
+                    <X size={12} color={Colors.textMuted} />
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <>
+                  <Text style={styles.modalFieldLabel}>Approver Name</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    value={sendRecipientName}
+                    onChangeText={setSendRecipientName}
+                    placeholder="Enter name or pick from contacts"
+                    placeholderTextColor={Colors.textMuted}
+                  />
+                  <Text style={styles.modalFieldLabel}>Email</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    value={sendRecipientEmail}
+                    onChangeText={setSendRecipientEmail}
+                    placeholder="email@example.com"
+                    placeholderTextColor={Colors.textMuted}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                  />
+                  {contacts.length > 0 && (
+                    <TouchableOpacity
+                      style={styles.pickContactBtn}
+                      onPress={() => { setShowSendRecipient(false); setTimeout(() => setShowContactPicker(true), 350); }}
+                      activeOpacity={0.7}
+                    >
+                      <BookUser size={14} color={Colors.primary} />
+                      <Text style={styles.pickContactText}>Pick from Contacts</Text>
+                    </TouchableOpacity>
+                  )}
+                </>
+              )}
+
+              <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
+                <TouchableOpacity style={styles.saveDraftBtn} onPress={() => setShowSendRecipient(false)} activeOpacity={0.7}>
+                  <Text style={styles.saveDraftBtnText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.sendBtn} onPress={handleConfirmSend} activeOpacity={0.7}>
+                  <Send size={16} color={Colors.textOnPrimary} />
+                  <Text style={styles.sendBtnText}>Send</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      <ContactPickerModal
+        visible={showContactPicker}
+        onClose={() => { setShowContactPicker(false); setTimeout(() => setShowSendRecipient(true), 350); }}
+        contacts={contacts}
+        title="Select Approver"
+        onSelect={(contact) => {
+          const name = `${contact.firstName} ${contact.lastName}`.trim() || contact.companyName;
+          setSendRecipientName(name);
+          setSendRecipientEmail(contact.email);
+          setContactPicked(true);
+          setShowContactPicker(false);
+          setTimeout(() => setShowSendRecipient(true), 350);
+        }}
+      />
+
+      <Modal visible={showAddItem} transparent animationType="slide" onRequestClose={() => setShowAddItem(false)}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }]}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Add New Item</Text>
+                <TouchableOpacity onPress={() => setShowAddItem(false)}><X size={20} color={Colors.textMuted} /></TouchableOpacity>
+              </View>
+              <Text style={styles.modalFieldLabel}>Item Name</Text>
+              <TextInput style={styles.modalInput} value={newItemName} onChangeText={setNewItemName} placeholder="Item name" placeholderTextColor={Colors.textMuted} />
+              <Text style={styles.modalFieldLabel}>Description</Text>
+              <TextInput style={styles.modalInput} value={newItemDesc} onChangeText={setNewItemDesc} placeholder="Optional description" placeholderTextColor={Colors.textMuted} />
+              <View style={styles.modalRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.modalFieldLabel}>Quantity</Text>
+                  <TextInput style={styles.modalInput} value={newItemQty} onChangeText={setNewItemQty} placeholder="0" placeholderTextColor={Colors.textMuted} keyboardType="numeric" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.modalFieldLabel}>Unit</Text>
+                  <TextInput style={styles.modalInput} value={newItemUnit} onChangeText={setNewItemUnit} placeholder="ea, sq ft..." placeholderTextColor={Colors.textMuted} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.modalFieldLabel}>Unit Price</Text>
+                  <TextInput style={styles.modalInput} value={newItemPrice} onChangeText={setNewItemPrice} placeholder="0.00" placeholderTextColor={Colors.textMuted} keyboardType="numeric" />
+                </View>
+              </View>
+              <TouchableOpacity style={styles.modalAddBtn} onPress={handleAddNewItem} activeOpacity={0.85}>
+                <Text style={styles.modalAddBtnText}>Add Item</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      <Modal visible={showEstimateItems} transparent animationType="slide" onRequestClose={() => setShowEstimateItems(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16, maxHeight: '70%' }]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Add from Estimate</Text>
+              <TouchableOpacity onPress={() => setShowEstimateItems(false)}><X size={20} color={Colors.textMuted} /></TouchableOpacity>
+            </View>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {estimateItems.map((item, idx) => (
+                <TouchableOpacity
+                  key={idx}
+                  style={styles.estimateItemRow}
+                  onPress={() => handleAddFromEstimate(item)}
+                  activeOpacity={0.7}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.estimateItemName}>{item.name}</Text>
+                    <Text style={styles.estimateItemMeta}>{item.category} · {formatCurrency(item.unitPrice)}/{item.unit}</Text>
+                  </View>
+                  <Plus size={18} color={Colors.primary} />
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={showMaterialSearch} transparent animationType="slide" onRequestClose={() => setShowMaterialSearch(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16, maxHeight: '80%' }]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Search Materials</Text>
+              <TouchableOpacity onPress={() => setShowMaterialSearch(false)}><X size={20} color={Colors.textMuted} /></TouchableOpacity>
+            </View>
+
+            <View style={styles.matSearchBar}>
+              <Search size={16} color={Colors.textMuted} />
+              <TextInput
+                style={styles.matSearchInput}
+                value={materialQuery}
+                onChangeText={setMaterialQuery}
+                placeholder="Search lumber, concrete, HVAC..."
+                placeholderTextColor={Colors.textMuted}
+                autoFocus
+                testID="co-material-search"
+              />
+              {materialQuery.length > 0 && (
+                <TouchableOpacity onPress={() => setMaterialQuery('')}>
+                  <X size={14} color={Colors.textMuted} />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            <View style={styles.priceTypeRow}>
+              <TouchableOpacity
+                style={[styles.priceTypeChip, selectedPriceType === 'retail' && styles.priceTypeChipActive]}
+                onPress={() => setSelectedPriceType('retail')}
+              >
+                <Text style={[styles.priceTypeText, selectedPriceType === 'retail' && styles.priceTypeTextActive]}>Retail</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.priceTypeChip, selectedPriceType === 'bulk' && styles.priceTypeChipActive]}
+                onPress={() => setSelectedPriceType('bulk')}
+              >
+                <Text style={[styles.priceTypeText, selectedPriceType === 'bulk' && styles.priceTypeTextActive]}>Bulk</Text>
+              </TouchableOpacity>
+              <View style={styles.matMarkupRow}>
+                <Percent size={12} color={Colors.accent} />
+                <TextInput
+                  style={styles.matMarkupInput}
+                  value={itemMarkup}
+                  onChangeText={setItemMarkup}
+                  keyboardType="numeric"
+                  placeholder="0"
+                  placeholderTextColor={Colors.textMuted}
+                />
+                <Text style={styles.matMarkupLabel}>markup</Text>
+              </View>
+            </View>
+
+            <Text style={styles.matResultCount}>{filteredMaterials.length} results</Text>
+
+            <FlatList
+              data={filteredMaterials}
+              keyExtractor={item => item.id}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              renderItem={({ item: material }) => {
+                const price = selectedPriceType === 'bulk' ? material.baseBulkPrice : material.baseRetailPrice;
+                const markup = parseFloat(itemMarkup) || 0;
+                const finalPrice = price * (1 + markup / 100);
+                const catLabel = CATEGORY_META[material.category]?.label ?? material.category;
+                const origEst = estimateItems.find(e => e.name === material.name);
+                return (
+                  <TouchableOpacity
+                    style={styles.matResultRow}
+                    onPress={() => handleAddFromMaterials(material)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.matResultName} numberOfLines={1}>{material.name}</Text>
+                      <View style={styles.matResultMeta}>
+                        <Text style={styles.matResultCat}>{catLabel}</Text>
+                        <Text style={styles.matResultSupplier}>{material.supplier}</Text>
+                      </View>
+                      {origEst && (
+                        <Text style={styles.matOriginalPrice}>Original estimate: {formatCurrency(origEst.unitPrice)}/{origEst.unit}</Text>
+                      )}
+                    </View>
+                    <View style={styles.matResultPrices}>
+                      <Text style={styles.matResultRetail}>${material.baseRetailPrice.toFixed(2)}</Text>
+                      <Text style={styles.matResultBulk}>${material.baseBulkPrice.toFixed(2)}</Text>
+                      {markup > 0 && <Text style={styles.matResultFinal}>${finalPrice.toFixed(2)}</Text>}
+                    </View>
+                    <Plus size={18} color={Colors.primary} />
+                  </TouchableOpacity>
+                );
+              }}
+            />
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
+}
+
+function formatCurrency(n: number): string {
+  return '$' + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+const statusColors: Record<string, { backgroundColor: string }> = {
+  draft: { backgroundColor: Colors.fillTertiary },
+  submitted: { backgroundColor: Colors.infoLight },
+  under_review: { backgroundColor: Colors.warningLight },
+  sent: { backgroundColor: Colors.infoLight },
+  approved: { backgroundColor: Colors.successLight },
+  rejected: { backgroundColor: Colors.errorLight },
+  revised: { backgroundColor: Colors.warningLight },
+  void: { backgroundColor: Colors.fillTertiary },
+};
+
+const statusTextColors: Record<string, string> = {
+  draft: Colors.textSecondary,
+  submitted: Colors.info,
+  under_review: Colors.warning,
+  sent: Colors.info,
+  approved: Colors.success,
+  rejected: Colors.error,
+  revised: Colors.warning,
+  void: Colors.textMuted,
+};
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: Colors.background },
+  center: { alignItems: 'center', justifyContent: 'center' },
+  notFoundText: { fontSize: 18, color: Colors.textSecondary, marginBottom: 16 },
+  backBtn: { backgroundColor: Colors.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 10 },
+  backBtnText: { color: Colors.textOnPrimary, fontSize: 15, fontWeight: '600' as const },
+  heroCard: { backgroundColor: Colors.primary, marginHorizontal: 20, marginTop: 16, borderRadius: 16, padding: 20, gap: 4 },
+  heroLabel: { fontSize: 13, fontWeight: '600' as const, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' as const, letterSpacing: 0.5 },
+  heroProject: { fontSize: 20, fontWeight: '700' as const, color: Colors.textOnPrimary },
+  statusBadge: { alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 8, marginTop: 6 },
+  statusText: { fontSize: 12, fontWeight: '700' as const },
+  totalsCard: { marginHorizontal: 20, marginTop: 16, backgroundColor: Colors.card, borderRadius: 16, padding: 18, borderWidth: 1, borderColor: Colors.cardBorder },
+  totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6 },
+  totalLabel: { fontSize: 15, color: Colors.textSecondary, fontWeight: '500' as const },
+  totalValue: { fontSize: 15, fontWeight: '600' as const, color: Colors.text },
+  totalValueBold: { fontSize: 17, fontWeight: '700' as const },
+  divider: { height: 1, backgroundColor: Colors.borderLight, marginVertical: 4 },
+  dividerThick: { height: 2, backgroundColor: Colors.primary + '30', borderRadius: 1, marginVertical: 6 },
+  grandLabel: { fontSize: 17, fontWeight: '800' as const, color: Colors.text },
+  grandValue: { fontSize: 20, fontWeight: '800' as const, color: Colors.primary },
+  fieldSection: { marginHorizontal: 20, marginTop: 18 },
+  fieldLabel: { fontSize: 13, fontWeight: '600' as const, color: Colors.textSecondary, marginBottom: 6, textTransform: 'uppercase' as const, letterSpacing: 0.5 },
+  input: { minHeight: 48, borderRadius: 14, backgroundColor: Colors.card, paddingHorizontal: 14, fontSize: 15, color: Colors.text, borderWidth: 1, borderColor: Colors.cardBorder },
+  textArea: { minHeight: 90, borderRadius: 14, backgroundColor: Colors.card, paddingHorizontal: 14, paddingTop: 12, fontSize: 15, color: Colors.text, borderWidth: 1, borderColor: Colors.cardBorder },
+  sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  addBtnRow: { flexDirection: 'row', gap: 8 },
+  addFromBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: Colors.infoLight },
+  addFromBtnText: { fontSize: 12, fontWeight: '600' as const, color: Colors.info },
+  addNewBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: Colors.primary + '15' },
+  addNewBtnText: { fontSize: 12, fontWeight: '600' as const, color: Colors.primary },
+  emptyItems: { backgroundColor: Colors.card, borderRadius: 12, padding: 24, alignItems: 'center', borderWidth: 1, borderColor: Colors.cardBorder },
+  emptyItemsText: { fontSize: 14, color: Colors.textMuted, textAlign: 'center' as const },
+  lineItemCard: { backgroundColor: Colors.card, borderRadius: 12, padding: 14, marginBottom: 8, borderWidth: 1, borderColor: Colors.cardBorder },
+  lineItemHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+  lineItemNameRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 },
+  newBadge: { backgroundColor: Colors.accent + '20', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
+  newBadgeText: { fontSize: 9, fontWeight: '700' as const, color: Colors.accent },
+  lineItemName: { fontSize: 15, fontWeight: '600' as const, color: Colors.text, flex: 1 },
+  lineItemFields: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  lineItemFieldSmall: { flex: 1, gap: 2 },
+  lineItemFieldLabel: { fontSize: 10, fontWeight: '600' as const, color: Colors.textMuted, textTransform: 'uppercase' as const },
+  lineItemInput: { minHeight: 36, borderRadius: 8, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 8, fontSize: 14, color: Colors.text },
+  lineItemUnitText: { fontSize: 14, color: Colors.textSecondary, paddingVertical: 8 },
+  lineItemTotal: { fontSize: 15, fontWeight: '700' as const, color: Colors.primary },
+  lockedCard: { backgroundColor: Colors.card, borderRadius: 12, padding: 16, borderWidth: 1, borderColor: Colors.cardBorder, gap: 4 },
+  lockedTitle: { fontSize: 15, fontWeight: '600' as const, color: Colors.text },
+  lockedSub: { fontSize: 13, color: Colors.textSecondary },
+  lockedFieldText: { flex: 1, fontSize: 14, color: Colors.textSecondary },
+  bottomBar: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: Colors.surface, borderTopWidth: 0.5, borderTopColor: Colors.borderLight, paddingHorizontal: 20, paddingTop: 12, flexDirection: 'row', gap: 10 },
+  saveDraftBtn: { flex: 1, minHeight: 48, borderRadius: 14, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
+  saveDraftBtnText: { fontSize: 14, fontWeight: '700' as const, color: Colors.text },
+  sendBtn: { flex: 2, minHeight: 48, borderRadius: 14, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 },
+  sendBtnText: { fontSize: 14, fontWeight: '700' as const, color: Colors.textOnPrimary },
+  selectedRecipientCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.primary + '10', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, gap: 10, borderWidth: 1, borderColor: Colors.primary + '25' },
+  selectedRecipientName: { fontSize: 14, fontWeight: '600' as const, color: Colors.text },
+  selectedRecipientEmail: { fontSize: 12, color: Colors.textSecondary },
+  clearRecipientBtn: { width: 24, height: 24, borderRadius: 12, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
+  pickContactBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', marginTop: 8, paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8, backgroundColor: Colors.primary + '10' },
+  pickContactText: { fontSize: 13, fontWeight: '600' as const, color: Colors.primary },
+  modalOverlay: { flex: 1, backgroundColor: Colors.overlay, justifyContent: 'flex-end' },
+  modalCard: { backgroundColor: Colors.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 22, gap: 8 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  modalTitle: { fontSize: 20, fontWeight: '700' as const, color: Colors.text },
+  modalFieldLabel: { fontSize: 12, fontWeight: '600' as const, color: Colors.textSecondary, marginTop: 4 },
+  modalInput: { minHeight: 44, borderRadius: 12, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 12, fontSize: 15, color: Colors.text },
+  modalRow: { flexDirection: 'row', gap: 10 },
+  modalAddBtn: { backgroundColor: Colors.primary, borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginTop: 8 },
+  modalAddBtnText: { fontSize: 16, fontWeight: '700' as const, color: Colors.textOnPrimary },
+  estimateItemRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: Colors.borderLight, gap: 12 },
+  estimateItemName: { fontSize: 15, fontWeight: '600' as const, color: Colors.text },
+  estimateItemMeta: { fontSize: 12, color: Colors.textMuted, marginTop: 2 },
+  addSearchBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: Colors.successLight },
+  addSearchBtnText: { fontSize: 12, fontWeight: '600' as const, color: Colors.success },
+  matSearchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surfaceAlt, borderRadius: 12, paddingHorizontal: 12, gap: 8, height: 44, borderWidth: 1, borderColor: Colors.cardBorder },
+  matSearchInput: { flex: 1, fontSize: 15, color: Colors.text },
+  priceTypeRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
+  priceTypeChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: Colors.fillTertiary },
+  priceTypeChipActive: { backgroundColor: Colors.primary },
+  priceTypeText: { fontSize: 12, fontWeight: '600' as const, color: Colors.textSecondary },
+  priceTypeTextActive: { color: Colors.textOnPrimary },
+  matMarkupRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginLeft: 'auto' as const, backgroundColor: Colors.fillTertiary, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },
+  matMarkupInput: { width: 36, fontSize: 14, fontWeight: '600' as const, color: Colors.text, textAlign: 'center' as const },
+  matMarkupLabel: { fontSize: 11, color: Colors.textMuted },
+  matResultCount: { fontSize: 11, color: Colors.textMuted, marginTop: 6, marginBottom: 4 },
+  matResultRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: Colors.borderLight, gap: 10 },
+  matResultName: { fontSize: 14, fontWeight: '600' as const, color: Colors.text },
+  matResultMeta: { flexDirection: 'row', gap: 8, marginTop: 2 },
+  matResultCat: { fontSize: 11, color: Colors.info, fontWeight: '500' as const },
+  matResultSupplier: { fontSize: 11, color: Colors.textMuted },
+  matOriginalPrice: { fontSize: 10, color: Colors.warning, fontWeight: '500' as const, marginTop: 2 },
+  matResultPrices: { alignItems: 'flex-end', gap: 1 },
+  matResultRetail: { fontSize: 11, color: Colors.textMuted, textDecorationLine: 'line-through' as const },
+  matResultBulk: { fontSize: 14, fontWeight: '700' as const, color: Colors.success },
+  matResultFinal: { fontSize: 10, color: Colors.accent, fontWeight: '600' as const },
+});
+
+
+========== FILE: ./app/company-detail.tsx ==========
+import React, { useMemo } from 'react';
+import {
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Linking,
+} from 'react-native';
+import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
+import { MapPin, Star, Shield, Building2, Mail, Phone, Globe, Calendar, Users, ChevronRight } from 'lucide-react-native';
+import * as Haptics from 'expo-haptics';
+import { Colors } from '@/constants/colors';
+import { useCompanies } from '@/contexts/CompaniesContext';
+import { useBids } from '@/contexts/BidsContext';
+import { CERTIFICATIONS, CERT_COLORS } from '@/constants/certifications';
+import type { BidCategory } from '@/types';
+
+const BID_CATEGORY_LABELS: Record<BidCategory, string> = {
+  construction: 'Construction', it_services: 'IT Services', environmental: 'Environmental',
+  energy: 'Energy', infrastructure: 'Infrastructure', transportation: 'Transportation',
+  utilities: 'Utilities', healthcare: 'Healthcare', education: 'Education', residential: 'Residential',
+};
+
+function formatCurrency(amount: number): string {
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(amount);
+}
+
+export default function CompanyDetailScreen() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const router = useRouter();
+  const { companies } = useCompanies();
+  const { bids } = useBids();
+
+  const company = useMemo(() => companies.find(c => c.id === id), [companies, id]);
+
+  const eligibleBids = useMemo(() => {
+    if (!company) return [];
+    return bids.filter(b => {
+      if (b.status !== 'open') return false;
+      const meetsCapacity = company.bondCapacity >= b.bondRequired;
+      const meetsCerts = b.requiredCertifications.length === 0 ||
+        b.requiredCertifications.some(cert => company.certifications.includes(cert));
+      return meetsCapacity && meetsCerts;
+    });
+  }, [company, bids]);
+
+  if (!company) {
+    return (
+      <View style={styles.container}>
+        <Stack.Screen options={{ title: 'Company' }} />
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>Company not found</Text>
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.container}>
+      <Stack.Screen options={{
+        title: company.companyName,
+        headerStyle: { backgroundColor: Colors.background },
+        headerTintColor: Colors.primary,
+        headerTitleStyle: { fontWeight: '700' as const, color: Colors.text },
+      }} />
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <View style={styles.profileHeader}>
+          <View style={styles.avatarLarge}>
+            <Text style={styles.avatarLargeText}>{company.companyName.charAt(0)}</Text>
+          </View>
+          <Text style={styles.companyName}>{company.companyName}</Text>
+          <View style={styles.locationRow}>
+            <MapPin size={14} color={Colors.textSecondary} />
+            <Text style={styles.locationText}>{company.city}, {company.state}</Text>
+          </View>
+          <View style={styles.ratingRow}>
+            <Star size={16} color="#F5A623" fill="#F5A623" />
+            <Text style={styles.ratingText}>{company.rating.toFixed(1)}</Text>
+            <Text style={styles.ratingDivider}>·</Text>
+            <Text style={styles.categoryText}>{BID_CATEGORY_LABELS[company.primaryCategory]}</Text>
+          </View>
+        </View>
+
+        <View style={styles.statsGrid}>
+          <View style={styles.statCard}>
+            <Shield size={20} color={Colors.accent} />
+            <Text style={styles.statLabel}>Bond Capacity</Text>
+            <Text style={styles.statValue}>{formatCurrency(company.bondCapacity)}</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Building2 size={20} color={Colors.primary} />
+            <Text style={styles.statLabel}>Projects Done</Text>
+            <Text style={styles.statValue}>{company.completedProjects}</Text>
+          </View>
+          {company.yearEstablished && (
+            <View style={styles.statCard}>
+              <Calendar size={20} color={Colors.textSecondary} />
+              <Text style={styles.statLabel}>Established</Text>
+              <Text style={styles.statValue}>{company.yearEstablished}</Text>
+            </View>
+          )}
+          {company.employeeCount && (
+            <View style={styles.statCard}>
+              <Users size={20} color={Colors.info} />
+              <Text style={styles.statLabel}>Employees</Text>
+              <Text style={styles.statValue}>{company.employeeCount}</Text>
+            </View>
+          )}
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>About</Text>
+          <Text style={styles.description}>{company.description}</Text>
+        </View>
+
+        {company.certifications.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Certifications & Designations</Text>
+            <View style={styles.certGrid}>
+              {company.certifications.map(certId => {
+                const info = CERTIFICATIONS.find(c => c.id === certId);
+                const color = CERT_COLORS[certId] || Colors.primary;
+                return (
+                  <View key={certId} style={[styles.certCard, { borderLeftColor: color }]}>
+                    <Text style={[styles.certShort, { color }]}>{info?.shortLabel ?? certId}</Text>
+                    <Text style={styles.certFull} numberOfLines={2}>{info?.label ?? certId}</Text>
+                    <Text style={styles.certSource}>{info?.source ?? ''}</Text>
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+        )}
+
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Eligible Bids</Text>
+            <View style={styles.countBadge}>
+              <Text style={styles.countText}>{eligibleBids.length}</Text>
+            </View>
+          </View>
+          <Text style={styles.sectionSubtitle}>Open bids within bond capacity and matching certifications</Text>
+          {eligibleBids.length === 0 ? (
+            <Text style={styles.noResults}>No matching open bids at this time</Text>
+          ) : (
+            eligibleBids.slice(0, 5).map(bid => (
+              <TouchableOpacity
+                key={bid.id}
+                style={styles.bidRow}
+                onPress={() => {
+                  void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  router.push({ pathname: '/bid-detail' as any, params: { id: bid.id } });
+                }}
+              >
+                <View style={styles.bidInfo}>
+                  <Text style={styles.bidTitle} numberOfLines={1}>{bid.title}</Text>
+                  <Text style={styles.bidMeta}>{bid.city}, {bid.state} · {formatCurrency(bid.estimatedValue)}</Text>
+                </View>
+                <ChevronRight size={16} color={Colors.textMuted} />
+              </TouchableOpacity>
+            ))
+          )}
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Contact</Text>
+          <View style={styles.contactActions}>
+            <TouchableOpacity style={styles.contactBtn} onPress={() => void Linking.openURL(`mailto:${company.contactEmail}`)}>
+              <Mail size={16} color="#FFF" />
+              <Text style={styles.contactBtnText}>Email</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.contactBtn, { backgroundColor: '#2E7D32' }]} onPress={() => void Linking.openURL(`tel:${company.phone}`)}>
+              <Phone size={16} color="#FFF" />
+              <Text style={styles.contactBtnText}>Call</Text>
+            </TouchableOpacity>
+            {company.website && (
+              <TouchableOpacity style={[styles.contactBtn, { backgroundColor: Colors.info }]} onPress={() => void Linking.openURL(company.website!)}>
+                <Globe size={16} color="#FFF" />
+                <Text style={styles.contactBtnText}>Website</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+      </ScrollView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: Colors.background },
+  scroll: { flex: 1 },
+  scrollContent: { paddingBottom: 40 },
+  errorContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  errorText: { fontSize: 16, color: Colors.textSecondary },
+  profileHeader: { backgroundColor: Colors.surface, alignItems: 'center', paddingVertical: 24, paddingHorizontal: 20, borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight },
+  avatarLarge: { width: 72, height: 72, borderRadius: 36, backgroundColor: Colors.primary + '15', alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
+  avatarLargeText: { fontSize: 30, fontWeight: '800' as const, color: Colors.primary },
+  companyName: { fontSize: 22, fontWeight: '800' as const, color: Colors.text, marginBottom: 4, textAlign: 'center' as const },
+  locationRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 6 },
+  locationText: { fontSize: 14, color: Colors.textSecondary },
+  ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  ratingText: { fontSize: 15, fontWeight: '700' as const, color: '#F5A623' },
+  ratingDivider: { color: Colors.textMuted },
+  categoryText: { fontSize: 14, color: Colors.textSecondary },
+  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', padding: 12, gap: 8 },
+  statCard: { width: '47%' as any, backgroundColor: Colors.surface, padding: 14, borderRadius: 12, alignItems: 'center', gap: 4 },
+  statLabel: { fontSize: 11, color: Colors.textMuted, textTransform: 'uppercase' as const, fontWeight: '600' as const },
+  statValue: { fontSize: 17, fontWeight: '800' as const, color: Colors.text },
+  section: { backgroundColor: Colors.surface, padding: 20, marginTop: 8 },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  sectionTitle: { fontSize: 17, fontWeight: '700' as const, color: Colors.text, marginBottom: 8 },
+  sectionSubtitle: { fontSize: 13, color: Colors.textSecondary, marginBottom: 12 },
+  description: { fontSize: 15, color: Colors.text, lineHeight: 22 },
+  certGrid: { gap: 8 },
+  certCard: { backgroundColor: Colors.background, padding: 12, borderRadius: 8, borderLeftWidth: 3 },
+  certShort: { fontSize: 13, fontWeight: '800' as const, marginBottom: 2 },
+  certFull: { fontSize: 13, color: Colors.text },
+  certSource: { fontSize: 11, color: Colors.textMuted, marginTop: 2 },
+  countBadge: { backgroundColor: Colors.primary, borderRadius: 10, width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
+  countText: { color: '#FFF', fontSize: 12, fontWeight: '700' as const },
+  noResults: { fontSize: 14, color: Colors.textMuted, textAlign: 'center' as const, paddingVertical: 20 },
+  bidRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight },
+  bidInfo: { flex: 1 },
+  bidTitle: { fontSize: 15, fontWeight: '600' as const, color: Colors.text, marginBottom: 2 },
+  bidMeta: { fontSize: 13, color: Colors.textSecondary },
+  contactActions: { flexDirection: 'row', gap: 10, flexWrap: 'wrap' },
+  contactBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: Colors.primary, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10 },
+  contactBtnText: { color: '#FFF', fontSize: 14, fontWeight: '600' as const },
+});
+
+
+========== FILE: ./app/contacts.tsx ==========
+import React, { useState, useMemo, useCallback } from 'react';
+import {
+  View, Text, StyleSheet, TouchableOpacity, TextInput, FlatList,
+  Alert, Platform, Modal, KeyboardAvoidingView, ScrollView,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Stack, useRouter } from 'expo-router';
+import * as Haptics from 'expo-haptics';
+import {
+  Search, Plus, X, User, Mail, Phone, MapPin,
+  ChevronRight, Trash2, Edit3, Briefcase,
+} from 'lucide-react-native';
+import { Colors } from '@/constants/colors';
+import { useProjects } from '@/contexts/ProjectContext';
+import type { Contact, ContactRole } from '@/types';
+
+function createId(prefix: string): string {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+const CONTACT_ROLES: { value: ContactRole; label: string }[] = [
+  { value: 'Client', label: 'Client' },
+  { value: 'Architect', label: 'Architect' },
+  { value: "Owner's Rep", label: "Owner's Rep" },
+  { value: 'Engineer', label: 'Engineer' },
+  { value: 'Sub', label: 'Subcontractor' },
+  { value: 'Supplier', label: 'Supplier' },
+  { value: 'Lender', label: 'Lender' },
+  { value: 'Inspector', label: 'Inspector' },
+  { value: 'Other', label: 'Other' },
+];
+
+function getRoleColor(role: ContactRole): string {
+  switch (role) {
+    case 'Client': return Colors.primary;
+    case 'Architect': return Colors.info;
+    case "Owner's Rep": return Colors.accent;
+    case 'Engineer': return '#6B7280';
+    case 'Sub': return Colors.success;
+    case 'Supplier': return '#8B5CF6';
+    case 'Lender': return '#EC4899';
+    case 'Inspector': return '#F59E0B';
+    default: return Colors.textSecondary;
+  }
+}
+
+export default function ContactsScreen() {
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const { contacts, addContact, updateContact, deleteContact, projects, getInvoicesForProject } = useProjects();
+
+  const [query, setQuery] = useState('');
+  const [filterRole, setFilterRole] = useState<ContactRole | 'all'>('all');
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [editingContact, setEditingContact] = useState<Contact | null>(null);
+  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
+
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [companyName, setCompanyName] = useState('');
+  const [role, setRole] = useState<ContactRole>('Client');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [address, setAddress] = useState('');
+  const [notes, setNotes] = useState('');
+
+  const filteredContacts = useMemo(() => {
+    let results = contacts;
+    if (filterRole !== 'all') {
+      results = results.filter(c => c.role === filterRole);
+    }
+    if (query.trim()) {
+      const q = query.toLowerCase();
+      results = results.filter(c =>
+        c.firstName.toLowerCase().includes(q) ||
+        c.lastName.toLowerCase().includes(q) ||
+        c.companyName.toLowerCase().includes(q) ||
+        c.email.toLowerCase().includes(q) ||
+        c.role.toLowerCase().includes(q)
+      );
+    }
+    return results.sort((a, b) => a.lastName.localeCompare(b.lastName));
+  }, [contacts, query, filterRole]);
+
+  const resetForm = useCallback(() => {
+    setFirstName('');
+    setLastName('');
+    setCompanyName('');
+    setRole('Client');
+    setEmail('');
+    setPhone('');
+    setAddress('');
+    setNotes('');
+    setEditingContact(null);
+  }, []);
+
+  const openAddModal = useCallback(() => {
+    resetForm();
+    setShowAddModal(true);
+  }, [resetForm]);
+
+  const openEditModal = useCallback((contact: Contact) => {
+    setFirstName(contact.firstName);
+    setLastName(contact.lastName);
+    setCompanyName(contact.companyName);
+    setRole(contact.role);
+    setEmail(contact.email);
+    setPhone(contact.phone);
+    setAddress(contact.address);
+    setNotes(contact.notes);
+    setEditingContact(contact);
+    setShowAddModal(true);
+  }, []);
+
+  const handleSave = useCallback(() => {
+    if (!firstName.trim() && !lastName.trim() && !companyName.trim()) {
+      Alert.alert('Missing Info', 'Please enter at least a name or company.');
+      return;
+    }
+
+    const now = new Date().toISOString();
+
+    if (editingContact) {
+      updateContact(editingContact.id, {
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        companyName: companyName.trim(),
+        role,
+        email: email.trim(),
+        phone: phone.trim(),
+        address: address.trim(),
+        notes: notes.trim(),
+      });
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setShowAddModal(false);
+      resetForm();
+    } else {
+      const contact: Contact = {
+        id: createId('con'),
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        companyName: companyName.trim(),
+        role,
+        email: email.trim(),
+        phone: phone.trim(),
+        address: address.trim(),
+        notes: notes.trim(),
+        linkedProjectIds: [],
+        createdAt: now,
+        updatedAt: now,
+      };
+      addContact(contact);
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setShowAddModal(false);
+      resetForm();
+    }
+  }, [firstName, lastName, companyName, role, email, phone, address, notes, editingContact, addContact, updateContact, resetForm]);
+
+  const handleDelete = useCallback((contact: Contact) => {
+    Alert.alert('Delete Contact', `Remove ${contact.firstName} ${contact.lastName}?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete', style: 'destructive', onPress: () => {
+          deleteContact(contact.id);
+          setShowDetailModal(false);
+          if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        },
+      },
+    ]);
+  }, [deleteContact]);
+
+  const openDetail = useCallback((contact: Contact) => {
+    setSelectedContact(contact);
+    setShowDetailModal(true);
+  }, []);
+
+  const getContactFinancials = useCallback((contact: Contact) => {
+    if (contact.role !== 'Client') return null;
+    let totalInvoiced = 0;
+    let totalPaid = 0;
+    contact.linkedProjectIds.forEach(pid => {
+      const invoices = getInvoicesForProject(pid);
+      invoices.forEach(inv => {
+        totalInvoiced += inv.totalDue;
+        totalPaid += inv.amountPaid;
+      });
+    });
+    return { totalInvoiced, totalPaid, outstanding: totalInvoiced - totalPaid };
+  }, [getInvoicesForProject]);
+
+  const renderContact = useCallback(({ item }: { item: Contact }) => {
+    const roleColor = getRoleColor(item.role);
+    const displayName = `${item.firstName} ${item.lastName}`.trim() || item.companyName;
+    return (
+      <TouchableOpacity
+        style={styles.contactCard}
+        onPress={() => openDetail(item)}
+        activeOpacity={0.7}
+        testID={`contact-${item.id}`}
+      >
+        <View style={[styles.avatar, { backgroundColor: roleColor + '18' }]}>
+          <Text style={[styles.avatarText, { color: roleColor }]}>
+            {(item.firstName[0] || item.companyName[0] || '?').toUpperCase()}
+          </Text>
+        </View>
+        <View style={styles.contactInfo}>
+          <Text style={styles.contactName} numberOfLines={1}>{displayName}</Text>
+          {item.companyName && item.firstName ? (
+            <Text style={styles.contactCompany} numberOfLines={1}>{item.companyName}</Text>
+          ) : null}
+          <View style={styles.contactMetaRow}>
+            <View style={[styles.roleBadge, { backgroundColor: roleColor + '15' }]}>
+              <Text style={[styles.roleBadgeText, { color: roleColor }]}>{item.role}</Text>
+            </View>
+            {item.email ? (
+              <Text style={styles.contactEmail} numberOfLines={1}>{item.email}</Text>
+            ) : null}
+          </View>
+        </View>
+        <ChevronRight size={16} color={Colors.textMuted} />
+      </TouchableOpacity>
+    );
+  }, [openDetail]);
+
+  return (
+    <View style={styles.container}>
+      <Stack.Screen options={{
+        title: 'Contacts',
+        headerStyle: { backgroundColor: Colors.background },
+        headerTintColor: Colors.primary,
+        headerTitleStyle: { fontWeight: '700' as const, color: Colors.text },
+        headerRight: () => (
+          <TouchableOpacity onPress={openAddModal} style={styles.headerAddBtn}>
+            <Plus size={20} color={Colors.primary} />
+          </TouchableOpacity>
+        ),
+      }} />
+
+      <View style={styles.searchSection}>
+        <View style={styles.searchBar}>
+          <Search size={16} color={Colors.textMuted} />
+          <TextInput
+            style={styles.searchInput}
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Search contacts..."
+            placeholderTextColor={Colors.textMuted}
+            testID="contacts-search"
+          />
+          {query.length > 0 && (
+            <TouchableOpacity onPress={() => setQuery('')}>
+              <X size={14} color={Colors.textMuted} />
+            </TouchableOpacity>
+          )}
+        </View>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
+          <TouchableOpacity
+            style={[styles.filterChip, filterRole === 'all' && styles.filterChipActive]}
+            onPress={() => setFilterRole('all')}
+          >
+            <Text style={[styles.filterChipText, filterRole === 'all' && styles.filterChipTextActive]}>All</Text>
+          </TouchableOpacity>
+          {CONTACT_ROLES.map(r => (
+            <TouchableOpacity
+              key={r.value}
+              style={[styles.filterChip, filterRole === r.value && styles.filterChipActive]}
+              onPress={() => setFilterRole(r.value)}
+            >
+              <Text style={[styles.filterChipText, filterRole === r.value && styles.filterChipTextActive]}>{r.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
+
+      <FlatList
+        data={filteredContacts}
+        keyExtractor={item => item.id}
+        renderItem={renderContact}
+        contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 20 }]}
+        showsVerticalScrollIndicator={false}
+        ListEmptyComponent={
+          <View style={styles.emptyState}>
+            <User size={40} color={Colors.textMuted} />
+            <Text style={styles.emptyTitle}>
+              {query || filterRole !== 'all' ? 'No contacts found' : 'No contacts yet'}
+            </Text>
+            <Text style={styles.emptyDesc}>
+              {query || filterRole !== 'all' ? 'Try a different search or filter' : 'Tap + to add your first contact'}
+            </Text>
+          </View>
+        }
+      />
+
+      {/* Add/Edit Modal */}
+      <Modal visible={showAddModal} transparent animationType="slide" onRequestClose={() => setShowAddModal(false)}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }]}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>{editingContact ? 'Edit Contact' : 'New Contact'}</Text>
+                <TouchableOpacity onPress={() => { setShowAddModal(false); resetForm(); }}>
+                  <X size={20} color={Colors.textMuted} />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                <View style={styles.formRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.formLabel}>First Name</Text>
+                    <TextInput style={styles.formInput} value={firstName} onChangeText={setFirstName} placeholder="John" placeholderTextColor={Colors.textMuted} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.formLabel}>Last Name</Text>
+                    <TextInput style={styles.formInput} value={lastName} onChangeText={setLastName} placeholder="Smith" placeholderTextColor={Colors.textMuted} />
+                  </View>
+                </View>
+
+                <Text style={styles.formLabel}>Company</Text>
+                <TextInput style={styles.formInput} value={companyName} onChangeText={setCompanyName} placeholder="Company name" placeholderTextColor={Colors.textMuted} />
+
+                <Text style={styles.formLabel}>Role</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.roleChipsRow}>
+                  {CONTACT_ROLES.map(r => (
+                    <TouchableOpacity
+                      key={r.value}
+                      style={[styles.roleChip, role === r.value && styles.roleChipActive]}
+                      onPress={() => setRole(r.value)}
+                    >
+                      <Text style={[styles.roleChipText, role === r.value && styles.roleChipTextActive]}>{r.label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+
+                <Text style={styles.formLabel}>Email</Text>
+                <TextInput style={styles.formInput} value={email} onChangeText={setEmail} placeholder="email@example.com" placeholderTextColor={Colors.textMuted} keyboardType="email-address" autoCapitalize="none" />
+
+                <Text style={styles.formLabel}>Phone</Text>
+                <TextInput style={styles.formInput} value={phone} onChangeText={setPhone} placeholder="(555) 123-4567" placeholderTextColor={Colors.textMuted} keyboardType="phone-pad" />
+
+                <Text style={styles.formLabel}>Address</Text>
+                <TextInput style={styles.formInput} value={address} onChangeText={setAddress} placeholder="123 Main St, City, State" placeholderTextColor={Colors.textMuted} />
+
+                <Text style={styles.formLabel}>Notes</Text>
+                <TextInput style={[styles.formInput, { minHeight: 70 }]} value={notes} onChangeText={setNotes} placeholder="Additional notes..." placeholderTextColor={Colors.textMuted} multiline textAlignVertical="top" />
+
+                <TouchableOpacity style={styles.saveBtn} onPress={handleSave} activeOpacity={0.85}>
+                  <Text style={styles.saveBtnText}>{editingContact ? 'Save Changes' : 'Add Contact'}</Text>
+                </TouchableOpacity>
+              </ScrollView>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Detail Modal */}
+      <Modal visible={showDetailModal} transparent animationType="slide" onRequestClose={() => setShowDetailModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16, maxHeight: '85%' }]}>
+            {selectedContact && (() => {
+              const displayName = `${selectedContact.firstName} ${selectedContact.lastName}`.trim() || selectedContact.companyName;
+              const roleColor = getRoleColor(selectedContact.role);
+              const financials = getContactFinancials(selectedContact);
+              const linkedProjects = projects.filter(p => selectedContact.linkedProjectIds.includes(p.id));
+
+              return (
+                <>
+                  <View style={styles.modalHeader}>
+                    <Text style={styles.modalTitle}>{displayName}</Text>
+                    <TouchableOpacity onPress={() => setShowDetailModal(false)}>
+                      <X size={20} color={Colors.textMuted} />
+                    </TouchableOpacity>
+                  </View>
+
+                  <ScrollView showsVerticalScrollIndicator={false}>
+                    <View style={[styles.detailRoleBadge, { backgroundColor: roleColor + '15' }]}>
+                      <Briefcase size={14} color={roleColor} />
+                      <Text style={[styles.detailRoleText, { color: roleColor }]}>{selectedContact.role}</Text>
+                      {selectedContact.companyName && selectedContact.firstName ? (
+                        <Text style={styles.detailCompany}> · {selectedContact.companyName}</Text>
+                      ) : null}
+                    </View>
+
+                    <View style={styles.detailSection}>
+                      {selectedContact.email ? (
+                        <View style={styles.detailRow}>
+                          <Mail size={14} color={Colors.textMuted} />
+                          <Text style={styles.detailText}>{selectedContact.email}</Text>
+                        </View>
+                      ) : null}
+                      {selectedContact.phone ? (
+                        <View style={styles.detailRow}>
+                          <Phone size={14} color={Colors.textMuted} />
+                          <Text style={styles.detailText}>{selectedContact.phone}</Text>
+                        </View>
+                      ) : null}
+                      {selectedContact.address ? (
+                        <View style={styles.detailRow}>
+                          <MapPin size={14} color={Colors.textMuted} />
+                          <Text style={styles.detailText}>{selectedContact.address}</Text>
+                        </View>
+                      ) : null}
+                    </View>
+
+                    {financials && (
+                      <View style={styles.financialCard}>
+                        <Text style={styles.financialTitle}>Financial Summary</Text>
+                        <View style={styles.financialRow}>
+                          <Text style={styles.financialLabel}>Total Invoiced</Text>
+                          <Text style={styles.financialValue}>${financials.totalInvoiced.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
+                        </View>
+                        <View style={styles.financialRow}>
+                          <Text style={styles.financialLabel}>Total Paid</Text>
+                          <Text style={[styles.financialValue, { color: Colors.success }]}>${financials.totalPaid.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
+                        </View>
+                        <View style={styles.financialDivider} />
+                        <View style={styles.financialRow}>
+                          <Text style={styles.financialLabelBold}>Outstanding</Text>
+                          <Text style={[styles.financialValueBold, { color: financials.outstanding > 0 ? Colors.error : Colors.success }]}>
+                            ${financials.outstanding.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </Text>
+                        </View>
+                      </View>
+                    )}
+
+                    {linkedProjects.length > 0 && (
+                      <View style={styles.linkedSection}>
+                        <Text style={styles.linkedTitle}>Linked Projects</Text>
+                        {linkedProjects.map(p => (
+                          <TouchableOpacity
+                            key={p.id}
+                            style={styles.linkedProjectRow}
+                            onPress={() => {
+                              setShowDetailModal(false);
+                              router.push({ pathname: '/project-detail', params: { id: p.id } });
+                            }}
+                          >
+                            <Text style={styles.linkedProjectName}>{p.name}</Text>
+                            <ChevronRight size={14} color={Colors.textMuted} />
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    )}
+
+                    {selectedContact.notes ? (
+                      <View style={styles.notesSection}>
+                        <Text style={styles.notesTitle}>Notes</Text>
+                        <Text style={styles.notesText}>{selectedContact.notes}</Text>
+                      </View>
+                    ) : null}
+
+                    <View style={styles.detailActions}>
+                      <TouchableOpacity
+                        style={styles.editBtn}
+                        onPress={() => {
+                          setShowDetailModal(false);
+                          setTimeout(() => openEditModal(selectedContact), 350);
+                        }}
+                      >
+                        <Edit3 size={14} color={Colors.primary} />
+                        <Text style={styles.editBtnText}>Edit</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.deleteBtn}
+                        onPress={() => handleDelete(selectedContact)}
+                      >
+                        <Trash2 size={14} color={Colors.error} />
+                        <Text style={styles.deleteBtnText}>Delete</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </ScrollView>
+                </>
+              );
+            })()}
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: Colors.background },
+  headerAddBtn: { marginRight: 8, width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.primary + '12', alignItems: 'center', justifyContent: 'center' },
+  searchSection: { backgroundColor: Colors.surface, paddingBottom: 10, borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight },
+  searchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.fillTertiary, borderRadius: 12, marginHorizontal: 16, paddingHorizontal: 12, gap: 8, height: 42 },
+  searchInput: { flex: 1, fontSize: 15, color: Colors.text },
+  filterRow: { paddingHorizontal: 16, gap: 6, marginTop: 8 },
+  filterChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: Colors.fillTertiary },
+  filterChipActive: { backgroundColor: Colors.primary },
+  filterChipText: { fontSize: 12, fontWeight: '500' as const, color: Colors.textSecondary },
+  filterChipTextActive: { color: Colors.textOnPrimary, fontWeight: '600' as const },
+  listContent: { paddingHorizontal: 16, paddingTop: 12, gap: 8 },
+  contactCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.card, borderRadius: 14, padding: 14, gap: 12, borderWidth: 1, borderColor: Colors.cardBorder },
+  avatar: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  avatarText: { fontSize: 18, fontWeight: '700' as const },
+  contactInfo: { flex: 1, gap: 2 },
+  contactName: { fontSize: 15, fontWeight: '600' as const, color: Colors.text },
+  contactCompany: { fontSize: 12, color: Colors.textSecondary },
+  contactMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 },
+  roleBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
+  roleBadgeText: { fontSize: 10, fontWeight: '700' as const },
+  contactEmail: { fontSize: 11, color: Colors.textMuted, flex: 1 },
+  emptyState: { alignItems: 'center', paddingVertical: 60, gap: 10 },
+  emptyTitle: { fontSize: 17, fontWeight: '600' as const, color: Colors.text },
+  emptyDesc: { fontSize: 14, color: Colors.textMuted, textAlign: 'center' as const },
+  modalOverlay: { flex: 1, backgroundColor: Colors.overlay, justifyContent: 'flex-end' },
+  modalCard: { backgroundColor: Colors.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 22 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  modalTitle: { fontSize: 20, fontWeight: '700' as const, color: Colors.text },
+  formRow: { flexDirection: 'row', gap: 10 },
+  formLabel: { fontSize: 12, fontWeight: '600' as const, color: Colors.textSecondary, marginTop: 10, marginBottom: 4, textTransform: 'uppercase' as const, letterSpacing: 0.5 },
+  formInput: { minHeight: 44, borderRadius: 12, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 12, fontSize: 15, color: Colors.text, borderWidth: 1, borderColor: Colors.cardBorder },
+  roleChipsRow: { gap: 6, paddingVertical: 2 },
+  roleChip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10, backgroundColor: Colors.fillTertiary },
+  roleChipActive: { backgroundColor: Colors.primary },
+  roleChipText: { fontSize: 13, fontWeight: '500' as const, color: Colors.textSecondary },
+  roleChipTextActive: { color: Colors.textOnPrimary, fontWeight: '600' as const },
+  saveBtn: { backgroundColor: Colors.primary, borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginTop: 16 },
+  saveBtnText: { fontSize: 16, fontWeight: '700' as const, color: Colors.textOnPrimary },
+  detailRoleBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10, marginBottom: 12 },
+  detailRoleText: { fontSize: 13, fontWeight: '700' as const },
+  detailCompany: { fontSize: 12, color: Colors.textSecondary },
+  detailSection: { gap: 10, marginBottom: 16 },
+  detailRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  detailText: { fontSize: 14, color: Colors.text },
+  financialCard: { backgroundColor: Colors.surfaceAlt, borderRadius: 14, padding: 14, gap: 8, marginBottom: 16 },
+  financialTitle: { fontSize: 13, fontWeight: '700' as const, color: Colors.textSecondary, textTransform: 'uppercase' as const, letterSpacing: 0.5, marginBottom: 4 },
+  financialRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  financialLabel: { fontSize: 14, color: Colors.textSecondary },
+  financialValue: { fontSize: 14, fontWeight: '600' as const, color: Colors.text },
+  financialDivider: { height: 1, backgroundColor: Colors.borderLight },
+  financialLabelBold: { fontSize: 15, fontWeight: '700' as const, color: Colors.text },
+  financialValueBold: { fontSize: 17, fontWeight: '800' as const },
+  linkedSection: { marginBottom: 16 },
+  linkedTitle: { fontSize: 13, fontWeight: '700' as const, color: Colors.textSecondary, textTransform: 'uppercase' as const, letterSpacing: 0.5, marginBottom: 8 },
+  linkedProjectRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: Colors.surfaceAlt, borderRadius: 10, padding: 12, marginBottom: 4 },
+  linkedProjectName: { fontSize: 14, fontWeight: '500' as const, color: Colors.text },
+  notesSection: { marginBottom: 16 },
+  notesTitle: { fontSize: 13, fontWeight: '700' as const, color: Colors.textSecondary, textTransform: 'uppercase' as const, letterSpacing: 0.5, marginBottom: 6 },
+  notesText: { fontSize: 14, color: Colors.text, lineHeight: 20 },
+  detailActions: { flexDirection: 'row', gap: 10, marginTop: 8 },
+  editBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: Colors.primary + '12', borderRadius: 12, paddingVertical: 12 },
+  editBtnText: { fontSize: 14, fontWeight: '600' as const, color: Colors.primary },
+  deleteBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: Colors.errorLight, borderRadius: 12, paddingVertical: 12 },
+  deleteBtnText: { fontSize: 14, fontWeight: '600' as const, color: Colors.error },
+});
+
+
+========== FILE: ./app/daily-report.tsx ==========
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import {
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
+  Alert, Platform, KeyboardAvoidingView, Modal,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
+import * as Haptics from 'expo-haptics';
+import * as ImagePicker from 'expo-image-picker';
+import {
+  Plus, Trash2, X, Send, Cloud, Wind, Thermometer, Camera, Users,
+  HardHat, Package, AlertTriangle, Image as ImageIcon, BookUser, User,
+} from 'lucide-react-native';
+import { Colors } from '@/constants/colors';
+import { useProjects } from '@/contexts/ProjectContext';
+import ContactPickerModal from '@/components/ContactPickerModal';
+import { useSubscription } from '@/contexts/SubscriptionContext';
+import { sendEmail, buildDailyReportEmailHtml } from '@/utils/emailService';
+import VoiceRecorder from '@/components/VoiceRecorder';
+import { parseDFRFromTranscript } from '@/utils/voiceDFRParser';
+import AIDailyReportGen from '@/components/AIDailyReportGen';
+import type { ManpowerEntry, DFRPhoto, DailyFieldReport, DFRWeather } from '@/types';
+import type { DailyReportGenResult } from '@/utils/aiService';
+
+function createId(prefix: string): string {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+export default function DailyReportScreen() {
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const { projectId, reportId } = useLocalSearchParams<{ projectId: string; reportId?: string }>();
+  const {
+    getProject, getDailyReportsForProject, addDailyReport, updateDailyReport, contacts, settings,
+  } = useProjects();
+  const { isProOrAbove } = useSubscription();
+  const [voiceLoading, setVoiceLoading] = useState(false);
+  const [showVoiceBanner, setShowVoiceBanner] = useState(false);
+
+  const project = useMemo(() => getProject(projectId ?? ''), [projectId, getProject]);
+  const existingReports = useMemo(() => getDailyReportsForProject(projectId ?? ''), [projectId, getDailyReportsForProject]);
+  const existingReport = useMemo(() => reportId ? existingReports.find(r => r.id === reportId) : null, [reportId, existingReports]);
+
+  const [weather, setWeather] = useState<DFRWeather>(
+    existingReport?.weather ?? { temperature: '', conditions: '', wind: '', isManual: true }
+  );
+  const [manpower, setManpower] = useState<ManpowerEntry[]>(existingReport?.manpower ?? []);
+  const [workPerformed, setWorkPerformed] = useState(existingReport?.workPerformed ?? '');
+  const [materialsDelivered, setMaterialsDelivered] = useState<string[]>(
+    existingReport?.materialsDelivered ?? []
+  );
+  const [newMaterial, setNewMaterial] = useState('');
+  const [issuesAndDelays, setIssuesAndDelays] = useState(existingReport?.issuesAndDelays ?? '');
+  const [photos, setPhotos] = useState<DFRPhoto[]>(existingReport?.photos ?? []);
+  const [showManpowerModal, setShowManpowerModal] = useState(false);
+  const [mpTrade, setMpTrade] = useState('');
+  const [mpCompany, setMpCompany] = useState('');
+  const [mpHeadcount, setMpHeadcount] = useState('');
+  const [mpHours, setMpHours] = useState('8');
+  const [weatherLoading, setWeatherLoading] = useState(false);
+  const [showSendRecipient, setShowSendRecipient] = useState(false);
+  const [sendRecipientName, setSendRecipientName] = useState('');
+  const [sendRecipientEmail, setSendRecipientEmail] = useState('');
+  const [showContactPicker, setShowContactPicker] = useState(false);
+  const [contactPicked, setContactPicked] = useState(false);
+
+  const todayStr = useMemo(() => {
+    return new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  }, []);
+
+  const fetchWeather = useCallback(async () => {
+    if (!project?.location) return;
+    setWeatherLoading(true);
+    try {
+      const location = encodeURIComponent(project.location);
+      const response = await fetch(
+        `https://wttr.in/${location}?format=j1`
+      );
+      if (response.ok) {
+        const data = await response.json();
+        const current = data?.current_condition?.[0];
+        if (current) {
+          setWeather({
+            temperature: `${current.temp_F}°F / ${current.temp_C}°C`,
+            conditions: current.weatherDesc?.[0]?.value ?? 'Unknown',
+            wind: `${current.windspeedMiles} mph ${current.winddir16Point}`,
+            isManual: false,
+          });
+          console.log('[DFR] Weather fetched successfully');
+        }
+      }
+    } catch (err) {
+      console.log('[DFR] Weather fetch failed:', err);
+      Alert.alert('Weather Unavailable', 'Could not fetch weather data. Please enter manually.');
+    } finally {
+      setWeatherLoading(false);
+    }
+  }, [project?.location]);
+
+  useEffect(() => {
+    if (!existingReport && project?.location) {
+      void fetchWeather();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleAddManpower = useCallback(() => {
+    const trade = mpTrade.trim();
+    if (!trade) {
+      Alert.alert('Missing Trade', 'Please enter a trade name.');
+      return;
+    }
+    const entry: ManpowerEntry = {
+      id: createId('mp'),
+      trade,
+      company: mpCompany.trim(),
+      headcount: parseInt(mpHeadcount) || 1,
+      hoursWorked: parseFloat(mpHours) || 8,
+    };
+    setManpower(prev => [...prev, entry]);
+    setMpTrade('');
+    setMpCompany('');
+    setMpHeadcount('');
+    setMpHours('8');
+    setShowManpowerModal(false);
+    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  }, [mpTrade, mpCompany, mpHeadcount, mpHours]);
+
+  const handleRemoveManpower = useCallback((id: string) => {
+    setManpower(prev => prev.filter(m => m.id !== id));
+  }, []);
+
+  const handleAddMaterial = useCallback(() => {
+    const mat = newMaterial.trim();
+    if (!mat) return;
+    setMaterialsDelivered(prev => [...prev, mat]);
+    setNewMaterial('');
+  }, [newMaterial]);
+
+  const handleRemoveMaterial = useCallback((idx: number) => {
+    setMaterialsDelivered(prev => prev.filter((_, i) => i !== idx));
+  }, []);
+
+  const handlePickPhoto = useCallback(async () => {
+    if (photos.length >= 10) {
+      Alert.alert('Limit Reached', 'Maximum 10 photos per report.');
+      return;
+    }
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        quality: 0.7,
+        allowsMultipleSelection: false,
+      });
+      if (!result.canceled && result.assets[0]) {
+        const photo: DFRPhoto = {
+          id: createId('photo'),
+          uri: result.assets[0].uri,
+          timestamp: new Date().toISOString(),
+        };
+        setPhotos(prev => [...prev, photo]);
+        if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      }
+    } catch (err) {
+      console.log('[DFR] Photo pick error:', err);
+    }
+  }, [photos.length]);
+
+  const handleTakePhoto = useCallback(async () => {
+    if (photos.length >= 10) {
+      Alert.alert('Limit Reached', 'Maximum 10 photos per report.');
+      return;
+    }
+    try {
+      const perm = await ImagePicker.requestCameraPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert('Permission Required', 'Camera access is needed to take photos.');
+        return;
+      }
+      const result = await ImagePicker.launchCameraAsync({
+        quality: 0.7,
+      });
+      if (!result.canceled && result.assets[0]) {
+        const photo: DFRPhoto = {
+          id: createId('photo'),
+          uri: result.assets[0].uri,
+          timestamp: new Date().toISOString(),
+        };
+        setPhotos(prev => [...prev, photo]);
+        if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      }
+    } catch (err) {
+      console.log('[DFR] Camera error:', err);
+    }
+  }, [photos.length]);
+
+  const handleRemovePhoto = useCallback((id: string) => {
+    setPhotos(prev => prev.filter(p => p.id !== id));
+  }, []);
+
+  const totalManpower = useMemo(() => {
+    return manpower.reduce((sum, m) => sum + m.headcount, 0);
+  }, [manpower]);
+
+  const totalManHours = useMemo(() => {
+    return manpower.reduce((sum, m) => sum + (m.headcount * m.hoursWorked), 0);
+  }, [manpower]);
+
+  const handleSave = useCallback((status: 'draft' | 'sent', recipientName?: string, recipientEmail?: string) => {
+    if (!projectId) return;
+
+    const now = new Date().toISOString();
+    const recipientInfo = recipientName ? ` to ${recipientName}${recipientEmail ? ` (${recipientEmail})` : ''}` : '';
+
+    if (existingReport) {
+      updateDailyReport(existingReport.id, {
+        weather,
+        manpower,
+        workPerformed: workPerformed.trim(),
+        materialsDelivered,
+        issuesAndDelays: issuesAndDelays.trim(),
+        photos,
+        status,
+      });
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert('Updated', `Daily report has been ${status === 'sent' ? `sent${recipientInfo}` : 'saved'}.`);
+    } else {
+      const report: DailyFieldReport = {
+        id: createId('dfr'),
+        projectId,
+        date: now,
+        weather,
+        manpower,
+        workPerformed: workPerformed.trim(),
+        materialsDelivered,
+        issuesAndDelays: issuesAndDelays.trim(),
+        photos,
+        status,
+        createdAt: now,
+        updatedAt: now,
+      };
+      addDailyReport(report);
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert('Created', `Daily report has been ${status === 'sent' ? `sent${recipientInfo}` : 'saved as draft'}.`);
+    }
+    router.back();
+  }, [projectId, weather, manpower, workPerformed, materialsDelivered, issuesAndDelays, photos, existingReport, addDailyReport, updateDailyReport, router]);
+
+  const handleSendPress = useCallback(() => {
+    setShowSendRecipient(true);
+  }, []);
+
+  const handleConfirmSend = useCallback(async () => {
+    if (!sendRecipientEmail.trim()) {
+      Alert.alert('Email Required', 'Please enter a recipient email address.');
+      return;
+    }
+    setShowSendRecipient(false);
+
+    if (sendRecipientEmail.trim()) {
+      const branding = settings.branding ?? { companyName: '', contactName: '', email: '', phone: '', address: '', licenseNumber: '', tagline: '' };
+      const weatherForEmail = {
+        condition: typeof weather.conditions === 'string' ? weather.conditions : 'N/A',
+        tempHigh: parseInt(String(weather.temperature)) || 0,
+        tempLow: parseInt(String(weather.temperature)) || 0,
+      };
+      const html = buildDailyReportEmailHtml({
+        companyName: branding.companyName,
+        recipientName: sendRecipientName,
+        projectName: project?.name ?? 'Project',
+        date: new Date().toISOString(),
+        weather: weatherForEmail,
+        totalManpower,
+        totalManHours,
+        workPerformed: workPerformed.trim(),
+        issuesAndDelays: issuesAndDelays.trim(),
+        contactName: branding.contactName,
+        contactEmail: branding.email,
+      });
+
+      const result = await sendEmail({
+        to: sendRecipientEmail.trim(),
+        subject: `${branding.companyName || 'MAGE ID'} - Daily Report - ${project?.name ?? 'Project'} - ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`,
+        html,
+        replyTo: branding.email || undefined,
+      });
+
+      if (!result.success) {
+        if (result.error === 'cancelled') {
+          return;
+        }
+        console.warn('[DailyReport] Email send failed:', result.error);
+        Alert.alert('Email Notice', `Report saved but email could not be sent: ${result.error}`);
+        return;
+      } else {
+        console.log('[DailyReport] Email sent successfully');
+      }
+    }
+
+    handleSave('sent', sendRecipientName, sendRecipientEmail);
+  }, [handleSave, sendRecipientName, sendRecipientEmail, settings, project, weather, totalManpower, totalManHours, workPerformed, issuesAndDelays]);
+
+  if (!project) {
+    return (
+      <View style={[styles.container, styles.center]}>
+        <Stack.Screen options={{ title: 'Daily Report' }} />
+        <Text style={styles.notFoundText}>Project not found</Text>
+        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+          <Text style={styles.backBtnText}>Go Back</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  const isLocked = existingReport?.status === 'sent';
+
+  return (
+    <View style={styles.container}>
+      <Stack.Screen options={{
+        title: existingReport ? 'Edit Report' : 'New Daily Report',
+        headerStyle: { backgroundColor: Colors.background },
+        headerTintColor: Colors.primary,
+        headerTitleStyle: { fontWeight: '700' as const, color: Colors.text },
+      }} />
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <ScrollView
+          contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
+            <VoiceRecorder
+              onTranscriptReady={async (transcript) => {
+                setVoiceLoading(true);
+                try {
+                  const parsed = await parseDFRFromTranscript(transcript, projectId ?? '');
+                  if (parsed.weather && !weather.temperature) setWeather(parsed.weather);
+                  if (parsed.manpower && manpower.length === 0) setManpower(parsed.manpower);
+                  if (parsed.workPerformed && !workPerformed) setWorkPerformed(parsed.workPerformed);
+                  if (parsed.materialsDelivered && materialsDelivered.length === 0) setMaterialsDelivered(parsed.materialsDelivered);
+                  if (parsed.issuesAndDelays && !issuesAndDelays) setIssuesAndDelays(parsed.issuesAndDelays);
+                  setShowVoiceBanner(true);
+                  console.log('[DFR] Voice auto-fill complete');
+                } catch (err) {
+                  console.log('[DFR] Voice parse error:', err);
+                  Alert.alert('Error', 'Could not parse voice input. Please try again.');
+                } finally {
+                  setVoiceLoading(false);
+                }
+              }}
+              isLoading={voiceLoading}
+              isLocked={!isProOrAbove}
+              onLockedPress={() => router.push('/paywall' as any)}
+            />
+          </View>
+
+          {showVoiceBanner && (
+            <TouchableOpacity
+              style={{ marginHorizontal: 16, marginBottom: 8, backgroundColor: Colors.infoLight, borderRadius: 10, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 8 }}
+              onPress={() => setShowVoiceBanner(false)}
+              activeOpacity={0.7}
+            >
+              <Text style={{ flex: 1, fontSize: 13, color: Colors.info }}>Report auto-filled from voice. Please review before saving.</Text>
+              <X size={14} color={Colors.info} />
+            </TouchableOpacity>
+          )}
+
+          {!existingReport && project.schedule && project.schedule.tasks.length > 0 && (
+            <View style={{ paddingHorizontal: 16, marginBottom: 4 }}>
+              <AIDailyReportGen
+                projectName={project.name}
+                tasks={project.schedule.tasks}
+                weatherStr={weather.conditions || 'Clear'}
+                onGenerated={(result: DailyReportGenResult) => {
+                  if (result.workCompleted.length > 0 || result.workInProgress.length > 0) {
+                    const workText = [
+                      ...result.workCompleted.map(w => `[Completed] ${w}`),
+                      ...result.workInProgress.map(w => `[In Progress] ${w}`),
+                    ].join('\n');
+                    setWorkPerformed(workText);
+                  }
+                  if (result.issuesAndDelays.length > 0) {
+                    setIssuesAndDelays(result.issuesAndDelays.join('\n'));
+                  }
+                  if (result.crewsOnSite.length > 0 && manpower.length === 0) {
+                    const entries: ManpowerEntry[] = result.crewsOnSite.map((c, idx) => ({
+                      id: createId('mp'),
+                      trade: c.trade,
+                      company: '',
+                      headcount: c.count,
+                      hoursWorked: 8,
+                    }));
+                    setManpower(entries);
+                  }
+                  setShowVoiceBanner(true);
+                }}
+              />
+            </View>
+          )}
+
+          <View style={styles.heroCard}>
+            <Text style={styles.heroLabel}>Daily Field Report</Text>
+            <Text style={styles.heroProject}>{project.name}</Text>
+            <Text style={styles.heroDate}>{todayStr}</Text>
+            {existingReport && (
+              <View style={[styles.statusBadge, { backgroundColor: existingReport.status === 'sent' ? Colors.successLight : Colors.fillTertiary }]}>
+                <Text style={[styles.statusText, { color: existingReport.status === 'sent' ? Colors.success : Colors.textSecondary }]}>
+                  {existingReport.status === 'sent' ? 'Sent' : 'Draft'}
+                </Text>
+              </View>
+            )}
+          </View>
+
+          <View style={styles.sectionCard}>
+            <View style={styles.sectionHeader}>
+              <Cloud size={18} color={Colors.info} />
+              <Text style={styles.sectionTitle}>Weather</Text>
+              {!isLocked && (
+                <TouchableOpacity
+                  style={styles.refreshBtn}
+                  onPress={fetchWeather}
+                  activeOpacity={0.7}
+                  disabled={weatherLoading}
+                >
+                  <Text style={styles.refreshBtnText}>
+                    {weatherLoading ? 'Loading...' : 'Auto-fetch'}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+            <View style={styles.weatherGrid}>
+              <View style={styles.weatherItem}>
+                <Thermometer size={14} color={Colors.accent} />
+                {!isLocked ? (
+                  <TextInput
+                    style={styles.weatherInput}
+                    value={weather.temperature}
+                    onChangeText={(v) => setWeather(prev => ({ ...prev, temperature: v, isManual: true }))}
+                    placeholder="72°F"
+                    placeholderTextColor={Colors.textMuted}
+                  />
+                ) : (
+                  <Text style={styles.weatherValue}>{weather.temperature || 'N/A'}</Text>
+                )}
+              </View>
+              <View style={styles.weatherItem}>
+                <Cloud size={14} color={Colors.info} />
+                {!isLocked ? (
+                  <TextInput
+                    style={styles.weatherInput}
+                    value={weather.conditions}
+                    onChangeText={(v) => setWeather(prev => ({ ...prev, conditions: v, isManual: true }))}
+                    placeholder="Sunny, Cloudy..."
+                    placeholderTextColor={Colors.textMuted}
+                  />
+                ) : (
+                  <Text style={styles.weatherValue}>{weather.conditions || 'N/A'}</Text>
+                )}
+              </View>
+              <View style={styles.weatherItem}>
+                <Wind size={14} color={Colors.textSecondary} />
+                {!isLocked ? (
+                  <TextInput
+                    style={styles.weatherInput}
+                    value={weather.wind}
+                    onChangeText={(v) => setWeather(prev => ({ ...prev, wind: v, isManual: true }))}
+                    placeholder="5 mph NW"
+                    placeholderTextColor={Colors.textMuted}
+                  />
+                ) : (
+                  <Text style={styles.weatherValue}>{weather.wind || 'N/A'}</Text>
+                )}
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.sectionCard}>
+            <View style={styles.sectionHeader}>
+              <Users size={18} color={Colors.primary} />
+              <Text style={styles.sectionTitle}>Manpower ({totalManpower} workers · {totalManHours}h)</Text>
+              {!isLocked && (
+                <TouchableOpacity
+                  style={styles.addSmallBtn}
+                  onPress={() => setShowManpowerModal(true)}
+                  activeOpacity={0.7}
+                  testID="add-manpower-btn"
+                >
+                  <Plus size={14} color={Colors.primary} />
+                </TouchableOpacity>
+              )}
+            </View>
+            {manpower.length === 0 && (
+              <Text style={styles.emptyText}>No manpower entries yet.</Text>
+            )}
+            {manpower.map((entry) => (
+              <View key={entry.id} style={styles.mpRow}>
+                <View style={styles.mpInfo}>
+                  <Text style={styles.mpTrade}>{entry.trade}</Text>
+                  <Text style={styles.mpMeta}>
+                    {entry.company ? `${entry.company} · ` : ''}{entry.headcount} workers · {entry.hoursWorked}h each
+                  </Text>
+                </View>
+                {!isLocked && (
+                  <TouchableOpacity onPress={() => handleRemoveManpower(entry.id)} activeOpacity={0.7}>
+                    <Trash2 size={14} color={Colors.error} />
+                  </TouchableOpacity>
+                )}
+              </View>
+            ))}
+          </View>
+
+          <View style={styles.sectionCard}>
+            <View style={styles.sectionHeader}>
+              <HardHat size={18} color={Colors.accent} />
+              <Text style={styles.sectionTitle}>Work Performed</Text>
+            </View>
+            {!isLocked ? (
+              <TextInput
+                style={styles.textArea}
+                value={workPerformed}
+                onChangeText={setWorkPerformed}
+                placeholder="Describe work completed today..."
+                placeholderTextColor={Colors.textMuted}
+                multiline
+                textAlignVertical="top"
+                testID="work-performed-input"
+              />
+            ) : (
+              <Text style={styles.readOnlyText}>{workPerformed || 'No notes.'}</Text>
+            )}
+          </View>
+
+          <View style={styles.sectionCard}>
+            <View style={styles.sectionHeader}>
+              <Package size={18} color={Colors.primary} />
+              <Text style={styles.sectionTitle}>Materials Delivered</Text>
+            </View>
+            {!isLocked && (
+              <View style={styles.addMaterialRow}>
+                <TextInput
+                  style={styles.materialInput}
+                  value={newMaterial}
+                  onChangeText={setNewMaterial}
+                  placeholder="Material received..."
+                  placeholderTextColor={Colors.textMuted}
+                  onSubmitEditing={handleAddMaterial}
+                  returnKeyType="done"
+                />
+                <TouchableOpacity style={styles.addMaterialBtn} onPress={handleAddMaterial} activeOpacity={0.7}>
+                  <Plus size={16} color={Colors.primary} />
+                </TouchableOpacity>
+              </View>
+            )}
+            {materialsDelivered.length === 0 && (
+              <Text style={styles.emptyText}>No materials delivered today.</Text>
+            )}
+            {materialsDelivered.map((mat, idx) => (
+              <View key={idx} style={styles.materialRow}>
+                <View style={styles.materialDot} />
+                <Text style={styles.materialText}>{mat}</Text>
+                {!isLocked && (
+                  <TouchableOpacity onPress={() => handleRemoveMaterial(idx)} activeOpacity={0.7}>
+                    <X size={14} color={Colors.error} />
+                  </TouchableOpacity>
+                )}
+              </View>
+            ))}
+          </View>
+
+          <View style={styles.sectionCard}>
+            <View style={styles.sectionHeader}>
+              <AlertTriangle size={18} color={Colors.error} />
+              <Text style={styles.sectionTitle}>Issues & Delays</Text>
+            </View>
+            {!isLocked ? (
+              <TextInput
+                style={styles.textArea}
+                value={issuesAndDelays}
+                onChangeText={setIssuesAndDelays}
+                placeholder="Note any problems, delays, or safety incidents..."
+                placeholderTextColor={Colors.textMuted}
+                multiline
+                textAlignVertical="top"
+              />
+            ) : (
+              <Text style={styles.readOnlyText}>{issuesAndDelays || 'No issues reported.'}</Text>
+            )}
+          </View>
+
+          <View style={styles.sectionCard}>
+            <View style={styles.sectionHeader}>
+              <ImageIcon size={18} color={Colors.accent} />
+              <Text style={styles.sectionTitle}>Photos ({photos.length}/10)</Text>
+            </View>
+            {!isLocked && (
+              <View style={styles.photoActions}>
+                {Platform.OS !== 'web' && (
+                  <TouchableOpacity style={styles.photoBtn} onPress={handleTakePhoto} activeOpacity={0.7}>
+                    <Camera size={16} color={Colors.primary} />
+                    <Text style={styles.photoBtnText}>Take Photo</Text>
+                  </TouchableOpacity>
+                )}
+                <TouchableOpacity style={styles.photoBtn} onPress={handlePickPhoto} activeOpacity={0.7}>
+                  <ImageIcon size={16} color={Colors.primary} />
+                  <Text style={styles.photoBtnText}>From Library</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+            {photos.length === 0 && (
+              <Text style={styles.emptyText}>No photos attached.</Text>
+            )}
+            {photos.length > 0 && (
+              <View style={styles.photoGrid}>
+                {photos.map((photo) => (
+                  <View key={photo.id} style={styles.photoCard}>
+                    <View style={styles.photoPlaceholder}>
+                      <Camera size={20} color={Colors.textMuted} />
+                      <Text style={styles.photoTimestamp}>
+                        {new Date(photo.timestamp).toLocaleTimeString()}
+                      </Text>
+                    </View>
+                    {!isLocked && (
+                      <TouchableOpacity
+                        style={styles.photoRemoveBtn}
+                        onPress={() => handleRemovePhoto(photo.id)}
+                        activeOpacity={0.7}
+                      >
+                        <X size={12} color={Colors.error} />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
+        </ScrollView>
+
+        {!isLocked && (
+          <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]}>
+            <TouchableOpacity
+              style={styles.saveDraftBtn}
+              onPress={() => handleSave('draft')}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.saveDraftBtnText}>Save Draft</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.sendBtn}
+              onPress={handleSendPress}
+              activeOpacity={0.7}
+              testID="send-report-btn"
+            >
+              <Send size={16} color={Colors.textOnPrimary} />
+              <Text style={styles.sendBtnText}>Send Report</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </KeyboardAvoidingView>
+
+      <Modal visible={showSendRecipient} transparent animationType="slide" onRequestClose={() => setShowSendRecipient(false)}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }]}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Send Report To</Text>
+                <TouchableOpacity onPress={() => setShowSendRecipient(false)}>
+                  <X size={20} color={Colors.textMuted} />
+                </TouchableOpacity>
+              </View>
+
+              {contactPicked ? (
+                <View style={styles.selectedRecipientCard}>
+                  <User size={16} color={Colors.primary} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.selectedRecipientName}>{sendRecipientName}</Text>
+                    {sendRecipientEmail ? <Text style={styles.selectedRecipientEmail}>{sendRecipientEmail}</Text> : null}
+                  </View>
+                  <TouchableOpacity onPress={() => { setSendRecipientName(''); setSendRecipientEmail(''); setContactPicked(false); }} style={styles.clearRecipientBtn}>
+                    <X size={12} color={Colors.textMuted} />
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <>
+                  <Text style={styles.modalFieldLabel}>Recipient Name</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    value={sendRecipientName}
+                    onChangeText={setSendRecipientName}
+                    placeholder="Enter name or pick from contacts"
+                    placeholderTextColor={Colors.textMuted}
+                  />
+                  <Text style={styles.modalFieldLabel}>Email</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    value={sendRecipientEmail}
+                    onChangeText={setSendRecipientEmail}
+                    placeholder="email@example.com"
+                    placeholderTextColor={Colors.textMuted}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                  />
+                  {contacts.length > 0 && (
+                    <TouchableOpacity
+                      style={styles.pickContactBtn}
+                      onPress={() => { setShowSendRecipient(false); setTimeout(() => setShowContactPicker(true), 350); }}
+                      activeOpacity={0.7}
+                    >
+                      <BookUser size={14} color={Colors.primary} />
+                      <Text style={styles.pickContactText}>Pick from Contacts</Text>
+                    </TouchableOpacity>
+                  )}
+                </>
+              )}
+
+              <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
+                <TouchableOpacity style={styles.saveDraftBtn} onPress={() => setShowSendRecipient(false)} activeOpacity={0.7}>
+                  <Text style={styles.saveDraftBtnText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.sendBtn} onPress={handleConfirmSend} activeOpacity={0.7}>
+                  <Send size={16} color={Colors.textOnPrimary} />
+                  <Text style={styles.sendBtnText}>Send</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      <ContactPickerModal
+        visible={showContactPicker}
+        onClose={() => { setShowContactPicker(false); setTimeout(() => setShowSendRecipient(true), 350); }}
+        contacts={contacts}
+        title="Select Recipient"
+        onSelect={(contact) => {
+          const name = `${contact.firstName} ${contact.lastName}`.trim() || contact.companyName;
+          setSendRecipientName(name);
+          setSendRecipientEmail(contact.email);
+          setContactPicked(true);
+          setShowContactPicker(false);
+          setTimeout(() => setShowSendRecipient(true), 350);
+        }}
+      />
+
+      <Modal visible={showManpowerModal} transparent animationType="slide" onRequestClose={() => setShowManpowerModal(false)}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }]}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Add Manpower</Text>
+                <TouchableOpacity onPress={() => setShowManpowerModal(false)}>
+                  <X size={20} color={Colors.textMuted} />
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.modalFieldLabel}>Trade</Text>
+              <TextInput
+                style={styles.modalInput}
+                value={mpTrade}
+                onChangeText={setMpTrade}
+                placeholder="e.g. Electrician, Plumber..."
+                placeholderTextColor={Colors.textMuted}
+              />
+              <Text style={styles.modalFieldLabel}>Company / Sub</Text>
+              <TextInput
+                style={styles.modalInput}
+                value={mpCompany}
+                onChangeText={setMpCompany}
+                placeholder="Company name (optional)"
+                placeholderTextColor={Colors.textMuted}
+              />
+              <View style={styles.modalRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.modalFieldLabel}>Headcount</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    value={mpHeadcount}
+                    onChangeText={setMpHeadcount}
+                    placeholder="1"
+                    placeholderTextColor={Colors.textMuted}
+                    keyboardType="numeric"
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.modalFieldLabel}>Hours Worked</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    value={mpHours}
+                    onChangeText={setMpHours}
+                    placeholder="8"
+                    placeholderTextColor={Colors.textMuted}
+                    keyboardType="numeric"
+                  />
+                </View>
+              </View>
+              <TouchableOpacity style={styles.modalAddBtn} onPress={handleAddManpower} activeOpacity={0.85}>
+                <Text style={styles.modalAddBtnText}>Add Entry</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: Colors.background },
+  center: { alignItems: 'center', justifyContent: 'center' },
+  notFoundText: { fontSize: 18, color: Colors.textSecondary, marginBottom: 16 },
+  backBtn: { backgroundColor: Colors.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 10 },
+  backBtnText: { color: Colors.textOnPrimary, fontSize: 15, fontWeight: '600' as const },
+  heroCard: { backgroundColor: Colors.primary, marginHorizontal: 20, marginTop: 16, borderRadius: 16, padding: 20, gap: 4 },
+  heroLabel: { fontSize: 13, fontWeight: '600' as const, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' as const, letterSpacing: 0.5 },
+  heroProject: { fontSize: 20, fontWeight: '700' as const, color: Colors.textOnPrimary },
+  heroDate: { fontSize: 14, color: 'rgba(255,255,255,0.8)', marginTop: 2 },
+  statusBadge: { alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 8, marginTop: 6 },
+  statusText: { fontSize: 12, fontWeight: '700' as const },
+  sectionCard: { marginHorizontal: 20, marginTop: 14, backgroundColor: Colors.card, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: Colors.cardBorder },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
+  sectionTitle: { flex: 1, fontSize: 15, fontWeight: '700' as const, color: Colors.text },
+  refreshBtn: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: Colors.infoLight },
+  refreshBtnText: { fontSize: 12, fontWeight: '600' as const, color: Colors.info },
+  weatherGrid: { gap: 10 },
+  weatherItem: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  weatherInput: { flex: 1, minHeight: 38, borderRadius: 10, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 12, fontSize: 14, color: Colors.text },
+  weatherValue: { fontSize: 14, fontWeight: '600' as const, color: Colors.text },
+  addSmallBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: Colors.primary + '15', alignItems: 'center', justifyContent: 'center' },
+  emptyText: { fontSize: 13, color: Colors.textMuted, fontStyle: 'italic' as const },
+  mpRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderTopWidth: 1, borderTopColor: Colors.borderLight, gap: 10 },
+  mpInfo: { flex: 1, gap: 2 },
+  mpTrade: { fontSize: 14, fontWeight: '600' as const, color: Colors.text },
+  mpMeta: { fontSize: 12, color: Colors.textSecondary },
+  textArea: { minHeight: 80, borderRadius: 12, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 14, paddingTop: 12, fontSize: 14, color: Colors.text },
+  readOnlyText: { fontSize: 14, color: Colors.text, lineHeight: 20 },
+  addMaterialRow: { flexDirection: 'row', gap: 8, marginBottom: 8 },
+  materialInput: { flex: 1, minHeight: 40, borderRadius: 10, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 12, fontSize: 14, color: Colors.text },
+  addMaterialBtn: { width: 40, height: 40, borderRadius: 10, backgroundColor: Colors.primary + '15', alignItems: 'center', justifyContent: 'center' },
+  materialRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6 },
+  materialDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: Colors.primary },
+  materialText: { flex: 1, fontSize: 14, color: Colors.text },
+  photoActions: { flexDirection: 'row', gap: 10, marginBottom: 10 },
+  photoBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, backgroundColor: Colors.primary + '10', borderWidth: 1, borderColor: Colors.primary + '20' },
+  photoBtnText: { fontSize: 13, fontWeight: '600' as const, color: Colors.primary },
+  photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
+  photoCard: { width: 80, height: 80, borderRadius: 10, backgroundColor: Colors.surfaceAlt, overflow: 'hidden' as const, position: 'relative' as const },
+  photoPlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 4 },
+  photoTimestamp: { fontSize: 9, color: Colors.textMuted },
+  photoRemoveBtn: { position: 'absolute', top: 4, right: 4, width: 20, height: 20, borderRadius: 10, backgroundColor: Colors.errorLight, alignItems: 'center', justifyContent: 'center' },
+  bottomBar: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: Colors.surface, borderTopWidth: 0.5, borderTopColor: Colors.borderLight, paddingHorizontal: 20, paddingTop: 12, flexDirection: 'row', gap: 10 },
+  saveDraftBtn: { flex: 1, minHeight: 48, borderRadius: 14, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
+  saveDraftBtnText: { fontSize: 14, fontWeight: '700' as const, color: Colors.text },
+  sendBtn: { flex: 2, minHeight: 48, borderRadius: 14, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 },
+  sendBtnText: { fontSize: 14, fontWeight: '700' as const, color: Colors.textOnPrimary },
+  selectedRecipientCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.primary + '10', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, gap: 10, borderWidth: 1, borderColor: Colors.primary + '25' },
+  selectedRecipientName: { fontSize: 14, fontWeight: '600' as const, color: Colors.text },
+  selectedRecipientEmail: { fontSize: 12, color: Colors.textSecondary },
+  clearRecipientBtn: { width: 24, height: 24, borderRadius: 12, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
+  pickContactBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', marginTop: 8, paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8, backgroundColor: Colors.primary + '10' },
+  pickContactText: { fontSize: 13, fontWeight: '600' as const, color: Colors.primary },
+  modalOverlay: { flex: 1, backgroundColor: Colors.overlay, justifyContent: 'flex-end' },
+  modalCard: { backgroundColor: Colors.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 22, gap: 8 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  modalTitle: { fontSize: 20, fontWeight: '700' as const, color: Colors.text },
+  modalFieldLabel: { fontSize: 12, fontWeight: '600' as const, color: Colors.textSecondary, marginTop: 4 },
+  modalInput: { minHeight: 44, borderRadius: 12, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 12, fontSize: 15, color: Colors.text },
+  modalRow: { flexDirection: 'row', gap: 10 },
+  modalAddBtn: { backgroundColor: Colors.primary, borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginTop: 8 },
+  modalAddBtnText: { fontSize: 16, fontWeight: '700' as const, color: Colors.textOnPrimary },
+});
+
+
+========== FILE: ./app/documents.tsx ==========
+import React, { useState, useMemo, useCallback, useRef } from 'react';
+import {
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated,
+  Platform, Alert,
+} from 'react-native';
+import { Stack } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Haptics from 'expo-haptics';
+import {
+  FileText, PenTool, ShieldCheck, FileSignature, Plus,
+  AlertCircle, Check, Clock, X as XIcon, Eye,
+} from 'lucide-react-native';
+import { Colors } from '@/constants/colors';
+import { MOCK_DOCUMENTS, DOCUMENT_TYPE_INFO } from '@/mocks/documents';
+import type { ProjectDocument, DocumentStatus } from '@/types';
+
+const STATUS_CONFIG: Record<DocumentStatus, { label: string; color: string; bgColor: string; icon: React.ElementType }> = {
+  draft: { label: 'Draft', color: '#546E7A', bgColor: '#ECEFF1', icon: FileText },
+  pending_signature: { label: 'Awaiting Signature', color: '#E65100', bgColor: '#FFF3E0', icon: PenTool },
+  signed: { label: 'Signed', color: '#2E7D32', bgColor: '#E8F5E9', icon: Check },
+  expired: { label: 'Expired', color: '#C62828', bgColor: '#FFEBEE', icon: AlertCircle },
+  void: { label: 'Void', color: '#9E9E9E', bgColor: '#F5F5F5', icon: XIcon },
+};
+
+function DocumentCard({ doc, onPress }: { doc: ProjectDocument; onPress: () => void }) {
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const typeInfo = DOCUMENT_TYPE_INFO[doc.type] ?? DOCUMENT_TYPE_INFO.other;
+  const statusInfo = STATUS_CONFIG[doc.status];
+  const StatusIcon = statusInfo.icon;
+
+  const isExpiringSoon = doc.expiresAt && doc.status === 'signed' &&
+    new Date(doc.expiresAt).getTime() - Date.now() < 30 * 86400000 &&
+    new Date(doc.expiresAt).getTime() > Date.now();
+
+  return (
+    <Animated.View style={[styles.docCard, { transform: [{ scale: scaleAnim }] }]}>
+      <TouchableOpacity
+        onPress={onPress}
+        onPressIn={() => Animated.spring(scaleAnim, { toValue: 0.97, useNativeDriver: true, speed: 50 }).start()}
+        onPressOut={() => Animated.spring(scaleAnim, { toValue: 1, useNativeDriver: true, speed: 50 }).start()}
+        activeOpacity={1}
+        style={styles.docCardInner}
+      >
+        <View style={[styles.docTypeTag, { backgroundColor: typeInfo.bgColor }]}>
+          <Text style={[styles.docTypeTagText, { color: typeInfo.color }]}>{typeInfo.label}</Text>
+        </View>
+
+        <Text style={styles.docTitle} numberOfLines={2}>{doc.title}</Text>
+        <Text style={styles.docProject}>{doc.projectName}</Text>
+
+        {isExpiringSoon && (
+          <View style={styles.expiryWarning}>
+            <AlertCircle size={12} color="#E65100" />
+            <Text style={styles.expiryWarningText}>
+              Expires {new Date(doc.expiresAt!).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+            </Text>
+          </View>
+        )}
+
+        <View style={styles.docFooter}>
+          <View style={[styles.docStatusBadge, { backgroundColor: statusInfo.bgColor }]}>
+            <StatusIcon size={10} color={statusInfo.color} />
+            <Text style={[styles.docStatusText, { color: statusInfo.color }]}>{statusInfo.label}</Text>
+          </View>
+          <Text style={styles.docDate}>
+            {new Date(doc.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+          </Text>
+        </View>
+      </TouchableOpacity>
+    </Animated.View>
+  );
+}
+
+export default function DocumentsScreen() {
+  const insets = useSafeAreaInsets();
+  const [documents] = useState<ProjectDocument[]>(MOCK_DOCUMENTS);
+  const [selectedFilter, setSelectedFilter] = useState<string>('all');
+
+  const filters = [
+    { id: 'all', label: 'All' },
+    { id: 'pending_signature', label: 'Awaiting' },
+    { id: 'draft', label: 'Drafts' },
+    { id: 'signed', label: 'Signed' },
+    { id: 'expired', label: 'Expired' },
+  ];
+
+  const filtered = useMemo(() => {
+    if (selectedFilter === 'all') return documents;
+    return documents.filter(d => d.status === selectedFilter);
+  }, [documents, selectedFilter]);
+
+  const stats = useMemo(() => ({
+    total: documents.length,
+    pending: documents.filter(d => d.status === 'pending_signature').length,
+    signed: documents.filter(d => d.status === 'signed').length,
+    expired: documents.filter(d => d.status === 'expired').length,
+    expiringSoon: documents.filter(d => {
+      if (!d.expiresAt || d.status !== 'signed') return false;
+      const diff = new Date(d.expiresAt).getTime() - Date.now();
+      return diff > 0 && diff < 30 * 86400000;
+    }).length,
+  }), [documents]);
+
+  const handleDocPress = useCallback((doc: ProjectDocument) => {
+    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+    if (doc.status === 'draft') {
+      Alert.alert(doc.title, 'Open document editor to complete and send for signature?', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Edit Draft', onPress: () => console.log('[Documents] Edit draft:', doc.id) },
+      ]);
+    } else if (doc.status === 'pending_signature') {
+      Alert.alert(doc.title, 'This document is waiting for signature. You can resend the signing request.', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Resend', onPress: () => {
+          Alert.alert('Sent', 'Signing request has been resent.');
+        }},
+      ]);
+    } else {
+      Alert.alert(doc.title, `Status: ${STATUS_CONFIG[doc.status].label}\n${doc.signedBy ? `Signed by: ${doc.signedBy}` : ''}`);
+    }
+  }, []);
+
+  const handleCreateDocument = useCallback(() => {
+    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    Alert.alert(
+      'Create Document',
+      'What type of document would you like to create?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Lien Waiver', onPress: () => console.log('[Documents] Create lien waiver') },
+        { text: 'Proposal', onPress: () => console.log('[Documents] Create proposal') },
+        { text: 'Contract', onPress: () => console.log('[Documents] Create contract') },
+      ]
+    );
+  }, []);
+
+  return (
+    <View style={styles.container}>
+      <Stack.Screen options={{ title: 'Documents', headerStyle: { backgroundColor: Colors.background }, headerTintColor: Colors.primary, headerTitleStyle: { fontWeight: '700' as const, color: Colors.text } }} />
+      <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 30 }} showsVerticalScrollIndicator={false}>
+        <View style={styles.alertsRow}>
+          {stats.pending > 0 && (
+            <View style={[styles.alertCard, { backgroundColor: '#FFF3E0', borderColor: '#FFE0B2' }]}>
+              <PenTool size={16} color="#E65100" />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.alertTitle, { color: '#E65100' }]}>{stats.pending} Awaiting Signature</Text>
+                <Text style={styles.alertDesc}>Documents need attention</Text>
+              </View>
+            </View>
+          )}
+          {stats.expiringSoon > 0 && (
+            <View style={[styles.alertCard, { backgroundColor: '#FFEBEE', borderColor: '#FFCDD2' }]}>
+              <AlertCircle size={16} color="#C62828" />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.alertTitle, { color: '#C62828' }]}>{stats.expiringSoon} Expiring Soon</Text>
+                <Text style={styles.alertDesc}>COIs expiring within 30 days</Text>
+              </View>
+            </View>
+          )}
+        </View>
+
+        <View style={styles.statsRow}>
+          <View style={styles.statCard}>
+            <Text style={styles.statValue}>{stats.total}</Text>
+            <Text style={styles.statLabel}>Total</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Text style={[styles.statValue, { color: '#E65100' }]}>{stats.pending}</Text>
+            <Text style={styles.statLabel}>Pending</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Text style={[styles.statValue, { color: '#2E7D32' }]}>{stats.signed}</Text>
+            <Text style={styles.statLabel}>Signed</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Text style={[styles.statValue, { color: '#C62828' }]}>{stats.expired}</Text>
+            <Text style={styles.statLabel}>Expired</Text>
+          </View>
+        </View>
+
+        <TouchableOpacity style={styles.createButton} onPress={handleCreateDocument} activeOpacity={0.85}>
+          <Plus size={18} color="#fff" />
+          <Text style={styles.createButtonText}>Create Document</Text>
+        </TouchableOpacity>
+
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterRow}
+        >
+          {filters.map(f => (
+            <TouchableOpacity
+              key={f.id}
+              style={[styles.filterChip, selectedFilter === f.id && styles.filterChipActive]}
+              onPress={() => {
+                setSelectedFilter(f.id);
+                if (Platform.OS !== 'web') void Haptics.selectionAsync();
+              }}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.filterChipText, selectedFilter === f.id && styles.filterChipTextActive]}>
+                {f.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+
+        <View style={styles.listSection}>
+          {filtered.length === 0 ? (
+            <View style={styles.emptyState}>
+              <FileText size={32} color={Colors.textMuted} />
+              <Text style={styles.emptyTitle}>No documents found</Text>
+            </View>
+          ) : (
+            filtered.map(doc => (
+              <DocumentCard key={doc.id} doc={doc} onPress={() => handleDocPress(doc)} />
+            ))
+          )}
+        </View>
+      </ScrollView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: Colors.background },
+  alertsRow: { paddingHorizontal: 16, paddingTop: 16, gap: 8 },
+  alertCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  alertTitle: { fontSize: 14, fontWeight: '600' as const },
+  alertDesc: { fontSize: 12, color: Colors.textSecondary, marginTop: 1 },
+  statsRow: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    gap: 8,
+    paddingTop: 16,
+    marginBottom: 16,
+  },
+  statCard: {
+    flex: 1,
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    padding: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+  },
+  statValue: { fontSize: 20, fontWeight: '700' as const, color: Colors.text },
+  statLabel: { fontSize: 11, color: Colors.textSecondary, marginTop: 2 },
+  createButton: {
+    marginHorizontal: 16,
+    backgroundColor: Colors.primary,
+    borderRadius: 14,
+    paddingVertical: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginBottom: 16,
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  createButtonText: { fontSize: 16, fontWeight: '700' as const, color: '#fff' },
+  filterRow: { paddingHorizontal: 16, gap: 8, paddingBottom: 16 },
+  filterChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+  },
+  filterChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  filterChipText: { fontSize: 13, fontWeight: '600' as const, color: Colors.textSecondary },
+  filterChipTextActive: { color: '#fff' },
+  listSection: { paddingHorizontal: 16 },
+  docCard: {
+    marginBottom: 10,
+    borderRadius: 14,
+    backgroundColor: Colors.surface,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  docCardInner: { padding: 14, gap: 6 },
+  docTypeTag: { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 },
+  docTypeTagText: { fontSize: 11, fontWeight: '600' as const },
+  docTitle: { fontSize: 16, fontWeight: '600' as const, color: Colors.text },
+  docProject: { fontSize: 13, color: Colors.textSecondary },
+  expiryWarning: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#FFF3E0',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+  },
+  expiryWarningText: { fontSize: 12, fontWeight: '500' as const, color: '#E65100' },
+  docFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 },
+  docStatusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  docStatusText: { fontSize: 11, fontWeight: '600' as const },
+  docDate: { fontSize: 12, color: Colors.textMuted },
+  emptyState: { alignItems: 'center', paddingVertical: 60, gap: 8 },
+  emptyTitle: { fontSize: 17, fontWeight: '600' as const, color: Colors.text },
+});
+
+
+========== FILE: ./app/equipment-detail.tsx ==========
+import React, { useState, useMemo, useCallback } from 'react';
+import {
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
+  Alert, Platform, Modal, KeyboardAvoidingView,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
+import * as Haptics from 'expo-haptics';
+import {
+  Truck, Wrench, Clock, Trash2, X, AlertTriangle,
+  Save, ChevronDown,
+} from 'lucide-react-native';
+import Svg, { Rect } from 'react-native-svg';
+import { Colors } from '@/constants/colors';
+import { useProjects } from '@/contexts/ProjectContext';
+import { useSubscription } from '@/contexts/SubscriptionContext';
+import AIEquipmentAdvice from '@/components/AIEquipmentAdvice';
+import type { EquipmentCategory } from '@/types';
+
+const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
+  available: { label: 'Available', color: Colors.success },
+  in_use: { label: 'In Use', color: Colors.info },
+  maintenance: { label: 'Maintenance', color: Colors.warning },
+  retired: { label: 'Retired', color: Colors.textMuted },
+};
+
+export default function EquipmentDetailScreen() {
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const { equipmentId } = useLocalSearchParams<{ equipmentId: string }>();
+  const { equipment, updateEquipment, deleteEquipment, logUtilization, projects } = useProjects();
+  const { tier } = useSubscription();
+
+  const equip = useMemo(() => equipment.find(e => e.id === equipmentId) ?? null, [equipment, equipmentId]);
+
+  const [editName, setEditName] = useState(equip?.name ?? '');
+  const [editMake, setEditMake] = useState(equip?.make ?? '');
+  const [editModel, setEditModel] = useState(equip?.model ?? '');
+  const [editDailyRate, setEditDailyRate] = useState(equip?.dailyRate?.toString() ?? '');
+  const [editStatus, setEditStatus] = useState(equip?.status ?? 'available');
+  const [editCategory, _setEditCategory] = useState<EquipmentCategory>(equip?.category ?? 'other');
+  const [editSerialNumber, setEditSerialNumber] = useState(equip?.serialNumber ?? '');
+  const [editNotes, setEditNotes] = useState(equip?.notes ?? '');
+  const [editProjectId, setEditProjectId] = useState(equip?.currentProjectId ?? '');
+  const [showStatusPicker, setShowStatusPicker] = useState(false);
+  const [showLogModal, setShowLogModal] = useState(false);
+  const [logHours, setLogHours] = useState('8');
+  const [logOperator, setLogOperator] = useState('');
+  const [showProjectPicker, setShowProjectPicker] = useState(false);
+
+  const last30Days = useMemo(() => {
+    if (!equip) return [];
+    const now = Date.now();
+    const thirtyDaysAgo = now - 30 * 86400000;
+    return equip.utilizationLog
+      .filter(u => new Date(u.date).getTime() >= thirtyDaysAgo)
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  }, [equip]);
+
+  const maxHours = useMemo(() => Math.max(...last30Days.map(u => u.hoursUsed), 1), [last30Days]);
+
+  const handleSave = useCallback(() => {
+    if (!equip || !editName.trim()) {
+      Alert.alert('Missing Name', 'Please enter an equipment name.');
+      return;
+    }
+    updateEquipment(equip.id, {
+      name: editName.trim(),
+      make: editMake.trim(),
+      model: editModel.trim(),
+      dailyRate: parseFloat(editDailyRate) || 0,
+      status: editStatus,
+      category: editCategory,
+      serialNumber: editSerialNumber.trim() || undefined,
+      notes: editNotes.trim() || undefined,
+      currentProjectId: editProjectId || undefined,
+    });
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    Alert.alert('Saved', 'Equipment updated successfully.');
+  }, [equip, editName, editMake, editModel, editDailyRate, editStatus, editCategory, editSerialNumber, editNotes, editProjectId, updateEquipment]);
+
+  const handleDelete = useCallback(() => {
+    if (!equip) return;
+    Alert.alert('Delete Equipment', `Delete ${equip.name}? This cannot be undone.`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete', style: 'destructive',
+        onPress: () => {
+          deleteEquipment(equip.id);
+          router.back();
+        },
+      },
+    ]);
+  }, [equip, deleteEquipment, router]);
+
+  const handleLogUse = useCallback(() => {
+    if (!equip) return;
+    const hours = parseFloat(logHours) || 0;
+    if (hours <= 0) {
+      Alert.alert('Invalid Hours', 'Please enter valid hours.');
+      return;
+    }
+    logUtilization({
+      equipmentId: equip.id,
+      projectId: editProjectId || '',
+      date: new Date().toISOString(),
+      hoursUsed: hours,
+      operatorName: logOperator.trim() || undefined,
+    });
+    setShowLogModal(false);
+    setLogHours('8');
+    setLogOperator('');
+    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  }, [equip, logHours, logOperator, editProjectId, logUtilization]);
+
+  if (!equip) {
+    return (
+      <View style={[styles.container, styles.center]}>
+        <Stack.Screen options={{ title: 'Not Found' }} />
+        <Text style={styles.emptyText}>Equipment not found</Text>
+      </View>
+    );
+  }
+
+  const statusConfig = STATUS_CONFIG[equip.status] ?? STATUS_CONFIG.available;
+
+  return (
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <Stack.Screen options={{
+        title: equip.name,
+        headerStyle: { backgroundColor: Colors.background },
+        headerTintColor: Colors.primary,
+        headerTitleStyle: { fontWeight: '700' as const, color: Colors.text },
+      }} />
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 100, padding: 16 }}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={styles.headerCard}>
+          <View style={styles.equipIconWrap}>
+            <Truck size={28} color={Colors.primary} />
+          </View>
+          <View style={[styles.statusBadge, { backgroundColor: statusConfig.color + '20' }]}>
+            <Text style={[styles.statusBadgeText, { color: statusConfig.color }]}>{statusConfig.label}</Text>
+          </View>
+          <Text style={styles.rateText}>${equip.dailyRate}/day</Text>
+        </View>
+
+        <Text style={styles.fieldLabel}>Name *</Text>
+        <TextInput style={styles.input} value={editName} onChangeText={setEditName} placeholder="Equipment name" placeholderTextColor={Colors.textMuted} />
+
+        <View style={styles.rowFields}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.fieldLabel}>Make</Text>
+            <TextInput style={styles.input} value={editMake} onChangeText={setEditMake} placeholder="Make" placeholderTextColor={Colors.textMuted} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.fieldLabel}>Model</Text>
+            <TextInput style={styles.input} value={editModel} onChangeText={setEditModel} placeholder="Model" placeholderTextColor={Colors.textMuted} />
+          </View>
+        </View>
+
+        <Text style={styles.fieldLabel}>Serial Number</Text>
+        <TextInput style={styles.input} value={editSerialNumber} onChangeText={setEditSerialNumber} placeholder="Optional" placeholderTextColor={Colors.textMuted} />
+
+        <Text style={styles.fieldLabel}>Daily Rate ($)</Text>
+        <TextInput style={styles.input} value={editDailyRate} onChangeText={setEditDailyRate} placeholder="350" placeholderTextColor={Colors.textMuted} keyboardType="numeric" />
+
+        <Text style={styles.fieldLabel}>Status</Text>
+        <TouchableOpacity style={styles.pickerBtn} onPress={() => setShowStatusPicker(!showStatusPicker)}>
+          <View style={[styles.statusDot, { backgroundColor: (STATUS_CONFIG[editStatus] ?? STATUS_CONFIG.available).color }]} />
+          <Text style={styles.pickerBtnText}>{(STATUS_CONFIG[editStatus] ?? STATUS_CONFIG.available).label}</Text>
+          <ChevronDown size={16} color={Colors.textMuted} />
+        </TouchableOpacity>
+        {showStatusPicker && (
+          <View style={styles.optionsRow}>
+            {Object.entries(STATUS_CONFIG).map(([key, val]) => (
+              <TouchableOpacity
+                key={key}
+                style={[styles.optionChip, editStatus === key && { backgroundColor: val.color }]}
+                onPress={() => { setEditStatus(key as any); setShowStatusPicker(false); }}
+              >
+                <Text style={[styles.optionChipText, editStatus === key && { color: '#fff' }]}>{val.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+
+        <Text style={styles.fieldLabel}>Assigned Project</Text>
+        <TouchableOpacity style={styles.pickerBtn} onPress={() => setShowProjectPicker(!showProjectPicker)}>
+          <Text style={styles.pickerBtnText}>
+            {editProjectId ? (projects.find(p => p.id === editProjectId)?.name ?? 'Unknown') : 'None'}
+          </Text>
+          <ChevronDown size={16} color={Colors.textMuted} />
+        </TouchableOpacity>
+        {showProjectPicker && (
+          <View style={styles.projectList}>
+            <TouchableOpacity style={styles.projectItem} onPress={() => { setEditProjectId(''); setShowProjectPicker(false); }}>
+              <Text style={styles.projectItemText}>None</Text>
+            </TouchableOpacity>
+            {projects.map(p => (
+              <TouchableOpacity key={p.id} style={styles.projectItem} onPress={() => { setEditProjectId(p.id); setShowProjectPicker(false); }}>
+                <Text style={[styles.projectItemText, editProjectId === p.id && { color: Colors.primary, fontWeight: '600' as const }]}>{p.name}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+
+        <Text style={styles.fieldLabel}>Notes</Text>
+        <TextInput
+          style={[styles.input, { minHeight: 70, paddingTop: 12 }]}
+          value={editNotes}
+          onChangeText={setEditNotes}
+          placeholder="Notes..."
+          placeholderTextColor={Colors.textMuted}
+          multiline
+          textAlignVertical="top"
+        />
+
+        <Text style={styles.sectionTitle}>Maintenance Schedule</Text>
+        {equip.maintenanceSchedule.length === 0 ? (
+          <Text style={styles.noDataText}>No maintenance items scheduled.</Text>
+        ) : (
+          equip.maintenanceSchedule.map((item) => (
+            <View key={item.id} style={[styles.maintCard, item.isOverdue && styles.maintCardOverdue]}>
+              <View style={styles.maintHeader}>
+                <Wrench size={14} color={item.isOverdue ? Colors.error : Colors.textSecondary} />
+                <Text style={styles.maintDesc}>{item.description}</Text>
+                {item.isOverdue && <AlertTriangle size={14} color={Colors.error} />}
+              </View>
+              <Text style={styles.maintDetail}>
+                Every {item.intervalDays} days | Next: {new Date(item.nextDue).toLocaleDateString()}
+              </Text>
+            </View>
+          ))
+        )}
+
+        <Text style={styles.sectionTitle}>Utilization (Last 30 Days)</Text>
+        {last30Days.length === 0 ? (
+          <Text style={styles.noDataText}>No utilization logged yet.</Text>
+        ) : (
+          <View style={styles.chartCard}>
+            <Svg width={last30Days.length * 20 + 20} height={100}>
+              {last30Days.map((entry, i) => {
+                const barHeight = (entry.hoursUsed / maxHours) * 70;
+                return (
+                  <Rect
+                    key={entry.id}
+                    x={i * 20 + 10}
+                    y={90 - barHeight}
+                    width={14}
+                    height={barHeight}
+                    rx={4}
+                    fill={Colors.primary}
+                    opacity={0.8}
+                  />
+                );
+              })}
+            </Svg>
+          </View>
+        )}
+
+        <TouchableOpacity style={styles.logBtn} onPress={() => setShowLogModal(true)} activeOpacity={0.7}>
+          <Clock size={16} color={Colors.primary} />
+          <Text style={styles.logBtnText}>Log Today's Use</Text>
+        </TouchableOpacity>
+
+        {equip && (
+          <AIEquipmentAdvice
+            equipment={equip}
+            subscriptionTier={tier as any}
+          />
+        )}
+
+        <TouchableOpacity style={styles.saveBtn} onPress={handleSave} activeOpacity={0.85} testID="save-equipment">
+          <Save size={18} color="#fff" />
+          <Text style={styles.saveBtnText}>Save Changes</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.deleteBtn} onPress={handleDelete} activeOpacity={0.7}>
+          <Trash2 size={16} color={Colors.error} />
+          <Text style={styles.deleteBtnText}>Delete Equipment</Text>
+        </TouchableOpacity>
+      </ScrollView>
+
+      <Modal visible={showLogModal} transparent animationType="fade" onRequestClose={() => setShowLogModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Log Usage</Text>
+              <TouchableOpacity onPress={() => setShowLogModal(false)}>
+                <X size={20} color={Colors.textMuted} />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.fieldLabel}>Hours Used</Text>
+            <TextInput style={styles.input} value={logHours} onChangeText={setLogHours} keyboardType="numeric" placeholder="8" placeholderTextColor={Colors.textMuted} />
+            <Text style={styles.fieldLabel}>Operator Name</Text>
+            <TextInput style={styles.input} value={logOperator} onChangeText={setLogOperator} placeholder="Optional" placeholderTextColor={Colors.textMuted} />
+            <TouchableOpacity style={styles.saveBtn} onPress={handleLogUse} activeOpacity={0.85}>
+              <Text style={styles.saveBtnText}>Log Usage</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+    </KeyboardAvoidingView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+  center: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  emptyText: {
+    fontSize: 16,
+    color: Colors.textSecondary,
+  },
+  headerCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    padding: 20,
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 20,
+  },
+  equipIconWrap: {
+    width: 56,
+    height: 56,
+    borderRadius: 16,
+    backgroundColor: Colors.primary + '12',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  statusBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 8,
+  },
+  statusBadgeText: {
+    fontSize: 13,
+    fontWeight: '700' as const,
+  },
+  rateText: {
+    fontSize: 18,
+    fontWeight: '700' as const,
+    color: Colors.primary,
+  },
+  fieldLabel: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: Colors.textSecondary,
+    marginBottom: 6,
+    marginTop: 12,
+  },
+  input: {
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 15,
+    color: Colors.text,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+  },
+  rowFields: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  pickerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+  },
+  pickerBtnText: {
+    flex: 1,
+    fontSize: 15,
+    color: Colors.text,
+  },
+  statusDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  optionsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 8,
+  },
+  optionChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: Colors.fillTertiary,
+  },
+  optionChipText: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: Colors.textSecondary,
+  },
+  projectList: {
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    marginTop: 6,
+    overflow: 'hidden',
+    maxHeight: 200,
+  },
+  projectItem: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderBottomWidth: 0.5,
+    borderBottomColor: Colors.borderLight,
+  },
+  projectItemText: {
+    fontSize: 14,
+    color: Colors.text,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '700' as const,
+    color: Colors.text,
+    marginTop: 24,
+    marginBottom: 12,
+  },
+  noDataText: {
+    fontSize: 14,
+    color: Colors.textMuted,
+    fontStyle: 'italic',
+  },
+  maintCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 8,
+    gap: 4,
+  },
+  maintCardOverdue: {
+    borderLeftWidth: 3,
+    borderLeftColor: Colors.error,
+  },
+  maintHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  maintDesc: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: Colors.text,
+  },
+  maintDetail: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    paddingLeft: 22,
+  },
+  chartCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
+    overflow: 'hidden',
+  },
+  logBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: Colors.primary + '12',
+    marginTop: 8,
+  },
+  logBtnText: {
+    fontSize: 15,
+    fontWeight: '600' as const,
+    color: Colors.primary,
+  },
+  saveBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: Colors.primary,
+    borderRadius: 14,
+    paddingVertical: 16,
+    marginTop: 24,
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  saveBtnText: {
+    fontSize: 17,
+    fontWeight: '600' as const,
+    color: '#fff',
+  },
+  deleteBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    marginTop: 12,
+  },
+  deleteBtnText: {
+    fontSize: 15,
+    fontWeight: '600' as const,
+    color: Colors.error,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: Colors.overlay,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 20,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+    gap: 4,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700' as const,
+    color: Colors.text,
+  },
+});
+
+
+========== FILE: ./app/integrations.tsx ==========
+import React, { useState, useCallback, useMemo, useRef } from 'react';
+import {
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated,
+  Platform, Alert, Linking,
+} from 'react-native';
+import { Stack } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Haptics from 'expo-haptics';
+import {
+  Plug, Check, Clock, Lock, ExternalLink, ChevronRight,
+  Wifi, WifiOff, Search, X,
+} from 'lucide-react-native';
+import { Colors } from '@/constants/colors';
+import { MOCK_INTEGRATIONS, INTEGRATION_CATEGORIES } from '@/mocks/integrations';
+import type { Integration, IntegrationCategory } from '@/types';
+
+function IntegrationCard({ item, onConnect }: { item: Integration; onConnect: (item: Integration) => void }) {
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+
+  const statusConfig = useMemo(() => {
+    switch (item.status) {
+      case 'connected':
+        return { label: 'Connected', color: '#2E7D32', bgColor: '#E8F5E9', icon: Check };
+      case 'disconnected':
+        return { label: item.tier === 'link' ? 'Open' : 'Connect', color: Colors.primary, bgColor: Colors.primary + '14', icon: Plug };
+      case 'coming_soon':
+        return { label: 'Coming Soon', color: '#9E9E9E', bgColor: '#F5F5F5', icon: Lock };
+      case 'error':
+        return { label: 'Error', color: '#C62828', bgColor: '#FFEBEE', icon: WifiOff };
+      default:
+        return { label: 'Connect', color: Colors.primary, bgColor: Colors.primary + '14', icon: Plug };
+    }
+  }, [item.status, item.tier]);
+
+  const StatusIcon = statusConfig.icon;
+
+  return (
+    <Animated.View style={[styles.card, { transform: [{ scale: scaleAnim }] }]}>
+      <TouchableOpacity
+        onPress={() => onConnect(item)}
+        onPressIn={() => Animated.spring(scaleAnim, { toValue: 0.97, useNativeDriver: true, speed: 50 }).start()}
+        onPressOut={() => Animated.spring(scaleAnim, { toValue: 1, useNativeDriver: true, speed: 50 }).start()}
+        activeOpacity={1}
+        style={styles.cardInner}
+        disabled={item.status === 'coming_soon'}
+      >
+        <View style={[styles.cardIcon, { backgroundColor: item.iconBg }]}>
+          <Text style={[styles.cardIconLetter, { color: item.iconColor }]}>
+            {item.name.charAt(0)}
+          </Text>
+        </View>
+        <View style={styles.cardInfo}>
+          <View style={styles.cardNameRow}>
+            <Text style={styles.cardName} numberOfLines={1}>{item.name}</Text>
+            {item.tier === 'link' && (
+              <ExternalLink size={12} color={Colors.textMuted} style={{ marginLeft: 4 }} />
+            )}
+          </View>
+          <Text style={styles.cardDesc} numberOfLines={2}>{item.description}</Text>
+          {item.connectedAt && (
+            <Text style={styles.cardConnectedDate}>
+              Since {new Date(item.connectedAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+            </Text>
+          )}
+        </View>
+        <View style={[styles.statusBadge, { backgroundColor: statusConfig.bgColor }]}>
+          <StatusIcon size={12} color={statusConfig.color} />
+          <Text style={[styles.statusText, { color: statusConfig.color }]}>{statusConfig.label}</Text>
+        </View>
+      </TouchableOpacity>
+    </Animated.View>
+  );
+}
+
+export default function IntegrationsScreen() {
+  const insets = useSafeAreaInsets();
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [integrations, setIntegrations] = useState<Integration[]>(MOCK_INTEGRATIONS);
+
+  const filtered = useMemo(() => {
+    let result = integrations;
+    if (selectedCategory !== 'all') {
+      result = result.filter(i => i.category === selectedCategory);
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(i =>
+        i.name.toLowerCase().includes(q) || i.description.toLowerCase().includes(q)
+      );
+    }
+    return result;
+  }, [integrations, selectedCategory, searchQuery]);
+
+  const connectedCount = useMemo(() => integrations.filter(i => i.status === 'connected').length, [integrations]);
+  const availableCount = useMemo(() => integrations.filter(i => i.status !== 'coming_soon').length, [integrations]);
+
+  const handleConnect = useCallback((item: Integration) => {
+    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+    if (item.status === 'connected') {
+      Alert.alert(
+        `Disconnect ${item.name}?`,
+        'This will remove the connection. You can reconnect anytime.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Disconnect',
+            style: 'destructive',
+            onPress: () => {
+              setIntegrations(prev =>
+                prev.map(i => i.id === item.id ? { ...i, status: 'disconnected' as const, connectedAt: undefined } : i)
+              );
+              if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+            },
+          },
+        ]
+      );
+      return;
+    }
+
+    if (item.externalUrl) {
+      Linking.openURL(item.externalUrl).catch(() => {
+        Alert.alert('Error', 'Could not open the link.');
+      });
+      return;
+    }
+
+    if (item.tier === 'deep') {
+      Alert.alert(
+        `Connect ${item.name}`,
+        'This will open a secure authentication flow. Once connected, data will sync automatically.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Connect',
+            onPress: () => {
+              setIntegrations(prev =>
+                prev.map(i => i.id === item.id ? { ...i, status: 'connected' as const, connectedAt: new Date().toISOString() } : i)
+              );
+              if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              Alert.alert('Connected!', `${item.name} has been connected successfully.`);
+            },
+          },
+        ]
+      );
+    }
+  }, []);
+
+  return (
+    <View style={styles.container}>
+      <Stack.Screen options={{ title: 'Integrations', headerStyle: { backgroundColor: Colors.background }, headerTintColor: Colors.primary, headerTitleStyle: { fontWeight: '700' as const, color: Colors.text } }} />
+      <ScrollView
+        contentContainerStyle={{ paddingBottom: insets.bottom + 30 }}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.heroSection}>
+          <View style={styles.heroIconWrap}>
+            <Wifi size={28} color={Colors.primary} />
+          </View>
+          <Text style={styles.heroTitle}>Integrations Hub</Text>
+          <Text style={styles.heroSubtitle}>Connect your favorite tools and services</Text>
+          <View style={styles.heroStats}>
+            <View style={styles.heroStat}>
+              <Text style={[styles.heroStatValue, { color: Colors.primary }]}>{connectedCount}</Text>
+              <Text style={styles.heroStatLabel}>Connected</Text>
+            </View>
+            <View style={[styles.heroStatDivider]} />
+            <View style={styles.heroStat}>
+              <Text style={styles.heroStatValue}>{availableCount}</Text>
+              <Text style={styles.heroStatLabel}>Available</Text>
+            </View>

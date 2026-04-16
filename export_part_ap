@@ -1,0 +1,296 @@
+
+Parse this into an action. Match task names FUZZY — the user might say "framing" to mean "Frame 2nd Floor" or "electrical" to mean "Rough Electrical Wiring". Pick the closest match from the available tasks.
+
+For progress updates, extract the percentage. "80 percent" = 80, "halfway" = 50, "almost done" = 90, "done" or "finished" or "complete" = 100.
+
+For notes and issues, extract the text content after identifying the action.
+
+If the command is ambiguous or you can't match a task, set action to 'unknown' and provide a clarification question.
+
+Set confidence 0-100. Below 60 means you should include a clarification.`,
+      schema: voiceCommandSchema,
+      tier: 'fast',
+    });
+
+    if (!aiResult.success) {
+      console.log('[VoiceCmd] AI failed:', aiResult.error);
+      return {
+        action: 'unknown',
+        confidence: 0,
+        clarification: 'Voice processing unavailable. Try typing your update instead.',
+      };
+    }
+
+    const result = aiResult.data;
+    console.log('[VoiceCmd] Parsed result:', result.action, 'confidence:', result.confidence);
+    return result;
+  } catch (err) {
+    console.log('[VoiceCmd] Parse failed:', err);
+    return {
+      action: 'unknown',
+      confidence: 0,
+      clarification: 'Voice processing unavailable. Try typing your update instead.',
+    };
+  }
+}
+
+export async function parseBatchVoiceCommand(
+  spokenText: string,
+  currentTasks: Array<{ title: string; phase: string; progress: number; status: string; crew: string }>,
+  projectName: string
+): Promise<ParsedBatchCommand> {
+  console.log('[VoiceCmd] Parsing batch command:', spokenText.substring(0, 80));
+
+  try {
+    const aiResult = await mageAI({
+      prompt: `You are a voice command parser for a construction project management app. The user is giving MULTIPLE commands at once. Parse each one separately.
+
+CURRENT PROJECT: ${projectName}
+
+AVAILABLE TASKS:
+${buildTaskContext(currentTasks)}
+
+USER SAID: "${spokenText}"
+
+Parse each command separately. Match task names FUZZY. For progress, "80 percent" = 80, "halfway" = 50, "almost done" = 90, "done"/"finished"/"complete" = 100.
+
+Return all commands found. Set confidence 0-100 for the overall batch.`,
+      schema: batchCommandSchema,
+      tier: 'fast',
+    });
+
+    if (!aiResult.success) {
+      console.log('[VoiceCmd] Batch AI failed:', aiResult.error);
+      return { commands: [], confidence: 0 };
+    }
+
+    const result = aiResult.data;
+    console.log('[VoiceCmd] Batch parsed:', result.commands.length, 'commands');
+    return result;
+  } catch (err) {
+    console.log('[VoiceCmd] Batch parse failed:', err);
+    return { commands: [], confidence: 0 };
+  }
+}
+
+export async function parseDailyReportVoice(
+  spokenText: string,
+  projectName: string
+): Promise<ParsedDailyReport> {
+  console.log('[VoiceCmd] Parsing daily report voice input');
+
+  try {
+    const aiResult = await mageAI({
+      prompt: `You are a construction superintendent writing a daily field report. Parse this spoken end-of-day summary into structured report fields.
+
+PROJECT: ${projectName}
+
+SPOKEN INPUT: "${spokenText}"
+
+Extract: work completed today, work still in progress, issues/delays, weather conditions, safety incidents (or "None" if not mentioned), crew count if mentioned, visitors if mentioned, materials received if mentioned, and tomorrow's plan if mentioned.
+
+Be thorough but only extract what was actually said. If something wasn't mentioned, leave it empty or use reasonable defaults.`,
+      schema: dailyReportVoiceSchema,
+      tier: 'fast',
+    });
+
+    if (!aiResult.success) {
+      console.log('[VoiceCmd] Daily report AI failed:', aiResult.error);
+      return {
+        workCompleted: [],
+        workInProgress: [],
+        issues: [],
+        weather: 'Not mentioned',
+        safetyIncidents: 'None reported',
+      };
+    }
+
+    const result = aiResult.data;
+    console.log('[VoiceCmd] Daily report parsed successfully');
+    return result;
+  } catch (err) {
+    console.log('[VoiceCmd] Daily report parse failed:', err);
+    return {
+      workCompleted: [],
+      workInProgress: [],
+      issues: [],
+      weather: 'Not mentioned',
+      safetyIncidents: 'None reported',
+    };
+  }
+}
+
+export { isBatchCommand, isDailyReport };
+
+
+========== FILE: ./utils/voiceDFRParser.ts ==========
+import { mageAI } from '@/utils/mageAI';
+import { z } from 'zod';
+import type { DailyFieldReport } from '@/types';
+
+const DFRSchema = z.object({
+  weather: z.object({
+    temperature: z.string().optional(),
+    conditions: z.string().optional(),
+    wind: z.string().optional(),
+  }).optional(),
+  manpower: z.array(z.object({
+    trade: z.string(),
+    company: z.string().optional(),
+    headcount: z.number().optional(),
+    hoursWorked: z.number().optional(),
+  })).optional(),
+  workPerformed: z.string().optional(),
+  materialsDelivered: z.array(z.string()).optional(),
+  issuesAndDelays: z.string().optional(),
+});
+
+export async function parseDFRFromTranscript(
+  transcript: string,
+  _projectId: string,
+): Promise<Partial<DailyFieldReport>> {
+  console.log('[VoiceDFR] Parsing transcript into DFR fields');
+
+  try {
+    const aiResult = await mageAI({
+      prompt: `You are a construction daily field report parser. Extract structured data from this voice transcript of a field worker describing their day on a construction site. Extract: weather conditions, manpower headcount by trade, work performed description, materials delivered, and any issues or delays mentioned. Be thorough but only extract what was actually said.\n\nTranscript:\n${transcript}`,
+      schema: DFRSchema,
+      tier: 'fast',
+    });
+
+    if (!aiResult.success) {
+      console.log('[VoiceDFR] AI failed:', aiResult.error);
+      throw new Error(aiResult.error || 'AI unavailable');
+    }
+
+    const result = aiResult.data;
+    console.log('[VoiceDFR] Parsed DFR fields successfully');
+
+    const partial: Partial<DailyFieldReport> = {};
+
+    if (result.weather) {
+      partial.weather = {
+        temperature: result.weather.temperature ?? '',
+        conditions: result.weather.conditions ?? '',
+        wind: result.weather.wind ?? '',
+        isManual: false,
+      };
+    }
+
+    if (result.manpower && result.manpower.length > 0) {
+      partial.manpower = result.manpower.map((m: any, i: number) => ({
+        id: `mp-voice-${Date.now()}-${i}`,
+        trade: m.trade ?? '',
+        company: m.company ?? '',
+        headcount: m.headcount ?? 1,
+        hoursWorked: m.hoursWorked ?? 8,
+      }));
+    }
+
+    if (result.workPerformed) {
+      partial.workPerformed = result.workPerformed;
+    }
+
+    if (result.materialsDelivered && result.materialsDelivered.length > 0) {
+      partial.materialsDelivered = result.materialsDelivered;
+    }
+
+    if (result.issuesAndDelays) {
+      partial.issuesAndDelays = result.issuesAndDelays;
+    }
+
+    return partial;
+  } catch (err) {
+    console.log('[VoiceDFR] Parse failed:', err);
+    throw err;
+  }
+}
+
+
+========== FILE: ./utils/weatherService.ts ==========
+export interface DayForecast {
+  date: string;
+  condition: 'clear' | 'cloudy' | 'rain' | 'storm' | 'snow' | 'wind';
+  tempHigh: number;
+  tempLow: number;
+  precipChance: number;
+  windSpeed: number;
+  isWorkable: boolean;
+  icon: string;
+}
+
+const CONDITION_ICONS: Record<DayForecast['condition'], string> = {
+  clear: '☀️',
+  cloudy: '☁️',
+  rain: '🌧️',
+  storm: '⛈️',
+  snow: '🌨️',
+  wind: '💨',
+};
+
+export function getConditionIcon(condition: DayForecast['condition']): string {
+  return CONDITION_ICONS[condition] ?? '☀️';
+}
+
+export function getSimulatedForecast(startDate: Date, days: number, _region?: string): DayForecast[] {
+  const forecasts: DayForecast[] = [];
+  for (let i = 0; i < days; i++) {
+    const date = new Date(startDate);
+    date.setDate(date.getDate() + i);
+    const month = date.getMonth();
+    const dayOfYear = Math.floor((date.getTime() - new Date(date.getFullYear(), 0, 0).getTime()) / (1000 * 60 * 60 * 24));
+
+    const seed = (dayOfYear * 13 + date.getFullYear() * 7) % 100;
+    const isWinter = month >= 11 || month <= 2;
+    const isSummer = month >= 5 && month <= 8;
+    const isSpring = month >= 3 && month <= 4;
+
+    let condition: DayForecast['condition'] = 'clear';
+    let precipChance = 10;
+    let tempHigh = 75;
+    let tempLow = 55;
+    let windSpeed = 8;
+
+    if (isWinter) {
+      tempHigh = 38 + (seed % 20);
+      tempLow = tempHigh - 15;
+      precipChance = 25 + (seed % 30);
+      condition = seed < 20 ? 'snow' : seed < 45 ? 'cloudy' : seed < 60 ? 'rain' : 'clear';
+    } else if (isSummer) {
+      tempHigh = 78 + (seed % 20);
+      tempLow = tempHigh - 18;
+      precipChance = 15 + (seed % 25);
+      condition = seed < 10 ? 'storm' : seed < 25 ? 'rain' : seed < 40 ? 'cloudy' : 'clear';
+    } else if (isSpring) {
+      tempHigh = 55 + (seed % 25);
+      tempLow = tempHigh - 15;
+      precipChance = 30 + (seed % 25);
+      condition = seed < 15 ? 'storm' : seed < 35 ? 'rain' : seed < 50 ? 'cloudy' : 'clear';
+    } else {
+      tempHigh = 55 + (seed % 25);
+      tempLow = tempHigh - 15;
+      precipChance = 20 + (seed % 20);
+      condition = seed < 10 ? 'rain' : seed < 30 ? 'cloudy' : 'clear';
+    }
+
+    windSpeed = 5 + (seed % 20);
+    const isWorkable = condition !== 'storm' && condition !== 'snow' && precipChance < 70 && windSpeed < 30;
+
+    forecasts.push({
+      date: date.toISOString().split('T')[0],
+      condition,
+      tempHigh: Math.round(tempHigh),
+      tempLow: Math.round(tempLow),
+      precipChance,
+      windSpeed: Math.round(windSpeed),
+      isWorkable,
+      icon: getConditionIcon(condition),
+    });
+  }
+  return forecasts;
+}
+
+export function getWeatherRiskForDate(date: string, forecasts: DayForecast[]): DayForecast | null {
+  return forecasts.find(f => f.date === date) ?? null;
+}
+

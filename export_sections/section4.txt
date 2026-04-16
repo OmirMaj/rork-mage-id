@@ -1,0 +1,4976 @@
+=== SECTION 4: Utils ===
+--- FILE: utils/mageAI.ts ---
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const AI_URL = "https://nteoqhcswappxxjlpvap.supabase.co/functions/v1/ai";
+const AI_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im50ZW9xaGNzd2FwcHh4amxwdmFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzMTU0MDMsImV4cCI6MjA4OTg5MTQwM30.xpz7yWhignppH-3dYD-EV4AvB4cugr7-881GKdOFado";
+const CACHE_PREFIX = "mage_ai_cache_";
+
+interface MageAIParams {
+  prompt: string;
+  schema?: any;
+  tier?: "fast" | "smart";
+  maxTokens?: number;
+  cacheKey?: string;
+  cacheHours?: number;
+}
+
+interface MageAIResult {
+  success: boolean;
+  data: any;
+  raw?: string;
+  error?: string;
+  cached?: boolean;
+}
+
+async function getCache(key: string): Promise<MageAIResult | null> {
+  try {
+    const c = await AsyncStorage.getItem(CACHE_PREFIX + key);
+    if (!c) return null;
+    const { result, expiresAt } = JSON.parse(c);
+    if (Date.now() > expiresAt) { await AsyncStorage.removeItem(CACHE_PREFIX + key); return null; }
+    return { ...result, cached: true };
+  } catch { return null; }
+}
+
+async function setCache(key: string, result: MageAIResult, hours: number) {
+  try {
+    await AsyncStorage.setItem(CACHE_PREFIX + key, JSON.stringify({ result, expiresAt: Date.now() + hours * 3600000 }));
+  } catch {}
+}
+
+export async function mageAI(params: MageAIParams): Promise<MageAIResult> {
+  const { prompt, schema, tier = "fast", maxTokens = 1000, cacheKey, cacheHours = 2 } = params;
+  if (cacheKey) { const c = await getCache(cacheKey); if (c) return c; }
+  try {
+    const r = await fetch(AI_URL, {
+      method: "POST",
+      headers: { "Authorization": "Bearer " + AI_KEY, "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt, schema, tier, maxTokens }),
+    });
+    if (!r.ok) return { success: false, data: null, error: "AI unavailable (" + r.status + ")" };
+    const j = await r.json();
+    if (!j.success) return { success: false, data: null, error: j.error || "AI failed" };
+    const result: MageAIResult = { success: true, data: j.data, raw: j.raw, cached: false };
+    if (cacheKey) await setCache(cacheKey, result, cacheHours);
+    return result;
+  } catch (err) {
+    return { success: false, data: null, error: "Could not reach AI. Check connection." };
+  }
+}
+
+export async function mageAIFast(prompt: string, schema?: any, cacheKey?: string) {
+  return mageAI({ prompt, schema, tier: "fast", cacheKey });
+}
+
+export async function mageAISmart(prompt: string, schema?: any, cacheKey?: string) {
+  return mageAI({ prompt, schema, tier: "smart", maxTokens: 2000, cacheKey });
+}
+
+--- FILE: utils/aiService.ts ---
+import { mageAI } from '@/utils/mageAI';
+import { z } from 'zod';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { checkAILimit, recordAIUsage, type SubscriptionTierKey, type RequestTier } from '@/utils/aiRateLimiter';
+import type { Project, ProjectSchedule, ScheduleTask, ChangeOrder, Invoice, Subcontractor, Equipment } from '@/types';
+
+const AI_CACHE_PREFIX = 'mageid_ai_cache_';
+const COPILOT_HISTORY_PREFIX = 'mageid_copilot_';
+const COMPANY_PROFILE_KEY = 'mageid_company_ai_profile';
+const AI_USAGE_KEY = 'mageid_ai_usage';
+
+export interface AIUsage {
+  date: string;
+  copilotCount: number;
+  builderCount: number;
+}
+
+export async function getAIUsage(): Promise<AIUsage> {
+  try {
+    const stored = await AsyncStorage.getItem(AI_USAGE_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored) as AIUsage;
+      const today = new Date().toISOString().split('T')[0];
+      if (parsed.date === today) return parsed;
+    }
+  } catch { /* ignore */ }
+  return { date: new Date().toISOString().split('T')[0], copilotCount: 0, builderCount: 0 };
+}
+
+export async function incrementAIUsage(feature: 'copilot' | 'builder'): Promise<AIUsage> {
+  const usage = await getAIUsage();
+  if (feature === 'copilot') usage.copilotCount++;
+  else usage.builderCount++;
+  usage.date = new Date().toISOString().split('T')[0];
+  await AsyncStorage.setItem(AI_USAGE_KEY, JSON.stringify(usage));
+  return usage;
+}
+
+export async function getCachedResult<T>(key: string, maxAgeMs: number): Promise<T | null> {
+  try {
+    const stored = await AsyncStorage.getItem(AI_CACHE_PREFIX + key);
+    if (!stored) return null;
+    const { data, timestamp } = JSON.parse(stored);
+    if (Date.now() - timestamp > maxAgeMs) return null;
+    return data as T;
+  } catch { return null; }
+}
+
+export async function setCachedResult(key: string, data: unknown): Promise<void> {
+  try {
+    await AsyncStorage.setItem(AI_CACHE_PREFIX + key, JSON.stringify({ data, timestamp: Date.now() }));
+  } catch { /* ignore */ }
+}
+
+export interface CompanyAIProfile {
+  specialties: string[];
+  trades: string[];
+  preferredSize: string;
+  location: string;
+  certifications: string[];
+}
+
+export async function getCompanyProfile(): Promise<CompanyAIProfile | null> {
+  try {
+    const stored = await AsyncStorage.getItem(COMPANY_PROFILE_KEY);
+    return stored ? JSON.parse(stored) : null;
+  } catch { return null; }
+}
+
+export async function saveCompanyProfile(profile: CompanyAIProfile): Promise<void> {
+  await AsyncStorage.setItem(COMPANY_PROFILE_KEY, JSON.stringify(profile));
+}
+
+export interface CopilotMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  actionItems?: Array<{ text: string; priority: 'urgent' | 'important' | 'suggestion' }>;
+  dataPoints?: Array<{ label: string; value: string }>;
+  timestamp: string;
+}
+
+export async function getCopilotHistory(projectId: string): Promise<CopilotMessage[]> {
+  try {
+    const stored = await AsyncStorage.getItem(COPILOT_HISTORY_PREFIX + projectId);
+    return stored ? JSON.parse(stored) : [];
+  } catch { return []; }
+}
+
+export async function saveCopilotHistory(projectId: string, messages: CopilotMessage[]): Promise<void> {
+  const trimmed = messages.slice(-20);
+  await AsyncStorage.setItem(COPILOT_HISTORY_PREFIX + projectId, JSON.stringify(trimmed));
+}
+
+const copilotResponseSchema = z.object({
+  answer: z.string(),
+  confidence: z.enum(['high', 'medium', 'low']),
+  actionItems: z.array(z.object({
+    text: z.string(),
+    priority: z.enum(['urgent', 'important', 'suggestion']),
+  })).optional(),
+  dataPoints: z.array(z.object({
+    label: z.string(),
+    value: z.string(),
+  })).optional(),
+});
+
+export type CopilotResponse = z.infer<typeof copilotResponseSchema>;
+
+export function buildProjectContext(project: Project | null, schedule: ProjectSchedule | null): string {
+  if (!project) return 'No project selected.';
+  const estimate = project.linkedEstimate ?? project.estimate;
+  const tasks = schedule?.tasks ?? [];
+  const done = tasks.filter(t => t.status === 'done').length;
+  const inProgress = tasks.filter(t => t.status === 'in_progress').length;
+  const overdue = tasks.filter(t => t.status !== 'done' && t.progress < 100).length;
+
+  return `Project: ${project.name}
+Status: ${project.status}
+Type: ${project.type}
+Location: ${project.location}
+Square Footage: ${project.squareFootage || 'N/A'}
+
+Schedule:
+- Total tasks: ${tasks.length}
+- Completed: ${done}
+- In progress: ${inProgress}
+- Overdue: ${overdue}
+- Health score: ${schedule?.healthScore ?? 'N/A'}
+- Total duration: ${schedule?.totalDurationDays ?? 0} days
+- Critical path: ${schedule?.criticalPathDays ?? 0} days
+
+Estimate:
+- Grand total: $${estimate && 'grandTotal' in estimate ? estimate.grandTotal : 0}
+- Items: ${estimate && 'items' in estimate ? (estimate as any).items?.length ?? 0 : 0}
+
+Risk items: ${schedule?.riskItems?.map(r => r.title).join('; ') || 'None'}
+
+Tasks (top 25):
+${tasks.slice(0, 25).map(t =>
+    `- ${t.title} (${t.phase}): ${t.progress}% | ${t.status} | Day ${t.startDay}-${t.startDay + t.durationDays}${t.crew ? ` | Crew: ${t.crew}` : ''}`
+  ).join('\n') || 'No tasks'}`;
+}
+
+export async function askCopilot(userMessage: string, projectContext: string): Promise<CopilotResponse> {
+  console.log('[AI Copilot] Sending message:', userMessage.substring(0, 50));
+  const aiResult = await mageAI({
+    prompt: `You are MAGE AI, a senior construction project management advisor built into the MAGE ID app. You have access to the user's project data below. Answer their question with specific, actionable advice based on their actual data. Be concise (2-4 sentences max for the main answer). If there are action items, list them. Use construction industry terminology.
+
+PROJECT DATA:
+${projectContext}
+
+USER QUESTION: ${userMessage}
+
+Respond with a helpful, specific answer based on the project data above. Include relevant numbers and task names from the data. If you identify risks or issues, flag them clearly.`,
+    schema: copilotResponseSchema,
+    tier: 'fast',
+  });
+  if (!aiResult.success) {
+    throw new Error(aiResult.error || 'AI unavailable');
+  }
+  console.log('[AI Copilot] Response received');
+  return aiResult.data;
+}
+
+export const scheduleRiskSchema = z.object({
+  overallConfidence: z.number(),
+  predictedEndDate: z.string(),
+  predictedDelay: z.number(),
+  risks: z.array(z.object({
+    taskName: z.string(),
+    severity: z.enum(['high', 'medium', 'low']),
+    delayProbability: z.number(),
+    delayDays: z.number(),
+    reasons: z.array(z.string()),
+    recommendation: z.string(),
+  })),
+  summary: z.string(),
+});
+
+export type ScheduleRiskResult = z.infer<typeof scheduleRiskSchema>;
+
+export async function analyzeScheduleRisk(schedule: ProjectSchedule, weatherData?: string): Promise<ScheduleRiskResult> {
+  console.log('[AI Risk] Analyzing schedule risk...');
+  const taskData = schedule.tasks.map(t => ({
+    name: t.title,
+    phase: t.phase,
+    progress: t.progress,
+    status: t.status,
+    duration: t.durationDays,
+    startDay: t.startDay,
+    isCritical: t.isCriticalPath,
+    isWeatherSensitive: t.isWeatherSensitive,
+    crew: t.crew,
+    crewSize: t.crewSize,
+    depCount: t.dependencies?.length ?? 0,
+  }));
+
+  const aiResult = await mageAI({
+    prompt: `You are an AI construction schedule analyst. Analyze this schedule and predict which tasks are at risk of delay. Consider: task dependencies, progress rates, critical path, weather sensitivity, and crew constraints.
+
+SCHEDULE DATA:
+Total tasks: ${schedule.tasks.length}
+Total duration: ${schedule.totalDurationDays} days
+Health score: ${schedule.healthScore}/100
+Working days/week: ${schedule.workingDaysPerWeek}
+
+TASKS:
+${JSON.stringify(taskData, null, 2)}
+
+WEATHER (next 7 days):
+${weatherData || 'No weather data available'}
+
+Analyze and predict risks. For each at-risk task, explain WHY based on the data and give ONE specific actionable recommendation. Rate overall project completion confidence 0-100.`,
+    schema: scheduleRiskSchema,
+    tier: 'smart',
+  });
+  if (!aiResult.success) {
+    throw new Error(aiResult.error || 'Schedule risk analysis unavailable');
+  }
+  console.log('[AI Risk] Analysis complete');
+  return aiResult.data;
+}
+
+export const bidScoreSchema = z.object({
+  matchScore: z.number(),
+  matchReasons: z.array(z.string()),
+  concerns: z.array(z.string()),
+  bidStrategy: z.string(),
+  estimatedWinProbability: z.number(),
+});
+
+export type BidScoreResult = z.infer<typeof bidScoreSchema>;
+
+export async function scoreBid(bid: {
+  title: string;
+  department: string;
+  estimated_value: number;
+  naics_code?: string;
+  set_aside?: string | null;
+  state?: string;
+  description?: string;
+}, profile: CompanyAIProfile): Promise<BidScoreResult> {
+  console.log('[AI Bid] Scoring bid:', bid.title?.substring(0, 40));
+  const aiResult = await mageAI({
+    prompt: `You are an AI bid analyst for construction contractors. Score how well this bid matches the contractor's profile. Consider: trade alignment, project size fit, location, set-aside eligibility, and certification requirements.
+
+BID:
+Title: ${bid.title}
+Agency: ${bid.department}
+Value: $${bid.estimated_value}
+NAICS: ${bid.naics_code || 'N/A'}
+Set-aside: ${bid.set_aside || 'None'}
+State: ${bid.state || 'Unknown'}
+Description: ${bid.description?.substring(0, 500) || 'No description'}
+
+COMPANY PROFILE:
+Specialties: ${profile.specialties.join(', ')}
+Trades: ${profile.trades.join(', ')}
+Preferred size: ${profile.preferredSize}
+Location: ${profile.location}
+Certifications: ${profile.certifications.join(', ') || 'None'}
+
+Score 0-100 match. Give 2-3 reasons why it matches or doesn't. Give one sentence of bid strategy advice. Estimate win probability.`,
+    schema: bidScoreSchema,
+    tier: 'fast',
+  });
+  if (!aiResult.success) {
+    throw new Error(aiResult.error || 'Bid scoring unavailable');
+  }
+  console.log('[AI Bid] Score:', aiResult.data.matchScore);
+  return aiResult.data;
+}
+
+export const dailyReportSchema = z.object({
+  summary: z.string(),
+  workCompleted: z.array(z.string()),
+  workInProgress: z.array(z.string()),
+  issuesAndDelays: z.array(z.string()),
+  tomorrowPlan: z.array(z.string()),
+  weatherImpact: z.string(),
+  crewsOnSite: z.array(z.object({
+    trade: z.string(),
+    count: z.number(),
+    activity: z.string(),
+  })),
+  safetyNotes: z.string(),
+});
+
+export type DailyReportGenResult = z.infer<typeof dailyReportSchema>;
+
+export async function generateDailyReport(
+  projectName: string,
+  tasks: ScheduleTask[],
+  weatherStr: string,
+): Promise<DailyReportGenResult> {
+  console.log('[AI DFR] Generating daily report...');
+  const activeTasks = tasks.filter(t => t.status === 'in_progress' || t.status === 'done');
+  const aiResult = await mageAI({
+    prompt: `You are a construction superintendent writing a professional daily field report. Based on the project schedule data below, generate a complete daily report for today. Write in professional but concise construction industry language.
+
+PROJECT: ${projectName}
+DATE: ${new Date().toLocaleDateString()}
+WEATHER: ${weatherStr}
+
+TODAY'S TASKS:
+${activeTasks.map(t => `- ${t.title} (${t.phase}): ${t.progress}% complete, Status: ${t.status}, Crew: ${t.crew || 'TBD'} (${t.crewSize || 0} workers)`).join('\n') || 'No active tasks'}
+
+COMPLETED TODAY:
+${activeTasks.filter(t => t.status === 'done').map(t => t.title).join(', ') || 'None completed today'}
+
+Generate a professional daily report. Be specific based on the task data.`,
+    schema: dailyReportSchema,
+    tier: 'fast',
+  });
+  if (!aiResult.success) {
+    throw new Error(aiResult.error || 'Daily report generation unavailable');
+  }
+  console.log('[AI DFR] Report generated');
+  return aiResult.data;
+}
+
+export const estimateValidationSchema = z.object({
+  overallScore: z.number(),
+  issues: z.array(z.object({
+    type: z.enum(['warning', 'error', 'suggestion', 'ok']),
+    title: z.string(),
+    detail: z.string(),
+    potentialImpact: z.string(),
+  })),
+  missingItems: z.array(z.string()),
+  costPerSqFtAssessment: z.string(),
+  materialLaborRatioAssessment: z.string(),
+  contingencyRecommendation: z.string(),
+  summary: z.string(),
+});
+
+export type EstimateValidationResult = z.infer<typeof estimateValidationSchema>;
+
+export async function validateEstimate(
+  projectType: string,
+  squareFootage: number,
+  totalCost: number,
+  materialCost: number,
+  laborCost: number,
+  itemCount: number,
+  hasContingency: boolean,
+  location: string,
+): Promise<EstimateValidationResult> {
+  console.log('[AI Estimate] Validating estimate...');
+  const costPerSF = squareFootage > 0 ? (totalCost / squareFootage).toFixed(2) : 'N/A';
+  const matLabRatio = laborCost > 0 ? (materialCost / laborCost).toFixed(1) : 'N/A';
+
+  const aiResult = await mageAI({
+    prompt: `You are an AI construction estimator reviewer. Validate this estimate against industry standards and flag potential issues.
+
+PROJECT TYPE: ${projectType}
+SQUARE FOOTAGE: ${squareFootage} SF
+LOCATION: ${location}
+TOTAL COST: $${totalCost.toFixed(2)}
+MATERIAL COST: $${materialCost.toFixed(2)}
+LABOR COST: $${laborCost.toFixed(2)}
+ITEM COUNT: ${itemCount}
+COST PER SF: $${costPerSF}
+MAT:LAB RATIO: ${matLabRatio}:1
+HAS CONTINGENCY: ${hasContingency ? 'Yes' : 'No'}
+
+Review this estimate. Flag issues like: unusual mat:lab ratio, missing contingency, cost/SF out of range for project type, missing common items. Score overall estimate health 1-10.`,
+    schema: estimateValidationSchema,
+    tier: 'smart',
+  });
+  if (!aiResult.success) {
+    throw new Error(aiResult.error || 'Estimate validation unavailable');
+  }
+  console.log('[AI Estimate] Validation complete, score:', aiResult.data.overallScore);
+  return aiResult.data;
+}
+
+export const aiScheduleSchema = z.object({
+  projectName: z.string(),
+  estimatedDuration: z.number(),
+  tasks: z.array(z.object({
+    title: z.string(),
+    phase: z.string(),
+    durationDays: z.number(),
+    crew: z.string(),
+    crewSize: z.number(),
+    isMilestone: z.boolean(),
+    isCriticalPath: z.boolean(),
+    isWeatherSensitive: z.boolean(),
+    predecessorIndex: z.number().optional(),
+    dependencyType: z.enum(['FS', 'SS', 'FF', 'SF']).optional(),
+    lagDays: z.number().optional(),
+    notes: z.string().optional(),
+  })),
+  assumptions: z.array(z.string()),
+  warnings: z.array(z.string()),
+});
+
+export type AIScheduleResult = z.infer<typeof aiScheduleSchema>;
+
+export async function buildScheduleFromDescription(description: string): Promise<AIScheduleResult> {
+  console.log('[AI Schedule] Building from description...');
+  const aiResult = await mageAI({
+    prompt: `You are a senior construction scheduler with 20 years of experience. Create a detailed, realistic construction schedule based on this project description.
+
+PROJECT DESCRIPTION:
+${description}
+
+Create a complete schedule with:
+1. All major construction phases in proper sequence
+2. Realistic durations
+3. Appropriate crew types and sizes
+4. Dependencies (predecessorIndex = 0-indexed position in array)
+5. Flag milestones (inspections, substantial completion)
+6. Flag critical path tasks
+7. Flag weather-sensitive tasks (concrete, roofing, exterior)
+8. Notes for tasks with special considerations
+
+Use phases: Site Work, Demo, Foundation, Framing, Roofing, MEP, Plumbing, Electrical, HVAC, Insulation, Drywall, Interior, Finishes, Landscaping, Inspections, General
+
+Be specific with task names. Include inspections and mobilization/demobilization.`,
+    schema: aiScheduleSchema,
+    tier: 'smart',
+    maxTokens: 2000,
+  });
+  if (!aiResult.success) {
+    throw new Error(aiResult.error || 'AI schedule builder unavailable');
+  }
+  console.log('[AI Schedule] Generated', aiResult.data.tasks.length, 'tasks');
+  return aiResult.data;
+}
+
+export const changeOrderImpactSchema = z.object({
+  scheduleDays: z.number(),
+  costImpact: z.object({
+    materials: z.number(),
+    labor: z.number(),
+    equipment: z.number(),
+    total: z.number(),
+  }),
+  affectedTasks: z.array(z.object({
+    taskName: z.string(),
+    currentEnd: z.string(),
+    newEnd: z.string(),
+    daysAdded: z.number(),
+  })),
+  newProjectEndDate: z.string(),
+  downstreamEffects: z.array(z.string()),
+  recommendation: z.string(),
+  compressionOptions: z.array(z.object({
+    description: z.string(),
+    costPremium: z.number(),
+    daysSaved: z.number(),
+  })),
+});
+
+export type ChangeOrderImpactResult = z.infer<typeof changeOrderImpactSchema>;
+
+export async function analyzeChangeOrderImpact(
+  changeDescription: string,
+  lineItems: Array<{ name: string; quantity: number; unitPrice: number; total: number }>,
+  schedule: ProjectSchedule | null,
+): Promise<ChangeOrderImpactResult> {
+  console.log('[AI CO] Analyzing change order impact...');
+  const taskSummary = schedule?.tasks?.slice(0, 20).map(t =>
+    `${t.title} (${t.phase}): Day ${t.startDay}-${t.startDay + t.durationDays}, ${t.progress}%`
+  ).join('\n') || 'No schedule';
+
+  const aiResult = await mageAI({
+    prompt: `You are a construction change order analyst. Analyze the schedule and cost impact of this change order.
+
+CHANGE ORDER:
+Description: ${changeDescription}
+Line Items:
+${lineItems.map(i => `- ${i.name}: ${i.quantity} × $${i.unitPrice} = $${i.total}`).join('\n') || 'No line items yet'}
+Total Change Amount: $${lineItems.reduce((s, i) => s + i.total, 0)}
+
+CURRENT SCHEDULE:
+Total duration: ${schedule?.totalDurationDays ?? 0} days
+Tasks:
+${taskSummary}
+
+Predict schedule delay, cost impact, affected downstream tasks, and give a recommendation. Include compression options to reduce delay.`,
+    schema: changeOrderImpactSchema,
+    tier: 'smart',
+    maxTokens: 2000,
+  });
+  if (!aiResult.success) {
+    throw new Error(aiResult.error || 'Change order analysis unavailable');
+  }
+  console.log('[AI CO] Impact analysis complete');
+  return aiResult.data;
+}
+
+export const weeklySummarySchema = z.object({
+  weekRange: z.string(),
+  portfolioSummary: z.object({
+    totalProjects: z.number(),
+    onTrack: z.number(),
+    atRisk: z.number(),
+    behind: z.number(),
+    combinedValue: z.number(),
+    tasksCompletedThisWeek: z.number(),
+  }),
+  projects: z.array(z.object({
+    name: z.string(),
+    status: z.enum(['on_track', 'at_risk', 'behind', 'ahead']),
+    progressStart: z.number(),
+    progressEnd: z.number(),
+    keyAccomplishment: z.string(),
+    primaryRisk: z.string(),
+    recommendation: z.string(),
+  })),
+  overallRecommendation: z.string(),
+});
+
+export type WeeklySummaryResult = z.infer<typeof weeklySummarySchema>;
+
+export async function rateLimitedGenerate<T extends z.ZodType>(
+  subscriptionTier: SubscriptionTierKey,
+  requestTier: RequestTier,
+  messages: Array<{ role: 'user' | 'assistant'; content: string }>,
+  schema: T,
+): Promise<{ success: true; data: z.infer<T> } | { success: false; data: null; error: string }> {
+  try {
+    const limit = await checkAILimit(subscriptionTier, requestTier);
+    if (!limit.allowed) {
+      return { success: false, data: null, error: limit.message ?? 'Rate limit reached.' };
+    }
+    const prompt = messages.map(m => `${m.role}: ${m.content}`).join('\n\n');
+    const aiResult = await mageAI({ prompt, schema, tier: 'fast' });
+    if (!aiResult.success) {
+      return { success: false, data: null, error: aiResult.error || 'AI analysis unavailable right now. Please try again.' };
+    }
+    await recordAIUsage(requestTier);
+    return { success: true, data: aiResult.data };
+  } catch (err) {
+    console.error('[AI] Generation failed:', err);
+    return { success: false, data: null, error: 'AI analysis unavailable right now. Please try again.' };
+  }
+}
+
+export async function generateWeeklySummary(projects: Project[]): Promise<WeeklySummaryResult> {
+  console.log('[AI Weekly] Generating summary for', projects.length, 'projects');
+  const projectData = projects.map(p => {
+    const schedule = p.schedule;
+    const tasks = schedule?.tasks ?? [];
+    const totalProgress = tasks.length > 0
+      ? Math.round(tasks.reduce((s, t) => s + t.progress, 0) / tasks.length)
+      : 0;
+    const done = tasks.filter(t => t.status === 'done').length;
+    const est = p.linkedEstimate ?? p.estimate;
+    return {
+      name: p.name,
+      type: p.type,
+      status: p.status,
+      totalTasks: tasks.length,
+      completedTasks: done,
+      overallProgress: totalProgress,
+      healthScore: schedule?.healthScore ?? 0,
+      totalValue: est && 'grandTotal' in est ? est.grandTotal : 0,
+      riskItems: schedule?.riskItems?.map(r => r.title) ?? [],
+    };
+  });
+
+  const aiResult = await mageAI({
+    prompt: `You are a construction portfolio manager writing a weekly executive summary. Analyze these projects and generate a professional report.
+
+PROJECTS:
+${JSON.stringify(projectData, null, 2)}
+
+CURRENT DATE: ${new Date().toLocaleDateString()}
+
+Generate a comprehensive weekly executive summary. For each project, assess status, highlight key accomplishments, identify primary risks, and give recommendations. Provide an overall portfolio recommendation.`,
+    schema: weeklySummarySchema,
+    tier: 'fast',
+  });
+  if (!aiResult.success) {
+    throw new Error(aiResult.error || 'Weekly summary unavailable');
+  }
+  console.log('[AI Weekly] Summary generated');
+  return aiResult.data;
+}
+
+export const homeBriefingSchema = z.object({
+  briefing: z.string(),
+  projects: z.array(z.object({
+    name: z.string(),
+    status: z.enum(['on_track', 'at_risk', 'behind']),
+    keyInsight: z.string(),
+    actionItem: z.string(),
+  })),
+  urgentItems: z.array(z.string()),
+});
+
+export type HomeBriefingResult = z.infer<typeof homeBriefingSchema>;
+
+export async function generateHomeBriefing(
+  projects: Project[],
+  invoices: Invoice[],
+): Promise<HomeBriefingResult> {
+  console.log('[AI Briefing] Generating for', projects.length, 'projects');
+  const projectSummaries = projects.map(p => {
+    const schedule = p.schedule;
+    const tasks = schedule?.tasks ?? [];
+    const done = tasks.filter(t => t.status === 'done').length;
+    const overdue = tasks.filter(t => t.status !== 'done' && t.progress < 100 && t.startDay + t.durationDays < (schedule?.totalDurationDays ?? 999)).length;
+    const est = p.linkedEstimate ?? p.estimate;
+    const projectInvoices = invoices.filter(inv => inv.projectId === p.id);
+    const pendingInvoices = projectInvoices.filter(inv => inv.status !== 'paid' && inv.status !== 'draft');
+    return `Project: ${p.name}
+  Type: ${p.type} | Status: ${p.status}
+  Schedule health: ${schedule?.healthScore ?? 'N/A'}/100
+  Tasks: ${tasks.length} total, ${done} done, ${overdue} potentially overdue
+  Estimate: ${est && 'grandTotal' in est ? est.grandTotal.toLocaleString() : '0'}
+  Pending invoices: ${pendingInvoices.length} totaling ${pendingInvoices.reduce((s, i) => s + (i.totalDue - i.amountPaid), 0).toLocaleString()}`;
+  }).join('\n---\n');
+
+  const aiResult = await mageAI({
+    prompt: `You are analyzing a contractor's project portfolio. Give a brief daily briefing — 2-3 sentences per project highlighting the single most important thing they should know or act on TODAY. Flag any overdue invoices, schedule delays, or upcoming deadlines. Be specific with names and numbers.
+
+PROJECTS:
+${projectSummaries}
+
+DATE: ${new Date().toLocaleDateString()}`,
+    schema: homeBriefingSchema,
+    tier: 'fast',
+  });
+  if (!aiResult.success) {
+    throw new Error(aiResult.error || 'Home briefing unavailable');
+  }
+  console.log('[AI Briefing] Generated');
+  return aiResult.data;
+}
+
+export const invoicePredictionSchema = z.object({
+  predictedPaymentDate: z.string(),
+  confidenceLevel: z.enum(['high', 'medium', 'low']),
+  daysFromDue: z.number(),
+  reasoning: z.string(),
+  tip: z.string(),
+});
+
+export type InvoicePredictionResult = z.infer<typeof invoicePredictionSchema>;
+
+export async function predictInvoicePayment(
+  invoice: Invoice,
+  projectName: string,
+  clientHistory: { avgDaysLate: number; totalInvoices: number },
+): Promise<InvoicePredictionResult> {
+  console.log('[AI Invoice] Predicting payment for invoice #', invoice.number);
+  const aiResult = await mageAI({
+    prompt: `You are a construction payment analyst. Predict when this invoice will actually be paid based on the payment terms and client history.
+
+INVOICE:
+Number: #${invoice.number}
+Amount: ${invoice.totalDue.toLocaleString()}
+Issue date: ${invoice.issueDate}
+Due date: ${invoice.dueDate}
+Payment terms: ${invoice.paymentTerms}
+Status: ${invoice.status}
+Amount paid so far: ${invoice.amountPaid.toLocaleString()}
+Project: ${projectName}
+
+CLIENT HISTORY:
+Avg days late: ${clientHistory.avgDaysLate}
+Total past invoices: ${clientHistory.totalInvoices}
+
+Predict the actual payment date, confidence level, and give a tip for getting paid faster.`,
+    schema: invoicePredictionSchema,
+    tier: 'fast',
+  });
+  if (!aiResult.success) {
+    throw new Error(aiResult.error || 'Invoice prediction unavailable');
+  }
+  console.log('[AI Invoice] Prediction complete');
+  return aiResult.data;
+}
+
+export const subEvaluationSchema = z.object({
+  questionsToAsk: z.array(z.string()),
+  typicalRates: z.object({
+    journeyman: z.string(),
+    master: z.string(),
+    apprentice: z.string(),
+  }),
+  redFlags: z.array(z.string()),
+  recommendation: z.string(),
+  trackRecord: z.string().optional(),
+});
+
+export type SubEvaluationResult = z.infer<typeof subEvaluationSchema>;
+
+export async function evaluateSubcontractor(
+  sub: Subcontractor,
+  projectContext: string,
+): Promise<SubEvaluationResult> {
+  console.log('[AI Sub] Evaluating:', sub.companyName);
+  const aiResult = await mageAI({
+    prompt: `You are a construction subcontractor evaluator. Evaluate this subcontractor and provide hiring advice.
+
+SUBCONTRACTOR:
+Company: ${sub.companyName}
+Contact: ${sub.contactName}
+Trade: ${sub.trade}
+License #: ${sub.licenseNumber || 'N/A'}
+License expiry: ${sub.licenseExpiry || 'N/A'}
+COI expiry: ${sub.coiExpiry || 'N/A'}
+W9 on file: ${sub.w9OnFile ? 'Yes' : 'No'}
+Bid history: ${sub.bidHistory.length} bids (${sub.bidHistory.filter(b => b.outcome === 'won').length} won)
+Assigned projects: ${sub.assignedProjects.length}
+Notes: ${sub.notes || 'None'}
+
+CONTEXT:
+${projectContext}
+
+Provide: questions to ask before hiring, typical rates for their trade, red flags to watch for, and overall recommendation. If they have bid history, summarize their track record.`,
+    schema: subEvaluationSchema,
+    tier: 'fast',
+  });
+  if (!aiResult.success) {
+    throw new Error(aiResult.error || 'Subcontractor evaluation unavailable');
+  }
+  console.log('[AI Sub] Evaluation complete');
+  return aiResult.data;
+}
+
+export const equipmentAdviceSchema = z.object({
+  recommendation: z.enum(['rent', 'buy', 'lease']),
+  annualRentalCost: z.number(),
+  purchasePrice: z.string(),
+  breakEvenProjects: z.number(),
+  reasoning: z.string(),
+  reconsiderWhen: z.string(),
+});
+
+export type EquipmentAdviceResult = z.infer<typeof equipmentAdviceSchema>;
+
+export async function analyzeEquipmentRentVsBuy(
+  equip: Equipment,
+  projectsPerYear: number,
+  avgDaysPerProject: number,
+): Promise<EquipmentAdviceResult> {
+  console.log('[AI Equipment] Analyzing rent vs buy:', equip.name);
+  const aiResult = await mageAI({
+    prompt: `You are a construction equipment financial advisor. Analyze whether this contractor should rent or buy this equipment.
+
+EQUIPMENT:
+Name: ${equip.name}
+Type: ${equip.type}
+Category: ${equip.category}
+Make: ${equip.make}
+Model: ${equip.model}
+Daily rate: ${equip.dailyRate}
+Current status: ${equip.status}
+Utilization entries: ${equip.utilizationLog.length}
+
+USAGE PATTERN:
+Projects per year: ${projectsPerYear}
+Avg days per project: ${avgDaysPerProject}
+Estimated annual rental cost: ${(equip.dailyRate * avgDaysPerProject * projectsPerYear).toLocaleString()}
+
+Analyze rent vs buy. Include annual rental cost estimate, typical purchase price range, break-even point, and when they should reconsider.`,
+    schema: equipmentAdviceSchema,
+    tier: 'fast',
+  });
+  if (!aiResult.success) {
+    throw new Error(aiResult.error || 'Equipment analysis unavailable');
+  }
+  console.log('[AI Equipment] Analysis complete');
+  return aiResult.data;
+}
+
+export const projectReportSchema = z.object({
+  executiveSummary: z.string(),
+  scheduleStatus: z.string(),
+  budgetStatus: z.string(),
+  keyAccomplishments: z.array(z.string()),
+  issuesAndRisks: z.array(z.string()),
+  nextMilestones: z.array(z.string()),
+  recommendations: z.array(z.string()),
+});
+
+export type ProjectReportResult = z.infer<typeof projectReportSchema>;
+
+export const aiQuickEstimateSchema = z.object({
+  projectSummary: z.string(),
+  materials: z.array(z.object({
+    name: z.string(),
+    category: z.string(),
+    unit: z.string(),
+    quantity: z.number(),
+    unitPrice: z.number(),
+    supplier: z.string(),
+    notes: z.string().optional(),
+  })),
+  labor: z.array(z.object({
+    trade: z.string(),
+    hourlyRate: z.number(),
+    hours: z.number(),
+    crew: z.string(),
+    notes: z.string().optional(),
+  })),
+  assemblies: z.array(z.object({
+    name: z.string(),
+    category: z.string(),
+    quantity: z.number(),
+    unit: z.string(),
+    notes: z.string().optional(),
+  })),
+  additionalCosts: z.object({
+    permits: z.number(),
+    dumpsterRental: z.number(),
+    equipmentRental: z.number(),
+    cleanup: z.number(),
+    contingencyPercent: z.number(),
+    overheadPercent: z.number(),
+  }),
+  estimatedDuration: z.string(),
+  costPerSqFt: z.number(),
+  confidenceScore: z.number(),
+  warnings: z.array(z.string()),
+  savingsTips: z.array(z.string()),
+});
+
+export type AIQuickEstimateResult = z.infer<typeof aiQuickEstimateSchema>;
+
+export async function generateQuickEstimate(
+  description: string,
+  projectType: string,
+  squareFootage: number,
+  qualityTier: string,
+  location: string,
+): Promise<AIQuickEstimateResult> {
+  console.log('[AI Quick Estimate] Generating for:', description.substring(0, 60));
+
+  const aiResult = await mageAI({
+    prompt: `You are an expert construction estimator with 25+ years of experience and access to current 2025-2026 material pricing from Home Depot, Lowe's, and wholesale suppliers. Generate a COMPLETE, detailed construction estimate.
+
+PROJECT DESCRIPTION:
+${description}
+
+PROJECT DETAILS:
+- Type: ${projectType || 'General Construction'}
+- Square Footage: ${squareFootage || 'Not specified'}
+- Quality Tier: ${qualityTier || 'standard'}
+- Location: ${location || 'US National Average'}
+
+REQUIREMENTS:
+1. Generate 10-25 material line items with REALISTIC quantities for this project scope
+2. Use CURRENT market prices — reference Home Depot, Lowe's, Ferguson, ABC Supply pricing
+3. Match materials to these categories: lumber, concrete, roofing, insulation, siding, windows, flooring, plumbing, electrical, hvac, drywall, paint, decking, fencing, steel, hardware, landscape
+4. Include 3-8 labor trades with realistic hourly rates and hours needed
+5. Match labor trades to: Carpenter, Electrician, Plumber, HVAC Technician, Painter, Roofer, Mason / Bricklayer, Concrete Finisher, Drywall Installer, Flooring Installer, Equipment Operator, General Laborer, Insulation Worker, Demolition Worker, Landscaper
+6. Suggest relevant assemblies from: Frame Interior Wall, Frame Exterior Wall, Drywall Hang & Finish, Electrical Outlet, Electrical Circuit, Recessed Light, Kitchen Plumbing, Bathroom Plumbing, Tile Floor, LVP Floor, Interior Paint, Exterior Paint, Composite Deck, Wood Deck, Shingle Roof, Concrete Slab, Batt Insulation, Privacy Fence, Vinyl Siding, HVAC Mini-Split, Kitchen Cabinet Base, Interior Demo
+7. Include permits, dumpster rental, equipment rental, cleanup costs
+8. Set contingency 5-15% based on project complexity
+9. Overhead typically 10-15%
+10. Calculate realistic cost per square foot
+11. Rate your confidence 1-100 in this estimate's accuracy
+12. Include 2-4 warnings about potential issues
+13. Include 2-4 money-saving tips specific to this project
+14. estimatedDuration as readable string like "4-6 weeks"
+
+Be thorough and realistic. This estimate should be professional-grade and ready for a client proposal. Use the ${qualityTier || 'standard'} quality tier to inform material selections and pricing.`,
+    schema: aiQuickEstimateSchema,
+    tier: 'fast',
+  });
+  if (!aiResult.success) {
+    throw new Error(aiResult.error || 'Quick estimate generation unavailable');
+  }
+  const result = aiResult.data;
+  console.log('[AI Quick Estimate] Generated:', result.materials.length, 'materials,', result.labor.length, 'labor,', result.assemblies.length, 'assemblies');
+  return result;
+}
+
+export async function generateProjectReport(
+  project: Project,
+  invoices: Invoice[],
+  changeOrders: ChangeOrder[],
+): Promise<ProjectReportResult> {
+  console.log('[AI Report] Generating for:', project.name);
+  const schedule = project.schedule;
+  const tasks = schedule?.tasks ?? [];
+  const est = project.linkedEstimate ?? project.estimate;
+  const projInvoices = invoices.filter(i => i.projectId === project.id);
+  const projCOs = changeOrders.filter(co => co.projectId === project.id);
+  const totalInvoiced = projInvoices.reduce((s, i) => s + i.totalDue, 0);
+  const totalPaid = projInvoices.reduce((s, i) => s + i.amountPaid, 0);
+  const coTotal = projCOs.reduce((s, co) => s + co.changeAmount, 0);
+
+  const aiResult = await mageAI({
+    prompt: `You are a senior construction project manager writing a professional project status report for stakeholders.
+
+PROJECT: ${project.name}
+Type: ${project.type} | Status: ${project.status}
+Location: ${project.location}
+Square footage: ${project.squareFootage || 'N/A'}
+
+SCHEDULE:
+Total tasks: ${tasks.length}
+Completed: ${tasks.filter(t => t.status === 'done').length}
+In progress: ${tasks.filter(t => t.status === 'in_progress').length}
+Health score: ${schedule?.healthScore ?? 'N/A'}/100
+Duration: ${schedule?.totalDurationDays ?? 0} days
+
+BUDGET:
+Estimate: ${est && 'grandTotal' in est ? est.grandTotal.toLocaleString() : '0'}
+Total invoiced: ${totalInvoiced.toLocaleString()}
+Total paid: ${totalPaid.toLocaleString()}
+Change orders: ${projCOs.length} totaling ${coTotal.toLocaleString()}
+
+TASKS (active):
+${tasks.filter(t => t.status === 'in_progress').slice(0, 15).map(t => `- ${t.title}: ${t.progress}%`).join('\n') || 'None'}
+
+Generate a professional project status report suitable for sharing with clients.`,
+    schema: projectReportSchema,
+    tier: 'fast',
+  });
+  if (!aiResult.success) {
+    throw new Error(aiResult.error || 'Project report generation unavailable');
+  }
+  console.log('[AI Report] Generated');
+  return aiResult.data;
+}
+
+--- FILE: utils/aiRateLimiter.ts ---
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const RATE_KEY = 'mage_ai_usage';
+
+interface DailyUsage {
+  date: string;
+  count: number;
+  tier: {
+    fast: number;
+    smart: number;
+  };
+}
+
+const LIMITS = {
+  free: { daily: 10, smart: 3 },
+  pro: { daily: 75, smart: 25 },
+  business: { daily: 200, smart: 75 },
+} as const;
+
+export type SubscriptionTierKey = 'free' | 'pro' | 'business';
+export type RequestTier = 'fast' | 'smart';
+
+export async function checkAILimit(
+  subscriptionTier: SubscriptionTierKey,
+  requestTier: RequestTier,
+): Promise<{ allowed: boolean; remaining: number; message?: string }> {
+  const today = new Date().toISOString().split('T')[0];
+  const raw = await AsyncStorage.getItem(RATE_KEY);
+  let usage: DailyUsage = raw
+    ? JSON.parse(raw)
+    : { date: today, count: 0, tier: { fast: 0, smart: 0 } };
+
+  if (usage.date !== today) {
+    usage = { date: today, count: 0, tier: { fast: 0, smart: 0 } };
+  }
+
+  const limits = LIMITS[subscriptionTier];
+  const dailyRemaining = limits.daily - usage.count;
+
+  if (usage.count >= limits.daily) {
+    return {
+      allowed: false,
+      remaining: 0,
+      message:
+        subscriptionTier === 'free'
+          ? "You've used all 10 AI requests today. Upgrade to Pro for 75/day."
+          : subscriptionTier === 'pro'
+            ? "You've used all 75 AI requests today. Upgrade to Business for 200/day."
+            : "You've reached today's AI limit. Resets at midnight.",
+    };
+  }
+
+  if (requestTier === 'smart' && usage.tier.smart >= limits.smart) {
+    return {
+      allowed: false,
+      remaining: dailyRemaining,
+      message:
+        "You've used all advanced AI analysis for today. Try again tomorrow or use quick AI features instead.",
+    };
+  }
+
+  return { allowed: true, remaining: dailyRemaining - 1 };
+}
+
+export async function recordAIUsage(requestTier: RequestTier): Promise<void> {
+  const today = new Date().toISOString().split('T')[0];
+  const raw = await AsyncStorage.getItem(RATE_KEY);
+  let usage: DailyUsage = raw
+    ? JSON.parse(raw)
+    : { date: today, count: 0, tier: { fast: 0, smart: 0 } };
+
+  if (usage.date !== today) {
+    usage = { date: today, count: 0, tier: { fast: 0, smart: 0 } };
+  }
+
+  usage.count += 1;
+  usage.tier[requestTier] += 1;
+  await AsyncStorage.setItem(RATE_KEY, JSON.stringify(usage));
+}
+
+export async function getAIUsageStats(
+  subscriptionTier: SubscriptionTierKey,
+): Promise<{
+  used: number;
+  limit: number;
+  smartUsed: number;
+  smartLimit: number;
+}> {
+  const today = new Date().toISOString().split('T')[0];
+  const raw = await AsyncStorage.getItem(RATE_KEY);
+  const usage: DailyUsage = raw
+    ? JSON.parse(raw)
+    : { date: today, count: 0, tier: { fast: 0, smart: 0 } };
+
+  if (usage.date !== today) {
+    return {
+      used: 0,
+      limit: LIMITS[subscriptionTier].daily,
+      smartUsed: 0,
+      smartLimit: LIMITS[subscriptionTier].smart,
+    };
+  }
+
+  return {
+    used: usage.count,
+    limit: LIMITS[subscriptionTier].daily,
+    smartUsed: usage.tier.smart,
+    smartLimit: LIMITS[subscriptionTier].smart,
+  };
+}
+
+--- FILE: utils/formatters.ts ---
+export function formatMoney(n: number, decimals = 0): string {
+  const abs = Math.abs(n);
+  const formatted = '$' + abs.toLocaleString('en-US', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
+  return n < 0 ? '-' + formatted : formatted;
+}
+
+export function formatMoneyShort(n: number): string {
+  const abs = Math.abs(n);
+  let formatted: string;
+  if (abs >= 1000000) formatted = `$${(abs / 1000000).toFixed(1)}M`;
+  else if (abs >= 10000) formatted = `$${(abs / 1000).toFixed(0)}K`;
+  else formatted = '$' + abs.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  return n < 0 ? '-' + formatted : formatted;
+}
+
+export function formatNumber(n: number, decimals = 0): string {
+  return n.toLocaleString('en-US', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
+}
+
+--- FILE: utils/generateId.ts ---
+export function generateUUID(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
+--- FILE: utils/storage.ts ---
+import { Platform } from 'react-native';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+
+export async function uploadProjectPhoto(
+  userId: string,
+  projectId: string,
+  fileUri: string,
+): Promise<string | null> {
+  if (!isSupabaseConfigured || Platform.OS === 'web') return null;
+  try {
+    const fileName = `${userId}/${projectId}/${Date.now()}.jpg`;
+    const response = await fetch(fileUri);
+    const blob = await response.blob();
+    const { error } = await supabase.storage
+      .from('project-photos')
+      .upload(fileName, blob, { contentType: 'image/jpeg', upsert: false });
+    if (error) {
+      console.log('[Storage] Photo upload error:', error.message);
+      return null;
+    }
+    const { data: signedData } = await supabase.storage
+      .from('project-photos')
+      .createSignedUrl(fileName, 60 * 60 * 24 * 7);
+    console.log('[Storage] Photo uploaded:', fileName);
+    return signedData?.signedUrl ?? null;
+  } catch (err) {
+    console.log('[Storage] Photo upload failed:', err);
+    return null;
+  }
+}
+
+export async function uploadDocument(
+  userId: string,
+  fileName: string,
+  fileUri: string,
+): Promise<string | null> {
+  if (!isSupabaseConfigured || Platform.OS === 'web') return null;
+  try {
+    const path = `${userId}/${Date.now()}_${fileName}`;
+    const response = await fetch(fileUri);
+    const blob = await response.blob();
+    const { error } = await supabase.storage
+      .from('documents')
+      .upload(path, blob, { contentType: 'application/pdf', upsert: false });
+    if (error) {
+      console.log('[Storage] Document upload error:', error.message);
+      return null;
+    }
+    const { data: signedData } = await supabase.storage
+      .from('documents')
+      .createSignedUrl(path, 60 * 60 * 24 * 7);
+    console.log('[Storage] Document uploaded:', path);
+    return signedData?.signedUrl ?? null;
+  } catch (err) {
+    console.log('[Storage] Document upload failed:', err);
+    return null;
+  }
+}
+
+export async function uploadBrandingAsset(
+  userId: string,
+  type: 'logo' | 'signature',
+  fileUri: string,
+): Promise<string | null> {
+  if (!isSupabaseConfigured || Platform.OS === 'web') return null;
+  try {
+    const ext = type === 'logo' ? 'png' : 'png';
+    const path = `${userId}/${type}_${Date.now()}.${ext}`;
+    const response = await fetch(fileUri);
+    const blob = await response.blob();
+    const { error } = await supabase.storage
+      .from('branding')
+      .upload(path, blob, { contentType: `image/${ext}`, upsert: true });
+    if (error) {
+      console.log('[Storage] Branding upload error:', error.message);
+      return null;
+    }
+    const { data: signedData } = await supabase.storage
+      .from('branding')
+      .createSignedUrl(path, 60 * 60 * 24 * 7);
+    console.log('[Storage] Branding asset uploaded:', path);
+    return signedData?.signedUrl ?? null;
+  } catch (err) {
+    console.log('[Storage] Branding upload failed:', err);
+    return null;
+  }
+}
+
+export async function uploadProfileImage(
+  userId: string,
+  fileUri: string,
+): Promise<string | null> {
+  if (!isSupabaseConfigured || Platform.OS === 'web') return null;
+  try {
+    const path = `${userId}/avatar_${Date.now()}.jpg`;
+    const response = await fetch(fileUri);
+    const blob = await response.blob();
+    const { error } = await supabase.storage
+      .from('profiles')
+      .upload(path, blob, { contentType: 'image/jpeg', upsert: true });
+    if (error) {
+      console.log('[Storage] Profile image upload error:', error.message);
+      return null;
+    }
+    const { data: urlData } = supabase.storage.from('profiles').getPublicUrl(path);
+    console.log('[Storage] Profile image uploaded:', path);
+    return urlData.publicUrl;
+  } catch (err) {
+    console.log('[Storage] Profile image upload failed:', err);
+    return null;
+  }
+}
+
+export async function deleteStorageFile(
+  bucket: string,
+  path: string,
+): Promise<boolean> {
+  if (!isSupabaseConfigured) return false;
+  try {
+    const { error } = await supabase.storage.from(bucket).remove([path]);
+    if (error) {
+      console.log('[Storage] Delete error:', error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.log('[Storage] Delete failed:', err);
+    return false;
+  }
+}
+
+--- FILE: utils/estimator.ts ---
+import { mageAI } from '@/utils/mageAI';
+import { z } from 'zod';
+import type { ProjectType, QualityTier, EstimateBreakdown } from '@/types';
+
+const materialLineItemSchema = z.object({
+  name: z.string(),
+  category: z.string(),
+  unit: z.string(),
+  quantity: z.number(),
+  unitPrice: z.number(),
+  bulkPrice: z.number(),
+  bulkThreshold: z.number(),
+  totalPrice: z.number(),
+  savings: z.number(),
+});
+
+const laborLineItemSchema = z.object({
+  role: z.string(),
+  hourlyRate: z.number(),
+  hours: z.number(),
+  totalCost: z.number(),
+});
+
+const estimateSchema = z.object({
+  materials: z.array(materialLineItemSchema),
+  labor: z.array(laborLineItemSchema),
+  permits: z.number(),
+  overhead: z.number(),
+  contingency: z.number(),
+  materialTotal: z.number(),
+  laborTotal: z.number(),
+  bulkSavingsTotal: z.number(),
+  subtotal: z.number(),
+  tax: z.number(),
+  grandTotal: z.number(),
+  pricePerSqFt: z.number(),
+  estimatedDuration: z.string(),
+  notes: z.array(z.string()),
+});
+
+export async function generateEstimate(params: {
+  projectType: ProjectType;
+  location: string;
+  squareFootage: number;
+  quality: QualityTier;
+  description: string;
+  taxRate: number;
+  contingencyRate: number;
+}): Promise<EstimateBreakdown> {
+  console.log('[Estimator] Generating estimate with params:', params);
+
+  const prompt = `You are a professional construction cost estimator with access to current 2024-2025 market pricing data. Generate a detailed, realistic construction cost estimate.
+
+Project Details:
+- Type: ${params.projectType.replace('_', ' ')}
+- Location: ${params.location || 'United States average'}
+- Square Footage: ${params.squareFootage} sq ft
+- Quality Tier: ${params.quality}
+- Description: ${params.description || 'Standard project'}
+- Tax Rate: ${params.taxRate}%
+- Contingency Rate: ${params.contingencyRate}%
+
+Requirements:
+1. Use REAL current market prices for ${params.location || 'US average'}. Research current Home Depot, Lowe's, and wholesale supplier pricing.
+2. Include bulk buy discounts - if quantity exceeds bulk threshold, use the lower bulk price. Bulk prices should be 10-25% less than retail.
+3. Include at least 8-15 material line items with realistic quantities for this project size.
+4. Include 3-6 labor roles with realistic hourly rates for the area.
+5. Calculate permits based on local requirements.
+6. Add overhead (typically 10-15% of subtotal).
+7. Calculate contingency at ${params.contingencyRate}%.
+8. Apply tax at ${params.taxRate}% on materials only.
+9. Ensure all math is correct - totalPrice should be quantity * (bulkPrice if quantity >= bulkThreshold, else unitPrice).
+10. savings = (unitPrice - bulkPrice) * quantity if bulk applies, else 0.
+11. Provide practical notes about the estimate including potential cost-saving tips and important considerations.
+12. estimatedDuration should be a human-readable string like "4-6 weeks".
+13. pricePerSqFt = grandTotal / squareFootage.
+
+Be thorough, realistic, and use current market data. This needs to be a professional-grade estimate.`;
+
+  try {
+    const aiResult = await mageAI({
+      prompt,
+      schema: estimateSchema,
+      tier: 'fast',
+    });
+
+    if (!aiResult.success) {
+      console.error('[Estimator] AI failed:', aiResult.error);
+      throw new Error(aiResult.error || 'Failed to generate estimate. Please try again.');
+    }
+
+    console.log('[Estimator] Estimate generated successfully');
+    return aiResult.data as EstimateBreakdown;
+  } catch (error) {
+    console.error('[Estimator] Error generating estimate:', error);
+    throw new Error('Failed to generate estimate. Please try again.');
+  }
+}
+
+const materialCategorySchema = z.object({
+  categories: z.array(z.object({
+    id: z.string(),
+    name: z.string(),
+    items: z.array(z.object({
+      name: z.string(),
+      unit: z.string(),
+      retailPrice: z.number(),
+      bulkPrice: z.number(),
+      bulkMinQty: z.number(),
+      supplier: z.string(),
+      lastUpdated: z.string(),
+    })),
+  })),
+});
+
+export async function fetchMaterialPrices(location: string, category?: string): Promise<{
+  categories: Array<{
+    id: string;
+    name: string;
+    items: Array<{
+      name: string;
+      unit: string;
+      retailPrice: number;
+      bulkPrice: number;
+      bulkMinQty: number;
+      supplier: string;
+      lastUpdated: string;
+    }>;
+  }>;
+}> {
+  console.log('[Estimator] Fetching material prices for:', location, category);
+
+  const prompt = `You are a construction materials pricing database with access to current 2024-2025 wholesale and retail prices. 
+  
+Generate current material prices for the ${location || 'United States'} market.
+${category ? `Focus on the "${category}" category.` : 'Include all major categories.'}
+
+For each category, provide 4-6 common materials with:
+- Current retail prices (Home Depot/Lowe's level)
+- Bulk/wholesale prices (contractor supply pricing)
+- Minimum quantity for bulk pricing
+- Primary supplier name
+- Last updated date (use recent dates in 2025)
+
+Categories to include: ${category || 'Lumber & Framing, Concrete & Masonry, Roofing, Flooring, Plumbing, Electrical, Paint & Finishes, Hardware & Fasteners'}
+
+Use realistic, current market prices. Lumber prices should reflect current market conditions.`;
+
+  try {
+    const aiResult = await mageAI({
+      prompt,
+      schema: materialCategorySchema,
+      tier: 'fast',
+    });
+
+    if (!aiResult.success) {
+      console.error('[Estimator] AI failed:', aiResult.error);
+      throw new Error(aiResult.error || 'Failed to fetch material prices.');
+    }
+
+    console.log('[Estimator] Material prices fetched');
+    return aiResult.data as { categories: Array<{ id: string; name: string; items: Array<{ name: string; unit: string; retailPrice: number; bulkPrice: number; bulkMinQty: number; supplier: string; lastUpdated: string; }> }> };
+  } catch (error) {
+    console.error('[Estimator] Error fetching materials:', error);
+    throw new Error('Failed to fetch material prices.');
+  }
+}
+
+--- FILE: utils/materialDatabase.ts ---
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import type { AIMaterialResult } from './materialFinder';
+
+const CUSTOM_MATERIALS_KEY = 'mage_custom_materials';
+const RECENT_MATERIALS_KEY = 'mage_recent_materials';
+
+export interface SavedMaterial {
+  id: string;
+  name: string;
+  description: string;
+  unit: string;
+  unitPrice: number;
+  category: string;
+  brand?: string;
+  size?: string;
+  specifications?: string;
+  commonUses: string[];
+  alternateNames: string[];
+  priceSource: string;
+  priceDate: string;
+  laborHoursPerUnit?: number;
+  laborCrew?: string;
+  laborCrewSize?: number;
+  isCustom: boolean;
+  searchCount: number;
+}
+
+export interface RecentMaterial {
+  id: string;
+  name: string;
+  category: string;
+  unit: string;
+  unitPrice: number;
+  timestamp: string;
+  source: 'builtin' | 'ai' | 'custom';
+}
+
+export async function saveToLocalDatabase(material: SavedMaterial): Promise<boolean> {
+  try {
+    const existing = await getCustomMaterials();
+    const isDuplicate = existing.some(
+      m => m.name.toLowerCase().trim() === material.name.toLowerCase().trim(),
+    );
+    if (!isDuplicate) {
+      existing.push({ ...material, id: `custom-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, searchCount: 1 });
+      await AsyncStorage.setItem(CUSTOM_MATERIALS_KEY, JSON.stringify(existing));
+      console.log('[MaterialDB] Saved new material:', material.name);
+    } else {
+      const idx = existing.findIndex(m => m.name.toLowerCase().trim() === material.name.toLowerCase().trim());
+      if (idx >= 0) {
+        existing[idx].searchCount += 1;
+        existing[idx].unitPrice = material.unitPrice;
+        existing[idx].priceDate = material.priceDate;
+        await AsyncStorage.setItem(CUSTOM_MATERIALS_KEY, JSON.stringify(existing));
+      }
+      console.log('[MaterialDB] Material already exists, updated count:', material.name);
+    }
+    return !isDuplicate;
+  } catch (err) {
+    console.error('[MaterialDB] Save error:', err);
+    return false;
+  }
+}
+
+export async function getCustomMaterials(): Promise<SavedMaterial[]> {
+  try {
+    const data = await AsyncStorage.getItem(CUSTOM_MATERIALS_KEY);
+    return data ? JSON.parse(data) : [];
+  } catch (err) {
+    console.error('[MaterialDB] Get custom materials error:', err);
+    return [];
+  }
+}
+
+export async function searchCustomMaterials(query: string): Promise<SavedMaterial[]> {
+  const materials = await getCustomMaterials();
+  const q = query.toLowerCase();
+  return materials.filter(
+    m =>
+      m.name.toLowerCase().includes(q) ||
+      m.description?.toLowerCase().includes(q) ||
+      m.alternateNames?.some(alt => alt.toLowerCase().includes(q)) ||
+      m.category?.toLowerCase().includes(q),
+  );
+}
+
+export async function getPopularCustomMaterials(limit: number = 20): Promise<SavedMaterial[]> {
+  const materials = await getCustomMaterials();
+  return materials
+    .sort((a, b) => b.searchCount - a.searchCount)
+    .slice(0, limit);
+}
+
+export function aiResultToSavedMaterial(result: AIMaterialResult): SavedMaterial {
+  return {
+    id: `ai-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    name: result.name,
+    description: result.description,
+    unit: result.unit,
+    unitPrice: result.unitPrice,
+    category: result.category.toLowerCase(),
+    brand: result.brand,
+    size: result.size,
+    specifications: result.specifications,
+    commonUses: result.commonUses,
+    alternateNames: result.alternateNames,
+    priceSource: result.priceSource,
+    priceDate: new Date().toISOString(),
+    laborHoursPerUnit: result.laborToInstall?.hoursPerUnit,
+    laborCrew: result.laborToInstall?.crew,
+    laborCrewSize: result.laborToInstall?.crewSize,
+    isCustom: false,
+    searchCount: 1,
+  };
+}
+
+export async function addRecentMaterial(material: RecentMaterial): Promise<void> {
+  try {
+    const recents = await getRecentMaterials();
+    const filtered = recents.filter(m => m.id !== material.id);
+    filtered.unshift({ ...material, timestamp: new Date().toISOString() });
+    const trimmed = filtered.slice(0, 20);
+    await AsyncStorage.setItem(RECENT_MATERIALS_KEY, JSON.stringify(trimmed));
+    console.log('[MaterialDB] Added recent material:', material.name);
+  } catch (err) {
+    console.error('[MaterialDB] Add recent error:', err);
+  }
+}
+
+export async function getRecentMaterials(): Promise<RecentMaterial[]> {
+  try {
+    const data = await AsyncStorage.getItem(RECENT_MATERIALS_KEY);
+    return data ? JSON.parse(data) : [];
+  } catch (err) {
+    console.error('[MaterialDB] Get recents error:', err);
+    return [];
+  }
+}
+
+export async function getCustomMaterialCount(): Promise<number> {
+  const materials = await getCustomMaterials();
+  return materials.length;
+}
+
+export async function deleteCustomMaterial(id: string): Promise<void> {
+  try {
+    const materials = await getCustomMaterials();
+    const filtered = materials.filter(m => m.id !== id);
+    await AsyncStorage.setItem(CUSTOM_MATERIALS_KEY, JSON.stringify(filtered));
+    console.log('[MaterialDB] Deleted material:', id);
+  } catch (err) {
+    console.error('[MaterialDB] Delete error:', err);
+  }
+}
+
+--- FILE: utils/materialFinder.ts ---
+import { mageAI } from '@/utils/mageAI';
+import { z } from 'zod';
+
+const materialSearchSchema = z.object({
+  materials: z.array(z.object({
+    name: z.string(),
+    description: z.string(),
+    unit: z.string(),
+    unitPrice: z.number(),
+    category: z.string(),
+    brand: z.string().optional(),
+    size: z.string().optional(),
+    specifications: z.string().optional(),
+    commonUses: z.array(z.string()),
+    alternateNames: z.array(z.string()),
+    relatedItems: z.array(z.string()),
+    priceSource: z.string(),
+    priceConfidence: z.enum(['high', 'medium', 'low']),
+    laborToInstall: z.object({
+      hoursPerUnit: z.number(),
+      crew: z.string(),
+      crewSize: z.number(),
+    }).optional(),
+  })),
+  searchTips: z.string().optional(),
+});
+
+export type AIMaterialResult = z.infer<typeof materialSearchSchema>['materials'][number];
+export type AIMaterialSearchResponse = z.infer<typeof materialSearchSchema>;
+
+export async function findMaterials(
+  searchQuery: string,
+  category?: string,
+  zipCode?: string,
+): Promise<AIMaterialSearchResponse> {
+  console.log('[MaterialFinder] Searching for:', searchQuery, 'category:', category, 'zip:', zipCode);
+
+  const aiResult = await mageAI({
+    prompt: `You are a construction materials pricing expert with access to current US construction supply pricing. Find materials matching this search query and provide accurate current pricing.
+
+SEARCH: "${searchQuery}"
+${category ? `CATEGORY: ${category}` : ''}
+${zipCode ? `LOCATION: ${zipCode} (adjust pricing for regional cost differences)` : ''}
+
+Return 3-8 matching materials with:
+1. Accurate current retail pricing (use 2025-2026 US pricing from major suppliers like Home Depot, Lowe's, or specialty distributors)
+2. The correct unit of measure for how this material is typically purchased
+3. Common construction uses
+4. Alternate names contractors might search for
+5. Related items they might also need
+6. If applicable, estimated labor hours to install per unit
+
+Be SPECIFIC with product names (e.g., "2" Schedule 40 PVC 90° Elbow" not just "PVC fitting"). Include brand names where relevant. Prices should be realistic retail pricing — not wholesale, not inflated.
+
+If the search is vague, return the most common variants. For example, if someone searches "copper pipe", return 1/2", 3/4", and 1" in Type M and Type L.`,
+    schema: materialSearchSchema,
+    tier: 'fast',
+  });
+
+  if (!aiResult.success) {
+    console.log('[MaterialFinder] AI failed:', aiResult.error);
+    throw new Error(aiResult.error || 'Material search unavailable');
+  }
+
+  const result = aiResult.data;
+  console.log('[MaterialFinder] Found', result.materials.length, 'materials');
+  return result;
+}
+
+const priceComparisonSchema = z.object({
+  homeDepotPrice: z.number().optional(),
+  lowesPrice: z.number().optional(),
+  industryAverage: z.number(),
+  rsmeansPrice: z.number().optional(),
+  rsmeansYear: z.string().optional(),
+  priceTrend: z.enum(['rising', 'falling', 'stable']),
+  trendPercentage: z.number(),
+  bulkPricing: z.array(z.object({
+    minQuantity: z.number(),
+    pricePerUnit: z.number(),
+    savings: z.string(),
+  })).optional(),
+  purchasedTogether: z.array(z.string()),
+  priceNote: z.string().optional(),
+});
+
+export type PriceComparisonResult = z.infer<typeof priceComparisonSchema>;
+
+export async function getPriceComparison(
+  materialName: string,
+  currentPrice: number,
+  unit: string,
+): Promise<PriceComparisonResult> {
+  console.log('[MaterialFinder] Getting price comparison for:', materialName);
+
+  const aiResult = await mageAI({
+    prompt: `You are a construction materials pricing expert. Provide price comparison data for this material.
+
+MATERIAL: "${materialName}"
+CURRENT PRICE: $${currentPrice}/${unit}
+
+Provide:
+1. Estimated Home Depot price
+2. Estimated Lowe's price
+3. Industry average price
+4. RSMeans reference price (if applicable, with year)
+5. Price trend (rising/falling/stable) with percentage change over last 6 months
+6. Bulk pricing tiers if applicable
+7. Related items commonly purchased together (3-5 items)
+8. Any price notes (e.g., "Lumber prices volatile due to tariffs")
+
+Use realistic 2025-2026 US pricing.`,
+    schema: priceComparisonSchema,
+    tier: 'fast',
+  });
+
+  if (!aiResult.success) {
+    console.log('[MaterialFinder] Price comparison AI failed:', aiResult.error);
+    throw new Error(aiResult.error || 'Price comparison unavailable');
+  }
+
+  const result = aiResult.data;
+  console.log('[MaterialFinder] Price comparison complete');
+  return result;
+}
+
+const phaseSuggestionsSchema = z.object({
+  phase: z.string(),
+  suggestedMaterials: z.array(z.object({
+    name: z.string(),
+    unit: z.string(),
+    unitPrice: z.number(),
+    suggestedQuantity: z.number(),
+    reason: z.string(),
+  })),
+  estimatedPhaseCost: z.number(),
+  tips: z.array(z.string()),
+});
+
+export type PhaseSuggestionsResult = z.infer<typeof phaseSuggestionsSchema>;
+
+export async function suggestMaterialsForPhase(
+  phase: string,
+  projectType: string,
+  squareFootage: number,
+): Promise<PhaseSuggestionsResult> {
+  console.log('[MaterialFinder] Suggesting materials for phase:', phase, 'type:', projectType, 'sqft:', squareFootage);
+
+  const aiResult = await mageAI({
+    prompt: `You are a construction estimating expert. Suggest the essential materials needed for the "${phase}" phase of a ${projectType} project that is ${squareFootage} SF. 
+
+Include:
+1. Every material commonly needed for this phase
+2. Realistic quantities based on the square footage
+3. Current 2025-2026 pricing
+4. Why each material is needed
+
+Order by importance (most essential first). Include both structural materials and fasteners/connectors/adhesives that are often forgotten. Return 8-15 materials.`,
+    schema: phaseSuggestionsSchema,
+    tier: 'fast',
+  });
+
+  if (!aiResult.success) {
+    console.log('[MaterialFinder] Phase suggestions AI failed:', aiResult.error);
+    throw new Error(aiResult.error || 'Phase suggestions unavailable');
+  }
+
+  const result = aiResult.data;
+  console.log('[MaterialFinder] Phase suggestions complete:', result.suggestedMaterials.length, 'items');
+  return result;
+}
+
+--- FILE: utils/scheduleEngine.ts ---
+import type { ScheduleTask, DependencyLink, ProjectSchedule, ScheduleRiskItem, ScheduleBaseline } from '@/types';
+
+export const PHASE_OPTIONS = [
+  'Site Work', 'Demo', 'Foundation', 'Framing', 'Roofing',
+  'MEP', 'Plumbing', 'Electrical', 'HVAC', 'Insulation',
+  'Drywall', 'Interior', 'Finishes', 'Landscaping', 'Inspections', 'General',
+];
+
+export const PHASE_COLORS: Record<string, string> = {
+  'Site Work': '#8B6914',
+  'Demo': '#C75050',
+  'Foundation': '#6B7280',
+  'Framing': '#B45309',
+  'Roofing': '#7C3AED',
+  'MEP': '#0891B2',
+  'Plumbing': '#2563EB',
+  'Electrical': '#DC2626',
+  'HVAC': '#059669',
+  'Insulation': '#D97706',
+  'Drywall': '#9CA3AF',
+  'Interior': '#EC4899',
+  'Finishes': '#10B981',
+  'Landscaping': '#22C55E',
+  'Inspections': '#F59E0B',
+  'General': '#6366F1',
+};
+
+export function createId(prefix: string): string {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+export function getDepLinks(task: ScheduleTask): DependencyLink[] {
+  if (task.dependencyLinks && task.dependencyLinks.length > 0) return task.dependencyLinks;
+  return task.dependencies.map(id => ({ taskId: id, type: 'FS' as const, lagDays: 0 }));
+}
+
+export function recalculateStartDays(tasks: ScheduleTask[]): ScheduleTask[] {
+  const taskMap = new Map<string, ScheduleTask>();
+  for (const t of tasks) taskMap.set(t.id, { ...t });
+
+  const resolved = new Set<string>();
+
+  const resolve = (id: string): number => {
+    const task = taskMap.get(id);
+    if (!task) return 0;
+    if (resolved.has(id)) return task.startDay + task.durationDays;
+
+    resolved.add(id);
+
+    const links = getDepLinks(task);
+    if (links.length === 0) {
+      if (task.startDay < 1) task.startDay = 1;
+      return task.startDay + task.durationDays;
+    }
+
+    let latestEnd = 0;
+    for (const link of links) {
+      if (taskMap.has(link.taskId)) {
+        const dep = taskMap.get(link.taskId)!;
+        const depEnd = resolve(link.taskId);
+        const depStart = dep.startDay;
+        const lag = link.lagDays || 0;
+        const type = link.type || 'FS';
+
+        let effectiveStart = 0;
+        switch (type) {
+          case 'FS':
+            effectiveStart = depEnd + lag;
+            break;
+          case 'SS':
+            effectiveStart = depStart + lag;
+            break;
+          case 'FF':
+            effectiveStart = (depEnd + lag) - task.durationDays;
+            break;
+          case 'SF':
+            effectiveStart = depStart + lag - task.durationDays;
+            break;
+          default:
+            effectiveStart = depEnd + lag;
+        }
+        latestEnd = Math.max(latestEnd, effectiveStart);
+      }
+    }
+
+    task.startDay = latestEnd > 0 ? latestEnd : task.startDay;
+    return task.startDay + task.durationDays;
+  };
+
+  for (const t of tasks) resolve(t.id);
+
+  const result: ScheduleTask[] = [];
+  for (const t of tasks) result.push(taskMap.get(t.id)!);
+  return result;
+}
+
+export function getSuccessors(taskId: string, tasks: ScheduleTask[]): ScheduleTask[] {
+  return tasks.filter(t => {
+    const links = getDepLinks(t);
+    return links.some(l => l.taskId === taskId);
+  });
+}
+
+export function getPredecessors(task: ScheduleTask, tasks: ScheduleTask[]): ScheduleTask[] {
+  const links = getDepLinks(task);
+  return links
+    .map(l => tasks.find(t => t.id === l.taskId))
+    .filter((t): t is ScheduleTask => t !== undefined);
+}
+
+export function getLagForDep(task: ScheduleTask, depId: string): number {
+  const links = getDepLinks(task);
+  const link = links.find(l => l.taskId === depId);
+  return link?.lagDays ?? 0;
+}
+
+export function getDepTypeForDep(task: ScheduleTask, depId: string): string {
+  const links = getDepLinks(task);
+  const link = links.find(l => l.taskId === depId);
+  return link?.type ?? 'FS';
+}
+
+export function calculateHealthScore(tasks: ScheduleTask[], updatedAt: string): number {
+  if (tasks.length === 0) return 100;
+
+  const now = new Date();
+  const totalTasks = tasks.length;
+
+  const onTimeTasks = tasks.filter(t => {
+    if (t.status === 'done') return true;
+    if (t.status === 'not_started' && t.progress === 0) return true;
+    return t.progress > 0;
+  }).length;
+  const onTimeScore = (onTimeTasks / totalTasks) * 40;
+
+  const milestones = tasks.filter(t => t.isMilestone);
+  const hitMilestones = milestones.filter(t => t.status === 'done');
+  const milestoneScore = milestones.length > 0
+    ? (hitMilestones.length / milestones.length) * 20
+    : 20;
+
+  const criticalTasks = tasks.filter(t => t.isCriticalPath);
+  const criticalOnTrack = criticalTasks.filter(t => t.status === 'done' || t.progress > 0);
+  const criticalScore = criticalTasks.length > 0
+    ? (criticalOnTrack.length / criticalTasks.length) * 25
+    : 25;
+
+  const lastUpdate = new Date(updatedAt);
+  const daysSinceUpdate = Math.floor((now.getTime() - lastUpdate.getTime()) / (1000 * 60 * 60 * 24));
+  const recencyScore = daysSinceUpdate <= 3 ? 15 : daysSinceUpdate <= 7 ? 10 : 5;
+
+  return Math.min(100, Math.max(0, Math.round(onTimeScore + milestoneScore + criticalScore + recencyScore)));
+}
+
+export function getHealthColor(score: number): string {
+  if (score >= 80) return '#34C759';
+  if (score >= 60) return '#FF9500';
+  return '#FF3B30';
+}
+
+export function addWorkingDays(start: Date, days: number, workingDaysPerWeek: number): Date {
+  const result = new Date(start);
+  let added = 0;
+  while (added < days) {
+    result.setDate(result.getDate() + 1);
+    const dow = result.getDay();
+    if (workingDaysPerWeek >= 7 || (dow !== 0 && dow !== 6)) {
+      added++;
+    }
+  }
+  return result;
+}
+
+export function formatShortDate(date: Date): string {
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return `${months[date.getMonth()]} ${date.getDate()}`;
+}
+
+export function getTaskDateRange(
+  task: ScheduleTask,
+  projectStartDate: Date,
+  workingDaysPerWeek: number
+): { start: Date; end: Date } {
+  const start = addWorkingDays(projectStartDate, task.startDay - 1, workingDaysPerWeek);
+  const end = addWorkingDays(start, task.durationDays - 1, workingDaysPerWeek);
+  return { start, end };
+}
+
+export function getStatusLabel(status: ScheduleTask['status']): string {
+  switch (status) {
+    case 'done': return 'Complete';
+    case 'in_progress': return 'In Progress';
+    case 'on_hold': return 'On Hold';
+    default: return 'Not Started';
+  }
+}
+
+export function getStatusColor(status: ScheduleTask['status']): string {
+  switch (status) {
+    case 'done': return '#34C759';
+    case 'in_progress': return '#007AFF';
+    case 'on_hold': return '#FF9500';
+    default: return '#8E8E93';
+  }
+}
+
+export function getTaskBorderColor(task: ScheduleTask, projectStartDate: Date, workingDaysPerWeek: number): string {
+  if (task.isMilestone) return '#007AFF';
+  if (task.status === 'done') return '#34C759';
+  if (task.status === 'not_started' && task.progress === 0) return '#C7C7CC';
+
+  const { end } = getTaskDateRange(task, projectStartDate, workingDaysPerWeek);
+  const now = new Date();
+  const daysUntilEnd = Math.ceil((end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+  if (daysUntilEnd < 0) return '#FF3B30';
+  if (daysUntilEnd <= 3) return '#FF9500';
+  return '#34C759';
+}
+
+export function suggestDuration(taskName: string): number {
+  const name = taskName.toLowerCase();
+  if (name.includes('pour') || name.includes('concrete slab')) return 2;
+  if (name.includes('framing') || name.includes('frame')) return 10;
+  if (name.includes('paint')) return 3;
+  if (name.includes('demo') || name.includes('demolition')) return 2;
+  if (name.includes('inspection')) return 1;
+  if (name.includes('roof')) return 5;
+  if (name.includes('plumb')) return 5;
+  if (name.includes('electric')) return 5;
+  if (name.includes('hvac')) return 4;
+  if (name.includes('drywall')) return 4;
+  if (name.includes('floor')) return 3;
+  if (name.includes('insulation')) return 2;
+  if (name.includes('tile')) return 4;
+  if (name.includes('cabinet')) return 2;
+  if (name.includes('landscape')) return 3;
+  if (name.includes('foundation')) return 5;
+  if (name.includes('excavat')) return 3;
+  if (name.includes('grading')) return 2;
+  if (name.includes('permit')) return 5;
+  return 5;
+}
+
+export function buildScheduleFromTasks(
+  name: string,
+  projectId: string | null,
+  tasks: ScheduleTask[],
+  existingBaseline?: ScheduleBaseline | null
+): ProjectSchedule {
+  const recalculated = recalculateStartDays(tasks);
+  const sortedTasks = recalculated
+    .slice()
+    .sort((a, b) => a.startDay - b.startDay || a.title.localeCompare(b.title));
+
+  const totalDurationDays = sortedTasks.reduce((max, task) => {
+    return Math.max(max, task.startDay + task.durationDays);
+  }, 0);
+
+  const criticalTasks = sortedTasks.filter(t => t.isCriticalPath || getDepLinks(t).length > 0 || t.durationDays >= 4);
+  const criticalPathDays = criticalTasks.reduce((sum, task) => sum + task.durationDays, 0);
+
+  const averageProgress = sortedTasks.length > 0
+    ? sortedTasks.reduce((sum, task) => sum + task.progress, 0) / sortedTasks.length
+    : 0;
+
+  const laborAlignmentScore = Math.max(56, Math.min(98, Math.round(82 - sortedTasks.length * 1.5 + averageProgress * 0.18)));
+
+  const updatedAt = new Date().toISOString();
+  const healthScore = calculateHealthScore(sortedTasks, updatedAt);
+
+  const overdueTasks = sortedTasks.filter(t => {
+    if (t.status === 'done') return false;
+    const end = t.startDay + t.durationDays;
+    const now = new Date();
+    const projectStart = new Date();
+    const endDate = addWorkingDays(projectStart, end, 5);
+    return endDate < now && t.progress < 100;
+  });
+
+  const riskItems: ScheduleRiskItem[] = [];
+
+  overdueTasks.slice(0, 2).forEach((task) => {
+    riskItems.push({
+      id: `${task.id}-risk-overdue`,
+      title: `${task.title} is behind schedule`,
+      detail: `This task is overdue with ${task.progress}% complete. It may impact downstream tasks.`,
+      severity: 'high',
+    });
+  });
+
+  const criticalBehind = sortedTasks.filter(t => t.isCriticalPath && t.status !== 'done' && t.progress < 50);
+  criticalBehind.slice(0, 2).forEach((task) => {
+    if (!riskItems.some(r => r.id.startsWith(task.id))) {
+      riskItems.push({
+        id: `${task.id}-risk-critical`,
+        title: `Critical path at risk: ${task.title}`,
+        detail: `Only ${task.progress}% complete. Delays here will push the project end date.`,
+        severity: 'high',
+      });
+    }
+  });
+
+  if (riskItems.length === 0 && sortedTasks.length > 0) {
+    const notStarted = sortedTasks.filter(t => t.status === 'not_started' && t.startDay <= 6);
+    notStarted.slice(0, 2).forEach((task, i) => {
+      riskItems.push({
+        id: `${task.id}-risk-${i}`,
+        title: `Early phase watch: ${task.title}`,
+        detail: `Scheduled to start soon but not yet begun. Monitor closely.`,
+        severity: 'medium',
+      });
+    });
+  }
+
+  return {
+    id: createId('schedule'),
+    name,
+    projectId,
+    workingDaysPerWeek: 5,
+    bufferDays: 3,
+    tasks: sortedTasks,
+    totalDurationDays: totalDurationDays + 3,
+    criticalPathDays,
+    laborAlignmentScore,
+    healthScore,
+    riskItems,
+    baseline: existingBaseline ?? null,
+    updatedAt,
+  };
+}
+
+export function saveBaseline(schedule: ProjectSchedule): ScheduleBaseline {
+  return {
+    savedAt: new Date().toISOString(),
+    tasks: schedule.tasks.map(t => ({
+      id: t.id,
+      startDay: t.startDay,
+      endDay: t.startDay + t.durationDays,
+    })),
+  };
+}
+
+export function getBaselineVariance(task: ScheduleTask, baseline: ScheduleBaseline | null | undefined): number | null {
+  if (!baseline) return null;
+  const bt = baseline.tasks.find(b => b.id === task.id);
+  if (!bt) return null;
+  const currentEnd = task.startDay + task.durationDays;
+  return currentEnd - bt.endDay;
+}
+
+export function getPhaseColor(phase: string): string {
+  return PHASE_COLORS[phase] || '#6366F1';
+}
+
+export function generateWbsCodes(tasks: ScheduleTask[]): ScheduleTask[] {
+  const phaseMap = new Map<string, number>();
+  let phaseIdx = 0;
+
+  return tasks.map(task => {
+    if (!phaseMap.has(task.phase)) {
+      phaseIdx++;
+      phaseMap.set(task.phase, phaseIdx);
+    }
+    const pIdx = phaseMap.get(task.phase)!;
+    const tasksInPhase = tasks.filter(t => t.phase === task.phase);
+    const taskIdx = tasksInPhase.indexOf(task) + 1;
+
+    return {
+      ...task,
+      wbsCode: task.wbsCode || `${pIdx}.${taskIdx}`,
+    };
+  });
+}
+
+--- FILE: utils/cashFlowEngine.ts ---
+import type { Invoice } from '@/types';
+
+export type ExpenseFrequency = 'weekly' | 'biweekly' | 'monthly' | 'one_time';
+export type ExpenseCategory = 'payroll' | 'materials' | 'equipment_rental' | 'subcontractor' | 'insurance' | 'overhead' | 'loan' | 'other';
+
+export interface CashFlowExpense {
+  id: string;
+  name: string;
+  amount: number;
+  frequency: ExpenseFrequency;
+  category: ExpenseCategory;
+  startDate: string;
+  endDate?: string;
+}
+
+export interface ExpectedPayment {
+  id: string;
+  description: string;
+  amount: number;
+  expectedDate: string;
+  confidence: 'confirmed' | 'expected' | 'hopeful';
+  projectId?: string;
+}
+
+export interface CashFlowWeek {
+  weekStart: string;
+  weekEnd: string;
+  incomeItems: Array<{ description: string; amount: number; confidence: string }>;
+  expenseItems: Array<{ description: string; amount: number; category: string }>;
+  totalIncome: number;
+  totalExpenses: number;
+  netCashFlow: number;
+  runningBalance: number;
+}
+
+export interface CashFlowSummary {
+  totalIncome: number;
+  totalExpenses: number;
+  netProfit: number;
+  lowestBalance: number;
+  lowestBalanceWeek: number;
+  highestBalance: number;
+  highestBalanceWeek: number;
+  dangerWeeks: Array<{ weekNumber: number; weekDate: string; balance: number }>;
+}
+
+function getPaymentTermsDays(terms: string | undefined): number {
+  switch (terms) {
+    case 'net_15': return 15;
+    case 'net_45': return 45;
+    case 'due_on_receipt': return 0;
+    case 'net_30':
+    default: return 30;
+  }
+}
+
+function isDateInWeek(dateStr: string, weekStart: Date, weekEnd: Date): boolean {
+  const d = new Date(dateStr);
+  return d >= weekStart && d <= weekEnd;
+}
+
+function shouldExpenseOccurInWeek(
+  expense: CashFlowExpense,
+  weekStart: Date,
+  weekEnd: Date,
+  weekIndex: number
+): boolean {
+  const start = new Date(expense.startDate);
+  if (start > weekEnd) return false;
+  if (expense.endDate) {
+    const end = new Date(expense.endDate);
+    if (end < weekStart) return false;
+  }
+
+  switch (expense.frequency) {
+    case 'weekly':
+      return true;
+    case 'biweekly':
+      return weekIndex % 2 === 0;
+    case 'monthly': {
+      for (let d = new Date(weekStart); d <= weekEnd; d.setDate(d.getDate() + 1)) {
+        if (d.getDate() === 1 || d.getDate() === 15) return true;
+      }
+      return false;
+    }
+    case 'one_time':
+      return isDateInWeek(expense.startDate, weekStart, weekEnd);
+    default:
+      return false;
+  }
+}
+
+export function generateForecast(
+  startingBalance: number,
+  expenses: CashFlowExpense[],
+  invoices: Invoice[],
+  expectedPayments: ExpectedPayment[],
+  weeksToForecast: number,
+  defaultPaymentTerms: string = 'net_30'
+): CashFlowWeek[] {
+  console.log('[CashFlowEngine] Generating forecast for', weeksToForecast, 'weeks');
+  const weeks: CashFlowWeek[] = [];
+  let balance = startingBalance;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  for (let w = 0; w < weeksToForecast; w++) {
+    const weekStart = new Date(today);
+    weekStart.setDate(weekStart.getDate() + w * 7);
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekEnd.getDate() + 6);
+
+    const incomeItems: CashFlowWeek['incomeItems'] = [];
+    const expenseItems: CashFlowWeek['expenseItems'] = [];
+
+    invoices.forEach(inv => {
+      if (inv.status === 'paid') return;
+      const termsDays = getPaymentTermsDays(inv.paymentTerms ?? defaultPaymentTerms);
+      const issueDate = new Date(inv.issueDate);
+      const expectedDate = new Date(issueDate);
+      expectedDate.setDate(expectedDate.getDate() + termsDays);
+      const remaining = inv.totalDue - inv.amountPaid;
+      if (remaining > 0 && isDateInWeek(expectedDate.toISOString(), weekStart, weekEnd)) {
+        incomeItems.push({
+          description: `Invoice #${inv.number} (${inv.projectId?.slice(0, 8) ?? 'N/A'})`,
+          amount: remaining,
+          confidence: inv.status === 'sent' ? 'expected' : 'hopeful',
+        });
+      }
+    });
+
+    expectedPayments.forEach(ep => {
+      if (isDateInWeek(ep.expectedDate, weekStart, weekEnd)) {
+        incomeItems.push({
+          description: ep.description,
+          amount: ep.amount,
+          confidence: ep.confidence,
+        });
+      }
+    });
+
+    expenses.forEach(exp => {
+      if (shouldExpenseOccurInWeek(exp, weekStart, weekEnd, w)) {
+        let amount = exp.amount;
+        if (exp.frequency === 'monthly') {
+          amount = exp.amount;
+        }
+        expenseItems.push({
+          description: exp.name,
+          amount,
+          category: exp.category,
+        });
+      }
+    });
+
+    const totalIncome = incomeItems.reduce((s, i) => s + i.amount, 0);
+    const totalExpenses = expenseItems.reduce((s, e) => s + e.amount, 0);
+    const netCashFlow = totalIncome - totalExpenses;
+    balance += netCashFlow;
+
+    weeks.push({
+      weekStart: weekStart.toISOString().split('T')[0],
+      weekEnd: weekEnd.toISOString().split('T')[0],
+      incomeItems,
+      expenseItems,
+      totalIncome,
+      totalExpenses,
+      netCashFlow,
+      runningBalance: balance,
+    });
+  }
+
+  console.log('[CashFlowEngine] Forecast generated:', weeks.length, 'weeks');
+  return weeks;
+}
+
+export function calculateSummary(weeks: CashFlowWeek[]): CashFlowSummary {
+  let lowestBalance = Infinity;
+  let lowestBalanceWeek = 0;
+  let highestBalance = -Infinity;
+  let highestBalanceWeek = 0;
+  let totalIncome = 0;
+  let totalExpenses = 0;
+  const dangerWeeks: CashFlowSummary['dangerWeeks'] = [];
+
+  weeks.forEach((w, i) => {
+    totalIncome += w.totalIncome;
+    totalExpenses += w.totalExpenses;
+    if (w.runningBalance < lowestBalance) {
+      lowestBalance = w.runningBalance;
+      lowestBalanceWeek = i + 1;
+    }
+    if (w.runningBalance > highestBalance) {
+      highestBalance = w.runningBalance;
+      highestBalanceWeek = i + 1;
+    }
+    if (w.runningBalance < 0) {
+      dangerWeeks.push({ weekNumber: i + 1, weekDate: w.weekStart, balance: w.runningBalance });
+    }
+  });
+
+  return {
+    totalIncome,
+    totalExpenses,
+    netProfit: totalIncome - totalExpenses,
+    lowestBalance: lowestBalance === Infinity ? 0 : lowestBalance,
+    lowestBalanceWeek,
+    highestBalance: highestBalance === -Infinity ? 0 : highestBalance,
+    highestBalanceWeek,
+    dangerWeeks,
+  };
+}
+
+export function formatCurrency(n: number): string {
+  const abs = Math.abs(n);
+  const formatted = abs >= 1000
+    ? '$' + abs.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+    : '$' + abs.toFixed(0);
+  return n < 0 ? '-' + formatted : formatted;
+}
+
+export function formatCurrencyShort(n: number): string {
+  const abs = Math.abs(n);
+  let formatted: string;
+  if (abs >= 1000000) formatted = `$${(abs / 1000000).toFixed(1)}M`;
+  else if (abs >= 1000) formatted = `$${(abs / 1000).toFixed(0)}K`;
+  else formatted = `$${abs.toFixed(0)}`;
+  return n < 0 ? '-' + formatted : formatted;
+}
+
+--- FILE: utils/cashFlowStorage.ts ---
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import type { CashFlowExpense, ExpectedPayment } from './cashFlowEngine';
+
+const CASHFLOW_DATA_KEY = 'mage_cashflow_data';
+const CASHFLOW_SETUP_KEY = 'mage_cashflow_setup_complete';
+const CASHFLOW_AI_CACHE_KEY = 'mage_cashflow_ai_cache';
+
+export interface CashFlowData {
+  startingBalance: number;
+  expenses: CashFlowExpense[];
+  expectedPayments: ExpectedPayment[];
+  defaultPaymentTerms: string;
+  dailyOverheadCost: number;
+  lastUpdated: string;
+}
+
+const DEFAULT_CASHFLOW_DATA: CashFlowData = {
+  startingBalance: 0,
+  expenses: [],
+  expectedPayments: [],
+  defaultPaymentTerms: 'net_30',
+  dailyOverheadCost: 350,
+  lastUpdated: new Date().toISOString(),
+};
+
+export async function loadCashFlowData(): Promise<CashFlowData> {
+  try {
+    const stored = await AsyncStorage.getItem(CASHFLOW_DATA_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored) as CashFlowData;
+      return { ...DEFAULT_CASHFLOW_DATA, ...parsed };
+    }
+    return DEFAULT_CASHFLOW_DATA;
+  } catch (err) {
+    console.log('[CashFlowStorage] Load failed:', err);
+    return DEFAULT_CASHFLOW_DATA;
+  }
+}
+
+export async function saveCashFlowData(data: CashFlowData): Promise<void> {
+  try {
+    const toSave = { ...data, lastUpdated: new Date().toISOString() };
+    await AsyncStorage.setItem(CASHFLOW_DATA_KEY, JSON.stringify(toSave));
+    console.log('[CashFlowStorage] Data saved');
+  } catch (err) {
+    console.log('[CashFlowStorage] Save failed:', err);
+  }
+}
+
+export async function isSetupComplete(): Promise<boolean> {
+  try {
+    const val = await AsyncStorage.getItem(CASHFLOW_SETUP_KEY);
+    return val === 'true';
+  } catch {
+    return false;
+  }
+}
+
+export async function markSetupComplete(): Promise<void> {
+  try {
+    await AsyncStorage.setItem(CASHFLOW_SETUP_KEY, 'true');
+  } catch (err) {
+    console.log('[CashFlowStorage] Setup flag save failed:', err);
+  }
+}
+
+export interface CachedAIAnalysis {
+  data: unknown;
+  timestamp: number;
+  projectId?: string;
+}
+
+export async function getCachedAIAnalysis(projectId?: string): Promise<CachedAIAnalysis | null> {
+  try {
+    const stored = await AsyncStorage.getItem(CASHFLOW_AI_CACHE_KEY);
+    if (!stored) return null;
+    const parsed = JSON.parse(stored) as CachedAIAnalysis;
+    const fourHours = 4 * 60 * 60 * 1000;
+    if (Date.now() - parsed.timestamp > fourHours) return null;
+    if (projectId && parsed.projectId !== projectId) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+export async function setCachedAIAnalysis(data: unknown, projectId?: string): Promise<void> {
+  try {
+    const cache: CachedAIAnalysis = { data, timestamp: Date.now(), projectId };
+    await AsyncStorage.setItem(CASHFLOW_AI_CACHE_KEY, JSON.stringify(cache));
+  } catch (err) {
+    console.log('[CashFlowStorage] AI cache save failed:', err);
+  }
+}
+
+--- FILE: utils/earnedValueEngine.ts ---
+import type { Project, Invoice, ProjectSchedule, EarnedValueMetrics } from '@/types';
+
+export function calculateEVM(
+  project: Project,
+  invoices: Invoice[],
+  schedule: ProjectSchedule | null | undefined,
+): EarnedValueMetrics {
+  console.log('[EVM] Calculating earned value metrics for project:', project.name);
+
+  let bac = 0;
+  if (project.linkedEstimate) {
+    bac = project.linkedEstimate.grandTotal;
+  } else if (project.estimate) {
+    bac = project.estimate.grandTotal;
+  }
+
+  const projectInvoices = invoices.filter(inv => inv.projectId === project.id);
+  const ac = projectInvoices.reduce((sum, inv) => sum + inv.amountPaid, 0);
+
+  let percentComplete = 0;
+  if (schedule && schedule.tasks.length > 0) {
+    const totalProgress = schedule.tasks.reduce((sum, t) => sum + (t.progress || 0), 0);
+    percentComplete = totalProgress / schedule.tasks.length;
+  }
+
+  const ev = bac * (percentComplete / 100);
+
+  let elapsedRatio = 0;
+  if (project.createdAt && schedule) {
+    const startDate = new Date(project.createdAt).getTime();
+    const now = Date.now();
+    const totalPlannedMs = (schedule.totalDurationDays || 1) * 24 * 60 * 60 * 1000;
+    const elapsedMs = now - startDate;
+    elapsedRatio = Math.min(elapsedMs / totalPlannedMs, 1);
+  }
+  const pv = bac * elapsedRatio;
+
+  const sv = ev - pv;
+  const cv = ev - ac;
+  const spi = pv !== 0 ? ev / pv : 1.0;
+  const cpi = ac !== 0 ? ev / ac : 1.0;
+  const eac = cpi !== 0 ? bac / cpi : bac;
+  const etc = eac - ac;
+  const vac = bac - eac;
+
+  const metrics: EarnedValueMetrics = {
+    budgetAtCompletion: bac,
+    plannedValue: pv,
+    earnedValue: ev,
+    actualCost: ac,
+    scheduleVariance: sv,
+    costVariance: cv,
+    schedulePerformanceIndex: Math.round(spi * 100) / 100,
+    costPerformanceIndex: Math.round(cpi * 100) / 100,
+    estimateAtCompletion: Math.round(eac * 100) / 100,
+    estimateToComplete: Math.round(etc * 100) / 100,
+    varianceAtCompletion: Math.round(vac * 100) / 100,
+    percentComplete: Math.round(percentComplete * 10) / 10,
+    calculatedAt: new Date().toISOString(),
+  };
+
+  console.log('[EVM] Metrics calculated — CPI:', metrics.costPerformanceIndex, 'SPI:', metrics.schedulePerformanceIndex);
+  return metrics;
+}
+
+export function generateCashFlowData(
+  project: Project,
+  invoices: Invoice[],
+  schedule: ProjectSchedule | null | undefined,
+  periods: number = 12,
+): { period: string; plannedCumulative: number; actualCumulative: number; forecastCumulative: number }[] {
+  const bac = project.linkedEstimate?.grandTotal ?? project.estimate?.grandTotal ?? 0;
+  const totalDays = schedule?.totalDurationDays ?? 180;
+  const daysPerPeriod = Math.ceil(totalDays / periods);
+  const startDate = new Date(project.createdAt);
+
+  const projectInvoices = invoices
+    .filter(inv => inv.projectId === project.id)
+    .sort((a, b) => new Date(a.issueDate).getTime() - new Date(b.issueDate).getTime());
+
+  const data: { period: string; plannedCumulative: number; actualCumulative: number; forecastCumulative: number }[] = [];
+
+  let actualCumulative = 0;
+  const metrics = calculateEVM(project, invoices, schedule);
+  const cpi = metrics.costPerformanceIndex || 1;
+
+  for (let i = 0; i < periods; i++) {
+    const periodStart = new Date(startDate.getTime() + i * daysPerPeriod * 86400000);
+    const periodEnd = new Date(startDate.getTime() + (i + 1) * daysPerPeriod * 86400000);
+
+    const plannedRatio = Math.min((i + 1) / periods, 1);
+    const plannedCumulative = bac * plannedRatio;
+
+    const periodPayments = projectInvoices.filter(inv => {
+      const d = new Date(inv.issueDate).getTime();
+      return d >= periodStart.getTime() && d < periodEnd.getTime();
+    });
+    actualCumulative += periodPayments.reduce((sum, inv) => sum + inv.amountPaid, 0);
+
+    const forecastCumulative = cpi !== 0 ? plannedCumulative / cpi : plannedCumulative;
+
+    data.push({
+      period: `Wk ${i + 1}`,
+      plannedCumulative: Math.round(plannedCumulative),
+      actualCumulative: Math.round(actualCumulative),
+      forecastCumulative: Math.round(forecastCumulative),
+    });
+  }
+
+  return data;
+}
+
+--- FILE: utils/pdfGenerator.ts ---
+import { Platform } from 'react-native';
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
+import type { CompanyBranding, Project, ChangeOrder, Invoice, DailyFieldReport } from '@/types';
+
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function formatCurrency(n: number): string {
+  return '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function buildSignatureSvg(paths: string[]): string {
+  if (!paths || paths.length === 0) return '';
+  const pathElements = paths.map(d =>
+    `<path d="${escapeHtml(d)}" stroke="#1a1a1a" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`
+  ).join('');
+  return `<svg width="200" height="80" viewBox="0 0 300 150" xmlns="http://www.w3.org/2000/svg" style="border-bottom:1px solid #ccc">${pathElements}</svg>`;
+}
+
+function buildEstimateHtml(
+  project: Project,
+  branding: CompanyBranding,
+): string {
+  const est = project.linkedEstimate;
+  const legacyEst = project.estimate;
+  const schedule = project.schedule;
+  const now = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+
+  const logoBlock = branding.logoUri
+    ? `<div class="logo-wrap"><img src="${escapeHtml(branding.logoUri)}" class="company-logo" alt="Company Logo" /></div>`
+    : '';
+
+  const companyBlock = branding.companyName
+    ? `<div class="company-header">
+        ${logoBlock}
+        <div class="company-name">${escapeHtml(branding.companyName)}</div>
+        ${branding.tagline ? `<div class="tagline">${escapeHtml(branding.tagline)}</div>` : ''}
+        <div class="company-info-grid">
+          ${branding.contactName ? `<div class="info-item"><span class="info-label">Contact</span><span>${escapeHtml(branding.contactName)}</span></div>` : ''}
+          ${branding.phone ? `<div class="info-item"><span class="info-label">Phone</span><span>${escapeHtml(branding.phone)}</span></div>` : ''}
+          ${branding.email ? `<div class="info-item"><span class="info-label">Email</span><span>${escapeHtml(branding.email)}</span></div>` : ''}
+          ${branding.address ? `<div class="info-item"><span class="info-label">Address</span><span>${escapeHtml(branding.address)}</span></div>` : ''}
+          ${branding.licenseNumber ? `<div class="info-item"><span class="info-label">License</span><span>${escapeHtml(branding.licenseNumber)}</span></div>` : ''}
+        </div>
+      </div>`
+    : `<div class="company-header"><div class="company-name">MAGE ID Estimate</div></div>`;
+
+  let itemsHtml = '';
+
+  if (est && est.items.length > 0) {
+    itemsHtml = `
+      <h2>Materials & Items</h2>
+      <table>
+        <thead>
+          <tr>
+            <th style="text-align:left;width:30%">Item</th>
+            <th>Category</th>
+            <th>Qty</th>
+            <th>Unit Price</th>
+            <th>Markup</th>
+            <th style="text-align:right">Line Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${est.items.map((item, i) => `
+            <tr class="${i % 2 === 0 ? 'alt' : ''}">
+              <td style="text-align:left;font-weight:500">${escapeHtml(item.name)}</td>
+              <td>${escapeHtml(item.category)}</td>
+              <td>${item.quantity} ${escapeHtml(item.unit)}</td>
+              <td>${formatCurrency(item.unitPrice)}</td>
+              <td>${item.markup}%</td>
+              <td style="text-align:right;font-weight:600">${formatCurrency(item.lineTotal)}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+      <div class="summary-box">
+        <div class="summary-row"><span>Base Cost</span><span>${formatCurrency(est.baseTotal)}</span></div>
+        <div class="summary-row"><span>Markup (${est.globalMarkup}%)</span><span>+${formatCurrency(est.markupTotal)}</span></div>
+        <div class="summary-divider"></div>
+        <div class="summary-row total"><span>Estimate Total</span><span>${formatCurrency(est.grandTotal)}</span></div>
+      </div>`;
+  } else if (legacyEst) {
+    itemsHtml = `
+      <h2>Materials</h2>
+      <table>
+        <thead>
+          <tr>
+            <th style="text-align:left;width:35%">Item</th>
+            <th>Category</th>
+            <th>Qty</th>
+            <th>Unit Price</th>
+            <th style="text-align:right">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${legacyEst.materials.map((item, i) => `
+            <tr class="${i % 2 === 0 ? 'alt' : ''}">
+              <td style="text-align:left;font-weight:500">${escapeHtml(item.name)}</td>
+              <td>${escapeHtml(item.category)}</td>
+              <td>${item.quantity} ${escapeHtml(item.unit)}</td>
+              <td>${formatCurrency(item.unitPrice)}</td>
+              <td style="text-align:right;font-weight:600">${formatCurrency(item.totalPrice)}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+
+      <h2>Labor</h2>
+      <table>
+        <thead>
+          <tr>
+            <th style="text-align:left;width:40%">Role</th>
+            <th>Rate/hr</th>
+            <th>Hours</th>
+            <th style="text-align:right">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${legacyEst.labor.map((item, i) => `
+            <tr class="${i % 2 === 0 ? 'alt' : ''}">
+              <td style="text-align:left;font-weight:500">${escapeHtml(item.role)}</td>
+              <td>${formatCurrency(item.hourlyRate)}</td>
+              <td>${item.hours}h</td>
+              <td style="text-align:right;font-weight:600">${formatCurrency(item.totalCost)}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+
+      <div class="summary-box">
+        <div class="summary-row"><span>Materials</span><span>${formatCurrency(legacyEst.materialTotal)}</span></div>
+        <div class="summary-row"><span>Labor</span><span>${formatCurrency(legacyEst.laborTotal)}</span></div>
+        <div class="summary-row"><span>Permits & Fees</span><span>${formatCurrency(legacyEst.permits)}</span></div>
+        <div class="summary-row"><span>Overhead</span><span>${formatCurrency(legacyEst.overhead)}</span></div>
+        <div class="summary-divider"></div>
+        <div class="summary-row"><span>Subtotal</span><span>${formatCurrency(legacyEst.subtotal)}</span></div>
+        <div class="summary-row"><span>Tax</span><span>${formatCurrency(legacyEst.tax)}</span></div>
+        <div class="summary-row"><span>Contingency</span><span>${formatCurrency(legacyEst.contingency)}</span></div>
+        <div class="summary-row savings"><span>Bulk Savings</span><span>-${formatCurrency(legacyEst.bulkSavingsTotal)}</span></div>
+        <div class="summary-divider thick"></div>
+        <div class="summary-row total"><span>Grand Total</span><span>${formatCurrency(legacyEst.grandTotal)}</span></div>
+        ${legacyEst.pricePerSqFt > 0 ? `<div class="summary-row sub"><span>Price per Sq Ft</span><span>${formatCurrency(legacyEst.pricePerSqFt)}</span></div>` : ''}
+        ${legacyEst.estimatedDuration ? `<div class="summary-row sub"><span>Est. Duration</span><span>${escapeHtml(legacyEst.estimatedDuration)}</span></div>` : ''}
+      </div>`;
+  }
+
+  let scheduleHtml = '';
+  if (schedule && schedule.tasks.length > 0) {
+    const milestones = schedule.tasks.filter(t => t.isMilestone);
+    const criticalTasks = schedule.tasks.filter(t => t.isCriticalPath);
+
+    scheduleHtml = `
+      <div class="page-break"></div>
+      <h2>Project Schedule</h2>
+      <div class="schedule-stats">
+        <div class="schedule-stat"><strong>${schedule.totalDurationDays}</strong> days total</div>
+        <div class="schedule-stat"><strong>${schedule.criticalPathDays}</strong> critical path</div>
+        <div class="schedule-stat"><strong>${schedule.tasks.length}</strong> tasks</div>
+        ${milestones.length > 0 ? `<div class="schedule-stat"><strong>${milestones.length}</strong> milestones</div>` : ''}
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th style="text-align:left;width:25%">Task</th>
+            <th>Phase</th>
+            ${schedule.tasks.some(t => t.wbsCode) ? '<th>WBS</th>' : ''}
+            <th>Start Day</th>
+            <th>Duration</th>
+            <th>Crew</th>
+            <th>Status</th>
+            <th>Flags</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${schedule.tasks.map((task, i) => {
+            const flags: string[] = [];
+            if (task.isMilestone) flags.push('<span class="flag milestone">Milestone</span>');
+            if (task.isCriticalPath) flags.push('<span class="flag critical">Critical</span>');
+            return `
+            <tr class="${i % 2 === 0 ? 'alt' : ''}">
+              <td style="text-align:left;font-weight:500">${escapeHtml(task.title)}</td>
+              <td>${escapeHtml(task.phase)}</td>
+              ${schedule.tasks.some(t => t.wbsCode) ? `<td>${task.wbsCode ? escapeHtml(task.wbsCode) : '-'}</td>` : ''}
+              <td>Day ${task.startDay}</td>
+              <td>${task.durationDays}d</td>
+              <td>${escapeHtml(task.crew)}</td>
+              <td>${task.progress}%</td>
+              <td>${flags.join(' ') || '-'}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+      ${criticalTasks.length > 0 ? `
+        <h3>Critical Path</h3>
+        <div class="critical-path-chain">
+          ${criticalTasks.map((t, i) => `
+            <span class="critical-node">${escapeHtml(t.title)} (${t.durationDays}d)</span>
+            ${i < criticalTasks.length - 1 ? '<span class="critical-arrow">→</span>' : ''}
+          `).join('')}
+        </div>
+      ` : ''}
+      ${milestones.length > 0 ? `
+        <h3>Milestones</h3>
+        <div class="milestones-list">
+          ${milestones.map(m => `
+            <div class="milestone-item">
+              <span class="milestone-flag">◆</span>
+              <span class="milestone-name">${escapeHtml(m.title)}</span>
+              <span class="milestone-day">Day ${m.startDay}</span>
+            </div>
+          `).join('')}
+        </div>
+      ` : ''}`;
+  }
+
+  const signatureBlock = branding.signatureData && branding.signatureData.length > 0
+    ? `<div class="signature-section">
+        <div class="signature-label">Authorized Signature</div>
+        <div class="signature-drawing">${buildSignatureSvg(branding.signatureData)}</div>
+        ${branding.contactName ? `<div class="signature-name">${escapeHtml(branding.contactName)}</div>` : ''}
+        ${branding.companyName ? `<div class="signature-company">${escapeHtml(branding.companyName)}</div>` : ''}
+        <div class="signature-date">Date: ${now}</div>
+      </div>`
+    : `<div class="signature-section">
+        <div class="signature-label">Authorized Signature</div>
+        <div class="signature-line"></div>
+        ${branding.contactName ? `<div class="signature-name">${escapeHtml(branding.contactName)}</div>` : ''}
+        <div class="signature-date">Date: _______________</div>
+      </div>`;
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif; color: #1a1a1a; padding: 40px; font-size: 12px; line-height: 1.5; }
+  .company-header { text-align: center; margin-bottom: 32px; padding-bottom: 24px; border-bottom: 3px solid #1A6B3C; }
+  .logo-wrap { margin-bottom: 12px; }
+  .company-logo { max-height: 60px; max-width: 240px; object-fit: contain; }
+  .company-name { font-size: 28px; font-weight: 800; color: #1A6B3C; letter-spacing: -0.5px; }
+  .tagline { font-size: 13px; color: #666; margin-top: 4px; font-style: italic; }
+  .company-info-grid { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 20px; margin-top: 10px; }
+  .info-item { font-size: 11px; color: #555; }
+  .info-label { font-weight: 600; color: #333; margin-right: 4px; }
+  .project-info { background: linear-gradient(135deg, #f8f9fa, #eef2f0); border-radius: 8px; padding: 18px; margin-bottom: 24px; border-left: 4px solid #1A6B3C; }
+  .project-name { font-size: 20px; font-weight: 700; margin-bottom: 4px; color: #1a1a1a; }
+  .project-meta { font-size: 11px; color: #666; display: flex; flex-wrap: wrap; gap: 4px 16px; }
+  h2 { font-size: 16px; font-weight: 700; color: #1A6B3C; margin: 28px 0 12px; padding-bottom: 6px; border-bottom: 2px solid #1A6B3C20; }
+  h3 { font-size: 14px; font-weight: 600; color: #333; margin: 16px 0 8px; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 11px; }
+  th { background: #1A6B3C08; padding: 8px 10px; text-align: center; font-weight: 600; color: #555; text-transform: uppercase; font-size: 9px; letter-spacing: 0.5px; border-bottom: 2px solid #1A6B3C20; }
+  td { padding: 7px 10px; text-align: center; border-bottom: 1px solid #eee; }
+  tr.alt { background: #fafbfa; }
+  .summary-box { background: #f8f9fa; border-radius: 8px; padding: 16px; margin-top: 12px; border: 1px solid #e8e8e8; }
+  .summary-row { display: flex; justify-content: space-between; padding: 5px 0; font-size: 12px; }
+  .summary-row.total { font-size: 18px; font-weight: 800; color: #1A6B3C; padding: 10px 0 0; }
+  .summary-row.savings { color: #34C759; font-weight: 500; }
+  .summary-row.sub { font-size: 11px; color: #888; padding: 2px 0; }
+  .summary-divider { height: 1px; background: #ddd; margin: 8px 0; }
+  .summary-divider.thick { height: 2px; background: #1A6B3C; }
+  .schedule-stats { display: flex; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+  .schedule-stat { background: #f0f4f2; border-radius: 6px; padding: 8px 14px; font-size: 12px; border: 1px solid #e0e8e4; }
+  .schedule-stat strong { color: #1A6B3C; }
+  .flag { font-size: 9px; font-weight: 600; padding: 2px 6px; border-radius: 4px; }
+  .flag.milestone { background: #FFF3E0; color: #FF9500; }
+  .flag.critical { background: #FFF0EF; color: #FF3B30; }
+  .critical-path-chain { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 16px; }
+  .critical-node { background: #FFF0EF; color: #FF3B30; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 500; }
+  .critical-arrow { color: #FF3B30; font-weight: 700; }
+  .milestones-list { margin-bottom: 16px; }
+  .milestone-item { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 12px; }
+  .milestone-flag { color: #FF9500; }
+  .milestone-name { font-weight: 500; flex: 1; }
+  .milestone-day { color: #888; font-size: 11px; }
+  .signature-section { margin-top: 40px; padding-top: 20px; border-top: 1px solid #e5e5e5; }
+  .signature-label { font-size: 11px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; }
+  .signature-drawing { margin-bottom: 8px; }
+  .signature-line { width: 200px; height: 1px; background: #333; margin-bottom: 8px; margin-top: 40px; }
+  .signature-name { font-size: 13px; font-weight: 600; color: #333; }
+  .signature-company { font-size: 11px; color: #666; }
+  .signature-date { font-size: 11px; color: #888; margin-top: 4px; }
+  .footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid #e5e5e5; text-align: center; font-size: 10px; color: #999; }
+  .page-break { page-break-before: always; }
+  @media print { body { padding: 20px; } }
+</style>
+</head>
+<body>
+  ${companyBlock}
+  <div class="project-info">
+    <div class="project-name">${escapeHtml(project.name)}</div>
+    <div class="project-meta">
+      <span>Date: ${now}</span>
+      <span>Location: ${escapeHtml(project.location)}</span>
+      ${project.squareFootage > 0 ? `<span>Area: ${project.squareFootage.toLocaleString()} sq ft</span>` : ''}
+      <span>Type: ${escapeHtml(project.type.replace(/_/g, ' '))}</span>
+    </div>
+    ${project.description ? `<p style="margin-top:8px;font-size:12px;color:#555">${escapeHtml(project.description)}</p>` : ''}
+  </div>
+  ${itemsHtml}
+  ${scheduleHtml}
+  ${signatureBlock}
+  <div class="footer">
+    ${branding.companyName ? `Generated by ${escapeHtml(branding.companyName)}` : 'Generated by MAGE ID'} · ${now}
+    ${branding.phone ? ` · ${escapeHtml(branding.phone)}` : ''}
+    ${branding.email ? ` · ${escapeHtml(branding.email)}` : ''}
+  </div>
+</body>
+</html>`;
+}
+
+export async function generateEstimatePDFUri(
+  project: Project,
+  branding: CompanyBranding,
+): Promise<string | null> {
+  if (Platform.OS === 'web') return null;
+  try {
+    const html = buildEstimateHtml(project, branding);
+    const { uri } = await Print.printToFileAsync({ html, base64: false });
+    console.log('[PDF] Estimate PDF URI:', uri);
+    return uri;
+  } catch (error) {
+    console.error('[PDF] Error generating estimate PDF URI:', error);
+    return null;
+  }
+}
+
+export async function generateAndSharePDF(
+  project: Project,
+  branding: CompanyBranding,
+  method: 'email' | 'share',
+): Promise<void> {
+  console.log('[PDF] Generating PDF for project:', project.name, 'method:', method);
+  const html = buildEstimateHtml(project, branding);
+
+  if (Platform.OS === 'web') {
+    const newWindow = window.open('', '_blank');
+    if (newWindow) {
+      newWindow.document.write(html);
+      newWindow.document.close();
+      newWindow.print();
+    }
+    return;
+  }
+
+  try {
+    const { uri } = await Print.printToFileAsync({
+      html,
+      base64: false,
+    });
+    console.log('[PDF] File created at:', uri);
+
+    if (method === 'share') {
+      const canShare = await Sharing.isAvailableAsync();
+      if (canShare) {
+        await Sharing.shareAsync(uri, {
+          mimeType: 'application/pdf',
+          dialogTitle: `${project.name} Estimate`,
+          UTI: 'com.adobe.pdf',
+        });
+      } else {
+        console.log('[PDF] Sharing not available, printing instead');
+        await Print.printAsync({ uri });
+      }
+    } else {
+      await Sharing.shareAsync(uri, {
+        mimeType: 'application/pdf',
+        dialogTitle: `${project.name} Estimate`,
+        UTI: 'com.adobe.pdf',
+      });
+    }
+  } catch (error) {
+    console.error('[PDF] Error generating PDF:', error);
+    throw error;
+  }
+}
+
+function buildChangeOrderHtml(co: ChangeOrder, project: Project, branding: CompanyBranding): string {
+  const now = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+  const logoBlock = branding.logoUri
+    ? `<div class="logo-wrap"><img src="${escapeHtml(branding.logoUri)}" class="company-logo" alt="Logo" /></div>` : '';
+  const companyBlock = branding.companyName
+    ? `<div class="company-header">${logoBlock}<div class="company-name">${escapeHtml(branding.companyName)}</div>
+        <div class="company-info-grid">
+          ${branding.contactName ? `<div class="info-item"><span class="info-label">Contact</span><span>${escapeHtml(branding.contactName)}</span></div>` : ''}
+          ${branding.phone ? `<div class="info-item"><span class="info-label">Phone</span><span>${escapeHtml(branding.phone)}</span></div>` : ''}
+          ${branding.email ? `<div class="info-item"><span class="info-label">Email</span><span>${escapeHtml(branding.email)}</span></div>` : ''}
+          ${branding.licenseNumber ? `<div class="info-item"><span class="info-label">License</span><span>${escapeHtml(branding.licenseNumber)}</span></div>` : ''}
+        </div></div>`
+    : `<div class="company-header"><div class="company-name">Change Order</div></div>`;
+
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family:-apple-system,'Helvetica Neue',Arial,sans-serif; color:#1a1a1a; padding:40px; font-size:12px; line-height:1.5; }
+    .company-header { text-align:center; margin-bottom:32px; padding-bottom:24px; border-bottom:3px solid #1A6B3C; }
+    .logo-wrap { margin-bottom:12px; } .company-logo { max-height:60px; max-width:240px; object-fit:contain; }
+    .company-name { font-size:28px; font-weight:800; color:#1A6B3C; }
+    .company-info-grid { display:flex; flex-wrap:wrap; justify-content:center; gap:4px 20px; margin-top:10px; }
+    .info-item { font-size:11px; color:#555; } .info-label { font-weight:600; color:#333; margin-right:4px; }
+    .co-header { background:#f8f9fa; border-radius:8px; padding:18px; margin-bottom:24px; border-left:4px solid #FF9500; }
+    .co-title { font-size:20px; font-weight:700; color:#1a1a1a; } .co-meta { font-size:11px; color:#666; margin-top:4px; }
+    .status-badge { display:inline-block; padding:4px 12px; border-radius:6px; font-size:11px; font-weight:700; text-transform:uppercase; }
+    .status-draft { background:#f0f0f0; color:#666; } .status-sent { background:#EBF3FF; color:#007AFF; }
+    .status-approved { background:#E8FAF0; color:#34C759; } .status-rejected { background:#FFF0EF; color:#FF3B30; }
+    table { width:100%; border-collapse:collapse; margin-bottom:20px; font-size:11px; }
+    th { background:#1A6B3C08; padding:8px 10px; text-align:center; font-weight:600; color:#555; text-transform:uppercase; font-size:9px; letter-spacing:0.5px; border-bottom:2px solid #1A6B3C20; }
+    td { padding:7px 10px; text-align:center; border-bottom:1px solid #eee; }
+    tr.alt { background:#fafbfa; }
+    .summary-box { background:#f8f9fa; border-radius:8px; padding:16px; border:1px solid #e8e8e8; }
+    .summary-row { display:flex; justify-content:space-between; padding:5px 0; font-size:13px; }
+    .summary-row.total { font-size:18px; font-weight:800; color:#1A6B3C; padding:10px 0 0; }
+    .summary-divider { height:2px; background:#1A6B3C; margin:8px 0; }
+    .footer { margin-top:40px; padding-top:16px; border-top:1px solid #e5e5e5; text-align:center; font-size:10px; color:#999; }
+  </style></head><body>
+  ${companyBlock}
+  <div class="co-header">
+    <div class="co-title">Change Order #${co.number}</div>
+    <div class="co-meta">Project: ${escapeHtml(project.name)} &middot; Date: ${now} &middot; <span class="status-badge status-${co.status}">${co.status}</span></div>
+    ${co.description ? `<p style="margin-top:8px;font-size:12px;color:#333">${escapeHtml(co.description)}</p>` : ''}
+    ${co.reason ? `<p style="margin-top:4px;font-size:11px;color:#666">Reason: ${escapeHtml(co.reason)}</p>` : ''}
+  </div>
+  <h2 style="font-size:16px;font-weight:700;color:#1A6B3C;margin:20px 0 12px;border-bottom:2px solid #1A6B3C20;padding-bottom:6px;">Line Items</h2>
+  <table><thead><tr>
+    <th style="text-align:left;width:35%">Item</th><th>Qty</th><th>Unit</th><th>Unit Price</th><th style="text-align:right">Total</th>
+  </tr></thead><tbody>
+    ${co.lineItems.map((item, i) => `<tr class="${i % 2 === 0 ? 'alt' : ''}"><td style="text-align:left;font-weight:500">${escapeHtml(item.name)}${item.isNew ? ' <span style="color:#FF9500;font-size:9px">[NEW]</span>' : ''}</td><td>${item.quantity}</td><td>${escapeHtml(item.unit)}</td><td>${formatCurrency(item.unitPrice)}</td><td style="text-align:right;font-weight:600">${formatCurrency(item.total)}</td></tr>`).join('')}
+  </tbody></table>
+  <div class="summary-box">
+    <div class="summary-row"><span>Original Contract Value</span><span>${formatCurrency(co.originalContractValue)}</span></div>
+    <div class="summary-row" style="color:${co.changeAmount >= 0 ? '#FF9500' : '#34C759'}"><span>This Change Order</span><span>${co.changeAmount >= 0 ? '+' : ''}${formatCurrency(co.changeAmount)}</span></div>
+    <div class="summary-divider"></div>
+    <div class="summary-row total"><span>New Contract Total</span><span>${formatCurrency(co.newContractTotal)}</span></div>
+  </div>
+  <div style="margin-top:40px;padding-top:20px;border-top:1px solid #e5e5e5">
+    <div style="font-size:11px;font-weight:600;color:#888;text-transform:uppercase;margin-bottom:20px">Client Approval</div>
+    <div style="display:flex;gap:40px">
+      <div><div style="width:200px;height:1px;background:#333;margin-bottom:8px;margin-top:30px"></div><div style="font-size:11px;color:#888">Client Signature</div></div>
+      <div><div style="width:120px;height:1px;background:#333;margin-bottom:8px;margin-top:30px"></div><div style="font-size:11px;color:#888">Date</div></div>
+    </div>
+  </div>
+  <div class="footer">${branding.companyName ? `${escapeHtml(branding.companyName)} &middot; ` : ''}Change Order #${co.number} &middot; ${now}</div>
+</body></html>`;
+}
+
+function buildInvoiceHtml(inv: Invoice, project: Project, branding: CompanyBranding): string {
+  const now = new Date(inv.issueDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+  const dueDate = new Date(inv.dueDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+  const logoBlock = branding.logoUri
+    ? `<div class="logo-wrap"><img src="${escapeHtml(branding.logoUri)}" class="company-logo" alt="Logo" /></div>` : '';
+  const companyBlock = branding.companyName
+    ? `<div class="company-header">${logoBlock}<div class="company-name">${escapeHtml(branding.companyName)}</div>
+        ${branding.tagline ? `<div style="font-size:13px;color:#666;margin-top:4px;font-style:italic">${escapeHtml(branding.tagline)}</div>` : ''}
+        <div class="company-info-grid">
+          ${branding.contactName ? `<div class="info-item"><span class="info-label">Contact</span><span>${escapeHtml(branding.contactName)}</span></div>` : ''}
+          ${branding.phone ? `<div class="info-item"><span class="info-label">Phone</span><span>${escapeHtml(branding.phone)}</span></div>` : ''}
+          ${branding.email ? `<div class="info-item"><span class="info-label">Email</span><span>${escapeHtml(branding.email)}</span></div>` : ''}
+          ${branding.address ? `<div class="info-item"><span class="info-label">Address</span><span>${escapeHtml(branding.address)}</span></div>` : ''}
+          ${branding.licenseNumber ? `<div class="info-item"><span class="info-label">License</span><span>${escapeHtml(branding.licenseNumber)}</span></div>` : ''}
+        </div></div>`
+    : `<div class="company-header"><div class="company-name">Invoice</div></div>`;
+
+  const termsLabel = inv.paymentTerms.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family:-apple-system,'Helvetica Neue',Arial,sans-serif; color:#1a1a1a; padding:40px; font-size:12px; line-height:1.5; }
+    .company-header { text-align:center; margin-bottom:32px; padding-bottom:24px; border-bottom:3px solid #1A6B3C; }
+    .logo-wrap { margin-bottom:12px; } .company-logo { max-height:60px; max-width:240px; object-fit:contain; }
+    .company-name { font-size:28px; font-weight:800; color:#1A6B3C; }
+    .company-info-grid { display:flex; flex-wrap:wrap; justify-content:center; gap:4px 20px; margin-top:10px; }
+    .info-item { font-size:11px; color:#555; } .info-label { font-weight:600; color:#333; margin-right:4px; }
+    .inv-header { background:linear-gradient(135deg,#f8f9fa,#eef2f0); border-radius:8px; padding:18px; margin-bottom:24px; border-left:4px solid #1A6B3C; display:flex; justify-content:space-between; }
+    .inv-title { font-size:20px; font-weight:700; } .inv-meta { font-size:11px; color:#666; margin-top:4px; }
+    table { width:100%; border-collapse:collapse; margin-bottom:20px; font-size:11px; }
+    th { background:#1A6B3C08; padding:8px 10px; text-align:center; font-weight:600; color:#555; text-transform:uppercase; font-size:9px; letter-spacing:0.5px; border-bottom:2px solid #1A6B3C20; }
+    td { padding:7px 10px; text-align:center; border-bottom:1px solid #eee; }
+    tr.alt { background:#fafbfa; }
+    .summary-box { background:#f8f9fa; border-radius:8px; padding:16px; border:1px solid #e8e8e8; }
+    .summary-row { display:flex; justify-content:space-between; padding:5px 0; font-size:13px; }
+    .summary-row.total { font-size:18px; font-weight:800; color:#1A6B3C; padding:10px 0 0; }
+    .summary-divider { height:2px; background:#1A6B3C; margin:8px 0; }
+    .footer { margin-top:40px; padding-top:16px; border-top:1px solid #e5e5e5; text-align:center; font-size:10px; color:#999; }
+  </style></head><body>
+  ${companyBlock}
+  <div class="inv-header">
+    <div>
+      <div class="inv-title">${inv.type === 'progress' ? 'Progress Bill' : 'Invoice'} #${inv.number}</div>
+      <div class="inv-meta">Project: ${escapeHtml(project.name)}</div>
+      ${inv.type === 'progress' && inv.progressPercent ? `<div class="inv-meta">Progress: ${inv.progressPercent}% of contract</div>` : ''}
+    </div>
+    <div style="text-align:right">
+      <div class="inv-meta">Issue Date: ${now}</div>
+      <div class="inv-meta">Due Date: ${dueDate}</div>
+      <div class="inv-meta">Terms: ${termsLabel}</div>
+    </div>
+  </div>
+  <table><thead><tr>
+    <th style="text-align:left;width:35%">Item</th><th>Qty</th><th>Unit</th><th>Unit Price</th><th style="text-align:right">Total</th>
+  </tr></thead><tbody>
+    ${inv.lineItems.map((item, i) => `<tr class="${i % 2 === 0 ? 'alt' : ''}"><td style="text-align:left;font-weight:500">${escapeHtml(item.name)}</td><td>${item.quantity}</td><td>${escapeHtml(item.unit)}</td><td>${formatCurrency(item.unitPrice)}</td><td style="text-align:right;font-weight:600">${formatCurrency(item.total)}</td></tr>`).join('')}
+  </tbody></table>
+  <div class="summary-box">
+    <div class="summary-row"><span>Subtotal</span><span>${formatCurrency(inv.subtotal)}</span></div>
+    <div class="summary-row"><span>Tax (${inv.taxRate}%)</span><span>${formatCurrency(inv.taxAmount)}</span></div>
+    <div class="summary-divider"></div>
+    <div class="summary-row total"><span>Total Due</span><span>${formatCurrency(inv.totalDue)}</span></div>
+    ${inv.amountPaid > 0 ? `<div class="summary-row" style="color:#34C759"><span>Amount Paid</span><span>-${formatCurrency(inv.amountPaid)}</span></div><div class="summary-row" style="font-weight:700;font-size:14px"><span>Balance Due</span><span>${formatCurrency(inv.totalDue - inv.amountPaid)}</span></div>` : ''}
+  </div>
+  ${inv.notes ? `<div style="margin-top:20px;padding:14px;background:#f8f9fa;border-radius:8px;border:1px solid #e8e8e8"><div style="font-size:10px;font-weight:600;color:#888;text-transform:uppercase;margin-bottom:6px">Notes</div><p style="font-size:12px;color:#555">${escapeHtml(inv.notes)}</p></div>` : ''}
+  <div class="footer">${branding.companyName ? `${escapeHtml(branding.companyName)} &middot; ` : ''}Invoice #${inv.number} &middot; ${now}</div>
+</body></html>`;
+}
+
+function buildDFRHtml(dfr: DailyFieldReport, project: Project, branding: CompanyBranding): string {
+  const reportDate = new Date(dfr.date).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  const logoBlock = branding.logoUri
+    ? `<div class="logo-wrap"><img src="${escapeHtml(branding.logoUri)}" class="company-logo" alt="Logo" /></div>` : '';
+  const companyBlock = branding.companyName
+    ? `<div class="company-header">${logoBlock}<div class="company-name">${escapeHtml(branding.companyName)}</div></div>`
+    : `<div class="company-header"><div class="company-name">Daily Field Report</div></div>`;
+
+  const totalWorkers = dfr.manpower.reduce((s, m) => s + m.headcount, 0);
+  const totalHours = dfr.manpower.reduce((s, m) => s + (m.headcount * m.hoursWorked), 0);
+
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family:-apple-system,'Helvetica Neue',Arial,sans-serif; color:#1a1a1a; padding:40px; font-size:12px; line-height:1.5; }
+    .company-header { text-align:center; margin-bottom:24px; padding-bottom:20px; border-bottom:3px solid #1A6B3C; }
+    .logo-wrap { margin-bottom:12px; } .company-logo { max-height:60px; max-width:240px; object-fit:contain; }
+    .company-name { font-size:24px; font-weight:800; color:#1A6B3C; }
+    .dfr-header { background:#f8f9fa; border-radius:8px; padding:18px; margin-bottom:24px; border-left:4px solid #1A6B3C; }
+    .dfr-title { font-size:18px; font-weight:700; } .dfr-meta { font-size:11px; color:#666; margin-top:4px; }
+    h2 { font-size:14px; font-weight:700; color:#1A6B3C; margin:20px 0 10px; padding-bottom:6px; border-bottom:2px solid #1A6B3C20; }
+    table { width:100%; border-collapse:collapse; margin-bottom:16px; font-size:11px; }
+    th { background:#1A6B3C08; padding:6px 10px; text-align:center; font-weight:600; color:#555; text-transform:uppercase; font-size:9px; border-bottom:2px solid #1A6B3C20; }
+    td { padding:6px 10px; text-align:center; border-bottom:1px solid #eee; }
+    tr.alt { background:#fafbfa; }
+    .section-content { background:#f8f9fa; border-radius:6px; padding:12px; margin-bottom:12px; font-size:12px; color:#333; }
+    .weather-grid { display:flex; gap:12px; margin-bottom:16px; }
+    .weather-item { flex:1; background:#f8f9fa; border-radius:6px; padding:10px; text-align:center; }
+    .weather-label { font-size:9px; font-weight:600; color:#888; text-transform:uppercase; }
+    .weather-value { font-size:14px; font-weight:600; color:#333; margin-top:4px; }
+    .footer { margin-top:40px; padding-top:16px; border-top:1px solid #e5e5e5; text-align:center; font-size:10px; color:#999; }
+  </style></head><body>
+  ${companyBlock}
+  <div class="dfr-header">
+    <div class="dfr-title">Daily Field Report</div>
+    <div class="dfr-meta">Project: ${escapeHtml(project.name)} &middot; ${reportDate}</div>
+    <div class="dfr-meta">Location: ${escapeHtml(project.location)}</div>
+  </div>
+  <h2>Weather</h2>
+  <div class="weather-grid">
+    <div class="weather-item"><div class="weather-label">Temperature</div><div class="weather-value">${escapeHtml(dfr.weather.temperature || 'N/A')}</div></div>
+    <div class="weather-item"><div class="weather-label">Conditions</div><div class="weather-value">${escapeHtml(dfr.weather.conditions || 'N/A')}</div></div>
+    <div class="weather-item"><div class="weather-label">Wind</div><div class="weather-value">${escapeHtml(dfr.weather.wind || 'N/A')}</div></div>
+  </div>
+  <h2>Manpower (${totalWorkers} workers &middot; ${totalHours} man-hours)</h2>
+  ${dfr.manpower.length > 0 ? `<table><thead><tr><th style="text-align:left">Trade</th><th>Company</th><th>Headcount</th><th>Hours</th><th>Man-Hours</th></tr></thead><tbody>${dfr.manpower.map((m, i) => `<tr class="${i % 2 === 0 ? 'alt' : ''}"><td style="text-align:left;font-weight:500">${escapeHtml(m.trade)}</td><td>${escapeHtml(m.company || '-')}</td><td>${m.headcount}</td><td>${m.hoursWorked}</td><td>${m.headcount * m.hoursWorked}</td></tr>`).join('')}</tbody></table>` : '<div class="section-content">No manpower entries.</div>'}
+  <h2>Work Performed</h2>
+  <div class="section-content">${dfr.workPerformed ? escapeHtml(dfr.workPerformed).replace(/\n/g, '<br>') : 'No notes.'}</div>
+  ${dfr.materialsDelivered.length > 0 ? `<h2>Materials Delivered</h2><div class="section-content"><ul>${dfr.materialsDelivered.map(m => `<li>${escapeHtml(m)}</li>`).join('')}</ul></div>` : ''}
+  ${dfr.issuesAndDelays ? `<h2>Issues &amp; Delays</h2><div class="section-content" style="border-left:3px solid #FF3B30;background:#FFF0EF">${escapeHtml(dfr.issuesAndDelays).replace(/\n/g, '<br>')}</div>` : ''}
+  ${dfr.photos.length > 0 ? `<h2>Photos (${dfr.photos.length})</h2><div class="section-content">${dfr.photos.length} photo(s) attached. See digital copy for images.</div>` : ''}
+  <div class="footer">${branding.companyName ? `${escapeHtml(branding.companyName)} &middot; ` : ''}Daily Field Report &middot; ${reportDate}</div>
+</body></html>`;
+}
+
+export async function generateChangeOrderPDFUri(
+  co: ChangeOrder, project: Project, branding: CompanyBranding,
+): Promise<string | null> {
+  if (Platform.OS === 'web') return null;
+  try {
+    const html = buildChangeOrderHtml(co, project, branding);
+    const { uri } = await Print.printToFileAsync({ html, base64: false });
+    console.log('[PDF] CO PDF URI:', uri);
+    return uri;
+  } catch (error) {
+    console.error('[PDF] Error generating CO PDF URI:', error);
+    return null;
+  }
+}
+
+export async function generateInvoicePDFUri(
+  inv: Invoice, project: Project, branding: CompanyBranding,
+): Promise<string | null> {
+  if (Platform.OS === 'web') return null;
+  try {
+    const html = buildInvoiceHtml(inv, project, branding);
+    const { uri } = await Print.printToFileAsync({ html, base64: false });
+    console.log('[PDF] Invoice PDF URI:', uri);
+    return uri;
+  } catch (error) {
+    console.error('[PDF] Error generating invoice PDF URI:', error);
+    return null;
+  }
+}
+
+export async function generateDFRPDFUri(
+  dfr: DailyFieldReport, project: Project, branding: CompanyBranding,
+): Promise<string | null> {
+  if (Platform.OS === 'web') return null;
+  try {
+    const html = buildDFRHtml(dfr, project, branding);
+    const { uri } = await Print.printToFileAsync({ html, base64: false });
+    console.log('[PDF] DFR PDF URI:', uri);
+    return uri;
+  } catch (error) {
+    console.error('[PDF] Error generating DFR PDF URI:', error);
+    return null;
+  }
+}
+
+export async function generateChangeOrderPDF(
+  co: ChangeOrder, project: Project, branding: CompanyBranding,
+): Promise<void> {
+  console.log('[PDF] Generating CO PDF:', co.id);
+  const html = buildChangeOrderHtml(co, project, branding);
+  await shareHtml(html, `${project.name} - CO #${co.number}`);
+}
+
+export async function generateInvoicePDF(
+  inv: Invoice, project: Project, branding: CompanyBranding,
+): Promise<void> {
+  console.log('[PDF] Generating Invoice PDF:', inv.id);
+  const html = buildInvoiceHtml(inv, project, branding);
+  await shareHtml(html, `${project.name} - Invoice #${inv.number}`);
+}
+
+export async function generateDFRPDF(
+  dfr: DailyFieldReport, project: Project, branding: CompanyBranding,
+): Promise<void> {
+  console.log('[PDF] Generating DFR PDF:', dfr.id);
+  const html = buildDFRHtml(dfr, project, branding);
+  await shareHtml(html, `${project.name} - Daily Report`);
+}
+
+async function shareHtml(html: string, title: string, method?: 'share' | 'email', recipient?: string, message?: string): Promise<void> {
+  if (Platform.OS === 'web') {
+    const newWindow = window.open('', '_blank');
+    if (newWindow) {
+      newWindow.document.write(html);
+      newWindow.document.close();
+      newWindow.print();
+    }
+    return;
+  }
+  try {
+    const { uri } = await Print.printToFileAsync({ html, base64: false });
+    if (method === 'email' && recipient) {
+      const subject = encodeURIComponent(title);
+      const body = encodeURIComponent(message || `Please find attached: ${title}`);
+      const mailUrl = `mailto:${recipient}?subject=${subject}&body=${body}`;
+      const { openURL } = await import('expo-linking');
+      await openURL(mailUrl).catch(() => {});
+    }
+    const canShare = await Sharing.isAvailableAsync();
+    if (canShare) {
+      await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: title, UTI: 'com.adobe.pdf' });
+    } else {
+      await Print.printAsync({ uri });
+    }
+  } catch (error) {
+    console.error('[PDF] Error:', error);
+    throw error;
+  }
+}
+
+export function buildEstimateTextForEmail(
+  project: Project,
+  branding: CompanyBranding,
+): string {
+  let text = '';
+  const divider = '━'.repeat(40);
+
+  if (branding.companyName) {
+    text += `${branding.companyName.toUpperCase()}\n`;
+    if (branding.tagline) text += `${branding.tagline}\n`;
+    text += `${divider}\n\n`;
+  }
+
+  text += `PROJECT ESTIMATE\n`;
+  text += `${divider}\n`;
+  text += `Project: ${project.name}\n`;
+  text += `Location: ${project.location}\n`;
+  text += `Date: ${new Date().toLocaleDateString()}\n`;
+  if (project.squareFootage > 0) text += `Area: ${project.squareFootage.toLocaleString()} sq ft\n`;
+  if (project.description) text += `Description: ${project.description}\n`;
+  text += '\n';
+
+  const est = project.linkedEstimate;
+  if (est && est.items.length > 0) {
+    text += `ITEMS\n${divider}\n`;
+    est.items.forEach((item, i) => {
+      text += `${i + 1}. ${item.name}\n`;
+      text += `   ${item.quantity} ${item.unit} @ ${formatCurrency(item.unitPrice)} (${item.markup}% markup)\n`;
+      text += `   Line Total: ${formatCurrency(item.lineTotal)}\n\n`;
+    });
+    text += `${divider}\n`;
+    text += `Base Cost:    ${formatCurrency(est.baseTotal)}\n`;
+    text += `Markup:       +${formatCurrency(est.markupTotal)}\n`;
+    text += `TOTAL:        ${formatCurrency(est.grandTotal)}\n\n`;
+  }
+
+  const legacyEst = project.estimate;
+  if (legacyEst && (!est || est.items.length === 0)) {
+    text += `COST SUMMARY\n${divider}\n`;
+    text += `Materials:     ${formatCurrency(legacyEst.materialTotal)}\n`;
+    text += `Labor:         ${formatCurrency(legacyEst.laborTotal)}\n`;
+    text += `Permits:       ${formatCurrency(legacyEst.permits)}\n`;
+    text += `Overhead:      ${formatCurrency(legacyEst.overhead)}\n`;
+    text += `${divider}\n`;
+    text += `Subtotal:      ${formatCurrency(legacyEst.subtotal)}\n`;
+    text += `Tax:           ${formatCurrency(legacyEst.tax)}\n`;
+    text += `Contingency:   ${formatCurrency(legacyEst.contingency)}\n`;
+    text += `Bulk Savings:  -${formatCurrency(legacyEst.bulkSavingsTotal)}\n`;
+    text += `${divider}\n`;
+    text += `GRAND TOTAL:   ${formatCurrency(legacyEst.grandTotal)}\n`;
+    if (legacyEst.pricePerSqFt > 0) text += `Per Sq Ft:     ${formatCurrency(legacyEst.pricePerSqFt)}\n`;
+    text += '\n';
+  }
+
+  const schedule = project.schedule;
+  if (schedule && schedule.tasks.length > 0) {
+    text += `SCHEDULE\n${divider}\n`;
+    text += `Duration: ${schedule.totalDurationDays} days\n`;
+    text += `Critical Path: ${schedule.criticalPathDays} days\n`;
+    text += `Tasks: ${schedule.tasks.length}\n\n`;
+    schedule.tasks.forEach((task, i) => {
+      const flags: string[] = [];
+      if (task.isMilestone) flags.push('[Milestone]');
+      if (task.isCriticalPath) flags.push('[Critical]');
+      text += `${i + 1}. ${task.title} ${flags.join(' ')}\n`;
+      text += `   ${task.phase} · Day ${task.startDay} · ${task.durationDays}d · ${task.crew} · ${task.progress}%\n`;
+    });
+    text += '\n';
+  }
+
+  if (branding.contactName || branding.phone || branding.email) {
+    text += `${divider}\nCONTACT\n`;
+    if (branding.contactName) text += `${branding.contactName}\n`;
+    if (branding.phone) text += `${branding.phone}\n`;
+    if (branding.email) text += `${branding.email}\n`;
+    if (branding.address) text += `${branding.address}\n`;
+    if (branding.licenseNumber) text += `License: ${branding.licenseNumber}\n`;
+  }
+
+  return text;
+}
+
+--- FILE: utils/emailService.ts ---
+import * as MailComposer from 'expo-mail-composer';
+import { Platform } from 'react-native';
+
+export interface SendEmailParams {
+  to: string;
+  subject: string;
+  html: string;
+  replyTo?: string;
+}
+
+export interface SendEmailWithAttachmentsParams extends SendEmailParams {
+  attachments?: string[];
+}
+
+interface SendEmailResponse {
+  success: boolean;
+  id?: string;
+  error?: string;
+}
+
+export async function sendEmailNative(params: {
+  to: string;
+  subject: string;
+  body: string;
+  isHtml?: boolean;
+  attachments?: string[];
+}): Promise<{ success: boolean; error?: string }> {
+  try {
+    if (Platform.OS === 'web') {
+      console.log('[EmailService] Native mail not available on web');
+      return { success: false, error: 'not_available' };
+    }
+
+    const isAvailable = await MailComposer.isAvailableAsync();
+    if (!isAvailable) {
+      console.log('[EmailService] Native mail not available on this device');
+      return { success: false, error: 'No email app configured on this device. Please set up an email account in your device settings.' };
+    }
+
+    const result = await MailComposer.composeAsync({
+      recipients: params.to ? [params.to] : [],
+      subject: params.subject,
+      body: params.body,
+      isHtml: params.isHtml ?? true,
+      attachments: params.attachments ?? [],
+    });
+
+    if (result.status === MailComposer.MailComposerStatus.SENT) {
+      console.log('[EmailService] Email sent via native mail');
+      return { success: true };
+    } else if (result.status === MailComposer.MailComposerStatus.CANCELLED) {
+      console.log('[EmailService] User cancelled email');
+      return { success: false, error: 'cancelled' };
+    } else {
+      console.log('[EmailService] Email status:', result.status);
+      return { success: true };
+    }
+  } catch (err) {
+    console.error('[EmailService] Native mail error:', err);
+    return { success: false, error: 'Failed to open email composer' };
+  }
+}
+
+export async function sendEmail(params: SendEmailWithAttachmentsParams): Promise<SendEmailResponse> {
+  try {
+    if (Platform.OS === 'web') {
+      console.log('[EmailService] Native mail not available on web, using mailto fallback');
+      const mailtoUrl = `mailto:${encodeURIComponent(params.to)}?subject=${encodeURIComponent(params.subject)}&body=${encodeURIComponent('Please view the attached document.')}`;
+      window.open(mailtoUrl, '_blank');
+      return { success: true };
+    }
+
+    const isAvailable = await MailComposer.isAvailableAsync();
+    if (!isAvailable) {
+      return { success: false, error: 'No email app configured on this device. Please set up an email account in Settings, or use the Share option instead.' };
+    }
+
+    const result = await MailComposer.composeAsync({
+      recipients: params.to ? [params.to] : [],
+      subject: params.subject,
+      body: params.html,
+      isHtml: true,
+      attachments: params.attachments ?? [],
+    });
+
+    if (result.status === MailComposer.MailComposerStatus.CANCELLED) {
+      return { success: false, error: 'cancelled' };
+    }
+    return { success: true };
+  } catch (err) {
+    console.error('[EmailService] Native mail error:', err);
+    return { success: false, error: 'Failed to open email composer' };
+  }
+}
+
+
+
+export function buildInvoiceEmailHtml(opts: {
+  companyName: string;
+  recipientName: string;
+  projectName: string;
+  invoiceNumber: number;
+  totalDue: number;
+  dueDate: string;
+  paymentTerms: string;
+  message?: string;
+  contactName?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+}): string {
+  const {
+    companyName, recipientName, projectName, invoiceNumber,
+    totalDue, dueDate, paymentTerms, message,
+    contactName, contactEmail, contactPhone,
+  } = opts;
+
+  return `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background:#f4f5f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f5f7;padding:32px 16px;">
+    <tr><td align="center">
+      <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+        <tr><td style="background:#1a1a2e;padding:28px 32px;">
+          <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;">${companyName || 'MAGE ID'}</h1>
+        </td></tr>
+        <tr><td style="padding:32px;">
+          <p style="margin:0 0 8px;color:#6b7280;font-size:13px;text-transform:uppercase;letter-spacing:0.5px;">Invoice #${invoiceNumber}</p>
+          <h2 style="margin:0 0 24px;color:#111827;font-size:20px;">${projectName}</h2>
+          ${recipientName ? `<p style="margin:0 0 16px;color:#374151;">Hi ${recipientName},</p>` : ''}
+          ${message ? `<p style="margin:0 0 20px;color:#374151;line-height:1.5;">${message}</p>` : ''}
+          <table width="100%" cellpadding="0" cellspacing="0" style="background:#f9fafb;border-radius:8px;margin:20px 0;">
+            <tr><td style="padding:20px;">
+              <table width="100%">
+                <tr>
+                  <td style="color:#6b7280;font-size:13px;padding:4px 0;">Amount Due</td>
+                  <td align="right" style="color:#111827;font-size:18px;font-weight:700;padding:4px 0;">$${totalDue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                </tr>
+                <tr>
+                  <td style="color:#6b7280;font-size:13px;padding:4px 0;">Due Date</td>
+                  <td align="right" style="color:#111827;font-size:14px;padding:4px 0;">${new Date(dueDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</td>
+                </tr>
+                <tr>
+                  <td style="color:#6b7280;font-size:13px;padding:4px 0;">Payment Terms</td>
+                  <td align="right" style="color:#111827;font-size:14px;padding:4px 0;">${paymentTerms}</td>
+                </tr>
+              </table>
+            </td></tr>
+          </table>
+          <p style="margin:20px 0 0;color:#9ca3af;font-size:12px;line-height:1.5;">
+            This invoice was generated using MAGE ID.
+            ${contactName ? `<br/>Contact: ${contactName}` : ''}
+            ${contactEmail ? ` | ${contactEmail}` : ''}
+            ${contactPhone ? ` | ${contactPhone}` : ''}
+          </p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
+
+export function buildChangeOrderEmailHtml(opts: {
+  companyName: string;
+  recipientName: string;
+  projectName: string;
+  coNumber: number;
+  description: string;
+  changeAmount: number;
+  newContractTotal: number;
+  message?: string;
+  contactName?: string;
+  contactEmail?: string;
+}): string {
+  const {
+    companyName, recipientName, projectName, coNumber,
+    description, changeAmount, newContractTotal, message,
+    contactName, contactEmail,
+  } = opts;
+
+  const amountColor = changeAmount >= 0 ? '#dc2626' : '#16a34a';
+  const amountPrefix = changeAmount >= 0 ? '+' : '';
+
+  return `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background:#f4f5f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f5f7;padding:32px 16px;">
+    <tr><td align="center">
+      <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+        <tr><td style="background:#1a1a2e;padding:28px 32px;">
+          <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;">${companyName || 'MAGE ID'}</h1>
+        </td></tr>
+        <tr><td style="padding:32px;">
+          <p style="margin:0 0 8px;color:#6b7280;font-size:13px;text-transform:uppercase;letter-spacing:0.5px;">Change Order #${coNumber}</p>
+          <h2 style="margin:0 0 24px;color:#111827;font-size:20px;">${projectName}</h2>
+          ${recipientName ? `<p style="margin:0 0 16px;color:#374151;">Hi ${recipientName},</p>` : ''}
+          <p style="margin:0 0 16px;color:#374151;line-height:1.5;">A change order has been submitted for your review and approval.</p>
+          ${message ? `<p style="margin:0 0 20px;color:#374151;line-height:1.5;">${message}</p>` : ''}
+          <table width="100%" cellpadding="0" cellspacing="0" style="background:#f9fafb;border-radius:8px;margin:20px 0;">
+            <tr><td style="padding:20px;">
+              <p style="margin:0 0 12px;color:#374151;font-size:14px;font-weight:600;">Description</p>
+              <p style="margin:0 0 16px;color:#6b7280;font-size:14px;line-height:1.5;">${description}</p>
+              <table width="100%">
+                <tr>
+                  <td style="color:#6b7280;font-size:13px;padding:4px 0;">Change Amount</td>
+                  <td align="right" style="color:${amountColor};font-size:16px;font-weight:700;padding:4px 0;">${amountPrefix}$${Math.abs(changeAmount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                </tr>
+                <tr>
+                  <td style="color:#6b7280;font-size:13px;padding:4px 0;">New Contract Total</td>
+                  <td align="right" style="color:#111827;font-size:16px;font-weight:700;padding:4px 0;">$${newContractTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                </tr>
+              </table>
+            </td></tr>
+          </table>
+          <p style="margin:20px 0 0;color:#9ca3af;font-size:12px;line-height:1.5;">
+            This change order was generated using MAGE ID.
+            ${contactName ? `<br/>Contact: ${contactName}` : ''}
+            ${contactEmail ? ` | ${contactEmail}` : ''}
+          </p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
+
+export function buildDailyReportEmailHtml(opts: {
+  companyName: string;
+  recipientName: string;
+  projectName: string;
+  date: string;
+  weather: { condition: string; tempHigh: number; tempLow: number };
+  totalManpower: number;
+  totalManHours: number;
+  workPerformed: string;
+  issuesAndDelays: string;
+  message?: string;
+  contactName?: string;
+  contactEmail?: string;
+}): string {
+  const {
+    companyName, recipientName, projectName, date,
+    weather, totalManpower, totalManHours, workPerformed,
+    issuesAndDelays, message, contactName, contactEmail,
+  } = opts;
+
+  return `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background:#f4f5f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f5f7;padding:32px 16px;">
+    <tr><td align="center">
+      <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+        <tr><td style="background:#1a1a2e;padding:28px 32px;">
+          <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;">${companyName || 'MAGE ID'}</h1>
+        </td></tr>
+        <tr><td style="padding:32px;">
+          <p style="margin:0 0 8px;color:#6b7280;font-size:13px;text-transform:uppercase;letter-spacing:0.5px;">Daily Field Report</p>
+          <h2 style="margin:0 0 4px;color:#111827;font-size:20px;">${projectName}</h2>
+          <p style="margin:0 0 24px;color:#6b7280;font-size:14px;">${new Date(date).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</p>
+          ${recipientName ? `<p style="margin:0 0 16px;color:#374151;">Hi ${recipientName},</p>` : ''}
+          ${message ? `<p style="margin:0 0 20px;color:#374151;line-height:1.5;">${message}</p>` : ''}
+          <table width="100%" cellpadding="0" cellspacing="0" style="background:#f9fafb;border-radius:8px;margin:20px 0;">
+            <tr><td style="padding:20px;">
+              <table width="100%">
+                <tr>
+                  <td style="color:#6b7280;font-size:13px;padding:4px 0;">Weather</td>
+                  <td align="right" style="color:#111827;font-size:14px;padding:4px 0;">${weather.condition} (${weather.tempHigh}°/${weather.tempLow}°F)</td>
+                </tr>
+                <tr>
+                  <td style="color:#6b7280;font-size:13px;padding:4px 0;">Manpower</td>
+                  <td align="right" style="color:#111827;font-size:14px;padding:4px 0;">${totalManpower} workers</td>
+                </tr>
+                <tr>
+                  <td style="color:#6b7280;font-size:13px;padding:4px 0;">Man-Hours</td>
+                  <td align="right" style="color:#111827;font-size:14px;padding:4px 0;">${totalManHours} hrs</td>
+                </tr>
+              </table>
+            </td></tr>
+          </table>
+          ${workPerformed ? `
+          <p style="margin:16px 0 8px;color:#374151;font-size:14px;font-weight:600;">Work Performed</p>
+          <p style="margin:0 0 16px;color:#6b7280;font-size:14px;line-height:1.5;white-space:pre-wrap;">${workPerformed}</p>
+          ` : ''}
+          ${issuesAndDelays ? `
+          <p style="margin:16px 0 8px;color:#dc2626;font-size:14px;font-weight:600;">Issues & Delays</p>
+          <p style="margin:0 0 16px;color:#6b7280;font-size:14px;line-height:1.5;white-space:pre-wrap;">${issuesAndDelays}</p>
+          ` : ''}
+          <p style="margin:20px 0 0;color:#9ca3af;font-size:12px;line-height:1.5;">
+            This report was generated using MAGE ID.
+            ${contactName ? `<br/>Contact: ${contactName}` : ''}
+            ${contactEmail ? ` | ${contactEmail}` : ''}
+          </p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
+
+export function buildEstimateEmailHtml(opts: {
+  companyName: string;
+  recipientName: string;
+  projectName: string;
+  grandTotal: number;
+  itemCount: number;
+  message?: string;
+  contactName?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+}): string {
+  const {
+    companyName, recipientName, projectName, grandTotal,
+    itemCount, message, contactName, contactEmail, contactPhone,
+  } = opts;
+
+  return `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background:#f4f5f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f5f7;padding:32px 16px;">
+    <tr><td align="center">
+      <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+        <tr><td style="background:#1a1a2e;padding:28px 32px;">
+          <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;">${companyName || 'MAGE ID'}</h1>
+        </td></tr>
+        <tr><td style="padding:32px;">
+          <p style="margin:0 0 8px;color:#6b7280;font-size:13px;text-transform:uppercase;letter-spacing:0.5px;">Estimate</p>
+          <h2 style="margin:0 0 24px;color:#111827;font-size:20px;">${projectName}</h2>
+          ${recipientName ? `<p style="margin:0 0 16px;color:#374151;">Hi ${recipientName},</p>` : ''}
+          <p style="margin:0 0 16px;color:#374151;line-height:1.5;">Please find the estimate details below.</p>
+          ${message ? `<p style="margin:0 0 20px;color:#374151;line-height:1.5;">${message}</p>` : ''}
+          <table width="100%" cellpadding="0" cellspacing="0" style="background:#f9fafb;border-radius:8px;margin:20px 0;">
+            <tr><td style="padding:20px;">
+              <table width="100%">
+                <tr>
+                  <td style="color:#6b7280;font-size:13px;padding:4px 0;">Line Items</td>
+                  <td align="right" style="color:#111827;font-size:14px;padding:4px 0;">${itemCount} items</td>
+                </tr>
+                <tr>
+                  <td style="color:#6b7280;font-size:13px;padding:4px 0;">Estimated Total</td>
+                  <td align="right" style="color:#111827;font-size:18px;font-weight:700;padding:4px 0;">$${grandTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                </tr>
+              </table>
+            </td></tr>
+          </table>
+          <p style="margin:20px 0 0;color:#9ca3af;font-size:12px;line-height:1.5;">
+            This estimate was generated using MAGE ID.
+            ${contactName ? `<br/>Contact: ${contactName}` : ''}
+            ${contactEmail ? ` | ${contactEmail}` : ''}
+            ${contactPhone ? ` | ${contactPhone}` : ''}
+          </p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
+
+export function buildGenericDocumentEmailHtml(opts: {
+  companyName: string;
+  recipientName: string;
+  projectName: string;
+  documentType: string;
+  fileName: string;
+  message?: string;
+  contactName?: string;
+  contactEmail?: string;
+}): string {
+  const {
+    companyName, recipientName, projectName, documentType,
+    fileName, message, contactName, contactEmail,
+  } = opts;
+
+  return `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background:#f4f5f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f5f7;padding:32px 16px;">
+    <tr><td align="center">
+      <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+        <tr><td style="background:#1a1a2e;padding:28px 32px;">
+          <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;">${companyName || 'MAGE ID'}</h1>
+        </td></tr>
+        <tr><td style="padding:32px;">
+          <p style="margin:0 0 8px;color:#6b7280;font-size:13px;text-transform:uppercase;letter-spacing:0.5px;">${documentType}</p>
+          <h2 style="margin:0 0 24px;color:#111827;font-size:20px;">${projectName}</h2>
+          ${recipientName ? `<p style="margin:0 0 16px;color:#374151;">Hi ${recipientName},</p>` : ''}
+          <p style="margin:0 0 16px;color:#374151;line-height:1.5;">Please find the attached document: <strong>${fileName}</strong></p>
+          ${message ? `<p style="margin:0 0 20px;color:#374151;line-height:1.5;">${message}</p>` : ''}
+          <p style="margin:20px 0 0;color:#9ca3af;font-size:12px;line-height:1.5;">
+            This document was sent using MAGE ID.
+            ${contactName ? `<br/>Contact: ${contactName}` : ''}
+            ${contactEmail ? ` | ${contactEmail}` : ''}
+          </p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
+
+--- FILE: utils/notifications.ts ---
+import { Platform } from 'react-native';
+import * as Notifications from 'expo-notifications';
+import Constants from 'expo-constants';
+
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
+  }),
+});
+
+export async function registerForPushNotifications(): Promise<string | null> {
+  if (Platform.OS === 'web') {
+    console.log('[Notifications] Web platform — skipping push registration');
+    return null;
+  }
+
+  try {
+    const { status: existingStatus } = await Notifications.getPermissionsAsync();
+    let finalStatus = existingStatus;
+
+    if (existingStatus !== 'granted') {
+      const { status } = await Notifications.requestPermissionsAsync();
+      finalStatus = status;
+    }
+
+    if (finalStatus !== 'granted') {
+      console.log('[Notifications] Permission not granted');
+      return null;
+    }
+
+    const projectId = Constants.expoConfig?.extra?.eas?.projectId ??
+      process.env.EXPO_PUBLIC_PROJECT_ID;
+
+    if (!projectId) {
+      console.log('[Notifications] No project ID found for push token');
+      return null;
+    }
+
+    const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
+    console.log('[Notifications] Push token:', tokenData.data);
+
+    if (Platform.OS === 'android') {
+      await Notifications.setNotificationChannelAsync('default', {
+        name: 'Default',
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: '#1A6B3C',
+      });
+    }
+
+    return tokenData.data;
+  } catch (err) {
+    console.log('[Notifications] Registration error:', err);
+    return null;
+  }
+}
+
+export async function sendLocalNotification(
+  title: string,
+  body: string,
+  data?: Record<string, unknown>,
+) {
+  try {
+    await Notifications.scheduleNotificationAsync({
+      content: { title, body, data, sound: 'default' },
+      trigger: null,
+    });
+    console.log('[Notifications] Local notification sent:', title);
+  } catch (err) {
+    console.log('[Notifications] Failed to send local notification:', err);
+  }
+}
+
+export function addNotificationReceivedListener(
+  callback: (notification: Notifications.Notification) => void,
+) {
+  return Notifications.addNotificationReceivedListener(callback);
+}
+
+export function addNotificationResponseListener(
+  callback: (response: Notifications.NotificationResponse) => void,
+) {
+  return Notifications.addNotificationResponseReceivedListener(callback);
+}
+
+--- FILE: utils/offlineQueue.ts ---
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+
+const OFFLINE_QUEUE_KEY = 'mageid_offline_queue';
+const MAX_RETRIES = 5;
+
+export interface OfflineMutation {
+  id: string;
+  table: string;
+  operation: 'insert' | 'update' | 'delete';
+  data: Record<string, unknown>;
+  timestamp: number;
+  retryCount: number;
+}
+
+export async function getOfflineQueue(): Promise<OfflineMutation[]> {
+  try {
+    const stored = await AsyncStorage.getItem(OFFLINE_QUEUE_KEY);
+    return stored ? JSON.parse(stored) as OfflineMutation[] : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function addToOfflineQueue(mutation: Omit<OfflineMutation, 'id' | 'timestamp' | 'retryCount'>): Promise<void> {
+  try {
+    const queue = await getOfflineQueue();
+    const entry: OfflineMutation = {
+      ...mutation,
+      id: `oq-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      timestamp: Date.now(),
+      retryCount: 0,
+    };
+    queue.push(entry);
+    await AsyncStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(queue));
+    console.log('[OfflineQueue] Queued mutation:', mutation.table, mutation.operation);
+  } catch (err) {
+    console.log('[OfflineQueue] Failed to queue mutation:', err);
+  }
+}
+
+export async function processOfflineQueue(): Promise<{ processed: number; failed: number }> {
+  if (!isSupabaseConfigured) return { processed: 0, failed: 0 };
+
+  const queue = await getOfflineQueue();
+  if (queue.length === 0) return { processed: 0, failed: 0 };
+
+  console.log('[OfflineQueue] Processing', queue.length, 'queued mutations');
+
+  const sorted = [...queue].sort((a, b) => a.timestamp - b.timestamp);
+  const remaining: OfflineMutation[] = [];
+  let processed = 0;
+  let failed = 0;
+
+  for (const mutation of sorted) {
+    try {
+      let error: { message: string } | null = null;
+
+      if (mutation.operation === 'insert') {
+        const result = await supabase.from(mutation.table).upsert(mutation.data);
+        error = result.error;
+      } else if (mutation.operation === 'update') {
+        const { id, ...rest } = mutation.data;
+        const result = await supabase.from(mutation.table).update(rest).eq('id', id as string);
+        error = result.error;
+      } else if (mutation.operation === 'delete') {
+        const result = await supabase.from(mutation.table).delete().eq('id', mutation.data.id as string);
+        error = result.error;
+      }
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      processed++;
+      console.log('[OfflineQueue] Processed:', mutation.table, mutation.operation);
+    } catch (err) {
+      mutation.retryCount++;
+      if (mutation.retryCount >= MAX_RETRIES) {
+        console.warn('[OfflineQueue] Discarding mutation after max retries:', mutation.table, mutation.operation, err);
+        failed++;
+      } else {
+        remaining.push(mutation);
+        failed++;
+      }
+    }
+  }
+
+  await AsyncStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(remaining));
+  console.log('[OfflineQueue] Done. Processed:', processed, 'Remaining:', remaining.length);
+  return { processed, failed };
+}
+
+export async function supabaseWrite(
+  table: string,
+  operation: 'insert' | 'update' | 'delete',
+  data: Record<string, unknown>,
+): Promise<boolean> {
+  if (!isSupabaseConfigured) return false;
+
+  try {
+    let error: { message: string } | null = null;
+
+    if (operation === 'insert') {
+      const result = await supabase.from(table).upsert(data);
+      error = result.error;
+    } else if (operation === 'update') {
+      const { id, ...rest } = data;
+      const result = await supabase.from(table).update(rest).eq('id', id as string);
+      error = result.error;
+    } else if (operation === 'delete') {
+      const result = await supabase.from(table).delete().eq('id', data.id as string);
+      error = result.error;
+    }
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return true;
+  } catch (err) {
+    const isNetworkError = err instanceof TypeError ||
+      (err instanceof Error && (
+        err.message.includes('Network request failed') ||
+        err.message.includes('Failed to fetch') ||
+        err.message.includes('network')
+      ));
+
+    if (isNetworkError) {
+      console.log('[OfflineQueue] Network error, queuing mutation:', table, operation);
+      await addToOfflineQueue({ table, operation, data });
+    } else {
+      console.log('[OfflineQueue] Non-network Supabase error:', err);
+    }
+
+    return false;
+  }
+}
+
+--- FILE: utils/analytics.ts ---
+type EventProperties = Record<string, string | number | boolean | undefined>;
+
+interface AnalyticsProvider {
+  track: (eventName: string, properties?: EventProperties) => void;
+}
+
+const consoleProvider: AnalyticsProvider = {
+  track: (eventName: string, properties?: EventProperties) => {
+    console.log(`[Analytics] ${eventName}`, properties ?? '');
+  },
+};
+
+let provider: AnalyticsProvider = consoleProvider;
+
+export function setAnalyticsProvider(newProvider: AnalyticsProvider): void {
+  provider = newProvider;
+}
+
+export function track(eventName: string, properties?: EventProperties): void {
+  try {
+    provider.track(eventName, properties);
+  } catch (err) {
+    console.log('[Analytics] Failed to track event:', eventName, err);
+  }
+}
+
+export const AnalyticsEvents = {
+  USER_SIGNED_UP: 'user_signed_up',
+  USER_LOGGED_IN: 'user_logged_in',
+  USER_LOGGED_OUT: 'user_logged_out',
+  GUEST_LOGIN: 'guest_login',
+  GUEST_CONVERTED: 'guest_converted',
+  PROJECT_CREATED: 'project_created',
+  ESTIMATE_GENERATED: 'estimate_generated',
+  INVOICE_CREATED: 'invoice_created',
+  CHANGE_ORDER_CREATED: 'change_order_created',
+  BID_POSTED: 'bid_posted',
+  MESSAGE_SENT: 'message_sent',
+  SUBSCRIPTION_PURCHASED: 'subscription_purchased',
+  DAILY_REPORT_CREATED: 'daily_report_created',
+  PUNCH_ITEM_CREATED: 'punch_item_created',
+  RFI_CREATED: 'rfi_created',
+  SUBMITTAL_CREATED: 'submittal_created',
+  EQUIPMENT_ADDED: 'equipment_added',
+  CONTACT_ADDED: 'contact_added',
+  PDF_GENERATED: 'pdf_generated',
+  PHOTO_ADDED: 'photo_added',
+} as const;
+
+--- FILE: utils/location.ts ---
+import { useState, useEffect, useCallback } from 'react';
+import { Platform } from 'react-native';
+
+export interface UserLocation {
+  latitude: number;
+  longitude: number;
+}
+
+export function getDistanceMiles(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 3959;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Math.round(R * c);
+}
+
+export function useUserLocation() {
+  const [location, setLocation] = useState<UserLocation | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const requestLocation = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      if (Platform.OS === 'web') {
+        if ('geolocation' in navigator) {
+          const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(resolve, reject, {
+              enableHighAccuracy: false,
+              timeout: 10000,
+            });
+          });
+          setLocation({
+            latitude: pos.coords.latitude,
+            longitude: pos.coords.longitude,
+          });
+          console.log('[Location] Web location obtained:', pos.coords.latitude, pos.coords.longitude);
+        } else {
+          setError('Geolocation not supported on this browser');
+          console.log('[Location] Geolocation not supported on web');
+        }
+      } else {
+        const Location = await import('expo-location');
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') {
+          setError('Location permission denied');
+          console.log('[Location] Permission denied');
+          setLoading(false);
+          return;
+        }
+        const loc = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+        setLocation({
+          latitude: loc.coords.latitude,
+          longitude: loc.coords.longitude,
+        });
+        console.log('[Location] Native location obtained:', loc.coords.latitude, loc.coords.longitude);
+      }
+    } catch (err: any) {
+      console.log('[Location] Error getting location:', err?.message);
+      setError(err?.message ?? 'Failed to get location');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void requestLocation();
+  }, [requestLocation]);
+
+  return { location, loading, error, refresh: requestLocation };
+}
+
+--- FILE: utils/weatherService.ts ---
+export interface DayForecast {
+  date: string;
+  condition: 'clear' | 'cloudy' | 'rain' | 'storm' | 'snow' | 'wind';
+  tempHigh: number;
+  tempLow: number;
+  precipChance: number;
+  windSpeed: number;
+  isWorkable: boolean;
+  icon: string;
+}
+
+const CONDITION_ICONS: Record<DayForecast['condition'], string> = {
+  clear: '☀️',
+  cloudy: '☁️',
+  rain: '🌧️',
+  storm: '⛈️',
+  snow: '🌨️',
+  wind: '💨',
+};
+
+export function getConditionIcon(condition: DayForecast['condition']): string {
+  return CONDITION_ICONS[condition] ?? '☀️';
+}
+
+export function getSimulatedForecast(startDate: Date, days: number, _region?: string): DayForecast[] {
+  const forecasts: DayForecast[] = [];
+  for (let i = 0; i < days; i++) {
+    const date = new Date(startDate);
+    date.setDate(date.getDate() + i);
+    const month = date.getMonth();
+    const dayOfYear = Math.floor((date.getTime() - new Date(date.getFullYear(), 0, 0).getTime()) / (1000 * 60 * 60 * 24));
+
+    const seed = (dayOfYear * 13 + date.getFullYear() * 7) % 100;
+    const isWinter = month >= 11 || month <= 2;
+    const isSummer = month >= 5 && month <= 8;
+    const isSpring = month >= 3 && month <= 4;
+
+    let condition: DayForecast['condition'] = 'clear';
+    let precipChance = 10;
+    let tempHigh = 75;
+    let tempLow = 55;
+    let windSpeed = 8;
+
+    if (isWinter) {
+      tempHigh = 38 + (seed % 20);
+      tempLow = tempHigh - 15;
+      precipChance = 25 + (seed % 30);
+      condition = seed < 20 ? 'snow' : seed < 45 ? 'cloudy' : seed < 60 ? 'rain' : 'clear';
+    } else if (isSummer) {
+      tempHigh = 78 + (seed % 20);
+      tempLow = tempHigh - 18;
+      precipChance = 15 + (seed % 25);
+      condition = seed < 10 ? 'storm' : seed < 25 ? 'rain' : seed < 40 ? 'cloudy' : 'clear';
+    } else if (isSpring) {
+      tempHigh = 55 + (seed % 25);
+      tempLow = tempHigh - 15;
+      precipChance = 30 + (seed % 25);
+      condition = seed < 15 ? 'storm' : seed < 35 ? 'rain' : seed < 50 ? 'cloudy' : 'clear';
+    } else {
+      tempHigh = 55 + (seed % 25);
+      tempLow = tempHigh - 15;
+      precipChance = 20 + (seed % 20);
+      condition = seed < 10 ? 'rain' : seed < 30 ? 'cloudy' : 'clear';
+    }
+
+    windSpeed = 5 + (seed % 20);
+    const isWorkable = condition !== 'storm' && condition !== 'snow' && precipChance < 70 && windSpeed < 30;
+
+    forecasts.push({
+      date: date.toISOString().split('T')[0],
+      condition,
+      tempHigh: Math.round(tempHigh),
+      tempLow: Math.round(tempLow),
+      precipChance,
+      windSpeed: Math.round(windSpeed),
+      isWorkable,
+      icon: getConditionIcon(condition),
+    });
+  }
+  return forecasts;
+}
+
+export function getWeatherRiskForDate(date: string, forecasts: DayForecast[]): DayForecast | null {
+  return forecasts.find(f => f.date === date) ?? null;
+}
+
+--- FILE: utils/voiceCommandParser.ts ---
+import { mageAI } from '@/utils/mageAI';
+import { z } from 'zod';
+import type { ScheduleTask } from '@/types';
+
+const voiceCommandSchema = z.object({
+  action: z.enum([
+    'update_progress',
+    'mark_complete',
+    'add_note',
+    'log_issue',
+    'ask_question',
+    'create_task',
+    'reschedule_task',
+    'assign_crew',
+    'start_task',
+    'weather_check',
+    'status_update',
+    'daily_report',
+    'unknown',
+  ]),
+  taskName: z.string().optional(),
+  value: z.number().optional(),
+  text: z.string().optional(),
+  crewName: z.string().optional(),
+  date: z.string().optional(),
+  confidence: z.number(),
+  clarification: z.string().optional(),
+});
+
+const batchCommandSchema = z.object({
+  commands: z.array(z.object({
+    action: z.enum(['update_progress', 'mark_complete', 'add_note', 'log_issue', 'start_task']),
+    taskName: z.string(),
+    value: z.number().optional(),
+    text: z.string().optional(),
+  })),
+  confidence: z.number(),
+});
+
+const dailyReportVoiceSchema = z.object({
+  workCompleted: z.array(z.string()),
+  workInProgress: z.array(z.string()),
+  issues: z.array(z.string()),
+  weather: z.string(),
+  safetyIncidents: z.string(),
+  crewCount: z.number().optional(),
+  visitors: z.string().optional(),
+  materialsReceived: z.array(z.string()).optional(),
+  tomorrowPlan: z.array(z.string()).optional(),
+});
+
+export type VoiceAction = z.infer<typeof voiceCommandSchema>['action'];
+
+export interface ParsedVoiceCommand {
+  action: VoiceAction;
+  taskName?: string;
+  value?: number;
+  text?: string;
+  crewName?: string;
+  date?: string;
+  confidence: number;
+  clarification?: string;
+}
+
+export interface ParsedBatchCommand {
+  commands: Array<{
+    action: 'update_progress' | 'mark_complete' | 'add_note' | 'log_issue' | 'start_task';
+    taskName: string;
+    value?: number;
+    text?: string;
+  }>;
+  confidence: number;
+}
+
+export interface ParsedDailyReport {
+  workCompleted: string[];
+  workInProgress: string[];
+  issues: string[];
+  weather: string;
+  safetyIncidents: string;
+  crewCount?: number;
+  visitors?: string;
+  materialsReceived?: string[];
+  tomorrowPlan?: string[];
+}
+
+function buildTaskContext(tasks: Array<{ title: string; phase: string; progress: number; status: string; crew: string }>): string {
+  return tasks.map(t => `- "${t.title}" (${t.phase}) — ${t.progress}% complete, status: ${t.status}, crew: ${t.crew}`).join('\n');
+}
+
+function isBatchCommand(text: string): boolean {
+  const lowerText = text.toLowerCase();
+  const multiActionIndicators = [' and ', ' also ', ', then ', ', set ', ', mark ', ', update '];
+  const actionWords = ['update', 'mark', 'set', 'complete', 'finish', 'start'];
+  let actionCount = 0;
+  for (const word of actionWords) {
+    const matches = lowerText.split(word).length - 1;
+    actionCount += matches;
+  }
+  if (actionCount >= 2) return true;
+  return multiActionIndicators.some(ind => lowerText.includes(ind)) && actionCount >= 1;
+}
+
+function isDailyReport(text: string): boolean {
+  const lower = text.toLowerCase();
+  return lower.includes('end of day report') ||
+    lower.includes('daily report') ||
+    lower.includes('day report') ||
+    lower.includes('eod report') ||
+    lower.includes('field report');
+}
+
+export async function parseVoiceCommand(
+  spokenText: string,
+  currentTasks: Array<{ title: string; phase: string; progress: number; status: string; crew: string }>,
+  projectName: string
+): Promise<ParsedVoiceCommand> {
+  console.log('[VoiceCmd] Parsing command:', spokenText.substring(0, 80));
+
+  try {
+    const aiResult = await mageAI({
+      prompt: `You are a voice command parser for a construction project management app. Parse the user's spoken command and determine what action they want to take.
+
+CURRENT PROJECT: ${projectName}
+
+AVAILABLE TASKS:
+${buildTaskContext(currentTasks)}
+
+USER SAID: "${spokenText}"
+
+Parse this into an action. Match task names FUZZY — the user might say "framing" to mean "Frame 2nd Floor" or "electrical" to mean "Rough Electrical Wiring". Pick the closest match from the available tasks.
+
+For progress updates, extract the percentage. "80 percent" = 80, "halfway" = 50, "almost done" = 90, "done" or "finished" or "complete" = 100.
+
+For notes and issues, extract the text content after identifying the action.
+
+If the command is ambiguous or you can't match a task, set action to 'unknown' and provide a clarification question.
+
+Set confidence 0-100. Below 60 means you should include a clarification.`,
+      schema: voiceCommandSchema,
+      tier: 'fast',
+    });
+
+    if (!aiResult.success) {
+      console.log('[VoiceCmd] AI failed:', aiResult.error);
+      return {
+        action: 'unknown',
+        confidence: 0,
+        clarification: 'Voice processing unavailable. Try typing your update instead.',
+      };
+    }
+
+    const result = aiResult.data;
+    console.log('[VoiceCmd] Parsed result:', result.action, 'confidence:', result.confidence);
+    return result;
+  } catch (err) {
+    console.log('[VoiceCmd] Parse failed:', err);
+    return {
+      action: 'unknown',
+      confidence: 0,
+      clarification: 'Voice processing unavailable. Try typing your update instead.',
+    };
+  }
+}
+
+export async function parseBatchVoiceCommand(
+  spokenText: string,
+  currentTasks: Array<{ title: string; phase: string; progress: number; status: string; crew: string }>,
+  projectName: string
+): Promise<ParsedBatchCommand> {
+  console.log('[VoiceCmd] Parsing batch command:', spokenText.substring(0, 80));
+
+  try {
+    const aiResult = await mageAI({
+      prompt: `You are a voice command parser for a construction project management app. The user is giving MULTIPLE commands at once. Parse each one separately.
+
+CURRENT PROJECT: ${projectName}
+
+AVAILABLE TASKS:
+${buildTaskContext(currentTasks)}
+
+USER SAID: "${spokenText}"
+
+Parse each command separately. Match task names FUZZY. For progress, "80 percent" = 80, "halfway" = 50, "almost done" = 90, "done"/"finished"/"complete" = 100.
+
+Return all commands found. Set confidence 0-100 for the overall batch.`,
+      schema: batchCommandSchema,
+      tier: 'fast',
+    });
+
+    if (!aiResult.success) {
+      console.log('[VoiceCmd] Batch AI failed:', aiResult.error);
+      return { commands: [], confidence: 0 };
+    }
+
+    const result = aiResult.data;
+    console.log('[VoiceCmd] Batch parsed:', result.commands.length, 'commands');
+    return result;
+  } catch (err) {
+    console.log('[VoiceCmd] Batch parse failed:', err);
+    return { commands: [], confidence: 0 };
+  }
+}
+
+export async function parseDailyReportVoice(
+  spokenText: string,
+  projectName: string
+): Promise<ParsedDailyReport> {
+  console.log('[VoiceCmd] Parsing daily report voice input');
+
+  try {
+    const aiResult = await mageAI({
+      prompt: `You are a construction superintendent writing a daily field report. Parse this spoken end-of-day summary into structured report fields.
+
+PROJECT: ${projectName}
+
+SPOKEN INPUT: "${spokenText}"
+
+Extract: work completed today, work still in progress, issues/delays, weather conditions, safety incidents (or "None" if not mentioned), crew count if mentioned, visitors if mentioned, materials received if mentioned, and tomorrow's plan if mentioned.
+
+Be thorough but only extract what was actually said. If something wasn't mentioned, leave it empty or use reasonable defaults.`,
+      schema: dailyReportVoiceSchema,
+      tier: 'fast',
+    });
+
+    if (!aiResult.success) {
+      console.log('[VoiceCmd] Daily report AI failed:', aiResult.error);
+      return {
+        workCompleted: [],
+        workInProgress: [],
+        issues: [],
+        weather: 'Not mentioned',
+        safetyIncidents: 'None reported',
+      };
+    }
+
+    const result = aiResult.data;
+    console.log('[VoiceCmd] Daily report parsed successfully');
+    return result;
+  } catch (err) {
+    console.log('[VoiceCmd] Daily report parse failed:', err);
+    return {
+      workCompleted: [],
+      workInProgress: [],
+      issues: [],
+      weather: 'Not mentioned',
+      safetyIncidents: 'None reported',
+    };
+  }
+}
+
+export { isBatchCommand, isDailyReport };
+
+--- FILE: utils/voiceCommandExecutor.ts ---
+import type { ScheduleTask } from '@/types';
+import type { ParsedVoiceCommand, ParsedBatchCommand } from './voiceCommandParser';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const VOICE_HISTORY_KEY = 'mage_voice_history';
+const VOICE_ISSUES_KEY = 'mage_voice_issues';
+
+export interface VoiceHistoryItem {
+  id: string;
+  spokenText: string;
+  parsedAction: string;
+  taskName?: string;
+  success: boolean;
+  timestamp: string;
+  projectId: string;
+}
+
+export interface VoiceCommandResult {
+  success: boolean;
+  message: string;
+  undoAction?: () => void;
+  matchedTasks?: ScheduleTask[];
+  needsClarification?: boolean;
+  dailyReportData?: any;
+}
+
+export interface VoiceUpdateFunctions {
+  handleProgressUpdate: (task: ScheduleTask, progress: number) => void;
+  handleSaveTask?: (draft: any, editing: ScheduleTask | null) => void;
+  onAddNote?: (task: ScheduleTask, note: string) => void;
+}
+
+export function findTaskByName(name: string | undefined, tasks: ScheduleTask[]): ScheduleTask | null {
+  if (!name) return null;
+  const lower = name.toLowerCase().trim();
+  if (!lower) return null;
+
+  let match = tasks.find(t => t.title.toLowerCase() === lower);
+  if (match) return match;
+
+  match = tasks.find(t => t.title.toLowerCase().includes(lower));
+  if (match) return match;
+
+  match = tasks.find(t => lower.includes(t.title.toLowerCase()));
+  if (match) return match;
+
+  match = tasks.find(t => t.phase.toLowerCase().includes(lower));
+  if (match) return match;
+
+  const words = lower.split(/\s+/);
+  match = tasks.find(t => {
+    const titleLower = t.title.toLowerCase();
+    return words.filter(w => w.length > 3).some(w => titleLower.includes(w));
+  });
+  return match || null;
+}
+
+export function findAllMatchingTasks(name: string | undefined, tasks: ScheduleTask[]): ScheduleTask[] {
+  if (!name) return [];
+  const lower = name.toLowerCase().trim();
+  if (!lower) return [];
+
+  const exact = tasks.filter(t => t.title.toLowerCase() === lower);
+  if (exact.length === 1) return exact;
+
+  const contains = tasks.filter(t =>
+    t.title.toLowerCase().includes(lower) || lower.includes(t.title.toLowerCase())
+  );
+  if (contains.length > 0) return contains;
+
+  const phaseMatch = tasks.filter(t => t.phase.toLowerCase().includes(lower));
+  if (phaseMatch.length > 0) return phaseMatch;
+
+  const words = lower.split(/\s+/).filter(w => w.length > 3);
+  return tasks.filter(t => {
+    const titleLower = t.title.toLowerCase();
+    return words.some(w => titleLower.includes(w));
+  });
+}
+
+export function executeVoiceCommand(
+  parsed: ParsedVoiceCommand,
+  tasks: ScheduleTask[],
+  updateFunctions: VoiceUpdateFunctions,
+): VoiceCommandResult {
+  console.log('[VoiceExec] Executing:', parsed.action, 'task:', parsed.taskName);
+
+  switch (parsed.action) {
+    case 'update_progress': {
+      const matches = findAllMatchingTasks(parsed.taskName, tasks);
+      if (matches.length === 0) {
+        return { success: false, message: `Couldn't find task "${parsed.taskName}"` };
+      }
+      if (matches.length > 1) {
+        return {
+          success: false,
+          message: `Found ${matches.length} matching tasks`,
+          matchedTasks: matches,
+          needsClarification: true,
+        };
+      }
+      const task = matches[0];
+      const prevProgress = task.progress;
+      const newProgress = Math.max(0, Math.min(100, parsed.value ?? 0));
+      updateFunctions.handleProgressUpdate(task, newProgress);
+      return {
+        success: true,
+        message: `Updated "${task.title}" to ${newProgress}%`,
+        undoAction: () => updateFunctions.handleProgressUpdate(task, prevProgress),
+      };
+    }
+
+    case 'mark_complete': {
+      const matches = findAllMatchingTasks(parsed.taskName, tasks);
+      if (matches.length === 0) {
+        return { success: false, message: `Couldn't find task "${parsed.taskName}"` };
+      }
+      if (matches.length > 1) {
+        return {
+          success: false,
+          message: `Found ${matches.length} matching tasks`,
+          matchedTasks: matches,
+          needsClarification: true,
+        };
+      }
+      const task = matches[0];
+      const prevProgress = task.progress;
+      updateFunctions.handleProgressUpdate(task, 100);
+      return {
+        success: true,
+        message: `Marked "${task.title}" as complete ✅`,
+        undoAction: () => updateFunctions.handleProgressUpdate(task, prevProgress),
+      };
+    }
+
+    case 'start_task': {
+      const matches = findAllMatchingTasks(parsed.taskName, tasks);
+      if (matches.length === 0) {
+        return { success: false, message: `Couldn't find task "${parsed.taskName}"` };
+      }
+      if (matches.length > 1) {
+        return {
+          success: false,
+          message: `Found ${matches.length} matching tasks`,
+          matchedTasks: matches,
+          needsClarification: true,
+        };
+      }
+      const task = matches[0];
+      if (task.progress === 0) {
+        updateFunctions.handleProgressUpdate(task, 5);
+      }
+      return {
+        success: true,
+        message: `Started "${task.title}"`,
+        undoAction: () => updateFunctions.handleProgressUpdate(task, 0),
+      };
+    }
+
+    case 'add_note': {
+      const matches = findAllMatchingTasks(parsed.taskName, tasks);
+      if (matches.length === 0) {
+        return { success: false, message: `Couldn't find task "${parsed.taskName}"` };
+      }
+      if (matches.length > 1) {
+        return {
+          success: false,
+          message: `Found ${matches.length} matching tasks`,
+          matchedTasks: matches,
+          needsClarification: true,
+        };
+      }
+      const task = matches[0];
+      if (updateFunctions.onAddNote) {
+        updateFunctions.onAddNote(task, parsed.text ?? '');
+      }
+      return {
+        success: true,
+        message: `Note added to "${task.title}"`,
+      };
+    }
+
+    case 'log_issue': {
+      return {
+        success: true,
+        message: `Issue logged: "${parsed.text ?? 'No details'}"`,
+      };
+    }
+
+    case 'ask_question':
+    case 'status_update':
+    case 'weather_check': {
+      return {
+        success: true,
+        message: parsed.text || 'Processing your question...',
+      };
+    }
+
+    case 'daily_report': {
+      return {
+        success: true,
+        message: 'Generating daily report from your update...',
+      };
+    }
+
+    case 'unknown':
+    default:
+      return {
+        success: false,
+        message: parsed.clarification || "I didn't understand that. Try again?",
+      };
+  }
+}
+
+export function executeBatchCommands(
+  parsed: ParsedBatchCommand,
+  tasks: ScheduleTask[],
+  updateFunctions: VoiceUpdateFunctions,
+): { results: VoiceCommandResult[]; allSuccess: boolean } {
+  console.log('[VoiceExec] Executing batch:', parsed.commands.length, 'commands');
+  const results: VoiceCommandResult[] = [];
+  const undoActions: (() => void)[] = [];
+
+  for (const cmd of parsed.commands) {
+    const singleParsed: ParsedVoiceCommand = {
+      action: cmd.action,
+      taskName: cmd.taskName,
+      value: cmd.value,
+      text: cmd.text,
+      confidence: parsed.confidence,
+    };
+    const result = executeVoiceCommand(singleParsed, tasks, updateFunctions);
+    results.push(result);
+    if (result.undoAction) undoActions.push(result.undoAction);
+  }
+
+  const allSuccess = results.every(r => r.success);
+
+  if (undoActions.length > 0) {
+    results[0].undoAction = () => {
+      undoActions.forEach(fn => fn());
+    };
+  }
+
+  return { results, allSuccess };
+}
+
+export async function saveVoiceHistory(item: VoiceHistoryItem): Promise<void> {
+  try {
+    const stored = await AsyncStorage.getItem(VOICE_HISTORY_KEY);
+    const history: VoiceHistoryItem[] = stored ? JSON.parse(stored) : [];
+    history.unshift(item);
+    const trimmed = history.slice(0, 10);
+    await AsyncStorage.setItem(VOICE_HISTORY_KEY, JSON.stringify(trimmed));
+    console.log('[VoiceExec] History saved, total:', trimmed.length);
+  } catch (err) {
+    console.log('[VoiceExec] Failed to save history:', err);
+  }
+}
+
+export async function getVoiceHistory(): Promise<VoiceHistoryItem[]> {
+  try {
+    const stored = await AsyncStorage.getItem(VOICE_HISTORY_KEY);
+    return stored ? JSON.parse(stored) : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function saveVoiceIssue(projectId: string, issue: string): Promise<void> {
+  try {
+    const key = `${VOICE_ISSUES_KEY}_${projectId}`;
+    const stored = await AsyncStorage.getItem(key);
+    const issues: Array<{ text: string; timestamp: string }> = stored ? JSON.parse(stored) : [];
+    issues.unshift({ text: issue, timestamp: new Date().toISOString() });
+    await AsyncStorage.setItem(key, JSON.stringify(issues.slice(0, 50)));
+  } catch (err) {
+    console.log('[VoiceExec] Failed to save issue:', err);
+  }
+}
+
+--- FILE: utils/voiceDFRParser.ts ---
+import { mageAI } from '@/utils/mageAI';
+import { z } from 'zod';
+import type { DailyFieldReport } from '@/types';
+
+const DFRSchema = z.object({
+  weather: z.object({
+    temperature: z.string().optional(),
+    conditions: z.string().optional(),
+    wind: z.string().optional(),
+  }).optional(),
+  manpower: z.array(z.object({
+    trade: z.string(),
+    company: z.string().optional(),
+    headcount: z.number().optional(),
+    hoursWorked: z.number().optional(),
+  })).optional(),
+  workPerformed: z.string().optional(),
+  materialsDelivered: z.array(z.string()).optional(),
+  issuesAndDelays: z.string().optional(),
+});
+
+export async function parseDFRFromTranscript(
+  transcript: string,
+  _projectId: string,
+): Promise<Partial<DailyFieldReport>> {
+  console.log('[VoiceDFR] Parsing transcript into DFR fields');
+
+  try {
+    const aiResult = await mageAI({
+      prompt: `You are a construction daily field report parser. Extract structured data from this voice transcript of a field worker describing their day on a construction site. Extract: weather conditions, manpower headcount by trade, work performed description, materials delivered, and any issues or delays mentioned. Be thorough but only extract what was actually said.\n\nTranscript:\n${transcript}`,
+      schema: DFRSchema,
+      tier: 'fast',
+    });
+
+    if (!aiResult.success) {
+      console.log('[VoiceDFR] AI failed:', aiResult.error);
+      throw new Error(aiResult.error || 'AI unavailable');
+    }
+
+    const result = aiResult.data;
+    console.log('[VoiceDFR] Parsed DFR fields successfully');
+
+    const partial: Partial<DailyFieldReport> = {};
+
+    if (result.weather) {
+      partial.weather = {
+        temperature: result.weather.temperature ?? '',
+        conditions: result.weather.conditions ?? '',
+        wind: result.weather.wind ?? '',
+        isManual: false,
+      };
+    }
+
+    if (result.manpower && result.manpower.length > 0) {
+      partial.manpower = result.manpower.map((m: any, i: number) => ({
+        id: `mp-voice-${Date.now()}-${i}`,
+        trade: m.trade ?? '',
+        company: m.company ?? '',
+        headcount: m.headcount ?? 1,
+        hoursWorked: m.hoursWorked ?? 8,
+      }));
+    }
+
+    if (result.workPerformed) {
+      partial.workPerformed = result.workPerformed;
+    }
+
+    if (result.materialsDelivered && result.materialsDelivered.length > 0) {
+      partial.materialsDelivered = result.materialsDelivered;
+    }
+
+    if (result.issuesAndDelays) {
+      partial.issuesAndDelays = result.issuesAndDelays;
+    }
+
+    return partial;
+  } catch (err) {
+    console.log('[VoiceDFR] Parse failed:', err);
+    throw err;
+  }
+}
+
+--- FILE: utils/useResponsiveLayout.ts ---
+import { useState, useEffect, useMemo } from 'react';
+import { Dimensions, Platform } from 'react-native';
+
+export type ScreenSize = 'phone' | 'tablet' | 'desktop';
+
+export interface ResponsiveLayout {
+  screenSize: ScreenSize;
+  isPhone: boolean;
+  isTablet: boolean;
+  isDesktop: boolean;
+  width: number;
+  height: number;
+  contentMaxWidth: number;
+  sidebarWidth: number;
+  showSidebar: boolean;
+  ganttRowHeight: number;
+  cardColumns: number;
+  fontSize: {
+    title: number;
+    heading: number;
+    body: number;
+    caption: number;
+  };
+  spacing: {
+    page: number;
+    section: number;
+    card: number;
+  };
+}
+
+export function useResponsiveLayout(): ResponsiveLayout {
+  const [dimensions, setDimensions] = useState(Dimensions.get('window'));
+
+  useEffect(() => {
+    const handler = ({ window }: { window: { width: number; height: number } }) => {
+      setDimensions(window);
+    };
+    const subscription = Dimensions.addEventListener('change', handler);
+    return () => subscription.remove();
+  }, []);
+
+  const { width, height } = dimensions;
+  const isWeb = Platform.OS === 'web';
+
+  return useMemo(() => {
+    let screenSize: ScreenSize = 'phone';
+    if (width >= 1024 || (isWeb && width >= 900)) {
+      screenSize = 'desktop';
+    } else if (width >= 768) {
+      screenSize = 'tablet';
+    }
+
+    const isPhone = screenSize === 'phone';
+    const isTablet = screenSize === 'tablet';
+    const isDesktop = screenSize === 'desktop';
+
+    return {
+      screenSize,
+      isPhone,
+      isTablet,
+      isDesktop,
+      width,
+      height,
+      contentMaxWidth: isDesktop ? 1400 : isTablet ? 900 : width,
+      sidebarWidth: isDesktop ? 240 : 0,
+      showSidebar: isDesktop,
+      ganttRowHeight: isDesktop ? 40 : isTablet ? 36 : 32,
+      cardColumns: isDesktop ? 3 : isTablet ? 2 : 1,
+      fontSize: {
+        title: isDesktop ? 32 : isTablet ? 28 : 24,
+        heading: isDesktop ? 20 : isTablet ? 18 : 16,
+        body: isDesktop ? 15 : 14,
+        caption: isDesktop ? 13 : 12,
+      },
+      spacing: {
+        page: isDesktop ? 32 : isTablet ? 24 : 16,
+        section: isDesktop ? 24 : isTablet ? 20 : 16,
+        card: isDesktop ? 16 : 12,
+      },
+    };
+  }, [width, height, isWeb]);
+}
+
+--- FILE: utils/useWebEnhancements.ts ---
+import { useEffect, useCallback } from 'react';
+import { Platform } from 'react-native';
+
+interface KeyboardShortcut {
+  key: string;
+  ctrl?: boolean;
+  meta?: boolean;
+  shift?: boolean;
+  handler: () => void;
+}
+
+export function useKeyboardShortcuts(shortcuts: KeyboardShortcut[], enabled: boolean = true) {
+  useEffect(() => {
+    if (Platform.OS !== 'web' || !enabled) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      for (const shortcut of shortcuts) {
+        const ctrlMatch = shortcut.ctrl ? (e.ctrlKey || e.metaKey) : true;
+        const shiftMatch = shortcut.shift ? e.shiftKey : true;
+        const keyMatch = e.key.toLowerCase() === shortcut.key.toLowerCase();
+
+        if (ctrlMatch && shiftMatch && keyMatch) {
+          if (shortcut.ctrl || shortcut.meta) {
+            e.preventDefault();
+          }
+          shortcut.handler();
+          return;
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [shortcuts, enabled]);
+}
+
+export function useDocumentTitle(title: string) {
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    document.title = title;
+  }, [title]);
+}
+
+export function useWebCursor(ref: React.RefObject<any>, cursor: string) {
+  useEffect(() => {
+    if (Platform.OS !== 'web' || !ref.current) return;
+    const element = ref.current as unknown as HTMLElement;
+    if (element && element.style) {
+      element.style.cursor = cursor;
+    }
+  }, [ref, cursor]);
+}
+
+export function getHoverProps(onHoverIn?: () => void, onHoverOut?: () => void) {
+  if (Platform.OS !== 'web') return {};
+  return {
+    onMouseEnter: onHoverIn,
+    onMouseLeave: onHoverOut,
+  } as any;
+}
+

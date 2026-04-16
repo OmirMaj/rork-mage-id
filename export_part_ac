@@ -1,0 +1,4000 @@
+  categoriesContent: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    gap: 6,
+  },
+  categoryChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 11,
+    paddingVertical: 7,
+    borderRadius: 20,
+    backgroundColor: Colors.fillTertiary,
+  },
+  categoryChipActive: {
+    backgroundColor: Colors.primary,
+  },
+  categoryChipText: {
+    fontSize: 12,
+    fontWeight: '500' as const,
+    color: Colors.textSecondary,
+  },
+  categoryChipTextActive: {
+    color: Colors.textOnPrimary,
+    fontWeight: '600' as const,
+  },
+  materialCardWrapper: {
+    paddingHorizontal: 16,
+  },
+  resultsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: Colors.background,
+    gap: 10,
+  },
+  resultsCount: {
+    fontSize: 12,
+    fontWeight: '500' as const,
+    color: Colors.textSecondary,
+    letterSpacing: 0.2,
+  },
+  resultsMicroCopy: {
+    fontSize: 11,
+    color: Colors.info,
+    fontWeight: '600' as const,
+  },
+  listContent: {
+    paddingTop: 0,
+    gap: 10,
+  },
+  opportunityPanel: {
+    marginHorizontal: 16,
+    marginBottom: 10,
+    backgroundColor: Colors.surface,
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+    gap: 10,
+  },
+  opportunityHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 10,
+  },
+  opportunityTitleWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  opportunityTitle: {
+    fontSize: 13,
+    fontWeight: '700' as const,
+    color: Colors.text,
+  },
+  opportunitySubtitle: {
+    fontSize: 11,
+    color: Colors.textMuted,
+  },
+  opportunityGrid: {
+    gap: 8,
+  },
+  opportunityCard: {
+    borderRadius: 10,
+    padding: 10,
+    gap: 6,
+  },
+  opportunityCardTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  opportunityCardTitle: {
+    fontSize: 12,
+    fontWeight: '700' as const,
+  },
+  opportunityCardDetail: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    lineHeight: 17,
+  },
+  materialCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 14,
+    padding: 14,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
+    gap: 10,
+  },
+  materialMain: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  materialInfo: {
+    flex: 1,
+    gap: 5,
+  },
+  materialName: {
+    fontSize: 15,
+    fontWeight: '500' as const,
+    color: Colors.text,
+    lineHeight: 20,
+  },
+  materialMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap' as const,
+    gap: 6,
+  },
+  categoryBadge: {
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 5,
+  },
+  categoryBadgeText: {
+    fontSize: 10,
+    fontWeight: '600' as const,
+  },
+  rsMeansBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 999,
+    backgroundColor: Colors.infoLight,
+  },
+  rsMeansBadgeText: {
+    fontSize: 10,
+    fontWeight: '700' as const,
+    color: Colors.info,
+  },
+  supplierRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+  },
+  supplierText: {
+    fontSize: 11,
+    color: Colors.textMuted,
+  },
+  addButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addButtonActive: {
+    backgroundColor: Colors.success,
+  },
+  priceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.background,
+    borderRadius: 10,
+    padding: 10,
+    gap: 8,
+  },
+  priceBlock: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 2,
+  },
+  priceLabel: {
+    fontSize: 10,
+    fontWeight: '600' as const,
+    color: Colors.textMuted,
+    marginRight: 4,
+    textTransform: 'uppercase' as const,
+    letterSpacing: 0.3,
+  },
+  retailPrice: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: Colors.textSecondary,
+    textDecorationLine: 'line-through' as const,
+  },
+  bulkPrice: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: Colors.success,
+    letterSpacing: -0.3,
+  },
+  priceUnit: {
+    fontSize: 11,
+    color: Colors.textMuted,
+  },
+  priceDivider: {
+    width: 0.5,
+    height: 24,
+    backgroundColor: Colors.border,
+  },
+  bulkSavingsBadge: {
+    alignItems: 'flex-end',
+  },
+  bulkSavingsText: {
+    fontSize: 11,
+    fontWeight: '700' as const,
+    color: Colors.success,
+  },
+  bulkMinText: {
+    fontSize: 10,
+    color: Colors.textMuted,
+  },
+  materialFooterRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 8,
+  },
+  materialSignalGroup: {
+    flex: 1,
+    flexDirection: 'row',
+    flexWrap: 'wrap' as const,
+    gap: 6,
+  },
+  materialSignalChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 7,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: Colors.fillSecondary,
+  },
+  materialSignalText: {
+    fontSize: 10,
+    fontWeight: '600' as const,
+    color: Colors.textSecondary,
+  },
+  inCartRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  inCartText: {
+    fontSize: 12,
+    color: Colors.success,
+    fontWeight: '500' as const,
+  },
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: 60,
+    gap: 10,
+  },
+  emptyTitle: {
+    fontSize: 17,
+    fontWeight: '600' as const,
+    color: Colors.text,
+  },
+  emptyDesc: {
+    fontSize: 14,
+    color: Colors.textMuted,
+    textAlign: 'center' as const,
+  },
+  floatingCart: {
+    position: 'absolute' as const,
+    left: 16,
+    right: 16,
+    backgroundColor: Colors.primary,
+    borderRadius: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    gap: 10,
+    shadowColor: Colors.primaryDark,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  floatingCartLeft: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  floatingCartItems: {
+    fontSize: 15,
+    fontWeight: '600' as const,
+    color: Colors.textOnPrimary,
+  },
+  floatingCartTotal: {
+    fontSize: 17,
+    fontWeight: '700' as const,
+    color: 'rgba(255,255,255,0.9)',
+    marginRight: 4,
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    borderBottomWidth: 0.5,
+    borderBottomColor: Colors.borderLight,
+    backgroundColor: Colors.surface,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '600' as const,
+    color: Colors.text,
+    letterSpacing: -0.3,
+  },
+  modalClose: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: Colors.fillTertiary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cartScroll: {
+    flex: 1,
+  },
+  markupBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    backgroundColor: Colors.info + '10',
+    marginHorizontal: 16,
+    marginTop: 14,
+    marginBottom: 6,
+    borderRadius: 10,
+    padding: 12,
+  },
+  markupBannerText: {
+    flex: 1,
+    fontSize: 13,
+    color: Colors.info,
+    lineHeight: 18,
+  },
+  cartList: {
+    padding: 16,
+    gap: 8,
+  },
+  cartItem: {
+    backgroundColor: Colors.surface,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+    overflow: 'hidden' as const,
+  },
+  cartItemHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    gap: 10,
+  },
+  cartItemLeft: {
+    flex: 1,
+    gap: 3,
+  },
+  cartItemName: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: Colors.text,
+  },
+  cartItemSub: {
+    fontSize: 12,
+    color: Colors.textMuted,
+  },
+  cartItemRight: {
+    alignItems: 'flex-end',
+    gap: 2,
+  },
+  cartItemTotal: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: Colors.text,
+  },
+  cartItemExpanded: {
+    borderTopWidth: 1,
+    borderTopColor: Colors.borderLight,
+    padding: 14,
+    backgroundColor: Colors.surfaceAlt,
+    gap: 12,
+  },
+  cartQtyRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  cartExpandLabel: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: Colors.textSecondary,
+  },
+  qtyControl: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: Colors.surface,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  qtyBtn: {
+    padding: 4,
+  },
+  qtyValue: {
+    fontSize: 15,
+    fontWeight: '700' as const,
+    color: Colors.text,
+    minWidth: 24,
+    textAlign: 'center' as const,
+  },
+  markupMiniRow: {
+    flexDirection: 'row',
+    gap: 5,
+  },
+  markupMiniChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  markupMiniChipActive: {
+    backgroundColor: Colors.accent,
+    borderColor: Colors.accent,
+  },
+  markupMiniText: {
+    fontSize: 12,
+    fontWeight: '600' as const,
+    color: Colors.textSecondary,
+  },
+  markupMiniTextActive: {
+    color: Colors.textOnPrimary,
+  },
+  bulkActiveBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: Colors.successLight,
+    borderRadius: 8,
+    padding: 8,
+  },
+  bulkActiveTxt: {
+    fontSize: 12,
+    color: Colors.success,
+    fontWeight: '500' as const,
+  },
+  removeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    alignSelf: 'flex-end' as const,
+  },
+  removeBtnText: {
+    fontSize: 13,
+    color: Colors.error,
+    fontWeight: '600' as const,
+  },
+  summaryCard: {
+    margin: 16,
+    backgroundColor: Colors.card,
+    borderRadius: 16,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+    gap: 10,
+  },
+  summaryTitle: {
+    fontSize: 17,
+    fontWeight: '700' as const,
+    color: Colors.text,
+    marginBottom: 2,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  summaryLabel: {
+    fontSize: 15,
+    color: Colors.textSecondary,
+  },
+  summaryValue: {
+    fontSize: 15,
+    fontWeight: '600' as const,
+    color: Colors.text,
+  },
+  summaryDivider: {
+    height: 1,
+    backgroundColor: Colors.borderLight,
+  },
+  summaryTotal: {
+    fontSize: 17,
+    fontWeight: '700' as const,
+    color: Colors.text,
+  },
+  summaryTotalValue: {
+    fontSize: 22,
+    fontWeight: '800' as const,
+    color: Colors.primary,
+  },
+  bulkNote: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  bulkNoteText: {
+    fontSize: 12,
+    color: Colors.success,
+  },
+  cartFooter: {
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: Colors.borderLight,
+    backgroundColor: Colors.surface,
+    alignItems: 'center',
+    gap: 8,
+  },
+  cartFooterSummary: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  cartFooterLabel: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: Colors.textSecondary,
+  },
+  cartFooterValue: {
+    fontSize: 20,
+    fontWeight: '800' as const,
+    color: Colors.primary,
+    letterSpacing: -0.3,
+  },
+  addToProjectBtn: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: Colors.primary,
+    borderRadius: 14,
+    paddingVertical: 14,
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  addToProjectBtnText: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: Colors.textOnPrimary,
+  },
+  cartShareRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    width: '100%',
+  },
+  cartShareBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: Colors.primary + '10',
+    borderRadius: 12,
+    paddingVertical: 10,
+  },
+  cartShareBtnText: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: Colors.primary,
+  },
+  clearBtn: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.errorLight,
+    borderRadius: 12,
+  },
+  cartFooterBtnRow: {
+    flexDirection: 'row',
+    width: '100%',
+    gap: 8,
+  },
+  compareBtn: {
+    width: 50,
+    height: 50,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.primary + '12',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: Colors.primary + '25',
+  },
+  costBreakdownToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderTopWidth: 0.5,
+    borderTopColor: Colors.borderLight,
+    backgroundColor: Colors.fillSecondary,
+  },
+  costBreakdownToggleText: {
+    fontSize: 11,
+    fontWeight: '500' as const,
+    color: Colors.textSecondary,
+    letterSpacing: 0.1,
+  },
+  costBreakdownPanel: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: Colors.surfaceAlt,
+    borderTopWidth: 0.5,
+    borderTopColor: Colors.borderLight,
+    gap: 6,
+  },
+  costBreakdownRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  costBreakdownDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  costBreakdownLabel: {
+    flex: 1,
+    fontSize: 11,
+    fontWeight: '500' as const,
+    color: Colors.textSecondary,
+  },
+  costBreakdownRate: {
+    fontSize: 10,
+    color: Colors.textMuted,
+    width: 100,
+    textAlign: 'right' as const,
+  },
+  costBreakdownValue: {
+    fontSize: 12,
+    fontWeight: '600' as const,
+    color: Colors.text,
+    width: 70,
+    textAlign: 'right' as const,
+  },
+  costBreakdownDivider: {
+    height: 0.5,
+    backgroundColor: Colors.borderLight,
+    marginVertical: 2,
+  },
+  cartEmpty: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    paddingHorizontal: 40,
+  },
+  cartEmptyTitle: {
+    fontSize: 20,
+    fontWeight: '700' as const,
+    color: Colors.text,
+  },
+  cartEmptyDesc: {
+    fontSize: 14,
+    color: Colors.textMuted,
+    textAlign: 'center' as const,
+    lineHeight: 20,
+  },
+  cartEmptyBtn: {
+    marginTop: 8,
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    borderRadius: 12,
+  },
+  cartEmptyBtnText: {
+    fontSize: 15,
+    fontWeight: '700' as const,
+    color: Colors.textOnPrimary,
+  },
+  popupOverlay: {
+    flex: 1,
+    backgroundColor: Colors.overlay,
+    justifyContent: 'center',
+    padding: 20,
+  },
+  popupCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 24,
+    padding: 20,
+    gap: 14,
+    maxHeight: '80%',
+  },
+  popupHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  popupTitle: {
+    flex: 1,
+    fontSize: 18,
+    fontWeight: '700' as const,
+    color: Colors.text,
+    lineHeight: 24,
+  },
+  popupCloseBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: Colors.fillTertiary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  popupMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  popupPriceRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  popupPriceBlock: {
+    flex: 1,
+    backgroundColor: Colors.background,
+    borderRadius: 12,
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 2,
+  },
+  popupPriceLabel: {
+    fontSize: 10,
+    fontWeight: '600' as const,
+    color: Colors.textMuted,
+    textTransform: 'uppercase' as const,
+    marginRight: 4,
+  },
+  popupRetail: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: Colors.textSecondary,
+    textDecorationLine: 'line-through' as const,
+  },
+  popupBulk: {
+    fontSize: 18,
+    fontWeight: '700' as const,
+    color: Colors.success,
+  },
+  popupPriceUnit: {
+    fontSize: 11,
+    color: Colors.textMuted,
+  },
+  popupFieldLabel: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
+  popupQtyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  popupQtyBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: Colors.primary + '12',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  popupQtyInput: {
+    flex: 1,
+    height: 48,
+    backgroundColor: Colors.background,
+    borderRadius: 12,
+    fontSize: 20,
+    fontWeight: '700' as const,
+    color: Colors.text,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  popupBulkBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: Colors.successLight,
+    borderRadius: 10,
+    padding: 10,
+  },
+  popupBulkText: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: Colors.success,
+  },
+  popupTotalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: Colors.primary + '08',
+    borderRadius: 12,
+    padding: 14,
+  },
+  popupTotalLabel: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: Colors.textSecondary,
+  },
+  popupTotalValue: {
+    fontSize: 22,
+    fontWeight: '800' as const,
+    color: Colors.primary,
+  },
+  popupRunningRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+  },
+  popupRunningLabel: {
+    fontSize: 12,
+    color: Colors.textMuted,
+  },
+  popupRunningValue: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: Colors.textSecondary,
+  },
+  popupAddBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: Colors.primary,
+    borderRadius: 14,
+    paddingVertical: 16,
+    marginTop: 4,
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  popupAddBtnText: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: Colors.textOnPrimary,
+  },
+  addToProjectCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 24,
+    padding: 20,
+    gap: 14,
+    maxHeight: '70%',
+  },
+  addToProjectHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  addToProjectTitle: {
+    fontSize: 20,
+    fontWeight: '700' as const,
+    color: Colors.text,
+  },
+  addToProjectDesc: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    lineHeight: 20,
+  },
+  addToProjectEmpty: {
+    alignItems: 'center',
+    paddingVertical: 30,
+    gap: 10,
+  },
+  addToProjectEmptyText: {
+    fontSize: 14,
+    color: Colors.textMuted,
+    textAlign: 'center' as const,
+  },
+  projectOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.background,
+    borderRadius: 14,
+    padding: 14,
+    gap: 12,
+    marginTop: 6,
+  },
+  projectOptionSelected: {
+    borderWidth: 2,
+    borderColor: Colors.primary,
+    backgroundColor: Colors.primary + '08',
+  },
+  projectOptionLeft: {
+    flex: 1,
+    gap: 2,
+  },
+  projectOptionName: {
+    fontSize: 15,
+    fontWeight: '600' as const,
+    color: Colors.text,
+  },
+  projectOptionMeta: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+  },
+  addToProjectConfirmBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: Colors.primary,
+    borderRadius: 14,
+    paddingVertical: 16,
+    marginTop: 4,
+  },
+  addToProjectConfirmText: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: Colors.textOnPrimary,
+  },
+  confirmLinkBody: {
+    gap: 12,
+  },
+  confirmFieldLabel: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: Colors.textSecondary,
+    textTransform: 'uppercase' as const,
+    letterSpacing: 0.5,
+  },
+  confirmInput: {
+    minHeight: 48,
+    borderRadius: 14,
+    backgroundColor: Colors.surfaceAlt,
+    paddingHorizontal: 14,
+    fontSize: 15,
+    color: Colors.text,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+  },
+  confirmSummaryCard: {
+    backgroundColor: Colors.surfaceAlt,
+    borderRadius: 14,
+    padding: 14,
+    gap: 8,
+  },
+  confirmSummaryRow: {
+    flexDirection: 'row' as const,
+    justifyContent: 'space-between' as const,
+    alignItems: 'center' as const,
+  },
+  confirmSummaryLabel: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+  },
+  confirmSummaryValue: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: Colors.text,
+  },
+  confirmSummaryValueBold: {
+    fontSize: 18,
+    fontWeight: '800' as const,
+    color: Colors.primary,
+  },
+  confirmDivider: {
+    height: 1,
+    backgroundColor: Colors.borderLight,
+  },
+  existingEstimateWarning: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 8,
+    backgroundColor: Colors.warningLight,
+    borderRadius: 10,
+    padding: 12,
+  },
+  existingEstimateText: {
+    flex: 1,
+    fontSize: 13,
+    color: Colors.warning,
+    fontWeight: '500' as const,
+  },
+  confirmBtnGroup: {
+    flexDirection: 'row' as const,
+    gap: 10,
+  },
+  confirmMergeBtn: {
+    flex: 1,
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    gap: 6,
+    backgroundColor: Colors.infoLight,
+    borderRadius: 14,
+    paddingVertical: 14,
+    borderWidth: 1,
+    borderColor: Colors.info + '30',
+  },
+  confirmMergeBtnText: {
+    fontSize: 14,
+    fontWeight: '700' as const,
+    color: Colors.info,
+  },
+  confirmReplaceBtn: {
+    flex: 1,
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    gap: 6,
+    backgroundColor: Colors.primary,
+    borderRadius: 14,
+    paddingVertical: 14,
+  },
+  confirmReplaceBtnText: {
+    fontSize: 14,
+    fontWeight: '700' as const,
+    color: Colors.textOnPrimary,
+  },
+});
+
+const dStyles = StyleSheet.create({
+  desktopHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    backgroundColor: Colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.borderLight,
+  },
+  desktopBody: {
+    flex: 1,
+    flexDirection: 'row',
+  },
+  catalogPanel: {
+    width: 280,
+    backgroundColor: Colors.surface,
+    borderRightWidth: 1,
+    borderRightColor: Colors.borderLight,
+  },
+  catalogItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 0.5,
+    borderBottomColor: Colors.borderLight,
+    gap: 8,
+  },
+  catalogItemName: {
+    fontSize: 13,
+    fontWeight: '500' as const,
+    color: Colors.text,
+  },
+  catalogItemPrice: {
+    fontSize: 11,
+    color: Colors.success,
+    fontWeight: '600' as const,
+  },
+  workspacePanel: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+  wsSection: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+  },
+  wsSectionTitle: {
+    fontSize: 14,
+    fontWeight: '700' as const,
+    color: Colors.text,
+    marginBottom: 8,
+  },
+  wsTable: {
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+    overflow: 'hidden' as const,
+  },
+  wsTableHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: Colors.fillSecondary,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.borderLight,
+  },
+  wsHeaderCell: {
+    fontSize: 11,
+    fontWeight: '700' as const,
+    color: Colors.textMuted,
+    textTransform: 'uppercase' as const,
+    letterSpacing: 0.5,
+  },
+  wsTableRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderBottomWidth: 0.5,
+    borderBottomColor: Colors.borderLight,
+  },
+  wsTableRowAlt: {
+    backgroundColor: Colors.fillSecondary,
+  },
+  wsCell: {
+    fontSize: 13,
+    color: Colors.text,
+  },
+  wsGrandTotal: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginHorizontal: 20,
+    marginTop: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    backgroundColor: Colors.primary + '0A',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.primary + '20',
+  },
+  wsGrandTotalLabel: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: Colors.text,
+  },
+  wsGrandTotalValue: {
+    fontSize: 22,
+    fontWeight: '800' as const,
+    color: Colors.primary,
+  },
+  summaryPanel: {
+    width: 300,
+    backgroundColor: Colors.surface,
+    borderLeftWidth: 1,
+    borderLeftColor: Colors.borderLight,
+    padding: 20,
+    gap: 10,
+  },
+  summaryTitle: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: Colors.text,
+    marginBottom: 4,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 4,
+  },
+  summaryLabel: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+  },
+  summaryValue: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: Colors.text,
+  },
+  summaryDivider: {
+    height: 1,
+    backgroundColor: Colors.borderLight,
+    marginVertical: 4,
+  },
+  summaryGrand: {
+    fontSize: 20,
+    fontWeight: '800' as const,
+    color: Colors.primary,
+  },
+  summaryMetrics: {
+    marginTop: 12,
+    backgroundColor: Colors.fillSecondary,
+    borderRadius: 12,
+    padding: 14,
+    gap: 8,
+  },
+  summaryMetricTitle: {
+    fontSize: 12,
+    fontWeight: '700' as const,
+    color: Colors.textMuted,
+    textTransform: 'uppercase' as const,
+    letterSpacing: 0.5,
+    marginBottom: 2,
+  },
+  summaryMetricRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  summaryMetricLabel: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+  },
+  summaryMetricValue: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: Colors.text,
+  },
+  summaryActions: {
+    marginTop: 16,
+    gap: 8,
+  },
+  summaryActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: Colors.primary,
+    borderRadius: 12,
+    paddingVertical: 12,
+  },
+  summaryActionText: {
+    fontSize: 14,
+    fontWeight: '700' as const,
+    color: Colors.textOnPrimary,
+  },
+});
+
+const aiStyles = StyleSheet.create({
+  recentSection: {
+    backgroundColor: Colors.surface,
+    paddingVertical: 10,
+    borderBottomWidth: 0.5,
+    borderBottomColor: Colors.borderLight,
+  },
+  recentHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 16,
+    marginBottom: 8,
+  },
+  recentTitle: {
+    fontSize: 12,
+    fontWeight: '700' as const,
+    color: Colors.textSecondary,
+    textTransform: 'uppercase' as const,
+    letterSpacing: 0.4,
+  },
+  recentChipsRow: {
+    paddingHorizontal: 16,
+    gap: 8,
+  },
+  recentChip: {
+    backgroundColor: Colors.fillTertiary,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+    maxWidth: 180,
+  },
+  recentChipName: {
+    fontSize: 12,
+    fontWeight: '600' as const,
+    color: Colors.text,
+    marginBottom: 2,
+  },
+  recentChipPrice: {
+    fontSize: 11,
+    fontWeight: '500' as const,
+    color: Colors.success,
+  },
+  aiSearchPrompt: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 16,
+    marginVertical: 8,
+    backgroundColor: Colors.primary + '08',
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: Colors.primary + '18',
+    gap: 12,
+  },
+  aiSearchPromptIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: Colors.primary + '15',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  aiSearchPromptContent: {
+    flex: 1,
+    gap: 2,
+  },
+  aiSearchPromptTitle: {
+    fontSize: 14,
+    fontWeight: '700' as const,
+    color: Colors.text,
+  },
+  aiSearchPromptDesc: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+  },
+  aiSearchBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: Colors.primary,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  aiSearchBtnText: {
+    fontSize: 13,
+    fontWeight: '700' as const,
+    color: Colors.textOnPrimary,
+  },
+  aiResultsContainer: {
+    marginHorizontal: 16,
+    marginVertical: 8,
+    backgroundColor: Colors.surface,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: Colors.primary + '20',
+    overflow: 'hidden' as const,
+  },
+  aiResultsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    backgroundColor: Colors.primary + '08',
+    borderBottomWidth: 0.5,
+    borderBottomColor: Colors.primary + '18',
+  },
+  aiResultsTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  aiResultsTitle: {
+    fontSize: 13,
+    fontWeight: '700' as const,
+    color: Colors.primary,
+  },
+  aiLoadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 16,
+    justifyContent: 'center',
+  },
+  aiLoadingText: {
+    fontSize: 13,
+    color: Colors.primary,
+    fontWeight: '500' as const,
+  },
+  aiErrorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 14,
+    backgroundColor: Colors.errorLight,
+  },
+  aiErrorText: {
+    fontSize: 13,
+    color: Colors.error,
+    flex: 1,
+  },
+  aiResultCard: {
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderBottomWidth: 0.5,
+    borderBottomColor: Colors.borderLight,
+    gap: 6,
+  },
+  aiResultMain: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  aiResultName: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: Colors.text,
+    lineHeight: 19,
+  },
+  aiResultMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 3,
+  },
+  aiResultPrice: {
+    fontSize: 15,
+    fontWeight: '700' as const,
+    color: Colors.success,
+  },
+  aiResultBrand: {
+    fontSize: 11,
+    color: Colors.textMuted,
+    fontWeight: '500' as const,
+  },
+  aiResultTags: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 4,
+  },
+  aiSourceTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  aiSourceTagText: {
+    fontSize: 10,
+    fontWeight: '700' as const,
+  },
+  aiConfBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  aiConfDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+  },
+  aiConfText: {
+    fontSize: 10,
+    fontWeight: '600' as const,
+  },
+  aiAddBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  aiResultDesc: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    lineHeight: 17,
+  },
+  aiRelatedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    padding: 12,
+    backgroundColor: Colors.infoLight,
+  },
+  aiRelatedText: {
+    fontSize: 12,
+    color: Colors.info,
+    fontWeight: '500' as const,
+    flex: 1,
+  },
+  customEntryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginHorizontal: 16,
+    marginVertical: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+    borderStyle: 'dashed' as const,
+  },
+  customEntryBtnText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: Colors.primary,
+  },
+  unitChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    backgroundColor: Colors.fillTertiary,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  unitChipActive: {
+    backgroundColor: Colors.primary + '15',
+    borderColor: Colors.primary,
+  },
+  unitChipText: {
+    fontSize: 11,
+    fontWeight: '600' as const,
+    color: Colors.textSecondary,
+  },
+  unitChipTextActive: {
+    color: Colors.primary,
+  },
+});
+
+
+========== FILE: ./app/(tabs)/hire/_layout.tsx ==========
+import { Stack } from 'expo-router';
+export default function HireLayout() {
+  return <Stack screenOptions={{ headerShown: false }} />;
+}
+
+
+========== FILE: ./app/(tabs)/hire/index.tsx ==========
+import React, { useState, useCallback, useRef, useMemo } from 'react';
+import {
+  View, Text, StyleSheet, FlatList, TouchableOpacity,
+  Animated, ScrollView, ActivityIndicator, Linking, RefreshControl, Platform,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { MapPin, DollarSign, Navigation, AlertCircle, Briefcase, Crosshair, ChevronDown } from 'lucide-react-native';
+import * as Haptics from 'expo-haptics';
+import { useQuery } from '@tanstack/react-query';
+import { Colors } from '@/constants/colors';
+import { supabase } from '@/lib/supabase';
+import { useUserLocation, getDistanceMiles } from '@/utils/location';
+import { US_STATES } from '@/constants/states';
+
+interface CachedJob {
+  id: string;
+  title: string;
+  company_name: string;
+  salary_min: number;
+  salary_max: number;
+  trade_category: string;
+  contract_type: string;
+  city: string;
+  state: string;
+  latitude: number;
+  longitude: number;
+  apply_url: string;
+  fetched_at: string;
+}
+
+interface JobWithDistance extends CachedJob {
+  distance: number | null;
+}
+
+const RADIUS_OPTIONS = [10, 25, 50, 100, 250] as const;
+
+const TRADE_FILTERS = [
+  'Electrical', 'Plumbing', 'Carpentry', 'HVAC', 'Welding',
+  'Masonry', 'Roofing', 'Management', 'Labor', 'General Construction',
+] as const;
+
+const TRADE_BADGE_COLORS: Record<string, string> = {
+  'Electrical': '#F57F17',
+  'Plumbing': '#1565C0',
+  'Carpentry': '#6D4C41',
+  'HVAC': '#00838F',
+  'Welding': '#E65100',
+  'Masonry': '#78909C',
+  'Roofing': '#AD1457',
+  'Management': '#4527A0',
+  'Labor': '#2E7D32',
+  'General Construction': '#37474F',
+};
+
+function formatSalary(min: number | null | undefined, max: number | null | undefined): string {
+  if (min == null && max == null) return 'Salary not listed';
+  const fmtVal = (v: number) => {
+    if (v >= 1000) return `${(v / 1000).toFixed(0)}K`;
+    return `${v.toLocaleString()}`;
+  };
+  if (min != null && max != null) return `${fmtVal(min)} – ${fmtVal(max)}`;
+  if (min != null) return `From ${fmtVal(min)}`;
+  return `Up to ${fmtVal(max!)}`;
+}
+
+function getTradeColor(trade: string | null | undefined): string {
+  if (!trade) return Colors.primary;
+  const key = Object.keys(TRADE_BADGE_COLORS).find(
+    k => trade.toLowerCase().includes(k.toLowerCase())
+  );
+  return key ? TRADE_BADGE_COLORS[key] : Colors.primary;
+}
+
+function JobCard({ job, onPress }: { job: JobWithDistance; onPress: () => void }) {
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const tradeColor = getTradeColor(job.trade_category);
+
+  return (
+    <Animated.View style={[styles.card, { transform: [{ scale: scaleAnim }] }]}>
+      <TouchableOpacity
+        onPress={onPress}
+        onPressIn={() => Animated.spring(scaleAnim, { toValue: 0.97, useNativeDriver: true, speed: 50 }).start()}
+        onPressOut={() => Animated.spring(scaleAnim, { toValue: 1, useNativeDriver: true, speed: 50 }).start()}
+        activeOpacity={1}
+        testID={`job-card-${job.id}`}
+      >
+        <View style={styles.cardTopRow}>
+          {job.trade_category ? (
+            <View style={[styles.tradeBadge, { backgroundColor: tradeColor + '15' }]}>
+              <Text style={[styles.tradeBadgeText, { color: tradeColor }]}>{job.trade_category}</Text>
+            </View>
+          ) : null}
+          {job.contract_type ? (
+            <View style={styles.contractBadge}>
+              <Text style={styles.contractBadgeText}>{job.contract_type}</Text>
+            </View>
+          ) : null}
+        </View>
+
+        <Text style={styles.cardTitle} numberOfLines={2}>{job.title ?? 'Untitled Job'}</Text>
+        <Text style={styles.cardCompany}>{job.company_name ?? 'Company not listed'}</Text>
+
+        <View style={styles.cardMeta}>
+          <View style={styles.metaItem}>
+            <MapPin size={13} color={Colors.textSecondary} />
+            <Text style={styles.metaText}>{job.city && job.state ? `${job.city}, ${job.state}` : job.city || job.state || 'Location not available'}</Text>
+          </View>
+          <View style={styles.metaItem}>
+            <DollarSign size={13} color={Colors.primary} />
+            <Text style={[styles.metaText, { color: Colors.primary, fontWeight: '600' as const }]}>
+              {formatSalary(job.salary_min, job.salary_max)}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.cardFooter}>
+          {job.distance !== null && (
+            <View style={styles.distanceBadge}>
+              <Navigation size={11} color={Colors.info} />
+              <Text style={styles.distanceText}>{job.distance} mi</Text>
+            </View>
+          )}
+          <View style={{ flex: 1 }} />
+          <View style={styles.applyHint}>
+            <Briefcase size={12} color={Colors.primary} />
+            <Text style={styles.applyHintText}>Tap to Apply</Text>
+          </View>
+        </View>
+      </TouchableOpacity>
+    </Animated.View>
+  );
+}
+
+export default function HireScreen() {
+  const insets = useSafeAreaInsets();
+  const { location } = useUserLocation();
+  const [selectedRadius, setSelectedRadius] = useState<number | null>(null);
+  const [selectedTrade, setSelectedTrade] = useState<string | undefined>();
+  const [selectedState, setSelectedState] = useState<string | null>(null);
+  const [locationMode, setLocationMode] = useState<'all' | 'nearby' | 'state'>('all');
+  const [showStateList, setShowStateList] = useState(false);
+
+  const { data: jobs, isLoading, refetch, isRefetching, error: jobsQueryError } = useQuery({
+    queryKey: ['cached_jobs'],
+    queryFn: async () => {
+      console.log('[Hire] Fetching from cached_jobs...');
+      const { data, error } = await supabase
+        .from('cached_jobs')
+        .select('*')
+        .order('fetched_at', { ascending: false });
+      console.log('Jobs data:', data?.length, 'Error:', error);
+      if (error) {
+        throw new Error(`Supabase error: ${error.message}`);
+      }
+      return (data ?? []) as CachedJob[];
+    },
+    retry: 1,
+  });
+
+  const jobsWithDistance = useMemo<JobWithDistance[]>(() => {
+    if (!jobs) return [];
+    return jobs.map(job => ({
+      ...job,
+      distance: location && job.latitude && job.longitude
+        ? getDistanceMiles(location.latitude, location.longitude, job.latitude, job.longitude)
+        : null,
+    }));
+  }, [jobs, location]);
+
+  const filteredJobs = useMemo(() => {
+    let result = jobsWithDistance;
+
+    if (selectedTrade) {
+      result = result.filter(j =>
+        j.trade_category?.toLowerCase().includes(selectedTrade.toLowerCase())
+      );
+    }
+
+    if (locationMode === 'nearby' && location && selectedRadius !== null) {
+      result = result.filter(j => j.distance === null || j.distance <= selectedRadius);
+    }
+
+    if (locationMode === 'state' && selectedState) {
+      result = result.filter(j => j.state?.toUpperCase() === selectedState.toUpperCase());
+    }
+
+    if (location) {
+      result.sort((a, b) => (a.distance ?? 99999) - (b.distance ?? 99999));
+    }
+
+    return result;
+  }, [jobsWithDistance, selectedRadius, selectedTrade, location, locationMode, selectedState]);
+
+  const handleJobPress = useCallback((job: CachedJob) => {
+    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (job.apply_url) {
+      Linking.openURL(job.apply_url).catch(() => {
+        console.log('[Hire] Failed to open URL:', job.apply_url);
+      });
+    }
+  }, []);
+
+  const handleLocationModeChange = useCallback((mode: 'all' | 'nearby' | 'state') => {
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+    setLocationMode(mode);
+    if (mode === 'nearby' && selectedRadius === null) {
+      setSelectedRadius(50);
+    }
+    if (mode !== 'state') {
+      setShowStateList(false);
+    }
+    if (mode === 'state') {
+      setShowStateList(true);
+    }
+  }, [selectedRadius]);
+
+  const renderJob = useCallback(({ item }: { item: JobWithDistance }) => (
+    <JobCard job={item} onPress={() => handleJobPress(item)} />
+  ), [handleJobPress]);
+
+  const loading = isLoading;
+
+  return (
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <View style={styles.header}>
+        <View style={styles.headerTop}>
+          <Text style={styles.headerTitle}>Direct Hire</Text>
+          <View style={styles.countPill}>
+            <Text style={styles.countPillText}>{filteredJobs.length}</Text>
+          </View>
+        </View>
+
+        <Text style={styles.filterSectionLabel}>LOCATION</Text>
+        <View style={styles.locationRow}>
+          <TouchableOpacity
+            style={[styles.locationChip, locationMode === 'all' && styles.locationChipActive]}
+            onPress={() => handleLocationModeChange('all')}
+          >
+            <Text style={[styles.locationChipText, locationMode === 'all' && styles.locationChipTextActive]}>All Locations</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.locationChip, locationMode === 'nearby' && styles.locationChipActive]}
+            onPress={() => handleLocationModeChange('nearby')}
+          >
+            <Crosshair size={13} color={locationMode === 'nearby' ? '#FFF' : Colors.textSecondary} />
+            <Text style={[styles.locationChipText, locationMode === 'nearby' && styles.locationChipTextActive]}>Near Me</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.locationChip, locationMode === 'state' && styles.locationChipActive]}
+            onPress={() => handleLocationModeChange('state')}
+          >
+            <ChevronDown size={13} color={locationMode === 'state' ? '#FFF' : Colors.textSecondary} />
+            <Text style={[styles.locationChipText, locationMode === 'state' && styles.locationChipTextActive]}>
+              {selectedState ? selectedState : 'Pick State'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {locationMode === 'nearby' && (
+          <>
+            <Text style={[styles.filterSectionLabel, { marginTop: 8 }]}>RADIUS</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow}>
+              {RADIUS_OPTIONS.map(r => (
+                <TouchableOpacity
+                  key={r}
+                  style={[styles.chip, selectedRadius === r && styles.chipActive]}
+                  onPress={() => { setSelectedRadius(r); if (Platform.OS !== 'web') void Haptics.selectionAsync(); }}
+                >
+                  <Text style={[styles.chipText, selectedRadius === r && styles.chipTextActive]}>{r} mi</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </>
+        )}
+
+        {locationMode === 'state' && showStateList && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={[styles.chipRow, { marginTop: 8 }]}>
+            {US_STATES.map(s => (
+              <TouchableOpacity
+                key={s.abbr}
+                style={[styles.stateChip, selectedState === s.abbr && styles.chipActive]}
+                onPress={() => {
+                  setSelectedState(selectedState === s.abbr ? null : s.abbr);
+                  if (Platform.OS !== 'web') void Haptics.selectionAsync();
+                }}
+              >
+                <Text style={[styles.chipText, selectedState === s.abbr && styles.chipTextActive]}>{s.abbr}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        )}
+
+        <Text style={[styles.filterSectionLabel, { marginTop: 8 }]}>TRADE</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow}>
+          <TouchableOpacity
+            style={[styles.chip, !selectedTrade && styles.chipActive]}
+            onPress={() => { setSelectedTrade(undefined); if (Platform.OS !== 'web') void Haptics.selectionAsync(); }}
+          >
+            <Text style={[styles.chipText, !selectedTrade && styles.chipTextActive]}>All</Text>
+          </TouchableOpacity>
+          {TRADE_FILTERS.map(t => (
+            <TouchableOpacity
+              key={t}
+              style={[styles.chip, selectedTrade === t && styles.chipActive]}
+              onPress={() => { setSelectedTrade(selectedTrade === t ? undefined : t); if (Platform.OS !== 'web') void Haptics.selectionAsync(); }}
+            >
+              <Text style={[styles.chipText, selectedTrade === t && styles.chipTextActive]}>{t}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
+
+      {jobsQueryError ? (
+        <View style={styles.loadingContainer}>
+          <AlertCircle size={40} color="#D32F2F" />
+          <Text style={styles.emptyTitle}>Query Error</Text>
+          <Text style={styles.emptySubtitle}>{jobsQueryError.message}</Text>
+          <TouchableOpacity onPress={() => { void refetch(); }} style={{ marginTop: 12, backgroundColor: Colors.primary, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10 }}>
+            <Text style={{ color: '#FFF', fontWeight: '600' as const }}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      ) : loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+          <Text style={styles.loadingText}>Loading jobs...</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={filteredJobs}
+          renderItem={renderJob}
+          keyExtractor={item => item.id}
+          contentContainerStyle={styles.list}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={isRefetching} onRefresh={() => { void refetch(); }} tintColor={Colors.primary} />
+          }
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <AlertCircle size={40} color={Colors.textMuted} />
+              <Text style={styles.emptyTitle}>No jobs found</Text>
+              <Text style={styles.emptySubtitle}>
+                Try changing your location or removing filters
+              </Text>
+            </View>
+          }
+        />
+      )}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: Colors.background },
+  header: { backgroundColor: Colors.surface, borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight, paddingHorizontal: 16, paddingBottom: 12 },
+  headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, marginTop: 8 },
+  headerTitle: { fontSize: 28, fontWeight: '800' as const, color: Colors.text, letterSpacing: -0.5 },
+  countPill: { backgroundColor: Colors.accent + '15', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
+  countPillText: { fontSize: 13, fontWeight: '700' as const, color: Colors.accent },
+  filterSectionLabel: { fontSize: 11, fontWeight: '600' as const, color: Colors.textMuted, letterSpacing: 0.5, marginBottom: 6 },
+  locationRow: { flexDirection: 'row', gap: 6, marginBottom: 4 },
+  locationChip: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 14, paddingVertical: 7, borderRadius: 18, backgroundColor: Colors.background },
+  locationChipActive: { backgroundColor: Colors.primary },
+  locationChipText: { fontSize: 13, color: Colors.textSecondary, fontWeight: '500' as const },
+  locationChipTextActive: { color: '#FFF' },
+  chipRow: { flexDirection: 'row', marginBottom: 4 },
+  chip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 18, backgroundColor: Colors.background, marginRight: 6 },
+  chipActive: { backgroundColor: Colors.primary },
+  chipText: { fontSize: 13, color: Colors.textSecondary, fontWeight: '500' as const },
+  chipTextActive: { color: '#FFF' },
+  stateChip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 18, backgroundColor: Colors.background, marginRight: 6 },
+  list: { padding: 16, paddingBottom: 100 },
+  card: {
+    backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 12,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3,
+  },
+  cardTopRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
+  tradeBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  tradeBadgeText: { fontSize: 11, fontWeight: '700' as const, textTransform: 'uppercase' as const, letterSpacing: 0.3 },
+  contractBadge: { backgroundColor: Colors.fillTertiary, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  contractBadgeText: { fontSize: 11, fontWeight: '600' as const, color: Colors.textSecondary },
+  cardTitle: { fontSize: 16, fontWeight: '700' as const, color: Colors.text, marginBottom: 2, lineHeight: 22 },
+  cardCompany: { fontSize: 13, color: Colors.textSecondary, marginBottom: 10 },
+  cardMeta: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+  metaItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  metaText: { fontSize: 13, color: Colors.textSecondary },
+  cardFooter: { flexDirection: 'row', alignItems: 'center', marginTop: 6, paddingTop: 8, borderTopWidth: 0.5, borderTopColor: Colors.borderLight },
+  distanceBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: Colors.infoLight, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  distanceText: { fontSize: 12, fontWeight: '600' as const, color: Colors.info },
+  applyHint: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  applyHintText: { fontSize: 12, fontWeight: '600' as const, color: Colors.primary },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
+  loadingText: { fontSize: 14, color: Colors.textSecondary },
+  emptyContainer: { alignItems: 'center', paddingTop: 60, gap: 8 },
+  emptyTitle: { fontSize: 18, fontWeight: '700' as const, color: Colors.text },
+  emptySubtitle: { fontSize: 14, color: Colors.textSecondary, textAlign: 'center' as const, paddingHorizontal: 32 },
+});
+
+
+========== FILE: ./app/(tabs)/marketplace/_layout.tsx ==========
+import { Stack } from 'expo-router';
+
+export default function MarketplaceLayout() {
+  return <Stack screenOptions={{ headerShown: false }} />;
+}
+
+
+========== FILE: ./app/(tabs)/marketplace/index.tsx ==========
+import React, { useState, useCallback, useMemo } from 'react';
+import {
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
+  Modal, Pressable, Alert, Platform, FlatList, Linking,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Haptics from 'expo-haptics';
+import {
+  Search, X, Star, Truck, Clock, MapPin, Phone, Mail, Globe,
+  ChevronRight, Package, CheckCircle,
+  Store, Award, DollarSign,
+} from 'lucide-react-native';
+import { Colors } from '@/constants/colors';
+import { MOCK_SUPPLIERS, MOCK_LISTINGS, SUPPLIER_CATEGORIES } from '@/mocks/suppliers';
+import type { Supplier, SupplierListing } from '@/types';
+
+type ViewMode = 'suppliers' | 'listings';
+
+export default function MarketplaceScreen() {
+  const insets = useSafeAreaInsets();
+  const [query, setQuery] = useState('');
+  const [activeCategory, setActiveCategory] = useState('all');
+  const [viewMode, setViewMode] = useState<ViewMode>('suppliers');
+  const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
+  const [selectedListing, setSelectedListing] = useState<SupplierListing | null>(null);
+  const [orderQty, setOrderQty] = useState('1');
+
+  const filteredSuppliers = useMemo(() => {
+    let results = MOCK_SUPPLIERS;
+    if (activeCategory !== 'all') {
+      results = results.filter(s => s.categories.includes(activeCategory));
+    }
+    if (query.trim()) {
+      const q = query.toLowerCase();
+      results = results.filter(s =>
+        s.companyName.toLowerCase().includes(q) ||
+        s.description.toLowerCase().includes(q) ||
+        s.categories.some(c => c.toLowerCase().includes(q))
+      );
+    }
+    return results.sort((a, b) => (b.featured ? 1 : 0) - (a.featured ? 1 : 0) || b.rating - a.rating);
+  }, [query, activeCategory]);
+
+  const filteredListings = useMemo(() => {
+    let results = MOCK_LISTINGS;
+    if (activeCategory !== 'all') {
+      results = results.filter(l => l.category === activeCategory);
+    }
+    if (query.trim()) {
+      const q = query.toLowerCase();
+      results = results.filter(l =>
+        l.name.toLowerCase().includes(q) ||
+        l.description.toLowerCase().includes(q) ||
+        l.category.toLowerCase().includes(q)
+      );
+    }
+    return results;
+  }, [query, activeCategory]);
+
+  const getSupplier = useCallback((id: string) => MOCK_SUPPLIERS.find(s => s.id === id), []);
+
+  const supplierListings = useMemo(() => {
+    if (!selectedSupplier) return [];
+    return MOCK_LISTINGS.filter(l => l.supplierId === selectedSupplier.id);
+  }, [selectedSupplier]);
+
+  const handleContactSupplier = useCallback((supplier: Supplier, method: 'email' | 'phone' | 'website') => {
+    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (method === 'email') {
+      const url = `mailto:${supplier.email}?subject=Inquiry from Tertiary - ${supplier.companyName}`;
+      Linking.openURL(url).catch(() => Alert.alert('Error', 'Could not open email client.'));
+    } else if (method === 'phone') {
+      Linking.openURL(`tel:${supplier.phone}`).catch(() => Alert.alert('Error', 'Could not open phone.'));
+    } else {
+      Linking.openURL(`https://${supplier.website}`).catch(() => Alert.alert('Error', 'Could not open browser.'));
+    }
+  }, []);
+
+  const handleRequestQuote = useCallback((listing: SupplierListing) => {
+    const qty = parseInt(orderQty, 10);
+    if (isNaN(qty) || qty <= 0) {
+      Alert.alert('Invalid Quantity', 'Please enter a valid quantity.');
+      return;
+    }
+    const supplier = getSupplier(listing.supplierId);
+    if (!supplier) return;
+    const usesBulk = qty >= listing.bulkMinQty;
+    const unitPrice = usesBulk ? listing.bulkPrice : listing.price;
+    const total = unitPrice * qty;
+
+    const subject = `Tertiary Quote Request - ${listing.name}`;
+    const body = `Hi ${supplier.contactName},\n\nI'd like to request a quote for:\n\nItem: ${listing.name}\nQuantity: ${qty} ${listing.unit}\nUnit Price: $${unitPrice.toFixed(2)}${usesBulk ? ' (bulk rate)' : ''}\nEstimated Total: $${total.toFixed(2)}\n\nPlease confirm availability and delivery timeline.\n\nThank you,\nSent via Tertiary`;
+    const url = `mailto:${supplier.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    Linking.openURL(url).catch(() => Alert.alert('Error', 'Could not open email client.'));
+    setSelectedListing(null);
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  }, [orderQty, getSupplier]);
+
+  const renderStars = useCallback((rating: number) => {
+    const stars = [];
+    for (let i = 1; i <= 5; i++) {
+      stars.push(
+        <Star
+          key={i}
+          size={12}
+          color={i <= Math.round(rating) ? '#FFB800' : Colors.borderLight}
+          fill={i <= Math.round(rating) ? '#FFB800' : 'transparent'}
+        />
+      );
+    }
+    return stars;
+  }, []);
+
+  const renderSupplierCard = useCallback(({ item }: { item: Supplier }) => {
+    const listingCount = MOCK_LISTINGS.filter(l => l.supplierId === item.id).length;
+    return (
+      <TouchableOpacity
+        style={styles.supplierCard}
+        onPress={() => {
+          if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          setSelectedSupplier(item);
+        }}
+        activeOpacity={0.7}
+        testID={`supplier-${item.id}`}
+      >
+        {item.featured && (
+          <View style={styles.featuredBadge}>
+            <Award size={10} color="#FFB800" />
+            <Text style={styles.featuredText}>Featured</Text>
+          </View>
+        )}
+        <View style={styles.supplierTop}>
+          <View style={styles.supplierAvatar}>
+            <Store size={20} color={Colors.primary} />
+          </View>
+          <View style={styles.supplierInfo}>
+            <Text style={styles.supplierName} numberOfLines={1}>{item.companyName}</Text>
+            <View style={styles.ratingRow}>
+              {renderStars(item.rating)}
+              <Text style={styles.ratingText}>{item.rating}</Text>
+            </View>
+          </View>
+          <ChevronRight size={18} color={Colors.textMuted} />
+        </View>
+        <Text style={styles.supplierDesc} numberOfLines={2}>{item.description}</Text>
+        <View style={styles.supplierMeta}>
+          <View style={styles.supplierChip}>
+            <Package size={10} color={Colors.info} />
+            <Text style={styles.supplierChipText}>{listingCount} products</Text>
+          </View>
+          <View style={styles.supplierChip}>
+            <MapPin size={10} color={Colors.textMuted} />
+            <Text style={styles.supplierChipText}>{item.address.split(',').pop()?.trim()}</Text>
+          </View>
+          <View style={styles.supplierChip}>
+            <DollarSign size={10} color={Colors.success} />
+            <Text style={styles.supplierChipText}>Min ${item.minOrderAmount}</Text>
+          </View>
+        </View>
+        <View style={styles.supplierCats}>
+          {item.categories.map(cat => {
+            const catInfo = SUPPLIER_CATEGORIES.find(c => c.id === cat);
+            return (
+              <View key={cat} style={styles.catTag}>
+                <Text style={styles.catTagText}>{catInfo?.emoji} {catInfo?.label ?? cat}</Text>
+              </View>
+            );
+          })}
+        </View>
+      </TouchableOpacity>
+    );
+  }, [renderStars]);
+
+  const renderListingCard = useCallback(({ item }: { item: SupplierListing }) => {
+    const supplier = getSupplier(item.supplierId);
+    const savings = item.price > 0 ? Math.round(((item.price - item.bulkPrice) / item.price) * 100) : 0;
+    return (
+      <TouchableOpacity
+        style={styles.listingCard}
+        onPress={() => {
+          if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          setSelectedListing(item);
+          setOrderQty('1');
+        }}
+        activeOpacity={0.7}
+        testID={`listing-${item.id}`}
+      >
+        <View style={styles.listingTop}>
+          <View style={styles.listingInfo}>
+            <Text style={styles.listingName} numberOfLines={2}>{item.name}</Text>
+            <Text style={styles.listingDesc} numberOfLines={1}>{item.description}</Text>
+          </View>
+          {item.inStock && (
+            <View style={styles.stockBadge}>
+              <CheckCircle size={10} color={Colors.success} />
+              <Text style={styles.stockText}>In Stock</Text>
+            </View>
+          )}
+        </View>
+        <View style={styles.listingPriceRow}>
+          <View style={styles.listingPriceBlock}>
+            <Text style={styles.listingPriceLabel}>RETAIL</Text>
+            <Text style={styles.listingRetail}>${item.price.toFixed(2)}</Text>
+            <Text style={styles.listingUnit}>/{item.unit}</Text>
+          </View>
+          <View style={styles.listingPriceDivider} />
+          <View style={styles.listingPriceBlock}>
+            <Text style={[styles.listingPriceLabel, { color: Colors.success }]}>BULK</Text>
+            <Text style={styles.listingBulk}>${item.bulkPrice.toFixed(2)}</Text>
+            <Text style={styles.listingUnit}>/{item.unit}</Text>
+          </View>
+          {savings > 0 && (
+            <View style={styles.listingSaveBadge}>
+              <Text style={styles.listingSaveText}>-{savings}%</Text>
+              <Text style={styles.listingMinText}>min {item.bulkMinQty}</Text>
+            </View>
+          )}
+        </View>
+        <View style={styles.listingBottom}>
+          {supplier && (
+            <View style={styles.listingSupplierRow}>
+              <Store size={10} color={Colors.textMuted} />
+              <Text style={styles.listingSupplierText}>{supplier.companyName}</Text>
+            </View>
+          )}
+          <View style={styles.listingLeadRow}>
+            <Clock size={10} color={Colors.info} />
+            <Text style={styles.listingLeadText}>{item.leadTimeDays}d lead</Text>
+          </View>
+        </View>
+      </TouchableOpacity>
+    );
+  }, [getSupplier]);
+
+  const orderTotal = useMemo(() => {
+    if (!selectedListing) return 0;
+    const qty = parseInt(orderQty, 10) || 0;
+    const usesBulk = qty >= selectedListing.bulkMinQty;
+    return (usesBulk ? selectedListing.bulkPrice : selectedListing.price) * qty;
+  }, [selectedListing, orderQty]);
+
+  return (
+    <View style={styles.container}>
+      <FlatList
+        data={viewMode === 'suppliers' ? [] : []}
+        renderItem={() => null}
+        ListHeaderComponent={
+          <View>
+            <View style={[styles.header, { paddingTop: insets.top + 4 }]}>
+              <Text style={styles.largeTitle}>Marketplace</Text>
+              <Text style={styles.subtitle}>Buy materials directly from suppliers</Text>
+
+              <View style={styles.searchBar}>
+                <Search size={16} color={Colors.textMuted} />
+                <TextInput
+                  style={styles.searchInput}
+                  value={query}
+                  onChangeText={setQuery}
+                  placeholder="Search suppliers, materials..."
+                  placeholderTextColor={Colors.textMuted}
+                  autoCorrect={false}
+                  selectionColor={Colors.primary}
+                  underlineColorAndroid="transparent"
+                  testID="marketplace-search"
+                />
+                {query.length > 0 && (
+                  <TouchableOpacity onPress={() => setQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                    <X size={16} color={Colors.textMuted} />
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              <View style={styles.modeRow}>
+                <TouchableOpacity
+                  style={[styles.modeBtn, viewMode === 'suppliers' && styles.modeBtnActive]}
+                  onPress={() => setViewMode('suppliers')}
+                  activeOpacity={0.7}
+                >
+                  <Store size={14} color={viewMode === 'suppliers' ? Colors.textOnPrimary : Colors.textSecondary} />
+                  <Text style={[styles.modeBtnText, viewMode === 'suppliers' && styles.modeBtnTextActive]}>Suppliers</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modeBtn, viewMode === 'listings' && styles.modeBtnActive]}
+                  onPress={() => setViewMode('listings')}
+                  activeOpacity={0.7}
+                >
+                  <Package size={14} color={viewMode === 'listings' ? Colors.textOnPrimary : Colors.textSecondary} />
+                  <Text style={[styles.modeBtnText, viewMode === 'listings' && styles.modeBtnTextActive]}>Products</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <View style={styles.categoriesWrapper}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoriesContent}>
+                {SUPPLIER_CATEGORIES.map(cat => {
+                  const isActive = activeCategory === cat.id;
+                  return (
+                    <TouchableOpacity
+                      key={cat.id}
+                      style={[styles.categoryChip, isActive && styles.categoryChipActive]}
+                      onPress={() => {
+                        setActiveCategory(cat.id);
+                        if (Platform.OS !== 'web') void Haptics.selectionAsync();
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.categoryEmoji}>{cat.emoji}</Text>
+                      <Text style={[styles.categoryChipText, isActive && styles.categoryChipTextActive]}>
+                        {cat.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            </View>
+
+            <View style={styles.resultsHeader}>
+              <Text style={styles.resultsCount}>
+                {viewMode === 'suppliers'
+                  ? `${filteredSuppliers.length} supplier${filteredSuppliers.length !== 1 ? 's' : ''}`
+                  : `${filteredListings.length} product${filteredListings.length !== 1 ? 's' : ''}`
+                }
+              </Text>
+            </View>
+          </View>
+        }
+        ListFooterComponent={
+          <View style={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 100, gap: 10 }}>
+            {viewMode === 'suppliers'
+              ? filteredSuppliers.map(supplier => (
+                  <View key={supplier.id}>
+                    {renderSupplierCard({ item: supplier })}
+                  </View>
+                ))
+              : filteredListings.map(listing => (
+                  <View key={listing.id}>
+                    {renderListingCard({ item: listing })}
+                  </View>
+                ))
+            }
+            {viewMode === 'suppliers' && filteredSuppliers.length === 0 && (
+              <View style={styles.emptyState}>
+                <Store size={40} color={Colors.textMuted} />
+                <Text style={styles.emptyTitle}>No suppliers found</Text>
+                <Text style={styles.emptyDesc}>Try a different search or category</Text>
+              </View>
+            )}
+            {viewMode === 'listings' && filteredListings.length === 0 && (
+              <View style={styles.emptyState}>
+                <Package size={40} color={Colors.textMuted} />
+                <Text style={styles.emptyTitle}>No products found</Text>
+                <Text style={styles.emptyDesc}>Try a different search or category</Text>
+              </View>
+            )}
+          </View>
+        }
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      />
+
+      <Modal
+        visible={selectedSupplier !== null}
+        animationType="slide"
+        presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : undefined}
+        onRequestClose={() => setSelectedSupplier(null)}
+      >
+        {selectedSupplier && (
+          <View style={[styles.modalContainer, { paddingTop: Platform.OS === 'ios' ? 12 : insets.top + 8 }]}>
+            <View style={styles.modalHandle} />
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle} numberOfLines={1}>{selectedSupplier.companyName}</Text>
+              <TouchableOpacity
+                style={styles.modalCloseBtn}
+                onPress={() => setSelectedSupplier(null)}
+                activeOpacity={0.7}
+              >
+                <X size={20} color={Colors.text} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: insets.bottom + 30 }}>
+              <View style={styles.supplierDetailHeader}>
+                <View style={styles.supplierDetailAvatar}>
+                  <Store size={32} color={Colors.primary} />
+                </View>
+                <View style={styles.ratingRowLarge}>
+                  {renderStars(selectedSupplier.rating)}
+                  <Text style={styles.ratingTextLarge}>{selectedSupplier.rating}</Text>
+                </View>
+                <Text style={styles.supplierDetailDesc}>{selectedSupplier.description}</Text>
+              </View>
+
+              <View style={styles.contactGrid}>
+                <TouchableOpacity
+                  style={styles.contactBtn}
+                  onPress={() => handleContactSupplier(selectedSupplier, 'email')}
+                  activeOpacity={0.7}
+                >
+                  <Mail size={18} color={Colors.info} />
+                  <Text style={styles.contactBtnText}>Email</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.contactBtn}
+                  onPress={() => handleContactSupplier(selectedSupplier, 'phone')}
+                  activeOpacity={0.7}
+                >
+                  <Phone size={18} color={Colors.success} />
+                  <Text style={styles.contactBtnText}>Call</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.contactBtn}
+                  onPress={() => handleContactSupplier(selectedSupplier, 'website')}
+                  activeOpacity={0.7}
+                >
+                  <Globe size={18} color={Colors.accent} />
+                  <Text style={styles.contactBtnText}>Website</Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.detailInfoCard}>
+                <View style={styles.detailInfoRow}>
+                  <MapPin size={14} color={Colors.textMuted} />
+                  <Text style={styles.detailInfoText}>{selectedSupplier.address}</Text>
+                </View>
+                <View style={styles.detailInfoDivider} />
+                <View style={styles.detailInfoRow}>
+                  <Truck size={14} color={Colors.textMuted} />
+                  <Text style={styles.detailInfoText}>{selectedSupplier.deliveryOptions.join(' · ')}</Text>
+                </View>
+                <View style={styles.detailInfoDivider} />
+                <View style={styles.detailInfoRow}>
+                  <DollarSign size={14} color={Colors.textMuted} />
+                  <Text style={styles.detailInfoText}>Min order: ${selectedSupplier.minOrderAmount}</Text>
+                </View>
+              </View>
+
+              <Text style={styles.detailSectionLabel}>
+                PRODUCTS ({supplierListings.length})
+              </Text>
+              <View style={styles.detailListingsCard}>
+                {supplierListings.map((listing, idx) => {
+                  const savings = listing.price > 0 ? Math.round(((listing.price - listing.bulkPrice) / listing.price) * 100) : 0;
+                  return (
+                    <View key={listing.id}>
+                      <TouchableOpacity
+                        style={styles.detailListingRow}
+                        onPress={() => {
+                          setSelectedListing(listing);
+                          setOrderQty('1');
+                        }}
+                        activeOpacity={0.7}
+                      >
+                        <View style={styles.detailListingInfo}>
+                          <Text style={styles.detailListingName}>{listing.name}</Text>
+                          <Text style={styles.detailListingMeta}>
+                            ${listing.bulkPrice.toFixed(2)}/{listing.unit} bulk · {listing.leadTimeDays}d lead
+                          </Text>
+                        </View>
+                        <View style={styles.detailListingRight}>
+                          <Text style={styles.detailListingPrice}>${listing.price.toFixed(2)}</Text>
+                          {savings > 0 && (
+                            <View style={styles.detailSaveBadge}>
+                              <Text style={styles.detailSaveText}>-{savings}%</Text>
+                            </View>
+                          )}
+                        </View>
+                      </TouchableOpacity>
+                      {idx < supplierListings.length - 1 && <View style={styles.detailListingDivider} />}
+                    </View>
+                  );
+                })}
+              </View>
+            </ScrollView>
+          </View>
+        )}
+      </Modal>
+
+      <Modal
+        visible={selectedListing !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSelectedListing(null)}
+      >
+        <Pressable style={styles.popupOverlay} onPress={() => setSelectedListing(null)}>
+          <Pressable style={styles.popupCard} onPress={() => undefined}>
+            {selectedListing && (() => {
+              const supplier = getSupplier(selectedListing.supplierId);
+              const qty = parseInt(orderQty, 10) || 0;
+              const usesBulk = qty >= selectedListing.bulkMinQty;
+              const savings = selectedListing.price > 0 ? Math.round(((selectedListing.price - selectedListing.bulkPrice) / selectedListing.price) * 100) : 0;
+
+              return (
+                <>
+                  <View style={styles.popupHeader}>
+                    <Text style={styles.popupTitle} numberOfLines={2}>{selectedListing.name}</Text>
+                    <TouchableOpacity onPress={() => setSelectedListing(null)} style={styles.popupCloseBtn}>
+                      <X size={18} color={Colors.textMuted} />
+                    </TouchableOpacity>
+                  </View>
+
+                  <Text style={styles.popupDesc}>{selectedListing.description}</Text>
+
+                  {supplier && (
+                    <View style={styles.popupSupplierRow}>
+                      <Store size={12} color={Colors.primary} />
+                      <Text style={styles.popupSupplierName}>{supplier.companyName}</Text>
+                      {selectedListing.inStock && (
+                        <View style={styles.popupStockBadge}>
+                          <CheckCircle size={10} color={Colors.success} />
+                          <Text style={styles.popupStockText}>In Stock</Text>
+                        </View>
+                      )}
+                    </View>
+                  )}
+
+                  <View style={styles.popupPriceRow}>
+                    <View style={styles.popupPriceBlock}>
+                      <Text style={styles.popupPriceLabel}>RETAIL</Text>
+                      <Text style={styles.popupRetail}>${selectedListing.price.toFixed(2)}</Text>
+                      <Text style={styles.popupPriceUnit}>/{selectedListing.unit}</Text>
+                    </View>
+                    <View style={styles.popupPriceBlock}>
+                      <Text style={[styles.popupPriceLabel, { color: Colors.success }]}>BULK</Text>
+                      <Text style={styles.popupBulk}>${selectedListing.bulkPrice.toFixed(2)}</Text>
+                      <Text style={styles.popupPriceUnit}>/{selectedListing.unit}</Text>
+                    </View>
+                  </View>
+
+                  <Text style={styles.popupFieldLabel}>Quantity ({selectedListing.unit})</Text>
+                  <View style={styles.popupQtyRow}>
+                    <TouchableOpacity
+                      style={styles.popupQtyBtn}
+                      onPress={() => {
+                        const q = Math.max(1, (parseInt(orderQty, 10) || 1) - 1);
+                        setOrderQty(String(q));
+                      }}
+                    >
+                      <Text style={styles.popupQtyBtnText}>−</Text>
+                    </TouchableOpacity>
+                    <TextInput
+                      style={styles.popupQtyInput}
+                      value={orderQty}
+                      onChangeText={setOrderQty}
+                      keyboardType="number-pad"
+                      textAlign="center"
+                      testID="order-qty-input"
+                    />
+                    <TouchableOpacity
+                      style={styles.popupQtyBtn}
+                      onPress={() => {
+                        const q = (parseInt(orderQty, 10) || 0) + 1;
+                        setOrderQty(String(q));
+                      }}
+                    >
+                      <Text style={styles.popupQtyBtnText}>+</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  {usesBulk && (
+                    <View style={styles.popupBulkBanner}>
+                      <CheckCircle size={14} color={Colors.success} />
+                      <Text style={styles.popupBulkText}>Bulk pricing applied! Save {savings}%</Text>
+                    </View>
+                  )}
+
+                  <View style={styles.popupTotalRow}>
+                    <Text style={styles.popupTotalLabel}>Estimated Total</Text>
+                    <Text style={styles.popupTotalValue}>${orderTotal.toFixed(2)}</Text>
+                  </View>
+
+                  <View style={styles.popupLeadRow}>
+                    <Clock size={12} color={Colors.info} />
+                    <Text style={styles.popupLeadText}>
+                      Estimated lead time: {selectedListing.leadTimeDays} business day{selectedListing.leadTimeDays !== 1 ? 's' : ''}
+                    </Text>
+                  </View>
+
+                  <TouchableOpacity
+                    style={styles.popupRequestBtn}
+                    onPress={() => handleRequestQuote(selectedListing)}
+                    activeOpacity={0.85}
+                    testID="request-quote-btn"
+                  >
+                    <Mail size={18} color={Colors.textOnPrimary} />
+                    <Text style={styles.popupRequestBtnText}>Request Quote via Email</Text>
+                  </TouchableOpacity>
+
+                  {supplier && (
+                    <TouchableOpacity
+                      style={styles.popupCallBtn}
+                      onPress={() => handleContactSupplier(supplier, 'phone')}
+                      activeOpacity={0.7}
+                    >
+                      <Phone size={16} color={Colors.primary} />
+                      <Text style={styles.popupCallBtnText}>Call {supplier.companyName}</Text>
+                    </TouchableOpacity>
+                  )}
+                </>
+              );
+            })()}
+          </Pressable>
+        </Pressable>
+      </Modal>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+  header: {
+    backgroundColor: Colors.surface,
+    paddingHorizontal: 20,
+    paddingBottom: 12,
+    gap: 8,
+    borderBottomWidth: 0.5,
+    borderBottomColor: Colors.borderLight,
+  },
+  largeTitle: {
+    fontSize: 34,
+    fontWeight: '700' as const,
+    color: Colors.text,
+    letterSpacing: -0.5,
+  },
+  subtitle: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    marginTop: -4,
+  },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.fillTertiary,
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    gap: 8,
+    height: 44,
+    marginTop: 4,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 15,
+    color: Colors.text,
+  },
+  modeRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  modeBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: Colors.fillTertiary,
+  },
+  modeBtnActive: {
+    backgroundColor: Colors.primary,
+  },
+  modeBtnText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: Colors.textSecondary,
+  },
+  modeBtnTextActive: {
+    color: Colors.textOnPrimary,
+  },
+  categoriesWrapper: {
+    backgroundColor: Colors.surface,
+    borderBottomWidth: 0.5,
+    borderBottomColor: Colors.borderLight,
+  },
+  categoriesContent: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    gap: 6,
+  },
+  categoryChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 20,
+    backgroundColor: Colors.fillTertiary,
+  },
+  categoryChipActive: {
+    backgroundColor: Colors.primary,
+  },
+  categoryEmoji: {
+    fontSize: 13,
+  },
+  categoryChipText: {
+    fontSize: 12,
+    fontWeight: '500' as const,
+    color: Colors.textSecondary,
+  },
+  categoryChipTextActive: {
+    color: Colors.textOnPrimary,
+    fontWeight: '600' as const,
+  },
+  resultsHeader: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+  },
+  resultsCount: {
+    fontSize: 12,
+    fontWeight: '500' as const,
+    color: Colors.textSecondary,
+    letterSpacing: 0.2,
+  },
+  supplierCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    padding: 16,
+    gap: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  featuredBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    alignSelf: 'flex-start',
+    backgroundColor: '#FFF8E1',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  featuredText: {
+    fontSize: 10,
+    fontWeight: '700' as const,
+    color: '#FFB800',
+    textTransform: 'uppercase' as const,
+    letterSpacing: 0.5,
+  },
+  supplierTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  supplierAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: Colors.primary + '12',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  supplierInfo: {
+    flex: 1,
+    gap: 4,
+  },
+  supplierName: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: Colors.text,
+  },
+  ratingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+  },
+  ratingText: {
+    fontSize: 12,
+    fontWeight: '600' as const,
+    color: Colors.textSecondary,
+    marginLeft: 3,
+  },
+  supplierDesc: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+    lineHeight: 18,
+  },
+  supplierMeta: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  supplierChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: Colors.fillTertiary,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  supplierChipText: {
+    fontSize: 11,
+    fontWeight: '500' as const,
+    color: Colors.textSecondary,
+  },
+  supplierCats: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  catTag: {
+    backgroundColor: Colors.primary + '10',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+  },
+  catTagText: {
+    fontSize: 11,
+    fontWeight: '600' as const,
+    color: Colors.primary,
+  },
+  listingCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 14,
+    padding: 14,
+    gap: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  listingTop: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  listingInfo: {
+    flex: 1,
+    gap: 3,
+  },
+  listingName: {
+    fontSize: 15,
+    fontWeight: '600' as const,
+    color: Colors.text,
+    lineHeight: 20,
+  },
+  listingDesc: {
+    fontSize: 12,
+    color: Colors.textMuted,
+  },
+  stockBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: Colors.successLight,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  stockText: {
+    fontSize: 10,
+    fontWeight: '600' as const,
+    color: Colors.success,
+  },
+  listingPriceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.background,
+    borderRadius: 10,
+    padding: 10,
+    gap: 8,
+  },
+  listingPriceBlock: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 2,
+  },
+  listingPriceLabel: {
+    fontSize: 9,
+    fontWeight: '700' as const,
+    color: Colors.textMuted,
+    marginRight: 4,
+    letterSpacing: 0.5,
+  },
+  listingRetail: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: Colors.textSecondary,
+    textDecorationLine: 'line-through' as const,
+  },
+  listingBulk: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: Colors.success,
+    letterSpacing: -0.3,
+  },
+  listingUnit: {
+    fontSize: 11,
+    color: Colors.textMuted,
+  },
+  listingPriceDivider: {
+    width: 0.5,
+    height: 24,
+    backgroundColor: Colors.border,
+  },
+  listingSaveBadge: {
+    alignItems: 'flex-end',
+  },
+  listingSaveText: {
+    fontSize: 11,
+    fontWeight: '700' as const,
+    color: Colors.success,
+  },
+  listingMinText: {
+    fontSize: 10,
+    color: Colors.textMuted,
+  },
+  listingBottom: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  listingSupplierRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  listingSupplierText: {
+    fontSize: 12,
+    color: Colors.textMuted,
+    fontWeight: '500' as const,
+  },
+  listingLeadRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  listingLeadText: {
+    fontSize: 11,
+    color: Colors.info,
+    fontWeight: '500' as const,
+  },
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: 60,
+    gap: 10,
+  },
+  emptyTitle: {
+    fontSize: 17,
+    fontWeight: '600' as const,
+    color: Colors.text,
+  },
+  emptyDesc: {
+    fontSize: 14,
+    color: Colors.textMuted,
+    textAlign: 'center' as const,
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+  modalHandle: {
+    width: 36,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: Colors.border,
+    alignSelf: 'center',
+    marginBottom: 8,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingBottom: 14,
+    borderBottomWidth: 0.5,
+    borderBottomColor: Colors.borderLight,
+  },
+  modalTitle: {
+    flex: 1,
+    fontSize: 20,
+    fontWeight: '700' as const,
+    color: Colors.text,
+    letterSpacing: -0.3,
+    marginRight: 12,
+  },
+  modalCloseBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: Colors.fillTertiary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  supplierDetailHeader: {
+    alignItems: 'center',
+    paddingVertical: 24,
+    paddingHorizontal: 20,
+    gap: 10,
+  },
+  supplierDetailAvatar: {
+    width: 64,
+    height: 64,
+    borderRadius: 20,
+    backgroundColor: Colors.primary + '12',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  ratingRowLarge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  ratingTextLarge: {
+    fontSize: 14,
+    fontWeight: '700' as const,
+    color: Colors.text,
+    marginLeft: 4,
+  },
+  supplierDetailDesc: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  contactGrid: {
+    flexDirection: 'row',
+    gap: 10,
+    paddingHorizontal: 20,
+    marginBottom: 20,
+  },
+  contactBtn: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 14,
+    borderRadius: 14,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+  },
+  contactBtnText: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: Colors.text,
+  },
+  detailInfoCard: {
+    marginHorizontal: 20,
+    backgroundColor: Colors.surface,
+    borderRadius: 14,
+    padding: 14,
+    gap: 8,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+  },
+  detailInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  detailInfoText: {
+    flex: 1,
+    fontSize: 14,
+    color: Colors.text,
+  },
+  detailInfoDivider: {
+    height: 0.5,
+    backgroundColor: Colors.borderLight,
+    marginLeft: 24,
+  },
+  detailSectionLabel: {
+    fontSize: 12,
+    fontWeight: '600' as const,
+    color: Colors.textMuted,
+    letterSpacing: 0.6,
+    paddingHorizontal: 20,
+    marginBottom: 8,
+  },
+  detailListingsCard: {
+    marginHorizontal: 20,
+    backgroundColor: Colors.surface,
+    borderRadius: 14,
+    overflow: 'hidden' as const,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+  },
+  detailListingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 10,
+  },
+  detailListingInfo: {
+    flex: 1,
+    gap: 2,
+  },
+  detailListingName: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: Colors.text,
+  },
+  detailListingMeta: {
+    fontSize: 12,
+    color: Colors.textMuted,
+  },
+  detailListingRight: {
+    alignItems: 'flex-end',
+    gap: 3,
+  },
+  detailListingPrice: {
+    fontSize: 15,
+    fontWeight: '700' as const,
+    color: Colors.text,
+  },
+  detailSaveBadge: {
+    backgroundColor: Colors.successLight,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  detailSaveText: {
+    fontSize: 10,
+    fontWeight: '700' as const,
+    color: Colors.success,
+  },
+  detailListingDivider: {
+    height: 0.5,
+    backgroundColor: Colors.borderLight,
+    marginLeft: 14,
+  },
+  popupOverlay: {
+    flex: 1,
+    backgroundColor: Colors.overlay,
+    justifyContent: 'center',
+    padding: 20,
+  },
+  popupCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 24,
+    padding: 20,
+    gap: 12,
+    maxHeight: '85%',
+  },
+  popupHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  popupTitle: {
+    flex: 1,
+    fontSize: 18,
+    fontWeight: '700' as const,
+    color: Colors.text,
+    lineHeight: 24,
+  },
+  popupCloseBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: Colors.fillTertiary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  popupDesc: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+    lineHeight: 18,
+  },
+  popupSupplierRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  popupSupplierName: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: Colors.primary,
+    flex: 1,
+  },
+  popupStockBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: Colors.successLight,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  popupStockText: {
+    fontSize: 10,
+    fontWeight: '600' as const,
+    color: Colors.success,
+  },
+  popupPriceRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  popupPriceBlock: {
+    flex: 1,
+    backgroundColor: Colors.background,
+    borderRadius: 12,
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 2,
+  },
+  popupPriceLabel: {
+    fontSize: 9,
+    fontWeight: '700' as const,
+    color: Colors.textMuted,
+    letterSpacing: 0.5,
+    marginRight: 4,
+  },
+  popupRetail: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: Colors.textSecondary,
+    textDecorationLine: 'line-through' as const,
+  },
+  popupBulk: {
+    fontSize: 18,
+    fontWeight: '700' as const,
+    color: Colors.success,
+  },
+  popupPriceUnit: {
+    fontSize: 11,
+    color: Colors.textMuted,
+  },
+  popupFieldLabel: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
+  popupQtyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  popupQtyBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: Colors.primary + '12',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  popupQtyBtnText: {
+    fontSize: 22,
+    fontWeight: '600' as const,
+    color: Colors.primary,
+  },
+  popupQtyInput: {
+    flex: 1,
+    height: 48,
+    backgroundColor: Colors.background,
+    borderRadius: 12,
+    fontSize: 20,
+    fontWeight: '700' as const,
+    color: Colors.text,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  popupBulkBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: Colors.successLight,
+    borderRadius: 10,
+    padding: 10,
+  },
+  popupBulkText: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: Colors.success,
+  },
+  popupTotalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: Colors.primary + '08',
+    borderRadius: 12,
+    padding: 14,
+  },
+  popupTotalLabel: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: Colors.textSecondary,
+  },
+  popupTotalValue: {
+    fontSize: 22,
+    fontWeight: '800' as const,
+    color: Colors.primary,
+  },
+  popupLeadRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  popupLeadText: {
+    fontSize: 12,
+    color: Colors.info,
+    fontWeight: '500' as const,
+  },
+  popupRequestBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: Colors.primary,
+    borderRadius: 14,
+    paddingVertical: 16,
+    marginTop: 4,
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  popupRequestBtnText: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: Colors.textOnPrimary,
+  },
+  popupCallBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: Colors.primary + '10',
+    borderRadius: 14,
+    paddingVertical: 14,
+    borderWidth: 1,
+    borderColor: Colors.primary + '20',
+  },
+  popupCallBtnText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: Colors.primary,
+  },
+});
+
+
+========== FILE: ./app/(tabs)/materials/[category].tsx ==========
+import React, { useState, useCallback, useMemo } from 'react';
+import {
+  View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput,
+  Modal, Alert, Platform,
+} from 'react-native';
+import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ArrowLeft, Tag, Truck, Search, X, Bell } from 'lucide-react-native';
+import * as Haptics from 'expo-haptics';
+import { Colors } from '@/constants/colors';
+import { CATEGORY_META, getLivePrices, type MaterialItem } from '@/constants/materials';
+import { useProjects } from '@/contexts/ProjectContext';
+import type { PriceAlert, AlertDirection } from '@/types';
+
+const PAGE_SIZE = 30;
+
+function createId(prefix: string): string {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+export default function CategoryDetailScreen() {
+  const { category } = useLocalSearchParams<{ category: string }>();
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { priceAlerts, addPriceAlert } = useProjects();
+
+  const [searchQuery, setSearchQuery] = useState('');
+  const [alertModal, setAlertModal] = useState<MaterialItem | null>(null);
+  const [alertPrice, setAlertPrice] = useState('');
+  const [alertDirection, setAlertDirection] = useState<AlertDirection>('below');
+
+  const allMaterials = useMemo(() => {
+    const prices = getLivePrices(Date.now() / 10000);
+    return prices.filter(m => m.category === category);
+  }, [category]);
+
+  const filteredMaterials = useMemo(() => {
+    if (!searchQuery.trim()) return allMaterials;
+    const q = searchQuery.toLowerCase();
+    return allMaterials.filter(item =>
+      item.name.toLowerCase().includes(q) ||
+      item.supplier.toLowerCase().includes(q) ||
+      (item.sku && item.sku.toLowerCase().includes(q))
+    );
+  }, [allMaterials, searchQuery]);
+
+  const meta = CATEGORY_META[category ?? ''] ?? { color: Colors.primary, emoji: '📦', label: category ?? 'Materials' };
+
+  const calcDiscount = (retail: number, bulk: number) => {
+    if (retail <= 0) return 0;
+    return Math.round(((retail - bulk) / retail) * 100);
+  };
+
+  const handleCreateAlert = useCallback(() => {
+    if (!alertModal) return;
+    const price = parseFloat(alertPrice);
+    if (isNaN(price) || price <= 0) {
+      Alert.alert('Invalid Price', 'Please enter a valid target price.');
+      return;
+    }
+    const alert: PriceAlert = {
+      id: createId('alert'),
+      materialId: alertModal.id,
+      materialName: alertModal.name,
+      targetPrice: price,
+      direction: alertDirection,
+      currentPrice: alertModal.baseRetailPrice,
+      isTriggered: false,
+      isPaused: false,
+      createdAt: new Date().toISOString(),
+    };
+    addPriceAlert(alert);
+    setAlertModal(null);
+    setAlertPrice('');
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    Alert.alert('Alert Set', `You'll be notified when ${alertModal.name} goes ${alertDirection} $${price.toFixed(2)}.`);
+  }, [alertModal, alertPrice, alertDirection, addPriceAlert]);
+
+  const renderItem = useCallback(({ item }: { item: MaterialItem }) => {
+    const discount = calcDiscount(item.baseRetailPrice, item.baseBulkPrice);
+    const hasAlert = priceAlerts.some(a => a.materialId === item.id);
+
+    return (
+      <View style={styles.itemCard}>
+        <View style={styles.itemTop}>
+          <View style={styles.itemLeft}>
+            <Text style={styles.itemName} numberOfLines={2}>{item.name}</Text>
+            <View style={styles.itemMeta}>
+              <Truck size={10} color={Colors.textMuted} />
+              <Text style={styles.itemSupplier} numberOfLines={1}>{item.supplier}</Text>
+              <Text style={styles.itemDot}>·</Text>
+              <Text style={styles.itemUnit}>per {item.unit}</Text>
+            </View>
+            {item.sku && (
+              <View style={styles.skuRow}>
+                <Tag size={9} color={Colors.textMuted} />
+                <Text style={styles.skuText}>SKU {item.sku}</Text>
+              </View>
+            )}
+            {item.region && item.region !== 'National Avg' && (
+              <View style={styles.regionBadge}>
+                <Text style={styles.regionText}>{item.region}</Text>
+              </View>
+            )}
+          </View>
+          <View style={styles.itemRight}>
+            <Text style={styles.retailPrice}>${item.baseRetailPrice.toFixed(2)}</Text>
+            <View style={styles.bulkRow}>
+              <Text style={styles.bulkPrice}>${item.baseBulkPrice.toFixed(2)}</Text>
+              {discount > 0 && (
+                <View style={styles.saveBadge}>
+                  <Text style={styles.saveBadgeText}>-{discount}%</Text>
+                </View>
+              )}
+            </View>
+            <Text style={styles.bulkMinLabel}>min {item.bulkMinQty} bulk</Text>
+          </View>
+        </View>
+        <View style={styles.itemActions}>
+          <TouchableOpacity
+            style={[styles.alertBtn, hasAlert && styles.alertBtnActive]}
+            onPress={() => {
+              setAlertModal(item);
+              setAlertPrice('');
+              setAlertDirection('below');
+              if (Platform.OS !== 'web') void Haptics.selectionAsync();
+            }}
+            activeOpacity={0.7}
+          >
+            <Bell size={13} color={hasAlert ? Colors.accent : Colors.textMuted} />
+            <Text style={[styles.alertBtnText, hasAlert && { color: Colors.accent }]}>
+              {hasAlert ? 'Alert Set' : 'Set Alert'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }, [priceAlerts]);
+
+  const keyExtractor = useCallback((item: MaterialItem) => item.id, []);
+
+  const categoryAlerts = useMemo(() => {
+    return priceAlerts.filter(a => {
+      return allMaterials.some(m => m.id === a.materialId);
+    });
+  }, [priceAlerts, allMaterials]);
+
+  return (
+    <View style={styles.container}>
+      <Stack.Screen options={{ headerShown: false }} />
+
+      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+        <TouchableOpacity
+          style={styles.backBtn}
+          onPress={() => router.back()}
+          activeOpacity={0.7}
+          testID="back-btn"
+        >
+          <ArrowLeft size={20} color={Colors.text} />
+        </TouchableOpacity>
+        <View style={[styles.headerEmoji, { backgroundColor: meta.color + '15' }]}>
+          <Text style={styles.headerEmojiText}>{meta.emoji}</Text>
+        </View>
+        <View style={styles.headerInfo}>
+          <Text style={styles.headerTitle}>{meta.label}</Text>
+          <Text style={styles.headerCount}>{filteredMaterials.length} of {allMaterials.length} items</Text>
+        </View>
+      </View>
+
+      <View style={styles.searchWrap}>
+        <View style={styles.searchBar}>
+          <Search size={15} color={Colors.textMuted} />
+          <TextInput
+            style={styles.searchInput}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholder={`Search ${meta.label.toLowerCase()}...`}
+            placeholderTextColor={Colors.textMuted}
+            autoCorrect={false}
+            selectionColor={Colors.primary}
+            underlineColorAndroid="transparent"
+            testID="category-search"
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <View style={styles.clearBtn}>
+                <X size={10} color="#fff" />
+              </View>
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+
+      {categoryAlerts.length > 0 && (
+        <View style={styles.alertsBar}>
+          <Bell size={12} color={Colors.accent} />
+          <Text style={styles.alertsBarText}>{categoryAlerts.length} active alert{categoryAlerts.length > 1 ? 's' : ''} in this category</Text>
+        </View>
+      )}
+
+      <FlatList
+        data={filteredMaterials}
+        renderItem={renderItem}
+        keyExtractor={keyExtractor}
+        contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 100 }]}
+        showsVerticalScrollIndicator={false}
+        initialNumToRender={PAGE_SIZE}
+        maxToRenderPerBatch={15}
+        windowSize={5}
+        removeClippedSubviews={true}
+        updateCellsBatchingPeriod={50}
+        getItemLayout={undefined}
+        ListEmptyComponent={
+          <View style={styles.emptyState}>
+            <Search size={36} color={Colors.textMuted} />
+            <Text style={styles.emptyTitle}>No results</Text>
+            <Text style={styles.emptyDesc}>Try a different search term</Text>
+          </View>
+        }
+      />
+
+      <Modal
+        visible={alertModal !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setAlertModal(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Set Price Alert</Text>
+              <TouchableOpacity onPress={() => setAlertModal(null)}>
+                <X size={20} color={Colors.textMuted} />
+              </TouchableOpacity>
+            </View>
+            {alertModal && (
+              <>
+                <Text style={styles.modalMatName}>{alertModal.name}</Text>
+                <Text style={styles.modalCurrentPrice}>Current: ${alertModal.baseRetailPrice.toFixed(2)} / {alertModal.unit}</Text>
+
+                <Text style={styles.modalFieldLabel}>Alert Direction</Text>
+                <View style={styles.directionRow}>
+                  <TouchableOpacity
+                    style={[styles.directionBtn, alertDirection === 'below' && styles.directionBtnActive]}
+                    onPress={() => setAlertDirection('below')}
+                  >
+                    <Text style={[styles.directionBtnText, alertDirection === 'below' && styles.directionBtnTextActive]}>Price drops below</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.directionBtn, alertDirection === 'above' && styles.directionBtnActive]}
+                    onPress={() => setAlertDirection('above')}
+                  >
+                    <Text style={[styles.directionBtnText, alertDirection === 'above' && styles.directionBtnTextActive]}>Price rises above</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <Text style={styles.modalFieldLabel}>Target Price ($)</Text>
+                <TextInput
+                  style={styles.modalInput}
+                  value={alertPrice}
+                  onChangeText={setAlertPrice}
+                  placeholder={alertDirection === 'below' ? (alertModal.baseRetailPrice * 0.9).toFixed(2) : (alertModal.baseRetailPrice * 1.1).toFixed(2)}
+                  placeholderTextColor={Colors.textMuted}
+                  keyboardType="decimal-pad"
+                  testID="alert-price-input"
+                />
+
+                <TouchableOpacity style={styles.modalSaveBtn} onPress={handleCreateAlert} activeOpacity={0.85}>
+                  <Bell size={16} color="#fff" />
+                  <Text style={styles.modalSaveBtnText}>Set Alert</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: Colors.background },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    backgroundColor: Colors.surface,
+    borderBottomWidth: 0.5,
+    borderBottomColor: Colors.borderLight,
+    gap: 12,
+  },
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Colors.fillTertiary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerEmoji: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerEmojiText: { fontSize: 20 },
+  headerInfo: { flex: 1 },
+  headerTitle: { fontSize: 20, fontWeight: '700' as const, color: Colors.text },
+  headerCount: { fontSize: 13, color: Colors.textSecondary, marginTop: 1 },
+  searchWrap: { paddingHorizontal: 16, paddingVertical: 12, backgroundColor: Colors.surface },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.fillTertiary,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    gap: 8,
+    height: 40,
+  },
+  searchInput: { flex: 1, fontSize: 15, color: Colors.text },
+  clearBtn: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: Colors.textMuted,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  alertsBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginHorizontal: 16,
+    marginTop: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: Colors.accent + '12',
+    borderRadius: 8,
+  },
+  alertsBarText: { fontSize: 12, fontWeight: '500' as const, color: Colors.accent },
+  listContent: { paddingTop: 8, paddingHorizontal: 16, gap: 8 },
+  itemCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+  },
+  itemTop: { flexDirection: 'row', gap: 12 },
+  itemLeft: { flex: 1, gap: 4 },
+  itemName: { fontSize: 14, fontWeight: '600' as const, color: Colors.text, lineHeight: 19 },
+  itemMeta: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  itemSupplier: { fontSize: 11, color: Colors.textMuted, flex: 1 },
+  itemDot: { fontSize: 11, color: Colors.textMuted },
+  itemUnit: { fontSize: 11, color: Colors.textMuted },
+  skuRow: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  skuText: { fontSize: 10, color: Colors.textMuted },
+  regionBadge: {
+    alignSelf: 'flex-start' as const,
+    backgroundColor: Colors.info + '12',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    marginTop: 2,
+  },
+  regionText: { fontSize: 10, fontWeight: '600' as const, color: Colors.info },
+  itemRight: { alignItems: 'flex-end', gap: 2, minWidth: 80 },
+  retailPrice: { fontSize: 12, color: Colors.textMuted, textDecorationLine: 'line-through' as const },
+  bulkRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  bulkPrice: { fontSize: 17, fontWeight: '700' as const, color: Colors.success, letterSpacing: -0.3 },
+  saveBadge: { backgroundColor: Colors.success + '18', paddingHorizontal: 5, paddingVertical: 2, borderRadius: 5 },
+  saveBadgeText: { fontSize: 10, fontWeight: '700' as const, color: Colors.success },
+  bulkMinLabel: { fontSize: 10, color: Colors.textMuted },
+  itemActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: 0.5,
+    borderTopColor: Colors.borderLight,
+  },
+  alertBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: Colors.fillTertiary,
+  },
+  alertBtnActive: { backgroundColor: Colors.accent + '15' },
+  alertBtnText: { fontSize: 12, fontWeight: '500' as const, color: Colors.textMuted },
+  emptyState: { alignItems: 'center', paddingVertical: 60, gap: 8 },
+  emptyTitle: { fontSize: 18, fontWeight: '600' as const, color: Colors.text },
+  emptyDesc: { fontSize: 14, color: Colors.textMuted },
+  modalOverlay: { flex: 1, backgroundColor: Colors.overlay, justifyContent: 'center', padding: 20 },
+  modalCard: { backgroundColor: Colors.surface, borderRadius: 24, padding: 22, gap: 12, maxWidth: 400, width: '100%', alignSelf: 'center' as const },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  modalTitle: { fontSize: 20, fontWeight: '700' as const, color: Colors.text },
+  modalMatName: { fontSize: 16, fontWeight: '600' as const, color: Colors.text },
+  modalCurrentPrice: { fontSize: 14, color: Colors.textSecondary },
+  modalFieldLabel: { fontSize: 13, fontWeight: '600' as const, color: Colors.textSecondary, marginTop: 4 },
+  directionRow: { flexDirection: 'row', gap: 8 },
+  directionBtn: { flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: Colors.fillTertiary, alignItems: 'center' },
+  directionBtnActive: { backgroundColor: Colors.primary },
+  directionBtnText: { fontSize: 13, fontWeight: '600' as const, color: Colors.text },
+  directionBtnTextActive: { color: '#fff' },
+  modalInput: { height: 48, borderRadius: 14, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 14, fontSize: 16, color: Colors.text },
+  modalSaveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: Colors.primary, borderRadius: 14, paddingVertical: 14 },
+  modalSaveBtnText: { fontSize: 16, fontWeight: '700' as const, color: '#fff' },
+});
+
+
+========== FILE: ./app/(tabs)/materials/_layout.tsx ==========
+import { Stack } from 'expo-router';
+
+export default function MaterialsLayout() {
+  return (
+    <Stack screenOptions={{ headerShown: false }} />
+  );
+}
+
+
+========== FILE: ./app/(tabs)/materials/index.tsx ==========
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import {
+  View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput,
+  Animated, RefreshControl, AppState, Alert, Platform, ScrollView,
+} from 'react-native';
+import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ChevronRight, TrendingDown, Search, X, RefreshCw, Clock, Wifi, Bell, Pause, Play, Trash2, MapPin, ChevronDown } from 'lucide-react-native';
+import * as Haptics from 'expo-haptics';
+import { Colors } from '@/constants/colors';
+import { CATEGORY_META, getLivePrices, type MaterialItem } from '@/constants/materials';
+import { useProjects } from '@/contexts/ProjectContext';
+import { REGIONS, CITY_ADJUSTMENTS, getRegionForState } from '@/constants/regions';
+import type { PricingRegion } from '@/types';
+
+const ALL_CATEGORIES = Object.keys(CATEGORY_META);
+
+interface CategorySummary {
+  name: string;
+  label: string;
+  emoji: string;
+  color: string;
+  itemCount: number;
+  priceRange: { min: number; max: number };
+  avgDiscount: number;
+}
+
+export default function MaterialsScreen() {
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const { priceAlerts, updatePriceAlert, deletePriceAlert } = useProjects();
+  const [searchQuery, setSearchQuery] = useState('');
+  const [materials, setMaterials] = useState<MaterialItem[]>(() => getLivePrices(Date.now() / 10000));
+  const [lastUpdated, setLastUpdated] = useState(new Date());
+  const [refreshing, setRefreshing] = useState(false);
+  const [showAlerts, setShowAlerts] = useState(false);
+  const [selectedRegion, setSelectedRegion] = useState<PricingRegion>('mid_atlantic');
+  const [selectedCity, setSelectedCity] = useState<string>('New York City');
+  const [showLocationPicker, setShowLocationPicker] = useState(false);
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const appState = useRef(AppState.currentState);
+
+  const regionInfo = useMemo(() => REGIONS.find(r => r.id === selectedRegion), [selectedRegion]);
+  const locationMultiplier = useMemo(() => {
+    const cityAdj = CITY_ADJUSTMENTS[selectedCity];
+    if (cityAdj) return cityAdj;
+    return regionInfo?.costIndex ?? 1.0;
+  }, [selectedCity, regionInfo]);
+
+  const refreshPrices = useCallback((showRefreshing = false) => {
+    if (showRefreshing) setRefreshing(true);
+    const seed = Date.now() / 10000;
+    const newPrices = getLivePrices(seed);
+    setMaterials(newPrices);
+    setLastUpdated(new Date());
+    if (showRefreshing) setTimeout(() => setRefreshing(false), 600);
+
+    priceAlerts.forEach(alert => {
+      if (alert.isPaused || alert.isTriggered) return;
+      const mat = newPrices.find(m => m.id === alert.materialId);
+      if (!mat) return;
+      const triggered = alert.direction === 'below'
+        ? mat.baseRetailPrice <= alert.targetPrice
+        : mat.baseRetailPrice >= alert.targetPrice;
+      if (triggered) {
+        updatePriceAlert(alert.id, { isTriggered: true, currentPrice: mat.baseRetailPrice });
+        Alert.alert('Price Alert', `${alert.materialName} is now $${mat.baseRetailPrice.toFixed(2)} — ${alert.direction === 'below' ? 'below' : 'above'} your $${alert.targetPrice.toFixed(2)} target.`);
+      } else {
+        updatePriceAlert(alert.id, { currentPrice: mat.baseRetailPrice });
+      }
+    });
+  }, [priceAlerts, updatePriceAlert]);
+
+  useEffect(() => {
+    const interval = setInterval(() => refreshPrices(false), 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [refreshPrices]);
+
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', nextState => {
+      if (appState.current.match(/inactive|background/) && nextState === 'active') refreshPrices(false);
+      appState.current = nextState;
+    });
+    return () => sub.remove();
+  }, [refreshPrices]);
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 1.15, duration: 900, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1, duration: 900, useNativeDriver: true }),
+      ])
+    ).start();
+  }, [pulseAnim]);
+
+  const categories: CategorySummary[] = useMemo(() => {
+    const grouped: Record<string, MaterialItem[]> = {};
+    materials.forEach(m => {
+      if (!grouped[m.category]) grouped[m.category] = [];
+      grouped[m.category].push(m);
+    });
+
+    return ALL_CATEGORIES
+      .filter(cat => grouped[cat])
+      .map(cat => {
+        const items = grouped[cat];
+        const meta = CATEGORY_META[cat] ?? { color: Colors.primary, emoji: '📦', label: cat };
+        const prices = items.map(i => i.baseBulkPrice);
+        const discounts = items.map(i => {
+          if (i.baseRetailPrice <= 0) return 0;
+          return ((i.baseRetailPrice - i.baseBulkPrice) / i.baseRetailPrice) * 100;
+        });
+        return {
+          name: cat,
+          label: meta.label,
+          emoji: meta.emoji,
+          color: meta.color,
+          itemCount: items.length,
+          priceRange: { min: Math.min(...prices), max: Math.max(...prices) },
+          avgDiscount: Math.round(discounts.reduce((a, b) => a + b, 0) / discounts.length),
+        };
+      });
+  }, [materials]);
+
+  const filteredCategories = useMemo(() => {
+    if (!searchQuery.trim()) return categories;
+    const q = searchQuery.toLowerCase();
+    return categories.filter(cat =>
+      cat.label.toLowerCase().includes(q) ||
+      cat.name.toLowerCase().includes(q)
+    );
+  }, [categories, searchQuery]);
+
+  const totalCount = categories.reduce((s, c) => s + c.itemCount, 0);
+  const triggeredAlerts = priceAlerts.filter(a => a.isTriggered && !a.isPaused);
+
+  const formatTime = (d: Date) => d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+  const handleCategoryPress = useCallback((categoryName: string) => {
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+    router.push(`/(tabs)/materials/${categoryName}`);
+  }, [router]);
+
+  const renderCategory = useCallback(({ item }: { item: CategorySummary }) => {
+    const alertCount = priceAlerts.filter(a =>
+      materials.some(m => m.id === a.materialId && m.category === item.name)
+    ).length;
+
+    return (
+      <TouchableOpacity
+        style={styles.categoryCard}
+        onPress={() => handleCategoryPress(item.name)}
+        activeOpacity={0.65}
+        testID={`cat-${item.name}`}
+      >
+        <View style={styles.categoryCardInner}>
+          <View style={[styles.categoryEmoji, { backgroundColor: item.color + '15' }]}>
+            <Text style={styles.emojiText}>{item.emoji}</Text>
+          </View>
+          <View style={styles.categoryInfo}>
+            <View style={styles.categoryTitleRow}>
+              <Text style={styles.categoryName}>{item.label}</Text>
+              {alertCount > 0 && (
+                <View style={styles.categoryAlertDot}>
+                  <Bell size={9} color={Colors.accent} />
+                </View>
+              )}
+            </View>
+            <Text style={styles.categoryCount}>{item.itemCount} items</Text>
+            <View style={styles.categoryStats}>
+              <Text style={styles.priceRangeText}>
+                ${(item.priceRange.min * locationMultiplier).toFixed(2)} – ${(item.priceRange.max * locationMultiplier).toFixed(2)}
+              </Text>
+              {item.avgDiscount > 0 && (
+                <View style={styles.discountChip}>
+                  <Text style={styles.discountChipText}>avg -{item.avgDiscount}%</Text>
+                </View>
+              )}
+            </View>
+          </View>
+          <ChevronRight size={16} color={Colors.textMuted} strokeWidth={2} />
+        </View>
+      </TouchableOpacity>
+    );
+  }, [handleCategoryPress, priceAlerts, materials, locationMultiplier]);
+
+  const keyExtractor = useCallback((item: CategorySummary) => item.name, []);
+
+  const ListHeader = useMemo(() => (
+    <View>
+      <View style={[styles.headerArea, { paddingTop: insets.top + 4 }]}>
+        <View>
+          <Text style={styles.largeTitle}>Materials</Text>
+          <View style={styles.liveRow}>
+            <Animated.View style={[styles.liveDot, { transform: [{ scale: pulseAnim }] }]} />
+            <Text style={styles.liveLabel}>LIVE PRICING</Text>
+          </View>
+        </View>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          {priceAlerts.length > 0 && (
+            <TouchableOpacity
+              style={[styles.refreshBtn, showAlerts && { backgroundColor: Colors.accent + '20' }]}
+              onPress={() => setShowAlerts(!showAlerts)}
+              activeOpacity={0.7}
+            >
+              <Bell size={15} color={showAlerts ? Colors.accent : Colors.primary} />
+              {triggeredAlerts.length > 0 && (
+                <View style={styles.alertBadge}>
+                  <Text style={styles.alertBadgeText}>{triggeredAlerts.length}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity
+            style={styles.refreshBtn}
+            onPress={() => refreshPrices(true)}
+            activeOpacity={0.7}
+            testID="refresh-prices"
+          >
+            <RefreshCw size={15} color={Colors.primary} />
+            <Text style={styles.refreshBtnText}>Refresh</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      <TouchableOpacity
+        style={styles.locationBanner}
+        onPress={() => setShowLocationPicker(!showLocationPicker)}
+        activeOpacity={0.7}
+      >
+        <MapPin size={14} color={Colors.primary} />
+        <Text style={styles.locationText}>
+          Pricing for <Text style={styles.locationBold}>{selectedCity}</Text>
+          {' '}({regionInfo?.label ?? 'US Average'})
+        </Text>
+        <View style={styles.locationMultiplier}>
+          <Text style={styles.multiplierText}>{locationMultiplier > 1 ? '+' : ''}{((locationMultiplier - 1) * 100).toFixed(0)}%</Text>
+        </View>
+        <ChevronDown size={14} color={Colors.textSecondary} />
+      </TouchableOpacity>
+
+      {showLocationPicker && (
+        <View style={styles.locationPicker}>
+          <Text style={styles.pickerLabel}>REGION</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.pickerScroll}>
+            {REGIONS.map(region => (
+              <TouchableOpacity
+                key={region.id}
+                style={[styles.pickerChip, selectedRegion === region.id && styles.pickerChipActive]}
+                onPress={() => {
+                  setSelectedRegion(region.id);
+                  setSelectedCity(region.label);
+                  if (Platform.OS !== 'web') void Haptics.selectionAsync();
+                }}
+              >
+                <Text style={[styles.pickerChipText, selectedRegion === region.id && styles.pickerChipTextActive]}>
+                  {region.label}
+                </Text>
+                <Text style={[styles.pickerChipSub, selectedRegion === region.id && styles.pickerChipTextActive]}>
+                  {region.costIndex > 1 ? '+' : ''}{((region.costIndex - 1) * 100).toFixed(0)}%
+                </Text>
+              </TouchableOpacity>

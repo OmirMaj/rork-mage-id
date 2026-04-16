@@ -1,0 +1,4000 @@
+            <View style={[styles.heroStatDivider]} />
+            <View style={styles.heroStat}>
+              <Text style={[styles.heroStatValue, { color: '#9E9E9E' }]}>
+                {integrations.filter(i => i.status === 'coming_soon').length}
+              </Text>
+              <Text style={styles.heroStatLabel}>Coming Soon</Text>
+            </View>
+          </View>
+        </View>
+
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.categoryRow}
+        >
+          {INTEGRATION_CATEGORIES.map(cat => (
+            <TouchableOpacity
+              key={cat.id}
+              style={[styles.categoryChip, selectedCategory === cat.id && styles.categoryChipActive]}
+              onPress={() => {
+                setSelectedCategory(cat.id);
+                if (Platform.OS !== 'web') void Haptics.selectionAsync();
+              }}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.categoryChipText, selectedCategory === cat.id && styles.categoryChipTextActive]}>
+                {cat.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+
+        {filtered.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Search size={32} color={Colors.textMuted} />
+            <Text style={styles.emptyTitle}>No integrations found</Text>
+            <Text style={styles.emptyDesc}>Try a different category or search term</Text>
+          </View>
+        ) : (
+          <View style={styles.listSection}>
+            {filtered.filter(i => i.status === 'connected').length > 0 && (
+              <>
+                <Text style={styles.sectionLabel}>ACTIVE CONNECTIONS</Text>
+                {filtered.filter(i => i.status === 'connected').map(item => (
+                  <IntegrationCard key={item.id} item={item} onConnect={handleConnect} />
+                ))}
+              </>
+            )}
+
+            {filtered.filter(i => i.status === 'disconnected' || i.status === 'error').length > 0 && (
+              <>
+                <Text style={[styles.sectionLabel, { marginTop: 12 }]}>AVAILABLE</Text>
+                {filtered.filter(i => i.status === 'disconnected' || i.status === 'error').map(item => (
+                  <IntegrationCard key={item.id} item={item} onConnect={handleConnect} />
+                ))}
+              </>
+            )}
+
+            {filtered.filter(i => i.status === 'coming_soon').length > 0 && (
+              <>
+                <Text style={[styles.sectionLabel, { marginTop: 12 }]}>COMING SOON</Text>
+                {filtered.filter(i => i.status === 'coming_soon').map(item => (
+                  <IntegrationCard key={item.id} item={item} onConnect={handleConnect} />
+                ))}
+              </>
+            )}
+          </View>
+        )}
+      </ScrollView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: Colors.background },
+  heroSection: {
+    alignItems: 'center',
+    paddingVertical: 24,
+    paddingHorizontal: 20,
+    gap: 6,
+  },
+  heroIconWrap: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: Colors.primary + '14',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  heroTitle: {
+    fontSize: 24,
+    fontWeight: '700' as const,
+    color: Colors.text,
+    letterSpacing: -0.5,
+  },
+  heroSubtitle: {
+    fontSize: 15,
+    color: Colors.textSecondary,
+  },
+  heroStats: {
+    flexDirection: 'row',
+    marginTop: 16,
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    gap: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  heroStat: { alignItems: 'center', flex: 1 },
+  heroStatValue: { fontSize: 22, fontWeight: '700' as const, color: Colors.text },
+  heroStatLabel: { fontSize: 11, color: Colors.textMuted, marginTop: 2 },
+  heroStatDivider: { width: 1, backgroundColor: Colors.borderLight },
+  categoryRow: {
+    paddingHorizontal: 16,
+    gap: 8,
+    paddingBottom: 16,
+  },
+  categoryChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+  },
+  categoryChipActive: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  categoryChipText: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: Colors.textSecondary,
+  },
+  categoryChipTextActive: {
+    color: '#fff',
+  },
+  listSection: {
+    paddingHorizontal: 16,
+  },
+  sectionLabel: {
+    fontSize: 12,
+    fontWeight: '600' as const,
+    color: Colors.textMuted,
+    letterSpacing: 0.6,
+    marginBottom: 10,
+    paddingHorizontal: 4,
+  },
+  card: {
+    marginBottom: 8,
+    borderRadius: 14,
+    backgroundColor: Colors.surface,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  cardInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    gap: 12,
+  },
+  cardIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cardIconLetter: {
+    fontSize: 20,
+    fontWeight: '700' as const,
+  },
+  cardInfo: { flex: 1, gap: 2 },
+  cardNameRow: { flexDirection: 'row', alignItems: 'center' },
+  cardName: { fontSize: 15, fontWeight: '600' as const, color: Colors.text },
+  cardDesc: { fontSize: 12, color: Colors.textSecondary, lineHeight: 16 },
+  cardConnectedDate: { fontSize: 11, color: Colors.primary, fontWeight: '500' as const, marginTop: 2 },
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  statusText: { fontSize: 11, fontWeight: '600' as const },
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: 60,
+    gap: 8,
+  },
+  emptyTitle: { fontSize: 17, fontWeight: '600' as const, color: Colors.text },
+  emptyDesc: { fontSize: 14, color: Colors.textSecondary },
+});
+
+
+========== FILE: ./app/invoice.tsx ==========
+import React, { useState, useMemo, useCallback } from 'react';
+import {
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
+  Alert, Platform, KeyboardAvoidingView, Modal,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
+import * as Haptics from 'expo-haptics';
+import {
+  Trash2, X, Send, CreditCard, Check, BookUser, User,
+} from 'lucide-react-native';
+import { Colors } from '@/constants/colors';
+import { useProjects } from '@/contexts/ProjectContext';
+import { useSubscription } from '@/contexts/SubscriptionContext';
+import AIInvoicePredictor from '@/components/AIInvoicePredictor';
+import ContactPickerModal from '@/components/ContactPickerModal';
+import { generateInvoicePDF, generateInvoicePDFUri } from '@/utils/pdfGenerator';
+import * as Sharing from 'expo-sharing';
+import PDFPreSendSheet from '@/components/PDFPreSendSheet';
+import type { PDFSendOptions } from '@/components/PDFPreSendSheet';
+import { sendEmail, buildInvoiceEmailHtml } from '@/utils/emailService';
+import type { InvoiceLineItem, Invoice, PaymentTerms, PaymentMethod, InvoicePayment } from '@/types';
+
+function createId(prefix: string): string {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function formatCurrency(n: number): string {
+  return '$' + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+const PAYMENT_TERMS_OPTIONS: { value: PaymentTerms; label: string }[] = [
+  { value: 'due_on_receipt', label: 'Due on Receipt' },
+  { value: 'net_15', label: 'Net 15' },
+  { value: 'net_30', label: 'Net 30' },
+  { value: 'net_45', label: 'Net 45' },
+];
+
+const PAYMENT_METHOD_OPTIONS: { value: PaymentMethod; label: string }[] = [
+  { value: 'check', label: 'Check' },
+  { value: 'ach', label: 'ACH' },
+  { value: 'credit_card', label: 'Credit Card' },
+  { value: 'cash', label: 'Cash' },
+];
+
+function getDueDate(issueDate: string, terms: PaymentTerms): string {
+  const date = new Date(issueDate);
+  switch (terms) {
+    case 'net_15': date.setDate(date.getDate() + 15); break;
+    case 'net_30': date.setDate(date.getDate() + 30); break;
+    case 'net_45': date.setDate(date.getDate() + 45); break;
+    case 'due_on_receipt': break;
+  }
+  return date.toISOString();
+}
+
+export default function InvoiceScreen() {
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const { projectId, invoiceId, type: invoiceType } = useLocalSearchParams<{
+    projectId: string; invoiceId?: string; type?: string;
+  }>();
+  const {
+    getProject, getInvoicesForProject, addInvoice, updateInvoice, settings, updateSettings,
+    getChangeOrdersForProject, contacts, invoices: allInvoices,
+  } = useProjects();
+  const { tier } = useSubscription();
+
+  const project = useMemo(() => getProject(projectId ?? ''), [projectId, getProject]);
+  const existingInvoices = useMemo(() => getInvoicesForProject(projectId ?? ''), [projectId, getInvoicesForProject]);
+  const existingInvoice = useMemo(() => invoiceId ? existingInvoices.find(i => i.id === invoiceId) : null, [invoiceId, existingInvoices]);
+  const approvedCOs = useMemo(() => {
+    return getChangeOrdersForProject(projectId ?? '').filter(co => co.status === 'approved');
+  }, [projectId, getChangeOrdersForProject]);
+
+  const contractTotal = useMemo(() => {
+    if (!project) return 0;
+    let base = project.linkedEstimate?.grandTotal ?? project.estimate?.grandTotal ?? 0;
+    approvedCOs.forEach(co => { base += co.changeAmount; });
+    return base;
+  }, [project, approvedCOs]);
+
+  const nextInvoiceNumber = useMemo(() => {
+    if (existingInvoice) return existingInvoice.number;
+    return existingInvoices.length + 1;
+  }, [existingInvoices, existingInvoice]);
+
+  const isProgressType = (invoiceType === 'progress') || (existingInvoice?.type === 'progress');
+
+  const initialLineItems = useMemo((): InvoiceLineItem[] => {
+    if (existingInvoice) return existingInvoice.lineItems;
+    if (!project) return [];
+    const linked = project.linkedEstimate;
+    if (linked && linked.items.length > 0) {
+      return linked.items.map(item => ({
+        id: createId('ili'),
+        name: item.name,
+        description: item.category,
+        quantity: item.quantity,
+        unit: item.unit,
+        unitPrice: item.usesBulk ? item.bulkPrice : item.unitPrice,
+        total: item.lineTotal,
+      }));
+    }
+    const legacy = project.estimate;
+    if (legacy) {
+      return legacy.materials.map(item => ({
+        id: createId('ili'),
+        name: item.name,
+        description: item.category,
+        quantity: item.quantity,
+        unit: item.unit,
+        unitPrice: item.unitPrice,
+        total: item.totalPrice,
+      }));
+    }
+    return [];
+  }, [existingInvoice, project]);
+
+  const [lineItems, setLineItems] = useState<InvoiceLineItem[]>(initialLineItems);
+  const [paymentTerms, setPaymentTerms] = useState<PaymentTerms>(existingInvoice?.paymentTerms ?? 'net_30');
+  const [notes, setNotes] = useState(existingInvoice?.notes ?? '');
+  const [progressPercent, setProgressPercent] = useState(
+    existingInvoice?.progressPercent?.toString() ?? '30'
+  );
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentAmount, setPaymentAmount] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('check');
+  const [showTermsDropdown, setShowTermsDropdown] = useState(false);
+  const [showPDFPreSend, setShowPDFPreSend] = useState(false);
+  const [showSendRecipient, setShowSendRecipient] = useState(false);
+  const [sendRecipientName, setSendRecipientName] = useState('');
+  const [sendRecipientEmail, setSendRecipientEmail] = useState('');
+  const [showContactPicker, setShowContactPicker] = useState(false);
+  const [contactPicked, setContactPicked] = useState(false);
+
+  const pctValue = parseFloat(progressPercent) || 0;
+
+  const subtotal = useMemo(() => {
+    const rawTotal = lineItems.reduce((sum, item) => sum + item.total, 0);
+    if (isProgressType) return rawTotal * (pctValue / 100);
+    return rawTotal;
+  }, [lineItems, isProgressType, pctValue]);
+
+  const taxRate = settings.taxRate ?? 7.5;
+  const taxAmount = subtotal * (taxRate / 100);
+  const totalDue = subtotal + taxAmount;
+
+  const amountPaid = existingInvoice?.amountPaid ?? 0;
+  const balanceDue = totalDue - amountPaid;
+
+  const handleRemoveItem = useCallback((id: string) => {
+    setLineItems(prev => prev.filter(item => item.id !== id));
+  }, []);
+
+  const handleSave = useCallback((status: 'draft' | 'sent', recipientName?: string, recipientEmail?: string) => {
+    if (!projectId) return;
+    if (lineItems.length === 0) {
+      Alert.alert('No Items', 'Please add at least one line item.');
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const dueDate = getDueDate(now, paymentTerms);
+    const recipientInfo = recipientName ? ` to ${recipientName}${recipientEmail ? ` (${recipientEmail})` : ''}` : '';
+
+    if (existingInvoice) {
+      updateInvoice(existingInvoice.id, {
+        lineItems,
+        paymentTerms,
+        notes: notes.trim(),
+        subtotal,
+        taxRate,
+        taxAmount,
+        totalDue,
+        dueDate,
+        status,
+        progressPercent: isProgressType ? pctValue : undefined,
+      });
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert('Updated', `Invoice #${existingInvoice.number} has been ${status === 'sent' ? `sent${recipientInfo}` : 'saved'}.`);
+    } else {
+      const inv: Invoice = {
+        id: createId('inv'),
+        number: nextInvoiceNumber,
+        projectId: projectId,
+        type: isProgressType ? 'progress' : 'full',
+        progressPercent: isProgressType ? pctValue : undefined,
+        issueDate: now,
+        dueDate,
+        paymentTerms,
+        notes: notes.trim(),
+        lineItems,
+        subtotal,
+        taxRate,
+        taxAmount,
+        totalDue,
+        amountPaid: 0,
+        status,
+        payments: [],
+        createdAt: now,
+        updatedAt: now,
+      };
+      addInvoice(inv);
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert('Created', `Invoice #${nextInvoiceNumber} has been ${status === 'sent' ? `sent${recipientInfo}` : 'saved as draft'}.`);
+    }
+    router.back();
+  }, [projectId, lineItems, paymentTerms, notes, subtotal, taxRate, taxAmount, totalDue, isProgressType, pctValue, existingInvoice, nextInvoiceNumber, addInvoice, updateInvoice, router]);
+
+  const handleSendPress = useCallback(() => {
+    setShowSendRecipient(true);
+  }, []);
+
+  const handleConfirmSend = useCallback(async () => {
+    if (!sendRecipientEmail.trim()) {
+      Alert.alert('Email Required', 'Please enter a recipient email address.');
+      return;
+    }
+    setShowSendRecipient(false);
+
+    if (sendRecipientEmail.trim()) {
+      const branding = settings.branding ?? { companyName: '', contactName: '', email: '', phone: '', address: '', licenseNumber: '', tagline: '' };
+      const now = new Date().toISOString();
+      const dueDate = getDueDate(now, paymentTerms);
+      const html = buildInvoiceEmailHtml({
+        companyName: branding.companyName,
+        recipientName: sendRecipientName,
+        projectName: project?.name ?? 'Project',
+        invoiceNumber: existingInvoice?.number ?? nextInvoiceNumber,
+        totalDue,
+        dueDate,
+        paymentTerms,
+        contactName: branding.contactName,
+        contactEmail: branding.email,
+        contactPhone: branding.phone,
+      });
+
+      const result = await sendEmail({
+        to: sendRecipientEmail.trim(),
+        subject: `${branding.companyName || 'MAGE ID'} - Invoice #${existingInvoice?.number ?? nextInvoiceNumber} - ${project?.name ?? 'Project'}`,
+        html,
+        replyTo: branding.email || undefined,
+      });
+
+      if (!result.success) {
+        if (result.error === 'cancelled') {
+          return;
+        }
+        console.warn('[Invoice] Email send failed:', result.error);
+        Alert.alert('Email Notice', `Invoice saved but email could not be sent: ${result.error}`);
+        return;
+      } else {
+        console.log('[Invoice] Email sent successfully');
+      }
+    }
+
+    handleSave('sent', sendRecipientName, sendRecipientEmail);
+  }, [handleSave, sendRecipientName, sendRecipientEmail, settings, project, existingInvoice, nextInvoiceNumber, totalDue, paymentTerms]);
+
+  const handleSendPDF = useCallback(async (options: PDFSendOptions) => {
+    if (!project || !existingInvoice) return;
+    setShowPDFPreSend(false);
+
+    if (options.method === 'email' && options.recipient.trim()) {
+      const branding = settings.branding ?? { companyName: '', contactName: '', email: '', phone: '', address: '', licenseNumber: '', tagline: '' };
+      const dueDate = existingInvoice.dueDate || getDueDate(new Date().toISOString(), existingInvoice.paymentTerms);
+      const emailHtml = buildInvoiceEmailHtml({
+        companyName: branding.companyName,
+        recipientName: '',
+        projectName: project.name,
+        invoiceNumber: existingInvoice.number,
+        totalDue: existingInvoice.totalDue,
+        dueDate,
+        paymentTerms: existingInvoice.paymentTerms,
+        message: options.message,
+        contactName: branding.contactName,
+        contactEmail: branding.email,
+        contactPhone: branding.phone,
+      });
+
+      const pdfUri = await generateInvoicePDFUri(existingInvoice, project, branding);
+
+      const result = await sendEmail({
+        to: options.recipient.trim(),
+        subject: `${branding.companyName || 'MAGE ID'} - Invoice #${existingInvoice.number} - ${project.name}`,
+        html: emailHtml,
+        replyTo: branding.email || undefined,
+        attachments: pdfUri ? [pdfUri] : undefined,
+      });
+
+      if (result.success) {
+        Alert.alert('Email Sent', `Invoice emailed to ${options.recipient}`);
+      } else if (result.error === 'cancelled') {
+        return;
+      } else {
+        Alert.alert(
+          'Email Issue',
+          'Could not send via email. Would you like to share the PDF using another app instead?',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Share PDF',
+              onPress: async () => {
+                try {
+                  const uri = pdfUri ?? await generateInvoicePDFUri(existingInvoice, project, branding);
+                  if (uri && await Sharing.isAvailableAsync()) {
+                    await Sharing.shareAsync(uri, {
+                      mimeType: 'application/pdf',
+                      dialogTitle: `Invoice #${existingInvoice.number}`,
+                      UTI: 'com.adobe.pdf',
+                    });
+                  }
+                } catch (shareErr) {
+                  console.error('[Invoice] Share fallback failed:', shareErr);
+                }
+              },
+            },
+          ]
+        );
+      }
+      return;
+    }
+
+    try {
+      await generateInvoicePDF(existingInvoice, project, settings.branding ?? {
+        companyName: '', contactName: '', email: '', phone: '', address: '', licenseNumber: '', tagline: '',
+      });
+    } catch (e) {
+      console.error('[Invoice] PDF share error:', e);
+      Alert.alert('Error', 'Failed to generate PDF. Please try again.');
+    }
+  }, [project, existingInvoice, settings]);
+
+  const handleMarkPaid = useCallback(() => {
+    const amt = parseFloat(paymentAmount) || 0;
+    if (amt <= 0) {
+      Alert.alert('Invalid Amount', 'Please enter a valid payment amount.');
+      return;
+    }
+    if (!existingInvoice) return;
+
+    const payment: InvoicePayment = {
+      id: createId('pay'),
+      date: new Date().toISOString(),
+      amount: amt,
+      method: paymentMethod,
+    };
+    const newPaid = amountPaid + amt;
+    const newStatus = newPaid >= totalDue ? 'paid' as const : 'partially_paid' as const;
+
+    updateInvoice(existingInvoice.id, {
+      amountPaid: newPaid,
+      status: newStatus,
+      payments: [...(existingInvoice.payments || []), payment],
+    });
+
+    setShowPaymentModal(false);
+    setPaymentAmount('');
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    Alert.alert('Payment Recorded', `${formatCurrency(amt)} payment recorded. Status: ${newStatus.replace('_', ' ')}`);
+    router.back();
+  }, [paymentAmount, paymentMethod, existingInvoice, amountPaid, totalDue, updateInvoice, router]);
+
+  if (!project) {
+    return (
+      <View style={[styles.container, styles.center]}>
+        <Stack.Screen options={{ title: 'Invoice' }} />
+        <Text style={styles.notFoundText}>Project not found</Text>
+        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+          <Text style={styles.backBtnText}>Go Back</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  const isLocked = existingInvoice?.status === 'paid';
+
+  const statusColor = existingInvoice ? invoiceStatusColors[existingInvoice.status] : null;
+
+  return (
+    <View style={styles.container}>
+      <Stack.Screen options={{
+        title: existingInvoice ? `Invoice #${existingInvoice.number}` : 'New Invoice',
+        headerStyle: { backgroundColor: Colors.background },
+        headerTintColor: Colors.primary,
+        headerTitleStyle: { fontWeight: '700' as const, color: Colors.text },
+      }} />
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <ScrollView
+          contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.heroCard}>
+            <Text style={styles.heroLabel}>
+              {isProgressType ? 'Progress Bill' : 'Full Invoice'} #{nextInvoiceNumber}
+            </Text>
+            <Text style={styles.heroProject}>{project.name}</Text>
+            {existingInvoice && statusColor && (
+              <View style={[styles.statusBadge, { backgroundColor: statusColor.bg }]}>
+                <Text style={[styles.statusText, { color: statusColor.text }]}>
+                  {existingInvoice.status.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                </Text>
+              </View>
+            )}
+          </View>
+
+          {isProgressType && !isLocked && (
+            <View style={styles.progressSection}>
+              <Text style={styles.progressLabel}>Billing Percentage</Text>
+              <View style={styles.progressRow}>
+                <TextInput
+                  style={styles.progressInput}
+                  value={progressPercent}
+                  onChangeText={setProgressPercent}
+                  keyboardType="numeric"
+                  testID="progress-percent-input"
+                />
+                <Text style={styles.progressSign}>% of {formatCurrency(contractTotal)}</Text>
+              </View>
+              <View style={styles.progressBarTrack}>
+                <View style={[styles.progressBarFill, { width: `${Math.min(pctValue, 100)}%` }]} />
+              </View>
+            </View>
+          )}
+
+          <View style={styles.termsRow}>
+            <Text style={styles.fieldLabelInline}>Payment Terms</Text>
+            {!isLocked ? (
+              <TouchableOpacity
+                style={styles.termsSelector}
+                onPress={() => setShowTermsDropdown(!showTermsDropdown)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.termsSelectorText}>
+                  {PAYMENT_TERMS_OPTIONS.find(o => o.value === paymentTerms)?.label}
+                </Text>
+              </TouchableOpacity>
+            ) : (
+              <Text style={styles.termsSelectorText}>
+                {PAYMENT_TERMS_OPTIONS.find(o => o.value === paymentTerms)?.label}
+              </Text>
+            )}
+          </View>
+
+          {showTermsDropdown && (
+            <View style={styles.termsDropdown}>
+              {PAYMENT_TERMS_OPTIONS.map(opt => (
+                <TouchableOpacity
+                  key={opt.value}
+                  style={[styles.termsOption, paymentTerms === opt.value && styles.termsOptionActive]}
+                  onPress={() => { setPaymentTerms(opt.value); setShowTermsDropdown(false); }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.termsOptionText, paymentTerms === opt.value && styles.termsOptionTextActive]}>
+                    {opt.label}
+                  </Text>
+                  {paymentTerms === opt.value && <Check size={16} color={Colors.primary} />}
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+
+          <View style={styles.fieldSection}>
+            <Text style={styles.fieldLabel}>Line Items</Text>
+            {lineItems.map((item) => (
+              <View key={item.id} style={styles.lineItemCard}>
+                <View style={styles.lineItemHeader}>
+                  <Text style={styles.lineItemName} numberOfLines={1}>{item.name}</Text>
+                  {!isLocked && (
+                    <TouchableOpacity onPress={() => handleRemoveItem(item.id)} activeOpacity={0.7}>
+                      <Trash2 size={14} color={Colors.error} />
+                    </TouchableOpacity>
+                  )}
+                </View>
+                <View style={styles.lineItemMeta}>
+                  <Text style={styles.lineItemMetaText}>
+                    {item.quantity} {item.unit} × {formatCurrency(item.unitPrice)}
+                  </Text>
+                  <Text style={styles.lineItemTotal}>{formatCurrency(item.total)}</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+
+          <View style={styles.totalsCard}>
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabel}>Subtotal</Text>
+              <Text style={styles.totalValue}>{formatCurrency(subtotal)}</Text>
+            </View>
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabel}>Tax ({taxRate}%)</Text>
+              <Text style={styles.totalValue}>{formatCurrency(taxAmount)}</Text>
+            </View>
+            <View style={styles.dividerThick} />
+            <View style={styles.totalRow}>
+              <Text style={styles.grandLabel}>Total Due</Text>
+              <Text style={styles.grandValue}>{formatCurrency(totalDue)}</Text>
+            </View>
+            {existingInvoice && amountPaid > 0 && (
+              <>
+                <View style={styles.divider} />
+                <View style={styles.totalRow}>
+                  <Text style={[styles.totalLabel, { color: Colors.success }]}>Amount Paid</Text>
+                  <Text style={[styles.totalValue, { color: Colors.success }]}>-{formatCurrency(amountPaid)}</Text>
+                </View>
+                <View style={styles.totalRow}>
+                  <Text style={styles.grandLabel}>Balance Due</Text>
+                  <Text style={[styles.grandValue, { color: balanceDue > 0 ? Colors.error : Colors.success }]}>
+                    {formatCurrency(balanceDue)}
+                  </Text>
+                </View>
+              </>
+            )}
+          </View>
+
+          {existingInvoice && existingInvoice.status !== 'paid' && existingInvoice.status !== 'draft' && (
+            <View style={{ paddingHorizontal: 16 }}>
+              <AIInvoicePredictor
+                invoice={existingInvoice}
+                projectName={project?.name ?? ''}
+                allInvoices={allInvoices}
+                subscriptionTier={tier as any}
+              />
+            </View>
+          )}
+
+          {existingInvoice && existingInvoice.payments && existingInvoice.payments.length > 0 && (
+            <View style={styles.fieldSection}>
+              <Text style={styles.fieldLabel}>Payment History</Text>
+              {existingInvoice.payments.map((p) => (
+                <View key={p.id} style={styles.paymentRow}>
+                  <View style={styles.paymentInfo}>
+                    <Text style={styles.paymentDate}>
+                      {new Date(p.date).toLocaleDateString()}
+                    </Text>
+                    <Text style={styles.paymentMethodText}>
+                      {p.method.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                    </Text>
+                  </View>
+                  <Text style={styles.paymentAmount}>{formatCurrency(p.amount)}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {!isLocked && (
+            <View style={styles.fieldSection}>
+              <Text style={styles.fieldLabel}>Notes</Text>
+              <TextInput
+                style={styles.textArea}
+                value={notes}
+                onChangeText={setNotes}
+                placeholder="Payment instructions, terms, etc."
+                placeholderTextColor={Colors.textMuted}
+                multiline
+                textAlignVertical="top"
+              />
+            </View>
+          )}
+        </ScrollView>
+
+        {!isLocked && (
+          <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]}>
+            {existingInvoice && existingInvoice.status !== 'draft' && existingInvoice.status !== 'paid' && (
+              <TouchableOpacity
+                style={styles.markPaidBtn}
+                onPress={() => { setPaymentAmount(balanceDue.toFixed(2)); setShowPaymentModal(true); }}
+                activeOpacity={0.7}
+                testID="mark-paid-btn"
+              >
+                <CreditCard size={16} color={Colors.success} />
+                <Text style={styles.markPaidBtnText}>Record Payment</Text>
+              </TouchableOpacity>
+            )}
+            {(!existingInvoice || existingInvoice.status === 'draft') && (
+              <>
+                <TouchableOpacity
+                  style={styles.saveDraftBtn}
+                  onPress={() => handleSave('draft')}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.saveDraftBtnText}>Save Draft</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.sendBtn}
+                  onPress={handleSendPress}
+                  activeOpacity={0.7}
+                  testID="send-invoice-btn"
+                >
+                  <Send size={16} color={Colors.textOnPrimary} />
+                  <Text style={styles.sendBtnText}>Send Invoice</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        )}
+      </KeyboardAvoidingView>
+
+      <Modal visible={showPaymentModal} transparent animationType="slide" onRequestClose={() => setShowPaymentModal(false)}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }]}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Record Payment</Text>
+                <TouchableOpacity onPress={() => setShowPaymentModal(false)}>
+                  <X size={20} color={Colors.textMuted} />
+                </TouchableOpacity>
+              </View>
+
+              <Text style={styles.modalFieldLabel}>Amount</Text>
+              <TextInput
+                style={styles.modalInput}
+                value={paymentAmount}
+                onChangeText={setPaymentAmount}
+                keyboardType="numeric"
+                placeholder="0.00"
+                placeholderTextColor={Colors.textMuted}
+              />
+
+              <Text style={styles.modalFieldLabel}>Payment Method</Text>
+              <View style={styles.methodGrid}>
+                {PAYMENT_METHOD_OPTIONS.map(opt => (
+                  <TouchableOpacity
+                    key={opt.value}
+                    style={[styles.methodChip, paymentMethod === opt.value && styles.methodChipActive]}
+                    onPress={() => setPaymentMethod(opt.value)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.methodChipText, paymentMethod === opt.value && styles.methodChipTextActive]}>
+                      {opt.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <TouchableOpacity style={styles.modalSaveBtn} onPress={handleMarkPaid} activeOpacity={0.85}>
+                <Check size={18} color={Colors.textOnPrimary} />
+                <Text style={styles.modalSaveBtnText}>Record Payment</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      <Modal visible={showSendRecipient} transparent animationType="slide" onRequestClose={() => setShowSendRecipient(false)}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }]}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Send Invoice To</Text>
+                <TouchableOpacity onPress={() => setShowSendRecipient(false)}>
+                  <X size={20} color={Colors.textMuted} />
+                </TouchableOpacity>
+              </View>
+
+              {contactPicked ? (
+                <View style={styles.selectedRecipientCard}>
+                  <User size={16} color={Colors.primary} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.selectedRecipientName}>{sendRecipientName}</Text>
+                    {sendRecipientEmail ? <Text style={styles.selectedRecipientEmail}>{sendRecipientEmail}</Text> : null}
+                  </View>
+                  <TouchableOpacity onPress={() => { setSendRecipientName(''); setSendRecipientEmail(''); setContactPicked(false); }} style={styles.clearRecipientBtn}>
+                    <X size={12} color={Colors.textMuted} />
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <>
+                  <Text style={styles.modalFieldLabel}>Recipient Name</Text>
+                  <TextInput
+                    style={styles.recipientModalInput}
+                    value={sendRecipientName}
+                    onChangeText={setSendRecipientName}
+                    placeholder="Enter name or pick from contacts"
+                    placeholderTextColor={Colors.textMuted}
+                  />
+                  <Text style={styles.modalFieldLabel}>Email</Text>
+                  <TextInput
+                    style={styles.recipientModalInput}
+                    value={sendRecipientEmail}
+                    onChangeText={setSendRecipientEmail}
+                    placeholder="email@example.com"
+                    placeholderTextColor={Colors.textMuted}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                  />
+                  {contacts.length > 0 && (
+                    <TouchableOpacity
+                      style={styles.pickContactBtn}
+                      onPress={() => { setShowSendRecipient(false); setTimeout(() => setShowContactPicker(true), 350); }}
+                      activeOpacity={0.7}
+                    >
+                      <BookUser size={14} color={Colors.primary} />
+                      <Text style={styles.pickContactText}>Pick from Contacts</Text>
+                    </TouchableOpacity>
+                  )}
+                </>
+              )}
+
+              <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
+                <TouchableOpacity style={styles.saveDraftBtn} onPress={() => setShowSendRecipient(false)} activeOpacity={0.7}>
+                  <Text style={styles.saveDraftBtnText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.sendBtn} onPress={handleConfirmSend} activeOpacity={0.7}>
+                  <Send size={16} color={Colors.textOnPrimary} />
+                  <Text style={styles.sendBtnText}>Send</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      <ContactPickerModal
+        visible={showContactPicker}
+        onClose={() => { setShowContactPicker(false); setTimeout(() => setShowSendRecipient(true), 350); }}
+        contacts={contacts}
+        title="Select Recipient"
+        onSelect={(contact) => {
+          const name = `${contact.firstName} ${contact.lastName}`.trim() || contact.companyName;
+          setSendRecipientName(name);
+          setSendRecipientEmail(contact.email);
+          setContactPicked(true);
+          setShowContactPicker(false);
+          setTimeout(() => setShowSendRecipient(true), 350);
+        }}
+      />
+
+      {existingInvoice && project && (
+        <PDFPreSendSheet
+          visible={showPDFPreSend}
+          onClose={() => setShowPDFPreSend(false)}
+          onSend={handleSendPDF}
+          documentType="invoice"
+          projectName={project.name}
+          documentNumber={existingInvoice.number}
+          contacts={contacts}
+          pdfNaming={settings.pdfNaming}
+          onPdfNumberUsed={() => {
+            if (settings.pdfNaming?.enabled) {
+              updateSettings({ pdfNaming: { ...settings.pdfNaming, nextNumber: settings.pdfNaming.nextNumber + 1 } });
+            }
+          }}
+        />
+      )}
+    </View>
+  );
+}
+
+const invoiceStatusColors: Record<string, { bg: string; text: string }> = {
+  draft: { bg: Colors.fillTertiary, text: Colors.textSecondary },
+  sent: { bg: Colors.infoLight, text: Colors.info },
+  partially_paid: { bg: Colors.warningLight, text: Colors.warning },
+  paid: { bg: Colors.successLight, text: Colors.success },
+  overdue: { bg: Colors.errorLight, text: Colors.error },
+};
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: Colors.background },
+  center: { alignItems: 'center', justifyContent: 'center' },
+  notFoundText: { fontSize: 18, color: Colors.textSecondary, marginBottom: 16 },
+  backBtn: { backgroundColor: Colors.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 10 },
+  backBtnText: { color: Colors.textOnPrimary, fontSize: 15, fontWeight: '600' as const },
+  heroCard: { backgroundColor: Colors.primary, marginHorizontal: 20, marginTop: 16, borderRadius: 16, padding: 20, gap: 4 },
+  heroLabel: { fontSize: 13, fontWeight: '600' as const, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' as const, letterSpacing: 0.5 },
+  heroProject: { fontSize: 20, fontWeight: '700' as const, color: Colors.textOnPrimary },
+  statusBadge: { alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 8, marginTop: 6 },
+  statusText: { fontSize: 12, fontWeight: '700' as const },
+  progressSection: { marginHorizontal: 20, marginTop: 16, backgroundColor: Colors.card, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: Colors.cardBorder },
+  progressLabel: { fontSize: 13, fontWeight: '600' as const, color: Colors.textSecondary, marginBottom: 8 },
+  progressRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
+  progressInput: { width: 70, minHeight: 44, borderRadius: 10, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 12, fontSize: 18, fontWeight: '700' as const, color: Colors.primary, textAlign: 'center' as const },
+  progressSign: { fontSize: 14, color: Colors.textSecondary },
+  progressBarTrack: { height: 6, borderRadius: 3, backgroundColor: Colors.fillTertiary, overflow: 'hidden' as const },
+  progressBarFill: { height: 6, borderRadius: 3, backgroundColor: Colors.primary },
+  termsRow: { marginHorizontal: 20, marginTop: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: Colors.card, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: Colors.cardBorder },
+  fieldLabelInline: { fontSize: 14, fontWeight: '600' as const, color: Colors.text },
+  termsSelector: { backgroundColor: Colors.surfaceAlt, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 },
+  termsSelectorText: { fontSize: 14, fontWeight: '600' as const, color: Colors.primary },
+  termsDropdown: { marginHorizontal: 20, marginTop: 4, backgroundColor: Colors.card, borderRadius: 12, borderWidth: 1, borderColor: Colors.cardBorder, overflow: 'hidden' as const },
+  termsOption: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: Colors.borderLight },
+  termsOptionActive: { backgroundColor: Colors.primary + '08' },
+  termsOptionText: { fontSize: 15, color: Colors.text },
+  termsOptionTextActive: { color: Colors.primary, fontWeight: '600' as const },
+  fieldSection: { marginHorizontal: 20, marginTop: 18 },
+  fieldLabel: { fontSize: 13, fontWeight: '600' as const, color: Colors.textSecondary, marginBottom: 8, textTransform: 'uppercase' as const, letterSpacing: 0.5 },
+  lineItemCard: { backgroundColor: Colors.card, borderRadius: 10, padding: 12, marginBottom: 6, borderWidth: 1, borderColor: Colors.cardBorder },
+  lineItemHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+  lineItemName: { fontSize: 14, fontWeight: '600' as const, color: Colors.text, flex: 1, marginRight: 8 },
+  lineItemMeta: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  lineItemMetaText: { fontSize: 12, color: Colors.textSecondary },
+  lineItemTotal: { fontSize: 14, fontWeight: '700' as const, color: Colors.primary },
+  totalsCard: { marginHorizontal: 20, marginTop: 16, backgroundColor: Colors.card, borderRadius: 16, padding: 18, borderWidth: 1, borderColor: Colors.cardBorder },
+  totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 5 },
+  totalLabel: { fontSize: 15, color: Colors.textSecondary, fontWeight: '500' as const },
+  totalValue: { fontSize: 15, fontWeight: '600' as const, color: Colors.text },
+  divider: { height: 1, backgroundColor: Colors.borderLight, marginVertical: 4 },
+  dividerThick: { height: 2, backgroundColor: Colors.primary + '30', borderRadius: 1, marginVertical: 6 },
+  grandLabel: { fontSize: 17, fontWeight: '800' as const, color: Colors.text },
+  grandValue: { fontSize: 20, fontWeight: '800' as const, color: Colors.primary },
+  textArea: { minHeight: 80, borderRadius: 14, backgroundColor: Colors.card, paddingHorizontal: 14, paddingTop: 12, fontSize: 15, color: Colors.text, borderWidth: 1, borderColor: Colors.cardBorder },
+  paymentRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: Colors.card, borderRadius: 10, padding: 12, marginBottom: 6, borderWidth: 1, borderColor: Colors.cardBorder },
+  paymentInfo: { gap: 2 },
+  paymentDate: { fontSize: 14, fontWeight: '600' as const, color: Colors.text },
+  paymentMethodText: { fontSize: 12, color: Colors.textSecondary },
+  paymentAmount: { fontSize: 15, fontWeight: '700' as const, color: Colors.success },
+  bottomBar: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: Colors.surface, borderTopWidth: 0.5, borderTopColor: Colors.borderLight, paddingHorizontal: 20, paddingTop: 12, flexDirection: 'row', gap: 10 },
+  saveDraftBtn: { flex: 1, minHeight: 48, borderRadius: 14, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
+  saveDraftBtnText: { fontSize: 14, fontWeight: '700' as const, color: Colors.text },
+  sendBtn: { flex: 2, minHeight: 48, borderRadius: 14, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 },
+  sendBtnText: { fontSize: 14, fontWeight: '700' as const, color: Colors.textOnPrimary },
+  selectedRecipientCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.primary + '10', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, gap: 10, borderWidth: 1, borderColor: Colors.primary + '25' },
+  selectedRecipientName: { fontSize: 14, fontWeight: '600' as const, color: Colors.text },
+  selectedRecipientEmail: { fontSize: 12, color: Colors.textSecondary },
+  clearRecipientBtn: { width: 24, height: 24, borderRadius: 12, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
+  pickContactBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', marginTop: 8, paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8, backgroundColor: Colors.primary + '10' },
+  pickContactText: { fontSize: 13, fontWeight: '600' as const, color: Colors.primary },
+  recipientModalInput: { minHeight: 44, borderRadius: 12, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 12, fontSize: 15, color: Colors.text, borderWidth: 1, borderColor: Colors.cardBorder },
+  markPaidBtn: { flex: 1, minHeight: 48, borderRadius: 14, backgroundColor: Colors.successLight, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8, borderWidth: 1, borderColor: Colors.success + '30' },
+  markPaidBtnText: { fontSize: 14, fontWeight: '700' as const, color: Colors.success },
+  modalOverlay: { flex: 1, backgroundColor: Colors.overlay, justifyContent: 'flex-end' },
+  modalCard: { backgroundColor: Colors.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 22, gap: 10 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+  modalTitle: { fontSize: 20, fontWeight: '700' as const, color: Colors.text },
+  modalFieldLabel: { fontSize: 12, fontWeight: '600' as const, color: Colors.textSecondary, marginTop: 4 },
+  modalInput: { minHeight: 48, borderRadius: 14, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 14, fontSize: 18, fontWeight: '700' as const, color: Colors.text },
+  methodGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
+  methodChip: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12, backgroundColor: Colors.fillTertiary },
+  methodChipActive: { backgroundColor: Colors.primary },
+  methodChipText: { fontSize: 13, fontWeight: '600' as const, color: Colors.textSecondary },
+  methodChipTextActive: { color: Colors.textOnPrimary },
+  modalSaveBtn: { backgroundColor: Colors.success, borderRadius: 14, paddingVertical: 14, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8, marginTop: 8 },
+  modalSaveBtnText: { fontSize: 16, fontWeight: '700' as const, color: Colors.textOnPrimary },
+});
+
+
+========== FILE: ./app/job-detail.tsx ==========
+import React, { useMemo, useState } from 'react';
+import {
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert,
+} from 'react-native';
+import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
+import { MapPin, DollarSign, Clock, Briefcase, Award, ChevronRight, Send, Building2 } from 'lucide-react-native';
+import * as Haptics from 'expo-haptics';
+import { Colors } from '@/constants/colors';
+import { useHire } from '@/contexts/HireContext';
+import { getTradeLabel } from '@/constants/trades';
+
+const JOB_TYPE_LABELS: Record<string, string> = {
+  full_time: 'Full-Time', part_time: 'Part-Time', contract: 'Contract', per_diem: 'Per Diem',
+};
+const EXP_LABELS: Record<string, string> = {
+  entry: 'Entry Level', mid: 'Mid Level', senior: 'Senior', expert: 'Expert',
+};
+
+function formatPay(min: number, max: number, type: string): string {
+  if (type === 'salary') return `$${(min / 1000).toFixed(0)}K – $${(max / 1000).toFixed(0)}K / year`;
+  return `$${min} – $${max} / hour`;
+}
+
+export default function JobDetailScreen() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const router = useRouter();
+  const { jobs, applyToJob, workers, startConversation } = useHire();
+  const [applied, setApplied] = useState(false);
+
+  const job = useMemo(() => jobs.find(j => j.id === id), [jobs, id]);
+
+  const matchingWorkers = useMemo(() => {
+    if (!job) return [];
+    return workers.filter(w =>
+      w.tradeCategory === job.tradeCategory && w.availability !== 'employed'
+    ).slice(0, 5);
+  }, [job, workers]);
+
+  if (!job) {
+    return (
+      <View style={styles.container}>
+        <Stack.Screen options={{ title: 'Job Details' }} />
+        <View style={styles.center}><Text style={styles.errorText}>Job not found</Text></View>
+      </View>
+    );
+  }
+
+  const handleApply = () => {
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    applyToJob(job.id);
+    setApplied(true);
+    Alert.alert('Applied!', 'Your application has been submitted.');
+  };
+
+  const handleMessage = () => {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const convoId = startConversation(
+      ['you', job.companyId],
+      ['You', job.companyName],
+      `Hi, I'm interested in the "${job.title}" position.`
+    );
+    router.push({ pathname: '/messages' as any, params: { id: convoId } });
+  };
+
+  return (
+    <View style={styles.container}>
+      <Stack.Screen options={{
+        title: 'Job Details',
+        headerStyle: { backgroundColor: Colors.background },
+        headerTintColor: Colors.primary,
+        headerTitleStyle: { fontWeight: '700' as const, color: Colors.text },
+      }} />
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <View style={styles.topCard}>
+          <View style={styles.badgeRow}>
+            <View style={styles.typeBadge}>
+              <Text style={styles.typeBadgeText}>{JOB_TYPE_LABELS[job.jobType]}</Text>
+            </View>
+            <View style={[styles.statusBadge, job.status === 'open' ? styles.openBadge : styles.closedBadge]}>
+              <Text style={[styles.statusText, job.status === 'open' ? styles.openText : styles.closedText]}>
+                {job.status.toUpperCase()}
+              </Text>
+            </View>
+          </View>
+          <Text style={styles.title}>{job.title}</Text>
+          <Text style={styles.company}>{job.companyName}</Text>
+          <View style={styles.metaRow}>
+            <MapPin size={14} color={Colors.textSecondary} />
+            <Text style={styles.metaText}>{job.city}, {job.state}</Text>
+          </View>
+        </View>
+
+        <View style={styles.statsGrid}>
+          <View style={styles.statCard}>
+            <DollarSign size={18} color={Colors.primary} />
+            <Text style={styles.statLabel}>Pay</Text>
+            <Text style={styles.statValue}>{formatPay(job.payMin, job.payMax, job.payType)}</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Briefcase size={18} color={Colors.accent} />
+            <Text style={styles.statLabel}>Trade</Text>
+            <Text style={styles.statValue}>{getTradeLabel(job.tradeCategory)}</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Award size={18} color={Colors.info} />
+            <Text style={styles.statLabel}>Experience</Text>
+            <Text style={styles.statValue}>{EXP_LABELS[job.experienceLevel]}</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Clock size={18} color={Colors.textSecondary} />
+            <Text style={styles.statLabel}>Start Date</Text>
+            <Text style={styles.statValue}>{job.startDate}</Text>
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Description</Text>
+          <Text style={styles.description}>{job.description}</Text>
+        </View>
+
+        {job.requiredLicenses.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Required Licenses & Certifications</Text>
+            {job.requiredLicenses.map((lic, i) => (
+              <View key={i} style={styles.licenseItem}>
+                <Award size={14} color={Colors.primary} />
+                <Text style={styles.licenseLabel}>{lic}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Matching Workers</Text>
+          <Text style={styles.sectionSubtitle}>Available workers matching this trade</Text>
+          {matchingWorkers.length === 0 ? (
+            <Text style={styles.noResults}>No matching workers at this time</Text>
+          ) : (
+            matchingWorkers.map(w => (
+              <TouchableOpacity
+                key={w.id}
+                style={styles.workerRow}
+                onPress={() => {
+                  void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  router.push({ pathname: '/worker-detail' as any, params: { id: w.id } });
+                }}
+              >
+                <View style={styles.workerAvatar}>
+                  <Text style={styles.workerAvatarText}>{w.name.charAt(0)}</Text>
+                </View>
+                <View style={styles.workerInfo}>
+                  <Text style={styles.workerName}>{w.name}</Text>
+                  <Text style={styles.workerMeta}>{w.yearsExperience}yr exp · ${w.hourlyRate}/hr</Text>
+                </View>
+                <ChevronRight size={16} color={Colors.textMuted} />
+              </TouchableOpacity>
+            ))
+          )}
+        </View>
+
+        <View style={styles.actionSection}>
+          <Text style={styles.applicantInfo}>{job.applicantCount} applicants so far</Text>
+          <TouchableOpacity
+            style={[styles.applyBtn, applied && styles.appliedBtn]}
+            onPress={handleApply}
+            disabled={applied}
+          >
+            <Send size={16} color="#FFF" />
+            <Text style={styles.applyBtnText}>{applied ? 'Applied' : 'Apply Now'}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.messageBtn} onPress={handleMessage}>
+            <Building2 size={16} color={Colors.primary} />
+            <Text style={styles.messageBtnText}>Message Company</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: Colors.background },
+  scroll: { flex: 1 },
+  scrollContent: { paddingBottom: 40 },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  errorText: { fontSize: 16, color: Colors.textSecondary },
+  topCard: { backgroundColor: Colors.surface, padding: 20, borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight },
+  badgeRow: { flexDirection: 'row', gap: 8, marginBottom: 10 },
+  typeBadge: { backgroundColor: Colors.primary + '15', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 },
+  typeBadgeText: { fontSize: 12, fontWeight: '700' as const, color: Colors.primary, textTransform: 'uppercase' as const },
+  statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 },
+  openBadge: { backgroundColor: '#E8F5E9' },
+  closedBadge: { backgroundColor: '#FFEBEE' },
+  statusText: { fontSize: 11, fontWeight: '800' as const },
+  openText: { color: '#2E7D32' },
+  closedText: { color: '#C62828' },
+  title: { fontSize: 22, fontWeight: '800' as const, color: Colors.text, marginBottom: 4 },
+  company: { fontSize: 15, color: Colors.textSecondary, marginBottom: 8 },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  metaText: { fontSize: 14, color: Colors.textSecondary },
+  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', padding: 12, gap: 8 },
+  statCard: { width: '48%' as any, backgroundColor: Colors.surface, padding: 14, borderRadius: 12, alignItems: 'center', gap: 4 },
+  statLabel: { fontSize: 11, color: Colors.textMuted, textTransform: 'uppercase' as const, fontWeight: '600' as const },
+  statValue: { fontSize: 14, fontWeight: '700' as const, color: Colors.text, textAlign: 'center' as const },
+  section: { backgroundColor: Colors.surface, padding: 20, marginTop: 8 },
+  sectionTitle: { fontSize: 17, fontWeight: '700' as const, color: Colors.text, marginBottom: 8 },
+  sectionSubtitle: { fontSize: 13, color: Colors.textSecondary, marginBottom: 12 },
+  description: { fontSize: 15, color: Colors.text, lineHeight: 22 },
+  licenseItem: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8, borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight },
+  licenseLabel: { fontSize: 14, color: Colors.text },
+  noResults: { fontSize: 14, color: Colors.textMuted, textAlign: 'center' as const, paddingVertical: 20 },
+  workerRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight },
+  workerAvatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.accent + '20', alignItems: 'center', justifyContent: 'center', marginRight: 10 },
+  workerAvatarText: { fontSize: 14, fontWeight: '700' as const, color: Colors.accent },
+  workerInfo: { flex: 1 },
+  workerName: { fontSize: 15, fontWeight: '600' as const, color: Colors.text },
+  workerMeta: { fontSize: 13, color: Colors.textSecondary },
+  actionSection: { padding: 20, gap: 10 },
+  applicantInfo: { fontSize: 13, color: Colors.textSecondary, textAlign: 'center' as const, marginBottom: 4 },
+  applyBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.primary, paddingVertical: 16, borderRadius: 12, gap: 8 },
+  appliedBtn: { backgroundColor: Colors.textMuted },
+  applyBtnText: { color: '#FFF', fontSize: 16, fontWeight: '700' as const },
+  messageBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.primary + '12', paddingVertical: 14, borderRadius: 12, gap: 8 },
+  messageBtnText: { color: Colors.primary, fontSize: 15, fontWeight: '600' as const },
+});
+
+
+========== FILE: ./app/login.tsx ==========
+import React, { useState, useRef, useCallback, useEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TextInput,
+  TouchableOpacity,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  Animated,
+  ActivityIndicator,
+  Alert,
+  Switch,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
+import * as Haptics from 'expo-haptics';
+import { HardHat, Mail, Lock, Eye, EyeOff, ArrowRight, ScanFace, UserX, KeyRound, Chrome } from 'lucide-react-native';
+import Svg, { Path } from 'react-native-svg';
+import { Colors } from '@/constants/colors';
+import { useAuth } from '@/contexts/AuthContext';
+import { track, AnalyticsEvents } from '@/utils/analytics';
+
+let _LocalAuthentication: typeof import('expo-local-authentication') | null = null;
+
+export default function LoginScreen() {
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const { login, loginAsGuest, loginWithBiometrics, resetPassword, hasStoredCredentials, signInWithGoogle, signInWithApple } = useAuth();
+
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [isAppleLoading, setIsAppleLoading] = useState(false);
+
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isGuestLoading, setIsGuestLoading] = useState(false);
+  const [isBiometricLoading, setIsBiometricLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [biometricsAvailable, setBiometricsAvailable] = useState(false);
+
+  const buttonScale = useRef(new Animated.Value(1)).current;
+  const shakeAnim = useRef(new Animated.Value(0)).current;
+  const passwordRef = useRef<TextInput>(null);
+
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    const checkBiometrics = async () => {
+      try {
+        const mod = await import('expo-local-authentication');
+        _LocalAuthentication = mod;
+        const compatible = await mod.hasHardwareAsync();
+        const enrolled = await mod.isEnrolledAsync();
+        console.log('[Login] Biometrics hardware:', compatible, 'enrolled:', enrolled);
+        setBiometricsAvailable(compatible && enrolled);
+      } catch (err) {
+        console.log('[Login] Biometrics check failed:', err);
+      }
+    };
+    void checkBiometrics();
+  }, []);
+
+  const shake = useCallback(() => {
+    Animated.sequence([
+      Animated.timing(shakeAnim, { toValue: 10, duration: 50, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: -10, duration: 50, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: 8, duration: 50, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: -8, duration: 50, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: 0, duration: 50, useNativeDriver: true }),
+    ]).start();
+  }, [shakeAnim]);
+
+  const handleBiometricLogin = useCallback(async () => {
+    if (!hasStoredCredentials) {
+      Alert.alert(
+        'No Stored Credentials',
+        'Please log in with your email and password first. After a successful login with "Remember me" enabled, you can use biometrics next time.'
+      );
+      return;
+    }
+
+    setIsBiometricLoading(true);
+    try {
+      await loginWithBiometrics();
+      if (Platform.OS !== 'web') {
+        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+      track(AnalyticsEvents.USER_LOGGED_IN, { method: 'biometric' });
+      router.replace('/(tabs)/(home)');
+    } catch (err) {
+      console.log('[Login] Biometric auth failed:', err);
+      const msg = err instanceof Error ? err.message : 'Biometric authentication failed.';
+      Alert.alert('Authentication Failed', msg);
+    } finally {
+      setIsBiometricLoading(false);
+    }
+  }, [hasStoredCredentials, loginWithBiometrics, router]);
+
+  const handleLogin = useCallback(async () => {
+    setErrorMessage('');
+
+    if (!email.trim() || !password.trim()) {
+      setErrorMessage('Please fill in all fields');
+      shake();
+      if (Platform.OS !== 'web') {
+        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      }
+      return;
+    }
+
+    Animated.sequence([
+      Animated.timing(buttonScale, { toValue: 0.95, duration: 80, useNativeDriver: true }),
+      Animated.timing(buttonScale, { toValue: 1, duration: 80, useNativeDriver: true }),
+    ]).start();
+
+    setIsSubmitting(true);
+
+    try {
+      await login(email.trim(), password, rememberMe);
+      if (Platform.OS !== 'web') {
+        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+      track(AnalyticsEvents.USER_LOGGED_IN, { method: 'email' });
+      router.replace('/(tabs)/(home)');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Login failed. Please try again.';
+      setErrorMessage(message);
+      shake();
+      if (Platform.OS !== 'web') {
+        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [email, password, rememberMe, login, router, buttonScale, shake]);
+
+  const handleGoogleLogin = useCallback(async () => {
+    setIsGoogleLoading(true);
+    setErrorMessage('');
+    try {
+      await signInWithGoogle();
+      if (Platform.OS !== 'web') {
+        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+      track(AnalyticsEvents.USER_LOGGED_IN, { method: 'google' });
+      router.replace('/(tabs)/(home)');
+    } catch (err) {
+      console.log('[Login] Google login failed:', err);
+    } finally {
+      setIsGoogleLoading(false);
+    }
+  }, [signInWithGoogle, router]);
+
+  const handleAppleLogin = useCallback(async () => {
+    setIsAppleLoading(true);
+    setErrorMessage('');
+    try {
+      await signInWithApple();
+      if (Platform.OS !== 'web') {
+        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+      track(AnalyticsEvents.USER_LOGGED_IN, { method: 'apple' });
+      router.replace('/(tabs)/(home)');
+    } catch (err) {
+      console.log('[Login] Apple login failed:', err);
+    } finally {
+      setIsAppleLoading(false);
+    }
+  }, [signInWithApple, router]);
+
+  const handleGuestLogin = useCallback(async () => {
+    setIsGuestLoading(true);
+    try {
+      if (Platform.OS !== 'web') {
+        void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      }
+      await loginAsGuest();
+      track(AnalyticsEvents.GUEST_LOGIN);
+      router.replace('/(tabs)/(home)');
+    } catch (err) {
+      console.log('[Login] Guest login failed:', err);
+      const msg = err instanceof Error ? err.message : 'Failed to continue as guest. Please try again.';
+      Alert.alert('Error', msg);
+    } finally {
+      setIsGuestLoading(false);
+    }
+  }, [loginAsGuest, router]);
+
+  return (
+    <View style={styles.container}>
+      <View style={[styles.topSection, { paddingTop: insets.top + 40 }]}>
+        <View style={styles.logoContainer}>
+          <View style={styles.logoCircle}>
+            <HardHat size={36} color="#FFFFFF" strokeWidth={1.8} />
+          </View>
+        </View>
+        <Text style={styles.brandName}>MAGE ID</Text>
+        <Text style={styles.brandTagline}>Welcome back</Text>
+      </View>
+
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.formWrapper}
+      >
+        <ScrollView
+          contentContainerStyle={[styles.formContainer, { paddingBottom: insets.bottom + 24 }]}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <Animated.View style={{ transform: [{ translateX: shakeAnim }] }}>
+            {errorMessage ? (
+              <View style={styles.errorBanner}>
+                <Text style={styles.errorBannerText}>{errorMessage}</Text>
+              </View>
+            ) : null}
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Email</Text>
+              <View style={styles.inputWrapper}>
+                <Mail size={18} color={Colors.textSecondary} strokeWidth={1.8} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="you@company.com"
+                  placeholderTextColor={Colors.textMuted}
+                  value={email}
+                  onChangeText={setEmail}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  returnKeyType="next"
+                  selectionColor={Colors.primary}
+                  onSubmitEditing={() => passwordRef.current?.focus()}
+                  testID="login-email"
+                />
+              </View>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Password</Text>
+              <View style={styles.inputWrapper}>
+                <Lock size={18} color={Colors.textSecondary} strokeWidth={1.8} />
+                <TextInput
+                  ref={passwordRef}
+                  style={styles.input}
+                  placeholder="Enter password"
+                  placeholderTextColor={Colors.textMuted}
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry={!showPassword}
+                  returnKeyType="go"
+                  selectionColor={Colors.primary}
+                  onSubmitEditing={handleLogin}
+                  testID="login-password"
+                />
+                <TouchableOpacity
+                  onPress={() => setShowPassword(!showPassword)}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  {showPassword ? (
+                    <EyeOff size={18} color={Colors.textSecondary} strokeWidth={1.8} />
+                  ) : (
+                    <Eye size={18} color={Colors.textSecondary} strokeWidth={1.8} />
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <View style={styles.rememberRow}>
+              <Text style={styles.rememberLabel}>Remember me</Text>
+              <Switch
+                value={rememberMe}
+                onValueChange={setRememberMe}
+                trackColor={{ false: Colors.borderLight, true: Colors.primary + '60' }}
+                thumbColor={rememberMe ? Colors.primary : Colors.textMuted}
+                testID="login-remember"
+              />
+            </View>
+          </Animated.View>
+
+          <Animated.View style={{ transform: [{ scale: buttonScale }] }}>
+            <TouchableOpacity
+              style={[styles.loginButton, isSubmitting && styles.loginButtonDisabled]}
+              onPress={handleLogin}
+              disabled={isSubmitting}
+              activeOpacity={0.85}
+              testID="login-submit"
+            >
+              {isSubmitting ? (
+                <ActivityIndicator color="#FFFFFF" size="small" />
+              ) : (
+                <>
+                  <Text style={styles.loginButtonText}>Sign In</Text>
+                  <ArrowRight size={18} color="#FFFFFF" strokeWidth={2.5} />
+                </>
+              )}
+            </TouchableOpacity>
+          </Animated.View>
+
+          {biometricsAvailable && (
+            <TouchableOpacity
+              style={styles.biometricButton}
+              onPress={handleBiometricLogin}
+              activeOpacity={0.7}
+              disabled={isBiometricLoading}
+              testID="login-biometric"
+            >
+              {isBiometricLoading ? (
+                <ActivityIndicator color={Colors.primary} size="small" />
+              ) : (
+                <>
+                  <ScanFace size={20} color={Colors.primary} strokeWidth={1.8} />
+                  <Text style={styles.biometricText}>
+                    {hasStoredCredentials
+                      ? 'Sign in with Face ID / Touch ID'
+                      : 'Log in first to enable biometrics'}
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+          )}
+
+          <View style={styles.dividerRow}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>or continue with</Text>
+            <View style={styles.dividerLine} />
+          </View>
+
+          <View style={styles.socialRow}>
+            <TouchableOpacity
+              style={styles.socialButton}
+              onPress={handleGoogleLogin}
+              disabled={isGoogleLoading}
+              activeOpacity={0.7}
+              testID="login-google"
+            >
+              {isGoogleLoading ? (
+                <ActivityIndicator color={Colors.text} size="small" />
+              ) : (
+                <>
+                  <Svg width={20} height={20} viewBox="0 0 48 48">
+                    <Path d="M44.5 20H24v8.5h11.8C34.7 33.9 30.1 37 24 37c-7.2 0-13-5.8-13-13s5.8-13 13-13c3.1 0 5.9 1.1 8.1 2.9l6.4-6.4C34.6 4.1 29.6 2 24 2 11.8 2 2 11.8 2 24s9.8 22 22 22c11 0 21-8 21-22 0-1.3-.2-2.7-.5-4z" fill="#FFC107" />
+                    <Path d="M5.3 14.7l7.4 5.4C14.3 16.3 18.8 13 24 13c3.1 0 5.9 1.1 8.1 2.9l6.4-6.4C34.6 6.1 29.6 4 24 4 16 4 9.2 8.4 5.3 14.7z" fill="#FF3D00" />
+                    <Path d="M24 44c5.2 0 10-1.8 13.7-4.9l-6.7-5.5C28.9 35.5 26.6 36.5 24 36.5c-6 0-11.1-4-12.8-9.5l-7.3 5.6C7.8 38.9 15.4 44 24 44z" fill="#4CAF50" />
+                    <Path d="M44.5 20H24v8.5h11.8c-1 3-3 5.5-5.8 7.1l6.7 5.5C40.6 37.5 46 31.4 46 24c0-1.3-.2-2.7-.5-4z" fill="#1976D2" />
+                  </Svg>
+                  <Text style={styles.socialButtonText}>Google</Text>
+                </>
+              )}
+            </TouchableOpacity>
+
+            {Platform.OS === 'ios' || Platform.OS === 'web' ? (
+              <TouchableOpacity
+                style={[styles.socialButton, styles.appleSocialButton]}
+                onPress={handleAppleLogin}
+                disabled={isAppleLoading}
+                activeOpacity={0.7}
+                testID="login-apple"
+              >
+                {isAppleLoading ? (
+                  <ActivityIndicator color="#FFFFFF" size="small" />
+                ) : (
+                  <>
+                    <Svg width={20} height={20} viewBox="0 0 24 24" fill="#FFFFFF">
+                      <Path d="M17.05 20.28c-.98.95-2.05.88-3.08.4-1.09-.5-2.08-.48-3.24 0-1.44.62-2.2.44-3.06-.4C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z" />
+                    </Svg>
+                    <Text style={styles.appleSocialButtonText}>Apple</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            ) : null}
+          </View>
+
+          <View style={styles.dividerRow}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>or</Text>
+            <View style={styles.dividerLine} />
+          </View>
+
+          <TouchableOpacity
+            style={styles.guestButton}
+            onPress={handleGuestLogin}
+            disabled={isGuestLoading}
+            activeOpacity={0.7}
+            testID="login-guest"
+          >
+            {isGuestLoading ? (
+              <ActivityIndicator color={Colors.textSecondary} size="small" />
+            ) : (
+              <>
+                <UserX size={18} color={Colors.textSecondary} strokeWidth={1.8} />
+                <Text style={styles.guestButtonText}>Continue without account</Text>
+              </>
+            )}
+          </TouchableOpacity>
+          <Text style={styles.guestNote}>
+            Your data won't be saved to the cloud
+          </Text>
+
+          <TouchableOpacity
+            style={styles.forgotButton}
+            onPress={async () => {
+              if (!email.trim()) {
+                Alert.alert('Enter Email', 'Please enter your email address first, then tap Forgot Password.');
+                return;
+              }
+              try {
+                await resetPassword(email.trim());
+                Alert.alert('Check Your Email', 'A password reset link has been sent to ' + email.trim());
+              } catch (err: unknown) {
+                const msg = err instanceof Error ? err.message : 'Failed to send reset email';
+                Alert.alert('Error', msg);
+              }
+            }}
+            testID="login-forgot"
+          >
+            <KeyRound size={14} color={Colors.primary} strokeWidth={1.8} />
+            <Text style={styles.forgotText}>Forgot Password?</Text>
+          </TouchableOpacity>
+
+          <View style={styles.signupRow}>
+            <Text style={styles.signupPrompt}>Don't have an account?</Text>
+            <TouchableOpacity
+              onPress={() => router.push('/signup' as never)}
+              testID="login-go-signup"
+            >
+              <Text style={styles.signupLink}>Create Account</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+  topSection: {
+    backgroundColor: Colors.primary,
+    paddingBottom: 40,
+    alignItems: 'center',
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
+  },
+  logoContainer: {
+    marginBottom: 16,
+  },
+  logoCircle: {
+    width: 72,
+    height: 72,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.25)',
+  },
+  brandName: {
+    fontSize: 30,
+    fontWeight: '800' as const,
+    color: '#FFFFFF',
+    letterSpacing: -0.5,
+  },
+  brandTagline: {
+    fontSize: 16,
+    fontWeight: '500' as const,
+    color: 'rgba(255,255,255,0.7)',
+    marginTop: 4,
+  },
+  formWrapper: {
+    flex: 1,
+  },
+  formContainer: {
+    padding: 24,
+    paddingTop: 32,
+  },
+  errorBanner: {
+    backgroundColor: Colors.errorLight,
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,59,48,0.15)',
+  },
+  errorBannerText: {
+    fontSize: 14,
+    color: Colors.error,
+    fontWeight: '500' as const,
+    textAlign: 'center',
+  },
+  inputGroup: {
+    marginBottom: 20,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: Colors.text,
+    marginBottom: 8,
+    marginLeft: 2,
+  },
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.surface,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    gap: 10,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+  },
+  input: {
+    flex: 1,
+    fontSize: 16,
+    color: Colors.text,
+    fontWeight: '400' as const,
+  },
+  rememberRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+    paddingHorizontal: 2,
+  },
+  rememberLabel: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    fontWeight: '500' as const,
+  },
+  loginButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.primary,
+    borderRadius: 14,
+    paddingVertical: 16,
+    gap: 8,
+    marginTop: 8,
+  },
+  loginButtonDisabled: {
+    opacity: 0.7,
+  },
+  loginButtonText: {
+    fontSize: 17,
+    fontWeight: '700' as const,
+    color: '#FFFFFF',
+  },
+  biometricButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    paddingVertical: 14,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: Colors.primary,
+    backgroundColor: Colors.surface,
+    marginTop: 12,
+  },
+  biometricText: {
+    fontSize: 15,
+    fontWeight: '600' as const,
+    color: Colors.primary,
+  },
+  dividerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 24,
+    marginBottom: 16,
+    gap: 12,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: Colors.borderLight,
+  },
+  dividerText: {
+    fontSize: 13,
+    color: Colors.textMuted,
+    fontWeight: '500' as const,
+  },
+  guestButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 14,
+    backgroundColor: Colors.fillTertiary,
+  },
+  guestButtonText: {
+    fontSize: 15,
+    fontWeight: '600' as const,
+    color: Colors.textSecondary,
+  },
+  guestNote: {
+    fontSize: 12,
+    color: Colors.textMuted,
+    textAlign: 'center',
+    marginTop: 8,
+  },
+  socialRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  socialButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    paddingVertical: 14,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: Colors.borderLight,
+    backgroundColor: Colors.surface,
+  },
+  socialButtonText: {
+    fontSize: 15,
+    fontWeight: '600' as const,
+    color: Colors.text,
+  },
+  appleSocialButton: {
+    backgroundColor: '#000000',
+    borderColor: '#000000',
+  },
+  appleSocialButtonText: {
+    fontSize: 15,
+    fontWeight: '600' as const,
+    color: '#FFFFFF',
+  },
+  signupRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: 24,
+  },
+  signupPrompt: {
+    fontSize: 15,
+    color: Colors.textSecondary,
+  },
+  signupLink: {
+    fontSize: 15,
+    fontWeight: '600' as const,
+    color: Colors.primary,
+  },
+  forgotButton: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    gap: 6,
+    marginTop: 16,
+    paddingVertical: 8,
+  },
+  forgotText: {
+    fontSize: 14,
+    fontWeight: '500' as const,
+    color: Colors.primary,
+  },
+});
+
+
+========== FILE: ./app/messages.tsx ==========
+import React, { useState, useCallback, useRef, useEffect } from 'react';
+import {
+  View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, KeyboardAvoidingView, Platform,
+  Animated,
+} from 'react-native';
+import { useLocalSearchParams, Stack } from 'expo-router';
+import { Send, ChevronDown } from 'lucide-react-native';
+import * as Haptics from 'expo-haptics';
+import { Colors } from '@/constants/colors';
+import { useHire } from '@/contexts/HireContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { useNotifications } from '@/contexts/NotificationContext';
+import type { ChatMessage } from '@/types';
+
+export default function MessagesScreen() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const { conversations, getConversationMessages, sendMessage } = useHire();
+  const { user } = useAuth();
+  const { clearBadge } = useNotifications();
+  const [text, setText] = useState('');
+  const [isAtBottom, setIsAtBottom] = useState(true);
+  const flatListRef = useRef<FlatList<ChatMessage>>(null);
+  const prevMessageCount = useRef(0);
+  const scrollIndicatorAnim = useRef(new Animated.Value(0)).current;
+
+  const conversation = conversations.find(c => c.id === id);
+  const messages = getConversationMessages(id ?? '');
+  const senderId = user?.id ?? 'you';
+  const senderName = user?.name ?? 'You';
+
+  useEffect(() => {
+    void clearBadge();
+  }, [clearBadge]);
+
+  useEffect(() => {
+    if (messages.length > prevMessageCount.current) {
+      if (isAtBottom) {
+        setTimeout(() => {
+          flatListRef.current?.scrollToEnd({ animated: true });
+        }, 100);
+      } else {
+        Animated.sequence([
+          Animated.timing(scrollIndicatorAnim, { toValue: 1, duration: 200, useNativeDriver: true }),
+          Animated.delay(3000),
+          Animated.timing(scrollIndicatorAnim, { toValue: 0, duration: 200, useNativeDriver: true }),
+        ]).start();
+      }
+    }
+    prevMessageCount.current = messages.length;
+  }, [messages.length, isAtBottom, scrollIndicatorAnim]);
+
+  const handleSend = useCallback(() => {
+    if (!text.trim() || !id) return;
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    sendMessage(id, senderId, senderName, text.trim());
+    setText('');
+    setTimeout(() => {
+      flatListRef.current?.scrollToEnd({ animated: true });
+    }, 150);
+  }, [text, id, sendMessage, senderId, senderName]);
+
+  const handleScroll = useCallback((event: { nativeEvent: { contentOffset: { y: number }; contentSize: { height: number }; layoutMeasurement: { height: number } } }) => {
+    const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+    const distFromBottom = contentSize.height - contentOffset.y - layoutMeasurement.height;
+    setIsAtBottom(distFromBottom < 50);
+  }, []);
+
+  const scrollToBottom = useCallback(() => {
+    flatListRef.current?.scrollToEnd({ animated: true });
+  }, []);
+
+  const otherName = conversation?.participantNames.find((_, i) => i > 0) ?? 'Chat';
+
+  const renderMessage = useCallback(({ item }: { item: ChatMessage }) => {
+    const isMe = item.senderId === senderId;
+    return (
+      <View style={[styles.messageBubble, isMe ? styles.myMessage : styles.theirMessage]}>
+        {!isMe && <Text style={styles.senderName}>{item.senderName}</Text>}
+        <Text style={[styles.messageText, isMe && styles.myMessageText]}>{item.text}</Text>
+        <Text style={[styles.timestamp, isMe && styles.myTimestamp]}>
+          {new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+        </Text>
+      </View>
+    );
+  }, [senderId]);
+
+  const onlineIndicator = (
+    <View style={styles.headerRight}>
+      <View style={styles.onlineDot} />
+      <Text style={styles.onlineText}>Online</Text>
+    </View>
+  );
+
+  return (
+    <View style={styles.container}>
+      <Stack.Screen options={{
+        title: otherName,
+        headerStyle: { backgroundColor: Colors.surface },
+        headerTintColor: Colors.primary,
+        headerTitleStyle: { fontWeight: '700' as const, color: Colors.text },
+        headerRight: () => onlineIndicator,
+      }} />
+      <KeyboardAvoidingView
+        style={styles.kav}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+      >
+        <FlatList
+          ref={flatListRef}
+          data={messages}
+          renderItem={renderMessage}
+          keyExtractor={item => item.id}
+          contentContainerStyle={styles.messageList}
+          showsVerticalScrollIndicator={false}
+          onScroll={handleScroll}
+          scrollEventThrottle={100}
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>Start the conversation</Text>
+            </View>
+          }
+        />
+
+        {!isAtBottom && (
+          <Animated.View style={[styles.scrollToBottomBtn, { opacity: scrollIndicatorAnim }]}>
+            <TouchableOpacity onPress={scrollToBottom} style={styles.scrollBtnInner}>
+              <ChevronDown size={18} color={Colors.primary} />
+              <Text style={styles.scrollBtnText}>New messages</Text>
+            </TouchableOpacity>
+          </Animated.View>
+        )}
+
+        <View style={styles.inputBar}>
+          <TextInput
+            style={styles.textInput}
+            value={text}
+            onChangeText={setText}
+            placeholder="Type a message..."
+            placeholderTextColor={Colors.textMuted}
+            multiline
+            maxLength={1000}
+            testID="message-input"
+          />
+          <TouchableOpacity
+            style={[styles.sendBtn, !text.trim() && styles.sendBtnDisabled]}
+            onPress={handleSend}
+            disabled={!text.trim()}
+            testID="send-button"
+          >
+            <Send size={18} color={text.trim() ? '#FFF' : Colors.textMuted} />
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: Colors.background },
+  kav: { flex: 1 },
+  messageList: { padding: 16, paddingBottom: 8 },
+  messageBubble: { maxWidth: '80%' as unknown as number, marginBottom: 8, padding: 12, borderRadius: 16 },
+  myMessage: { alignSelf: 'flex-end' as const, backgroundColor: Colors.primary, borderBottomRightRadius: 4 },
+  theirMessage: { alignSelf: 'flex-start' as const, backgroundColor: Colors.surface, borderBottomLeftRadius: 4 },
+  senderName: { fontSize: 11, fontWeight: '600' as const, color: Colors.primary, marginBottom: 2 },
+  messageText: { fontSize: 15, color: Colors.text, lineHeight: 20 },
+  myMessageText: { color: '#FFF' },
+  timestamp: { fontSize: 10, color: Colors.textMuted, marginTop: 4, alignSelf: 'flex-end' as const },
+  myTimestamp: { color: 'rgba(255,255,255,0.7)' },
+  emptyContainer: { flex: 1, justifyContent: 'center' as const, alignItems: 'center' as const, paddingTop: 100 },
+  emptyText: { fontSize: 15, color: Colors.textMuted },
+  inputBar: {
+    flexDirection: 'row' as const, alignItems: 'flex-end' as const, padding: 12,
+    paddingBottom: Platform.OS === 'ios' ? 24 : 12, backgroundColor: Colors.surface,
+    borderTopWidth: 0.5, borderTopColor: Colors.borderLight, gap: 8,
+  },
+  textInput: {
+    flex: 1, backgroundColor: Colors.background, borderRadius: 20,
+    paddingHorizontal: 16, paddingVertical: 10, fontSize: 15, color: Colors.text, maxHeight: 100,
+  },
+  sendBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.primary, alignItems: 'center' as const, justifyContent: 'center' as const },
+  sendBtnDisabled: { backgroundColor: Colors.background },
+  headerRight: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6, marginRight: 4 },
+  onlineDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#34C759' },
+  onlineText: { fontSize: 12, color: Colors.textMuted },
+  scrollToBottomBtn: {
+    position: 'absolute' as const, bottom: 80, alignSelf: 'center' as const,
+    backgroundColor: Colors.surface, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 4,
+    elevation: 4, flexDirection: 'row' as const, alignItems: 'center' as const, gap: 4,
+  },
+  scrollBtnInner: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 4 },
+  scrollBtnText: { fontSize: 13, color: Colors.primary, fontWeight: '600' as const },
+});
+
+
+========== FILE: ./app/onboarding.tsx ==========
+import React, { useState, useRef, useCallback } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Animated,
+  Dimensions,
+  TouchableOpacity,
+  Platform,
+  FlatList,
+  ViewToken,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
+import * as Haptics from 'expo-haptics';
+import {
+  HardHat,
+  Calculator,
+  CalendarDays,
+  Package,
+  Share2,
+  Users,
+  ArrowRight,
+  CheckCircle,
+  Sparkles,
+} from 'lucide-react-native';
+import { Colors } from '@/constants/colors';
+import { useProjects } from '@/contexts/ProjectContext';
+
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+
+interface OnboardingSlide {
+  id: string;
+  title: string;
+  subtitle: string;
+  description: string;
+  icon: React.ReactNode;
+  accent: string;
+  bgGradientTop: string;
+  bgGradientBottom: string;
+}
+
+const SLIDES: OnboardingSlide[] = [
+  {
+    id: 'welcome',
+    title: 'MAGE ID',
+    subtitle: 'Your Construction Command Center',
+    description: 'Estimate costs, build schedules, manage materials, and collaborate with your team — all in one powerful app.',
+    icon: <HardHat size={56} color="#FFFFFF" strokeWidth={1.6} />,
+    accent: '#1A6B3C',
+    bgGradientTop: '#1A6B3C',
+    bgGradientBottom: '#0F4526',
+  },
+  {
+    id: 'projects',
+    title: 'Create Projects',
+    subtitle: 'Organize Everything',
+    description: 'Start by creating a project — name it, describe it, and choose the type. Everything from estimates to schedules lives inside your project.',
+    icon: <Sparkles size={56} color="#FFFFFF" strokeWidth={1.6} />,
+    accent: '#FF9500',
+    bgGradientTop: '#FF9500',
+    bgGradientBottom: '#E08600',
+  },
+  {
+    id: 'estimate',
+    title: 'Smart Estimates',
+    subtitle: 'Accurate Cost Breakdowns',
+    description: 'Browse materials, add quantities, and get instant pricing with bulk savings. Link estimates directly to your projects for a complete picture.',
+    icon: <Calculator size={56} color="#FFFFFF" strokeWidth={1.6} />,
+    accent: '#007AFF',
+    bgGradientTop: '#007AFF',
+    bgGradientBottom: '#0055CC',
+  },
+  {
+    id: 'schedule',
+    title: 'BW Schedule Maker',
+    subtitle: 'Plan Like a Pro',
+    description: 'Build timelines with tasks, milestones, critical path analysis, and work breakdown structures. Visualize your entire project on an interactive timeline.',
+    icon: <CalendarDays size={56} color="#FFFFFF" strokeWidth={1.6} />,
+    accent: '#AF52DE',
+    bgGradientTop: '#AF52DE',
+    bgGradientBottom: '#8A2DB5',
+  },
+  {
+    id: 'materials',
+    title: 'Material Pricing',
+    subtitle: 'Real Costs at Your Fingertips',
+    description: 'Access a comprehensive material database with retail and bulk pricing. Compare suppliers and find savings across categories.',
+    icon: <Package size={56} color="#FFFFFF" strokeWidth={1.6} />,
+    accent: '#FF3B30',
+    bgGradientTop: '#FF3B30',
+    bgGradientBottom: '#CC2F26',
+  },
+  {
+    id: 'share',
+    title: 'Share & Collaborate',
+    subtitle: 'Work Together Seamlessly',
+    description: 'Generate professional PDFs with your company logo and signature. Share via email or text, and invite team members to collaborate on projects.',
+    icon: <Share2 size={56} color="#FFFFFF" strokeWidth={1.6} />,
+    accent: '#34C759',
+    bgGradientTop: '#34C759',
+    bgGradientBottom: '#28A745',
+  },
+  {
+    id: 'settings',
+    title: 'Make It Yours',
+    subtitle: 'Company Branding & Settings',
+    description: 'Upload your logo, draw your signature, and customize tax rates and contingency. Every PDF you generate will carry your professional brand.',
+    icon: <Users size={56} color="#FFFFFF" strokeWidth={1.6} />,
+    accent: '#5856D6',
+    bgGradientTop: '#5856D6',
+    bgGradientBottom: '#4240AB',
+  },
+];
+
+export default function OnboardingScreen() {
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const flatListRef = useRef<FlatList>(null);
+  const scrollX = useRef(new Animated.Value(0)).current;
+  const buttonScale = useRef(new Animated.Value(1)).current;
+  const iconAnim = useRef(new Animated.Value(0)).current;
+
+  const startIconPulse = useCallback(() => {
+    iconAnim.setValue(0);
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(iconAnim, {
+          toValue: 1,
+          duration: 2000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(iconAnim, {
+          toValue: 0,
+          duration: 2000,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  }, [iconAnim]);
+
+  React.useEffect(() => {
+    startIconPulse();
+  }, [startIconPulse]);
+
+  const onViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: ViewToken[] }) => {
+    if (viewableItems.length > 0 && viewableItems[0].index != null) {
+      setCurrentIndex(viewableItems[0].index);
+    }
+  }).current;
+
+  const viewabilityConfig = useRef({ viewAreaCoveragePercentThreshold: 50 }).current;
+
+  const isLastSlide = currentIndex === SLIDES.length - 1;
+
+  const { completeOnboarding } = useProjects();
+
+  const handleFinish = useCallback(() => {
+    if (Platform.OS !== 'web') {
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    }
+    void completeOnboarding();
+    router.replace('/(tabs)/(home)');
+  }, [router, completeOnboarding]);
+
+  const handleNext = useCallback(() => {
+    if (Platform.OS !== 'web') {
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+
+    Animated.sequence([
+      Animated.timing(buttonScale, { toValue: 0.92, duration: 80, useNativeDriver: true }),
+      Animated.timing(buttonScale, { toValue: 1, duration: 80, useNativeDriver: true }),
+    ]).start();
+
+    if (isLastSlide) {
+      handleFinish();
+    } else {
+      flatListRef.current?.scrollToIndex({
+        index: currentIndex + 1,
+        animated: true,
+      });
+    }
+  }, [currentIndex, isLastSlide, buttonScale, handleFinish]);
+
+  const handleSkip = useCallback(() => {
+    if (Platform.OS !== 'web') {
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    void completeOnboarding();
+    router.replace('/(tabs)/(home)');
+  }, [router, completeOnboarding]);
+
+  const iconScale = iconAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 1.08],
+  });
+
+  const renderSlide = useCallback(({ item, index }: { item: OnboardingSlide; index: number }) => {
+    const inputRange = [
+      (index - 1) * SCREEN_WIDTH,
+      index * SCREEN_WIDTH,
+      (index + 1) * SCREEN_WIDTH,
+    ];
+
+    const titleOpacity = scrollX.interpolate({
+      inputRange,
+      outputRange: [0, 1, 0],
+      extrapolate: 'clamp',
+    });
+
+    const titleTranslateY = scrollX.interpolate({
+      inputRange,
+      outputRange: [40, 0, -40],
+      extrapolate: 'clamp',
+    });
+
+    const descOpacity = scrollX.interpolate({
+      inputRange,
+      outputRange: [0, 1, 0],
+      extrapolate: 'clamp',
+    });
+
+    const descTranslateY = scrollX.interpolate({
+      inputRange,
+      outputRange: [60, 0, -60],
+      extrapolate: 'clamp',
+    });
+
+    const iconOpacity = scrollX.interpolate({
+      inputRange,
+      outputRange: [0, 1, 0],
+      extrapolate: 'clamp',
+    });
+
+    return (
+      <View style={[styles.slide, { width: SCREEN_WIDTH }]}>
+        <View style={[styles.slideBackground, { backgroundColor: item.bgGradientTop }]}>
+          <View style={styles.bgPattern}>
+            {Array.from({ length: 6 }).map((_, i) => (
+              <View
+                key={i}
+                style={[
+                  styles.bgCircle,
+                  {
+                    width: 120 + i * 60,
+                    height: 120 + i * 60,
+                    borderRadius: 60 + i * 30,
+                    opacity: 0.06 - i * 0.008,
+                    top: SCREEN_HEIGHT * 0.15 - (i * 30),
+                    left: SCREEN_WIDTH * 0.5 - (60 + i * 30),
+                  },
+                ]}
+              />
+            ))}
+          </View>
+
+          <View style={[styles.slideContent, { paddingTop: insets.top + 80 }]}>
+            <Animated.View
+              style={[
+                styles.iconContainer,
+                {
+                  opacity: iconOpacity,
+                  transform: [{ scale: iconScale }],
+                  backgroundColor: 'rgba(255,255,255,0.15)',
+                },
+              ]}
+            >
+              {item.icon}
+            </Animated.View>
+
+            <Animated.View
+              style={{
+                opacity: titleOpacity,
+                transform: [{ translateY: titleTranslateY }],
+              }}
+            >
+              <Text style={styles.slideTitle}>{item.title}</Text>
+              <Text style={styles.slideSubtitle}>{item.subtitle}</Text>
+            </Animated.View>
+
+            <Animated.View
+              style={[
+                styles.descriptionCard,
+                {
+                  opacity: descOpacity,
+                  transform: [{ translateY: descTranslateY }],
+                },
+              ]}
+            >
+              <Text style={styles.slideDescription}>{item.description}</Text>
+            </Animated.View>
+
+            {index === 0 && (
+              <Animated.View style={[styles.featureList, { opacity: descOpacity }]}>
+                {[
+                  'Cost estimation with bulk pricing',
+                  'Interactive schedule timelines',
+                  'Professional PDF generation',
+                  'Team collaboration tools',
+                ].map((feature, fi) => (
+                  <View key={fi} style={styles.featureItem}>
+                    <CheckCircle size={16} color="rgba(255,255,255,0.9)" strokeWidth={2} />
+                    <Text style={styles.featureText}>{feature}</Text>
+                  </View>
+                ))}
+              </Animated.View>
+            )}
+          </View>
+        </View>
+      </View>
+    );
+  }, [scrollX, iconScale, insets.top]);
+
+  return (
+    <View style={styles.container}>
+      <Animated.FlatList
+        ref={flatListRef}
+        data={SLIDES}
+        renderItem={renderSlide}
+        keyExtractor={(item) => item.id}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        bounces={false}
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { x: scrollX } } }],
+          { useNativeDriver: true }
+        )}
+        onViewableItemsChanged={onViewableItemsChanged}
+        viewabilityConfig={viewabilityConfig}
+        getItemLayout={(_, index) => ({
+          length: SCREEN_WIDTH,
+          offset: SCREEN_WIDTH * index,
+          index,
+        })}
+      />
+
+      <View style={[styles.bottomControls, { paddingBottom: insets.bottom + 20 }]}>
+        <View style={styles.paginationRow}>
+          {SLIDES.map((slide, i) => {
+            const inputRange = [
+              (i - 1) * SCREEN_WIDTH,
+              i * SCREEN_WIDTH,
+              (i + 1) * SCREEN_WIDTH,
+            ];
+
+            const dotScale = scrollX.interpolate({
+              inputRange,
+              outputRange: [1, 3.5, 1],
+              extrapolate: 'clamp',
+            });
+
+            const dotOpacity = scrollX.interpolate({
+              inputRange,
+              outputRange: [0.35, 1, 0.35],
+              extrapolate: 'clamp',
+            });
+
+            return (
+              <Animated.View
+                key={slide.id}
+                style={[
+                  styles.dot,
+                  {
+                    transform: [{ scaleX: dotScale }],
+                    opacity: dotOpacity,
+                    backgroundColor: '#FFFFFF',
+                  },
+                ]}
+              />
+            );
+          })}
+        </View>
+
+        <View style={styles.buttonRow}>
+          {!isLastSlide && (
+            <TouchableOpacity
+              style={styles.skipButton}
+              onPress={handleSkip}
+              activeOpacity={0.7}
+              testID="onboarding-skip"
+            >
+              <Text style={styles.skipText}>Skip</Text>
+            </TouchableOpacity>
+          )}
+
+          <Animated.View style={{ transform: [{ scale: buttonScale }], flex: isLastSlide ? 1 : undefined }}>
+            <TouchableOpacity
+              style={[
+                styles.nextButton,
+                isLastSlide && styles.getStartedButton,
+              ]}
+              onPress={handleNext}
+              activeOpacity={0.85}
+              testID="onboarding-next"
+            >
+              <Text style={[styles.nextButtonText, isLastSlide && styles.getStartedText]}>
+                {isLastSlide ? "Let's Build" : 'Next'}
+              </Text>
+              {!isLastSlide && (
+                <ArrowRight size={18} color="#FFFFFF" strokeWidth={2.5} />
+              )}
+              {isLastSlide && (
+                <HardHat size={20} color={Colors.primary} strokeWidth={2} />
+              )}
+            </TouchableOpacity>
+          </Animated.View>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#000',
+  },
+  slide: {
+    flex: 1,
+  },
+  slideBackground: {
+    flex: 1,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  bgPattern: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bgCircle: {
+    position: 'absolute',
+    backgroundColor: '#FFFFFF',
+  },
+  slideContent: {
+    flex: 1,
+    alignItems: 'center',
+    paddingHorizontal: 32,
+  },
+  iconContainer: {
+    width: 120,
+    height: 120,
+    borderRadius: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 36,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  slideTitle: {
+    fontSize: 36,
+    fontWeight: '800' as const,
+    color: '#FFFFFF',
+    textAlign: 'center',
+    letterSpacing: -0.8,
+    marginBottom: 8,
+  },
+  slideSubtitle: {
+    fontSize: 17,
+    fontWeight: '500' as const,
+    color: 'rgba(255,255,255,0.75)',
+    textAlign: 'center',
+    letterSpacing: 0.3,
+    marginBottom: 28,
+  },
+  descriptionCard: {
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderRadius: 20,
+    paddingHorizontal: 24,
+    paddingVertical: 20,
+    width: '100%',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  slideDescription: {
+    fontSize: 16,
+    lineHeight: 24,
+    color: 'rgba(255,255,255,0.92)',
+    textAlign: 'center',
+    fontWeight: '400' as const,
+  },
+  featureList: {
+    marginTop: 28,
+    width: '100%',
+    gap: 14,
+  },
+  featureItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingLeft: 8,
+  },
+  featureText: {
+    fontSize: 15,
+    color: 'rgba(255,255,255,0.85)',
+    fontWeight: '500' as const,
+  },
+  bottomControls: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 24,
+    paddingTop: 16,
+    backgroundColor: 'rgba(0,0,0,0.15)',
+  },
+  paginationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginBottom: 24,
+  },
+  dot: {
+    height: 8,
+    borderRadius: 4,
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 16,
+  },
+  skipButton: {
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+  },
+  skipText: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: 'rgba(255,255,255,0.7)',
+  },
+  nextButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    borderRadius: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
+  },
+  nextButtonText: {
+    fontSize: 17,
+    fontWeight: '700' as const,
+    color: '#FFFFFF',
+  },
+  getStartedButton: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#FFFFFF',
+  },
+  getStartedText: {
+    color: Colors.primary,
+  },
+});
+
+
+========== FILE: ./app/payments.tsx ==========
+import React, { useState, useMemo, useCallback, useRef } from 'react';
+import {
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated,
+  Platform, Alert,
+} from 'react-native';
+import { Stack } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Haptics from 'expo-haptics';
+import {
+  DollarSign, CreditCard, ArrowUpRight, ArrowDownRight,
+  Clock, Check, XCircle, TrendingUp, Send, RefreshCw,
+} from 'lucide-react-native';
+import { Colors } from '@/constants/colors';
+import { MOCK_PAYMENTS, PROVIDER_INFO } from '@/mocks/payments';
+import type { Payment, PaymentStatus } from '@/types';
+import { formatMoney } from '@/utils/formatters';
+
+const STATUS_CONFIG: Record<PaymentStatus, { label: string; color: string; bgColor: string; icon: React.ElementType }> = {
+  pending: { label: 'Pending', color: '#E65100', bgColor: '#FFF3E0', icon: Clock },
+  processing: { label: 'Processing', color: '#1565C0', bgColor: '#E3F2FD', icon: RefreshCw },
+  completed: { label: 'Completed', color: '#2E7D32', bgColor: '#E8F5E9', icon: Check },
+  failed: { label: 'Failed', color: '#C62828', bgColor: '#FFEBEE', icon: XCircle },
+  refunded: { label: 'Refunded', color: '#546E7A', bgColor: '#ECEFF1', icon: RefreshCw },
+};
+
+function PaymentCard({ payment, onPress }: { payment: Payment; onPress: () => void }) {
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const statusInfo = STATUS_CONFIG[payment.status];
+  const providerInfo = PROVIDER_INFO[payment.provider] ?? PROVIDER_INFO.check;
+  const StatusIcon = statusInfo.icon;
+
+  return (
+    <Animated.View style={[styles.payCard, { transform: [{ scale: scaleAnim }] }]}>
+      <TouchableOpacity
+        onPress={onPress}
+        onPressIn={() => Animated.spring(scaleAnim, { toValue: 0.97, useNativeDriver: true, speed: 50 }).start()}
+        onPressOut={() => Animated.spring(scaleAnim, { toValue: 1, useNativeDriver: true, speed: 50 }).start()}
+        activeOpacity={1}
+        style={styles.payCardInner}
+      >
+        <View style={styles.payCardHeader}>
+          <View style={[styles.providerBadge, { backgroundColor: providerInfo.bgColor }]}>
+            <Text style={[styles.providerBadgeLetter, { color: providerInfo.color }]}>
+              {providerInfo.label.charAt(0)}
+            </Text>
+          </View>
+          <View style={styles.payCardInfo}>
+            <Text style={styles.payCardClient}>{payment.clientName}</Text>
+            <Text style={styles.payCardProject} numberOfLines={1}>{payment.projectName}</Text>
+          </View>
+          <View style={{ alignItems: 'flex-end' }}>
+            <Text style={[styles.payCardAmount, payment.status === 'failed' && { color: '#C62828' }]}>
+              {formatMoney(payment.amount)}
+            </Text>
+            {payment.fee > 0 && (
+              <Text style={styles.payCardFee}>-{formatMoney(payment.fee, 2)} fee</Text>
+            )}
+          </View>
+        </View>
+
+        <Text style={styles.payCardDesc} numberOfLines={1}>{payment.description}</Text>
+
+        <View style={styles.payCardFooter}>
+          <View style={[styles.payStatusBadge, { backgroundColor: statusInfo.bgColor }]}>
+            <StatusIcon size={10} color={statusInfo.color} />
+            <Text style={[styles.payStatusText, { color: statusInfo.color }]}>{statusInfo.label}</Text>
+          </View>
+          <View style={styles.payCardMetaRow}>
+            <View style={[styles.providerTag, { backgroundColor: providerInfo.bgColor }]}>
+              <Text style={[styles.providerTagText, { color: providerInfo.color }]}>{providerInfo.label}</Text>
+            </View>
+            <Text style={styles.payCardDate}>
+              {new Date(payment.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+            </Text>
+          </View>
+        </View>
+      </TouchableOpacity>
+    </Animated.View>
+  );
+}
+
+export default function PaymentsScreen() {
+  const insets = useSafeAreaInsets();
+  const [payments] = useState<Payment[]>(MOCK_PAYMENTS);
+  const [selectedTab, setSelectedTab] = useState<'all' | 'pending' | 'completed'>('all');
+
+  const filtered = useMemo(() => {
+    if (selectedTab === 'all') return payments;
+    if (selectedTab === 'pending') return payments.filter(p => p.status === 'pending' || p.status === 'processing');
+    return payments.filter(p => p.status === 'completed');
+  }, [payments, selectedTab]);
+
+  const stats = useMemo(() => {
+    const received = payments.filter(p => p.status === 'completed').reduce((s, p) => s + p.netAmount, 0);
+    const pending = payments.filter(p => p.status === 'pending' || p.status === 'processing').reduce((s, p) => s + p.amount, 0);
+    const totalFees = payments.filter(p => p.status === 'completed').reduce((s, p) => s + p.fee, 0);
+    const failedCount = payments.filter(p => p.status === 'failed').length;
+    return { received, pending, totalFees, failedCount };
+  }, [payments]);
+
+  const handlePaymentPress = useCallback((payment: Payment) => {
+    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const providerInfo = PROVIDER_INFO[payment.provider] ?? PROVIDER_INFO.check;
+
+    if (payment.status === 'pending') {
+      Alert.alert(
+        'Payment Pending',
+        `${formatMoney(payment.amount)} from ${payment.clientName}\nVia ${providerInfo.label}\n\n${payment.description}`,
+        [
+          { text: 'Close', style: 'cancel' },
+          { text: 'Send Reminder', onPress: () => Alert.alert('Sent', 'Payment reminder sent to client.') },
+        ]
+      );
+    } else if (payment.status === 'failed') {
+      Alert.alert(
+        'Payment Failed',
+        `${formatMoney(payment.amount)} from ${payment.clientName}\nVia ${providerInfo.label}\n\nThe payment was declined. You can retry or request a different payment method.`,
+        [
+          { text: 'Close', style: 'cancel' },
+          { text: 'Retry', onPress: () => Alert.alert('Retrying', 'Payment retry initiated.') },
+        ]
+      );
+    } else {
+      Alert.alert(
+        'Payment Details',
+        `Amount: ${formatMoney(payment.amount)}\nFee: ${formatMoney(payment.fee, 2)}\nNet: ${formatMoney(payment.netAmount, 2)}\nVia: ${providerInfo.label}\nDate: ${new Date(payment.createdAt).toLocaleDateString()}`
+      );
+    }
+  }, []);
+
+  const handleSendInvoice = useCallback(() => {
+    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    Alert.alert(
+      'Send Payment Request',
+      'Choose a payment method to send to your client:',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Stripe Link', onPress: () => console.log('[Payments] Create Stripe link') },
+        { text: 'Square Invoice', onPress: () => console.log('[Payments] Create Square invoice') },
+        { text: 'Zelle Request', onPress: () => console.log('[Payments] Create Zelle request') },
+      ]
+    );
+  }, []);
+
+  return (
+    <View style={styles.container}>
+      <Stack.Screen options={{ title: 'Payments', headerStyle: { backgroundColor: Colors.background }, headerTintColor: Colors.primary, headerTitleStyle: { fontWeight: '700' as const, color: Colors.text } }} />
+      <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 30 }} showsVerticalScrollIndicator={false}>
+        <View style={styles.heroCards}>
+          <View style={[styles.heroCard, { flex: 1.2 }]}>
+            <View style={[styles.heroIconWrap, { backgroundColor: '#E8F5E9' }]}>
+              <ArrowDownRight size={18} color="#2E7D32" />
+            </View>
+            <Text style={[styles.heroValue, { color: '#2E7D32' }]}>{formatMoney(stats.received)}</Text>
+            <Text style={styles.heroLabel}>Received</Text>
+          </View>
+          <View style={styles.heroCard}>
+            <View style={[styles.heroIconWrap, { backgroundColor: '#FFF3E0' }]}>
+              <Clock size={18} color="#E65100" />
+            </View>
+            <Text style={[styles.heroValue, { color: '#E65100' }]}>{formatMoney(stats.pending)}</Text>
+            <Text style={styles.heroLabel}>Pending</Text>
+          </View>
+        </View>
+
+        <View style={styles.feeRow}>
+          <View style={styles.feeItem}>
+            <Text style={styles.feeItemLabel}>Processing Fees</Text>
+            <Text style={styles.feeItemValue}>{formatMoney(stats.totalFees, 2)}</Text>
+          </View>
+          {stats.failedCount > 0 && (
+            <View style={[styles.feeItem, { backgroundColor: '#FFEBEE' }]}>
+              <Text style={[styles.feeItemLabel, { color: '#C62828' }]}>Failed</Text>
+              <Text style={[styles.feeItemValue, { color: '#C62828' }]}>{stats.failedCount}</Text>
+            </View>
+          )}
+        </View>
+
+        <TouchableOpacity style={styles.sendButton} onPress={handleSendInvoice} activeOpacity={0.85}>
+          <Send size={18} color="#fff" />
+          <Text style={styles.sendButtonText}>Send Payment Request</Text>
+        </TouchableOpacity>
+
+        <View style={styles.tabRow}>
+          {(['all', 'pending', 'completed'] as const).map(tab => (
+            <TouchableOpacity
+              key={tab}
+              style={[styles.tab, selectedTab === tab && styles.tabActive]}
+              onPress={() => setSelectedTab(tab)}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.tabText, selectedTab === tab && styles.tabTextActive]}>
+                {tab === 'all' ? `All (${payments.length})` : tab === 'pending' ? 'Pending' : 'Completed'}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        <View style={styles.listSection}>
+          {filtered.length === 0 ? (
+            <View style={styles.emptyState}>
+              <CreditCard size={32} color={Colors.textMuted} />
+              <Text style={styles.emptyTitle}>No payments found</Text>
+            </View>
+          ) : (
+            filtered.map(payment => (
+              <PaymentCard key={payment.id} payment={payment} onPress={() => handlePaymentPress(payment)} />
+            ))
+          )}
+        </View>
+      </ScrollView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: Colors.background },
+  heroCards: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    gap: 10,
+    paddingTop: 16,
+    marginBottom: 12,
+  },
+  heroCard: {
+    flex: 1,
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    padding: 16,
+    gap: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  heroIconWrap: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  heroValue: { fontSize: 22, fontWeight: '800' as const, color: Colors.text, letterSpacing: -0.5 },
+  heroLabel: { fontSize: 12, color: Colors.textSecondary, fontWeight: '500' as const },
+  feeRow: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    gap: 10,
+    marginBottom: 16,
+  },
+  feeItem: {
+    flex: 1,
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    padding: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+  },
+  feeItemLabel: { fontSize: 13, color: Colors.textSecondary },
+  feeItemValue: { fontSize: 15, fontWeight: '700' as const, color: Colors.text },
+  sendButton: {
+    marginHorizontal: 16,
+    backgroundColor: Colors.primary,
+    borderRadius: 14,
+    paddingVertical: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginBottom: 20,
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  sendButtonText: { fontSize: 16, fontWeight: '700' as const, color: '#fff' },
+  tabRow: {
+    flexDirection: 'row',
+    marginHorizontal: 16,
+    backgroundColor: Colors.fillTertiary,
+    borderRadius: 12,
+    padding: 3,
+    marginBottom: 16,
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: 'center',
+    borderRadius: 10,
+  },
+  tabActive: { backgroundColor: Colors.surface },
+  tabText: { fontSize: 13, fontWeight: '600' as const, color: Colors.textMuted },
+  tabTextActive: { color: Colors.text },
+  listSection: { paddingHorizontal: 16 },
+  payCard: {
+    marginBottom: 10,
+    borderRadius: 14,
+    backgroundColor: Colors.surface,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  payCardInner: { padding: 14, gap: 8 },
+  payCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  providerBadge: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  providerBadgeLetter: { fontSize: 18, fontWeight: '700' as const },
+  payCardInfo: { flex: 1, gap: 2 },
+  payCardClient: { fontSize: 15, fontWeight: '600' as const, color: Colors.text },
+  payCardProject: { fontSize: 12, color: Colors.textSecondary },
+  payCardAmount: { fontSize: 18, fontWeight: '700' as const, color: Colors.text },
+  payCardFee: { fontSize: 11, color: Colors.textMuted },
+  payCardDesc: { fontSize: 13, color: Colors.textSecondary },
+  payCardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  payStatusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  payStatusText: { fontSize: 11, fontWeight: '600' as const },
+  payCardMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  providerTag: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  providerTagText: { fontSize: 11, fontWeight: '600' as const },
+  payCardDate: { fontSize: 12, color: Colors.textMuted },
+  emptyState: { alignItems: 'center', paddingVertical: 60, gap: 8 },
+  emptyTitle: { fontSize: 17, fontWeight: '600' as const, color: Colors.text },
+});
+
+
+========== FILE: ./app/paywall.tsx ==========
+import React, { useCallback } from 'react';
+import {
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Platform,
+  ActivityIndicator,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter, Stack } from 'expo-router';
+import * as Haptics from 'expo-haptics';
+import {
+  CheckCircle, XCircle, Crown, Zap, Building2, X, Shield,
+} from 'lucide-react-native';
+import { Colors } from '@/constants/colors';
+import { useSubscription } from '@/contexts/SubscriptionContext';
+
+interface FeatureRow {
+  label: string;
+  free: boolean;
+  pro: boolean;
+  business: boolean;
+}
+
+const FEATURES: FeatureRow[] = [
+  { label: 'Active Projects', free: true, pro: true, business: true },
+  { label: 'AI Cost Estimator', free: true, pro: true, business: true },
+  { label: 'PDF Export & Sharing', free: false, pro: true, business: true },
+  { label: 'Schedule Maker (Gantt)', free: false, pro: true, business: true },
+  { label: 'Change Orders & Invoicing', free: false, pro: true, business: true },
+  { label: 'Daily Field Reports', free: false, pro: true, business: true },
+  { label: 'Voice-to-Report', free: false, pro: true, business: true },
+  { label: 'Photo Documentation', free: false, pro: true, business: true },
+  { label: 'Price Alerts', free: false, pro: true, business: true },
+  { label: 'Equipment Tracking', free: false, pro: true, business: true },
+  { label: 'Budget Health (EVM)', free: false, pro: true, business: true },
+  { label: 'Subcontractor Management', free: false, pro: false, business: true },
+  { label: 'Punch List & Closeout', free: false, pro: false, business: true },
+  { label: 'RFIs & Submittals', free: false, pro: false, business: true },
+  { label: 'Full Budget Dashboard', free: false, pro: false, business: true },
+  { label: 'Client Portal', free: false, pro: false, business: true },
+];
+
+function FeatureCheck({ available }: { available: boolean }) {
+  return available
+    ? <CheckCircle size={16} color={Colors.success} />
+    : <XCircle size={16} color={Colors.textMuted} />;
+}
+
+export default function PaywallScreen() {
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const {
+    tier, purchasePro, purchaseBusiness, restorePurchases,
+    isLoading, isPurchasing, proPackage, businessPackage,
+  } = useSubscription();
+
+  const packagesLoaded = !!proPackage || !!businessPackage;
+  const packagesStillLoading = isLoading && !packagesLoaded;
+
+  const proPrice = proPackage?.product?.priceString ?? (packagesStillLoading ? null : '$29.99/mo');
+  const businessPrice = businessPackage?.product?.priceString ?? (packagesStillLoading ? null : '$79.99/mo');
+  const isFallbackPricing = !packagesLoaded && !packagesStillLoading;
+
+  const handlePurchasePro = useCallback(async () => {
+    try {
+      if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      await purchasePro();
+      Alert.alert('Welcome to Pro!', 'You now have access to all Pro features.');
+      router.back();
+    } catch (err: unknown) {
+      const isCancelled = err && typeof err === 'object' && 'userCancelled' in err && (err as { userCancelled: boolean }).userCancelled;
+      if (isCancelled) {
+        console.log('[Paywall] User cancelled Pro purchase');
+        return;
+      }
+      console.log('[Paywall] Purchase Pro failed:', err);
+      Alert.alert('Purchase Failed', 'Could not complete the purchase. Please try again.');
+    }
+  }, [purchasePro, router]);
+
+  const handlePurchaseBusiness = useCallback(async () => {
+    try {
+      if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      await purchaseBusiness();
+      Alert.alert('Welcome to Business!', 'You now have access to all features.');
+      router.back();
+    } catch (err: unknown) {
+      const isCancelled = err && typeof err === 'object' && 'userCancelled' in err && (err as { userCancelled: boolean }).userCancelled;
+      if (isCancelled) {
+        console.log('[Paywall] User cancelled Business purchase');
+        return;
+      }
+      console.log('[Paywall] Purchase Business failed:', err);
+      Alert.alert('Purchase Failed', 'Could not complete the purchase. Please try again.');
+    }
+  }, [purchaseBusiness, router]);
+
+  const handleRestore = useCallback(async () => {
+    try {
+      if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      await restorePurchases();
+      Alert.alert('Restored', 'Your purchases have been restored.');
+    } catch (err) {
+      console.log('[Paywall] Restore failed:', err);
+      Alert.alert('Restore Failed', 'Could not restore purchases. Please try again.');
+    }
+  }, [restorePurchases]);
+
+  return (
+    <View style={[styles.container, { paddingBottom: insets.bottom }]}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.closeBtn} testID="paywall-close">
+          <X size={22} color={Colors.text} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Choose Your Plan</Text>
+        <View style={{ width: 36 }} />
+      </View>
+
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <View style={styles.plansRow}>
+          <View style={[styles.planCard, tier === 'free' && styles.planCardActive]}>
+            <View style={[styles.planIconWrap, { backgroundColor: Colors.fillTertiary }]}>
+              <Zap size={20} color={Colors.textSecondary} />
+            </View>
+            <Text style={styles.planName}>Free</Text>
+            <Text style={styles.planPrice}>$0</Text>
+            <Text style={styles.planPeriod}>forever</Text>
+            {tier === 'free' && (
+              <View style={[styles.currentBadge, { backgroundColor: Colors.fillTertiary }]}>
+                <Text style={[styles.currentBadgeText, { color: Colors.textSecondary }]}>Current</Text>
+              </View>
+            )}
+          </View>
+
+          <View style={[styles.planCard, styles.planCardHighlight, tier === 'pro' && styles.planCardActive]}>
+            <View style={styles.popularTag}>
+              <Text style={styles.popularTagText}>POPULAR</Text>
+            </View>
+            <View style={[styles.planIconWrap, { backgroundColor: Colors.primary + '20' }]}>
+              <Crown size={20} color={Colors.primary} />
+            </View>
+            <Text style={styles.planName}>Pro</Text>
+            {proPrice ? (
+              <Text style={styles.planPrice}>{proPrice}</Text>
+            ) : (
+              <ActivityIndicator size="small" color={Colors.primary} style={{ height: 22 }} />
+            )}
+            <Text style={styles.planPeriod}>per month</Text>
+            {tier === 'pro' ? (
+              <View style={[styles.currentBadge, { backgroundColor: Colors.success + '20' }]}>
+                <Text style={[styles.currentBadgeText, { color: Colors.success }]}>Current</Text>
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={[styles.ctaBtn, isFallbackPricing && styles.ctaBtnDisabled]}
+                onPress={handlePurchasePro}
+                activeOpacity={0.85}
+                disabled={isPurchasing || isFallbackPricing}
+                testID="buy-pro"
+              >
+                {isPurchasing ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <Text style={styles.ctaBtnText}>Subscribe</Text>
+                )}
+              </TouchableOpacity>
+            )}
+          </View>
+
+          <View style={[styles.planCard, tier === 'business' && styles.planCardActive]}>
+            <View style={[styles.planIconWrap, { backgroundColor: Colors.accent + '20' }]}>
+              <Building2 size={20} color={Colors.accent} />
+            </View>
+            <Text style={styles.planName}>Business</Text>
+            {businessPrice ? (
+              <Text style={styles.planPrice}>{businessPrice}</Text>
+            ) : (
+              <ActivityIndicator size="small" color={Colors.accent} style={{ height: 22 }} />
+            )}
+            <Text style={styles.planPeriod}>per month</Text>
+            {tier === 'business' ? (
+              <View style={[styles.currentBadge, { backgroundColor: Colors.success + '20' }]}>
+                <Text style={[styles.currentBadgeText, { color: Colors.success }]}>Current</Text>
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={[styles.ctaBtn, { backgroundColor: Colors.accent }, isFallbackPricing && styles.ctaBtnDisabled]}
+                onPress={handlePurchaseBusiness}
+                activeOpacity={0.85}
+                disabled={isPurchasing || isFallbackPricing}
+                testID="buy-business"
+              >
+                {isPurchasing ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <Text style={styles.ctaBtnText}>Subscribe</Text>
+                )}
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+
+        <Text style={styles.compareTitle}>Feature Comparison</Text>
+        <View style={styles.compareTable}>
+          <View style={styles.compareHeaderRow}>
+            <Text style={[styles.compareCell, styles.compareLabelCell]}>Feature</Text>
+            <Text style={[styles.compareCell, styles.compareHeaderCell]}>Free</Text>
+            <Text style={[styles.compareCell, styles.compareHeaderCell]}>Pro</Text>
+            <Text style={[styles.compareCell, styles.compareHeaderCell]}>Biz</Text>
+          </View>
+          {FEATURES.map((f) => (
+            <View key={f.label} style={styles.compareRow}>
+              <Text style={[styles.compareCell, styles.compareLabelCell]} numberOfLines={2}>{f.label}</Text>
+              <View style={[styles.compareCell, styles.compareCenterCell]}>
+                <FeatureCheck available={f.free} />
+              </View>
+              <View style={[styles.compareCell, styles.compareCenterCell]}>
+                <FeatureCheck available={f.pro} />
+              </View>
+              <View style={[styles.compareCell, styles.compareCenterCell]}>
+                <FeatureCheck available={f.business} />
+              </View>
+            </View>
+          ))}
+        </View>
+
+        <View style={styles.trustRow}>
+          <Shield size={14} color={Colors.textSecondary} />
+          <Text style={styles.trustText}>
+            Secure payment via {Platform.OS === 'ios' ? 'App Store' : Platform.OS === 'android' ? 'Google Play' : 'your platform'}. Cancel anytime.
+          </Text>
+        </View>
+
+        {isFallbackPricing && (
+          <View style={styles.fallbackNotice}>
+            <Text style={styles.fallbackNoticeText}>
+              Prices shown are estimates. In-app purchasing is currently unavailable.
+            </Text>
+          </View>
+        )}
+
+        <TouchableOpacity onPress={handleRestore} style={styles.restoreBtn} disabled={isFallbackPricing} testID="restore-purchases">
+          <Text style={[styles.restoreText, isFallbackPricing && { color: Colors.textMuted }]}>Restore Purchases</Text>
+        </TouchableOpacity>
+
+        {packagesStillLoading && (
+          <View style={styles.loadingOverlay}>
+            <ActivityIndicator color={Colors.primary} size="small" />
+            <Text style={styles.loadingText}>Loading plans...</Text>
+          </View>
+        )}
+      </ScrollView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    backgroundColor: Colors.surface,
+    borderBottomWidth: 0.5,
+    borderBottomColor: Colors.borderLight,
+  },
+  closeBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Colors.fillTertiary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '700' as const,
+    color: Colors.text,
+  },
+  scrollContent: {
+    padding: 16,
+    paddingBottom: 40,
+  },
+  plansRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 28,
+  },
+  planCard: {
+    flex: 1,
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    padding: 14,
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 2,
+    borderColor: 'transparent',
+    position: 'relative' as const,
+    overflow: 'visible' as const,
+  },
+  planCardHighlight: {
+    borderColor: Colors.primary + '30',
+  },
+  planCardActive: {
+    borderColor: Colors.success,
+  },
+  popularTag: {
+    position: 'absolute' as const,
+    top: -10,
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    zIndex: 1,
+  },
+  popularTagText: {
+    fontSize: 9,
+    fontWeight: '800' as const,
+    color: '#fff',
+    letterSpacing: 0.5,
+  },
+  planIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+    marginTop: 4,
+  },
+  planName: {
+    fontSize: 15,
+    fontWeight: '700' as const,
+    color: Colors.text,
+  },
+  planPrice: {
+    fontSize: 18,
+    fontWeight: '800' as const,
+    color: Colors.text,
+  },
+  planPeriod: {
+    fontSize: 11,
+    color: Colors.textSecondary,
+    marginBottom: 6,
+  },
+  currentBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  currentBadgeText: {
+    fontSize: 11,
+    fontWeight: '700' as const,
+  },
+  ctaBtn: {
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 10,
+    width: '100%' as const,
+    alignItems: 'center',
+  },
+  ctaBtnText: {
+    fontSize: 12,
+    fontWeight: '700' as const,
+    color: '#fff',
+  },
+  compareTitle: {
+    fontSize: 18,
+    fontWeight: '700' as const,
+    color: Colors.text,
+    marginBottom: 12,
+  },
+  compareTable: {
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    overflow: 'hidden',
+    marginBottom: 20,
+  },
+  compareHeaderRow: {
+    flexDirection: 'row',
+    backgroundColor: Colors.fillSecondary,
+    paddingVertical: 10,
+  },
+  compareRow: {
+    flexDirection: 'row',
+    borderTopWidth: 0.5,
+    borderTopColor: Colors.borderLight,
+    paddingVertical: 10,
+  },
+  compareCell: {
+    width: 50,
+    paddingHorizontal: 4,
+  },
+  compareLabelCell: {
+    flex: 1,
+    paddingLeft: 14,
+    fontSize: 13,
+    color: Colors.text,
+    fontWeight: '400' as const,
+  },
+  compareHeaderCell: {
+    fontSize: 12,
+    fontWeight: '700' as const,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+  },
+  compareCenterCell: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  trustRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginBottom: 12,
+  },
+  trustText: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+  },
+  restoreBtn: {
+    alignSelf: 'center',
+    paddingVertical: 12,
+  },
+  restoreText: {
+    fontSize: 14,
+    color: Colors.primary,
+    fontWeight: '500' as const,
+  },
+  loadingOverlay: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+  },
+  loadingText: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+  },
+  fallbackNotice: {
+    backgroundColor: Colors.fillSecondary,
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 12,
+    alignItems: 'center',
+  },
+  fallbackNoticeText: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    textAlign: 'center' as const,
+    lineHeight: 18,
+  },
+  ctaBtnDisabled: {
+    opacity: 0.45,
+  },
+});
+
+
+========== FILE: ./app/permits.tsx ==========
+import React, { useState, useMemo, useCallback, useRef } from 'react';
+import {
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated,
+  Platform, Alert,
+} from 'react-native';
+import { Stack } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Haptics from 'expo-haptics';
+import {
+  ClipboardCheck, Calendar, AlertTriangle, Check, XCircle,
+  Clock, Search, Eye, ChevronRight, Plus,
+} from 'lucide-react-native';
+import { Colors } from '@/constants/colors';
+import { MOCK_PERMITS, PERMIT_TYPE_INFO, PERMIT_STATUS_INFO } from '@/mocks/permits';
+import type { Permit } from '@/types';
+import { formatMoney } from '@/utils/formatters';
+
+function PermitCard({ permit, onPress }: { permit: Permit; onPress: () => void }) {
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const typeInfo = PERMIT_TYPE_INFO[permit.type] ?? PERMIT_TYPE_INFO.other;
+  const statusInfo = PERMIT_STATUS_INFO[permit.status] ?? PERMIT_STATUS_INFO.applied;
+
+  const isInspectionUpcoming = permit.inspectionDate &&
+    (permit.status === 'inspection_scheduled') &&
+    new Date(permit.inspectionDate).getTime() > Date.now();
+
+  const daysUntilInspection = isInspectionUpcoming
+    ? Math.ceil((new Date(permit.inspectionDate!).getTime() - Date.now()) / 86400000)
+    : 0;
+
+  return (
+    <Animated.View style={[styles.permitCard, { transform: [{ scale: scaleAnim }] }]}>
+      <TouchableOpacity
+        onPress={onPress}
+        onPressIn={() => Animated.spring(scaleAnim, { toValue: 0.97, useNativeDriver: true, speed: 50 }).start()}
+        onPressOut={() => Animated.spring(scaleAnim, { toValue: 1, useNativeDriver: true, speed: 50 }).start()}
+        activeOpacity={1}
+        style={styles.permitCardInner}
+      >
+        <View style={styles.permitHeader}>
+          <View style={[styles.permitTypeDot, { backgroundColor: typeInfo.color }]} />
+          <Text style={styles.permitType}>{typeInfo.label} Permit</Text>
+          <View style={[styles.statusBadge, { backgroundColor: statusInfo.bgColor }]}>
+            <Text style={[styles.statusBadgeText, { color: statusInfo.color }]}>{statusInfo.label}</Text>
+          </View>
+        </View>
+
+        {permit.permitNumber && (
+          <Text style={styles.permitNumber}>#{permit.permitNumber}</Text>
+        )}
+
+        <Text style={styles.permitProject}>{permit.projectName}</Text>
+        <Text style={styles.permitJurisdiction}>{permit.jurisdiction}</Text>
+
+        {isInspectionUpcoming && (
+          <View style={styles.inspectionAlert}>
+            <Calendar size={13} color="#6A1B9A" />
+            <Text style={styles.inspectionAlertText}>
+              Inspection in {daysUntilInspection} day{daysUntilInspection !== 1 ? 's' : ''} — {new Date(permit.inspectionDate!).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+            </Text>
+          </View>
+        )}
+
+        {permit.status === 'inspection_failed' && permit.inspectionNotes && (
+          <View style={styles.failedAlert}>
+            <AlertTriangle size={13} color="#C62828" />
+            <Text style={styles.failedAlertText} numberOfLines={2}>{permit.inspectionNotes}</Text>
+          </View>
+        )}
+
+        <View style={styles.permitFooter}>
+          <Text style={styles.permitFee}>{formatMoney(permit.fee)}</Text>
+          <Text style={styles.permitDate}>
+            Applied {new Date(permit.appliedDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+          </Text>
+        </View>
+      </TouchableOpacity>
+    </Animated.View>
+  );
+}
+
+export default function PermitsScreen() {
+  const insets = useSafeAreaInsets();
+  const [permits] = useState<Permit[]>(MOCK_PERMITS);
+  const [selectedFilter, setSelectedFilter] = useState<string>('all');
+
+  const filters = [
+    { id: 'all', label: 'All' },
+    { id: 'active', label: 'Active' },
+    { id: 'inspections', label: 'Inspections' },
+    { id: 'pending', label: 'Pending' },
+  ];
+
+  const filtered = useMemo(() => {
+    if (selectedFilter === 'all') return permits;
+    if (selectedFilter === 'active') return permits.filter(p => ['approved', 'inspection_scheduled', 'inspection_passed'].includes(p.status));
+    if (selectedFilter === 'inspections') return permits.filter(p => p.status.startsWith('inspection'));
+    if (selectedFilter === 'pending') return permits.filter(p => ['applied', 'under_review'].includes(p.status));
+    return permits;
+  }, [permits, selectedFilter]);
+
+  const stats = useMemo(() => {
+    const totalFees = permits.reduce((s, p) => s + p.fee, 0);
+    const upcomingInspections = permits.filter(p =>
+      p.status === 'inspection_scheduled' && p.inspectionDate && new Date(p.inspectionDate).getTime() > Date.now()
+    ).length;
+    const pending = permits.filter(p => ['applied', 'under_review'].includes(p.status)).length;
+    const passed = permits.filter(p => ['approved', 'inspection_passed'].includes(p.status)).length;
+    return { totalFees, upcomingInspections, pending, passed };
+  }, [permits]);
+
+  const handlePermitPress = useCallback((permit: Permit) => {
+    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const statusInfo = PERMIT_STATUS_INFO[permit.status];
+    const details = [
+      `Type: ${PERMIT_TYPE_INFO[permit.type]?.label ?? permit.type}`,
+      `Status: ${statusInfo.label}`,
+      `Jurisdiction: ${permit.jurisdiction}`,
+      `Fee: ${formatMoney(permit.fee)}`,
+      permit.permitNumber ? `Permit #: ${permit.permitNumber}` : null,
+      permit.inspectionDate ? `Inspection: ${new Date(permit.inspectionDate).toLocaleDateString()}` : null,
+      permit.inspectionNotes ? `Notes: ${permit.inspectionNotes}` : null,
+    ].filter(Boolean).join('\n');
+
+    Alert.alert(permit.projectName, details);
+  }, []);
+
+  return (
+    <View style={styles.container}>
+      <Stack.Screen options={{ title: 'Permits', headerStyle: { backgroundColor: Colors.background }, headerTintColor: Colors.primary, headerTitleStyle: { fontWeight: '700' as const, color: Colors.text } }} />
+      <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 30 }} showsVerticalScrollIndicator={false}>
+        <View style={styles.statsRow}>
+          <View style={styles.statCard}>
+            <View style={[styles.statIconWrap, { backgroundColor: Colors.primary + '14' }]}>
+              <ClipboardCheck size={16} color={Colors.primary} />
+            </View>
+            <Text style={styles.statValue}>{permits.length}</Text>
+            <Text style={styles.statLabel}>Total</Text>
+          </View>
+          <View style={styles.statCard}>
+            <View style={[styles.statIconWrap, { backgroundColor: '#F3E5F5' }]}>
+              <Calendar size={16} color="#6A1B9A" />
+            </View>
+            <Text style={[styles.statValue, { color: '#6A1B9A' }]}>{stats.upcomingInspections}</Text>
+            <Text style={styles.statLabel}>Upcoming</Text>
+          </View>
+          <View style={styles.statCard}>
+            <View style={[styles.statIconWrap, { backgroundColor: '#FFF3E0' }]}>
+              <Clock size={16} color="#E65100" />
+            </View>
+            <Text style={[styles.statValue, { color: '#E65100' }]}>{stats.pending}</Text>
+            <Text style={styles.statLabel}>Pending</Text>
+          </View>
+          <View style={styles.statCard}>
+            <View style={[styles.statIconWrap, { backgroundColor: '#E8F5E9' }]}>
+              <Check size={16} color="#2E7D32" />
+            </View>
+            <Text style={[styles.statValue, { color: '#2E7D32' }]}>{stats.passed}</Text>
+            <Text style={styles.statLabel}>Passed</Text>
+          </View>
+        </View>
+
+        <View style={styles.feeCard}>
+          <Text style={styles.feeLabel}>Total Permit Fees</Text>
+          <Text style={styles.feeValue}>{formatMoney(stats.totalFees)}</Text>
+        </View>
+
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterRow}
+        >
+          {filters.map(f => (
+            <TouchableOpacity
+              key={f.id}
+              style={[styles.filterChip, selectedFilter === f.id && styles.filterChipActive]}
+              onPress={() => {
+                setSelectedFilter(f.id);
+                if (Platform.OS !== 'web') void Haptics.selectionAsync();
+              }}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.filterChipText, selectedFilter === f.id && styles.filterChipTextActive]}>
+                {f.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+
+        <View style={styles.listSection}>
+          {filtered.length === 0 ? (
+            <View style={styles.emptyState}>
+              <ClipboardCheck size={32} color={Colors.textMuted} />
+              <Text style={styles.emptyTitle}>No permits found</Text>
+            </View>
+          ) : (
+            filtered.map(permit => (
+              <PermitCard key={permit.id} permit={permit} onPress={() => handlePermitPress(permit)} />
+            ))
+          )}
+        </View>
+      </ScrollView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: Colors.background },
+  statsRow: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    gap: 8,
+    paddingTop: 16,
+    marginBottom: 12,
+  },
+  statCard: {
+    flex: 1,
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    padding: 12,
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+  },
+  statIconWrap: { width: 30, height: 30, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  statValue: { fontSize: 18, fontWeight: '700' as const, color: Colors.text },
+  statLabel: { fontSize: 11, color: Colors.textSecondary },
+  feeCard: {
+    marginHorizontal: 16,
+    backgroundColor: Colors.surface,
+    borderRadius: 14,
+    padding: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+  },
+  feeLabel: { fontSize: 14, color: Colors.textSecondary, fontWeight: '500' as const },
+  feeValue: { fontSize: 20, fontWeight: '700' as const, color: Colors.text },
+  filterRow: { paddingHorizontal: 16, gap: 8, paddingBottom: 16 },
+  filterChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+  },
+  filterChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  filterChipText: { fontSize: 13, fontWeight: '600' as const, color: Colors.textSecondary },
+  filterChipTextActive: { color: '#fff' },
+  listSection: { paddingHorizontal: 16 },
+  permitCard: {
+    marginBottom: 10,
+    borderRadius: 14,
+    backgroundColor: Colors.surface,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  permitCardInner: { padding: 14, gap: 4 },
+  permitHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
+  permitTypeDot: { width: 8, height: 8, borderRadius: 4 },
+  permitType: { fontSize: 12, fontWeight: '600' as const, color: Colors.textSecondary, flex: 1 },
+  statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+  statusBadgeText: { fontSize: 11, fontWeight: '600' as const },
+  permitNumber: { fontSize: 13, fontWeight: '500' as const, color: Colors.textMuted },
+  permitProject: { fontSize: 15, fontWeight: '600' as const, color: Colors.text },
+  permitJurisdiction: { fontSize: 13, color: Colors.textSecondary },
+  inspectionAlert: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#F3E5F5',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+    marginTop: 4,
+  },
+  inspectionAlertText: { fontSize: 12, fontWeight: '500' as const, color: '#6A1B9A' },
+  failedAlert: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+    backgroundColor: '#FFEBEE',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    marginTop: 4,
+  },
+  failedAlertText: { fontSize: 12, color: '#C62828', flex: 1 },
+  permitFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 },
+  permitFee: { fontSize: 14, fontWeight: '700' as const, color: Colors.text },
+  permitDate: { fontSize: 12, color: Colors.textMuted },
+  emptyState: { alignItems: 'center', paddingVertical: 60, gap: 8 },
+  emptyTitle: { fontSize: 17, fontWeight: '600' as const, color: Colors.text },
+});
+
+
+========== FILE: ./app/post-bid.tsx ==========
+import React, { useState, useCallback } from 'react';
+import {
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, KeyboardAvoidingView, Platform,
+} from 'react-native';
+import { useRouter, Stack } from 'expo-router';
+import { ChevronDown, X } from 'lucide-react-native';
+import * as Haptics from 'expo-haptics';
+import { Colors } from '@/constants/colors';
+import { useBids } from '@/contexts/BidsContext';
+import { CERTIFICATIONS } from '@/constants/certifications';
+import { US_STATES } from '@/constants/regions';
+import type { PublicBid, BidType, BidCategory, CertificationType } from '@/types';
+import { generateUUID } from '@/utils/generateId';
+
+const BID_TYPES: { id: BidType; label: string }[] = [
+  { id: 'federal', label: 'Federal' }, { id: 'state', label: 'State' },
+  { id: 'municipal', label: 'Municipal' }, { id: 'county', label: 'County' }, { id: 'private', label: 'Private' },
+];
+
+const BID_CATEGORIES: { id: BidCategory; label: string }[] = [
+  { id: 'construction', label: 'Construction' }, { id: 'it_services', label: 'IT Services' },
+  { id: 'environmental', label: 'Environmental' }, { id: 'energy', label: 'Energy' },
+  { id: 'infrastructure', label: 'Infrastructure' }, { id: 'transportation', label: 'Transportation' },
+  { id: 'utilities', label: 'Utilities' }, { id: 'healthcare', label: 'Healthcare' },
+  { id: 'education', label: 'Education' }, { id: 'residential', label: 'Residential' },
+];
+
+export default function PostBidScreen() {
+  const router = useRouter();
+  const { addBid } = useBids();
+  const [title, setTitle] = useState('');
+  const [agency, setAgency] = useState('');
+  const [city, setCity] = useState('');
+  const [state, setState] = useState('NY');
+  const [bidType, setBidType] = useState<BidType>('municipal');
+  const [category, setCategory] = useState<BidCategory>('construction');
+  const [estimatedValue, setEstimatedValue] = useState('');
+  const [bondRequired, setBondRequired] = useState('');
+  const [deadline, setDeadline] = useState('');
+  const [description, setDescription] = useState('');
+  const [contactEmail, setContactEmail] = useState('');
+  const [applyUrl, setApplyUrl] = useState('');
+  const [selectedCerts, setSelectedCerts] = useState<CertificationType[]>([]);
+  const [showCertPicker, setShowCertPicker] = useState(false);
+
+  const toggleCert = useCallback((cert: CertificationType) => {
+    void Haptics.selectionAsync();
+    setSelectedCerts(prev =>
+      prev.includes(cert) ? prev.filter(c => c !== cert) : [...prev, cert]
+    );
+  }, []);
+
+  const handleSubmit = useCallback(() => {
+    if (!title.trim() || !agency.trim() || !city.trim() || !estimatedValue || !bondRequired || !deadline || !contactEmail.trim()) {
+      Alert.alert('Missing Fields', 'Please fill in all required fields.');
+      return;
+    }
+
+    const bid: PublicBid = {
+      id: generateUUID(),
+      title: title.trim(),
+      issuingAgency: agency.trim(),
+      city: city.trim(),
+      state,
+      category,
+      bidType,
+      estimatedValue: parseFloat(estimatedValue) || 0,
+      bondRequired: parseFloat(bondRequired) || 0,
+      deadline: new Date(deadline).toISOString(),
+      description: description.trim(),
+      postedBy: 'You',
+      postedDate: new Date().toISOString(),
+      status: 'open',
+      requiredCertifications: selectedCerts,
+      contactEmail: contactEmail.trim(),
+      applyUrl: applyUrl.trim() || undefined,
+    };
+
+    addBid(bid);
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    Alert.alert('Bid Posted', 'Your bid has been published.', [
+      { text: 'OK', onPress: () => router.back() },
+    ]);
+  }, [title, agency, city, state, category, bidType, estimatedValue, bondRequired, deadline, description, contactEmail, applyUrl, selectedCerts, addBid, router]);
+
+  return (
+    <View style={styles.container}>
+      <Stack.Screen options={{
+        title: 'Post a Bid',
+        headerStyle: { backgroundColor: Colors.background },
+        headerTintColor: Colors.primary,
+        headerTitleStyle: { fontWeight: '700' as const, color: Colors.text },
+      }} />
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          <Text style={styles.label}>Title *</Text>
+          <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder="Bid title" placeholderTextColor={Colors.textMuted} testID="bid-title" />
+
+          <Text style={styles.label}>Issuing Agency *</Text>
+          <TextInput style={styles.input} value={agency} onChangeText={setAgency} placeholder="Agency or company name" placeholderTextColor={Colors.textMuted} />
+
+          <View style={styles.row}>
+            <View style={styles.halfField}>
+              <Text style={styles.label}>City *</Text>
+              <TextInput style={styles.input} value={city} onChangeText={setCity} placeholder="City" placeholderTextColor={Colors.textMuted} />
+            </View>
+            <View style={styles.halfField}>
+              <Text style={styles.label}>State *</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.stateScroll}>
+                {US_STATES.slice(0, 10).map(s => (
+                  <TouchableOpacity key={s.code} style={[styles.stateChip, state === s.code && styles.stateChipActive]} onPress={() => setState(s.code)}>
+                    <Text style={[styles.stateChipText, state === s.code && styles.stateChipTextActive]}>{s.code}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          </View>
+
+          <Text style={styles.label}>Bid Type *</Text>
+          <View style={styles.chipRow}>
+            {BID_TYPES.map(t => (
+              <TouchableOpacity key={t.id} style={[styles.chip, bidType === t.id && styles.chipActive]} onPress={() => setBidType(t.id)}>
+                <Text style={[styles.chipText, bidType === t.id && styles.chipTextActive]}>{t.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <Text style={styles.label}>Category *</Text>
+          <View style={styles.chipRow}>
+            {BID_CATEGORIES.map(c => (
+              <TouchableOpacity key={c.id} style={[styles.chip, category === c.id && styles.chipActive]} onPress={() => setCategory(c.id)}>
+                <Text style={[styles.chipText, category === c.id && styles.chipTextActive]}>{c.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <View style={styles.row}>
+            <View style={styles.halfField}>
+              <Text style={styles.label}>Estimated Value ($) *</Text>
+              <TextInput style={styles.input} value={estimatedValue} onChangeText={setEstimatedValue} placeholder="5000000" keyboardType="numeric" placeholderTextColor={Colors.textMuted} />
+            </View>
+            <View style={styles.halfField}>
+              <Text style={styles.label}>Bond Required ($) *</Text>
+              <TextInput style={styles.input} value={bondRequired} onChangeText={setBondRequired} placeholder="2500000" keyboardType="numeric" placeholderTextColor={Colors.textMuted} />
+            </View>
+          </View>
+
+          <Text style={styles.label}>Deadline (YYYY-MM-DD) *</Text>
+          <TextInput style={styles.input} value={deadline} onChangeText={setDeadline} placeholder="2026-06-01" placeholderTextColor={Colors.textMuted} />
+
+          <Text style={styles.label}>Description</Text>
+          <TextInput style={[styles.input, styles.textArea]} value={description} onChangeText={setDescription} placeholder="Describe the project scope..." placeholderTextColor={Colors.textMuted} multiline numberOfLines={4} />
+
+          <Text style={styles.label}>Contact Email *</Text>
+          <TextInput style={styles.input} value={contactEmail} onChangeText={setContactEmail} placeholder="bids@example.com" keyboardType="email-address" autoCapitalize="none" placeholderTextColor={Colors.textMuted} />
+
+          <Text style={styles.label}>Apply URL (optional)</Text>
+          <TextInput style={styles.input} value={applyUrl} onChangeText={setApplyUrl} placeholder="https://..." autoCapitalize="none" placeholderTextColor={Colors.textMuted} />
+
+          <Text style={styles.label}>Required Certifications</Text>
+          <TouchableOpacity style={styles.certToggle} onPress={() => setShowCertPicker(!showCertPicker)}>
+            <Text style={styles.certToggleText}>
+              {selectedCerts.length === 0 ? 'None selected' : `${selectedCerts.length} selected`}
+            </Text>
+            <ChevronDown size={16} color={Colors.textSecondary} />
+          </TouchableOpacity>
+
+          {showCertPicker && (
+            <View style={styles.certPickerContainer}>
+              {CERTIFICATIONS.map(cert => (
+                <TouchableOpacity
+                  key={cert.id}
+                  style={[styles.certOption, selectedCerts.includes(cert.id) && styles.certOptionActive]}
+                  onPress={() => toggleCert(cert.id)}
+                >
+                  <Text style={[styles.certOptionText, selectedCerts.includes(cert.id) && styles.certOptionTextActive]}>
+                    {cert.shortLabel}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+
+          {selectedCerts.length > 0 && (
+            <View style={styles.selectedCerts}>
+              {selectedCerts.map(certId => {
+                const info = CERTIFICATIONS.find(c => c.id === certId);

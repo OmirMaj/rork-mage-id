@@ -1,0 +1,4000 @@
+  loginPrompt: {
+    fontSize: 15,
+    color: Colors.textSecondary,
+  },
+  loginLink: {
+    fontSize: 15,
+    fontWeight: '600' as const,
+    color: Colors.primary,
+  },
+  dividerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 24,
+    marginBottom: 16,
+    gap: 12,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: Colors.borderLight,
+  },
+  dividerText: {
+    fontSize: 13,
+    color: Colors.textMuted,
+    fontWeight: '500' as const,
+  },
+  socialRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  socialButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    paddingVertical: 14,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: Colors.borderLight,
+    backgroundColor: Colors.surface,
+  },
+  socialButtonText: {
+    fontSize: 15,
+    fontWeight: '600' as const,
+    color: Colors.text,
+  },
+  appleSocialButton: {
+    backgroundColor: '#000000',
+    borderColor: '#000000',
+  },
+  appleSocialButtonText: {
+    fontSize: 15,
+    fontWeight: '600' as const,
+    color: '#FFFFFF',
+  },
+});
+
+
+========== FILE: ./app/submittal.tsx ==========
+import React, { useState, useMemo, useCallback } from 'react';
+import {
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
+  Alert, Platform, KeyboardAvoidingView,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
+import * as Haptics from 'expo-haptics';
+import { Save, Plus } from 'lucide-react-native';
+import { Colors } from '@/constants/colors';
+import { useProjects } from '@/contexts/ProjectContext';
+import type { SubmittalStatus } from '@/types';
+
+const STATUS_COLORS: Record<SubmittalStatus, string> = {
+  pending: Colors.warning,
+  in_review: Colors.info,
+  approved: Colors.success,
+  approved_as_noted: Colors.primaryLight,
+  revise_resubmit: Colors.error,
+  rejected: Colors.error,
+};
+
+const STATUS_LABELS: Record<SubmittalStatus, string> = {
+  pending: 'Pending',
+  in_review: 'In Review',
+  approved: 'Approved',
+  approved_as_noted: 'Approved as Noted',
+  revise_resubmit: 'Revise & Resubmit',
+  rejected: 'Rejected',
+};
+
+export default function SubmittalScreen() {
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const { projectId, submittalId } = useLocalSearchParams<{ projectId: string; submittalId?: string }>();
+  const { getProject, getSubmittalsForProject, addSubmittal, updateSubmittal, addReviewCycle } = useProjects();
+
+  const project = useMemo(() => getProject(projectId ?? ''), [projectId, getProject]);
+  const existingSubmittals = useMemo(() => getSubmittalsForProject(projectId ?? ''), [projectId, getSubmittalsForProject]);
+  const existingSubmittal = useMemo(() => submittalId ? existingSubmittals.find(s => s.id === submittalId) : null, [submittalId, existingSubmittals]);
+
+  const [title, setTitle] = useState(existingSubmittal?.title ?? '');
+  const [specSection, setSpecSection] = useState(existingSubmittal?.specSection ?? '');
+  const [submittedBy, setSubmittedBy] = useState(existingSubmittal?.submittedBy ?? '');
+  const [requiredDate, setRequiredDate] = useState(existingSubmittal?.requiredDate ?? '');
+
+  const [newReviewer, setNewReviewer] = useState('');
+  const [newCycleStatus, setNewCycleStatus] = useState<SubmittalStatus>('pending');
+  const [newCycleComments, setNewCycleComments] = useState('');
+  const [showAddCycle, setShowAddCycle] = useState(false);
+
+  const handleSave = useCallback(() => {
+    if (!title.trim()) {
+      Alert.alert('Missing Title', 'Please enter a title.');
+      return;
+    }
+
+    if (existingSubmittal) {
+      updateSubmittal(existingSubmittal.id, {
+        title: title.trim(),
+        specSection: specSection.trim(),
+        submittedBy: submittedBy.trim(),
+        requiredDate,
+      });
+    } else {
+      addSubmittal({
+        projectId: projectId ?? '',
+        title: title.trim(),
+        specSection: specSection.trim(),
+        submittedBy: submittedBy.trim(),
+        submittedDate: new Date().toISOString(),
+        requiredDate: requiredDate || new Date(Date.now() + 21 * 86400000).toISOString(),
+        reviewCycles: [],
+        currentStatus: 'pending',
+        attachments: [],
+      });
+    }
+
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    router.back();
+  }, [title, specSection, submittedBy, requiredDate, existingSubmittal, projectId, addSubmittal, updateSubmittal, router]);
+
+  const handleAddCycle = useCallback(() => {
+    if (!existingSubmittal) return;
+    if (!newReviewer.trim()) {
+      Alert.alert('Missing Reviewer', 'Please enter a reviewer name.');
+      return;
+    }
+
+    addReviewCycle(existingSubmittal.id, {
+      sentDate: new Date().toISOString(),
+      reviewer: newReviewer.trim(),
+      status: newCycleStatus,
+      comments: newCycleComments.trim() || undefined,
+    });
+
+    setNewReviewer('');
+    setNewCycleComments('');
+    setShowAddCycle(false);
+    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  }, [existingSubmittal, newReviewer, newCycleStatus, newCycleComments, addReviewCycle]);
+
+  return (
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <Stack.Screen options={{ title: existingSubmittal ? `Submittal #${existingSubmittal.number}` : 'New Submittal' }} />
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
+        keyboardShouldPersistTaps="handled"
+      >
+        {project && <Text style={styles.projectLabel}>{project.name}</Text>}
+
+        <Text style={styles.fieldLabel}>Title *</Text>
+        <TextInput
+          style={styles.input}
+          value={title}
+          onChangeText={setTitle}
+          placeholder="Submittal title"
+          placeholderTextColor={Colors.textMuted}
+          testID="submittal-title"
+        />
+
+        <Text style={styles.fieldLabel}>Spec Section</Text>
+        <TextInput
+          style={styles.input}
+          value={specSection}
+          onChangeText={setSpecSection}
+          placeholder="e.g. 03300 - Cast-in-Place Concrete"
+          placeholderTextColor={Colors.textMuted}
+        />
+
+        <Text style={styles.fieldLabel}>Submitted By</Text>
+        <TextInput
+          style={styles.input}
+          value={submittedBy}
+          onChangeText={setSubmittedBy}
+          placeholder="Subcontractor name"
+          placeholderTextColor={Colors.textMuted}
+        />
+
+        <Text style={styles.fieldLabel}>Required Date</Text>
+        <TextInput
+          style={styles.input}
+          value={requiredDate}
+          onChangeText={setRequiredDate}
+          placeholder="YYYY-MM-DD"
+          placeholderTextColor={Colors.textMuted}
+        />
+
+        {existingSubmittal && existingSubmittal.reviewCycles.length > 0 && (
+          <View style={styles.timelineSection}>
+            <Text style={styles.sectionTitle}>Review Cycles</Text>
+            {existingSubmittal.reviewCycles.map((cycle, idx) => (
+              <View key={idx} style={styles.timelineItem}>
+                <View style={styles.timelineLine}>
+                  <View style={[styles.timelineDot, { backgroundColor: STATUS_COLORS[cycle.status] }]} />
+                  {idx < existingSubmittal.reviewCycles.length - 1 && <View style={styles.timelineConnector} />}
+                </View>
+                <View style={styles.timelineContent}>
+                  <View style={styles.timelineHeader}>
+                    <Text style={styles.cycleNumber}>Cycle {cycle.cycleNumber}</Text>
+                    <View style={[styles.statusBadge, { backgroundColor: STATUS_COLORS[cycle.status] + '20' }]}>
+                      <Text style={[styles.statusBadgeText, { color: STATUS_COLORS[cycle.status] }]}>
+                        {STATUS_LABELS[cycle.status]}
+                      </Text>
+                    </View>
+                  </View>
+                  <Text style={styles.cycleDetail}>Reviewer: {cycle.reviewer}</Text>
+                  <Text style={styles.cycleDetail}>Sent: {new Date(cycle.sentDate).toLocaleDateString()}</Text>
+                  {cycle.returnDate && <Text style={styles.cycleDetail}>Returned: {new Date(cycle.returnDate).toLocaleDateString()}</Text>}
+                  {cycle.comments && <Text style={styles.cycleComments}>{cycle.comments}</Text>}
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {existingSubmittal && (
+          <>
+            {!showAddCycle ? (
+              <TouchableOpacity style={styles.addCycleBtn} onPress={() => setShowAddCycle(true)} activeOpacity={0.7}>
+                <Plus size={16} color={Colors.primary} />
+                <Text style={styles.addCycleBtnText}>Add Review Cycle</Text>
+              </TouchableOpacity>
+            ) : (
+              <View style={styles.addCycleForm}>
+                <Text style={styles.sectionTitle}>New Review Cycle</Text>
+                <TextInput
+                  style={styles.input}
+                  value={newReviewer}
+                  onChangeText={setNewReviewer}
+                  placeholder="Reviewer name"
+                  placeholderTextColor={Colors.textMuted}
+                />
+                <View style={styles.statusPicker}>
+                  {(Object.keys(STATUS_LABELS) as SubmittalStatus[]).map(s => (
+                    <TouchableOpacity
+                      key={s}
+                      style={[styles.statusChip, newCycleStatus === s && { backgroundColor: STATUS_COLORS[s] }]}
+                      onPress={() => setNewCycleStatus(s)}
+                    >
+                      <Text style={[styles.statusChipText, newCycleStatus === s && { color: '#fff' }]}>
+                        {STATUS_LABELS[s]}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <TextInput
+                  style={[styles.input, { minHeight: 60 }]}
+                  value={newCycleComments}
+                  onChangeText={setNewCycleComments}
+                  placeholder="Comments (optional)"
+                  placeholderTextColor={Colors.textMuted}
+                  multiline
+                  textAlignVertical="top"
+                />
+                <TouchableOpacity style={styles.addCycleSubmit} onPress={handleAddCycle} activeOpacity={0.85}>
+                  <Text style={styles.addCycleSubmitText}>Add Cycle</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </>
+        )}
+
+        <TouchableOpacity style={styles.saveBtn} onPress={handleSave} activeOpacity={0.85} testID="submittal-save">
+          <Save size={18} color="#fff" />
+          <Text style={styles.saveBtnText}>{existingSubmittal ? 'Update Submittal' : 'Create Submittal'}</Text>
+        </TouchableOpacity>
+      </ScrollView>
+    </KeyboardAvoidingView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: Colors.background,
+    padding: 16,
+  },
+  projectLabel: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: Colors.primary,
+    marginBottom: 16,
+  },
+  fieldLabel: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: Colors.textSecondary,
+    marginBottom: 6,
+    marginTop: 12,
+  },
+  input: {
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 15,
+    color: Colors.text,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: Colors.text,
+    marginBottom: 12,
+  },
+  timelineSection: {
+    marginTop: 24,
+  },
+  timelineItem: {
+    flexDirection: 'row',
+    marginBottom: 4,
+  },
+  timelineLine: {
+    width: 24,
+    alignItems: 'center',
+  },
+  timelineDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    marginTop: 4,
+  },
+  timelineConnector: {
+    width: 2,
+    flex: 1,
+    backgroundColor: Colors.borderLight,
+    marginVertical: 4,
+  },
+  timelineContent: {
+    flex: 1,
+    paddingLeft: 12,
+    paddingBottom: 16,
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 8,
+  },
+  timelineHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 6,
+  },
+  cycleNumber: {
+    fontSize: 14,
+    fontWeight: '700' as const,
+    color: Colors.text,
+  },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  statusBadgeText: {
+    fontSize: 11,
+    fontWeight: '700' as const,
+  },
+  cycleDetail: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+    lineHeight: 20,
+  },
+  cycleComments: {
+    fontSize: 13,
+    color: Colors.text,
+    marginTop: 6,
+    fontStyle: 'italic',
+  },
+  addCycleBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: Colors.primary + '12',
+    marginTop: 12,
+  },
+  addCycleBtnText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: Colors.primary,
+  },
+  addCycleForm: {
+    marginTop: 16,
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    padding: 16,
+    gap: 10,
+  },
+  statusPicker: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  statusChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: Colors.fillTertiary,
+  },
+  statusChipText: {
+    fontSize: 11,
+    fontWeight: '600' as const,
+    color: Colors.textSecondary,
+  },
+  addCycleSubmit: {
+    backgroundColor: Colors.primary,
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  addCycleSubmitText: {
+    fontSize: 15,
+    fontWeight: '600' as const,
+    color: '#fff',
+  },
+  saveBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: Colors.primary,
+    borderRadius: 14,
+    paddingVertical: 16,
+    marginTop: 28,
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  saveBtnText: {
+    fontSize: 17,
+    fontWeight: '600' as const,
+    color: '#fff',
+  },
+});
+
+
+========== FILE: ./app/time-tracking.tsx ==========
+import React, { useState, useCallback, useMemo, useRef } from 'react';
+import {
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated,
+  Platform, Alert, Modal,
+} from 'react-native';
+import { Stack } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Haptics from 'expo-haptics';
+import {
+  Clock, Play, Pause, Square, Users, ChevronDown,
+  MapPin, Coffee, X, TrendingUp, AlertTriangle,
+} from 'lucide-react-native';
+import { Colors } from '@/constants/colors';
+import { MOCK_TIME_ENTRIES, CREW_MEMBERS } from '@/mocks/timeTracking';
+import type { TimeEntry } from '@/types';
+import { formatMoney } from '@/utils/formatters';
+
+function getElapsedHours(clockIn: string): string {
+  const diff = Date.now() - new Date(clockIn).getTime();
+  const hours = Math.floor(diff / 3600000);
+  const mins = Math.floor((diff % 3600000) / 60000);
+  return `${hours}h ${mins}m`;
+}
+
+function LiveTimeCard({ entry, onAction }: { entry: TimeEntry; onAction: (entry: TimeEntry, action: string) => void }) {
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const statusColor = entry.status === 'clocked_in' ? '#2E7D32' : entry.status === 'break' ? '#E65100' : Colors.textMuted;
+  const statusBg = entry.status === 'clocked_in' ? '#E8F5E9' : entry.status === 'break' ? '#FFF3E0' : '#F5F5F5';
+  const statusLabel = entry.status === 'clocked_in' ? 'Working' : entry.status === 'break' ? 'On Break' : 'Clocked Out';
+
+  return (
+    <Animated.View style={[styles.liveCard, { transform: [{ scale: scaleAnim }] }]}>
+      <TouchableOpacity
+        onPressIn={() => Animated.spring(scaleAnim, { toValue: 0.97, useNativeDriver: true, speed: 50 }).start()}
+        onPressOut={() => Animated.spring(scaleAnim, { toValue: 1, useNativeDriver: true, speed: 50 }).start()}
+        activeOpacity={1}
+        style={styles.liveCardInner}
+      >
+        <View style={styles.liveCardHeader}>
+          <View style={styles.liveCardNameRow}>
+            <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
+            <Text style={styles.liveCardName}>{entry.workerName}</Text>
+          </View>
+          <View style={[styles.liveStatusBadge, { backgroundColor: statusBg }]}>
+            <Text style={[styles.liveStatusText, { color: statusColor }]}>{statusLabel}</Text>
+          </View>
+        </View>
+
+        <View style={styles.liveCardMeta}>
+          <Text style={styles.liveCardTrade}>{entry.trade}</Text>
+          <Text style={styles.liveCardDot}>·</Text>
+          <Text style={styles.liveCardProject} numberOfLines={1}>{entry.projectName}</Text>
+        </View>
+
+        {entry.status !== 'clocked_out' && (
+          <View style={styles.liveCardTimer}>
+            <Clock size={14} color={Colors.primary} />
+            <Text style={styles.liveCardTimerText}>{getElapsedHours(entry.clockIn)}</Text>
+            {entry.notes ? (
+              <>
+                <Text style={styles.liveCardDot}>·</Text>
+                <Text style={styles.liveCardNote} numberOfLines={1}>{entry.notes}</Text>
+              </>
+            ) : null}
+          </View>
+        )}
+
+        {entry.status !== 'clocked_out' && (
+          <View style={styles.liveCardActions}>
+            {entry.status === 'clocked_in' ? (
+              <>
+                <TouchableOpacity
+                  style={[styles.actionBtn, { backgroundColor: '#FFF3E0' }]}
+                  onPress={() => onAction(entry, 'break')}
+                  activeOpacity={0.7}
+                >
+                  <Coffee size={14} color="#E65100" />
+                  <Text style={[styles.actionBtnText, { color: '#E65100' }]}>Break</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.actionBtn, { backgroundColor: '#FFEBEE' }]}
+                  onPress={() => onAction(entry, 'clock_out')}
+                  activeOpacity={0.7}
+                >
+                  <Square size={14} color="#C62828" />
+                  <Text style={[styles.actionBtnText, { color: '#C62828' }]}>Clock Out</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <TouchableOpacity
+                style={[styles.actionBtn, { backgroundColor: '#E8F5E9' }]}
+                onPress={() => onAction(entry, 'resume')}
+                activeOpacity={0.7}
+              >
+                <Play size={14} color="#2E7D32" />
+                <Text style={[styles.actionBtnText, { color: '#2E7D32' }]}>Resume</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+      </TouchableOpacity>
+    </Animated.View>
+  );
+}
+
+export default function TimeTrackingScreen() {
+  const insets = useSafeAreaInsets();
+  const [entries, setEntries] = useState<TimeEntry[]>(MOCK_TIME_ENTRIES);
+  const [showClockInModal, setShowClockInModal] = useState(false);
+  const [selectedTab, setSelectedTab] = useState<'live' | 'history'>('live');
+
+  const liveEntries = useMemo(() => entries.filter(e => e.status !== 'clocked_out'), [entries]);
+  const historyEntries = useMemo(() =>
+    entries.filter(e => e.status === 'clocked_out').sort((a, b) => b.date.localeCompare(a.date)),
+    [entries]
+  );
+
+  const todayStats = useMemo(() => {
+    const today = new Date().toISOString().split('T')[0];
+    const todayEntries = entries.filter(e => e.date === today);
+    const totalWorkers = new Set(todayEntries.map(e => e.workerId)).size;
+    const totalHours = todayEntries.reduce((s, e) => s + e.totalHours, 0);
+    const totalOT = todayEntries.reduce((s, e) => s + e.overtimeHours, 0);
+    return { totalWorkers, totalHours, totalOT, liveCount: liveEntries.length };
+  }, [entries, liveEntries]);
+
+  const handleAction = useCallback((entry: TimeEntry, action: string) => {
+    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    if (action === 'break') {
+      setEntries(prev => prev.map(e => e.id === entry.id ? { ...e, status: 'break' as const } : e));
+    } else if (action === 'resume') {
+      setEntries(prev => prev.map(e => e.id === entry.id ? { ...e, status: 'clocked_in' as const } : e));
+    } else if (action === 'clock_out') {
+      const now = new Date();
+      const clockInTime = new Date(entry.clockIn);
+      const totalMs = now.getTime() - clockInTime.getTime();
+      const totalHrs = Math.round((totalMs / 3600000 - entry.breakMinutes / 60) * 10) / 10;
+      const ot = Math.max(totalHrs - 8, 0);
+
+      setEntries(prev => prev.map(e => e.id === entry.id ? {
+        ...e,
+        status: 'clocked_out' as const,
+        clockOut: now.toISOString(),
+        totalHours: Math.max(totalHrs, 0),
+        overtimeHours: ot,
+      } : e));
+
+      Alert.alert('Clocked Out', `${entry.workerName} clocked out. Total: ${Math.max(totalHrs, 0).toFixed(1)}h`);
+    }
+  }, []);
+
+  const handleClockIn = useCallback((memberId: string) => {
+    const member = CREW_MEMBERS.find(m => m.id === memberId);
+    if (!member) return;
+
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+    const now = new Date();
+    const newEntry: TimeEntry = {
+      id: `te-${Date.now()}`,
+      projectId: 'p-1',
+      projectName: 'Kitchen Renovation - Smith',
+      workerId: member.id,
+      workerName: member.name,
+      trade: member.trade,
+      clockIn: now.toISOString(),
+      breakMinutes: 0,
+      totalHours: 0,
+      overtimeHours: 0,
+      status: 'clocked_in',
+      date: now.toISOString().split('T')[0],
+    };
+
+    setEntries(prev => [newEntry, ...prev]);
+    setShowClockInModal(false);
+  }, []);
+
+  return (
+    <View style={styles.container}>
+      <Stack.Screen options={{ title: 'Time Tracking', headerStyle: { backgroundColor: Colors.background }, headerTintColor: Colors.primary, headerTitleStyle: { fontWeight: '700' as const, color: Colors.text } }} />
+      <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 30 }} showsVerticalScrollIndicator={false}>
+        <View style={styles.statsRow}>
+          <View style={styles.statCard}>
+            <View style={[styles.statIconWrap, { backgroundColor: Colors.primary + '14' }]}>
+              <Users size={16} color={Colors.primary} />
+            </View>
+            <Text style={styles.statValue}>{todayStats.liveCount}</Text>
+            <Text style={styles.statLabel}>On Site</Text>
+          </View>
+          <View style={styles.statCard}>
+            <View style={[styles.statIconWrap, { backgroundColor: Colors.info + '14' }]}>
+              <Clock size={16} color={Colors.info} />
+            </View>
+            <Text style={styles.statValue}>{todayStats.totalHours.toFixed(1)}</Text>
+            <Text style={styles.statLabel}>Hours Today</Text>
+          </View>
+          <View style={styles.statCard}>
+            <View style={[styles.statIconWrap, { backgroundColor: todayStats.totalOT > 0 ? '#FFF3E0' : Colors.success + '14' }]}>
+              {todayStats.totalOT > 0 ? <AlertTriangle size={16} color="#E65100" /> : <TrendingUp size={16} color={Colors.success} />}
+            </View>
+            <Text style={[styles.statValue, todayStats.totalOT > 0 && { color: '#E65100' }]}>{todayStats.totalOT.toFixed(1)}</Text>
+            <Text style={styles.statLabel}>OT Hours</Text>
+          </View>
+        </View>
+
+        <TouchableOpacity
+          style={styles.clockInButton}
+          onPress={() => setShowClockInModal(true)}
+          activeOpacity={0.85}
+        >
+          <Play size={18} color="#fff" />
+          <Text style={styles.clockInButtonText}>Clock In Crew Member</Text>
+        </TouchableOpacity>
+
+        <View style={styles.tabRow}>
+          <TouchableOpacity
+            style={[styles.tab, selectedTab === 'live' && styles.tabActive]}
+            onPress={() => setSelectedTab('live')}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.tabText, selectedTab === 'live' && styles.tabTextActive]}>
+              Live ({liveEntries.length})
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tab, selectedTab === 'history' && styles.tabActive]}
+            onPress={() => setSelectedTab('history')}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.tabText, selectedTab === 'history' && styles.tabTextActive]}>
+              History ({historyEntries.length})
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {selectedTab === 'live' ? (
+          liveEntries.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Clock size={32} color={Colors.textMuted} />
+              <Text style={styles.emptyTitle}>No active time cards</Text>
+              <Text style={styles.emptyDesc}>Clock in a crew member to start tracking</Text>
+            </View>
+          ) : (
+            <View style={styles.listSection}>
+              {liveEntries.map(entry => (
+                <LiveTimeCard key={entry.id} entry={entry} onAction={handleAction} />
+              ))}
+            </View>
+          )
+        ) : (
+          <View style={styles.listSection}>
+            {historyEntries.map(entry => (
+              <View key={entry.id} style={styles.historyCard}>
+                <View style={styles.historyHeader}>
+                  <Text style={styles.historyName}>{entry.workerName}</Text>
+                  <Text style={styles.historyHours}>{entry.totalHours.toFixed(1)}h</Text>
+                </View>
+                <View style={styles.historyMeta}>
+                  <Text style={styles.historyTrade}>{entry.trade}</Text>
+                  <Text style={styles.historyDot}>·</Text>
+                  <Text style={styles.historyProject} numberOfLines={1}>{entry.projectName}</Text>
+                </View>
+                <View style={styles.historyFooter}>
+                  <Text style={styles.historyDate}>
+                    {new Date(entry.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                  </Text>
+                  {entry.overtimeHours > 0 && (
+                    <View style={styles.otBadge}>
+                      <Text style={styles.otBadgeText}>+{entry.overtimeHours.toFixed(1)}h OT</Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
+      </ScrollView>
+
+      <Modal visible={showClockInModal} transparent animationType="slide" onRequestClose={() => setShowClockInModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { paddingBottom: insets.bottom + 20 }]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Clock In</Text>
+              <TouchableOpacity onPress={() => setShowClockInModal(false)} style={styles.closeBtn}>
+                <X size={20} color={Colors.textMuted} />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.modalSubtitle}>Select a crew member to clock in</Text>
+            <ScrollView style={{ maxHeight: 400 }}>
+              {CREW_MEMBERS.filter(m => !liveEntries.some(e => e.workerId === m.id)).map(member => (
+                <TouchableOpacity
+                  key={member.id}
+                  style={styles.memberRow}
+                  onPress={() => handleClockIn(member.id)}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.memberAvatar}>
+                    <Text style={styles.memberAvatarText}>{member.name.charAt(0)}</Text>
+                  </View>
+                  <View style={styles.memberInfo}>
+                    <Text style={styles.memberName}>{member.name}</Text>
+                    <Text style={styles.memberTrade}>{member.trade} · ${member.rate}/hr</Text>
+                  </View>
+                  <Play size={16} color={Colors.primary} />
+                </TouchableOpacity>
+              ))}
+              {CREW_MEMBERS.filter(m => !liveEntries.some(e => e.workerId === m.id)).length === 0 && (
+                <Text style={styles.allClockedIn}>All crew members are currently clocked in</Text>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: Colors.background },
+  statsRow: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    gap: 10,
+    paddingTop: 16,
+    marginBottom: 16,
+  },
+  statCard: {
+    flex: 1,
+    backgroundColor: Colors.surface,
+    borderRadius: 14,
+    padding: 14,
+    alignItems: 'flex-start',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  statIconWrap: { width: 32, height: 32, borderRadius: 8, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
+  statValue: { fontSize: 20, fontWeight: '700' as const, color: Colors.text, letterSpacing: -0.3 },
+  statLabel: { fontSize: 11, color: Colors.textSecondary, marginTop: 2 },
+  clockInButton: {
+    marginHorizontal: 16,
+    backgroundColor: Colors.primary,
+    borderRadius: 14,
+    paddingVertical: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginBottom: 20,
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  clockInButtonText: { fontSize: 16, fontWeight: '700' as const, color: '#fff' },
+  tabRow: {
+    flexDirection: 'row',
+    marginHorizontal: 16,
+    backgroundColor: Colors.fillTertiary,
+    borderRadius: 12,
+    padding: 3,
+    marginBottom: 16,
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: 'center',
+    borderRadius: 10,
+  },
+  tabActive: { backgroundColor: Colors.surface },
+  tabText: { fontSize: 14, fontWeight: '600' as const, color: Colors.textMuted },
+  tabTextActive: { color: Colors.text },
+  listSection: { paddingHorizontal: 16 },
+  liveCard: {
+    marginBottom: 10,
+    borderRadius: 14,
+    backgroundColor: Colors.surface,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  liveCardInner: { padding: 14, gap: 8 },
+  liveCardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  liveCardNameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  statusDot: { width: 8, height: 8, borderRadius: 4 },
+  liveCardName: { fontSize: 16, fontWeight: '600' as const, color: Colors.text },
+  liveStatusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+  liveStatusText: { fontSize: 12, fontWeight: '600' as const },
+  liveCardMeta: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  liveCardTrade: { fontSize: 13, color: Colors.textSecondary, fontWeight: '500' as const },
+  liveCardDot: { color: Colors.textMuted, fontSize: 10 },
+  liveCardProject: { fontSize: 13, color: Colors.textSecondary, flex: 1 },
+  liveCardTimer: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  liveCardTimerText: { fontSize: 14, fontWeight: '700' as const, color: Colors.primary },
+  liveCardNote: { fontSize: 12, color: Colors.textMuted, flex: 1 },
+  liveCardActions: { flexDirection: 'row', gap: 8, marginTop: 4 },
+  actionBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+  actionBtnText: { fontSize: 13, fontWeight: '600' as const },
+  historyCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 8,
+    gap: 4,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+  },
+  historyHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  historyName: { fontSize: 15, fontWeight: '600' as const, color: Colors.text },
+  historyHours: { fontSize: 16, fontWeight: '700' as const, color: Colors.text },
+  historyMeta: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  historyTrade: { fontSize: 13, color: Colors.textSecondary },
+  historyDot: { color: Colors.textMuted, fontSize: 10 },
+  historyProject: { fontSize: 13, color: Colors.textSecondary, flex: 1 },
+  historyFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 },
+  historyDate: { fontSize: 12, color: Colors.textMuted },
+  otBadge: { backgroundColor: '#FFF3E0', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  otBadgeText: { fontSize: 11, fontWeight: '600' as const, color: '#E65100' },
+  emptyState: { alignItems: 'center', paddingVertical: 60, gap: 8 },
+  emptyTitle: { fontSize: 17, fontWeight: '600' as const, color: Colors.text },
+  emptyDesc: { fontSize: 14, color: Colors.textSecondary },
+  modalOverlay: { flex: 1, backgroundColor: Colors.overlay, justifyContent: 'flex-end' },
+  modalCard: {
+    backgroundColor: Colors.surface,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    padding: 20,
+  },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+  modalTitle: { fontSize: 22, fontWeight: '700' as const, color: Colors.text },
+  closeBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
+  modalSubtitle: { fontSize: 14, color: Colors.textSecondary, marginBottom: 16 },
+  memberRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 14,
+    borderBottomWidth: 0.5,
+    borderBottomColor: Colors.borderLight,
+  },
+  memberAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.primary + '18',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  memberAvatarText: { fontSize: 16, fontWeight: '700' as const, color: Colors.primary },
+  memberInfo: { flex: 1, gap: 2 },
+  memberName: { fontSize: 15, fontWeight: '600' as const, color: Colors.text },
+  memberTrade: { fontSize: 13, color: Colors.textSecondary },
+  allClockedIn: { textAlign: 'center' as const, color: Colors.textMuted, paddingVertical: 20, fontSize: 14 },
+});
+
+
+========== FILE: ./app/worker-detail.tsx ==========
+import React, { useMemo } from 'react';
+import {
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Linking,
+} from 'react-native';
+import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
+import { MapPin, DollarSign, Clock, Award, Mail, Phone, MessageCircle, Briefcase } from 'lucide-react-native';
+import * as Haptics from 'expo-haptics';
+import { Colors } from '@/constants/colors';
+import { useHire } from '@/contexts/HireContext';
+import { getTradeLabel } from '@/constants/trades';
+import type { AvailabilityStatus } from '@/types';
+
+const AVAILABILITY_LABELS: Record<AvailabilityStatus, string> = {
+  available: 'Available Now', employed: 'Currently Employed', open_to_offers: 'Open to Offers',
+};
+const AVAILABILITY_COLORS: Record<AvailabilityStatus, string> = {
+  available: '#2E7D32', employed: '#E65100', open_to_offers: '#1565C0',
+};
+
+export default function WorkerDetailScreen() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const router = useRouter();
+  const { workers, jobs, startConversation } = useHire();
+
+  const worker = useMemo(() => workers.find(w => w.id === id), [workers, id]);
+
+  const matchingJobs = useMemo(() => {
+    if (!worker) return [];
+    return jobs.filter(j => j.tradeCategory === worker.tradeCategory && j.status === 'open').slice(0, 5);
+  }, [worker, jobs]);
+
+  if (!worker) {
+    return (
+      <View style={styles.container}>
+        <Stack.Screen options={{ title: 'Worker Profile' }} />
+        <View style={styles.center}><Text style={styles.errorText}>Worker not found</Text></View>
+      </View>
+    );
+  }
+
+  const availColor = AVAILABILITY_COLORS[worker.availability];
+
+  const handleMessage = () => {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const convoId = startConversation(
+      ['you', worker.id],
+      ['You', worker.name],
+      `Hi ${worker.name}, I'd like to discuss a potential opportunity with you.`
+    );
+    router.push({ pathname: '/messages' as any, params: { id: convoId } });
+  };
+
+  return (
+    <View style={styles.container}>
+      <Stack.Screen options={{
+        title: 'Worker Profile',
+        headerStyle: { backgroundColor: Colors.background },
+        headerTintColor: Colors.primary,
+        headerTitleStyle: { fontWeight: '700' as const, color: Colors.text },
+      }} />
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <View style={styles.profileHeader}>
+          <View style={styles.avatarLarge}>
+            <Text style={styles.avatarText}>{worker.name.charAt(0)}</Text>
+          </View>
+          <Text style={styles.name}>{worker.name}</Text>
+          <Text style={styles.trade}>{getTradeLabel(worker.tradeCategory)}</Text>
+          <View style={[styles.availBadge, { backgroundColor: availColor + '15' }]}>
+            <View style={[styles.availDot, { backgroundColor: availColor }]} />
+            <Text style={[styles.availText, { color: availColor }]}>{AVAILABILITY_LABELS[worker.availability]}</Text>
+          </View>
+        </View>
+
+        <View style={styles.statsGrid}>
+          <View style={styles.statCard}>
+            <Clock size={18} color={Colors.primary} />
+            <Text style={styles.statLabel}>Experience</Text>
+            <Text style={styles.statValue}>{worker.yearsExperience} years</Text>
+          </View>
+          <View style={styles.statCard}>
+            <DollarSign size={18} color={Colors.accent} />
+            <Text style={styles.statLabel}>Rate</Text>
+            <Text style={styles.statValue}>${worker.hourlyRate}/hr</Text>
+          </View>
+          <View style={styles.statCard}>
+            <MapPin size={18} color={Colors.textSecondary} />
+            <Text style={styles.statLabel}>Location</Text>
+            <Text style={styles.statValue}>{worker.city}, {worker.state}</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Briefcase size={18} color={Colors.info} />
+            <Text style={styles.statLabel}>Past Projects</Text>
+            <Text style={styles.statValue}>{worker.pastProjects.length}</Text>
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>About</Text>
+          <Text style={styles.bio}>{worker.bio}</Text>
+        </View>
+
+        {worker.licenses.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Licenses & Certifications</Text>
+            {worker.licenses.map((lic, i) => (
+              <View key={i} style={styles.licenseItem}>
+                <Award size={14} color={Colors.primary} />
+                <Text style={styles.licenseLabel}>{lic}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {worker.pastProjects.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Past Projects</Text>
+            {worker.pastProjects.map((proj, i) => (
+              <View key={i} style={styles.projectItem}>
+                <View style={styles.projectDot} />
+                <Text style={styles.projectText}>{proj}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {matchingJobs.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Matching Open Jobs</Text>
+            {matchingJobs.map(job => (
+              <TouchableOpacity
+                key={job.id}
+                style={styles.jobRow}
+                onPress={() => {
+                  void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  router.push({ pathname: '/job-detail' as any, params: { id: job.id } });
+                }}
+              >
+                <View style={styles.jobInfo}>
+                  <Text style={styles.jobTitle} numberOfLines={1}>{job.title}</Text>
+                  <Text style={styles.jobMeta}>{job.companyName} · {job.city}, {job.state}</Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+
+        <View style={styles.actionSection}>
+          <TouchableOpacity style={styles.messageBtn} onPress={handleMessage}>
+            <MessageCircle size={16} color="#FFF" />
+            <Text style={styles.messageBtnText}>Message {worker.name.split(' ')[0]}</Text>
+          </TouchableOpacity>
+          <View style={styles.contactRow}>
+            <TouchableOpacity style={styles.contactBtn} onPress={() => void Linking.openURL(`mailto:${worker.contactEmail}`)}>
+              <Mail size={16} color={Colors.primary} />
+              <Text style={styles.contactBtnText}>Email</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.contactBtn} onPress={() => void Linking.openURL(`tel:${worker.phone}`)}>
+              <Phone size={16} color={Colors.primary} />
+              <Text style={styles.contactBtnText}>Call</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </ScrollView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: Colors.background },
+  scroll: { flex: 1 },
+  scrollContent: { paddingBottom: 40 },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  errorText: { fontSize: 16, color: Colors.textSecondary },
+  profileHeader: { backgroundColor: Colors.surface, alignItems: 'center', paddingVertical: 24, paddingHorizontal: 20, borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight },
+  avatarLarge: { width: 72, height: 72, borderRadius: 36, backgroundColor: Colors.accent + '20', alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
+  avatarText: { fontSize: 30, fontWeight: '800' as const, color: Colors.accent },
+  name: { fontSize: 22, fontWeight: '800' as const, color: Colors.text, marginBottom: 4 },
+  trade: { fontSize: 15, color: Colors.textSecondary, marginBottom: 8 },
+  availBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
+  availDot: { width: 8, height: 8, borderRadius: 4 },
+  availText: { fontSize: 13, fontWeight: '600' as const },
+  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', padding: 12, gap: 8 },
+  statCard: { width: '48%' as any, backgroundColor: Colors.surface, padding: 14, borderRadius: 12, alignItems: 'center', gap: 4 },
+  statLabel: { fontSize: 11, color: Colors.textMuted, textTransform: 'uppercase' as const, fontWeight: '600' as const },
+  statValue: { fontSize: 15, fontWeight: '700' as const, color: Colors.text, textAlign: 'center' as const },
+  section: { backgroundColor: Colors.surface, padding: 20, marginTop: 8 },
+  sectionTitle: { fontSize: 17, fontWeight: '700' as const, color: Colors.text, marginBottom: 10 },
+  bio: { fontSize: 15, color: Colors.text, lineHeight: 22 },
+  licenseItem: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8, borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight },
+  licenseLabel: { fontSize: 14, color: Colors.text },
+  projectItem: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8 },
+  projectDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: Colors.primary },
+  projectText: { fontSize: 14, color: Colors.text },
+  jobRow: { paddingVertical: 10, borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight },
+  jobInfo: { flex: 1 },
+  jobTitle: { fontSize: 15, fontWeight: '600' as const, color: Colors.text, marginBottom: 2 },
+  jobMeta: { fontSize: 13, color: Colors.textSecondary },
+  actionSection: { padding: 20, gap: 12 },
+  messageBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.primary, paddingVertical: 16, borderRadius: 12, gap: 8 },
+  messageBtnText: { color: '#FFF', fontSize: 16, fontWeight: '700' as const },
+  contactRow: { flexDirection: 'row', gap: 10 },
+  contactBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.primary + '12', paddingVertical: 14, borderRadius: 12, gap: 8 },
+  contactBtnText: { color: Colors.primary, fontSize: 15, fontWeight: '600' as const },
+});
+
+
+========== FILE: ./babel.config.js ==========
+module.exports = function (api) {
+  api.cache(true);
+  return {
+    presets: [["babel-preset-expo", { unstable_transformImportMeta: true }]],
+  };
+};
+
+
+========== FILE: ./backend/hono.ts ==========
+import { Hono } from "hono";
+import { cors } from "hono/cors";
+
+import emailRoute from "./routes/send-email";
+
+const app = new Hono();
+
+app.use("*", cors());
+
+app.route("/email", emailRoute);
+
+app.get("/", (c) => {
+  return c.json({ status: "ok", message: "MAGE ID API is running" });
+});
+
+export default app;
+
+
+========== FILE: ./backend/routes/send-email.ts ==========
+import { Hono } from "hono";
+
+const emailRoute = new Hono();
+
+interface SendEmailBody {
+  to: string;
+  subject: string;
+  html: string;
+  replyTo?: string;
+  from?: string;
+}
+
+emailRoute.post("/send", async (c) => {
+  try {
+    const body = await c.req.json<SendEmailBody>();
+
+    if (!body.to || !body.subject || !body.html) {
+      return c.json({ success: false, error: "Missing required fields: to, subject, html" }, 400);
+    }
+
+    const resendApiKey = process.env.RESEND_API_KEY;
+    if (!resendApiKey) {
+      console.error("[Email] RESEND_API_KEY is not configured");
+      return c.json({ success: false, error: "Email service not configured" }, 500);
+    }
+
+    const fromAddress = body.from || process.env.RESEND_FROM_EMAIL || "MAGE ID <onboarding@resend.dev>";
+
+    console.log(`[Email] Sending email to ${body.to} with subject: ${body.subject}`);
+
+    const response = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${resendApiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from: fromAddress,
+        to: [body.to],
+        subject: body.subject,
+        html: body.html,
+        reply_to: body.replyTo || undefined,
+      }),
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      console.error("[Email] Resend API error:", result);
+      return c.json({ success: false, error: result?.message || "Failed to send email" }, 502);
+    }
+
+    console.log("[Email] Email sent successfully:", result);
+    return c.json({ success: true, id: result.id });
+  } catch (err) {
+    console.error("[Email] Error sending email:", err);
+    return c.json({ success: false, error: "Internal server error" }, 500);
+  }
+});
+
+export default emailRoute;
+
+
+========== FILE: ./components/AIBidScorer.tsx ==========
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Modal,
+  ScrollView, Switch,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Haptics from 'expo-haptics';
+import { Sparkles, X, CheckCircle2, Settings } from 'lucide-react-native';
+import { Colors } from '@/constants/colors';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  scoreBid, getCompanyProfile, saveCompanyProfile, getCachedResult, setCachedResult,
+  type CompanyAIProfile, type BidScoreResult,
+} from '@/utils/aiService';
+
+const SPECIALTIES = ['Residential', 'Commercial', 'Industrial', 'Government', 'Renovation', 'New Construction'];
+const TRADES = ['General', 'Electrical', 'Plumbing', 'HVAC', 'Roofing', 'Concrete', 'Framing', 'Painting', 'Drywall', 'Flooring', 'Landscaping'];
+const SIZE_OPTIONS = ['Under $100K', '$100K-$500K', '$500K-$2M', '$2M-$10M', '$10M+'];
+const CERTS = ['SDVOSB', 'HUBZone', '8(a)', 'WOSB', 'MBE', 'DBE', 'MWBE', 'SBE'];
+
+function getMatchBadge(score: number): { label: string; color: string; bg: string } {
+  if (score >= 90) return { label: 'Great Match', color: '#2E7D32', bg: '#E8F5E9' };
+  if (score >= 70) return { label: 'Good Match', color: '#1565C0', bg: '#E3F2FD' };
+  if (score >= 50) return { label: 'Partial Match', color: '#E65100', bg: '#FFF3E0' };
+  return { label: 'Low Match', color: '#757575', bg: '#F5F5F5' };
+}
+
+export function AIMatchBadge({ score }: { score: number }) {
+  const badge = getMatchBadge(score);
+  return (
+    <View style={[badgeStyles.container, { backgroundColor: badge.bg }]}>
+      <Sparkles size={10} color={badge.color} />
+      <Text style={[badgeStyles.text, { color: badge.color }]}>{badge.label}</Text>
+    </View>
+  );
+}
+
+const badgeStyles = StyleSheet.create({
+  container: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  text: {
+    fontSize: 10,
+    fontWeight: '700' as const,
+  },
+});
+
+interface ProfileSetupProps {
+  visible: boolean;
+  onClose: () => void;
+  onSave: (profile: CompanyAIProfile) => void;
+  initialProfile?: CompanyAIProfile | null;
+}
+
+export function AIProfileSetup({ visible, onClose, onSave, initialProfile }: ProfileSetupProps) {
+  const insets = useSafeAreaInsets();
+  const [specialties, setSpecialties] = useState<string[]>(initialProfile?.specialties ?? []);
+  const [trades, setTrades] = useState<string[]>(initialProfile?.trades ?? []);
+  const [preferredSize, setPreferredSize] = useState(initialProfile?.preferredSize ?? '$100K-$500K');
+  const [location, setLocation] = useState(initialProfile?.location ?? '');
+  const [certifications, setCertifications] = useState<string[]>(initialProfile?.certifications ?? []);
+
+  const toggle = (arr: string[], item: string, setter: (v: string[]) => void) => {
+    setter(arr.includes(item) ? arr.filter(s => s !== item) : [...arr, item]);
+  };
+
+  const handleSave = () => {
+    const profile: CompanyAIProfile = { specialties, trades, preferredSize, location, certifications };
+    saveCompanyProfile(profile).catch(() => {});
+    onSave(profile);
+    onClose();
+  };
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
+      <View style={[setupStyles.container, { paddingTop: insets.top }]}>
+        <View style={setupStyles.header}>
+          <Text style={setupStyles.title}>Company AI Profile</Text>
+          <TouchableOpacity onPress={onClose}>
+            <X size={22} color={Colors.textSecondary} />
+          </TouchableOpacity>
+        </View>
+        <ScrollView contentContainerStyle={setupStyles.content}>
+          <Text style={setupStyles.sectionTitle}>Specialties</Text>
+          <View style={setupStyles.chipRow}>
+            {SPECIALTIES.map(s => (
+              <TouchableOpacity
+                key={s}
+                style={[setupStyles.chip, specialties.includes(s) && setupStyles.chipActive]}
+                onPress={() => toggle(specialties, s, setSpecialties)}
+              >
+                <Text style={[setupStyles.chipText, specialties.includes(s) && setupStyles.chipTextActive]}>{s}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <Text style={setupStyles.sectionTitle}>Trades</Text>
+          <View style={setupStyles.chipRow}>
+            {TRADES.map(t => (
+              <TouchableOpacity
+                key={t}
+                style={[setupStyles.chip, trades.includes(t) && setupStyles.chipActive]}
+                onPress={() => toggle(trades, t, setTrades)}
+              >
+                <Text style={[setupStyles.chipText, trades.includes(t) && setupStyles.chipTextActive]}>{t}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <Text style={setupStyles.sectionTitle}>Preferred Project Size</Text>
+          <View style={setupStyles.chipRow}>
+            {SIZE_OPTIONS.map(s => (
+              <TouchableOpacity
+                key={s}
+                style={[setupStyles.chip, preferredSize === s && setupStyles.chipActive]}
+                onPress={() => setPreferredSize(s)}
+              >
+                <Text style={[setupStyles.chipText, preferredSize === s && setupStyles.chipTextActive]}>{s}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <Text style={setupStyles.sectionTitle}>Certifications</Text>
+          <View style={setupStyles.chipRow}>
+            {CERTS.map(c => (
+              <TouchableOpacity
+                key={c}
+                style={[setupStyles.chip, certifications.includes(c) && setupStyles.chipActive]}
+                onPress={() => toggle(certifications, c, setCertifications)}
+              >
+                <Text style={[setupStyles.chipText, certifications.includes(c) && setupStyles.chipTextActive]}>{c}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <TouchableOpacity style={setupStyles.saveBtn} onPress={handleSave}>
+            <Text style={setupStyles.saveBtnText}>Save Profile</Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </View>
+    </Modal>
+  );
+}
+
+const setupStyles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: Colors.background },
+  header: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 0.5,
+    borderBottomColor: Colors.borderLight, backgroundColor: Colors.surface,
+  },
+  title: { fontSize: 17, fontWeight: '700' as const, color: Colors.text },
+  content: { padding: 20, gap: 16, paddingBottom: 40 },
+  sectionTitle: { fontSize: 14, fontWeight: '700' as const, color: Colors.text },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  chip: {
+    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
+    backgroundColor: Colors.fillSecondary, borderWidth: 1, borderColor: Colors.borderLight,
+  },
+  chipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  chipText: { fontSize: 13, color: Colors.text, fontWeight: '500' as const },
+  chipTextActive: { color: '#FFFFFF' },
+  saveBtn: {
+    backgroundColor: Colors.primary, paddingVertical: 14, borderRadius: 12,
+    alignItems: 'center', marginTop: 8,
+  },
+  saveBtnText: { fontSize: 16, fontWeight: '700' as const, color: '#FFFFFF' },
+});
+
+export async function getBidScore(bidId: string, bid: {
+  title: string; department: string; estimated_value: number;
+  naics_code?: string; set_aside?: string | null; state?: string; description?: string;
+}): Promise<BidScoreResult | null> {
+  const cacheKey = `bidscore_${bidId}`;
+  const cached = await getCachedResult<BidScoreResult>(cacheKey, 24 * 60 * 60 * 1000);
+  if (cached) return cached;
+
+  const profile = await getCompanyProfile();
+  if (!profile || profile.specialties.length === 0) return null;
+
+  try {
+    const result = await scoreBid(bid, profile);
+    await setCachedResult(cacheKey, result);
+    return result;
+  } catch (err) {
+    console.error('[AI Bid] Score failed:', err);
+    return null;
+  }
+}
+
+
+========== FILE: ./components/AIChangeOrderImpact.tsx ==========
+import React, { useState, useCallback } from 'react';
+import {
+  View, Text, StyleSheet, TouchableOpacity, ActivityIndicator,
+} from 'react-native';
+import * as Haptics from 'expo-haptics';
+import { Sparkles, CalendarDays, DollarSign, ArrowRight, Zap } from 'lucide-react-native';
+import { Colors } from '@/constants/colors';
+import { analyzeChangeOrderImpact, type ChangeOrderImpactResult } from '@/utils/aiService';
+import type { ProjectSchedule } from '@/types';
+
+interface Props {
+  changeDescription: string;
+  lineItems: Array<{ name: string; quantity: number; unitPrice: number; total: number }>;
+  schedule: ProjectSchedule | null;
+}
+
+function formatCurrency(n: number): string {
+  return '$' + n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+}
+
+export default React.memo(function AIChangeOrderImpact({ changeDescription, lineItems, schedule }: Props) {
+  const [result, setResult] = useState<ChangeOrderImpactResult | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(true);
+
+  const handleAnalyze = useCallback(async () => {
+    if (isLoading || !changeDescription.trim()) return;
+    setIsLoading(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      const data = await analyzeChangeOrderImpact(changeDescription, lineItems, schedule);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setResult(data);
+      setIsExpanded(true);
+    } catch (err) {
+      console.error('[AI CO Impact] Failed:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [isLoading, changeDescription, lineItems, schedule]);
+
+  if (!result) {
+    return (
+      <TouchableOpacity
+        style={[styles.triggerBtn, !changeDescription.trim() && styles.triggerDisabled]}
+        onPress={handleAnalyze}
+        disabled={isLoading || !changeDescription.trim()}
+      >
+        {isLoading ? (
+          <ActivityIndicator size="small" color={Colors.primary} />
+        ) : (
+          <Sparkles size={16} color={changeDescription.trim() ? Colors.primary : Colors.textMuted} />
+        )}
+        <Text style={[styles.triggerText, !changeDescription.trim() && { color: Colors.textMuted }]}>
+          {isLoading ? 'Analyzing Impact...' : 'Analyze Impact with AI'}
+        </Text>
+      </TouchableOpacity>
+    );
+  }
+
+  return (
+    <View style={styles.card}>
+      <TouchableOpacity style={styles.header} onPress={() => setIsExpanded(!isExpanded)}>
+        <View style={styles.headerLeft}>
+          <Sparkles size={16} color={Colors.primary} />
+          <Text style={styles.headerTitle}>Change Order Impact Analysis</Text>
+        </View>
+        <Text style={styles.aiTag}>AI</Text>
+      </TouchableOpacity>
+
+      {isExpanded && (
+        <>
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <CalendarDays size={14} color={Colors.info} />
+              <Text style={styles.sectionTitle}>Schedule Impact</Text>
+            </View>
+            <Text style={styles.impactValue}>+{result.scheduleDays} days</Text>
+            {result.affectedTasks.map((task, idx) => (
+              <View key={idx} style={styles.taskRow}>
+                <ArrowRight size={12} color={Colors.textMuted} />
+                <Text style={styles.taskText}>
+                  "{task.taskName}" pushed {task.daysAdded}d ({task.currentEnd} → {task.newEnd})
+                </Text>
+              </View>
+            ))}
+            <Text style={styles.endDate}>New project end: {result.newProjectEndDate}</Text>
+          </View>
+
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <DollarSign size={14} color={Colors.success} />
+              <Text style={styles.sectionTitle}>Cost Impact</Text>
+            </View>
+            <View style={styles.costGrid}>
+              <View style={styles.costItem}>
+                <Text style={styles.costLabel}>Materials</Text>
+                <Text style={styles.costValue}>{formatCurrency(result.costImpact.materials)}</Text>
+              </View>
+              <View style={styles.costItem}>
+                <Text style={styles.costLabel}>Labor</Text>
+                <Text style={styles.costValue}>{formatCurrency(result.costImpact.labor)}</Text>
+              </View>
+              <View style={styles.costItem}>
+                <Text style={styles.costLabel}>Equipment</Text>
+                <Text style={styles.costValue}>{formatCurrency(result.costImpact.equipment)}</Text>
+              </View>
+              <View style={[styles.costItem, { backgroundColor: `${Colors.primary}10` }]}>
+                <Text style={[styles.costLabel, { fontWeight: '700' as const }]}>Total</Text>
+                <Text style={[styles.costValue, { color: Colors.primary }]}>{formatCurrency(result.costImpact.total)}</Text>
+              </View>
+            </View>
+          </View>
+
+          {result.downstreamEffects.length > 0 && (
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Zap size={14} color={Colors.warning} />
+                <Text style={styles.sectionTitle}>Downstream Effects</Text>
+              </View>
+              {result.downstreamEffects.map((effect, idx) => (
+                <Text key={idx} style={styles.effectText}>• {effect}</Text>
+              ))}
+            </View>
+          )}
+
+          <View style={[styles.section, { backgroundColor: `${Colors.primary}08` }]}>
+            <Text style={styles.recTitle}>Recommendation</Text>
+            <Text style={styles.recText}>{result.recommendation}</Text>
+          </View>
+
+          {result.compressionOptions.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.recTitle}>Compression Options</Text>
+              {result.compressionOptions.map((opt, idx) => (
+                <View key={idx} style={styles.compRow}>
+                  <Text style={styles.compDesc}>{opt.description}</Text>
+                  <Text style={styles.compMeta}>
+                    Save {opt.daysSaved}d for {formatCurrency(opt.costPremium)} premium
+                  </Text>
+                </View>
+              ))}
+            </View>
+          )}
+
+          <TouchableOpacity style={styles.reanalyzeBtn} onPress={handleAnalyze} disabled={isLoading}>
+            <Text style={styles.reanalyzeText}>{isLoading ? 'Re-analyzing...' : 'Re-analyze'}</Text>
+          </TouchableOpacity>
+        </>
+      )}
+    </View>
+  );
+});
+
+const styles = StyleSheet.create({
+  triggerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    backgroundColor: `${Colors.primary}08`,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: `${Colors.primary}20`,
+    marginVertical: 8,
+  },
+  triggerDisabled: {
+    opacity: 0.5,
+  },
+  triggerText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: Colors.primary,
+  },
+  card: {
+    backgroundColor: Colors.surface,
+    borderRadius: 14,
+    padding: 16,
+    marginVertical: 8,
+    borderWidth: 0.5,
+    borderColor: Colors.borderLight,
+    gap: 12,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  headerTitle: {
+    fontSize: 15,
+    fontWeight: '700' as const,
+    color: Colors.text,
+  },
+  aiTag: {
+    fontSize: 10,
+    fontWeight: '800' as const,
+    color: Colors.primary,
+    backgroundColor: `${Colors.primary}12`,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    letterSpacing: 0.5,
+  },
+  section: {
+    padding: 12,
+    backgroundColor: Colors.fillSecondary,
+    borderRadius: 10,
+    gap: 6,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  sectionTitle: {
+    fontSize: 14,
+    fontWeight: '700' as const,
+    color: Colors.text,
+  },
+  impactValue: {
+    fontSize: 22,
+    fontWeight: '800' as const,
+    color: Colors.error,
+  },
+  taskRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+    marginLeft: 4,
+  },
+  taskText: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+    flex: 1,
+  },
+  endDate: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: Colors.text,
+    marginTop: 4,
+  },
+  costGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  costItem: {
+    flex: 1,
+    minWidth: '45%',
+    padding: 8,
+    backgroundColor: Colors.surface,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  costLabel: {
+    fontSize: 11,
+    color: Colors.textMuted,
+  },
+  costValue: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: Colors.text,
+  },
+  effectText: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+  },
+  recTitle: {
+    fontSize: 13,
+    fontWeight: '700' as const,
+    color: Colors.primary,
+  },
+  recText: {
+    fontSize: 13,
+    color: Colors.text,
+    lineHeight: 19,
+  },
+  compRow: {
+    padding: 8,
+    backgroundColor: Colors.surface,
+    borderRadius: 8,
+    gap: 2,
+  },
+  compDesc: {
+    fontSize: 13,
+    color: Colors.text,
+  },
+  compMeta: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+  },
+  reanalyzeBtn: {
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  reanalyzeText: {
+    fontSize: 13,
+    color: Colors.primary,
+    fontWeight: '600' as const,
+  },
+});
+
+
+========== FILE: ./components/AICopilot.tsx ==========
+import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import {
+  View, Text, StyleSheet, TouchableOpacity, Modal, TextInput,
+  FlatList, KeyboardAvoidingView, Platform, Animated, ActivityIndicator,
+  Pressable,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Haptics from 'expo-haptics';
+import { Sparkles, Send, X, AlertTriangle, Lightbulb, ChevronRight } from 'lucide-react-native';
+import { Colors } from '@/constants/colors';
+import { useProjects } from '@/contexts/ProjectContext';
+import { useBids } from '@/contexts/BidsContext';
+import {
+  askCopilot, buildProjectContext,
+  type CopilotMessage,
+} from '@/utils/aiService';
+import { checkAILimit, recordAIUsage, getAIUsageStats } from '@/utils/aiRateLimiter';
+import { useSubscription } from '@/contexts/SubscriptionContext';
+
+const SUGGESTED_PROMPTS = [
+  "What should I focus on today?",
+  "Am I on budget?",
+  "Which projects are at risk?",
+  "Which invoices are overdue?",
+  "What's my most profitable project?",
+  "Draft a client update email",
+];
+
+const PRIORITY_COLORS = {
+  urgent: { bg: '#FFF0EF', text: '#FF3B30', border: '#FF3B30' },
+  important: { bg: '#FFF3E0', text: '#FF9500', border: '#FF9500' },
+  suggestion: { bg: '#EBF3FF', text: '#007AFF', border: '#007AFF' },
+} as const;
+
+function createMsgId(): string {
+  return `msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+}
+
+const MessageBubble = React.memo(({ message }: { message: CopilotMessage }) => {
+  const isUser = message.role === 'user';
+
+  return (
+    <View style={[styles.bubbleRow, isUser ? styles.bubbleRowRight : styles.bubbleRowLeft]}>
+      <View style={[styles.bubble, isUser ? styles.userBubble : styles.aiBubble]}>
+        {!isUser && (
+          <View style={styles.aiLabel}>
+            <Sparkles size={10} color={Colors.primary} />
+            <Text style={styles.aiLabelText}>MAGE AI</Text>
+          </View>
+        )}
+        <Text style={[styles.bubbleText, isUser ? styles.userText : styles.aiText]}>
+          {message.content}
+        </Text>
+        {message.actionItems && message.actionItems.length > 0 && (
+          <View style={styles.actionItems}>
+            {message.actionItems.map((item, idx) => {
+              const colors = PRIORITY_COLORS[item.priority];
+              return (
+                <View key={idx} style={[styles.actionChip, { backgroundColor: colors.bg, borderColor: colors.border }]}>
+                  {item.priority === 'urgent' && <AlertTriangle size={11} color={colors.text} />}
+                  {item.priority === 'suggestion' && <Lightbulb size={11} color={colors.text} />}
+                  <Text style={[styles.actionChipText, { color: colors.text }]}>{item.text}</Text>
+                </View>
+              );
+            })}
+          </View>
+        )}
+        {message.dataPoints && message.dataPoints.length > 0 && (
+          <View style={styles.dataGrid}>
+            {message.dataPoints.map((dp, idx) => (
+              <View key={idx} style={styles.dataCard}>
+                <Text style={styles.dataLabel}>{dp.label}</Text>
+                <Text style={styles.dataValue}>{dp.value}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+      </View>
+    </View>
+  );
+});
+
+function buildFullContext(projects: any[], bids: any[], subs: any[], equipment: any[], invoices: any[], changeOrders: any[]): string {
+  const projectsSummary = projects.map(p => {
+    const schedule = p.schedule;
+    const tasks = schedule?.tasks ?? [];
+    const est = p.linkedEstimate ?? p.estimate;
+    return `"${p.name}" — ${p.type} — ${p.status}
+  Schedule: ${tasks.length} tasks, ${schedule?.healthScore ?? 'N/A'}/100 health
+  Estimate: ${est && 'grandTotal' in est ? est.grandTotal.toLocaleString() : '0'}
+  Progress: ${tasks.length > 0 ? Math.round(tasks.reduce((s: number, t: any) => s + t.progress, 0) / tasks.length) : 0}%`;
+  }).join('\n');
+
+  const pendingInvoices = invoices.filter((i: any) => i.status !== 'paid' && i.status !== 'draft');
+  const overdueInvoices = invoices.filter((i: any) => i.status === 'overdue');
+
+  return `CONTRACTOR'S DATA SNAPSHOT:
+
+PROJECTS (${projects.length} total):
+${projectsSummary || 'No projects'}
+
+INVOICES:
+Pending: ${pendingInvoices.length} totaling ${pendingInvoices.reduce((s: number, i: any) => s + (i.totalDue - i.amountPaid), 0).toLocaleString()}
+Overdue: ${overdueInvoices.length}
+
+CHANGE ORDERS: ${changeOrders.length} total
+
+SUBCONTRACTORS (${subs.length}):
+${subs.slice(0, 10).map((s: any) => `${s.companyName} — ${s.trade}`).join('\n') || 'None'}
+
+EQUIPMENT (${equipment.length}):
+${equipment.slice(0, 10).map((e: any) => `${e.name} — ${e.status}`).join('\n') || 'None'}
+
+ACTIVE BIDS (${bids.length}):
+${bids.slice(0, 5).map((b: any) => `"${b.title}" — ${b.estimatedValue?.toLocaleString() ?? '0'}`).join('\n') || 'None'}`;
+}
+
+export default function AICopilot() {
+  const insets = useSafeAreaInsets();
+  const { projects, invoices, changeOrders, subcontractors, equipment } = useProjects();
+  const { bids } = useBids();
+  const { tier } = useSubscription();
+  const [isOpen, setIsOpen] = useState(false);
+  const [input, setInput] = useState('');
+  const [messages, setMessages] = useState<CopilotMessage[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [usageText, setUsageText] = useState('');
+  const flatListRef = useRef<FlatList>(null);
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  const refreshUsage = useCallback(async () => {
+    const stats = await getAIUsageStats(tier as any);
+    setUsageText(`${stats.used}/${stats.limit} AI requests used today`);
+  }, [tier]);
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 1.08, duration: 1500, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1, duration: 1500, useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [pulseAnim]);
+
+  useEffect(() => {
+    if (isOpen) {
+      void refreshUsage();
+    }
+  }, [isOpen, refreshUsage]);
+
+  const handleOpen = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setIsOpen(true);
+  }, []);
+
+  const handleClose = useCallback(() => {
+    setIsOpen(false);
+  }, []);
+
+  const detectRequestTier = useCallback((text: string): 'fast' | 'smart' => {
+    const smartKeywords = ['analyze', 'compare', 'should i', 'recommend', 'predict', 'calculate', 'draft', 'report'];
+    const lower = text.toLowerCase();
+    return smartKeywords.some(k => lower.includes(k)) ? 'smart' : 'fast';
+  }, []);
+
+  const handleSend = useCallback(async (text?: string) => {
+    const msgText = text ?? input.trim();
+    if (!msgText || isLoading) return;
+
+    const requestTier = detectRequestTier(msgText);
+    const limit = await checkAILimit(tier as any, requestTier);
+    if (!limit.allowed) {
+      const limitMsg: CopilotMessage = {
+        id: createMsgId(),
+        role: 'assistant',
+        content: limit.message ?? "You've reached your daily AI limit.",
+        timestamp: new Date().toISOString(),
+      };
+      setMessages(prev => [...prev, limitMsg]);
+      return;
+    }
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setInput('');
+
+    const userMsg: CopilotMessage = {
+      id: createMsgId(),
+      role: 'user',
+      content: msgText,
+      timestamp: new Date().toISOString(),
+    };
+
+    setMessages(prev => [...prev, userMsg]);
+    setIsLoading(true);
+
+    try {
+      const fullContext = buildFullContext(
+        projects, bids, subcontractors, equipment, invoices, changeOrders
+      );
+      const response = await askCopilot(msgText, fullContext);
+      await recordAIUsage(requestTier);
+      void refreshUsage();
+
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+      const aiMsg: CopilotMessage = {
+        id: createMsgId(),
+        role: 'assistant',
+        content: response.answer,
+        actionItems: response.actionItems,
+        dataPoints: response.dataPoints,
+        timestamp: new Date().toISOString(),
+      };
+
+      setMessages(prev => [...prev, aiMsg]);
+    } catch (err) {
+      console.error('[AI Copilot] Error:', err);
+      const errorMsg: CopilotMessage = {
+        id: createMsgId(),
+        role: 'assistant',
+        content: 'AI analysis unavailable right now. Try again in a moment.',
+        timestamp: new Date().toISOString(),
+      };
+      setMessages(prev => [...prev, errorMsg]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [input, isLoading, tier, projects, bids, subcontractors, equipment, invoices, changeOrders, detectRequestTier, refreshUsage]);
+
+  const renderMessage = useCallback(({ item }: { item: CopilotMessage }) => (
+    <MessageBubble message={item} />
+  ), []);
+
+  const keyExtractor = useCallback((item: CopilotMessage) => item.id, []);
+
+  return (
+    <>
+      <Animated.View style={[styles.fab, { bottom: insets.bottom + 70, transform: [{ scale: pulseAnim }] }]}>
+        <TouchableOpacity
+          onPress={handleOpen}
+          style={styles.fabButton}
+          activeOpacity={0.8}
+          testID="ai-copilot-fab"
+        >
+          <Sparkles size={22} color="#FFFFFF" />
+        </TouchableOpacity>
+      </Animated.View>
+
+      <Modal visible={isOpen} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={[styles.modalContainer, { paddingBottom: insets.bottom }]}
+          >
+            <View style={styles.modalHeader}>
+              <View style={styles.headerLeft}>
+                <Sparkles size={18} color={Colors.primary} />
+                <Text style={styles.headerTitle}>MAGE AI Copilot</Text>
+              </View>
+              <TouchableOpacity onPress={handleClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <X size={22} color={Colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.projectBadge}>
+              <Text style={styles.projectBadgeText} numberOfLines={1}>
+                Analyzing {projects.length} project{projects.length !== 1 ? 's' : ''}, {subcontractors.length} subs, {equipment.length} equipment
+              </Text>
+            </View>
+
+            {messages.length === 0 && !isLoading ? (
+              <View style={styles.emptyState}>
+                <View style={styles.emptyIcon}>
+                  <Sparkles size={32} color={Colors.primary} />
+                </View>
+                <Text style={styles.emptyTitle}>Ask me anything about your project</Text>
+                <Text style={styles.emptySubtitle}>I have access to your schedule, estimate, and project data.</Text>
+                <View style={styles.suggestedPrompts}>
+                  {SUGGESTED_PROMPTS.map((prompt, idx) => (
+                    <TouchableOpacity
+                      key={idx}
+                      style={styles.suggestChip}
+                      onPress={() => handleSend(prompt)}
+                    >
+                      <Text style={styles.suggestText}>{prompt}</Text>
+                      <ChevronRight size={14} color={Colors.primary} />
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            ) : (
+              <FlatList
+                ref={flatListRef}
+                data={messages}
+                renderItem={renderMessage}
+                keyExtractor={keyExtractor}
+                contentContainerStyle={styles.messageList}
+                onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
+                ListFooterComponent={isLoading ? (
+                  <View style={[styles.bubbleRow, styles.bubbleRowLeft]}>
+                    <View style={[styles.bubble, styles.aiBubble]}>
+                      <View style={styles.typingRow}>
+                        <ActivityIndicator size="small" color={Colors.primary} />
+                        <Text style={styles.typingText}>Analyzing your project data...</Text>
+                      </View>
+                    </View>
+                  </View>
+                ) : null}
+              />
+            )}
+
+            <View style={styles.inputSection}>
+              {usageText ? (
+                <Text style={styles.usageCounter}>{usageText}</Text>
+              ) : null}
+              <View style={styles.inputRow}>
+                <TextInput
+                  style={styles.chatInput}
+                  placeholder="Ask about your projects..."
+                  placeholderTextColor={Colors.textMuted}
+                  value={input}
+                  onChangeText={setInput}
+                  onSubmitEditing={() => handleSend()}
+                  returnKeyType="send"
+                  multiline={false}
+                />
+                <TouchableOpacity
+                  onPress={() => handleSend()}
+                  style={[styles.sendBtn, (!input.trim() || isLoading) && styles.sendBtnDisabled]}
+                  disabled={!input.trim() || isLoading}
+                >
+                  <Send size={18} color={input.trim() && !isLoading ? '#FFFFFF' : Colors.textMuted} />
+                </TouchableOpacity>
+              </View>
+            </View>
+          </KeyboardAvoidingView>
+        </View>
+      </Modal>
+    </>
+  );
+}
+
+const styles = StyleSheet.create({
+  fab: {
+    position: 'absolute',
+    right: 20,
+    zIndex: 999,
+  },
+  fabButton: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'flex-end',
+  },
+  modalContainer: {
+    backgroundColor: Colors.background,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '80%',
+    minHeight: '60%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 0.5,
+    borderBottomColor: Colors.borderLight,
+    backgroundColor: Colors.surface,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  headerTitle: {
+    fontSize: 17,
+    fontWeight: '700' as const,
+    color: Colors.text,
+  },
+  projectBadge: {
+    paddingHorizontal: 20,
+    paddingVertical: 6,
+    backgroundColor: Colors.fillSecondary,
+  },
+  projectBadgeText: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    fontWeight: '500' as const,
+  },
+  emptyState: {
+    flex: 1,
+    alignItems: 'center',
+    paddingTop: 32,
+    paddingHorizontal: 24,
+  },
+  emptyIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: `${Colors.primary}15`,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '700' as const,
+    color: Colors.text,
+    marginBottom: 6,
+    textAlign: 'center',
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  suggestedPrompts: {
+    width: '100%',
+    gap: 8,
+  },
+  suggestChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+  },
+  suggestText: {
+    fontSize: 14,
+    color: Colors.text,
+    flex: 1,
+  },
+  messageList: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  bubbleRow: {
+    marginBottom: 10,
+  },
+  bubbleRowRight: {
+    alignItems: 'flex-end',
+  },
+  bubbleRowLeft: {
+    alignItems: 'flex-start',
+  },
+  bubble: {
+    maxWidth: '85%',
+    padding: 12,
+    borderRadius: 16,
+  },
+  userBubble: {
+    backgroundColor: Colors.primary,
+    borderBottomRightRadius: 4,
+  },
+  aiBubble: {
+    backgroundColor: Colors.surface,
+    borderBottomLeftRadius: 4,
+    borderWidth: 0.5,
+    borderColor: Colors.borderLight,
+  },
+  aiLabel: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 4,
+  },
+  aiLabelText: {
+    fontSize: 10,
+    fontWeight: '600' as const,
+    color: Colors.primary,
+    letterSpacing: 0.5,
+  },
+  bubbleText: {
+    fontSize: 15,
+    lineHeight: 21,
+  },
+  userText: {
+    color: '#FFFFFF',
+  },
+  aiText: {
+    color: Colors.text,
+  },
+  actionItems: {
+    marginTop: 10,
+    gap: 6,
+  },
+  actionChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    borderWidth: 0.5,
+  },
+  actionChipText: {
+    fontSize: 13,
+    fontWeight: '500' as const,
+    flex: 1,
+  },
+  dataGrid: {
+    marginTop: 10,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  dataCard: {
+    backgroundColor: Colors.fillSecondary,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    minWidth: 80,
+  },
+  dataLabel: {
+    fontSize: 10,
+    color: Colors.textMuted,
+    fontWeight: '500' as const,
+  },
+  dataValue: {
+    fontSize: 14,
+    fontWeight: '700' as const,
+    color: Colors.text,
+  },
+  typingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  typingText: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+    fontStyle: 'italic' as const,
+  },
+  inputSection: {
+    borderTopWidth: 0.5,
+    borderTopColor: Colors.borderLight,
+    backgroundColor: Colors.surface,
+  },
+  usageCounter: {
+    fontSize: 11,
+    color: Colors.textMuted,
+    textAlign: 'center',
+    paddingTop: 6,
+    fontWeight: '500' as const,
+  },
+  inputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    gap: 8,
+  },
+  chatInput: {
+    flex: 1,
+    backgroundColor: Colors.fillSecondary,
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    fontSize: 15,
+    color: Colors.text,
+    maxHeight: 80,
+  },
+  sendBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sendBtnDisabled: {
+    backgroundColor: Colors.fillTertiary,
+  },
+});
+
+
+========== FILE: ./components/AIDailyReportGen.tsx ==========
+import React, { useState, useCallback } from 'react';
+import {
+  View, Text, StyleSheet, TouchableOpacity, ActivityIndicator,
+} from 'react-native';
+import * as Haptics from 'expo-haptics';
+import { Sparkles } from 'lucide-react-native';
+import { Colors } from '@/constants/colors';
+import { generateDailyReport, type DailyReportGenResult } from '@/utils/aiService';
+import type { ScheduleTask } from '@/types';
+
+interface Props {
+  projectName: string;
+  tasks: ScheduleTask[];
+  weatherStr: string;
+  onGenerated: (result: DailyReportGenResult) => void;
+}
+
+export default React.memo(function AIDailyReportGen({ projectName, tasks, weatherStr, onGenerated }: Props) {
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleGenerate = useCallback(async () => {
+    if (isLoading) return;
+    setIsLoading(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      const result = await generateDailyReport(projectName, tasks, weatherStr);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      onGenerated(result);
+    } catch (err) {
+      console.error('[AI DFR] Generation failed:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [isLoading, projectName, tasks, weatherStr, onGenerated]);
+
+  return (
+    <TouchableOpacity style={styles.btn} onPress={handleGenerate} disabled={isLoading}>
+      {isLoading ? (
+        <ActivityIndicator size="small" color="#FFFFFF" />
+      ) : (
+        <Sparkles size={16} color="#FFFFFF" />
+      )}
+      <Text style={styles.btnText}>
+        {isLoading ? 'Generating...' : 'Auto-Generate from Schedule'}
+      </Text>
+    </TouchableOpacity>
+  );
+});
+
+const styles = StyleSheet.create({
+  btn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    backgroundColor: Colors.primary,
+    borderRadius: 12,
+    marginVertical: 8,
+  },
+  btnText: {
+    fontSize: 14,
+    fontWeight: '700' as const,
+    color: '#FFFFFF',
+  },
+});
+
+
+========== FILE: ./components/AIEquipmentAdvice.tsx ==========
+import React, { useState, useCallback } from 'react';
+import {
+  View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert,
+  Platform,
+} from 'react-native';
+import * as Haptics from 'expo-haptics';
+import { Sparkles, RefreshCw, TrendingUp, ArrowRight } from 'lucide-react-native';
+import { Colors } from '@/constants/colors';
+import {
+  analyzeEquipmentRentVsBuy, getCachedResult, setCachedResult,
+  type EquipmentAdviceResult,
+} from '@/utils/aiService';
+import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
+import type { Equipment } from '@/types';
+import type { SubscriptionTierKey } from '@/utils/aiRateLimiter';
+
+interface Props {
+  equipment: Equipment;
+  subscriptionTier: SubscriptionTierKey;
+}
+
+const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
+
+const REC_STYLES = {
+  rent: { label: 'Keep Renting', icon: '🔄', color: Colors.info, bg: Colors.infoLight },
+  buy: { label: 'Buy It', icon: '🏷️', color: Colors.success, bg: Colors.successLight },
+  lease: { label: 'Consider Leasing', icon: '📋', color: Colors.warning, bg: Colors.warningLight },
+} as const;
+
+export default React.memo(function AIEquipmentAdvice({ equipment, subscriptionTier }: Props) {
+  const [result, setResult] = useState<EquipmentAdviceResult | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleAnalyze = useCallback(async () => {
+    if (isLoading) return;
+
+    const cacheKey = `equip_advice_${equipment.id}`;
+    const cached = await getCachedResult<EquipmentAdviceResult>(cacheKey, SEVEN_DAYS);
+    if (cached) {
+      setResult(cached);
+      return;
+    }
+
+    const limit = await checkAILimit(subscriptionTier, 'fast');
+    if (!limit.allowed) {
+      Alert.alert('AI Limit Reached', limit.message ?? 'Try again tomorrow.');
+      return;
+    }
+
+    setIsLoading(true);
+    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      const uniqueProjects = new Set(equipment.utilizationLog.map(u => u.projectId)).size;
+      const avgDays = equipment.utilizationLog.length > 0
+        ? Math.round(equipment.utilizationLog.reduce((s, u) => s + u.hoursUsed, 0) / (uniqueProjects || 1) / 8)
+        : 12;
+
+      const data = await analyzeEquipmentRentVsBuy(equipment, Math.max(uniqueProjects, 2), avgDays);
+      await recordAIUsage('fast');
+      await setCachedResult(cacheKey, data);
+      setResult(data);
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (err) {
+      console.log('[AI Equipment] Analysis failed:', err);
+      Alert.alert('AI Error', 'Could not analyze equipment. Try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [isLoading, equipment, subscriptionTier]);
+
+  if (!result) {
+    return (
+      <TouchableOpacity style={styles.triggerBtn} onPress={handleAnalyze} activeOpacity={0.7} disabled={isLoading}>
+        {isLoading ? (
+          <ActivityIndicator size="small" color={Colors.primary} />
+        ) : (
+          <Sparkles size={16} color={Colors.primary} />
+        )}
+        <Text style={styles.triggerText}>{isLoading ? 'Analyzing...' : 'AI Rent vs Buy Advice'}</Text>
+      </TouchableOpacity>
+    );
+  }
+
+  const rec = REC_STYLES[result.recommendation] ?? REC_STYLES.rent;
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <Sparkles size={12} color={Colors.primary} />
+        <Text style={styles.headerTitle}>Rent vs Buy: {equipment.name}</Text>
+        <Text style={styles.aiTag}>AI-generated</Text>
+      </View>
+
+      <View style={[styles.recBadge, { backgroundColor: rec.bg }]}>
+        <Text style={styles.recIcon}>{rec.icon}</Text>
+        <Text style={[styles.recLabel, { color: rec.color }]}>RECOMMENDATION: {rec.label.toUpperCase()}</Text>
+      </View>
+
+      <View style={styles.statsRow}>
+        <View style={styles.statItem}>
+          <Text style={styles.statLabel}>Annual rental</Text>
+          <Text style={styles.statValue}>${result.annualRentalCost.toLocaleString()}</Text>
+        </View>
+        <View style={styles.statItem}>
+          <Text style={styles.statLabel}>Purchase price</Text>
+          <Text style={styles.statValue}>{result.purchasePrice}</Text>
+        </View>
+        <View style={styles.statItem}>
+          <Text style={styles.statLabel}>Break-even</Text>
+          <Text style={styles.statValue}>{result.breakEvenProjects}+ projects/yr</Text>
+        </View>
+      </View>
+
+      <Text style={styles.reasoning}>{result.reasoning}</Text>
+
+      <View style={styles.reconsiderRow}>
+        <ArrowRight size={12} color={Colors.textSecondary} />
+        <Text style={styles.reconsiderText}>{result.reconsiderWhen}</Text>
+      </View>
+    </View>
+  );
+});
+
+const styles = StyleSheet.create({
+  triggerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: Colors.primary + '10',
+    borderRadius: 12,
+    paddingVertical: 14,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: Colors.primary + '25',
+  },
+  triggerText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: Colors.primary,
+  },
+  container: {
+    backgroundColor: Colors.surface,
+    borderRadius: 14,
+    padding: 14,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 10,
+  },
+  headerTitle: {
+    fontSize: 13,
+    fontWeight: '700' as const,
+    color: Colors.text,
+    flex: 1,
+  },
+  aiTag: {
+    fontSize: 10,
+    color: Colors.textMuted,
+  },
+  recBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 12,
+  },
+  recIcon: {
+    fontSize: 18,
+  },
+  recLabel: {
+    fontSize: 13,
+    fontWeight: '800' as const,
+    letterSpacing: 0.5,
+  },
+  statsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 10,
+  },
+  statItem: {
+    flex: 1,
+    backgroundColor: Colors.fillSecondary,
+    borderRadius: 8,
+    padding: 10,
+    alignItems: 'center',
+    gap: 2,
+  },
+  statLabel: {
+    fontSize: 10,
+    color: Colors.textMuted,
+    fontWeight: '500' as const,
+  },
+  statValue: {
+    fontSize: 12,
+    fontWeight: '700' as const,
+    color: Colors.text,
+    textAlign: 'center' as const,
+  },
+  reasoning: {
+    fontSize: 13,
+    color: Colors.text,
+    lineHeight: 19,
+    marginBottom: 8,
+  },
+  reconsiderRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+    backgroundColor: Colors.fillSecondary,
+    borderRadius: 8,
+    padding: 10,
+  },
+  reconsiderText: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    flex: 1,
+    lineHeight: 17,
+    fontStyle: 'italic' as const,
+  },
+});
+
+
+========== FILE: ./components/AIEstimateValidator.tsx ==========
+import React, { useState, useCallback } from 'react';
+import {
+  View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView,
+} from 'react-native';
+import * as Haptics from 'expo-haptics';
+import { Sparkles, AlertTriangle, CheckCircle2, Lightbulb, XCircle, Search } from 'lucide-react-native';
+import { Colors } from '@/constants/colors';
+import { validateEstimate, type EstimateValidationResult } from '@/utils/aiService';
+
+interface Props {
+  projectType: string;
+  squareFootage: number;
+  totalCost: number;
+  materialCost: number;
+  laborCost: number;
+  itemCount: number;
+  hasContingency: boolean;
+  location: string;
+}
+
+const ISSUE_ICONS = {
+  warning: { Icon: AlertTriangle, color: '#FF9500', bg: '#FFF3E0' },
+  error: { Icon: XCircle, color: '#FF3B30', bg: '#FFF0EF' },
+  suggestion: { Icon: Lightbulb, color: '#007AFF', bg: '#EBF3FF' },
+  ok: { Icon: CheckCircle2, color: '#34C759', bg: '#E8F5E9' },
+} as const;
+
+export default React.memo(function AIEstimateValidator(props: Props) {
+  const [result, setResult] = useState<EstimateValidationResult | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  const handleValidate = useCallback(async () => {
+    if (isLoading) return;
+    setIsLoading(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      const data = await validateEstimate(
+        props.projectType,
+        props.squareFootage,
+        props.totalCost,
+        props.materialCost,
+        props.laborCost,
+        props.itemCount,
+        props.hasContingency,
+        props.location,
+      );
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setResult(data);
+      setIsExpanded(true);
+    } catch (err) {
+      console.error('[AI Estimate] Validation failed:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [isLoading, props]);
+
+  if (!result) {
+    return (
+      <TouchableOpacity style={styles.triggerBtn} onPress={handleValidate} disabled={isLoading}>
+        {isLoading ? (
+          <ActivityIndicator size="small" color={Colors.primary} />
+        ) : (
+          <Search size={16} color={Colors.primary} />
+        )}
+        <Text style={styles.triggerText}>
+          {isLoading ? 'Validating...' : 'AI Validate Estimate'}
+        </Text>
+        <Sparkles size={14} color={Colors.primary} />
+      </TouchableOpacity>
+    );
+  }
+
+  const scoreColor = result.overallScore >= 7 ? Colors.success :
+    result.overallScore >= 5 ? Colors.warning : Colors.error;
+
+  return (
+    <View style={styles.card}>
+      <TouchableOpacity style={styles.header} onPress={() => setIsExpanded(!isExpanded)}>
+        <View style={styles.headerLeft}>
+          <Sparkles size={16} color={Colors.primary} />
+          <Text style={styles.headerTitle}>AI Estimate Review</Text>
+        </View>
+        <View style={[styles.scoreBadge, { backgroundColor: `${scoreColor}15` }]}>
+          <Text style={[styles.scoreText, { color: scoreColor }]}>{result.overallScore}/10</Text>
+        </View>
+      </TouchableOpacity>
+
+      {isExpanded && (
+        <>
+          {result.issues.map((issue, idx) => {
+            const config = ISSUE_ICONS[issue.type];
+            return (
+              <View key={idx} style={[styles.issueRow, { backgroundColor: config.bg }]}>
+                <config.Icon size={16} color={config.color} />
+                <View style={styles.issueContent}>
+                  <Text style={[styles.issueTitle, { color: config.color }]}>{issue.title}</Text>
+                  <Text style={styles.issueDetail}>{issue.detail}</Text>
+                  {issue.potentialImpact ? (
+                    <Text style={styles.issueImpact}>Impact: {issue.potentialImpact}</Text>
+                  ) : null}
+                </View>
+              </View>
+            );
+          })}
+
+          {result.missingItems.length > 0 && (
+            <View style={styles.missingSection}>
+              <Text style={styles.missingTitle}>Potentially Missing Items:</Text>
+              {result.missingItems.map((item, idx) => (
+                <Text key={idx} style={styles.missingItem}>• {item}</Text>
+              ))}
+            </View>
+          )}
+
+          <Text style={styles.summary}>{result.summary}</Text>
+
+          <TouchableOpacity style={styles.revalidateBtn} onPress={handleValidate} disabled={isLoading}>
+            {isLoading ? <ActivityIndicator size="small" color={Colors.primary} /> : null}
+            <Text style={styles.revalidateText}>{isLoading ? 'Re-validating...' : 'Re-validate'}</Text>
+          </TouchableOpacity>
+        </>
+      )}
+    </View>
+  );
+});
+
+const styles = StyleSheet.create({
+  triggerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    backgroundColor: `${Colors.primary}08`,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: `${Colors.primary}20`,
+    marginVertical: 8,
+  },
+  triggerText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: Colors.primary,
+  },
+  card: {
+    backgroundColor: Colors.surface,
+    borderRadius: 14,
+    padding: 16,
+    marginVertical: 8,
+    borderWidth: 0.5,
+    borderColor: Colors.borderLight,
+    gap: 10,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  headerTitle: {
+    fontSize: 15,
+    fontWeight: '700' as const,
+    color: Colors.text,
+  },
+  scoreBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  scoreText: {
+    fontSize: 14,
+    fontWeight: '800' as const,
+  },
+  issueRow: {
+    flexDirection: 'row',
+    gap: 10,
+    padding: 12,
+    borderRadius: 10,
+  },
+  issueContent: {
+    flex: 1,
+    gap: 2,
+  },
+  issueTitle: {
+    fontSize: 14,
+    fontWeight: '700' as const,
+  },
+  issueDetail: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+    lineHeight: 18,
+  },
+  issueImpact: {
+    fontSize: 12,
+    color: Colors.textMuted,
+    fontStyle: 'italic' as const,
+  },
+  missingSection: {
+    padding: 12,
+    backgroundColor: Colors.fillSecondary,
+    borderRadius: 10,
+    gap: 4,
+  },
+  missingTitle: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: Colors.text,
+  },
+  missingItem: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+  },
+  summary: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+    lineHeight: 19,
+    fontStyle: 'italic' as const,
+  },
+  revalidateBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 8,
+  },
+  revalidateText: {
+    fontSize: 13,
+    color: Colors.primary,
+    fontWeight: '600' as const,
+  },
+});
+
+
+========== FILE: ./components/AIHomeBriefing.tsx ==========
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Animated,
+  Platform,
+} from 'react-native';
+import * as Haptics from 'expo-haptics';
+import { Sparkles, AlertTriangle, CheckCircle2, ChevronRight, TrendingDown } from 'lucide-react-native';
+import { Colors } from '@/constants/colors';
+import {
+  generateHomeBriefing, getCachedResult, setCachedResult,
+  type HomeBriefingResult,
+} from '@/utils/aiService';
+import { checkAILimit, recordAIUsage, getAIUsageStats } from '@/utils/aiRateLimiter';
+import type { Project, Invoice } from '@/types';
+import type { SubscriptionTierKey } from '@/utils/aiRateLimiter';
+
+interface Props {
+  projects: Project[];
+  invoices: Invoice[];
+  subscriptionTier: SubscriptionTierKey;
+  onViewFull?: () => void;
+}
+
+const FOUR_HOURS = 4 * 60 * 60 * 1000;
+
+const STATUS_ICONS = {
+  on_track: { Icon: CheckCircle2, color: '#34C759', bg: '#E8F5E9' },
+  at_risk: { Icon: AlertTriangle, color: '#FF9500', bg: '#FFF3E0' },
+  behind: { Icon: TrendingDown, color: '#FF3B30', bg: '#FFF0EF' },
+} as const;
+
+export default React.memo(function AIHomeBriefing({ projects, invoices, subscriptionTier, onViewFull }: Props) {
+  const [result, setResult] = useState<HomeBriefingResult | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [usageText, setUsageText] = useState('');
+  const shimmerAnim = React.useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (isLoading) {
+      const loop = Animated.loop(
+        Animated.sequence([
+          Animated.timing(shimmerAnim, { toValue: 1, duration: 1000, useNativeDriver: true }),
+          Animated.timing(shimmerAnim, { toValue: 0, duration: 1000, useNativeDriver: true }),
+        ])
+      );
+      loop.start();
+      return () => loop.stop();
+    }
+  }, [isLoading, shimmerAnim]);
+
+  const loadUsage = useCallback(async () => {
+    const stats = await getAIUsageStats(subscriptionTier);
+    setUsageText(`${stats.used}/${stats.limit} today`);
+  }, [subscriptionTier]);
+
+  useEffect(() => {
+    void loadUsage();
+  }, [loadUsage]);
+
+  const fetchBriefing = useCallback(async () => {
+    if (projects.length === 0 || isLoading) return;
+
+    const today = new Date().toISOString().split('T')[0];
+    const cacheKey = `home_briefing_${today}`;
+    const cached = await getCachedResult<HomeBriefingResult>(cacheKey, FOUR_HOURS);
+    if (cached) {
+      setResult(cached);
+      return;
+    }
+
+    const limit = await checkAILimit(subscriptionTier, 'fast');
+    if (!limit.allowed) return;
+
+    setIsLoading(true);
+    try {
+      const data = await generateHomeBriefing(projects, invoices);
+      await recordAIUsage('fast');
+      await setCachedResult(cacheKey, data);
+      setResult(data);
+      if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      void loadUsage();
+    } catch (err) {
+      console.log('[AI Briefing] Failed:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [projects, invoices, subscriptionTier, isLoading, loadUsage]);
+
+  useEffect(() => {
+    if (projects.length > 0) {
+      void fetchBriefing();
+    }
+  }, [projects.length]);
+
+  if (projects.length === 0) return null;
+
+  if (isLoading && !result) {
+    const shimmerOpacity = shimmerAnim.interpolate({
+      inputRange: [0, 1],
+      outputRange: [0.4, 0.8],
+    });
+    return (
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <View style={styles.headerLeft}>
+            <Sparkles size={14} color={Colors.primary} />
+            <Text style={styles.headerTitle}>MAGE AI Daily Briefing</Text>
+          </View>
+        </View>
+        <Animated.View style={[styles.skeletonLine, { opacity: shimmerOpacity }]} />
+        <Animated.View style={[styles.skeletonLine, styles.skeletonShort, { opacity: shimmerOpacity }]} />
+        <Animated.View style={[styles.skeletonLine, styles.skeletonMedium, { opacity: shimmerOpacity }]} />
+      </View>
+    );
+  }
+
+  if (!result) return null;
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <View style={styles.headerLeft}>
+          <Sparkles size={14} color={Colors.primary} />
+          <Text style={styles.headerTitle}>MAGE AI Daily Briefing</Text>
+        </View>
+        <Text style={styles.aiLabel}>AI-generated</Text>
+      </View>
+
+      <Text style={styles.briefingText}>{result.briefing}</Text>
+
+      {result.projects.map((proj, idx) => {
+        const config = STATUS_ICONS[proj.status] ?? STATUS_ICONS.on_track;
+        const StatusIcon = config.Icon;
+        return (
+          <View key={idx} style={styles.projectRow}>
+            <View style={[styles.statusDot, { backgroundColor: config.bg }]}>
+              <StatusIcon size={12} color={config.color} />
+            </View>
+            <View style={styles.projectInfo}>
+              <Text style={styles.projectName}>{proj.name}</Text>
+              <Text style={styles.projectInsight}>{proj.keyInsight}</Text>
+              {proj.actionItem ? (
+                <Text style={styles.actionItem}>→ {proj.actionItem}</Text>
+              ) : null}
+            </View>
+          </View>
+        );
+      })}
+
+      {result.urgentItems.length > 0 && (
+        <View style={styles.urgentSection}>
+          {result.urgentItems.map((item, idx) => (
+            <View key={idx} style={styles.urgentRow}>
+              <AlertTriangle size={12} color="#FF3B30" />
+              <Text style={styles.urgentText}>{item}</Text>
+            </View>
+          ))}
+        </View>
+      )}
+
+      <View style={styles.footer}>
+        {onViewFull ? (
+          <TouchableOpacity
+            onPress={onViewFull}
+            style={styles.viewFullBtn}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.viewFullText}>View Full Analysis</Text>
+            <ChevronRight size={14} color={Colors.primary} />
+          </TouchableOpacity>
+        ) : <View />}
+        <Text style={styles.usageText}>{usageText}</Text>
+      </View>
+    </View>
+  );
+});
+
+const styles = StyleSheet.create({
+  container: {
+    marginHorizontal: 20,
+    marginBottom: 20,
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  headerTitle: {
+    fontSize: 13,
+    fontWeight: '700' as const,
+    color: Colors.text,
+    letterSpacing: 0.2,
+  },
+  aiLabel: {
+    fontSize: 10,
+    color: Colors.textMuted,
+    fontWeight: '500' as const,
+  },
+  briefingText: {
+    fontSize: 14,
+    color: Colors.text,
+    lineHeight: 20,
+    marginBottom: 12,
+  },
+  projectRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 10,
+    paddingTop: 10,
+    borderTopWidth: 0.5,
+    borderTopColor: Colors.borderLight,
+  },
+  statusDot: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 2,
+  },
+  projectInfo: {
+    flex: 1,
+    gap: 2,
+  },
+  projectName: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: Colors.text,
+  },
+  projectInsight: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+    lineHeight: 18,
+  },
+  actionItem: {
+    fontSize: 13,
+    color: Colors.primary,
+    fontWeight: '500' as const,
+    marginTop: 2,
+  },
+  urgentSection: {
+    backgroundColor: '#FFF0EF',
+    borderRadius: 10,
+    padding: 10,
+    marginTop: 8,
+    gap: 6,
+  },
+  urgentRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+  },
+  urgentText: {
+    fontSize: 13,
+    color: '#D32F2F',
+    flex: 1,
+    lineHeight: 18,
+  },
+  footer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 12,
+    paddingTop: 10,
+    borderTopWidth: 0.5,
+    borderTopColor: Colors.borderLight,
+  },
+  viewFullBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  viewFullText: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: Colors.primary,
+  },
+  usageText: {
+    fontSize: 11,
+    color: Colors.textMuted,
+    fontWeight: '500' as const,
+  },
+  skeletonLine: {
+    height: 12,
+    backgroundColor: Colors.fillTertiary,
+    borderRadius: 6,
+    marginBottom: 8,
+    width: '100%',
+  },
+  skeletonShort: {
+    width: '60%',
+  },
+  skeletonMedium: {
+    width: '80%',
+  },
+});
+
+
+========== FILE: ./components/AIInvoicePredictor.tsx ==========
+import React, { useState, useCallback, useEffect } from 'react';
+import {
+  View, Text, StyleSheet, ActivityIndicator, Animated, Platform,
+} from 'react-native';
+import * as Haptics from 'expo-haptics';
+import { Sparkles, Clock, Lightbulb } from 'lucide-react-native';
+import { Colors } from '@/constants/colors';
+import {
+  predictInvoicePayment, getCachedResult, setCachedResult,
+  type InvoicePredictionResult,
+} from '@/utils/aiService';
+import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
+import type { Invoice } from '@/types';
+import type { SubscriptionTierKey } from '@/utils/aiRateLimiter';
+
+interface Props {
+  invoice: Invoice;
+  projectName: string;
+  allInvoices: Invoice[];
+  subscriptionTier: SubscriptionTierKey;
+}
+
+const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
+
+const CONFIDENCE_STYLES = {
+  high: { color: '#2E7D32', bg: '#E8F5E9', label: 'High' },
+  medium: { color: '#E65100', bg: '#FFF3E0', label: 'Medium' },
+  low: { color: '#757575', bg: '#F5F5F5', label: 'Low' },
+} as const;
+
+export default React.memo(function AIInvoicePredictor({ invoice, projectName, allInvoices, subscriptionTier }: Props) {
+  const [result, setResult] = useState<InvoicePredictionResult | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const shimmerAnim = React.useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (isLoading) {
+      const loop = Animated.loop(
+        Animated.sequence([
+          Animated.timing(shimmerAnim, { toValue: 1, duration: 1000, useNativeDriver: true }),
+          Animated.timing(shimmerAnim, { toValue: 0, duration: 1000, useNativeDriver: true }),
+        ])
+      );
+      loop.start();
+      return () => loop.stop();
+    }
+  }, [isLoading, shimmerAnim]);
+
+  const fetchPrediction = useCallback(async () => {
+    if (invoice.status === 'paid' || invoice.status === 'draft') return;
+
+    const cacheKey = `invoice_pred_${invoice.id}`;
+    const cached = await getCachedResult<InvoicePredictionResult>(cacheKey, TWENTY_FOUR_HOURS);
+    if (cached) {
+      setResult(cached);
+      return;
+    }
+
+    const limit = await checkAILimit(subscriptionTier, 'fast');
+    if (!limit.allowed) return;
+
+    setIsLoading(true);
+    try {
+      const paidInvoices = allInvoices.filter(i => i.status === 'paid' && i.payments.length > 0);
+      let avgDaysLate = 0;
+      if (paidInvoices.length > 0) {
+        const totalDaysLate = paidInvoices.reduce((sum, inv) => {
+          const due = new Date(inv.dueDate).getTime();
+          const lastPayment = inv.payments[inv.payments.length - 1];
+          const paid = lastPayment ? new Date(lastPayment.date).getTime() : due;
+          return sum + Math.max(0, Math.round((paid - due) / (1000 * 60 * 60 * 24)));
+        }, 0);
+        avgDaysLate = Math.round(totalDaysLate / paidInvoices.length);
+      }
+
+      const data = await predictInvoicePayment(invoice, projectName, {
+        avgDaysLate,
+        totalInvoices: paidInvoices.length,
+      });
+      await recordAIUsage('fast');
+      await setCachedResult(cacheKey, data);
+      setResult(data);
+      if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } catch (err) {
+      console.log('[AI Invoice] Prediction failed:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [invoice, projectName, allInvoices, subscriptionTier]);
+
+  useEffect(() => {
+    if (invoice.status !== 'paid' && invoice.status !== 'draft') {
+      void fetchPrediction();
+    }
+  }, [invoice.id]);
+
+  if (invoice.status === 'paid' || invoice.status === 'draft') return null;
+
+  if (isLoading && !result) {
+    const opacity = shimmerAnim.interpolate({ inputRange: [0, 1], outputRange: [0.4, 0.8] });
+    return (
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <Sparkles size={12} color={Colors.primary} />
+          <Text style={styles.headerTitle}>Payment Prediction</Text>
+        </View>
+        <Animated.View style={[styles.skeleton, { opacity }]} />
+        <Animated.View style={[styles.skeleton, styles.skeletonShort, { opacity }]} />
+      </View>
+    );
+  }
+
+  if (!result) return null;
+
+  const conf = CONFIDENCE_STYLES[result.confidenceLevel] ?? CONFIDENCE_STYLES.medium;
+  const dueDate = new Date(invoice.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <Sparkles size={12} color={Colors.primary} />
+        <Text style={styles.headerTitle}>Payment Prediction</Text>
+        <Text style={styles.aiTag}>AI-generated</Text>
+      </View>
+
+      <View style={styles.predRow}>
+        <View style={styles.predItem}>
+          <Text style={styles.predLabel}>Due date</Text>
+          <Text style={styles.predValue}>{dueDate}</Text>
+        </View>
+        <View style={styles.predItem}>
+          <Text style={styles.predLabel}>Predicted payment</Text>
+          <Text style={[styles.predValue, { color: Colors.primary }]}>{result.predictedPaymentDate}</Text>
+        </View>
+        <View style={[styles.confBadge, { backgroundColor: conf.bg }]}>
+          <Text style={[styles.confText, { color: conf.color }]}>{conf.label}</Text>
+        </View>
+      </View>
+
+      <Text style={styles.reasoning}>{result.reasoning}</Text>
+
+      {result.tip ? (
+        <View style={styles.tipRow}>
+          <Lightbulb size={12} color={Colors.info} />
+          <Text style={styles.tipText}>{result.tip}</Text>
+        </View>
+      ) : null}
+    </View>
+  );
+});
+
+const styles = StyleSheet.create({
+  container: {
+    backgroundColor: Colors.surface,
+    borderRadius: 14,
+    padding: 14,
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 10,
+  },
+  headerTitle: {
+    fontSize: 13,
+    fontWeight: '700' as const,
+    color: Colors.text,
+    flex: 1,
+  },
+  aiTag: {
+    fontSize: 10,
+    color: Colors.textMuted,
+  },
+  predRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 8,
+  },
+  predItem: {
+    flex: 1,
+  },
+  predLabel: {
+    fontSize: 11,
+    color: Colors.textMuted,
+    fontWeight: '500' as const,
+  },
+  predValue: {
+    fontSize: 14,
+    fontWeight: '700' as const,
+    color: Colors.text,
+  },
+  confBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  confText: {
+    fontSize: 11,
+    fontWeight: '700' as const,
+  },
+  reasoning: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+    lineHeight: 18,
+    marginBottom: 8,
+  },
+  tipRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+    backgroundColor: Colors.infoLight,
+    borderRadius: 8,
+    padding: 10,
+  },
+  tipText: {
+    fontSize: 12,
+    color: Colors.info,
+    flex: 1,
+    lineHeight: 17,
+    fontWeight: '500' as const,
+  },
+  skeleton: {
+    height: 12,
+    backgroundColor: Colors.fillTertiary,
+    borderRadius: 6,
+    marginBottom: 6,
+  },
+  skeletonShort: {
+    width: '60%',
+  },
+});
+
+
+========== FILE: ./components/AIProjectReport.tsx ==========
+import React, { useState, useCallback } from 'react';
+import {
+  View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert,
+  ScrollView, Modal, Platform,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Haptics from 'expo-haptics';
+import { Sparkles, X, CheckCircle2, AlertTriangle, Target, FileText } from 'lucide-react-native';
+import { Colors } from '@/constants/colors';
+import {
+  generateProjectReport, getCachedResult, setCachedResult,
+  type ProjectReportResult,
+} from '@/utils/aiService';
+import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
+import type { Project, Invoice, ChangeOrder } from '@/types';
+import type { SubscriptionTierKey } from '@/utils/aiRateLimiter';
+
+interface Props {
+  project: Project;
+  invoices: Invoice[];
+  changeOrders: ChangeOrder[];
+  subscriptionTier: SubscriptionTierKey;
+}
+
+const TWO_HOURS = 2 * 60 * 60 * 1000;
+
+export default React.memo(function AIProjectReport({ project, invoices, changeOrders, subscriptionTier }: Props) {
+  const insets = useSafeAreaInsets();
+  const [result, setResult] = useState<ProjectReportResult | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+
+  const handleGenerate = useCallback(async () => {
+    if (isLoading) return;
+
+    const cacheKey = `proj_report_${project.id}`;
+    const cached = await getCachedResult<ProjectReportResult>(cacheKey, TWO_HOURS);
+    if (cached) {
+      setResult(cached);
+      setShowModal(true);
+      return;
+    }
+
+    const limit = await checkAILimit(subscriptionTier, 'smart');
+    if (!limit.allowed) {
+      Alert.alert('AI Limit Reached', limit.message ?? 'Try again tomorrow.');
+      return;
+    }
+
+    setIsLoading(true);
+    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      const data = await generateProjectReport(project, invoices, changeOrders);
+      await recordAIUsage('smart');
+      await setCachedResult(cacheKey, data);
+      setResult(data);
+      setShowModal(true);
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (err) {
+      console.log('[AI Report] Generation failed:', err);
+      Alert.alert('AI Error', 'Could not generate report. Try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [isLoading, project, invoices, changeOrders, subscriptionTier]);
+
+  return (
+    <>
+      <TouchableOpacity style={styles.triggerBtn} onPress={handleGenerate} activeOpacity={0.7} disabled={isLoading}>
+        {isLoading ? (
+          <ActivityIndicator size="small" color={Colors.primary} />
+        ) : (
+          <Sparkles size={16} color={Colors.primary} />
+        )}
+        <Text style={styles.triggerText}>{isLoading ? 'Generating Report...' : 'AI Project Report'}</Text>
+      </TouchableOpacity>
+
+      <Modal
+        visible={showModal}
+        animationType="slide"
+        presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : undefined}
+        onRequestClose={() => setShowModal(false)}
+      >
+        <View style={[styles.modalContainer, { paddingTop: Platform.OS === 'ios' ? 12 : insets.top + 8 }]}>
+          <View style={styles.modalHandle} />
+          <View style={styles.modalHeader}>
+            <View style={styles.headerLeft}>
+              <Sparkles size={16} color={Colors.primary} />
+              <Text style={styles.modalTitle}>Project Status Report</Text>
+            </View>
+            <TouchableOpacity onPress={() => setShowModal(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <X size={22} color={Colors.textSecondary} />
+            </TouchableOpacity>
+          </View>
+
+          {result && (
+            <ScrollView style={styles.scroll} contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 30 }]}>
+              <View style={styles.projectBanner}>
+                <Text style={styles.projectName}>{project.name}</Text>
+                <Text style={styles.projectMeta}>{project.type} · {project.location}</Text>
+              </View>
+
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Executive Summary</Text>
+                <Text style={styles.sectionText}>{result.executiveSummary}</Text>
+              </View>
+
+              <View style={styles.twoCol}>
+                <View style={[styles.statusCard, { borderLeftColor: Colors.info }]}>
+                  <FileText size={14} color={Colors.info} />
+                  <Text style={styles.statusLabel}>Schedule Status</Text>
+                  <Text style={styles.statusText}>{result.scheduleStatus}</Text>
+                </View>
+                <View style={[styles.statusCard, { borderLeftColor: Colors.success }]}>
+                  <FileText size={14} color={Colors.success} />
+                  <Text style={styles.statusLabel}>Budget Status</Text>
+                  <Text style={styles.statusText}>{result.budgetStatus}</Text>
+                </View>
+              </View>
+
+              {result.keyAccomplishments.length > 0 && (
+                <View style={styles.section}>
+                  <Text style={styles.sectionTitle}>Key Accomplishments</Text>
+                  {result.keyAccomplishments.map((item, idx) => (
+                    <View key={idx} style={styles.listRow}>
+                      <CheckCircle2 size={13} color={Colors.success} />
+                      <Text style={styles.listText}>{item}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              {result.issuesAndRisks.length > 0 && (
+                <View style={styles.section}>
+                  <Text style={styles.sectionTitle}>Issues & Risks</Text>
+                  {result.issuesAndRisks.map((item, idx) => (
+                    <View key={idx} style={styles.listRow}>
+                      <AlertTriangle size={13} color={Colors.warning} />
+                      <Text style={styles.listText}>{item}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              {result.nextMilestones.length > 0 && (
+                <View style={styles.section}>
+                  <Text style={styles.sectionTitle}>Next Milestones</Text>
+                  {result.nextMilestones.map((item, idx) => (
+                    <View key={idx} style={styles.listRow}>
+                      <Target size={13} color={Colors.primary} />
+                      <Text style={styles.listText}>{item}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              {result.recommendations.length > 0 && (
+                <View style={styles.section}>
+                  <Text style={styles.sectionTitle}>Recommendations</Text>
+                  {result.recommendations.map((item, idx) => (
+                    <View key={idx} style={styles.listRow}>
+                      <Sparkles size={13} color={Colors.primary} />
+                      <Text style={[styles.listText, { color: Colors.primary, fontWeight: '500' as const }]}>{item}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              <Text style={styles.disclaimer}>Generated by MAGE AI · AI-generated</Text>
+            </ScrollView>
+          )}
+        </View>
+      </Modal>
+    </>
+  );
+});
+
+const styles = StyleSheet.create({
+  triggerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: Colors.primary + '10',
+    borderRadius: 12,
+    paddingVertical: 14,
+    borderWidth: 1,
+    borderColor: Colors.primary + '25',
+  },
+  triggerText: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: Colors.primary,
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+  modalHandle: {
+    width: 36,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: Colors.border,
+    alignSelf: 'center',
+    marginBottom: 8,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingBottom: 14,
+    borderBottomWidth: 0.5,
+    borderBottomColor: Colors.borderLight,
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700' as const,
+    color: Colors.text,
+  },
+  scroll: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: 16,
+    gap: 12,
+  },
+  projectBanner: {
+    backgroundColor: Colors.primary + '0A',
+    borderRadius: 12,
+    padding: 16,
+    borderLeftWidth: 4,
+    borderLeftColor: Colors.primary,
+  },
+  projectName: {
+    fontSize: 18,
+    fontWeight: '800' as const,
+    color: Colors.text,
+  },
+  projectMeta: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
+  section: {
+    backgroundColor: Colors.surface,
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 0.5,
+    borderColor: Colors.borderLight,
+    gap: 8,
+  },
+  sectionTitle: {
+    fontSize: 14,
+    fontWeight: '700' as const,
+    color: Colors.text,
+    textTransform: 'uppercase' as const,
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  sectionText: {
+    fontSize: 14,
+    color: Colors.text,
+    lineHeight: 21,
+  },
+  twoCol: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  statusCard: {
+    flex: 1,
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    padding: 14,
+    borderLeftWidth: 3,
+    gap: 4,
+  },
+  statusLabel: {
+    fontSize: 11,
+    color: Colors.textMuted,
+    fontWeight: '600' as const,
+    textTransform: 'uppercase' as const,
+  },
+  statusText: {
+    fontSize: 13,
+    color: Colors.text,
+    lineHeight: 18,
+  },
+  listRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+  },
+  listText: {
+    fontSize: 14,
+    color: Colors.text,
+    lineHeight: 20,
+    flex: 1,
+  },
+  disclaimer: {
+    fontSize: 11,
+    color: Colors.textMuted,
+    textAlign: 'center',
+    marginTop: 8,
+  },
+});
+
+
+========== FILE: ./components/AIQuickEstimate.tsx ==========
+import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import {
+  View, Text, StyleSheet, TouchableOpacity, Modal, TextInput,
+  ScrollView, ActivityIndicator, Animated, Platform, Alert, KeyboardAvoidingView,
+} from 'react-native';
+import * as Haptics from 'expo-haptics';
+import {
+  Sparkles, X, ChevronRight, Wand2, AlertTriangle, Lightbulb,
+  TrendingDown, Clock, MapPin, Ruler, Package, HardHat, Boxes,
+  CheckCircle, DollarSign, Shield, ChevronDown, ChevronUp, Zap,
+} from 'lucide-react-native';
+import { Colors } from '@/constants/colors';
+import { PROJECT_TYPES, type ProjectType, type QualityTier } from '@/types';
+import { generateQuickEstimate, type AIQuickEstimateResult } from '@/utils/aiService';
+import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
+import type { MaterialItem } from '@/constants/materials';
+import { LABOR_RATES, type LaborRate } from '@/constants/laborRates';
+import { ASSEMBLIES, type AssemblyItem } from '@/constants/assemblies';
+
+interface CartItem {
+  material: MaterialItem;
+  quantity: number;
+  markup: number;
+  usesBulk: boolean;
+  priceSource?: 'live' | 'base';
+}
+
+interface LaborCartItem {
+  labor: LaborRate;
+  hours: number;
+  adjustedRate: number;
+}
+
+interface AssemblyCartItem {
+  assembly: AssemblyItem;
+  quantity: number;
+  materialsCost: number;
+  laborCost: number;
+  totalCost: number;
+}
+
+interface Props {
+  visible: boolean;
+  onClose: () => void;
+  onApplyEstimate: (
+    materials: CartItem[],
+    labor: LaborCartItem[],
+    assemblies: AssemblyCartItem[],
+  ) => void;
+  existingMaterials: MaterialItem[];
+  globalMarkup: number;
+  location: string;
+  calculateAssemblyCost: (assembly: AssemblyItem, qty: number) => { materialsCost: number; laborCost: number; totalCost: number };
+}
+
+const QUALITY_TIERS: { id: QualityTier; label: string; desc: string }[] = [
+  { id: 'economy', label: 'Economy', desc: 'Budget-friendly materials' },
+  { id: 'standard', label: 'Standard', desc: 'Mid-range, reliable' },
+  { id: 'premium', label: 'Premium', desc: 'High-end finishes' },
+  { id: 'luxury', label: 'Luxury', desc: 'Top-tier everything' },
+];
+
+const QUICK_PROMPTS = [
+  { label: 'Kitchen Remodel', prompt: 'Complete kitchen remodel with new cabinets, countertops, flooring, lighting, backsplash, and appliance prep', sqft: 150, type: 'remodel' as ProjectType },
+  { label: 'Bathroom Remodel', prompt: 'Full bathroom remodel including new tile, vanity, toilet, shower/tub, plumbing fixtures, and lighting', sqft: 60, type: 'remodel' as ProjectType },
+  { label: 'Basement Finish', prompt: 'Finish unfinished basement with framing, insulation, drywall, flooring, electrical, bathroom, and paint', sqft: 800, type: 'renovation' as ProjectType },
+  { label: 'Deck Build', prompt: 'Build a new composite deck with railing, stairs, and post footings', sqft: 300, type: 'addition' as ProjectType },
+  { label: 'Roof Replacement', prompt: 'Full roof tear-off and replacement with architectural shingles, underlayment, flashing, and ridge vents', sqft: 2000, type: 'roofing' as ProjectType },
+  { label: 'Room Addition', prompt: 'Single room addition including foundation, framing, roofing, insulation, drywall, electrical, HVAC, and finishes', sqft: 200, type: 'addition' as ProjectType },
+  { label: 'Whole House Paint', prompt: 'Interior paint for entire home — walls, ceilings, trim, 2 coats with primer', sqft: 2000, type: 'painting' as ProjectType },
+  { label: 'Fence Install', prompt: 'Install 6ft wood privacy fence around backyard with one gate, posts, and staining', sqft: 0, type: 'landscape' as ProjectType },
+];
+
+export default React.memo(function AIQuickEstimate({
+  visible, onClose, onApplyEstimate, existingMaterials, globalMarkup, location, calculateAssemblyCost,
+}: Props) {
+  const [step, setStep] = useState<'input' | 'loading' | 'result'>('input');
+  const [description, setDescription] = useState('');
+  const [projectType, setProjectType] = useState<ProjectType>('renovation');
+  const [sqft, setSqft] = useState('');
+  const [quality, setQuality] = useState<QualityTier>('standard');
+  const [result, setResult] = useState<AIQuickEstimateResult | null>(null);
+  const [expandedSection, setExpandedSection] = useState<string | null>('materials');
+  const [error, setError] = useState<string | null>(null);
+
+  const pulseAnim = useRef(new Animated.Value(0.4)).current;
+  const progressAnim = useRef(new Animated.Value(0)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (step === 'loading') {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, { toValue: 1, duration: 1000, useNativeDriver: true }),
+          Animated.timing(pulseAnim, { toValue: 0.4, duration: 1000, useNativeDriver: true }),
+        ])
+      ).start();
+      Animated.timing(progressAnim, { toValue: 1, duration: 25000, useNativeDriver: false }).start();
+    } else {
+      pulseAnim.setValue(0.4);
+      progressAnim.setValue(0);
+    }
+  }, [step, pulseAnim, progressAnim]);
+
+  useEffect(() => {
+    if (step === 'result') {
+      Animated.timing(fadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }).start();
+    } else {
+      fadeAnim.setValue(0);
+    }
+  }, [step, fadeAnim]);
+
+  const handleReset = useCallback(() => {
+    setStep('input');
+    setResult(null);
+    setError(null);
+    setExpandedSection('materials');
+    setDescription('');
+    setSqft('');
+    setProjectType('renovation');
+    setQuality('standard');
+  }, []);
+
+  const handleClose = useCallback(() => {
+    handleReset();
+    onClose();
+  }, [handleReset, onClose]);
+
+  const handleQuickPrompt = useCallback((prompt: typeof QUICK_PROMPTS[0]) => {
+    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setDescription(prompt.prompt);
+    setSqft(prompt.sqft > 0 ? String(prompt.sqft) : '');
+    setProjectType(prompt.type);
+  }, []);
+
+  const handleGenerate = useCallback(async () => {
+    if (!description.trim()) {
+      Alert.alert('Describe Your Project', 'Tell us what you\'re building so AI can generate an accurate estimate.');
+      return;
+    }
+
+    const limit = await checkAILimit('free', 'smart');
+    if (!limit.allowed) {
+      Alert.alert('AI Limit Reached', limit.message ?? 'Rate limit reached.');
+      return;
+    }
+
+    setStep('loading');
+    setError(null);
+    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    try {
+      const data = await generateQuickEstimate(
+        description,
+        projectType,
+        parseInt(sqft, 10) || 0,
+        quality,
+        location,
+      );
+      await recordAIUsage('smart');
+      setResult(data);
+      setStep('result');
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      console.log('[AI Quick Estimate] Success:', data.materials.length, 'materials');
+    } catch (err) {
+      console.error('[AI Quick Estimate] Error:', err);
+      setError('Failed to generate estimate. Please try again.');
+      setStep('input');
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    }
+  }, [description, projectType, sqft, quality, location]);
+
+  const matchMaterial = useCallback((aiMat: { name: string; category: string; unit: string; unitPrice: number; supplier: string }) => {
+    const nameLower = aiMat.name.toLowerCase();
+    const catLower = aiMat.category.toLowerCase().replace(/[^a-z]/g, '');
+
+    const exact = existingMaterials.find(m =>
+      m.name.toLowerCase().includes(nameLower.split(' ').slice(0, 3).join(' ')) ||
+      nameLower.includes(m.name.toLowerCase().split(' ').slice(0, 3).join(' '))
+    );
+    if (exact) return exact;
+
+    const catMatch = existingMaterials.find(m =>
+      m.category === catLower && m.name.toLowerCase().includes(nameLower.split(' ')[0])
+    );
+    if (catMatch) return catMatch;
+
+    return null;
+  }, [existingMaterials]);
+
+  const handleApply = useCallback(() => {
+    if (!result) return;
+    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+
+    const materialItems: CartItem[] = result.materials.map(aiMat => {
+      const matched = matchMaterial(aiMat);
+      const material: MaterialItem = matched ?? {
+        id: `aiqe-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        name: aiMat.name,
+        category: aiMat.category.toLowerCase().replace(/[^a-z]/g, '') || 'hardware',
+        unit: aiMat.unit,
+        baseRetailPrice: aiMat.unitPrice,
+        baseBulkPrice: aiMat.unitPrice * 0.85,
+        bulkMinQty: 10,
+        supplier: aiMat.supplier || 'AI Estimated',
+        pricingModel: 'market',
+        sourceLabel: matched ? 'Matched' : 'AI Generated',
+      };
+
+      return {
+        material,
+        quantity: Math.max(1, Math.round(aiMat.quantity)),
+        markup: globalMarkup,
+        usesBulk: aiMat.quantity >= material.bulkMinQty,
+      };
+    });
+
+    const laborItems: LaborCartItem[] = result.labor.map(aiLab => {
+      const matched = LABOR_RATES.find(r =>
+        r.trade.toLowerCase().includes(aiLab.trade.toLowerCase().split(' ')[0]) ||
+        aiLab.trade.toLowerCase().includes(r.trade.toLowerCase().split(' ')[0])
+      );
+
+      return {
+        labor: matched ?? {
+          id: `aiqe-lab-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
+          trade: aiLab.trade,
+          category: 'general',
+          hourlyRate: aiLab.hourlyRate,
+          rateRange: { low: aiLab.hourlyRate * 0.8, high: aiLab.hourlyRate * 1.3 },
+          unit: 'per hour',
+          dailyOutput: 'AI estimated',
+          crew: aiLab.crew || '1 Worker',
+          wageType: 'open_shop' as const,
+        },
+        hours: Math.max(1, Math.round(aiLab.hours)),
+        adjustedRate: matched?.hourlyRate ?? aiLab.hourlyRate,
+      };
+    });
+
+    const assemblyItems: AssemblyCartItem[] = result.assemblies
+      .map(aiAsm => {
+        const matched = ASSEMBLIES.find(a =>
+          a.name.toLowerCase().includes(aiAsm.name.toLowerCase().split('(')[0].trim().split(' ').slice(0, 3).join(' ')) ||
+          aiAsm.name.toLowerCase().includes(a.name.toLowerCase().split('(')[0].trim().split(' ').slice(0, 3).join(' '))
+        );
+        if (!matched) return null;
+        const costs = calculateAssemblyCost(matched, Math.max(1, Math.round(aiAsm.quantity)));
+        return {
+          assembly: matched,
+          quantity: Math.max(1, Math.round(aiAsm.quantity)),

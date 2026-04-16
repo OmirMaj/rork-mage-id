@@ -1,0 +1,1470 @@
+=== SECTION 1: Config + Types + Constants ===
+
+--- FILE: app.json ---
+{
+  "expo": {
+    "name": "MAGE ID",
+    "slug": "construction-cost-estimator-3g637fu",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "rork-app",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/images/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "app.rork.construction-cost-estimator-3g637fu"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "package": "app.rork.construction_cost_estimator_3g637fu"
+    },
+    "web": {
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-router",
+        {
+          "origin": "https://rork.com/"
+        }
+      ],
+      "expo-font",
+      "expo-web-browser",
+      "expo-mail-composer"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
+
+--- FILE: package.json ---
+{
+  "name": "expo-app",
+  "main": "expo-router/entry",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "bunx rork start -p 3lwkqnydboi5oec35hm3z --tunnel",
+    "start-web": "bunx rork start -p 3lwkqnydboi5oec35hm3z --web --tunnel",
+    "start-web-dev": "DEBUG=expo* bunx rork start -p 3lwkqnydboi5oec35hm3z --web --tunnel",
+    "lint": "expo lint"
+  },
+  "dependencies": {
+    "@expo/vector-icons": "^15.0.3",
+    "@hono/trpc-server": "^0.4.2",
+    "@nkzw/create-context-hook": "^1.1.0",
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "@rork-ai/toolkit-sdk": "^0.2.51",
+    "@stardazed/streams-text-encoding": "^1.0.2",
+    "@supabase/supabase-js": "^2.100.0",
+    "@tanstack/react-query": "^5.83.0",
+    "@trpc/client": "^11.12.0",
+    "@trpc/react-query": "^11.12.0",
+    "@trpc/server": "^11.12.0",
+    "@ungap/structured-clone": "^1.3.0",
+    "expo": "~54.0.27",
+    "expo-auth-session": "~7.0.10",
+    "expo-blur": "~15.0.8",
+    "expo-constants": "~18.0.11",
+    "expo-crypto": "~15.0.8",
+    "expo-file-system": "~19.0.8",
+    "expo-font": "~14.0.10",
+    "expo-haptics": "~15.0.8",
+    "expo-image": "~3.0.11",
+    "expo-image-picker": "~17.0.9",
+    "expo-linear-gradient": "~15.0.8",
+    "expo-linking": "~8.0.10",
+    "expo-local-authentication": "^55.0.8",
+    "expo-location": "~19.0.8",
+    "expo-mail-composer": "~15.0.8",
+    "expo-notifications": "^55.0.13",
+    "expo-print": "^55.0.8",
+    "expo-router": "~6.0.17",
+    "expo-secure-store": "^55.0.8",
+    "expo-sharing": "~14.0.8",
+    "expo-splash-screen": "~31.0.12",
+    "expo-status-bar": "~3.0.9",
+    "expo-symbols": "~1.0.8",
+    "expo-system-ui": "~6.0.9",
+    "expo-web-browser": "~15.0.10",
+    "hono": "^4.12.7",
+    "lucide-react-native": "^0.475.0",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "react-native": "0.81.5",
+    "react-native-gesture-handler": "~2.28.0",
+    "react-native-purchases": "^9.14.0",
+    "react-native-safe-area-context": "~5.6.0",
+    "react-native-screens": "~4.16.0",
+    "react-native-svg": "15.12.1",
+    "react-native-web": "^0.21.0",
+    "react-native-worklets": "0.5.1",
+    "superjson": "^2.2.6",
+    "zod": "^4.3.6",
+    "zustand": "^5.0.2"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.25.2",
+    "@expo/ngrok": "^4.1.0",
+    "@types/react": "~19.1.10",
+    "eslint": "^9.31.0",
+    "eslint-config-expo": "~10.0.0",
+    "typescript": "~5.9.2"
+  },
+  "private": true
+}
+--- FILE: tsconfig.json ---
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "paths": {
+      "@/*": [
+        "./*"
+      ]
+    }
+  },
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    ".expo/types/**/*.ts",
+    "expo-env.d.ts"
+  ]
+}
+--- FILE: babel.config.js ---
+module.exports = function (api) {
+  api.cache(true);
+  return {
+    presets: [["babel-preset-expo", { unstable_transformImportMeta: true }]],
+  };
+};
+
+--- FILE: metro.config.js ---
+const { getDefaultConfig } = require("expo/metro-config");
+const { withRorkMetro } = require("@rork-ai/toolkit-sdk/metro");
+
+const config = getDefaultConfig(__dirname);
+
+module.exports = withRorkMetro(config);
+
+--- FILE: lib/supabase.ts ---
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
+
+const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://nteoqhcswappxxjlpvap.supabase.co';
+const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im50ZW9xaGNzd2FwcHh4amxwdmFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzMTU0MDMsImV4cCI6MjA4OTg5MTQwM30.xpz7yWhignppH-3dYD-EV4AvB4cugr7-881GKdOFado';
+
+console.log('[Supabase] URL configured:', supabaseUrl.substring(0, 30) + '...');
+console.log('[Supabase] Key configured:', supabaseAnonKey.substring(0, 20) + '...');
+
+export const isSupabaseConfigured = supabaseUrl.length > 0 && supabaseAnonKey.length > 0;
+
+let _supabase: SupabaseClient | null = null;
+
+if (isSupabaseConfigured) {
+  _supabase = createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      storage: AsyncStorage,
+      autoRefreshToken: true,
+      persistSession: true,
+      detectSessionInUrl: Platform.OS === 'web',
+    },
+  });
+  console.log('[Supabase] Client initialized successfully.');
+} else {
+  console.error('[Supabase] CRITICAL: EXPO_PUBLIC_SUPABASE_URL or EXPO_PUBLIC_SUPABASE_ANON_KEY is missing. Supabase features will NOT work.');
+}
+
+export function supabaseGuard(): SupabaseClient {
+  if (!isSupabaseConfigured || !_supabase) {
+    throw new Error('Supabase is not configured. Set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY environment variables.');
+  }
+  return _supabase;
+}
+
+export const supabase: SupabaseClient = isSupabaseConfigured
+  ? _supabase!
+  : new Proxy({} as SupabaseClient, {
+      get(_target, prop) {
+        if (prop === 'auth') {
+          return new Proxy({} as SupabaseClient['auth'], {
+            get(_t, authProp) {
+              if (authProp === 'onAuthStateChange') {
+                return (_cb: unknown) => ({ data: { subscription: { unsubscribe: () => {} } } });
+              }
+              if (authProp === 'getSession') {
+                return async () => ({ data: { session: null }, error: null });
+              }
+              return async () => ({ data: null, error: new Error('Supabase not configured') });
+            },
+          });
+        }
+        if (prop === 'from') {
+          return () => new Proxy({} as Record<string, unknown>, {
+            get() {
+              return () => new Proxy({} as Record<string, unknown>, {
+                get() {
+                  return async () => ({ data: null, error: { message: 'Supabase not configured' } });
+                },
+              });
+            },
+          });
+        }
+        if (prop === 'channel') {
+          return () => ({
+            on: function () { return this; },
+            subscribe: () => 'closed',
+          });
+        }
+        if (prop === 'removeChannel') {
+          return async () => {};
+        }
+        return undefined;
+      },
+    });
+
+--- FILE: types/index.ts ---
+export type ProjectType = 
+  | 'new_build'
+  | 'renovation'
+  | 'addition'
+  | 'remodel'
+  | 'commercial'
+  | 'landscape'
+  | 'roofing'
+  | 'flooring'
+  | 'painting'
+  | 'plumbing'
+  | 'electrical'
+  | 'concrete';
+
+export interface ProjectTypeInfo {
+  id: ProjectType;
+  label: string;
+  icon: string;
+  description: string;
+}
+
+export const PROJECT_TYPES: ProjectTypeInfo[] = [
+  { id: 'new_build', label: 'New Build', icon: 'Building2', description: 'Ground-up construction' },
+  { id: 'renovation', label: 'Renovation', icon: 'Hammer', description: 'Update existing structure' },
+  { id: 'addition', label: 'Addition', icon: 'Plus', description: 'Expand existing building' },
+  { id: 'remodel', label: 'Remodel', icon: 'PenLine', description: 'Redesign interior spaces' },
+  { id: 'commercial', label: 'Commercial', icon: 'Store', description: 'Business & retail spaces' },
+  { id: 'landscape', label: 'Landscaping', icon: 'Trees', description: 'Outdoor & yard work' },
+  { id: 'roofing', label: 'Roofing', icon: 'Home', description: 'Roof repair or replace' },
+  { id: 'flooring', label: 'Flooring', icon: 'LayoutGrid', description: 'Floor installation' },
+  { id: 'painting', label: 'Painting', icon: 'Paintbrush', description: 'Interior & exterior' },
+  { id: 'plumbing', label: 'Plumbing', icon: 'Droplets', description: 'Pipes & fixtures' },
+  { id: 'electrical', label: 'Electrical', icon: 'Zap', description: 'Wiring & panels' },
+  { id: 'concrete', label: 'Concrete', icon: 'Boxes', description: 'Foundation & flatwork' },
+];
+
+export type QualityTier = 'economy' | 'standard' | 'premium' | 'luxury';
+
+export interface MaterialLineItem {
+  name: string;
+  category: string;
+  unit: string;
+  quantity: number;
+  unitPrice: number;
+  bulkPrice: number;
+  bulkThreshold: number;
+  totalPrice: number;
+  savings: number;
+}
+
+export interface LaborLineItem {
+  role: string;
+  hourlyRate: number;
+  hours: number;
+  totalCost: number;
+}
+
+export interface EstimateBreakdown {
+  materials: MaterialLineItem[];
+  labor: LaborLineItem[];
+  permits: number;
+  overhead: number;
+  contingency: number;
+  materialTotal: number;
+  laborTotal: number;
+  bulkSavingsTotal: number;
+  subtotal: number;
+  tax: number;
+  grandTotal: number;
+  pricePerSqFt: number;
+  estimatedDuration: string;
+  notes: string[];
+}
+
+export interface ProjectCollaborator {
+  id: string;
+  email: string;
+  name: string;
+  role: 'owner' | 'editor' | 'viewer';
+  status: 'pending' | 'accepted';
+  invitedAt: string;
+}
+
+export interface Project {
+  id: string;
+  name: string;
+  type: ProjectType;
+  location: string;
+  squareFootage: number;
+  quality: QualityTier;
+  description: string;
+  createdAt: string;
+  updatedAt: string;
+  estimate: EstimateBreakdown | null;
+  schedule?: ProjectSchedule | null;
+  linkedEstimate?: LinkedEstimate | null;
+  status: 'draft' | 'estimated' | 'in_progress' | 'completed' | 'closed';
+  collaborators?: ProjectCollaborator[];
+  clientPortal?: ClientPortalSettings;
+  closedAt?: string;
+  photoCount?: number;
+}
+
+export interface MaterialCategory {
+  id: string;
+  name: string;
+  icon: string;
+  items: MaterialPriceInfo[];
+}
+
+export interface MaterialPriceInfo {
+  name: string;
+  unit: string;
+  retailPrice: number;
+  bulkPrice: number;
+  bulkMinQty: number;
+  supplier: string;
+  lastUpdated: string;
+}
+
+export type DependencyType = 'FS' | 'SS' | 'FF' | 'SF';
+
+export interface DependencyLink {
+  taskId: string;
+  type?: DependencyType;
+  lagDays: number;
+}
+
+export type TaskStatus = 'not_started' | 'in_progress' | 'on_hold' | 'done';
+
+export interface ScheduleTask {
+  id: string;
+  title: string;
+  phase: string;
+  durationDays: number;
+  startDay: number;
+  progress: number;
+  crew: string;
+  crewSize?: number;
+  dependencies: string[];
+  dependencyLinks?: DependencyLink[];
+  notes: string;
+  status: TaskStatus;
+  isMilestone?: boolean;
+  wbsCode?: string;
+  isCriticalPath?: boolean;
+  isWeatherSensitive?: boolean;
+  baselineStartDay?: number;
+  baselineEndDay?: number;
+  linkedEstimateItems?: string[];
+  photos?: Array<{
+    uri: string;
+    timestamp: string;
+    note?: string;
+  }>;
+}
+
+export interface ScheduleRiskItem {
+  id: string;
+  title: string;
+  detail: string;
+  severity: 'low' | 'medium' | 'high';
+}
+
+export interface ScheduleBaseline {
+  savedAt: string;
+  tasks: { id: string; startDay: number; endDay: number }[];
+}
+
+export interface WeatherAlert {
+  id: string;
+  taskId: string;
+  taskName: string;
+  date: string;
+  condition: string;
+  dismissed: boolean;
+}
+
+export interface ProjectSchedule {
+  id: string;
+  name: string;
+  projectId: string | null;
+  workingDaysPerWeek: number;
+  bufferDays: number;
+  tasks: ScheduleTask[];
+  totalDurationDays: number;
+  criticalPathDays: number;
+  laborAlignmentScore: number;
+  healthScore?: number;
+  riskItems: ScheduleRiskItem[];
+  baseline?: ScheduleBaseline | null;
+  weatherAlerts?: WeatherAlert[];
+  updatedAt: string;
+}
+
+export interface CompanyBranding {
+  companyName: string;
+  contactName: string;
+  email: string;
+  phone: string;
+  address: string;
+  licenseNumber: string;
+  tagline: string;
+  logoUri?: string;
+  signatureData?: string[];
+}
+
+export interface Supplier {
+  id: string;
+  companyName: string;
+  contactName: string;
+  email: string;
+  phone: string;
+  address: string;
+  website: string;
+  description: string;
+  logoUri?: string;
+  categories: string[];
+  rating: number;
+  deliveryOptions: string[];
+  minOrderAmount: number;
+  registeredAt: string;
+  featured?: boolean;
+}
+
+export interface SupplierListing {
+  id: string;
+  supplierId: string;
+  materialId?: string;
+  name: string;
+  description: string;
+  category: string;
+  unit: string;
+  price: number;
+  bulkPrice: number;
+  bulkMinQty: number;
+  inStock: boolean;
+  leadTimeDays: number;
+  imageUrl?: string;
+}
+
+export interface ThemeColors {
+  primary: string;
+  accent: string;
+}
+
+export const THEME_PRESETS: { id: string; label: string; primary: string; accent: string }[] = [
+  { id: 'forest', label: 'Forest Green', primary: '#1A6B3C', accent: '#FF9500' },
+  { id: 'ocean', label: 'Ocean Blue', primary: '#0A5EB0', accent: '#FF6B35' },
+  { id: 'slate', label: 'Slate', primary: '#3D4F5F', accent: '#E8A838' },
+  { id: 'charcoal', label: 'Charcoal', primary: '#2C2C2E', accent: '#FF453A' },
+  { id: 'terracotta', label: 'Terracotta', primary: '#B5562A', accent: '#2D8A4E' },
+  { id: 'navy', label: 'Navy', primary: '#1B3A5C', accent: '#F5A623' },
+  { id: 'burgundy', label: 'Burgundy', primary: '#722F37', accent: '#D4A574' },
+  { id: 'teal', label: 'Teal', primary: '#1A7A6D', accent: '#FF8C42' },
+];
+
+export interface PDFNamingSettings {
+  enabled: boolean;
+  prefix: string;
+  includeProjectName: boolean;
+  includeDocType: boolean;
+  includeDate: boolean;
+  separator: '-' | '_' | ' ';
+  nextNumber: number;
+}
+
+export interface AppSettings {
+  location: string;
+  units: 'imperial' | 'metric';
+  taxRate: number;
+  contingencyRate: number;
+  branding: CompanyBranding;
+  supplierProfile?: Supplier;
+  themeColors?: ThemeColors;
+  biometricsEnabled?: boolean;
+  subscription?: SubscriptionInfo;
+  dfrRecipients?: string[];
+  pdfNaming?: PDFNamingSettings;
+}
+
+export interface LinkedEstimate {
+  id: string;
+  items: LinkedEstimateItem[];
+  globalMarkup: number;
+  baseTotal: number;
+  markupTotal: number;
+  grandTotal: number;
+  createdAt: string;
+}
+
+export interface LinkedEstimateItem {
+  materialId: string;
+  name: string;
+  category: string;
+  unit: string;
+  quantity: number;
+  unitPrice: number;
+  bulkPrice: number;
+  markup: number;
+  usesBulk: boolean;
+  lineTotal: number;
+  supplier: string;
+}
+
+export interface ChangeOrderLineItem {
+  id: string;
+  name: string;
+  description: string;
+  quantity: number;
+  unit: string;
+  unitPrice: number;
+  total: number;
+  isNew: boolean;
+}
+
+export type ChangeOrderStatus = 'draft' | 'submitted' | 'under_review' | 'approved' | 'rejected' | 'revised' | 'void';
+
+export type ApproverRole = 'Client' | 'Architect' | 'Owner\'s Rep' | 'Lender' | 'Other';
+
+export interface COApprover {
+  id: string;
+  name: string;
+  email: string;
+  role: ApproverRole;
+  required: boolean;
+  order: number;
+  status: 'pending' | 'approved' | 'rejected' | 'changes_requested';
+  responseDate?: string;
+  rejectionReason?: string;
+  counterAmount?: number;
+}
+
+export interface COAuditEntry {
+  id: string;
+  action: string;
+  actor: string;
+  timestamp: string;
+  detail?: string;
+}
+
+export interface ChangeOrder {
+  id: string;
+  number: number;
+  projectId: string;
+  date: string;
+  description: string;
+  reason: string;
+  lineItems: ChangeOrderLineItem[];
+  originalContractValue: number;
+  changeAmount: number;
+  newContractTotal: number;
+  status: ChangeOrderStatus;
+  approvers?: COApprover[];
+  approvalMode?: 'sequential' | 'parallel';
+  approvalDeadlineDays?: number;
+  auditTrail?: COAuditEntry[];
+  revision?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface InvoiceLineItem {
+  id: string;
+  name: string;
+  description: string;
+  quantity: number;
+  unit: string;
+  unitPrice: number;
+  total: number;
+}
+
+export type InvoiceStatus = 'draft' | 'sent' | 'partially_paid' | 'paid' | 'overdue';
+export type PaymentTerms = 'net_15' | 'net_30' | 'net_45' | 'due_on_receipt';
+export type PaymentMethod = 'check' | 'ach' | 'credit_card' | 'cash';
+
+export interface InvoicePayment {
+  id: string;
+  date: string;
+  amount: number;
+  method: PaymentMethod;
+}
+
+export interface Invoice {
+  id: string;
+  number: number;
+  projectId: string;
+  type: 'full' | 'progress';
+  progressPercent?: number;
+  issueDate: string;
+  dueDate: string;
+  paymentTerms: PaymentTerms;
+  notes: string;
+  lineItems: InvoiceLineItem[];
+  subtotal: number;
+  taxRate: number;
+  taxAmount: number;
+  totalDue: number;
+  amountPaid: number;
+  status: InvoiceStatus;
+  payments: InvoicePayment[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ManpowerEntry {
+  id: string;
+  trade: string;
+  company: string;
+  headcount: number;
+  hoursWorked: number;
+}
+
+export interface DFRWeather {
+  temperature: string;
+  conditions: string;
+  wind: string;
+  isManual: boolean;
+}
+
+export interface DFRPhoto {
+  id: string;
+  uri: string;
+  timestamp: string;
+}
+
+export type DFRStatus = 'draft' | 'sent';
+
+export interface DailyFieldReport {
+  id: string;
+  projectId: string;
+  date: string;
+  weather: DFRWeather;
+  manpower: ManpowerEntry[];
+  workPerformed: string;
+  materialsDelivered: string[];
+  issuesAndDelays: string;
+  photos: DFRPhoto[];
+  status: DFRStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type SubTrade =
+  | 'General'
+  | 'Framing'
+  | 'Electrical'
+  | 'Plumbing'
+  | 'HVAC'
+  | 'Roofing'
+  | 'Concrete'
+  | 'Drywall'
+  | 'Painting'
+  | 'Flooring'
+  | 'Landscaping'
+  | 'Other';
+
+export const SUB_TRADES: SubTrade[] = [
+  'General', 'Framing', 'Electrical', 'Plumbing', 'HVAC', 'Roofing',
+  'Concrete', 'Drywall', 'Painting', 'Flooring', 'Landscaping', 'Other',
+];
+
+export type ComplianceStatus = 'compliant' | 'expiring_soon' | 'expired';
+
+export interface SubBidRecord {
+  id: string;
+  projectId: string;
+  projectName: string;
+  bidAmount: number;
+  outcome: 'won' | 'lost' | 'pending';
+  date: string;
+}
+
+export interface Subcontractor {
+  id: string;
+  companyName: string;
+  contactName: string;
+  phone: string;
+  email: string;
+  address: string;
+  trade: SubTrade;
+  licenseNumber: string;
+  licenseExpiry: string;
+  coiExpiry: string;
+  w9OnFile: boolean;
+  bidHistory: SubBidRecord[];
+  assignedProjects: string[];
+  notes: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type PunchItemStatus = 'open' | 'in_progress' | 'ready_for_review' | 'closed';
+export type PunchItemPriority = 'low' | 'medium' | 'high';
+
+export interface PunchItem {
+  id: string;
+  projectId: string;
+  description: string;
+  location: string;
+  assignedSub: string;
+  assignedSubId?: string;
+  dueDate: string;
+  priority: PunchItemPriority;
+  status: PunchItemStatus;
+  photoUri?: string;
+  rejectionNote?: string;
+  closedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProjectPhoto {
+  id: string;
+  projectId: string;
+  uri: string;
+  timestamp: string;
+  location?: string;
+  tag?: string;
+  linkedTaskId?: string;
+  linkedTaskName?: string;
+  markup?: PhotoMarkup[];
+  createdAt: string;
+}
+
+export interface PhotoMarkup {
+  id: string;
+  type: 'arrow' | 'rectangle' | 'circle' | 'freehand' | 'text';
+  color: 'red' | 'yellow' | 'green';
+  points: { x: number; y: number }[];
+  text?: string;
+}
+
+export type AlertDirection = 'below' | 'above';
+
+export interface PriceAlert {
+  id: string;
+  materialId: string;
+  materialName: string;
+  targetPrice: number;
+  direction: AlertDirection;
+  currentPrice: number;
+  isTriggered: boolean;
+  isPaused: boolean;
+  createdAt: string;
+}
+
+export type SubscriptionTier = 'free' | 'pro' | 'business';
+
+export interface SubscriptionInfo {
+  tier: SubscriptionTier;
+  startDate?: string;
+  endDate?: string;
+}
+
+export interface ClientPortalSettings {
+  enabled: boolean;
+  portalId: string;
+  showSchedule: boolean;
+  showChangeOrders: boolean;
+  showInvoices: boolean;
+  showPhotos: boolean;
+}
+
+export type ContactRole = 'Client' | 'Architect' | 'Owner\'s Rep' | 'Engineer' | 'Sub' | 'Supplier' | 'Lender' | 'Inspector' | 'Other';
+
+export interface Contact {
+  id: string;
+  firstName: string;
+  lastName: string;
+  companyName: string;
+  role: ContactRole;
+  email: string;
+  secondaryEmail?: string;
+  phone: string;
+  address: string;
+  notes: string;
+  linkedProjectIds: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type CommEventType = 'document_sent' | 'co_submitted' | 'co_approved' | 'co_rejected' | 'invoice_sent' | 'invoice_paid' | 'invoice_overdue' | 'daily_report_sent' | 'collaborator_added' | 'internal_note' | 'client_message';
+
+export type RFIStatus = 'open' | 'answered' | 'closed' | 'void';
+export type RFIPriority = 'low' | 'normal' | 'urgent';
+
+export interface RFI {
+  id: string;
+  projectId: string;
+  number: number;
+  subject: string;
+  question: string;
+  submittedBy: string;
+  assignedTo: string;
+  dateSubmitted: string;
+  dateRequired: string;
+  dateResponded?: string;
+  response?: string;
+  status: RFIStatus;
+  priority: RFIPriority;
+  linkedDrawing?: string;
+  linkedTaskId?: string;
+  attachments: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type SubmittalStatus = 'pending' | 'in_review' | 'approved' | 'approved_as_noted' | 'revise_resubmit' | 'rejected';
+
+export interface SubmittalReviewCycle {
+  cycleNumber: number;
+  sentDate: string;
+  returnDate?: string;
+  reviewer: string;
+  status: SubmittalStatus;
+  comments?: string;
+}
+
+export interface Submittal {
+  id: string;
+  projectId: string;
+  number: number;
+  title: string;
+  specSection: string;
+  submittedBy: string;
+  submittedDate: string;
+  requiredDate: string;
+  reviewCycles: SubmittalReviewCycle[];
+  currentStatus: SubmittalStatus;
+  attachments: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface EarnedValueMetrics {
+  budgetAtCompletion: number;
+  plannedValue: number;
+  earnedValue: number;
+  actualCost: number;
+  scheduleVariance: number;
+  costVariance: number;
+  schedulePerformanceIndex: number;
+  costPerformanceIndex: number;
+  estimateAtCompletion: number;
+  estimateToComplete: number;
+  varianceAtCompletion: number;
+  percentComplete: number;
+  calculatedAt: string;
+}
+
+export interface CashFlowDataPoint {
+  period: string;
+  plannedCumulative: number;
+  actualCumulative: number;
+  forecastCumulative: number;
+}
+
+export type EquipmentCategory = 'excavation' | 'lifting' | 'compaction' | 'concrete' | 'aerial' | 'transport' | 'power' | 'other';
+
+export interface MaintenanceItem {
+  id: string;
+  description: string;
+  intervalDays: number;
+  lastPerformed?: string;
+  nextDue: string;
+  isOverdue: boolean;
+}
+
+export interface EquipmentUtilizationEntry {
+  id: string;
+  equipmentId: string;
+  projectId: string;
+  date: string;
+  hoursUsed: number;
+  operatorName?: string;
+  notes?: string;
+}
+
+export interface Equipment {
+  id: string;
+  name: string;
+  type: 'owned' | 'rented';
+  category: EquipmentCategory;
+  make: string;
+  model: string;
+  year?: number;
+  serialNumber?: string;
+  dailyRate: number;
+  currentProjectId?: string;
+  maintenanceSchedule: MaintenanceItem[];
+  utilizationLog: EquipmentUtilizationEntry[];
+  status: 'available' | 'in_use' | 'maintenance' | 'retired';
+  notes?: string;
+  createdAt: string;
+}
+
+export interface CommunicationEvent {
+  id: string;
+  projectId: string;
+  type: CommEventType;
+  summary: string;
+  actor: string;
+  recipient?: string;
+  detail?: string;
+  isPrivate: boolean;
+  timestamp: string;
+}
+
+export const EQUIPMENT_CATEGORIES: { id: EquipmentCategory; label: string }[] = [
+  { id: 'excavation', label: 'Excavation' },
+  { id: 'lifting', label: 'Lifting' },
+  { id: 'compaction', label: 'Compaction' },
+  { id: 'concrete', label: 'Concrete' },
+  { id: 'aerial', label: 'Aerial' },
+  { id: 'transport', label: 'Transport' },
+  { id: 'power', label: 'Power' },
+  { id: 'other', label: 'Other' },
+];
+
+export type CertificationType =
+  | 'MWBE' | 'MBE' | 'WBE' | 'DBE' | 'SBE' | 'SDVOB' | 'SECTION_3'
+  | 'SBA_8A' | 'HUBZONE' | 'SDVOSB' | 'WOSB' | 'EDWOSB' | 'LBE' | 'EBE'
+  | 'NYS_CERTIFIED_MBE' | 'NYS_CERTIFIED_WBE' | 'NYS_CERTIFIED_SDVOB'
+  | 'NYC_MBE' | 'NYC_WBE' | 'NYC_EBE' | 'NYC_LBE'
+  | 'NYSSD' | 'PANYNJ_MBE' | 'PANYNJ_WBE' | 'SBA_WOSB' | 'SBA_EDWOSB';
+
+export interface CertificationInfo {
+  id: CertificationType;
+  label: string;
+  shortLabel: string;
+  description: string;
+  source: string;
+}
+
+export type BidType = 'federal' | 'state' | 'municipal' | 'county' | 'private';
+export type BidCategory = 'construction' | 'it_services' | 'environmental' | 'energy' | 'infrastructure' | 'transportation' | 'utilities' | 'healthcare' | 'education' | 'residential';
+export type BidStatus = 'open' | 'closed';
+
+export interface PublicBid {
+  id: string;
+  title: string;
+  issuingAgency: string;
+  city: string;
+  state: string;
+  category: BidCategory;
+  bidType: BidType;
+  estimatedValue: number;
+  bondRequired: number;
+  deadline: string;
+  description: string;
+  postedBy: string;
+  postedDate: string;
+  status: BidStatus;
+  requiredCertifications: CertificationType[];
+  contactEmail: string;
+  applyUrl?: string;
+  sourceUrl?: string;
+  sourceName?: string;
+}
+
+export interface CompanyProfile {
+  id: string;
+  companyName: string;
+  city: string;
+  state: string;
+  primaryCategory: BidCategory;
+  bondCapacity: number;
+  completedProjects: number;
+  rating: number;
+  contactEmail: string;
+  phone: string;
+  description: string;
+  certifications: CertificationType[];
+  website?: string;
+  yearEstablished?: number;
+  employeeCount?: number;
+  createdAt: string;
+}
+
+export type TradeCategory =
+  | 'general_laborer' | 'carpenter' | 'electrician' | 'plumber' | 'hvac_tech'
+  | 'welder' | 'iron_worker' | 'mason' | 'painter' | 'roofer'
+  | 'heavy_equipment_op' | 'concrete_worker' | 'demolition' | 'drywall'
+  | 'flooring' | 'glazier' | 'sheet_metal' | 'pipefitter' | 'sprinkler_fitter'
+  | 'fire_protection' | 'civil_engineer' | 'structural_engineer'
+  | 'mechanical_engineer' | 'electrical_engineer' | 'project_manager'
+  | 'site_superintendent' | 'safety_manager' | 'estimator' | 'surveyor'
+  | 'inspector' | 'architect';
+
+export type JobType = 'full_time' | 'part_time' | 'contract' | 'per_diem';
+export type ExperienceLevel = 'entry' | 'mid' | 'senior' | 'expert';
+export type AvailabilityStatus = 'available' | 'employed' | 'open_to_offers';
+
+export interface JobListing {
+  id: string;
+  companyId: string;
+  companyName: string;
+  title: string;
+  tradeCategory: TradeCategory;
+  city: string;
+  state: string;
+  payMin: number;
+  payMax: number;
+  payType: 'hourly' | 'salary';
+  jobType: JobType;
+  requiredLicenses: string[];
+  experienceLevel: ExperienceLevel;
+  description: string;
+  startDate: string;
+  postedDate: string;
+  status: 'open' | 'closed' | 'filled';
+  applicantCount: number;
+}
+
+export interface WorkerProfile {
+  id: string;
+  name: string;
+  tradeCategory: TradeCategory;
+  yearsExperience: number;
+  licenses: string[];
+  city: string;
+  state: string;
+  availability: AvailabilityStatus;
+  hourlyRate: number;
+  bio: string;
+  pastProjects: string[];
+  contactEmail: string;
+  phone: string;
+  createdAt: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  conversationId: string;
+  senderId: string;
+  senderName: string;
+  text: string;
+  timestamp: string;
+}
+
+export interface Conversation {
+  id: string;
+  participantIds: string[];
+  participantNames: string[];
+  lastMessage: string;
+  lastMessageTime: string;
+  unreadCount: number;
+}
+
+export type PricingRegion =
+  | 'northeast' | 'southeast' | 'midwest' | 'southwest' | 'west_coast'
+  | 'mountain' | 'pacific_nw' | 'great_plains' | 'mid_atlantic' | 'new_england';
+
+export interface RegionInfo {
+  id: PricingRegion;
+  label: string;
+  states: string[];
+  costIndex: number;
+}
+
+export type IntegrationCategory = 'accounting' | 'payments' | 'documents' | 'field_ops' | 'materials' | 'compliance' | 'communication' | 'platforms';
+export type IntegrationStatus = 'connected' | 'disconnected' | 'coming_soon' | 'error';
+export type IntegrationTier = 'deep' | 'link' | 'coming_soon';
+
+export interface Integration {
+  id: string;
+  name: string;
+  description: string;
+  category: IntegrationCategory;
+  status: IntegrationStatus;
+  tier: IntegrationTier;
+  iconColor: string;
+  iconBg: string;
+  connectedAt?: string;
+  externalUrl?: string;
+}
+
+export type TimeEntryStatus = 'clocked_in' | 'clocked_out' | 'break';
+
+export interface TimeEntry {
+  id: string;
+  projectId: string;
+  projectName: string;
+  workerId: string;
+  workerName: string;
+  trade: string;
+  clockIn: string;
+  clockOut?: string;
+  breakMinutes: number;
+  totalHours: number;
+  overtimeHours: number;
+  status: TimeEntryStatus;
+  notes?: string;
+  gpsLat?: number;
+  gpsLng?: number;
+  date: string;
+}
+
+export type DocumentType = 'lien_waiver' | 'coi' | 'contract' | 'proposal' | 'aia_billing' | 'permit' | 'other';
+export type DocumentStatus = 'draft' | 'pending_signature' | 'signed' | 'expired' | 'void';
+
+export interface ProjectDocument {
+  id: string;
+  projectId: string;
+  projectName: string;
+  type: DocumentType;
+  title: string;
+  status: DocumentStatus;
+  createdAt: string;
+  expiresAt?: string;
+  signedBy?: string;
+  signedAt?: string;
+  fileUrl?: string;
+  notes?: string;
+}
+
+export type PermitStatus = 'applied' | 'under_review' | 'approved' | 'denied' | 'expired' | 'inspection_scheduled' | 'inspection_passed' | 'inspection_failed';
+export type PermitType = 'building' | 'electrical' | 'plumbing' | 'mechanical' | 'demolition' | 'grading' | 'fire' | 'occupancy' | 'other';
+
+export interface Permit {
+  id: string;
+  projectId: string;
+  projectName: string;
+  type: PermitType;
+  permitNumber?: string;
+  jurisdiction: string;
+  status: PermitStatus;
+  appliedDate: string;
+  approvedDate?: string;
+  expiresDate?: string;
+  inspectionDate?: string;
+  inspectionNotes?: string;
+  fee: number;
+  notes?: string;
+}
+
+export type PaymentStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'refunded';
+export type PaymentProvider = 'stripe' | 'square' | 'paypal' | 'venmo' | 'zelle' | 'check' | 'ach' | 'cash';
+
+export interface Payment {
+  id: string;
+  invoiceId?: string;
+  projectId: string;
+  projectName: string;
+  clientName: string;
+  amount: number;
+  fee: number;
+  netAmount: number;
+  provider: PaymentProvider;
+  status: PaymentStatus;
+  description: string;
+  createdAt: string;
+  completedAt?: string;
+}
+
+--- FILE: constants/colors.ts ---
+function hexToHsl(hex: string): { h: number; s: number; l: number } {
+  const r = parseInt(hex.slice(1, 3), 16) / 255;
+  const g = parseInt(hex.slice(3, 5), 16) / 255;
+  const b = parseInt(hex.slice(5, 7), 16) / 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+  if (max === min) return { h: 0, s: 0, l };
+  const d = max - min;
+  const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+  let h = 0;
+  if (max === r) h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
+  else if (max === g) h = ((b - r) / d + 2) / 6;
+  else h = ((r - g) / d + 4) / 6;
+  return { h, s, l };
+}
+
+function hslToHex(h: number, s: number, l: number): string {
+  const hue2rgb = (p: number, q: number, t: number) => {
+    if (t < 0) t += 1;
+    if (t > 1) t -= 1;
+    if (t < 1 / 6) return p + (q - p) * 6 * t;
+    if (t < 1 / 2) return q;
+    if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+    return p;
+  };
+  let r: number, g: number, b: number;
+  if (s === 0) { r = g = b = l; }
+  else {
+    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+    const p = 2 * l - q;
+    r = hue2rgb(p, q, h + 1 / 3);
+    g = hue2rgb(p, q, h);
+    b = hue2rgb(p, q, h - 1 / 3);
+  }
+  const toHex = (x: number) => Math.round(x * 255).toString(16).padStart(2, '0');
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+}
+
+function derivePrimaryLight(hex: string): string {
+  const { h, s, l } = hexToHsl(hex);
+  return hslToHex(h, Math.min(s * 1.1, 1), Math.min(l + 0.12, 0.9));
+}
+
+function derivePrimaryDark(hex: string): string {
+  const { h, s, l } = hexToHsl(hex);
+  return hslToHex(h, s, Math.max(l - 0.12, 0.1));
+}
+
+let _customPrimary: string | null = null;
+let _customAccent: string | null = null;
+
+export function setCustomColors(primary: string | null, accent: string | null) {
+  _customPrimary = primary;
+  _customAccent = accent;
+}
+
+export const Colors = {
+  get primary() { return _customPrimary || '#1A6B3C'; },
+  get primaryLight() { return _customPrimary ? derivePrimaryLight(_customPrimary) : '#2A9055'; },
+  get primaryDark() { return _customPrimary ? derivePrimaryDark(_customPrimary) : '#0F4526'; },
+  get accent() { return _customAccent || '#FF9500'; },
+  accentLight: '#FFCC00',
+  accentMuted: '#FFE0A0',
+
+  background: '#F2F2F7',
+  surface: '#FFFFFF',
+  surfaceAlt: '#F2F2F7',
+  surfaceElevated: '#FFFFFF',
+  card: '#FFFFFF',
+  cardBorder: 'rgba(60,60,67,0.1)',
+
+  text: '#000000',
+  textSecondary: 'rgba(60,60,67,0.6)',
+  textMuted: 'rgba(60,60,67,0.36)',
+  textOnPrimary: '#FFFFFF',
+  textOnAccent: '#FFFFFF',
+
+  border: 'rgba(60,60,67,0.18)',
+  borderLight: 'rgba(60,60,67,0.08)',
+
+  success: '#34C759',
+  successLight: '#E8FAF0',
+  warning: '#FF9500',
+  warningLight: '#FFF3E0',
+  error: '#FF3B30',
+  errorLight: '#FFF0EF',
+  info: '#007AFF',
+  infoLight: '#EBF3FF',
+
+  shadow: 'rgba(0,0,0,0.05)',
+  overlay: 'rgba(0,0,0,0.45)',
+
+  fillTertiary: 'rgba(120,120,128,0.12)',
+  fillSecondary: 'rgba(120,120,128,0.08)',
+};
+
+export default {
+  light: {
+    text: Colors.text,
+    background: Colors.background,
+    tint: Colors.primary,
+    tabIconDefault: Colors.textMuted,
+    tabIconSelected: Colors.primary,
+  },
+};
+
+--- FILE: constants/trades.ts ---
+import type { TradeCategory } from '@/types';
+
+export const TRADE_CATEGORIES: { id: TradeCategory; label: string }[] = [
+  { id: 'general_laborer', label: 'General Laborer' },
+  { id: 'carpenter', label: 'Carpenter' },
+  { id: 'electrician', label: 'Electrician' },
+  { id: 'plumber', label: 'Plumber' },
+  { id: 'hvac_tech', label: 'HVAC Technician' },
+  { id: 'welder', label: 'Welder' },
+  { id: 'iron_worker', label: 'Iron Worker' },
+  { id: 'mason', label: 'Mason / Bricklayer' },
+  { id: 'painter', label: 'Painter' },
+  { id: 'roofer', label: 'Roofer' },
+  { id: 'heavy_equipment_op', label: 'Heavy Equipment Operator' },
+  { id: 'concrete_worker', label: 'Concrete Worker' },
+  { id: 'demolition', label: 'Demolition' },
+  { id: 'drywall', label: 'Drywall / Insulation' },
+  { id: 'flooring', label: 'Flooring' },
+  { id: 'glazier', label: 'Glazier' },
+  { id: 'sheet_metal', label: 'Sheet Metal Worker' },
+  { id: 'pipefitter', label: 'Pipefitter' },
+  { id: 'sprinkler_fitter', label: 'Sprinkler Fitter' },
+  { id: 'fire_protection', label: 'Fire Protection' },
+  { id: 'civil_engineer', label: 'Civil Engineer' },
+  { id: 'structural_engineer', label: 'Structural Engineer' },
+  { id: 'mechanical_engineer', label: 'Mechanical Engineer' },
+  { id: 'electrical_engineer', label: 'Electrical Engineer' },
+  { id: 'project_manager', label: 'Project Manager' },
+  { id: 'site_superintendent', label: 'Site Superintendent' },
+  { id: 'safety_manager', label: 'Safety Manager' },
+  { id: 'estimator', label: 'Estimator' },
+  { id: 'surveyor', label: 'Surveyor' },
+  { id: 'inspector', label: 'Inspector' },
+  { id: 'architect', label: 'Architect' },
+];
+
+export function getTradeLabel(id: TradeCategory): string {
+  return TRADE_CATEGORIES.find(t => t.id === id)?.label ?? id;
+}
+
+--- FILE: constants/states.ts ---
+export interface USState {
+  name: string;
+  abbr: string;
+}
+
+export const US_STATES: USState[] = [
+  { name: 'Alabama', abbr: 'AL' },
+  { name: 'Alaska', abbr: 'AK' },
+  { name: 'Arizona', abbr: 'AZ' },
+  { name: 'Arkansas', abbr: 'AR' },
+  { name: 'California', abbr: 'CA' },
+  { name: 'Colorado', abbr: 'CO' },
+  { name: 'Connecticut', abbr: 'CT' },
+  { name: 'Delaware', abbr: 'DE' },
+  { name: 'Florida', abbr: 'FL' },
+  { name: 'Georgia', abbr: 'GA' },
+  { name: 'Hawaii', abbr: 'HI' },
+  { name: 'Idaho', abbr: 'ID' },
+  { name: 'Illinois', abbr: 'IL' },
+  { name: 'Indiana', abbr: 'IN' },
+  { name: 'Iowa', abbr: 'IA' },
+  { name: 'Kansas', abbr: 'KS' },
+  { name: 'Kentucky', abbr: 'KY' },
+  { name: 'Louisiana', abbr: 'LA' },
+  { name: 'Maine', abbr: 'ME' },
+  { name: 'Maryland', abbr: 'MD' },
+  { name: 'Massachusetts', abbr: 'MA' },
+  { name: 'Michigan', abbr: 'MI' },
+  { name: 'Minnesota', abbr: 'MN' },
+  { name: 'Mississippi', abbr: 'MS' },
+  { name: 'Missouri', abbr: 'MO' },
+  { name: 'Montana', abbr: 'MT' },
+  { name: 'Nebraska', abbr: 'NE' },
+  { name: 'Nevada', abbr: 'NV' },
+  { name: 'New Hampshire', abbr: 'NH' },
+  { name: 'New Jersey', abbr: 'NJ' },
+  { name: 'New Mexico', abbr: 'NM' },
+  { name: 'New York', abbr: 'NY' },
+  { name: 'North Carolina', abbr: 'NC' },
+  { name: 'North Dakota', abbr: 'ND' },
+  { name: 'Ohio', abbr: 'OH' },
+  { name: 'Oklahoma', abbr: 'OK' },
+  { name: 'Oregon', abbr: 'OR' },
+  { name: 'Pennsylvania', abbr: 'PA' },
+  { name: 'Rhode Island', abbr: 'RI' },
+  { name: 'South Carolina', abbr: 'SC' },
+  { name: 'South Dakota', abbr: 'SD' },
+  { name: 'Tennessee', abbr: 'TN' },
+  { name: 'Texas', abbr: 'TX' },
+  { name: 'Utah', abbr: 'UT' },
+  { name: 'Vermont', abbr: 'VT' },
+  { name: 'Virginia', abbr: 'VA' },
+  { name: 'Washington', abbr: 'WA' },
+  { name: 'West Virginia', abbr: 'WV' },
+  { name: 'Wisconsin', abbr: 'WI' },
+  { name: 'Wyoming', abbr: 'WY' },
+  { name: 'Washington DC', abbr: 'DC' },
+];
+
+--- FILE: constants/regions.ts ---
+import type { RegionInfo } from '@/types';
+
+export const REGIONS: RegionInfo[] = [
+  { id: 'new_england', label: 'New England', states: ['CT', 'ME', 'MA', 'NH', 'RI', 'VT'], costIndex: 1.18 },
+  { id: 'mid_atlantic', label: 'Mid-Atlantic', states: ['NJ', 'NY', 'PA'], costIndex: 1.22 },
+  { id: 'southeast', label: 'Southeast', states: ['AL', 'AR', 'FL', 'GA', 'KY', 'LA', 'MS', 'NC', 'SC', 'TN', 'VA', 'WV'], costIndex: 0.88 },
+  { id: 'midwest', label: 'Midwest', states: ['IL', 'IN', 'IA', 'MI', 'MN', 'MO', 'OH', 'WI'], costIndex: 1.02 },
+  { id: 'great_plains', label: 'Great Plains', states: ['KS', 'NE', 'ND', 'OK', 'SD'], costIndex: 0.90 },
+  { id: 'southwest', label: 'Southwest', states: ['AZ', 'NM', 'TX'], costIndex: 0.92 },
+  { id: 'mountain', label: 'Mountain', states: ['CO', 'ID', 'MT', 'UT', 'WY', 'NV'], costIndex: 1.05 },
+  { id: 'west_coast', label: 'West Coast', states: ['CA'], costIndex: 1.28 },
+  { id: 'pacific_nw', label: 'Pacific Northwest', states: ['OR', 'WA', 'AK'], costIndex: 1.12 },
+  { id: 'northeast', label: 'Northeast Metro', states: ['DC', 'DE', 'MD', 'HI'], costIndex: 1.15 },
+];
+
+export const US_STATES: { code: string; name: string }[] = [
+  { code: 'AL', name: 'Alabama' }, { code: 'AK', name: 'Alaska' }, { code: 'AZ', name: 'Arizona' },
+  { code: 'AR', name: 'Arkansas' }, { code: 'CA', name: 'California' }, { code: 'CO', name: 'Colorado' },
+  { code: 'CT', name: 'Connecticut' }, { code: 'DE', name: 'Delaware' }, { code: 'DC', name: 'District of Columbia' },
+  { code: 'FL', name: 'Florida' }, { code: 'GA', name: 'Georgia' }, { code: 'HI', name: 'Hawaii' },
+  { code: 'ID', name: 'Idaho' }, { code: 'IL', name: 'Illinois' }, { code: 'IN', name: 'Indiana' },
+  { code: 'IA', name: 'Iowa' }, { code: 'KS', name: 'Kansas' }, { code: 'KY', name: 'Kentucky' },
+  { code: 'LA', name: 'Louisiana' }, { code: 'ME', name: 'Maine' }, { code: 'MD', name: 'Maryland' },
+  { code: 'MA', name: 'Massachusetts' }, { code: 'MI', name: 'Michigan' }, { code: 'MN', name: 'Minnesota' },
+  { code: 'MS', name: 'Mississippi' }, { code: 'MO', name: 'Missouri' }, { code: 'MT', name: 'Montana' },
+  { code: 'NE', name: 'Nebraska' }, { code: 'NV', name: 'Nevada' }, { code: 'NH', name: 'New Hampshire' },
+  { code: 'NJ', name: 'New Jersey' }, { code: 'NM', name: 'New Mexico' }, { code: 'NY', name: 'New York' },
+  { code: 'NC', name: 'North Carolina' }, { code: 'ND', name: 'North Dakota' }, { code: 'OH', name: 'Ohio' },
+  { code: 'OK', name: 'Oklahoma' }, { code: 'OR', name: 'Oregon' }, { code: 'PA', name: 'Pennsylvania' },
+  { code: 'RI', name: 'Rhode Island' }, { code: 'SC', name: 'South Carolina' }, { code: 'SD', name: 'South Dakota' },
+  { code: 'TN', name: 'Tennessee' }, { code: 'TX', name: 'Texas' }, { code: 'UT', name: 'Utah' },
+  { code: 'VT', name: 'Vermont' }, { code: 'VA', name: 'Virginia' }, { code: 'WA', name: 'Washington' },
+  { code: 'WV', name: 'West Virginia' }, { code: 'WI', name: 'Wisconsin' }, { code: 'WY', name: 'Wyoming' },
+];
+
+export function getRegionForState(stateCode: string): RegionInfo | undefined {
+  return REGIONS.find(r => r.states.includes(stateCode));
+}
+
+export function getRegionalPrice(basePrice: number, stateCode: string): number {
+  const region = getRegionForState(stateCode);
+  if (!region) return basePrice;
+  return Math.round(basePrice * region.costIndex * 100) / 100;
+}
+
+export const CITY_ADJUSTMENTS: Record<string, number> = {
+  'New York City': 1.35,
+  'San Francisco': 1.32,
+  'Los Angeles': 1.22,
+  'Chicago': 1.12,
+  'Boston': 1.20,
+  'Seattle': 1.15,
+  'Miami': 1.05,
+  'Houston': 0.95,
+  'Dallas': 0.93,
+  'Atlanta': 0.92,
+  'Denver': 1.08,
+  'Phoenix': 0.94,
+  'Philadelphia': 1.10,
+  'Washington DC': 1.18,
+  'Detroit': 1.00,
+  'Minneapolis': 1.06,
+  'Portland': 1.10,
+  'Las Vegas': 1.02,
+  'Nashville': 0.96,
+  'Charlotte': 0.91,
+};
+

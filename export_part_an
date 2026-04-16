@@ -1,0 +1,4000 @@
+    rating: 4.6,
+    contactEmail: 'sales@midweststeel.com',
+    phone: '(312) 555-1000',
+    description: 'Structural steel fabrication and erection contractor serving the Midwest region. AISC-certified with in-house detailing and CNC plasma capabilities.',
+    certifications: ['WBE', 'WOSB', 'SBA_WOSB', 'DBE'],
+    website: 'https://midweststeel.com',
+    yearEstablished: 1997,
+    employeeCount: 85,
+    createdAt: '2025-04-15T10:00:00Z',
+  },
+];
+
+
+========== FILE: ./mocks/documents.ts ==========
+import type { ProjectDocument } from '@/types';
+
+export const MOCK_DOCUMENTS: ProjectDocument[] = [
+  {
+    id: 'doc-1',
+    projectId: 'p-1',
+    projectName: 'Kitchen Renovation - Smith',
+    type: 'contract',
+    title: 'General Construction Agreement',
+    status: 'signed',
+    createdAt: '2025-11-15T00:00:00Z',
+    signedBy: 'John Smith',
+    signedAt: '2025-11-16T14:30:00Z',
+  },
+  {
+    id: 'doc-2',
+    projectId: 'p-1',
+    projectName: 'Kitchen Renovation - Smith',
+    type: 'lien_waiver',
+    title: 'Conditional Lien Waiver - Progress #2',
+    status: 'pending_signature',
+    createdAt: '2026-01-10T00:00:00Z',
+  },
+  {
+    id: 'doc-3',
+    projectId: 'p-2',
+    projectName: 'Bathroom Remodel - Johnson',
+    type: 'coi',
+    title: 'Certificate of Insurance',
+    status: 'signed',
+    createdAt: '2025-10-01T00:00:00Z',
+    expiresAt: '2026-10-01T00:00:00Z',
+    signedBy: 'Liberty Mutual',
+    signedAt: '2025-10-01T00:00:00Z',
+  },
+  {
+    id: 'doc-4',
+    projectId: 'p-1',
+    projectName: 'Kitchen Renovation - Smith',
+    type: 'proposal',
+    title: 'Design Proposal v2',
+    status: 'signed',
+    createdAt: '2025-11-01T00:00:00Z',
+    signedBy: 'John Smith',
+    signedAt: '2025-11-03T10:00:00Z',
+  },
+  {
+    id: 'doc-5',
+    projectId: 'p-2',
+    projectName: 'Bathroom Remodel - Johnson',
+    type: 'aia_billing',
+    title: 'AIA G702 Application #1',
+    status: 'draft',
+    createdAt: '2026-02-01T00:00:00Z',
+  },
+  {
+    id: 'doc-6',
+    projectId: 'p-1',
+    projectName: 'Kitchen Renovation - Smith',
+    type: 'lien_waiver',
+    title: 'Unconditional Lien Waiver - Final',
+    status: 'draft',
+    createdAt: '2026-03-15T00:00:00Z',
+  },
+  {
+    id: 'doc-7',
+    projectId: 'p-2',
+    projectName: 'Bathroom Remodel - Johnson',
+    type: 'contract',
+    title: 'Subcontractor Agreement - Plumbing',
+    status: 'pending_signature',
+    createdAt: '2026-01-20T00:00:00Z',
+  },
+  {
+    id: 'doc-8',
+    projectId: 'p-1',
+    projectName: 'Kitchen Renovation - Smith',
+    type: 'coi',
+    title: "Sub COI - Mike's Electric",
+    status: 'expired',
+    createdAt: '2025-01-15T00:00:00Z',
+    expiresAt: '2026-01-15T00:00:00Z',
+    signedBy: 'State Farm',
+    signedAt: '2025-01-15T00:00:00Z',
+  },
+];
+
+export const DOCUMENT_TYPE_INFO: Record<string, { label: string; color: string; bgColor: string }> = {
+  lien_waiver: { label: 'Lien Waiver', color: '#E65100', bgColor: '#FFF3E0' },
+  coi: { label: 'COI', color: '#1565C0', bgColor: '#E3F2FD' },
+  contract: { label: 'Contract', color: '#2E7D32', bgColor: '#E8F5E9' },
+  proposal: { label: 'Proposal', color: '#6A1B9A', bgColor: '#F3E5F5' },
+  aia_billing: { label: 'AIA Billing', color: '#AD1457', bgColor: '#FCE4EC' },
+  permit: { label: 'Permit', color: '#00695C', bgColor: '#E0F2F1' },
+  other: { label: 'Other', color: '#546E7A', bgColor: '#ECEFF1' },
+};
+
+
+========== FILE: ./mocks/integrations.ts ==========
+import type { Integration } from '@/types';
+
+export const MOCK_INTEGRATIONS: Integration[] = [
+  {
+    id: 'quickbooks',
+    name: 'QuickBooks Online',
+    description: 'Sync invoices, expenses & customers with your accounting',
+    category: 'accounting',
+    status: 'disconnected',
+    tier: 'deep',
+    iconColor: '#2CA01C',
+    iconBg: '#2CA01C14',
+  },
+  {
+    id: 'xero',
+    name: 'Xero',
+    description: 'Cloud accounting for small contractors',
+    category: 'accounting',
+    status: 'disconnected',
+    tier: 'deep',
+    iconColor: '#13B5EA',
+    iconBg: '#13B5EA14',
+  },
+  {
+    id: 'freshbooks',
+    name: 'FreshBooks',
+    description: 'Simple invoicing & expense tracking',
+    category: 'accounting',
+    status: 'disconnected',
+    tier: 'deep',
+    iconColor: '#0075DD',
+    iconBg: '#0075DD14',
+  },
+  {
+    id: 'stripe',
+    name: 'Stripe',
+    description: 'Accept credit card payments on invoices',
+    category: 'payments',
+    status: 'disconnected',
+    tier: 'deep',
+    iconColor: '#635BFF',
+    iconBg: '#635BFF14',
+  },
+  {
+    id: 'square',
+    name: 'Square',
+    description: 'In-person & online payment processing',
+    category: 'payments',
+    status: 'disconnected',
+    tier: 'deep',
+    iconColor: '#006AFF',
+    iconBg: '#006AFF14',
+  },
+  {
+    id: 'paypal',
+    name: 'PayPal / Venmo',
+    description: 'Homeowner-friendly digital payments',
+    category: 'payments',
+    status: 'disconnected',
+    tier: 'deep',
+    iconColor: '#003087',
+    iconBg: '#00308714',
+  },
+  {
+    id: 'zelle',
+    name: 'Zelle Business',
+    description: 'No-fee instant bank transfers',
+    category: 'payments',
+    status: 'disconnected',
+    tier: 'link',
+    iconColor: '#6D1ED4',
+    iconBg: '#6D1ED414',
+  },
+  {
+    id: 'docusign',
+    name: 'DocuSign',
+    description: 'E-signatures on contracts & change orders',
+    category: 'documents',
+    status: 'disconnected',
+    tier: 'deep',
+    iconColor: '#FFCD00',
+    iconBg: '#FFCD0018',
+  },
+  {
+    id: 'adobe_sign',
+    name: 'Adobe Sign',
+    description: 'Digital signatures & document workflows',
+    category: 'documents',
+    status: 'coming_soon',
+    tier: 'coming_soon',
+    iconColor: '#FA0F00',
+    iconBg: '#FA0F0014',
+  },
+  {
+    id: 'home_depot',
+    name: 'Home Depot Pro',
+    description: 'Direct material ordering & pro pricing',
+    category: 'materials',
+    status: 'disconnected',
+    tier: 'link',
+    iconColor: '#F96302',
+    iconBg: '#F9630214',
+    externalUrl: 'https://www.homedepot.com/c/Pro',
+  },
+  {
+    id: 'lowes',
+    name: "Lowe's Pro Supply",
+    description: 'Pro accounts & bulk material orders',
+    category: 'materials',
+    status: 'disconnected',
+    tier: 'link',
+    iconColor: '#004990',
+    iconBg: '#00499014',
+    externalUrl: 'https://www.lowes.com/l/Pro',
+  },
+  {
+    id: 'abc_supply',
+    name: 'ABC Supply',
+    description: '#1 roofing & exterior distributor',
+    category: 'materials',
+    status: 'disconnected',
+    tier: 'link',
+    iconColor: '#C8102E',
+    iconBg: '#C8102E14',
+    externalUrl: 'https://www.abcsupply.com',
+  },
+  {
+    id: 'ferguson',
+    name: 'Ferguson',
+    description: 'Largest plumbing supply in North America',
+    category: 'materials',
+    status: 'disconnected',
+    tier: 'link',
+    iconColor: '#0033A0',
+    iconBg: '#0033A014',
+    externalUrl: 'https://www.ferguson.com',
+  },
+  {
+    id: '84_lumber',
+    name: '84 Lumber',
+    description: 'Lumber, building materials & trusses',
+    category: 'materials',
+    status: 'disconnected',
+    tier: 'link',
+    iconColor: '#8B6914',
+    iconBg: '#8B691414',
+    externalUrl: 'https://www.84lumber.com',
+  },
+  {
+    id: 'google_calendar',
+    name: 'Google Calendar',
+    description: 'Sync project milestones & inspections',
+    category: 'communication',
+    status: 'disconnected',
+    tier: 'deep',
+    iconColor: '#4285F4',
+    iconBg: '#4285F414',
+  },
+  {
+    id: 'apple_calendar',
+    name: 'Apple Calendar',
+    description: 'Sync deadlines to your iOS calendar',
+    category: 'communication',
+    status: 'disconnected',
+    tier: 'deep',
+    iconColor: '#FF3B30',
+    iconBg: '#FF3B3014',
+  },
+  {
+    id: 'procore',
+    name: 'Procore',
+    description: 'Import/export projects with Procore',
+    category: 'platforms',
+    status: 'coming_soon',
+    tier: 'coming_soon',
+    iconColor: '#F47E20',
+    iconBg: '#F47E2014',
+  },
+  {
+    id: 'buildertrend',
+    name: 'Buildertrend',
+    description: 'Sync with residential builder platform',
+    category: 'platforms',
+    status: 'coming_soon',
+    tier: 'coming_soon',
+    iconColor: '#00B2A9',
+    iconBg: '#00B2A914',
+  },
+  {
+    id: 'plangrid',
+    name: 'PlanGrid / Autodesk',
+    description: 'Plan management & field collaboration',
+    category: 'platforms',
+    status: 'coming_soon',
+    tier: 'coming_soon',
+    iconColor: '#1F4D8C',
+    iconBg: '#1F4D8C14',
+  },
+  {
+    id: 'wisetack',
+    name: 'Wisetack Financing',
+    description: 'Offer homeowner financing at checkout',
+    category: 'payments',
+    status: 'disconnected',
+    tier: 'link',
+    iconColor: '#00C389',
+    iconBg: '#00C38914',
+    externalUrl: 'https://www.wisetack.com',
+  },
+  {
+    id: 'hearth',
+    name: 'Hearth Financing',
+    description: 'Home improvement financing for clients',
+    category: 'payments',
+    status: 'disconnected',
+    tier: 'link',
+    iconColor: '#FF6B35',
+    iconBg: '#FF6B3514',
+    externalUrl: 'https://www.gethearth.com',
+  },
+  {
+    id: 'permitflow',
+    name: 'PermitFlow',
+    description: 'Online permit pulling for supported areas',
+    category: 'compliance',
+    status: 'disconnected',
+    tier: 'link',
+    iconColor: '#2563EB',
+    iconBg: '#2563EB14',
+    externalUrl: 'https://www.permitflow.com',
+  },
+  {
+    id: 'weather_api',
+    name: 'Weather Service',
+    description: 'Auto-pull weather into daily reports',
+    category: 'field_ops',
+    status: 'connected',
+    tier: 'deep',
+    iconColor: '#0EA5E9',
+    iconBg: '#0EA5E914',
+    connectedAt: '2025-12-01T00:00:00Z',
+  },
+];
+
+export const INTEGRATION_CATEGORIES: { id: string; label: string; icon: string }[] = [
+  { id: 'all', label: 'All', icon: 'Grid3X3' },
+  { id: 'accounting', label: 'Accounting', icon: 'Calculator' },
+  { id: 'payments', label: 'Payments', icon: 'CreditCard' },
+  { id: 'documents', label: 'Documents', icon: 'FileText' },
+  { id: 'materials', label: 'Materials', icon: 'Package' },
+  { id: 'field_ops', label: 'Field Ops', icon: 'HardHat' },
+  { id: 'compliance', label: 'Compliance', icon: 'ShieldCheck' },
+  { id: 'communication', label: 'Calendar', icon: 'Calendar' },
+  { id: 'platforms', label: 'Platforms', icon: 'Layers' },
+];
+
+
+========== FILE: ./mocks/jobs.ts ==========
+import type { JobListing } from '@/types';
+
+export const SAMPLE_JOBS: JobListing[] = [
+  {
+    id: 'job-1',
+    companyId: 'comp-1',
+    companyName: 'Apex Construction Group',
+    title: 'Journeyman Electrician',
+    tradeCategory: 'electrician',
+    city: 'New York City',
+    state: 'NY',
+    payMin: 45,
+    payMax: 65,
+    payType: 'hourly',
+    jobType: 'full_time',
+    requiredLicenses: ['NYC Electrician License', 'OSHA 30'],
+    experienceLevel: 'mid',
+    description: 'Seeking experienced journeyman electrician for commercial office buildout in Midtown Manhattan. Must be proficient in conduit bending, panel wiring, and fire alarm systems.',
+    startDate: '2026-04-15',
+    postedDate: '2026-03-18T10:00:00Z',
+    status: 'open',
+    applicantCount: 12,
+  },
+  {
+    id: 'job-2',
+    companyId: 'comp-5',
+    companyName: 'Rodriguez Mechanical Corp',
+    title: 'HVAC Lead Installer',
+    tradeCategory: 'hvac_tech',
+    city: 'Bronx',
+    state: 'NY',
+    payMin: 50,
+    payMax: 72,
+    payType: 'hourly',
+    jobType: 'full_time',
+    requiredLicenses: ['EPA 608 Universal', 'OSHA 10', 'NYC Refrigeration License'],
+    experienceLevel: 'senior',
+    description: 'Lead HVAC installer for hospital renovation project. Responsibilities include ductwork layout, equipment rigging, refrigerant piping, and crew supervision.',
+    startDate: '2026-04-01',
+    postedDate: '2026-03-15T10:00:00Z',
+    status: 'open',
+    applicantCount: 8,
+  },
+  {
+    id: 'job-3',
+    companyId: 'comp-6',
+    companyName: 'Lone Star Builders LLC',
+    title: 'Concrete Foreman',
+    tradeCategory: 'concrete_worker',
+    city: 'Houston',
+    state: 'TX',
+    payMin: 55000,
+    payMax: 75000,
+    payType: 'salary',
+    jobType: 'full_time',
+    requiredLicenses: ['OSHA 30', 'ACI Flatwork Finisher'],
+    experienceLevel: 'senior',
+    description: 'Looking for an experienced concrete foreman to oversee foundation and slab work on a new elementary school. Must manage crew scheduling, quality control, and material ordering.',
+    startDate: '2026-04-20',
+    postedDate: '2026-03-20T10:00:00Z',
+    status: 'open',
+    applicantCount: 5,
+  },
+  {
+    id: 'job-4',
+    companyId: 'comp-4',
+    companyName: 'Patriot Veterans Construction',
+    title: 'Heavy Equipment Operator — Excavator',
+    tradeCategory: 'heavy_equipment_op',
+    city: 'Albany',
+    state: 'NY',
+    payMin: 38,
+    payMax: 52,
+    payType: 'hourly',
+    jobType: 'full_time',
+    requiredLicenses: ['CDL Class A', 'OSHA 10'],
+    experienceLevel: 'mid',
+    description: 'Excavator operator needed for highway bridge replacement project. Must have experience with deep excavation, trenching, and working near active traffic.',
+    startDate: '2026-05-01',
+    postedDate: '2026-03-22T10:00:00Z',
+    status: 'open',
+    applicantCount: 15,
+  },
+  {
+    id: 'job-5',
+    companyId: 'comp-7',
+    companyName: 'Pacific Coast Infrastructure',
+    title: 'Project Manager — Transit Construction',
+    tradeCategory: 'project_manager',
+    city: 'Los Angeles',
+    state: 'CA',
+    payMin: 120000,
+    payMax: 165000,
+    payType: 'salary',
+    jobType: 'full_time',
+    requiredLicenses: ['PMP', 'OSHA 30'],
+    experienceLevel: 'senior',
+    description: 'Project Manager for LA Metro Purple Line station finishes package. Manage $45M budget, subcontractor coordination, schedule, and owner reporting.',
+    startDate: '2026-04-15',
+    postedDate: '2026-03-19T10:00:00Z',
+    status: 'open',
+    applicantCount: 22,
+  },
+  {
+    id: 'job-6',
+    companyId: 'comp-9',
+    companyName: 'Harlem Community Builders',
+    title: 'Carpenter — Residential Framing',
+    tradeCategory: 'carpenter',
+    city: 'New York City',
+    state: 'NY',
+    payMin: 35,
+    payMax: 50,
+    payType: 'hourly',
+    jobType: 'full_time',
+    requiredLicenses: ['OSHA 10', 'SST Card'],
+    experienceLevel: 'mid',
+    description: 'Experienced carpenter needed for affordable housing project in Harlem. Wood and metal stud framing, blocking, backing, and rough carpentry.',
+    startDate: '2026-04-08',
+    postedDate: '2026-03-17T10:00:00Z',
+    status: 'open',
+    applicantCount: 18,
+  },
+  {
+    id: 'job-7',
+    companyId: 'comp-10',
+    companyName: 'Midwest Steel Fabricators',
+    title: 'Structural Welder / Fitter',
+    tradeCategory: 'welder',
+    city: 'Chicago',
+    state: 'IL',
+    payMin: 42,
+    payMax: 58,
+    payType: 'hourly',
+    jobType: 'full_time',
+    requiredLicenses: ['AWS D1.1 Certification', 'OSHA 10'],
+    experienceLevel: 'mid',
+    description: 'Certified structural welder for shop fabrication and field erection. SMAW, FCAW, and GMAW processes. Must read structural drawings.',
+    startDate: '2026-04-01',
+    postedDate: '2026-03-16T10:00:00Z',
+    status: 'open',
+    applicantCount: 9,
+  },
+  {
+    id: 'job-8',
+    companyId: 'comp-2',
+    companyName: 'Torres & Sons Electrical',
+    title: 'Apprentice Electrician',
+    tradeCategory: 'electrician',
+    city: 'Brooklyn',
+    state: 'NY',
+    payMin: 22,
+    payMax: 30,
+    payType: 'hourly',
+    jobType: 'full_time',
+    requiredLicenses: ['OSHA 10', 'SST Card'],
+    experienceLevel: 'entry',
+    description: 'Electrical apprentice position with mentorship program. Learn commercial electrical installation, fire alarm wiring, and low-voltage systems.',
+    startDate: '2026-04-15',
+    postedDate: '2026-03-21T10:00:00Z',
+    status: 'open',
+    applicantCount: 34,
+  },
+  {
+    id: 'job-9',
+    companyId: 'comp-3',
+    companyName: 'GreenBuild Environmental',
+    title: 'Site Safety Manager',
+    tradeCategory: 'safety_manager',
+    city: 'Jersey City',
+    state: 'NJ',
+    payMin: 85000,
+    payMax: 110000,
+    payType: 'salary',
+    jobType: 'full_time',
+    requiredLicenses: ['OSHA 30', 'CHST', '40-Hour HAZWOPER'],
+    experienceLevel: 'senior',
+    description: 'Safety Manager for environmental remediation project. Develop and enforce site safety plans, conduct toolbox talks, manage HAZWOPER compliance.',
+    startDate: '2026-05-01',
+    postedDate: '2026-03-20T10:00:00Z',
+    status: 'open',
+    applicantCount: 7,
+  },
+  {
+    id: 'job-10',
+    companyId: 'comp-1',
+    companyName: 'Apex Construction Group',
+    title: 'Plumber — Commercial',
+    tradeCategory: 'plumber',
+    city: 'New York City',
+    state: 'NY',
+    payMin: 48,
+    payMax: 68,
+    payType: 'hourly',
+    jobType: 'contract',
+    requiredLicenses: ['NYC Master Plumber License', 'OSHA 10'],
+    experienceLevel: 'mid',
+    description: 'Licensed plumber for school renovation project. Rough-in and finish plumbing including domestic water, waste, vent, and natural gas piping.',
+    startDate: '2026-04-10',
+    postedDate: '2026-03-19T10:00:00Z',
+    status: 'open',
+    applicantCount: 11,
+  },
+];
+
+
+========== FILE: ./mocks/payments.ts ==========
+import type { Payment } from '@/types';
+
+export const MOCK_PAYMENTS: Payment[] = [
+  {
+    id: 'pay-1',
+    invoiceId: 'inv-1',
+    projectId: 'p-1',
+    projectName: 'Kitchen Renovation - Smith',
+    clientName: 'John Smith',
+    amount: 12500,
+    fee: 362.50,
+    netAmount: 12137.50,
+    provider: 'stripe',
+    status: 'completed',
+    description: 'Progress Payment #1 - Demolition & Framing',
+    createdAt: '2026-02-15T00:00:00Z',
+    completedAt: '2026-02-16T00:00:00Z',
+  },
+  {
+    id: 'pay-2',
+    invoiceId: 'inv-2',
+    projectId: 'p-1',
+    projectName: 'Kitchen Renovation - Smith',
+    clientName: 'John Smith',
+    amount: 8750,
+    fee: 253.75,
+    netAmount: 8496.25,
+    provider: 'stripe',
+    status: 'completed',
+    description: 'Progress Payment #2 - Rough-ins',
+    createdAt: '2026-03-10T00:00:00Z',
+    completedAt: '2026-03-11T00:00:00Z',
+  },
+  {
+    id: 'pay-3',
+    invoiceId: 'inv-3',
+    projectId: 'p-2',
+    projectName: 'Bathroom Remodel - Johnson',
+    clientName: 'Sarah Johnson',
+    amount: 5200,
+    fee: 0,
+    netAmount: 5200,
+    provider: 'check',
+    status: 'completed',
+    description: 'Deposit - 50% upfront',
+    createdAt: '2026-01-20T00:00:00Z',
+    completedAt: '2026-01-25T00:00:00Z',
+  },
+  {
+    id: 'pay-4',
+    invoiceId: 'inv-4',
+    projectId: 'p-1',
+    projectName: 'Kitchen Renovation - Smith',
+    clientName: 'John Smith',
+    amount: 15000,
+    fee: 435,
+    netAmount: 14565,
+    provider: 'stripe',
+    status: 'pending',
+    description: 'Progress Payment #3 - Cabinets & Countertops',
+    createdAt: '2026-04-01T00:00:00Z',
+  },
+  {
+    id: 'pay-5',
+    projectId: 'p-2',
+    projectName: 'Bathroom Remodel - Johnson',
+    clientName: 'Sarah Johnson',
+    amount: 3800,
+    fee: 0,
+    netAmount: 3800,
+    provider: 'zelle',
+    status: 'pending',
+    description: 'Progress Payment - Tile Work',
+    createdAt: '2026-04-05T00:00:00Z',
+  },
+  {
+    id: 'pay-6',
+    invoiceId: 'inv-6',
+    projectId: 'p-1',
+    projectName: 'Kitchen Renovation - Smith',
+    clientName: 'John Smith',
+    amount: 2500,
+    fee: 72.50,
+    netAmount: 2427.50,
+    provider: 'square',
+    status: 'failed',
+    description: 'Change Order #1 - Upgraded Fixtures',
+    createdAt: '2026-03-28T00:00:00Z',
+  },
+];
+
+export const PROVIDER_INFO: Record<string, { label: string; color: string; bgColor: string; feePercent: string }> = {
+  stripe: { label: 'Stripe', color: '#635BFF', bgColor: '#635BFF14', feePercent: '2.9% + $0.30' },
+  square: { label: 'Square', color: '#006AFF', bgColor: '#006AFF14', feePercent: '2.6% + $0.10' },
+  paypal: { label: 'PayPal', color: '#003087', bgColor: '#00308714', feePercent: '2.99% + $0.49' },
+  venmo: { label: 'Venmo', color: '#3D95CE', bgColor: '#3D95CE14', feePercent: '1.9% + $0.10' },
+  zelle: { label: 'Zelle', color: '#6D1ED4', bgColor: '#6D1ED414', feePercent: 'Free' },
+  check: { label: 'Check', color: '#546E7A', bgColor: '#546E7A14', feePercent: 'Free' },
+  ach: { label: 'ACH', color: '#00695C', bgColor: '#00695C14', feePercent: '0.8%' },
+  cash: { label: 'Cash', color: '#2E7D32', bgColor: '#2E7D3214', feePercent: 'Free' },
+};
+
+
+========== FILE: ./mocks/permits.ts ==========
+import type { Permit } from '@/types';
+
+export const MOCK_PERMITS: Permit[] = [
+  {
+    id: 'pmt-1',
+    projectId: 'p-1',
+    projectName: 'Kitchen Renovation - Smith',
+    type: 'building',
+    permitNumber: 'BP-2026-04521',
+    jurisdiction: 'City of Brooklyn, NY',
+    status: 'approved',
+    appliedDate: '2025-11-20T00:00:00Z',
+    approvedDate: '2025-12-15T00:00:00Z',
+    expiresDate: '2026-12-15T00:00:00Z',
+    fee: 1250,
+  },
+  {
+    id: 'pmt-2',
+    projectId: 'p-1',
+    projectName: 'Kitchen Renovation - Smith',
+    type: 'electrical',
+    permitNumber: 'EP-2026-01893',
+    jurisdiction: 'City of Brooklyn, NY',
+    status: 'inspection_scheduled',
+    appliedDate: '2025-12-01T00:00:00Z',
+    approvedDate: '2025-12-20T00:00:00Z',
+    inspectionDate: '2026-04-18T09:00:00Z',
+    fee: 450,
+    notes: 'Rough-in inspection',
+  },
+  {
+    id: 'pmt-3',
+    projectId: 'p-1',
+    projectName: 'Kitchen Renovation - Smith',
+    type: 'plumbing',
+    permitNumber: 'PP-2026-00782',
+    jurisdiction: 'City of Brooklyn, NY',
+    status: 'inspection_passed',
+    appliedDate: '2025-12-05T00:00:00Z',
+    approvedDate: '2025-12-22T00:00:00Z',
+    inspectionDate: '2026-03-10T10:00:00Z',
+    inspectionNotes: 'All connections passed. No issues.',
+    fee: 375,
+  },
+  {
+    id: 'pmt-4',
+    projectId: 'p-2',
+    projectName: 'Bathroom Remodel - Johnson',
+    type: 'building',
+    jurisdiction: 'Town of Hempstead, NY',
+    status: 'under_review',
+    appliedDate: '2026-03-01T00:00:00Z',
+    fee: 800,
+    notes: 'Structural modification requires engineer sign-off',
+  },
+  {
+    id: 'pmt-5',
+    projectId: 'p-2',
+    projectName: 'Bathroom Remodel - Johnson',
+    type: 'plumbing',
+    jurisdiction: 'Town of Hempstead, NY',
+    status: 'applied',
+    appliedDate: '2026-03-05T00:00:00Z',
+    fee: 300,
+  },
+  {
+    id: 'pmt-6',
+    projectId: 'p-1',
+    projectName: 'Kitchen Renovation - Smith',
+    type: 'fire',
+    permitNumber: 'FP-2026-00145',
+    jurisdiction: 'City of Brooklyn, NY',
+    status: 'inspection_failed',
+    appliedDate: '2026-01-10T00:00:00Z',
+    approvedDate: '2026-01-25T00:00:00Z',
+    inspectionDate: '2026-03-20T14:00:00Z',
+    inspectionNotes: 'Smoke detector placement non-compliant. Reschedule after correction.',
+    fee: 200,
+  },
+];
+
+export const PERMIT_TYPE_INFO: Record<string, { label: string; color: string }> = {
+  building: { label: 'Building', color: '#1565C0' },
+  electrical: { label: 'Electrical', color: '#F9A825' },
+  plumbing: { label: 'Plumbing', color: '#00838F' },
+  mechanical: { label: 'Mechanical', color: '#6A1B9A' },
+  demolition: { label: 'Demolition', color: '#D84315' },
+  grading: { label: 'Grading', color: '#4E342E' },
+  fire: { label: 'Fire', color: '#C62828' },
+  occupancy: { label: 'Occupancy', color: '#2E7D32' },
+  other: { label: 'Other', color: '#546E7A' },
+};
+
+export const PERMIT_STATUS_INFO: Record<string, { label: string; color: string; bgColor: string }> = {
+  applied: { label: 'Applied', color: '#1565C0', bgColor: '#E3F2FD' },
+  under_review: { label: 'Under Review', color: '#E65100', bgColor: '#FFF3E0' },
+  approved: { label: 'Approved', color: '#2E7D32', bgColor: '#E8F5E9' },
+  denied: { label: 'Denied', color: '#C62828', bgColor: '#FFEBEE' },
+  expired: { label: 'Expired', color: '#546E7A', bgColor: '#ECEFF1' },
+  inspection_scheduled: { label: 'Inspection Scheduled', color: '#6A1B9A', bgColor: '#F3E5F5' },
+  inspection_passed: { label: 'Passed', color: '#2E7D32', bgColor: '#E8F5E9' },
+  inspection_failed: { label: 'Failed', color: '#C62828', bgColor: '#FFEBEE' },
+};
+
+
+========== FILE: ./mocks/suppliers.ts ==========
+import type { Supplier, SupplierListing } from '@/types';
+
+export const MOCK_SUPPLIERS: Supplier[] = [
+  {
+    id: 'sup-1',
+    companyName: 'Pacific Lumber Co.',
+    contactName: 'Mike Chen',
+    email: 'sales@pacificlumber.com',
+    phone: '(503) 555-0142',
+    address: '1200 Industrial Blvd, Portland, OR',
+    website: 'pacificlumber.com',
+    description: 'Premium lumber and framing materials for residential and commercial projects. Family-owned since 1985.',
+    categories: ['lumber'],
+    rating: 4.8,
+    deliveryOptions: ['Local Delivery', 'Will Call', 'Freight'],
+    minOrderAmount: 250,
+    registeredAt: '2025-06-15T00:00:00Z',
+    featured: true,
+  },
+  {
+    id: 'sup-2',
+    companyName: 'SunBelt Roofing Supply',
+    contactName: 'Jessica Torres',
+    email: 'orders@sunbeltroofing.com',
+    phone: '(214) 555-0198',
+    address: '3400 Commerce Dr, Dallas, TX',
+    website: 'sunbeltroofing.com',
+    description: 'Complete roofing solutions — shingles, metal panels, underlayment, and accessories. Wholesale pricing available.',
+    categories: ['roofing'],
+    rating: 4.6,
+    deliveryOptions: ['Jobsite Delivery', 'Will Call'],
+    minOrderAmount: 500,
+    registeredAt: '2025-08-20T00:00:00Z',
+    featured: true,
+  },
+  {
+    id: 'sup-3',
+    companyName: 'AllPro Electrical Wholesale',
+    contactName: 'David Park',
+    email: 'info@allproelectric.com',
+    phone: '(312) 555-0277',
+    address: '800 W Lake St, Chicago, IL',
+    website: 'allproelectric.com',
+    description: 'Full-line electrical distributor. Wire, panels, fixtures, and smart home components at contractor pricing.',
+    categories: ['electrical'],
+    rating: 4.7,
+    deliveryOptions: ['Same-Day Delivery', 'Will Call', 'UPS/FedEx'],
+    minOrderAmount: 100,
+    registeredAt: '2025-07-10T00:00:00Z',
+  },
+  {
+    id: 'sup-4',
+    companyName: 'Granite State Concrete',
+    contactName: 'Tom Bradley',
+    email: 'dispatch@graniteconcrete.com',
+    phone: '(603) 555-0334',
+    address: '55 Quarry Rd, Manchester, NH',
+    website: 'graniteconcrete.com',
+    description: 'Ready-mix concrete, rebar, masonry supplies, and form materials. Serving New England contractors.',
+    categories: ['concrete'],
+    rating: 4.5,
+    deliveryOptions: ['Mixer Truck Delivery', 'Will Call'],
+    minOrderAmount: 300,
+    registeredAt: '2025-09-01T00:00:00Z',
+  },
+  {
+    id: 'sup-5',
+    companyName: 'Comfort Zone Insulation',
+    contactName: 'Sarah Kim',
+    email: 'sales@comfortzone-ins.com',
+    phone: '(404) 555-0411',
+    address: '2200 Peachtree Industrial, Atlanta, GA',
+    website: 'comfortzone-ins.com',
+    description: 'Insulation specialists — batts, spray foam, blown-in, and rigid boards. Energy audit services available.',
+    categories: ['insulation', 'hvac'],
+    rating: 4.4,
+    deliveryOptions: ['Local Delivery', 'Will Call'],
+    minOrderAmount: 200,
+    registeredAt: '2025-10-05T00:00:00Z',
+  },
+  {
+    id: 'sup-6',
+    companyName: 'FlowMaster Plumbing Supply',
+    contactName: 'Carlos Reyes',
+    email: 'orders@flowmaster.com',
+    phone: '(305) 555-0588',
+    address: '900 NW 36th St, Miami, FL',
+    website: 'flowmaster.com',
+    description: 'Pipes, fittings, fixtures, and water heaters. Commercial and residential plumbing at trade prices.',
+    categories: ['plumbing'],
+    rating: 4.3,
+    deliveryOptions: ['Same-Day Delivery', 'Will Call', 'Freight'],
+    minOrderAmount: 150,
+    registeredAt: '2025-11-12T00:00:00Z',
+  },
+  {
+    id: 'sup-7',
+    companyName: 'Heritage Hardwood Floors',
+    contactName: 'Emily Watson',
+    email: 'info@heritagehardwood.com',
+    phone: '(615) 555-0662',
+    address: '450 Music Row, Nashville, TN',
+    website: 'heritagehardwood.com',
+    description: 'Hardwood, engineered, laminate, and vinyl flooring. Installation supplies and expert advice included.',
+    categories: ['flooring'],
+    rating: 4.9,
+    deliveryOptions: ['White Glove Delivery', 'Will Call'],
+    minOrderAmount: 400,
+    registeredAt: '2025-07-28T00:00:00Z',
+    featured: true,
+  },
+  {
+    id: 'sup-8',
+    companyName: 'IronClad Steel & Metal',
+    contactName: 'James O\'Brien',
+    email: 'quotes@ironcladsteel.com',
+    phone: '(412) 555-0745',
+    address: '1100 Steel Way, Pittsburgh, PA',
+    website: 'ironcladsteel.com',
+    description: 'Structural steel, metal studs, connectors, and custom fabrication. Quick turnaround on quotes.',
+    categories: ['steel', 'hardware'],
+    rating: 4.6,
+    deliveryOptions: ['Flatbed Delivery', 'Will Call'],
+    minOrderAmount: 500,
+    registeredAt: '2025-08-15T00:00:00Z',
+  },
+  {
+    id: 'sup-9',
+    companyName: 'ProCoat Paints & Finishes',
+    contactName: 'Linda Nguyen',
+    email: 'sales@procoatpaints.com',
+    phone: '(206) 555-0823',
+    address: '700 Aurora Ave N, Seattle, WA',
+    website: 'procoatpaints.com',
+    description: 'Professional-grade paints, stains, primers, and coatings. Color matching and contractor accounts.',
+    categories: ['paint'],
+    rating: 4.5,
+    deliveryOptions: ['Local Delivery', 'Will Call', 'UPS'],
+    minOrderAmount: 75,
+    registeredAt: '2025-12-01T00:00:00Z',
+  },
+  {
+    id: 'sup-10',
+    companyName: 'GreenScape Materials',
+    contactName: 'Robert Hill',
+    email: 'info@greenscapemat.com',
+    phone: '(602) 555-0901',
+    address: '3300 E Camelback Rd, Phoenix, AZ',
+    website: 'greenscapemat.com',
+    description: 'Landscaping materials, pavers, stone, mulch, and irrigation supplies. Bulk delivery available.',
+    categories: ['landscape', 'fencing', 'decking'],
+    rating: 4.2,
+    deliveryOptions: ['Dump Truck Delivery', 'Will Call'],
+    minOrderAmount: 200,
+    registeredAt: '2026-01-10T00:00:00Z',
+  },
+];
+
+export const MOCK_LISTINGS: SupplierListing[] = [
+  { id: 'lst-1', supplierId: 'sup-1', name: '2x4x8 Douglas Fir Select', description: 'Kiln-dried, straight, minimal knots. Perfect for framing.', category: 'lumber', unit: 'each', price: 5.49, bulkPrice: 4.25, bulkMinQty: 100, inStock: true, leadTimeDays: 1 },
+  { id: 'lst-2', supplierId: 'sup-1', name: '3/4" Sanded Plywood 4x8', description: 'A/C grade sanded plywood for cabinets and finish work.', category: 'lumber', unit: 'sheet', price: 52.00, bulkPrice: 44.50, bulkMinQty: 30, inStock: true, leadTimeDays: 1 },
+  { id: 'lst-3', supplierId: 'sup-1', name: 'LVL Beam 1.75"x11.25"x20\'', description: 'Laminated veneer lumber for structural headers and beams.', category: 'lumber', unit: 'each', price: 215.00, bulkPrice: 185.00, bulkMinQty: 5, inStock: true, leadTimeDays: 3 },
+  { id: 'lst-4', supplierId: 'sup-2', name: 'GAF Timberline HDZ Shingles', description: 'Architectural shingles with lifetime limited warranty.', category: 'roofing', unit: 'square', price: 112.00, bulkPrice: 94.00, bulkMinQty: 10, inStock: true, leadTimeDays: 2 },
+  { id: 'lst-5', supplierId: 'sup-2', name: 'Standing Seam Metal Panel', description: '24GA Galvalume standing seam with concealed fasteners.', category: 'roofing', unit: 'square', price: 420.00, bulkPrice: 365.00, bulkMinQty: 5, inStock: true, leadTimeDays: 5 },
+  { id: 'lst-6', supplierId: 'sup-2', name: 'Ice & Water Shield', description: 'Self-adhering waterproofing underlayment, 75 sq ft roll.', category: 'roofing', unit: 'roll', price: 82.00, bulkPrice: 70.00, bulkMinQty: 5, inStock: true, leadTimeDays: 1 },
+  { id: 'lst-7', supplierId: 'sup-3', name: '200A Main Breaker Panel', description: '40-space/80-circuit indoor load center with main breaker.', category: 'electrical', unit: 'each', price: 189.00, bulkPrice: 165.00, bulkMinQty: 3, inStock: true, leadTimeDays: 2 },
+  { id: 'lst-8', supplierId: 'sup-3', name: '12/2 NM-B Romex 250ft', description: 'Non-metallic sheathed cable for residential wiring.', category: 'electrical', unit: 'roll', price: 89.00, bulkPrice: 75.00, bulkMinQty: 5, inStock: true, leadTimeDays: 1 },
+  { id: 'lst-9', supplierId: 'sup-4', name: 'Ready-Mix 4000 PSI', description: 'High-strength ready-mix concrete, delivered by mixer truck.', category: 'concrete', unit: 'cu yd', price: 168.00, bulkPrice: 142.00, bulkMinQty: 10, inStock: true, leadTimeDays: 1 },
+  { id: 'lst-10', supplierId: 'sup-4', name: 'Rebar #4 (1/2") x 20ft', description: 'Grade 60 deformed rebar for foundations and slabs.', category: 'concrete', unit: 'each', price: 12.50, bulkPrice: 10.00, bulkMinQty: 50, inStock: true, leadTimeDays: 2 },
+  { id: 'lst-11', supplierId: 'sup-5', name: 'R-30 Fiberglass Batt', description: 'Kraft-faced R-30 insulation for attic, 40 sq ft bag.', category: 'insulation', unit: 'bag', price: 36.00, bulkPrice: 29.50, bulkMinQty: 10, inStock: true, leadTimeDays: 2 },
+  { id: 'lst-12', supplierId: 'sup-5', name: 'Closed-Cell Spray Foam Kit', description: '600 board-feet 2-component spray foam insulation kit.', category: 'insulation', unit: 'kit', price: 285.00, bulkPrice: 245.00, bulkMinQty: 3, inStock: true, leadTimeDays: 3 },
+  { id: 'lst-13', supplierId: 'sup-6', name: '3/4" PEX Tubing 300ft', description: 'Cross-linked polyethylene tubing for water supply lines.', category: 'plumbing', unit: 'roll', price: 145.00, bulkPrice: 125.00, bulkMinQty: 3, inStock: true, leadTimeDays: 1 },
+  { id: 'lst-14', supplierId: 'sup-6', name: '50-Gallon Gas Water Heater', description: 'High-efficiency natural gas water heater, 40K BTU.', category: 'plumbing', unit: 'each', price: 685.00, bulkPrice: 620.00, bulkMinQty: 2, inStock: true, leadTimeDays: 3 },
+  { id: 'lst-15', supplierId: 'sup-7', name: 'White Oak Hardwood 3/4"x5"', description: 'Unfinished solid white oak flooring, 20 sq ft/box.', category: 'flooring', unit: 'box', price: 89.00, bulkPrice: 76.00, bulkMinQty: 20, inStock: true, leadTimeDays: 5 },
+  { id: 'lst-16', supplierId: 'sup-7', name: 'Luxury Vinyl Plank 7"x48"', description: 'Waterproof LVP with attached pad, 23.77 sq ft/box.', category: 'flooring', unit: 'box', price: 62.00, bulkPrice: 52.00, bulkMinQty: 15, inStock: true, leadTimeDays: 3 },
+  { id: 'lst-17', supplierId: 'sup-8', name: 'Steel Stud 3-5/8"x10\' 20GA', description: 'Light-gauge steel framing stud for interior walls.', category: 'steel', unit: 'each', price: 8.50, bulkPrice: 6.80, bulkMinQty: 100, inStock: true, leadTimeDays: 2 },
+  { id: 'lst-18', supplierId: 'sup-9', name: 'Pro-Grade Interior Latex Gal', description: 'Zero-VOC premium interior paint, eggshell finish.', category: 'paint', unit: 'gallon', price: 42.00, bulkPrice: 35.00, bulkMinQty: 10, inStock: true, leadTimeDays: 1 },
+  { id: 'lst-19', supplierId: 'sup-10', name: 'Concrete Paver 4"x8" (pallet)', description: 'Standard concrete paver, 480 per pallet, multiple colors.', category: 'landscape', unit: 'pallet', price: 320.00, bulkPrice: 275.00, bulkMinQty: 3, inStock: true, leadTimeDays: 3 },
+  { id: 'lst-20', supplierId: 'sup-10', name: 'Cedar Privacy Fence 6\'x8\' Panel', description: 'Pre-built western red cedar fence panel with posts.', category: 'fencing', unit: 'panel', price: 89.00, bulkPrice: 74.00, bulkMinQty: 10, inStock: true, leadTimeDays: 4 },
+];
+
+export const SUPPLIER_CATEGORIES = [
+  { id: 'all', label: 'All', emoji: '🏪' },
+  { id: 'lumber', label: 'Lumber', emoji: '🪵' },
+  { id: 'concrete', label: 'Concrete', emoji: '🧱' },
+  { id: 'roofing', label: 'Roofing', emoji: '🏠' },
+  { id: 'electrical', label: 'Electrical', emoji: '⚡' },
+  { id: 'plumbing', label: 'Plumbing', emoji: '🔧' },
+  { id: 'insulation', label: 'Insulation', emoji: '🧊' },
+  { id: 'flooring', label: 'Flooring', emoji: '🪵' },
+  { id: 'steel', label: 'Steel', emoji: '⚙️' },
+  { id: 'paint', label: 'Paint', emoji: '🎨' },
+  { id: 'landscape', label: 'Landscape', emoji: '🌿' },
+  { id: 'fencing', label: 'Fencing', emoji: '🏡' },
+];
+
+
+========== FILE: ./mocks/timeTracking.ts ==========
+import type { TimeEntry } from '@/types';
+
+const today = new Date().toISOString().split('T')[0];
+const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+
+export const MOCK_TIME_ENTRIES: TimeEntry[] = [
+  {
+    id: 'te-1',
+    projectId: 'p-1',
+    projectName: 'Kitchen Renovation - Smith',
+    workerId: 'w-1',
+    workerName: 'Carlos Mendez',
+    trade: 'Framing',
+    clockIn: `${today}T07:00:00Z`,
+    clockOut: undefined,
+    breakMinutes: 0,
+    totalHours: 0,
+    overtimeHours: 0,
+    status: 'clocked_in',
+    date: today,
+    notes: 'Working on header beam',
+  },
+  {
+    id: 'te-2',
+    projectId: 'p-1',
+    projectName: 'Kitchen Renovation - Smith',
+    workerId: 'w-2',
+    workerName: 'James Williams',
+    trade: 'Electrical',
+    clockIn: `${today}T07:30:00Z`,
+    clockOut: undefined,
+    breakMinutes: 0,
+    totalHours: 0,
+    overtimeHours: 0,
+    status: 'clocked_in',
+    date: today,
+  },
+  {
+    id: 'te-3',
+    projectId: 'p-2',
+    projectName: 'Bathroom Remodel - Johnson',
+    workerId: 'w-3',
+    workerName: 'Mike Thompson',
+    trade: 'Plumbing',
+    clockIn: `${today}T06:30:00Z`,
+    clockOut: undefined,
+    breakMinutes: 30,
+    totalHours: 0,
+    overtimeHours: 0,
+    status: 'break',
+    date: today,
+  },
+  {
+    id: 'te-4',
+    projectId: 'p-1',
+    projectName: 'Kitchen Renovation - Smith',
+    workerId: 'w-1',
+    workerName: 'Carlos Mendez',
+    trade: 'Framing',
+    clockIn: `${yesterday}T07:00:00Z`,
+    clockOut: `${yesterday}T16:30:00Z`,
+    breakMinutes: 30,
+    totalHours: 9.0,
+    overtimeHours: 1.0,
+    status: 'clocked_out',
+    date: yesterday,
+  },
+  {
+    id: 'te-5',
+    projectId: 'p-2',
+    projectName: 'Bathroom Remodel - Johnson',
+    workerId: 'w-3',
+    workerName: 'Mike Thompson',
+    trade: 'Plumbing',
+    clockIn: `${yesterday}T06:30:00Z`,
+    clockOut: `${yesterday}T15:00:00Z`,
+    breakMinutes: 30,
+    totalHours: 8.0,
+    overtimeHours: 0,
+    status: 'clocked_out',
+    date: yesterday,
+  },
+  {
+    id: 'te-6',
+    projectId: 'p-1',
+    projectName: 'Kitchen Renovation - Smith',
+    workerId: 'w-4',
+    workerName: 'David Chen',
+    trade: 'Drywall',
+    clockIn: `${yesterday}T08:00:00Z`,
+    clockOut: `${yesterday}T17:00:00Z`,
+    breakMinutes: 60,
+    totalHours: 8.0,
+    overtimeHours: 0,
+    status: 'clocked_out',
+    date: yesterday,
+  },
+];
+
+export const CREW_MEMBERS = [
+  { id: 'w-1', name: 'Carlos Mendez', trade: 'Framing', rate: 35 },
+  { id: 'w-2', name: 'James Williams', trade: 'Electrical', rate: 45 },
+  { id: 'w-3', name: 'Mike Thompson', trade: 'Plumbing', rate: 42 },
+  { id: 'w-4', name: 'David Chen', trade: 'Drywall', rate: 32 },
+  { id: 'w-5', name: 'Alex Rivera', trade: 'Painting', rate: 28 },
+  { id: 'w-6', name: 'Sam Johnson', trade: 'HVAC', rate: 48 },
+];
+
+
+========== FILE: ./mocks/workers.ts ==========
+import type { WorkerProfile } from '@/types';
+
+export const SAMPLE_WORKERS: WorkerProfile[] = [
+  {
+    id: 'worker-1',
+    name: 'Marcus Johnson',
+    tradeCategory: 'electrician',
+    yearsExperience: 12,
+    licenses: ['NYC Electrician License', 'OSHA 30', 'SST Card', 'EPA 608 Universal'],
+    city: 'Brooklyn',
+    state: 'NY',
+    availability: 'available',
+    hourlyRate: 58,
+    bio: 'Licensed electrician with 12 years in commercial and institutional work. Experienced with high-voltage systems, fire alarm, and BMS controls.',
+    pastProjects: ['NYC DOE School Renovations', 'NYCHA Elevator Modernization', 'Hudson Yards Tower 4'],
+    contactEmail: 'marcus.j@email.com',
+    phone: '(718) 555-1001',
+    createdAt: '2025-06-01T10:00:00Z',
+  },
+  {
+    id: 'worker-2',
+    name: 'Carlos Rivera',
+    tradeCategory: 'plumber',
+    yearsExperience: 15,
+    licenses: ['NYC Master Plumber License', 'OSHA 30', 'SST Card', 'NYC Backflow Tester'],
+    city: 'Bronx',
+    state: 'NY',
+    availability: 'open_to_offers',
+    hourlyRate: 65,
+    bio: 'Master plumber specializing in commercial and healthcare plumbing. Expert in medical gas systems, backflow prevention, and fire suppression.',
+    pastProjects: ['Montefiore Hospital Expansion', 'Bronx County Courthouse Renovation', 'CUNY Campus Upgrades'],
+    contactEmail: 'carlos.r@email.com',
+    phone: '(347) 555-1002',
+    createdAt: '2025-05-15T10:00:00Z',
+  },
+  {
+    id: 'worker-3',
+    name: 'James O\'Brien',
+    tradeCategory: 'iron_worker',
+    yearsExperience: 20,
+    licenses: ['OSHA 30', 'SST Card', 'AWS D1.1 Welding Cert', 'Rigging License'],
+    city: 'Queens',
+    state: 'NY',
+    availability: 'employed',
+    hourlyRate: 72,
+    bio: 'Structural iron worker with two decades of experience in steel erection, welding, and rigging on high-rise and bridge projects.',
+    pastProjects: ['One World Trade Center', 'Tappan Zee Bridge Replacement', 'LaGuardia Airport Terminal B'],
+    contactEmail: 'james.ob@email.com',
+    phone: '(917) 555-1003',
+    createdAt: '2025-04-20T10:00:00Z',
+  },
+  {
+    id: 'worker-4',
+    name: 'David Chen',
+    tradeCategory: 'project_manager',
+    yearsExperience: 10,
+    licenses: ['PMP', 'OSHA 30', 'LEED AP BD+C'],
+    city: 'San Francisco',
+    state: 'CA',
+    availability: 'available',
+    hourlyRate: 95,
+    bio: 'PMP-certified project manager with $200M+ in completed projects. Specializing in healthcare, education, and mixed-use developments.',
+    pastProjects: ['UCSF Medical Center Phase 2', 'SF Unified School Modernization', 'Salesforce Transit Center'],
+    contactEmail: 'david.chen@email.com',
+    phone: '(415) 555-1004',
+    createdAt: '2025-07-01T10:00:00Z',
+  },
+  {
+    id: 'worker-5',
+    name: 'Miguel Santos',
+    tradeCategory: 'carpenter',
+    yearsExperience: 8,
+    licenses: ['OSHA 10', 'SST Card', 'Scaffold User'],
+    city: 'New York City',
+    state: 'NY',
+    availability: 'available',
+    hourlyRate: 42,
+    bio: 'Skilled carpenter with experience in wood and metal stud framing, formwork, finish carpentry, and custom millwork.',
+    pastProjects: ['Affordable Housing — East Harlem', 'PS 67 Renovation', 'NYC Parks Pavilions'],
+    contactEmail: 'miguel.s@email.com',
+    phone: '(646) 555-1005',
+    createdAt: '2025-08-10T10:00:00Z',
+  },
+  {
+    id: 'worker-6',
+    name: 'Tony Williams',
+    tradeCategory: 'heavy_equipment_op',
+    yearsExperience: 14,
+    licenses: ['CDL Class A', 'OSHA 10', 'NCCCO Crane Operator'],
+    city: 'Houston',
+    state: 'TX',
+    availability: 'available',
+    hourlyRate: 48,
+    bio: 'Certified crane and excavator operator. Experienced in deep foundation work, utility installation, and mass excavation on highway and commercial projects.',
+    pastProjects: ['I-10 Widening Project', 'Houston ISD School Sites', 'Port of Houston Terminal Expansion'],
+    contactEmail: 'tony.w@email.com',
+    phone: '(713) 555-1006',
+    createdAt: '2025-09-01T10:00:00Z',
+  },
+  {
+    id: 'worker-7',
+    name: 'Rachel Kim',
+    tradeCategory: 'civil_engineer',
+    yearsExperience: 7,
+    licenses: ['PE (Professional Engineer)', 'OSHA 30', 'Erosion & Sediment Control'],
+    city: 'Los Angeles',
+    state: 'CA',
+    availability: 'open_to_offers',
+    hourlyRate: 85,
+    bio: 'Licensed civil engineer specializing in site development, grading, drainage design, and utility coordination for commercial and transit projects.',
+    pastProjects: ['LA Metro Crenshaw Line', 'SoFi Stadium Site Work', 'Playa Vista Development'],
+    contactEmail: 'rachel.k@email.com',
+    phone: '(310) 555-1007',
+    createdAt: '2025-10-01T10:00:00Z',
+  },
+  {
+    id: 'worker-8',
+    name: 'Derek Thompson',
+    tradeCategory: 'safety_manager',
+    yearsExperience: 11,
+    licenses: ['OSHA 30', 'CHST', '40-Hour HAZWOPER', 'First Aid/CPR Instructor'],
+    city: 'Chicago',
+    state: 'IL',
+    availability: 'available',
+    hourlyRate: 62,
+    bio: 'Construction health and safety technologist with experience managing safety programs on projects up to $100M. Expert in confined space, fall protection, and HAZWOPER.',
+    pastProjects: ['Chicago Riverwalk Extension', 'O\'Hare Terminal 5 Expansion', 'Willis Tower Renovation'],
+    contactEmail: 'derek.t@email.com',
+    phone: '(312) 555-1008',
+    createdAt: '2025-11-01T10:00:00Z',
+  },
+  {
+    id: 'worker-9',
+    name: 'Luis Hernandez',
+    tradeCategory: 'concrete_worker',
+    yearsExperience: 16,
+    licenses: ['OSHA 10', 'ACI Concrete Finisher', 'SST Card'],
+    city: 'Miami',
+    state: 'FL',
+    availability: 'available',
+    hourlyRate: 40,
+    bio: 'Expert concrete finisher and formwork carpenter. Specializing in structural concrete, post-tension slabs, decorative concrete, and tilt-up construction.',
+    pastProjects: ['Miami Worldcenter', 'Brickell City Centre', 'Port Miami Tunnel Approaches'],
+    contactEmail: 'luis.h@email.com',
+    phone: '(305) 555-1009',
+    createdAt: '2025-12-01T10:00:00Z',
+  },
+  {
+    id: 'worker-10',
+    name: 'Sarah Mitchell',
+    tradeCategory: 'estimator',
+    yearsExperience: 9,
+    licenses: ['OSHA 10', 'CPE (Certified Professional Estimator)'],
+    city: 'Atlanta',
+    state: 'GA',
+    availability: 'open_to_offers',
+    hourlyRate: 70,
+    bio: 'Certified estimator with expertise in commercial, healthcare, and education project estimation. Proficient in RSMeans, Bluebeam, and On-Screen Takeoff.',
+    pastProjects: ['Emory University Science Complex', 'Atlanta BeltLine Trail', 'Hartsfield-Jackson Concourse T'],
+    contactEmail: 'sarah.m@email.com',
+    phone: '(404) 555-1010',
+    createdAt: '2026-01-01T10:00:00Z',
+  },
+];
+
+
+========== FILE: ./package.json ==========
+{
+  "name": "expo-app",
+  "main": "expo-router/entry",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "bunx rork start -p 3lwkqnydboi5oec35hm3z --tunnel",
+    "start-web": "bunx rork start -p 3lwkqnydboi5oec35hm3z --web --tunnel",
+    "start-web-dev": "DEBUG=expo* bunx rork start -p 3lwkqnydboi5oec35hm3z --web --tunnel",
+    "lint": "expo lint"
+  },
+  "dependencies": {
+    "@expo/vector-icons": "^15.0.3",
+    "@hono/trpc-server": "^0.4.2",
+    "@nkzw/create-context-hook": "^1.1.0",
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "@rork-ai/toolkit-sdk": "^0.2.51",
+    "@stardazed/streams-text-encoding": "^1.0.2",
+    "@supabase/supabase-js": "^2.100.0",
+    "@tanstack/react-query": "^5.83.0",
+    "@trpc/client": "^11.12.0",
+    "@trpc/react-query": "^11.12.0",
+    "@trpc/server": "^11.12.0",
+    "@ungap/structured-clone": "^1.3.0",
+    "expo": "~54.0.27",
+    "expo-auth-session": "~7.0.10",
+    "expo-blur": "~15.0.8",
+    "expo-constants": "~18.0.11",
+    "expo-crypto": "~15.0.8",
+    "expo-file-system": "~19.0.8",
+    "expo-font": "~14.0.10",
+    "expo-haptics": "~15.0.8",
+    "expo-image": "~3.0.11",
+    "expo-image-picker": "~17.0.9",
+    "expo-linear-gradient": "~15.0.8",
+    "expo-linking": "~8.0.10",
+    "expo-local-authentication": "^55.0.8",
+    "expo-location": "~19.0.8",
+    "expo-mail-composer": "~15.0.8",
+    "expo-notifications": "^55.0.13",
+    "expo-print": "^55.0.8",
+    "expo-router": "~6.0.17",
+    "expo-secure-store": "^55.0.8",
+    "expo-sharing": "~14.0.8",
+    "expo-splash-screen": "~31.0.12",
+    "expo-status-bar": "~3.0.9",
+    "expo-symbols": "~1.0.8",
+    "expo-system-ui": "~6.0.9",
+    "expo-web-browser": "~15.0.10",
+    "hono": "^4.12.7",
+    "lucide-react-native": "^0.475.0",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "react-native": "0.81.5",
+    "react-native-gesture-handler": "~2.28.0",
+    "react-native-purchases": "^9.14.0",
+    "react-native-safe-area-context": "~5.6.0",
+    "react-native-screens": "~4.16.0",
+    "react-native-svg": "15.12.1",
+    "react-native-web": "^0.21.0",
+    "react-native-worklets": "0.5.1",
+    "superjson": "^2.2.6",
+    "zod": "^4.3.6",
+    "zustand": "^5.0.2"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.25.2",
+    "@expo/ngrok": "^4.1.0",
+    "@types/react": "~19.1.10",
+    "eslint": "^9.31.0",
+    "eslint-config-expo": "~10.0.0",
+    "typescript": "~5.9.2"
+  },
+  "private": true
+}
+
+========== FILE: ./supabase/schema.sql ==========
+-- MAGE ID Supabase Database Schema
+-- Run this in the Supabase SQL Editor
+
+-- ============================================
+-- UPDATED_AT TRIGGER FUNCTION
+-- ============================================
+CREATE OR REPLACE FUNCTION public.update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- ============================================
+-- PROFILES (extends Supabase auth.users)
+-- ============================================
+CREATE TABLE IF NOT EXISTS public.profiles (
+  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  email TEXT NOT NULL,
+  name TEXT NOT NULL DEFAULT '',
+  avatar_url TEXT,
+  company_name TEXT DEFAULT '',
+  contact_name TEXT DEFAULT '',
+  phone TEXT DEFAULT '',
+  address TEXT DEFAULT '',
+  license_number TEXT DEFAULT '',
+  tagline TEXT DEFAULT '',
+  logo_uri TEXT,
+  signature_data JSONB,
+  location TEXT DEFAULT 'United States',
+  units TEXT DEFAULT 'imperial' CHECK (units IN ('imperial', 'metric')),
+  tax_rate NUMERIC DEFAULT 7.5,
+  contingency_rate NUMERIC DEFAULT 10,
+  theme_colors JSONB,
+  biometrics_enabled BOOLEAN DEFAULT FALSE,
+  dfr_recipients JSONB DEFAULT '[]'::JSONB,
+  onboarding_complete BOOLEAN DEFAULT FALSE,
+  push_token TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TRIGGER profiles_updated_at BEFORE UPDATE ON public.profiles
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+-- ============================================
+-- PROJECTS
+-- ============================================
+CREATE TABLE IF NOT EXISTS public.projects (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  type TEXT NOT NULL,
+  location TEXT DEFAULT '',
+  square_footage NUMERIC DEFAULT 0,
+  quality TEXT DEFAULT 'standard',
+  description TEXT DEFAULT '',
+  estimate JSONB,
+  schedule JSONB,
+  linked_estimate JSONB,
+  status TEXT DEFAULT 'draft' CHECK (status IN ('draft', 'estimated', 'in_progress', 'completed', 'closed')),
+  collaborators JSONB DEFAULT '[]'::JSONB,
+  client_portal JSONB,
+  closed_at TIMESTAMPTZ,
+  photo_count INTEGER DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_projects_user_id ON public.projects(user_id);
+
+CREATE TRIGGER projects_updated_at BEFORE UPDATE ON public.projects
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+-- ============================================
+-- CHANGE ORDERS
+-- ============================================
+CREATE TABLE IF NOT EXISTS public.change_orders (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  project_id UUID NOT NULL REFERENCES public.projects(id) ON DELETE CASCADE,
+  number INTEGER NOT NULL,
+  date TEXT NOT NULL,
+  description TEXT DEFAULT '',
+  reason TEXT DEFAULT '',
+  line_items JSONB DEFAULT '[]'::JSONB,
+  original_contract_value NUMERIC DEFAULT 0,
+  change_amount NUMERIC DEFAULT 0,
+  new_contract_total NUMERIC DEFAULT 0,
+  status TEXT DEFAULT 'draft',
+  approvers JSONB,
+  approval_mode TEXT DEFAULT 'sequential',
+  approval_deadline_days INTEGER,
+  audit_trail JSONB DEFAULT '[]'::JSONB,
+  revision INTEGER DEFAULT 1,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_change_orders_project ON public.change_orders(project_id);
+CREATE INDEX idx_change_orders_user ON public.change_orders(user_id);
+
+CREATE TRIGGER change_orders_updated_at BEFORE UPDATE ON public.change_orders
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+-- ============================================
+-- INVOICES
+-- ============================================
+CREATE TABLE IF NOT EXISTS public.invoices (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  project_id UUID NOT NULL REFERENCES public.projects(id) ON DELETE CASCADE,
+  number INTEGER NOT NULL,
+  type TEXT DEFAULT 'full' CHECK (type IN ('full', 'progress')),
+  progress_percent NUMERIC,
+  issue_date TEXT NOT NULL,
+  due_date TEXT NOT NULL,
+  payment_terms TEXT DEFAULT 'net_30',
+  notes TEXT DEFAULT '',
+  line_items JSONB DEFAULT '[]'::JSONB,
+  subtotal NUMERIC DEFAULT 0,
+  tax_rate NUMERIC DEFAULT 0,
+  tax_amount NUMERIC DEFAULT 0,
+  total_due NUMERIC DEFAULT 0,
+  amount_paid NUMERIC DEFAULT 0,
+  status TEXT DEFAULT 'draft',
+  payments JSONB DEFAULT '[]'::JSONB,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_invoices_project ON public.invoices(project_id);
+CREATE INDEX idx_invoices_user ON public.invoices(user_id);
+
+CREATE TRIGGER invoices_updated_at BEFORE UPDATE ON public.invoices
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+-- ============================================
+-- DAILY FIELD REPORTS
+-- ============================================
+CREATE TABLE IF NOT EXISTS public.daily_reports (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  project_id UUID NOT NULL REFERENCES public.projects(id) ON DELETE CASCADE,
+  date TEXT NOT NULL,
+  weather JSONB DEFAULT '{}'::JSONB,
+  manpower JSONB DEFAULT '[]'::JSONB,
+  work_performed TEXT DEFAULT '',
+  materials_delivered JSONB DEFAULT '[]'::JSONB,
+  issues_and_delays TEXT DEFAULT '',
+  photos JSONB DEFAULT '[]'::JSONB,
+  status TEXT DEFAULT 'draft' CHECK (status IN ('draft', 'sent')),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_daily_reports_project ON public.daily_reports(project_id);
+CREATE INDEX idx_daily_reports_user ON public.daily_reports(user_id);
+
+CREATE TRIGGER daily_reports_updated_at BEFORE UPDATE ON public.daily_reports
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+-- ============================================
+-- SUBCONTRACTORS
+-- ============================================
+CREATE TABLE IF NOT EXISTS public.subcontractors (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  company_name TEXT NOT NULL,
+  contact_name TEXT DEFAULT '',
+  phone TEXT DEFAULT '',
+  email TEXT DEFAULT '',
+  address TEXT DEFAULT '',
+  trade TEXT DEFAULT 'General',
+  license_number TEXT DEFAULT '',
+  license_expiry TEXT DEFAULT '',
+  coi_expiry TEXT DEFAULT '',
+  w9_on_file BOOLEAN DEFAULT FALSE,
+  bid_history JSONB DEFAULT '[]'::JSONB,
+  assigned_projects JSONB DEFAULT '[]'::JSONB,
+  notes TEXT DEFAULT '',
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_subcontractors_user ON public.subcontractors(user_id);
+
+CREATE TRIGGER subcontractors_updated_at BEFORE UPDATE ON public.subcontractors
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+-- ============================================
+-- PUNCH ITEMS
+-- ============================================
+CREATE TABLE IF NOT EXISTS public.punch_items (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  project_id UUID NOT NULL REFERENCES public.projects(id) ON DELETE CASCADE,
+  description TEXT NOT NULL,
+  location TEXT DEFAULT '',
+  assigned_sub TEXT DEFAULT '',
+  assigned_sub_id TEXT,
+  due_date TEXT NOT NULL,
+  priority TEXT DEFAULT 'medium' CHECK (priority IN ('low', 'medium', 'high')),
+  status TEXT DEFAULT 'open' CHECK (status IN ('open', 'in_progress', 'ready_for_review', 'closed')),
+  photo_uri TEXT,
+  rejection_note TEXT,
+  closed_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_punch_items_project ON public.punch_items(project_id);
+
+CREATE TRIGGER punch_items_updated_at BEFORE UPDATE ON public.punch_items
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+-- ============================================
+-- PROJECT PHOTOS
+-- ============================================
+CREATE TABLE IF NOT EXISTS public.photos (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  project_id UUID NOT NULL REFERENCES public.projects(id) ON DELETE CASCADE,
+  uri TEXT NOT NULL,
+  timestamp TEXT NOT NULL,
+  location TEXT,
+  tag TEXT,
+  linked_task_id TEXT,
+  linked_task_name TEXT,
+  markup JSONB DEFAULT '[]'::JSONB,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_photos_project ON public.photos(project_id);
+CREATE INDEX idx_photos_user ON public.photos(user_id);
+
+-- ============================================
+-- RFIs
+-- ============================================
+CREATE TABLE IF NOT EXISTS public.rfis (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  project_id UUID NOT NULL REFERENCES public.projects(id) ON DELETE CASCADE,
+  number INTEGER NOT NULL,
+  subject TEXT NOT NULL,
+  question TEXT DEFAULT '',
+  submitted_by TEXT DEFAULT '',
+  assigned_to TEXT DEFAULT '',
+  date_submitted TEXT NOT NULL,
+  date_required TEXT NOT NULL,
+  date_responded TEXT,
+  response TEXT,
+  status TEXT DEFAULT 'open' CHECK (status IN ('open', 'answered', 'closed', 'void')),
+  priority TEXT DEFAULT 'normal' CHECK (priority IN ('low', 'normal', 'urgent')),
+  linked_drawing TEXT,
+  linked_task_id TEXT,
+  attachments JSONB DEFAULT '[]'::JSONB,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_rfis_project ON public.rfis(project_id);
+
+CREATE TRIGGER rfis_updated_at BEFORE UPDATE ON public.rfis
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+-- ============================================
+-- SUBMITTALS
+-- ============================================
+CREATE TABLE IF NOT EXISTS public.submittals (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  project_id UUID NOT NULL REFERENCES public.projects(id) ON DELETE CASCADE,
+  number INTEGER NOT NULL,
+  title TEXT NOT NULL,
+  spec_section TEXT DEFAULT '',
+  submitted_by TEXT DEFAULT '',
+  submitted_date TEXT NOT NULL,
+  required_date TEXT NOT NULL,
+  review_cycles JSONB DEFAULT '[]'::JSONB,
+  current_status TEXT DEFAULT 'pending',
+  attachments JSONB DEFAULT '[]'::JSONB,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_submittals_project ON public.submittals(project_id);
+
+CREATE TRIGGER submittals_updated_at BEFORE UPDATE ON public.submittals
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+-- ============================================
+-- EQUIPMENT
+-- ============================================
+CREATE TABLE IF NOT EXISTS public.equipment (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  type TEXT DEFAULT 'owned' CHECK (type IN ('owned', 'rented')),
+  category TEXT DEFAULT 'other',
+  make TEXT DEFAULT '',
+  model TEXT DEFAULT '',
+  year INTEGER,
+  serial_number TEXT,
+  daily_rate NUMERIC DEFAULT 0,
+  current_project_id TEXT,
+  maintenance_schedule JSONB DEFAULT '[]'::JSONB,
+  utilization_log JSONB DEFAULT '[]'::JSONB,
+  status TEXT DEFAULT 'available' CHECK (status IN ('available', 'in_use', 'maintenance', 'retired')),
+  notes TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_equipment_user ON public.equipment(user_id);
+
+CREATE TRIGGER equipment_updated_at BEFORE UPDATE ON public.equipment
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+-- ============================================
+-- CONTACTS
+-- ============================================
+CREATE TABLE IF NOT EXISTS public.contacts (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  first_name TEXT NOT NULL,
+  last_name TEXT DEFAULT '',
+  company_name TEXT DEFAULT '',
+  role TEXT DEFAULT 'Other',
+  email TEXT DEFAULT '',
+  secondary_email TEXT,
+  phone TEXT DEFAULT '',
+  address TEXT DEFAULT '',
+  notes TEXT DEFAULT '',
+  linked_project_ids JSONB DEFAULT '[]'::JSONB,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_contacts_user ON public.contacts(user_id);
+
+CREATE TRIGGER contacts_updated_at BEFORE UPDATE ON public.contacts
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+-- ============================================
+-- PRICE ALERTS
+-- ============================================
+CREATE TABLE IF NOT EXISTS public.price_alerts (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  material_id TEXT NOT NULL,
+  material_name TEXT NOT NULL,
+  target_price NUMERIC NOT NULL,
+  direction TEXT DEFAULT 'below' CHECK (direction IN ('below', 'above')),
+  current_price NUMERIC DEFAULT 0,
+  is_triggered BOOLEAN DEFAULT FALSE,
+  is_paused BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_price_alerts_user ON public.price_alerts(user_id);
+
+-- ============================================
+-- COMMUNICATION EVENTS
+-- ============================================
+CREATE TABLE IF NOT EXISTS public.comm_events (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  project_id UUID NOT NULL REFERENCES public.projects(id) ON DELETE CASCADE,
+  type TEXT NOT NULL,
+  summary TEXT DEFAULT '',
+  actor TEXT DEFAULT '',
+  recipient TEXT,
+  detail TEXT,
+  is_private BOOLEAN DEFAULT FALSE,
+  timestamp TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_comm_events_project ON public.comm_events(project_id);
+CREATE INDEX idx_comm_events_user ON public.comm_events(user_id);
+
+-- ============================================
+-- PUBLIC BIDS (readable by everyone)
+-- ============================================
+CREATE TABLE IF NOT EXISTS public.public_bids (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  title TEXT NOT NULL,
+  issuing_agency TEXT DEFAULT '',
+  city TEXT DEFAULT '',
+  state TEXT DEFAULT '',
+  category TEXT DEFAULT 'construction',
+  bid_type TEXT DEFAULT 'state',
+  estimated_value NUMERIC DEFAULT 0,
+  bond_required NUMERIC DEFAULT 0,
+  deadline TEXT NOT NULL,
+  description TEXT DEFAULT '',
+  posted_by TEXT DEFAULT '',
+  posted_date TEXT NOT NULL,
+  status TEXT DEFAULT 'open' CHECK (status IN ('open', 'closed')),
+  required_certifications JSONB DEFAULT '[]'::JSONB,
+  contact_email TEXT DEFAULT '',
+  apply_url TEXT,
+  source_url TEXT,
+  source_name TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_public_bids_status ON public.public_bids(status);
+CREATE INDEX idx_public_bids_state ON public.public_bids(state);
+
+-- ============================================
+-- COMPANIES (readable by everyone)
+-- ============================================
+CREATE TABLE IF NOT EXISTS public.companies (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  company_name TEXT NOT NULL,
+  city TEXT DEFAULT '',
+  state TEXT DEFAULT '',
+  primary_category TEXT DEFAULT 'construction',
+  bond_capacity NUMERIC DEFAULT 0,
+  completed_projects INTEGER DEFAULT 0,
+  rating NUMERIC DEFAULT 0,
+  contact_email TEXT DEFAULT '',
+  phone TEXT DEFAULT '',
+  description TEXT DEFAULT '',
+  certifications JSONB DEFAULT '[]'::JSONB,
+  website TEXT,
+  year_established INTEGER,
+  employee_count INTEGER,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_companies_state ON public.companies(state);
+
+-- ============================================
+-- JOB LISTINGS
+-- ============================================
+CREATE TABLE IF NOT EXISTS public.job_listings (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  company_id TEXT DEFAULT '',
+  company_name TEXT DEFAULT '',
+  title TEXT NOT NULL,
+  trade_category TEXT NOT NULL,
+  city TEXT DEFAULT '',
+  state TEXT DEFAULT '',
+  pay_min NUMERIC DEFAULT 0,
+  pay_max NUMERIC DEFAULT 0,
+  pay_type TEXT DEFAULT 'hourly' CHECK (pay_type IN ('hourly', 'salary')),
+  job_type TEXT DEFAULT 'full_time',
+  required_licenses JSONB DEFAULT '[]'::JSONB,
+  experience_level TEXT DEFAULT 'mid',
+  description TEXT DEFAULT '',
+  start_date TEXT DEFAULT '',
+  posted_date TEXT NOT NULL,
+  status TEXT DEFAULT 'open' CHECK (status IN ('open', 'closed', 'filled')),
+  applicant_count INTEGER DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_job_listings_status ON public.job_listings(status);
+
+-- ============================================
+-- WORKER PROFILES
+-- ============================================
+CREATE TABLE IF NOT EXISTS public.worker_profiles (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  name TEXT NOT NULL,
+  trade_category TEXT NOT NULL,
+  years_experience INTEGER DEFAULT 0,
+  licenses JSONB DEFAULT '[]'::JSONB,
+  city TEXT DEFAULT '',
+  state TEXT DEFAULT '',
+  availability TEXT DEFAULT 'available' CHECK (availability IN ('available', 'employed', 'open_to_offers')),
+  hourly_rate NUMERIC DEFAULT 0,
+  bio TEXT DEFAULT '',
+  past_projects JSONB DEFAULT '[]'::JSONB,
+  contact_email TEXT DEFAULT '',
+  phone TEXT DEFAULT '',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_worker_profiles_trade ON public.worker_profiles(trade_category);
+
+-- ============================================
+-- CONVERSATIONS
+-- ============================================
+CREATE TABLE IF NOT EXISTS public.conversations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  participant_ids JSONB NOT NULL DEFAULT '[]'::JSONB,
+  participant_names JSONB NOT NULL DEFAULT '[]'::JSONB,
+  last_message TEXT DEFAULT '',
+  last_message_time TIMESTAMPTZ DEFAULT NOW(),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TRIGGER conversations_updated_at BEFORE UPDATE ON public.conversations
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+-- ============================================
+-- CONVERSATION PARTICIPANTS (junction table)
+-- ============================================
+CREATE TABLE IF NOT EXISTS public.conversation_participants (
+  conversation_id UUID NOT NULL REFERENCES public.conversations(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  joined_at TIMESTAMPTZ DEFAULT NOW(),
+  PRIMARY KEY (conversation_id, user_id)
+);
+
+CREATE INDEX idx_conversation_participants_user ON public.conversation_participants(user_id);
+
+-- ============================================
+-- MESSAGES
+-- ============================================
+CREATE TABLE IF NOT EXISTS public.messages (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  conversation_id UUID NOT NULL REFERENCES public.conversations(id) ON DELETE CASCADE,
+  sender_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  sender_name TEXT DEFAULT '',
+  text TEXT NOT NULL,
+  timestamp TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_messages_conversation ON public.messages(conversation_id);
+CREATE INDEX idx_messages_timestamp ON public.messages(timestamp);
+
+-- ============================================
+-- SUBSCRIPTIONS
+-- ============================================
+CREATE TABLE IF NOT EXISTS public.subscriptions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE UNIQUE,
+  tier TEXT DEFAULT 'free' CHECK (tier IN ('free', 'pro', 'business')),
+  revenuecat_customer_id TEXT,
+  start_date TIMESTAMPTZ,
+  end_date TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_subscriptions_user ON public.subscriptions(user_id);
+
+-- ============================================
+-- MATERIALS PRICING (regional)
+-- ============================================
+CREATE TABLE IF NOT EXISTS public.materials_pricing (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  region TEXT NOT NULL,
+  material_name TEXT NOT NULL,
+  category TEXT NOT NULL,
+  unit TEXT NOT NULL,
+  retail_price NUMERIC NOT NULL,
+  bulk_price NUMERIC NOT NULL,
+  bulk_min_qty INTEGER DEFAULT 1,
+  supplier TEXT DEFAULT '',
+  last_updated TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(region, material_name)
+);
+
+CREATE INDEX idx_materials_region ON public.materials_pricing(region);
+
+-- ============================================
+-- ROW LEVEL SECURITY POLICIES
+-- ============================================
+
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.projects ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.change_orders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.invoices ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.daily_reports ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.subcontractors ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.punch_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.photos ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.rfis ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.submittals ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.equipment ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.contacts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.price_alerts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.comm_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.public_bids ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.companies ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.job_listings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.worker_profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.conversations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.conversation_participants ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.subscriptions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.materials_pricing ENABLE ROW LEVEL SECURITY;
+
+-- PROFILES: users can only access their own
+CREATE POLICY "profiles_select_own" ON public.profiles FOR SELECT USING (auth.uid() = id);
+CREATE POLICY "profiles_insert_own" ON public.profiles FOR INSERT WITH CHECK (auth.uid() = id);
+CREATE POLICY "profiles_update_own" ON public.profiles FOR UPDATE USING (auth.uid() = id);
+
+-- PROJECTS: owner access only
+CREATE POLICY "projects_select_own" ON public.projects FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "projects_insert_own" ON public.projects FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "projects_update_own" ON public.projects FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "projects_delete_own" ON public.projects FOR DELETE USING (auth.uid() = user_id);
+
+-- CHANGE ORDERS: owner access
+CREATE POLICY "co_select_own" ON public.change_orders FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "co_insert_own" ON public.change_orders FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "co_update_own" ON public.change_orders FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "co_delete_own" ON public.change_orders FOR DELETE USING (auth.uid() = user_id);
+
+-- INVOICES: owner access
+CREATE POLICY "inv_select_own" ON public.invoices FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "inv_insert_own" ON public.invoices FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "inv_update_own" ON public.invoices FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "inv_delete_own" ON public.invoices FOR DELETE USING (auth.uid() = user_id);
+
+-- DAILY REPORTS: owner access
+CREATE POLICY "dfr_select_own" ON public.daily_reports FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "dfr_insert_own" ON public.daily_reports FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "dfr_update_own" ON public.daily_reports FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "dfr_delete_own" ON public.daily_reports FOR DELETE USING (auth.uid() = user_id);
+
+-- SUBCONTRACTORS: owner access
+CREATE POLICY "subs_select_own" ON public.subcontractors FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "subs_insert_own" ON public.subcontractors FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "subs_update_own" ON public.subcontractors FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "subs_delete_own" ON public.subcontractors FOR DELETE USING (auth.uid() = user_id);
+
+-- PUNCH ITEMS: owner access
+CREATE POLICY "punch_select_own" ON public.punch_items FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "punch_insert_own" ON public.punch_items FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "punch_update_own" ON public.punch_items FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "punch_delete_own" ON public.punch_items FOR DELETE USING (auth.uid() = user_id);
+
+-- PHOTOS: owner access
+CREATE POLICY "photos_select_own" ON public.photos FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "photos_insert_own" ON public.photos FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "photos_delete_own" ON public.photos FOR DELETE USING (auth.uid() = user_id);
+
+-- RFIs: owner access
+CREATE POLICY "rfis_select_own" ON public.rfis FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "rfis_insert_own" ON public.rfis FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "rfis_update_own" ON public.rfis FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "rfis_delete_own" ON public.rfis FOR DELETE USING (auth.uid() = user_id);
+
+-- SUBMITTALS: owner access
+CREATE POLICY "submittals_select_own" ON public.submittals FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "submittals_insert_own" ON public.submittals FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "submittals_update_own" ON public.submittals FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "submittals_delete_own" ON public.submittals FOR DELETE USING (auth.uid() = user_id);
+
+-- EQUIPMENT: owner access
+CREATE POLICY "equip_select_own" ON public.equipment FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "equip_insert_own" ON public.equipment FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "equip_update_own" ON public.equipment FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "equip_delete_own" ON public.equipment FOR DELETE USING (auth.uid() = user_id);
+
+-- CONTACTS: owner access
+CREATE POLICY "contacts_select_own" ON public.contacts FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "contacts_insert_own" ON public.contacts FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "contacts_update_own" ON public.contacts FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "contacts_delete_own" ON public.contacts FOR DELETE USING (auth.uid() = user_id);
+
+-- PRICE ALERTS: owner access
+CREATE POLICY "alerts_select_own" ON public.price_alerts FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "alerts_insert_own" ON public.price_alerts FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "alerts_update_own" ON public.price_alerts FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "alerts_delete_own" ON public.price_alerts FOR DELETE USING (auth.uid() = user_id);
+
+-- COMM EVENTS: owner access
+CREATE POLICY "comm_select_own" ON public.comm_events FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "comm_insert_own" ON public.comm_events FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+-- PUBLIC BIDS: readable by ALL authenticated users, writable by owner
+CREATE POLICY "bids_select_all" ON public.public_bids FOR SELECT USING (auth.role() = 'authenticated');
+CREATE POLICY "bids_insert_auth" ON public.public_bids FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "bids_update_own" ON public.public_bids FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "bids_delete_own" ON public.public_bids FOR DELETE USING (auth.uid() = user_id);
+
+-- COMPANIES: readable by ALL authenticated users, writable by owner
+CREATE POLICY "companies_select_all" ON public.companies FOR SELECT USING (auth.role() = 'authenticated');
+CREATE POLICY "companies_insert_auth" ON public.companies FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "companies_update_own" ON public.companies FOR UPDATE USING (auth.uid() = user_id);
+
+-- JOB LISTINGS: readable by all authenticated, writable by owner
+CREATE POLICY "jobs_select_all" ON public.job_listings FOR SELECT USING (auth.role() = 'authenticated');
+CREATE POLICY "jobs_insert_auth" ON public.job_listings FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "jobs_update_own" ON public.job_listings FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "jobs_delete_own" ON public.job_listings FOR DELETE USING (auth.uid() = user_id);
+
+-- WORKER PROFILES: readable by all authenticated, writable by owner
+CREATE POLICY "workers_select_all" ON public.worker_profiles FOR SELECT USING (auth.role() = 'authenticated');
+CREATE POLICY "workers_insert_auth" ON public.worker_profiles FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "workers_update_own" ON public.worker_profiles FOR UPDATE USING (auth.uid() = user_id);
+
+-- CONVERSATION PARTICIPANTS: participants can access their own rows
+CREATE POLICY "cp_select_own" ON public.conversation_participants FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "cp_insert_auth" ON public.conversation_participants FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+CREATE POLICY "cp_delete_own" ON public.conversation_participants FOR DELETE USING (auth.uid() = user_id);
+
+-- CONVERSATIONS: participants can access via junction table
+CREATE POLICY "convo_select_participant" ON public.conversations FOR SELECT USING (
+  EXISTS (
+    SELECT 1 FROM public.conversation_participants cp
+    WHERE cp.conversation_id = id AND cp.user_id = auth.uid()
+  )
+);
+CREATE POLICY "convo_insert_auth" ON public.conversations FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+CREATE POLICY "convo_update_participant" ON public.conversations FOR UPDATE USING (
+  EXISTS (
+    SELECT 1 FROM public.conversation_participants cp
+    WHERE cp.conversation_id = id AND cp.user_id = auth.uid()
+  )
+);
+
+-- MESSAGES: participants of the conversation can access via junction table
+CREATE POLICY "msg_select_convo" ON public.messages FOR SELECT USING (
+  EXISTS (
+    SELECT 1 FROM public.conversation_participants cp
+    WHERE cp.conversation_id = conversation_id AND cp.user_id = auth.uid()
+  )
+);
+CREATE POLICY "msg_insert_auth" ON public.messages FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+
+-- SUBSCRIPTIONS: owner access
+CREATE POLICY "subs_tier_select_own" ON public.subscriptions FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "subs_tier_insert_own" ON public.subscriptions FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "subs_tier_update_own" ON public.subscriptions FOR UPDATE USING (auth.uid() = user_id);
+
+-- MATERIALS PRICING: readable by all authenticated
+CREATE POLICY "materials_select_all" ON public.materials_pricing FOR SELECT USING (auth.role() = 'authenticated');
+
+-- ============================================
+-- SUPABASE STORAGE BUCKETS (policies)
+-- ============================================
+
+-- Bucket: project-photos
+INSERT INTO storage.buckets (id, name, public) VALUES ('project-photos', 'project-photos', false) ON CONFLICT (id) DO NOTHING;
+
+CREATE POLICY "project_photos_upload" ON storage.objects FOR INSERT WITH CHECK (
+  bucket_id = 'project-photos' AND auth.role() = 'authenticated'
+  AND (storage.foldername(name))[1] = auth.uid()::TEXT
+);
+CREATE POLICY "project_photos_select" ON storage.objects FOR SELECT USING (
+  bucket_id = 'project-photos' AND auth.role() = 'authenticated'
+  AND (storage.foldername(name))[1] = auth.uid()::TEXT
+);
+CREATE POLICY "project_photos_delete" ON storage.objects FOR DELETE USING (
+  bucket_id = 'project-photos' AND auth.role() = 'authenticated'
+  AND (storage.foldername(name))[1] = auth.uid()::TEXT
+);
+
+-- Bucket: documents
+INSERT INTO storage.buckets (id, name, public) VALUES ('documents', 'documents', false) ON CONFLICT (id) DO NOTHING;
+
+CREATE POLICY "documents_upload" ON storage.objects FOR INSERT WITH CHECK (
+  bucket_id = 'documents' AND auth.role() = 'authenticated'
+  AND (storage.foldername(name))[1] = auth.uid()::TEXT
+);
+CREATE POLICY "documents_select" ON storage.objects FOR SELECT USING (
+  bucket_id = 'documents' AND auth.role() = 'authenticated'
+  AND (storage.foldername(name))[1] = auth.uid()::TEXT
+);
+CREATE POLICY "documents_delete" ON storage.objects FOR DELETE USING (
+  bucket_id = 'documents' AND auth.role() = 'authenticated'
+  AND (storage.foldername(name))[1] = auth.uid()::TEXT
+);
+
+-- Bucket: branding
+INSERT INTO storage.buckets (id, name, public) VALUES ('branding', 'branding', false) ON CONFLICT (id) DO NOTHING;
+
+CREATE POLICY "branding_upload" ON storage.objects FOR INSERT WITH CHECK (
+  bucket_id = 'branding' AND auth.role() = 'authenticated'
+  AND (storage.foldername(name))[1] = auth.uid()::TEXT
+);
+CREATE POLICY "branding_select" ON storage.objects FOR SELECT USING (
+  bucket_id = 'branding' AND auth.role() = 'authenticated'
+  AND (storage.foldername(name))[1] = auth.uid()::TEXT
+);
+CREATE POLICY "branding_delete" ON storage.objects FOR DELETE USING (
+  bucket_id = 'branding' AND auth.role() = 'authenticated'
+  AND (storage.foldername(name))[1] = auth.uid()::TEXT
+);
+
+-- Bucket: profiles (public read for profile images)
+INSERT INTO storage.buckets (id, name, public) VALUES ('profiles', 'profiles', true) ON CONFLICT (id) DO NOTHING;
+
+CREATE POLICY "profiles_upload" ON storage.objects FOR INSERT WITH CHECK (
+  bucket_id = 'profiles' AND auth.role() = 'authenticated'
+  AND (storage.foldername(name))[1] = auth.uid()::TEXT
+);
+CREATE POLICY "profiles_select_public" ON storage.objects FOR SELECT USING (
+  bucket_id = 'profiles'
+);
+CREATE POLICY "profiles_delete" ON storage.objects FOR DELETE USING (
+  bucket_id = 'profiles' AND auth.role() = 'authenticated'
+  AND (storage.foldername(name))[1] = auth.uid()::TEXT
+);
+
+-- ============================================
+-- ENHANCED CACHED_BIDS (add columns)
+-- ============================================
+ALTER TABLE cached_bids
+  ADD COLUMN IF NOT EXISTS description TEXT,
+  ADD COLUMN IF NOT EXISTS bid_type TEXT,
+  ADD COLUMN IF NOT EXISTS category TEXT DEFAULT 'construction',
+  ADD COLUMN IF NOT EXISTS bond_required NUMERIC DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS contact_email TEXT,
+  ADD COLUMN IF NOT EXISTS contact_phone TEXT,
+  ADD COLUMN IF NOT EXISTS apply_url TEXT,
+  ADD COLUMN IF NOT EXISTS source_name TEXT,
+  ADD COLUMN IF NOT EXISTS posted_by TEXT,
+  ADD COLUMN IF NOT EXISTS naics_code TEXT,
+  ADD COLUMN IF NOT EXISTS solicitation_number TEXT,
+  ADD COLUMN IF NOT EXISTS pre_bid_date TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS pre_bid_location TEXT,
+  ADD COLUMN IF NOT EXISTS scope_of_work TEXT,
+  ADD COLUMN IF NOT EXISTS documents_url TEXT,
+  ADD COLUMN IF NOT EXISTS required_certifications TEXT[] DEFAULT '{}';
+
+-- ============================================
+-- USER TRACKED BIDS
+-- ============================================
+CREATE TABLE IF NOT EXISTS public.user_tracked_bids (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  bid_id TEXT NOT NULL,
+  status TEXT DEFAULT 'saved' CHECK (status IN ('saved', 'interested', 'preparing', 'submitted', 'won', 'lost')),
+  notes TEXT,
+  proposal_amount NUMERIC,
+  submitted_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.user_tracked_bids ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "tracked_bids_all_own" ON public.user_tracked_bids FOR ALL USING (auth.uid() = user_id);
+CREATE INDEX IF NOT EXISTS idx_tracked_bids_user ON public.user_tracked_bids(user_id, status);
+
+CREATE TRIGGER user_tracked_bids_updated_at BEFORE UPDATE ON public.user_tracked_bids
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+-- ============================================
+-- MATERIAL PRICES CACHE (for future live pricing)
+-- ============================================
+CREATE TABLE IF NOT EXISTS public.material_prices (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  material_key TEXT NOT NULL,
+  name TEXT NOT NULL,
+  category TEXT NOT NULL,
+  unit TEXT,
+  price NUMERIC NOT NULL,
+  bulk_price NUMERIC,
+  store_name TEXT,
+  store_zip TEXT,
+  sku TEXT,
+  product_url TEXT,
+  image_url TEXT,
+  source TEXT DEFAULT 'home_depot',
+  region TEXT,
+  fetched_at TIMESTAMPTZ DEFAULT NOW(),
+  expires_at TIMESTAMPTZ DEFAULT (NOW() + INTERVAL '7 days'),
+  UNIQUE(material_key, store_zip, source)
+);
+
+ALTER TABLE public.material_prices ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "material_prices_select_all" ON public.material_prices FOR SELECT USING (auth.role() = 'authenticated');
+CREATE INDEX IF NOT EXISTS idx_material_prices_lookup ON public.material_prices(material_key, store_zip) WHERE expires_at > NOW();
+
+-- ============================================
+-- LABOR RATES
+-- ============================================
+CREATE TABLE IF NOT EXISTS public.labor_rates (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  trade TEXT NOT NULL,
+  region TEXT NOT NULL,
+  state TEXT,
+  metro_area TEXT,
+  hourly_rate_low NUMERIC,
+  hourly_rate_median NUMERIC,
+  hourly_rate_high NUMERIC,
+  source TEXT DEFAULT 'bls_oews',
+  data_year INTEGER,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.labor_rates ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "labor_rates_select_all" ON public.labor_rates FOR SELECT USING (auth.role() = 'authenticated');
+CREATE INDEX IF NOT EXISTS idx_labor_rates_trade_region ON public.labor_rates(trade, region);
+
+-- ============================================
+-- ASSEMBLIES (custom user assemblies)
+-- ============================================
+CREATE TABLE IF NOT EXISTS public.assemblies (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  category TEXT NOT NULL,
+  description TEXT,
+  unit TEXT NOT NULL,
+  materials JSONB NOT NULL DEFAULT '[]',
+  labor JSONB NOT NULL DEFAULT '[]',
+  notes TEXT,
+  is_custom BOOLEAN DEFAULT false,
+  user_id UUID REFERENCES auth.users(id),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.assemblies ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "assemblies_select_all" ON public.assemblies FOR SELECT USING (auth.role() = 'authenticated');
+CREATE POLICY "assemblies_insert_own" ON public.assemblies FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "assemblies_update_own" ON public.assemblies FOR UPDATE USING (auth.uid() = user_id);
+CREATE INDEX IF NOT EXISTS idx_assemblies_category ON public.assemblies(category);
+
+-- ============================================
+-- ZIP COST FACTORS
+-- ============================================
+CREATE TABLE IF NOT EXISTS public.zip_cost_factors (
+  zip_prefix TEXT PRIMARY KEY,
+  region TEXT,
+  city TEXT,
+  state TEXT,
+  cost_factor NUMERIC DEFAULT 1.0,
+  labor_factor NUMERIC DEFAULT 1.0,
+  material_factor NUMERIC DEFAULT 1.0,
+  source TEXT DEFAULT 'derived',
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.zip_cost_factors ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "zip_factors_select_all" ON public.zip_cost_factors FOR SELECT USING (auth.role() = 'authenticated');
+
+-- ============================================
+-- ESTIMATE VERSIONS
+-- ============================================
+CREATE TABLE IF NOT EXISTS public.estimate_versions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id TEXT NOT NULL,
+  user_id UUID REFERENCES auth.users(id),
+  version_number INTEGER DEFAULT 1,
+  name TEXT,
+  notes TEXT,
+  estimate_data JSONB NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.estimate_versions ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "estimate_versions_all_own" ON public.estimate_versions FOR ALL USING (auth.uid() = user_id);
+
+-- ============================================
+-- ENABLE REALTIME
+-- ============================================
+ALTER PUBLICATION supabase_realtime ADD TABLE public.messages;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.conversations;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.conversation_participants;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.public_bids;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.change_orders;
+
+-- ============================================
+-- TRIGGER: auto-create profile on signup
+-- ============================================
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO public.profiles (id, email, name)
+  VALUES (
+    NEW.id,
+    COALESCE(NEW.email, ''),
+    COALESCE(NEW.raw_user_meta_data->>'name', '')
+  );
+  INSERT INTO public.subscriptions (user_id, tier)
+  VALUES (NEW.id, 'free');
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+
+========== FILE: ./tsconfig.json ==========
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "paths": {
+      "@/*": [
+        "./*"
+      ]
+    }
+  },
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    ".expo/types/**/*.ts",
+    "expo-env.d.ts"
+  ]
+}
+
+========== FILE: ./types/index.ts ==========
+export type ProjectType = 
+  | 'new_build'
+  | 'renovation'
+  | 'addition'
+  | 'remodel'
+  | 'commercial'
+  | 'landscape'
+  | 'roofing'
+  | 'flooring'
+  | 'painting'
+  | 'plumbing'
+  | 'electrical'
+  | 'concrete';
+
+export interface ProjectTypeInfo {
+  id: ProjectType;
+  label: string;
+  icon: string;
+  description: string;
+}
+
+export const PROJECT_TYPES: ProjectTypeInfo[] = [
+  { id: 'new_build', label: 'New Build', icon: 'Building2', description: 'Ground-up construction' },
+  { id: 'renovation', label: 'Renovation', icon: 'Hammer', description: 'Update existing structure' },
+  { id: 'addition', label: 'Addition', icon: 'Plus', description: 'Expand existing building' },
+  { id: 'remodel', label: 'Remodel', icon: 'PenLine', description: 'Redesign interior spaces' },
+  { id: 'commercial', label: 'Commercial', icon: 'Store', description: 'Business & retail spaces' },
+  { id: 'landscape', label: 'Landscaping', icon: 'Trees', description: 'Outdoor & yard work' },
+  { id: 'roofing', label: 'Roofing', icon: 'Home', description: 'Roof repair or replace' },
+  { id: 'flooring', label: 'Flooring', icon: 'LayoutGrid', description: 'Floor installation' },
+  { id: 'painting', label: 'Painting', icon: 'Paintbrush', description: 'Interior & exterior' },
+  { id: 'plumbing', label: 'Plumbing', icon: 'Droplets', description: 'Pipes & fixtures' },
+  { id: 'electrical', label: 'Electrical', icon: 'Zap', description: 'Wiring & panels' },
+  { id: 'concrete', label: 'Concrete', icon: 'Boxes', description: 'Foundation & flatwork' },
+];
+
+export type QualityTier = 'economy' | 'standard' | 'premium' | 'luxury';
+
+export interface MaterialLineItem {
+  name: string;
+  category: string;
+  unit: string;
+  quantity: number;
+  unitPrice: number;
+  bulkPrice: number;
+  bulkThreshold: number;
+  totalPrice: number;
+  savings: number;
+}
+
+export interface LaborLineItem {
+  role: string;
+  hourlyRate: number;
+  hours: number;
+  totalCost: number;
+}
+
+export interface EstimateBreakdown {
+  materials: MaterialLineItem[];
+  labor: LaborLineItem[];
+  permits: number;
+  overhead: number;
+  contingency: number;
+  materialTotal: number;
+  laborTotal: number;
+  bulkSavingsTotal: number;
+  subtotal: number;
+  tax: number;
+  grandTotal: number;
+  pricePerSqFt: number;
+  estimatedDuration: string;
+  notes: string[];
+}
+
+export interface ProjectCollaborator {
+  id: string;
+  email: string;
+  name: string;
+  role: 'owner' | 'editor' | 'viewer';
+  status: 'pending' | 'accepted';
+  invitedAt: string;
+}
+
+export interface Project {
+  id: string;
+  name: string;
+  type: ProjectType;
+  location: string;
+  squareFootage: number;
+  quality: QualityTier;
+  description: string;
+  createdAt: string;
+  updatedAt: string;
+  estimate: EstimateBreakdown | null;
+  schedule?: ProjectSchedule | null;
+  linkedEstimate?: LinkedEstimate | null;
+  status: 'draft' | 'estimated' | 'in_progress' | 'completed' | 'closed';
+  collaborators?: ProjectCollaborator[];
+  clientPortal?: ClientPortalSettings;
+  closedAt?: string;
+  photoCount?: number;
+}
+
+export interface MaterialCategory {
+  id: string;
+  name: string;
+  icon: string;
+  items: MaterialPriceInfo[];
+}
+
+export interface MaterialPriceInfo {
+  name: string;
+  unit: string;
+  retailPrice: number;
+  bulkPrice: number;
+  bulkMinQty: number;
+  supplier: string;
+  lastUpdated: string;
+}
+
+export type DependencyType = 'FS' | 'SS' | 'FF' | 'SF';
+
+export interface DependencyLink {
+  taskId: string;
+  type?: DependencyType;
+  lagDays: number;
+}
+
+export type TaskStatus = 'not_started' | 'in_progress' | 'on_hold' | 'done';
+
+export interface ScheduleTask {
+  id: string;
+  title: string;
+  phase: string;
+  durationDays: number;
+  startDay: number;
+  progress: number;
+  crew: string;
+  crewSize?: number;
+  dependencies: string[];
+  dependencyLinks?: DependencyLink[];
+  notes: string;
+  status: TaskStatus;
+  isMilestone?: boolean;
+  wbsCode?: string;
+  isCriticalPath?: boolean;
+  isWeatherSensitive?: boolean;
+  baselineStartDay?: number;
+  baselineEndDay?: number;
+  linkedEstimateItems?: string[];
+  photos?: Array<{
+    uri: string;
+    timestamp: string;
+    note?: string;
+  }>;
+}
+
+export interface ScheduleRiskItem {
+  id: string;
+  title: string;
+  detail: string;
+  severity: 'low' | 'medium' | 'high';
+}
+
+export interface ScheduleBaseline {
+  savedAt: string;
+  tasks: { id: string; startDay: number; endDay: number }[];
+}
+
+export interface WeatherAlert {
+  id: string;
+  taskId: string;
+  taskName: string;
+  date: string;
+  condition: string;
+  dismissed: boolean;
+}
+
+export interface ProjectSchedule {
+  id: string;
+  name: string;
+  projectId: string | null;
+  workingDaysPerWeek: number;
+  bufferDays: number;
+  tasks: ScheduleTask[];
+  totalDurationDays: number;
+  criticalPathDays: number;
+  laborAlignmentScore: number;
+  healthScore?: number;
+  riskItems: ScheduleRiskItem[];
+  baseline?: ScheduleBaseline | null;
+  weatherAlerts?: WeatherAlert[];
+  updatedAt: string;
+}
+
+export interface CompanyBranding {
+  companyName: string;
+  contactName: string;
+  email: string;
+  phone: string;
+  address: string;
+  licenseNumber: string;
+  tagline: string;
+  logoUri?: string;
+  signatureData?: string[];
+}
+
+export interface Supplier {
+  id: string;
+  companyName: string;
+  contactName: string;
+  email: string;
+  phone: string;
+  address: string;
+  website: string;
+  description: string;
+  logoUri?: string;
+  categories: string[];
+  rating: number;
+  deliveryOptions: string[];
+  minOrderAmount: number;
+  registeredAt: string;
+  featured?: boolean;
+}
+
+export interface SupplierListing {
+  id: string;
+  supplierId: string;
+  materialId?: string;
+  name: string;
+  description: string;
+  category: string;
+  unit: string;
+  price: number;
+  bulkPrice: number;
+  bulkMinQty: number;
+  inStock: boolean;
+  leadTimeDays: number;
+  imageUrl?: string;
+}
+
+export interface ThemeColors {
+  primary: string;
+  accent: string;
+}
+
+export const THEME_PRESETS: { id: string; label: string; primary: string; accent: string }[] = [
+  { id: 'forest', label: 'Forest Green', primary: '#1A6B3C', accent: '#FF9500' },
+  { id: 'ocean', label: 'Ocean Blue', primary: '#0A5EB0', accent: '#FF6B35' },
+  { id: 'slate', label: 'Slate', primary: '#3D4F5F', accent: '#E8A838' },
+  { id: 'charcoal', label: 'Charcoal', primary: '#2C2C2E', accent: '#FF453A' },
+  { id: 'terracotta', label: 'Terracotta', primary: '#B5562A', accent: '#2D8A4E' },
+  { id: 'navy', label: 'Navy', primary: '#1B3A5C', accent: '#F5A623' },
+  { id: 'burgundy', label: 'Burgundy', primary: '#722F37', accent: '#D4A574' },
+  { id: 'teal', label: 'Teal', primary: '#1A7A6D', accent: '#FF8C42' },
+];
+
+export interface PDFNamingSettings {
+  enabled: boolean;
+  prefix: string;
+  includeProjectName: boolean;
+  includeDocType: boolean;
+  includeDate: boolean;
+  separator: '-' | '_' | ' ';
+  nextNumber: number;
+}
+
+export interface AppSettings {
+  location: string;
+  units: 'imperial' | 'metric';
+  taxRate: number;
+  contingencyRate: number;
+  branding: CompanyBranding;
+  supplierProfile?: Supplier;
+  themeColors?: ThemeColors;
+  biometricsEnabled?: boolean;
+  subscription?: SubscriptionInfo;
+  dfrRecipients?: string[];
+  pdfNaming?: PDFNamingSettings;
+}
+
+export interface LinkedEstimate {
+  id: string;
+  items: LinkedEstimateItem[];
+  globalMarkup: number;
+  baseTotal: number;
+  markupTotal: number;
+  grandTotal: number;
+  createdAt: string;
+}
+
+export interface LinkedEstimateItem {
+  materialId: string;
+  name: string;
+  category: string;
+  unit: string;
+  quantity: number;
+  unitPrice: number;
+  bulkPrice: number;
+  markup: number;
+  usesBulk: boolean;
+  lineTotal: number;
+  supplier: string;
+}
+
+export interface ChangeOrderLineItem {
+  id: string;
+  name: string;
+  description: string;
+  quantity: number;
+  unit: string;
+  unitPrice: number;
+  total: number;
+  isNew: boolean;
+}
+
+export type ChangeOrderStatus = 'draft' | 'submitted' | 'under_review' | 'approved' | 'rejected' | 'revised' | 'void';
+
+export type ApproverRole = 'Client' | 'Architect' | 'Owner\'s Rep' | 'Lender' | 'Other';
+
+export interface COApprover {
+  id: string;
+  name: string;
+  email: string;
+  role: ApproverRole;
+  required: boolean;
+  order: number;
+  status: 'pending' | 'approved' | 'rejected' | 'changes_requested';
+  responseDate?: string;
+  rejectionReason?: string;
+  counterAmount?: number;
+}
+
+export interface COAuditEntry {
+  id: string;
+  action: string;
+  actor: string;
+  timestamp: string;
+  detail?: string;
+}
+
+export interface ChangeOrder {
+  id: string;
+  number: number;
+  projectId: string;
+  date: string;
+  description: string;
+  reason: string;
+  lineItems: ChangeOrderLineItem[];
+  originalContractValue: number;
+  changeAmount: number;
+  newContractTotal: number;
+  status: ChangeOrderStatus;
+  approvers?: COApprover[];
+  approvalMode?: 'sequential' | 'parallel';
+  approvalDeadlineDays?: number;
+  auditTrail?: COAuditEntry[];
+  revision?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface InvoiceLineItem {
+  id: string;
+  name: string;
+  description: string;
+  quantity: number;
+  unit: string;
+  unitPrice: number;
+  total: number;
+}
+
+export type InvoiceStatus = 'draft' | 'sent' | 'partially_paid' | 'paid' | 'overdue';
+export type PaymentTerms = 'net_15' | 'net_30' | 'net_45' | 'due_on_receipt';
+export type PaymentMethod = 'check' | 'ach' | 'credit_card' | 'cash';
+
+export interface InvoicePayment {
+  id: string;
+  date: string;
+  amount: number;
+  method: PaymentMethod;
+}
+
+export interface Invoice {
+  id: string;
+  number: number;
+  projectId: string;
+  type: 'full' | 'progress';
+  progressPercent?: number;
+  issueDate: string;
+  dueDate: string;
+  paymentTerms: PaymentTerms;
+  notes: string;
+  lineItems: InvoiceLineItem[];
+  subtotal: number;
+  taxRate: number;
+  taxAmount: number;
+  totalDue: number;
+  amountPaid: number;
+  status: InvoiceStatus;
+  payments: InvoicePayment[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ManpowerEntry {
+  id: string;
+  trade: string;
+  company: string;
+  headcount: number;
+  hoursWorked: number;
+}
+
+export interface DFRWeather {
+  temperature: string;
+  conditions: string;
+  wind: string;
+  isManual: boolean;
+}
+
+export interface DFRPhoto {
+  id: string;
+  uri: string;
+  timestamp: string;
+}
+
+export type DFRStatus = 'draft' | 'sent';
+
+export interface DailyFieldReport {
+  id: string;
+  projectId: string;
+  date: string;
+  weather: DFRWeather;
+  manpower: ManpowerEntry[];
+  workPerformed: string;
+  materialsDelivered: string[];
+  issuesAndDelays: string;
+  photos: DFRPhoto[];
+  status: DFRStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type SubTrade =
+  | 'General'
+  | 'Framing'
+  | 'Electrical'
+  | 'Plumbing'
+  | 'HVAC'
+  | 'Roofing'
+  | 'Concrete'
+  | 'Drywall'
+  | 'Painting'
+  | 'Flooring'
+  | 'Landscaping'
+  | 'Other';
+
+export const SUB_TRADES: SubTrade[] = [
+  'General', 'Framing', 'Electrical', 'Plumbing', 'HVAC', 'Roofing',
+  'Concrete', 'Drywall', 'Painting', 'Flooring', 'Landscaping', 'Other',
+];
+
+export type ComplianceStatus = 'compliant' | 'expiring_soon' | 'expired';
+
+export interface SubBidRecord {
+  id: string;
+  projectId: string;
+  projectName: string;
+  bidAmount: number;
+  outcome: 'won' | 'lost' | 'pending';
+  date: string;
+}
+
+export interface Subcontractor {
+  id: string;
+  companyName: string;
+  contactName: string;
+  phone: string;
+  email: string;
+  address: string;
+  trade: SubTrade;
+  licenseNumber: string;
+  licenseExpiry: string;
+  coiExpiry: string;
+  w9OnFile: boolean;
+  bidHistory: SubBidRecord[];
+  assignedProjects: string[];
+  notes: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type PunchItemStatus = 'open' | 'in_progress' | 'ready_for_review' | 'closed';
+export type PunchItemPriority = 'low' | 'medium' | 'high';
+
+export interface PunchItem {
+  id: string;
+  projectId: string;
+  description: string;
+  location: string;
+  assignedSub: string;
+  assignedSubId?: string;
+  dueDate: string;
+  priority: PunchItemPriority;
+  status: PunchItemStatus;
+  photoUri?: string;
+  rejectionNote?: string;
+  closedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProjectPhoto {
+  id: string;
+  projectId: string;
+  uri: string;
+  timestamp: string;
+  location?: string;
+  tag?: string;
+  linkedTaskId?: string;
+  linkedTaskName?: string;
+  markup?: PhotoMarkup[];
+  createdAt: string;
+}
+
+export interface PhotoMarkup {
+  id: string;
+  type: 'arrow' | 'rectangle' | 'circle' | 'freehand' | 'text';
+  color: 'red' | 'yellow' | 'green';
+  points: { x: number; y: number }[];
+  text?: string;
+}
+
+export type AlertDirection = 'below' | 'above';
+
+export interface PriceAlert {
+  id: string;
+  materialId: string;
+  materialName: string;
+  targetPrice: number;
+  direction: AlertDirection;
+  currentPrice: number;
+  isTriggered: boolean;
+  isPaused: boolean;
+  createdAt: string;
+}
+
+export type SubscriptionTier = 'free' | 'pro' | 'business';
+
+export interface SubscriptionInfo {
+  tier: SubscriptionTier;
+  startDate?: string;
+  endDate?: string;
+}
+
+export interface ClientPortalSettings {
+  enabled: boolean;
+  portalId: string;
+  showSchedule: boolean;
+  showChangeOrders: boolean;
+  showInvoices: boolean;
+  showPhotos: boolean;
+}
+
+export type ContactRole = 'Client' | 'Architect' | 'Owner\'s Rep' | 'Engineer' | 'Sub' | 'Supplier' | 'Lender' | 'Inspector' | 'Other';
+
+export interface Contact {
+  id: string;
+  firstName: string;
+  lastName: string;
+  companyName: string;
+  role: ContactRole;
+  email: string;
+  secondaryEmail?: string;
+  phone: string;
+  address: string;
+  notes: string;
+  linkedProjectIds: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type CommEventType = 'document_sent' | 'co_submitted' | 'co_approved' | 'co_rejected' | 'invoice_sent' | 'invoice_paid' | 'invoice_overdue' | 'daily_report_sent' | 'collaborator_added' | 'internal_note' | 'client_message';
+
+export type RFIStatus = 'open' | 'answered' | 'closed' | 'void';
+export type RFIPriority = 'low' | 'normal' | 'urgent';
+
+export interface RFI {
+  id: string;
+  projectId: string;
+  number: number;
+  subject: string;
+  question: string;
+  submittedBy: string;
+  assignedTo: string;
+  dateSubmitted: string;
+  dateRequired: string;
+  dateResponded?: string;
+  response?: string;
+  status: RFIStatus;
+  priority: RFIPriority;
+  linkedDrawing?: string;
+  linkedTaskId?: string;
+  attachments: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type SubmittalStatus = 'pending' | 'in_review' | 'approved' | 'approved_as_noted' | 'revise_resubmit' | 'rejected';
+
+export interface SubmittalReviewCycle {
+  cycleNumber: number;
+  sentDate: string;
+  returnDate?: string;
+  reviewer: string;
+  status: SubmittalStatus;
+  comments?: string;
+}
+
+export interface Submittal {
+  id: string;
+  projectId: string;
+  number: number;
+  title: string;
+  specSection: string;
+  submittedBy: string;
+  submittedDate: string;
+  requiredDate: string;
+  reviewCycles: SubmittalReviewCycle[];
+  currentStatus: SubmittalStatus;
+  attachments: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface EarnedValueMetrics {
+  budgetAtCompletion: number;
+  plannedValue: number;
+  earnedValue: number;
+  actualCost: number;
+  scheduleVariance: number;
+  costVariance: number;
+  schedulePerformanceIndex: number;
+  costPerformanceIndex: number;
+  estimateAtCompletion: number;
+  estimateToComplete: number;
+  varianceAtCompletion: number;
+  percentComplete: number;
+  calculatedAt: string;
+}
+
+export interface CashFlowDataPoint {
+  period: string;
+  plannedCumulative: number;
+  actualCumulative: number;
+  forecastCumulative: number;
+}
+
+export type EquipmentCategory = 'excavation' | 'lifting' | 'compaction' | 'concrete' | 'aerial' | 'transport' | 'power' | 'other';
+
+export interface MaintenanceItem {
+  id: string;
+  description: string;
+  intervalDays: number;
+  lastPerformed?: string;
+  nextDue: string;
+  isOverdue: boolean;
+}
+
+export interface EquipmentUtilizationEntry {
+  id: string;
+  equipmentId: string;
+  projectId: string;
+  date: string;
+  hoursUsed: number;
+  operatorName?: string;
+  notes?: string;
+}
+
+export interface Equipment {
+  id: string;
+  name: string;
+  type: 'owned' | 'rented';
+  category: EquipmentCategory;
+  make: string;
+  model: string;
+  year?: number;
+  serialNumber?: string;
+  dailyRate: number;
+  currentProjectId?: string;
+  maintenanceSchedule: MaintenanceItem[];
+  utilizationLog: EquipmentUtilizationEntry[];
+  status: 'available' | 'in_use' | 'maintenance' | 'retired';
+  notes?: string;
+  createdAt: string;
+}
+
+export interface CommunicationEvent {
+  id: string;
+  projectId: string;
+  type: CommEventType;
+  summary: string;
+  actor: string;
+  recipient?: string;
+  detail?: string;
+  isPrivate: boolean;
+  timestamp: string;
+}
+
+export const EQUIPMENT_CATEGORIES: { id: EquipmentCategory; label: string }[] = [
+  { id: 'excavation', label: 'Excavation' },
+  { id: 'lifting', label: 'Lifting' },
+  { id: 'compaction', label: 'Compaction' },
+  { id: 'concrete', label: 'Concrete' },
+  { id: 'aerial', label: 'Aerial' },
+  { id: 'transport', label: 'Transport' },
+  { id: 'power', label: 'Power' },
+  { id: 'other', label: 'Other' },
+];
+
+export type CertificationType =
+  | 'MWBE' | 'MBE' | 'WBE' | 'DBE' | 'SBE' | 'SDVOB' | 'SECTION_3'
+  | 'SBA_8A' | 'HUBZONE' | 'SDVOSB' | 'WOSB' | 'EDWOSB' | 'LBE' | 'EBE'
+  | 'NYS_CERTIFIED_MBE' | 'NYS_CERTIFIED_WBE' | 'NYS_CERTIFIED_SDVOB'
+  | 'NYC_MBE' | 'NYC_WBE' | 'NYC_EBE' | 'NYC_LBE'
+  | 'NYSSD' | 'PANYNJ_MBE' | 'PANYNJ_WBE' | 'SBA_WOSB' | 'SBA_EDWOSB';
+
+export interface CertificationInfo {
+  id: CertificationType;
+  label: string;
+  shortLabel: string;
+  description: string;
+  source: string;
+}
+
+export type BidType = 'federal' | 'state' | 'municipal' | 'county' | 'private';
+export type BidCategory = 'construction' | 'it_services' | 'environmental' | 'energy' | 'infrastructure' | 'transportation' | 'utilities' | 'healthcare' | 'education' | 'residential';
+export type BidStatus = 'open' | 'closed';
+
+export interface PublicBid {
+  id: string;
+  title: string;
+  issuingAgency: string;
+  city: string;
+  state: string;
+  category: BidCategory;
+  bidType: BidType;
+  estimatedValue: number;
+  bondRequired: number;
+  deadline: string;
+  description: string;
+  postedBy: string;
+  postedDate: string;
+  status: BidStatus;
+  requiredCertifications: CertificationType[];
+  contactEmail: string;
+  applyUrl?: string;
+  sourceUrl?: string;
+  sourceName?: string;
+}
+
+export interface CompanyProfile {
+  id: string;
+  companyName: string;
+  city: string;
+  state: string;
+  primaryCategory: BidCategory;
+  bondCapacity: number;
+  completedProjects: number;
+  rating: number;
+  contactEmail: string;
+  phone: string;
+  description: string;
+  certifications: CertificationType[];
+  website?: string;
+  yearEstablished?: number;
+  employeeCount?: number;
+  createdAt: string;
+}
+
+export type TradeCategory =
+  | 'general_laborer' | 'carpenter' | 'electrician' | 'plumber' | 'hvac_tech'
+  | 'welder' | 'iron_worker' | 'mason' | 'painter' | 'roofer'
+  | 'heavy_equipment_op' | 'concrete_worker' | 'demolition' | 'drywall'
+  | 'flooring' | 'glazier' | 'sheet_metal' | 'pipefitter' | 'sprinkler_fitter'
+  | 'fire_protection' | 'civil_engineer' | 'structural_engineer'
+  | 'mechanical_engineer' | 'electrical_engineer' | 'project_manager'
+  | 'site_superintendent' | 'safety_manager' | 'estimator' | 'surveyor'
+  | 'inspector' | 'architect';
+
+export type JobType = 'full_time' | 'part_time' | 'contract' | 'per_diem';
+export type ExperienceLevel = 'entry' | 'mid' | 'senior' | 'expert';
+export type AvailabilityStatus = 'available' | 'employed' | 'open_to_offers';
+
+export interface JobListing {
+  id: string;
+  companyId: string;
+  companyName: string;
+  title: string;
+  tradeCategory: TradeCategory;
+  city: string;
+  state: string;
+  payMin: number;
+  payMax: number;
+  payType: 'hourly' | 'salary';
+  jobType: JobType;
+  requiredLicenses: string[];
+  experienceLevel: ExperienceLevel;
+  description: string;
+  startDate: string;
+  postedDate: string;
+  status: 'open' | 'closed' | 'filled';
+  applicantCount: number;
+}
+
+export interface WorkerProfile {
+  id: string;
+  name: string;
+  tradeCategory: TradeCategory;
+  yearsExperience: number;
+  licenses: string[];
+  city: string;
+  state: string;
+  availability: AvailabilityStatus;
+  hourlyRate: number;
+  bio: string;
+  pastProjects: string[];
+  contactEmail: string;
+  phone: string;
+  createdAt: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  conversationId: string;
+  senderId: string;
+  senderName: string;
+  text: string;
+  timestamp: string;
+}
+
+export interface Conversation {
+  id: string;
+  participantIds: string[];
+  participantNames: string[];
+  lastMessage: string;
+  lastMessageTime: string;
+  unreadCount: number;
+}
+
+export type PricingRegion =
+  | 'northeast' | 'southeast' | 'midwest' | 'southwest' | 'west_coast'
+  | 'mountain' | 'pacific_nw' | 'great_plains' | 'mid_atlantic' | 'new_england';
+
+export interface RegionInfo {
+  id: PricingRegion;
+  label: string;
+  states: string[];
+  costIndex: number;
+}
+
+export type IntegrationCategory = 'accounting' | 'payments' | 'documents' | 'field_ops' | 'materials' | 'compliance' | 'communication' | 'platforms';
+export type IntegrationStatus = 'connected' | 'disconnected' | 'coming_soon' | 'error';
+export type IntegrationTier = 'deep' | 'link' | 'coming_soon';
+
+export interface Integration {
+  id: string;
+  name: string;
+  description: string;
+  category: IntegrationCategory;
+  status: IntegrationStatus;
+  tier: IntegrationTier;
+  iconColor: string;
+  iconBg: string;
+  connectedAt?: string;
+  externalUrl?: string;
+}
+
+export type TimeEntryStatus = 'clocked_in' | 'clocked_out' | 'break';
+
+export interface TimeEntry {
+  id: string;
+  projectId: string;
+  projectName: string;
+  workerId: string;
+  workerName: string;
+  trade: string;
+  clockIn: string;
+  clockOut?: string;
+  breakMinutes: number;
+  totalHours: number;
+  overtimeHours: number;
+  status: TimeEntryStatus;
+  notes?: string;
+  gpsLat?: number;
+  gpsLng?: number;
+  date: string;
+}
+
+export type DocumentType = 'lien_waiver' | 'coi' | 'contract' | 'proposal' | 'aia_billing' | 'permit' | 'other';
+export type DocumentStatus = 'draft' | 'pending_signature' | 'signed' | 'expired' | 'void';
+
+export interface ProjectDocument {
+  id: string;
+  projectId: string;
+  projectName: string;
+  type: DocumentType;
+  title: string;
+  status: DocumentStatus;
+  createdAt: string;
+  expiresAt?: string;
+  signedBy?: string;
+  signedAt?: string;
+  fileUrl?: string;
+  notes?: string;
+}
+
+export type PermitStatus = 'applied' | 'under_review' | 'approved' | 'denied' | 'expired' | 'inspection_scheduled' | 'inspection_passed' | 'inspection_failed';
+export type PermitType = 'building' | 'electrical' | 'plumbing' | 'mechanical' | 'demolition' | 'grading' | 'fire' | 'occupancy' | 'other';
+
+export interface Permit {
+  id: string;
+  projectId: string;
+  projectName: string;
+  type: PermitType;
+  permitNumber?: string;
+  jurisdiction: string;
+  status: PermitStatus;
+  appliedDate: string;
+  approvedDate?: string;
+  expiresDate?: string;
+  inspectionDate?: string;
+  inspectionNotes?: string;
+  fee: number;
+  notes?: string;
+}
+
+export type PaymentStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'refunded';
+export type PaymentProvider = 'stripe' | 'square' | 'paypal' | 'venmo' | 'zelle' | 'check' | 'ach' | 'cash';
+
+export interface Payment {
+  id: string;
+  invoiceId?: string;
+  projectId: string;
+  projectName: string;
+  clientName: string;
+  amount: number;
+  fee: number;
+  netAmount: number;
+  provider: PaymentProvider;
+  status: PaymentStatus;
+  description: string;
+  createdAt: string;
+  completedAt?: string;
+}
+
+
+========== FILE: ./utils/aiRateLimiter.ts ==========
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const RATE_KEY = 'mage_ai_usage';
+
+interface DailyUsage {
+  date: string;
+  count: number;
+  tier: {
+    fast: number;
+    smart: number;
+  };
+}
+
+const LIMITS = {
+  free: { daily: 10, smart: 3 },
+  pro: { daily: 75, smart: 25 },
+  business: { daily: 200, smart: 75 },
+} as const;
+
+export type SubscriptionTierKey = 'free' | 'pro' | 'business';
+export type RequestTier = 'fast' | 'smart';
+
+export async function checkAILimit(
+  subscriptionTier: SubscriptionTierKey,
+  requestTier: RequestTier,
+): Promise<{ allowed: boolean; remaining: number; message?: string }> {
+  const today = new Date().toISOString().split('T')[0];
+  const raw = await AsyncStorage.getItem(RATE_KEY);
+  let usage: DailyUsage = raw
+    ? JSON.parse(raw)
+    : { date: today, count: 0, tier: { fast: 0, smart: 0 } };
+
+  if (usage.date !== today) {
+    usage = { date: today, count: 0, tier: { fast: 0, smart: 0 } };
+  }
+
+  const limits = LIMITS[subscriptionTier];
+  const dailyRemaining = limits.daily - usage.count;
+
+  if (usage.count >= limits.daily) {
+    return {
+      allowed: false,
+      remaining: 0,
+      message:
+        subscriptionTier === 'free'
+          ? "You've used all 10 AI requests today. Upgrade to Pro for 75/day."
+          : subscriptionTier === 'pro'
+            ? "You've used all 75 AI requests today. Upgrade to Business for 200/day."
+            : "You've reached today's AI limit. Resets at midnight.",
+    };
+  }
+
+  if (requestTier === 'smart' && usage.tier.smart >= limits.smart) {
+    return {
+      allowed: false,
+      remaining: dailyRemaining,
+      message:
+        "You've used all advanced AI analysis for today. Try again tomorrow or use quick AI features instead.",
+    };
+  }
+
+  return { allowed: true, remaining: dailyRemaining - 1 };
+}
+
+export async function recordAIUsage(requestTier: RequestTier): Promise<void> {
+  const today = new Date().toISOString().split('T')[0];
+  const raw = await AsyncStorage.getItem(RATE_KEY);
+  let usage: DailyUsage = raw
+    ? JSON.parse(raw)
+    : { date: today, count: 0, tier: { fast: 0, smart: 0 } };
+
+  if (usage.date !== today) {
+    usage = { date: today, count: 0, tier: { fast: 0, smart: 0 } };
+  }
+
+  usage.count += 1;
+  usage.tier[requestTier] += 1;
+  await AsyncStorage.setItem(RATE_KEY, JSON.stringify(usage));
+}
+
+export async function getAIUsageStats(
+  subscriptionTier: SubscriptionTierKey,
+): Promise<{
+  used: number;
+  limit: number;
+  smartUsed: number;
+  smartLimit: number;
+}> {
+  const today = new Date().toISOString().split('T')[0];
+  const raw = await AsyncStorage.getItem(RATE_KEY);
+  const usage: DailyUsage = raw
+    ? JSON.parse(raw)
+    : { date: today, count: 0, tier: { fast: 0, smart: 0 } };
+
+  if (usage.date !== today) {
+    return {
+      used: 0,
+      limit: LIMITS[subscriptionTier].daily,
+      smartUsed: 0,
+      smartLimit: LIMITS[subscriptionTier].smart,
+    };
+  }
+
+  return {
+    used: usage.count,
+    limit: LIMITS[subscriptionTier].daily,
+    smartUsed: usage.tier.smart,
+    smartLimit: LIMITS[subscriptionTier].smart,
+  };
+}
+
+
+========== FILE: ./utils/aiService.ts ==========
+import { mageAI } from '@/utils/mageAI';
+import { z } from 'zod';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { checkAILimit, recordAIUsage, type SubscriptionTierKey, type RequestTier } from '@/utils/aiRateLimiter';
+import type { Project, ProjectSchedule, ScheduleTask, ChangeOrder, Invoice, Subcontractor, Equipment } from '@/types';
+
+const AI_CACHE_PREFIX = 'mageid_ai_cache_';
+const COPILOT_HISTORY_PREFIX = 'mageid_copilot_';
+const COMPANY_PROFILE_KEY = 'mageid_company_ai_profile';
+const AI_USAGE_KEY = 'mageid_ai_usage';
+
+export interface AIUsage {
+  date: string;
+  copilotCount: number;
+  builderCount: number;
+}
+
+export async function getAIUsage(): Promise<AIUsage> {
+  try {
+    const stored = await AsyncStorage.getItem(AI_USAGE_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored) as AIUsage;
+      const today = new Date().toISOString().split('T')[0];
+      if (parsed.date === today) return parsed;
+    }
+  } catch { /* ignore */ }
+  return { date: new Date().toISOString().split('T')[0], copilotCount: 0, builderCount: 0 };
+}
+
+export async function incrementAIUsage(feature: 'copilot' | 'builder'): Promise<AIUsage> {
+  const usage = await getAIUsage();
+  if (feature === 'copilot') usage.copilotCount++;
+  else usage.builderCount++;
+  usage.date = new Date().toISOString().split('T')[0];
+  await AsyncStorage.setItem(AI_USAGE_KEY, JSON.stringify(usage));
+  return usage;
+}
+
+export async function getCachedResult<T>(key: string, maxAgeMs: number): Promise<T | null> {
+  try {
+    const stored = await AsyncStorage.getItem(AI_CACHE_PREFIX + key);
+    if (!stored) return null;
+    const { data, timestamp } = JSON.parse(stored);
+    if (Date.now() - timestamp > maxAgeMs) return null;
+    return data as T;
+  } catch { return null; }
+}
+
+export async function setCachedResult(key: string, data: unknown): Promise<void> {
+  try {
+    await AsyncStorage.setItem(AI_CACHE_PREFIX + key, JSON.stringify({ data, timestamp: Date.now() }));
+  } catch { /* ignore */ }
+}
+
+export interface CompanyAIProfile {
+  specialties: string[];
+  trades: string[];
+  preferredSize: string;
+  location: string;
+  certifications: string[];
+}
+
+export async function getCompanyProfile(): Promise<CompanyAIProfile | null> {
+  try {
+    const stored = await AsyncStorage.getItem(COMPANY_PROFILE_KEY);
+    return stored ? JSON.parse(stored) : null;
+  } catch { return null; }
+}
+
+export async function saveCompanyProfile(profile: CompanyAIProfile): Promise<void> {
+  await AsyncStorage.setItem(COMPANY_PROFILE_KEY, JSON.stringify(profile));
+}
+
+export interface CopilotMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  actionItems?: Array<{ text: string; priority: 'urgent' | 'important' | 'suggestion' }>;
+  dataPoints?: Array<{ label: string; value: string }>;
+  timestamp: string;
+}
+
+export async function getCopilotHistory(projectId: string): Promise<CopilotMessage[]> {
+  try {
+    const stored = await AsyncStorage.getItem(COPILOT_HISTORY_PREFIX + projectId);
+    return stored ? JSON.parse(stored) : [];
+  } catch { return []; }
+}
+
+export async function saveCopilotHistory(projectId: string, messages: CopilotMessage[]): Promise<void> {
+  const trimmed = messages.slice(-20);
+  await AsyncStorage.setItem(COPILOT_HISTORY_PREFIX + projectId, JSON.stringify(trimmed));
+}
+
+const copilotResponseSchema = z.object({
+  answer: z.string(),
+  confidence: z.enum(['high', 'medium', 'low']),
+  actionItems: z.array(z.object({
+    text: z.string(),
+    priority: z.enum(['urgent', 'important', 'suggestion']),
+  })).optional(),
+  dataPoints: z.array(z.object({
+    label: z.string(),
+    value: z.string(),
+  })).optional(),
+});
+
+export type CopilotResponse = z.infer<typeof copilotResponseSchema>;
+
+export function buildProjectContext(project: Project | null, schedule: ProjectSchedule | null): string {
+  if (!project) return 'No project selected.';
+  const estimate = project.linkedEstimate ?? project.estimate;
+  const tasks = schedule?.tasks ?? [];
+  const done = tasks.filter(t => t.status === 'done').length;
+  const inProgress = tasks.filter(t => t.status === 'in_progress').length;
+  const overdue = tasks.filter(t => t.status !== 'done' && t.progress < 100).length;
+
+  return `Project: ${project.name}
+Status: ${project.status}
+Type: ${project.type}
+Location: ${project.location}
+Square Footage: ${project.squareFootage || 'N/A'}
+
+Schedule:
+- Total tasks: ${tasks.length}
+- Completed: ${done}
+- In progress: ${inProgress}
+- Overdue: ${overdue}
+- Health score: ${schedule?.healthScore ?? 'N/A'}
+- Total duration: ${schedule?.totalDurationDays ?? 0} days
+- Critical path: ${schedule?.criticalPathDays ?? 0} days
+
+Estimate:
+- Grand total: $${estimate && 'grandTotal' in estimate ? estimate.grandTotal : 0}
+- Items: ${estimate && 'items' in estimate ? (estimate as any).items?.length ?? 0 : 0}
+
+Risk items: ${schedule?.riskItems?.map(r => r.title).join('; ') || 'None'}
+
+Tasks (top 25):
+${tasks.slice(0, 25).map(t =>
+    `- ${t.title} (${t.phase}): ${t.progress}% | ${t.status} | Day ${t.startDay}-${t.startDay + t.durationDays}${t.crew ? ` | Crew: ${t.crew}` : ''}`
+  ).join('\n') || 'No tasks'}`;
+}
+
+export async function askCopilot(userMessage: string, projectContext: string): Promise<CopilotResponse> {
+  console.log('[AI Copilot] Sending message:', userMessage.substring(0, 50));
+  const aiResult = await mageAI({
+    prompt: `You are MAGE AI, a senior construction project management advisor built into the MAGE ID app. You have access to the user's project data below. Answer their question with specific, actionable advice based on their actual data. Be concise (2-4 sentences max for the main answer). If there are action items, list them. Use construction industry terminology.
+
+PROJECT DATA:
+${projectContext}
+
+USER QUESTION: ${userMessage}
+
+Respond with a helpful, specific answer based on the project data above. Include relevant numbers and task names from the data. If you identify risks or issues, flag them clearly.`,
+    schema: copilotResponseSchema,
+    tier: 'fast',
+  });
+  if (!aiResult.success) {
+    throw new Error(aiResult.error || 'AI unavailable');
+  }
+  console.log('[AI Copilot] Response received');
+  return aiResult.data;
+}
+
+export const scheduleRiskSchema = z.object({
+  overallConfidence: z.number(),
+  predictedEndDate: z.string(),
+  predictedDelay: z.number(),
+  risks: z.array(z.object({
+    taskName: z.string(),
+    severity: z.enum(['high', 'medium', 'low']),
+    delayProbability: z.number(),
+    delayDays: z.number(),
+    reasons: z.array(z.string()),
+    recommendation: z.string(),
+  })),
+  summary: z.string(),
+});
+
+export type ScheduleRiskResult = z.infer<typeof scheduleRiskSchema>;
+
+export async function analyzeScheduleRisk(schedule: ProjectSchedule, weatherData?: string): Promise<ScheduleRiskResult> {
+  console.log('[AI Risk] Analyzing schedule risk...');
+  const taskData = schedule.tasks.map(t => ({
+    name: t.title,
+    phase: t.phase,
+    progress: t.progress,
+    status: t.status,
+    duration: t.durationDays,
+    startDay: t.startDay,
+    isCritical: t.isCriticalPath,
+    isWeatherSensitive: t.isWeatherSensitive,
+    crew: t.crew,
+    crewSize: t.crewSize,
+    depCount: t.dependencies?.length ?? 0,
+  }));
+
+  const aiResult = await mageAI({
+    prompt: `You are an AI construction schedule analyst. Analyze this schedule and predict which tasks are at risk of delay. Consider: task dependencies, progress rates, critical path, weather sensitivity, and crew constraints.
+
+SCHEDULE DATA:
+Total tasks: ${schedule.tasks.length}
+Total duration: ${schedule.totalDurationDays} days
+Health score: ${schedule.healthScore}/100
+Working days/week: ${schedule.workingDaysPerWeek}
+
+TASKS:
+${JSON.stringify(taskData, null, 2)}
+
+WEATHER (next 7 days):
+${weatherData || 'No weather data available'}
+
+Analyze and predict risks. For each at-risk task, explain WHY based on the data and give ONE specific actionable recommendation. Rate overall project completion confidence 0-100.`,
+    schema: scheduleRiskSchema,
+    tier: 'smart',
+  });
+  if (!aiResult.success) {
+    throw new Error(aiResult.error || 'Schedule risk analysis unavailable');
+  }
+  console.log('[AI Risk] Analysis complete');
+  return aiResult.data;
+}
+
+export const bidScoreSchema = z.object({
+  matchScore: z.number(),
+  matchReasons: z.array(z.string()),
+  concerns: z.array(z.string()),
+  bidStrategy: z.string(),
+  estimatedWinProbability: z.number(),
+});
+
+export type BidScoreResult = z.infer<typeof bidScoreSchema>;
+
+export async function scoreBid(bid: {
+  title: string;
+  department: string;
+  estimated_value: number;
+  naics_code?: string;
+  set_aside?: string | null;
+  state?: string;
+  description?: string;
+}, profile: CompanyAIProfile): Promise<BidScoreResult> {
+  console.log('[AI Bid] Scoring bid:', bid.title?.substring(0, 40));
+  const aiResult = await mageAI({
+    prompt: `You are an AI bid analyst for construction contractors. Score how well this bid matches the contractor's profile. Consider: trade alignment, project size fit, location, set-aside eligibility, and certification requirements.
+
+BID:
+Title: ${bid.title}
+Agency: ${bid.department}
+Value: $${bid.estimated_value}
+NAICS: ${bid.naics_code || 'N/A'}
+Set-aside: ${bid.set_aside || 'None'}
+State: ${bid.state || 'Unknown'}
+Description: ${bid.description?.substring(0, 500) || 'No description'}
+
+COMPANY PROFILE:
+Specialties: ${profile.specialties.join(', ')}
+Trades: ${profile.trades.join(', ')}
+Preferred size: ${profile.preferredSize}
+Location: ${profile.location}
+Certifications: ${profile.certifications.join(', ') || 'None'}
+
+Score 0-100 match. Give 2-3 reasons why it matches or doesn't. Give one sentence of bid strategy advice. Estimate win probability.`,
+    schema: bidScoreSchema,
+    tier: 'fast',
+  });
+  if (!aiResult.success) {
+    throw new Error(aiResult.error || 'Bid scoring unavailable');
+  }
+  console.log('[AI Bid] Score:', aiResult.data.matchScore);
+  return aiResult.data;
+}
+
+export const dailyReportSchema = z.object({
+  summary: z.string(),
+  workCompleted: z.array(z.string()),
+  workInProgress: z.array(z.string()),
+  issuesAndDelays: z.array(z.string()),
+  tomorrowPlan: z.array(z.string()),
+  weatherImpact: z.string(),
+  crewsOnSite: z.array(z.object({
+    trade: z.string(),
+    count: z.number(),
+    activity: z.string(),
+  })),
+  safetyNotes: z.string(),
+});
+
+export type DailyReportGenResult = z.infer<typeof dailyReportSchema>;
+
+export async function generateDailyReport(
+  projectName: string,
+  tasks: ScheduleTask[],
+  weatherStr: string,
+): Promise<DailyReportGenResult> {
+  console.log('[AI DFR] Generating daily report...');
+  const activeTasks = tasks.filter(t => t.status === 'in_progress' || t.status === 'done');
+  const aiResult = await mageAI({
+    prompt: `You are a construction superintendent writing a professional daily field report. Based on the project schedule data below, generate a complete daily report for today. Write in professional but concise construction industry language.
+
+PROJECT: ${projectName}
+DATE: ${new Date().toLocaleDateString()}
+WEATHER: ${weatherStr}
+
+TODAY'S TASKS:
+${activeTasks.map(t => `- ${t.title} (${t.phase}): ${t.progress}% complete, Status: ${t.status}, Crew: ${t.crew || 'TBD'} (${t.crewSize || 0} workers)`).join('\n') || 'No active tasks'}
+
+COMPLETED TODAY:
+${activeTasks.filter(t => t.status === 'done').map(t => t.title).join(', ') || 'None completed today'}
+
+Generate a professional daily report. Be specific based on the task data.`,
+    schema: dailyReportSchema,
+    tier: 'fast',
+  });
+  if (!aiResult.success) {
+    throw new Error(aiResult.error || 'Daily report generation unavailable');
+  }
+  console.log('[AI DFR] Report generated');
+  return aiResult.data;
+}
+
+export const estimateValidationSchema = z.object({
+  overallScore: z.number(),
+  issues: z.array(z.object({
+    type: z.enum(['warning', 'error', 'suggestion', 'ok']),
+    title: z.string(),
+    detail: z.string(),
+    potentialImpact: z.string(),
+  })),
+  missingItems: z.array(z.string()),
+  costPerSqFtAssessment: z.string(),
+  materialLaborRatioAssessment: z.string(),
+  contingencyRecommendation: z.string(),
+  summary: z.string(),
+});
+
+export type EstimateValidationResult = z.infer<typeof estimateValidationSchema>;
+
+export async function validateEstimate(
+  projectType: string,
+  squareFootage: number,
+  totalCost: number,
+  materialCost: number,
+  laborCost: number,
+  itemCount: number,
+  hasContingency: boolean,
+  location: string,
+): Promise<EstimateValidationResult> {
+  console.log('[AI Estimate] Validating estimate...');
+  const costPerSF = squareFootage > 0 ? (totalCost / squareFootage).toFixed(2) : 'N/A';
+  const matLabRatio = laborCost > 0 ? (materialCost / laborCost).toFixed(1) : 'N/A';
+
+  const aiResult = await mageAI({
+    prompt: `You are an AI construction estimator reviewer. Validate this estimate against industry standards and flag potential issues.
+
+PROJECT TYPE: ${projectType}
+SQUARE FOOTAGE: ${squareFootage} SF
+LOCATION: ${location}
+TOTAL COST: $${totalCost.toFixed(2)}
+MATERIAL COST: $${materialCost.toFixed(2)}
+LABOR COST: $${laborCost.toFixed(2)}
+ITEM COUNT: ${itemCount}
+COST PER SF: $${costPerSF}
+MAT:LAB RATIO: ${matLabRatio}:1
+HAS CONTINGENCY: ${hasContingency ? 'Yes' : 'No'}
+
+Review this estimate. Flag issues like: unusual mat:lab ratio, missing contingency, cost/SF out of range for project type, missing common items. Score overall estimate health 1-10.`,
+    schema: estimateValidationSchema,
+    tier: 'smart',
+  });
+  if (!aiResult.success) {
+    throw new Error(aiResult.error || 'Estimate validation unavailable');
+  }
+  console.log('[AI Estimate] Validation complete, score:', aiResult.data.overallScore);
+  return aiResult.data;
+}
+
+export const aiScheduleSchema = z.object({
+  projectName: z.string(),
+  estimatedDuration: z.number(),
+  tasks: z.array(z.object({
+    title: z.string(),
+    phase: z.string(),
+    durationDays: z.number(),
+    crew: z.string(),
+    crewSize: z.number(),
+    isMilestone: z.boolean(),
+    isCriticalPath: z.boolean(),
+    isWeatherSensitive: z.boolean(),
+    predecessorIndex: z.number().optional(),
+    dependencyType: z.enum(['FS', 'SS', 'FF', 'SF']).optional(),
+    lagDays: z.number().optional(),
+    notes: z.string().optional(),
+  })),
+  assumptions: z.array(z.string()),
+  warnings: z.array(z.string()),
+});
+
+export type AIScheduleResult = z.infer<typeof aiScheduleSchema>;
+
+export async function buildScheduleFromDescription(description: string): Promise<AIScheduleResult> {
+  console.log('[AI Schedule] Building from description...');
+  const aiResult = await mageAI({
+    prompt: `You are a senior construction scheduler with 20 years of experience. Create a detailed, realistic construction schedule based on this project description.
+
+PROJECT DESCRIPTION:
+${description}
+
+Create a complete schedule with:
+1. All major construction phases in proper sequence
+2. Realistic durations
+3. Appropriate crew types and sizes
+4. Dependencies (predecessorIndex = 0-indexed position in array)
+5. Flag milestones (inspections, substantial completion)
+6. Flag critical path tasks
+7. Flag weather-sensitive tasks (concrete, roofing, exterior)
+8. Notes for tasks with special considerations
+
+Use phases: Site Work, Demo, Foundation, Framing, Roofing, MEP, Plumbing, Electrical, HVAC, Insulation, Drywall, Interior, Finishes, Landscaping, Inspections, General
+
+Be specific with task names. Include inspections and mobilization/demobilization.`,
+    schema: aiScheduleSchema,
+    tier: 'smart',
+    maxTokens: 2000,
+  });
+  if (!aiResult.success) {
+    throw new Error(aiResult.error || 'AI schedule builder unavailable');
+  }
+  console.log('[AI Schedule] Generated', aiResult.data.tasks.length, 'tasks');
+  return aiResult.data;
+}
+
+export const changeOrderImpactSchema = z.object({
+  scheduleDays: z.number(),
+  costImpact: z.object({
+    materials: z.number(),
+    labor: z.number(),
+    equipment: z.number(),
+    total: z.number(),
+  }),
+  affectedTasks: z.array(z.object({
+    taskName: z.string(),
+    currentEnd: z.string(),
+    newEnd: z.string(),
+    daysAdded: z.number(),
+  })),
+  newProjectEndDate: z.string(),
+  downstreamEffects: z.array(z.string()),
+  recommendation: z.string(),
+  compressionOptions: z.array(z.object({
+    description: z.string(),
+    costPremium: z.number(),
+    daysSaved: z.number(),
+  })),
+});
+
+export type ChangeOrderImpactResult = z.infer<typeof changeOrderImpactSchema>;
+
+export async function analyzeChangeOrderImpact(
+  changeDescription: string,
+  lineItems: Array<{ name: string; quantity: number; unitPrice: number; total: number }>,
+  schedule: ProjectSchedule | null,
+): Promise<ChangeOrderImpactResult> {
+  console.log('[AI CO] Analyzing change order impact...');
+  const taskSummary = schedule?.tasks?.slice(0, 20).map(t =>
+    `${t.title} (${t.phase}): Day ${t.startDay}-${t.startDay + t.durationDays}, ${t.progress}%`
+  ).join('\n') || 'No schedule';
+
+  const aiResult = await mageAI({
+    prompt: `You are a construction change order analyst. Analyze the schedule and cost impact of this change order.
+
+CHANGE ORDER:
+Description: ${changeDescription}
+Line Items:
+${lineItems.map(i => `- ${i.name}: ${i.quantity} × $${i.unitPrice} = $${i.total}`).join('\n') || 'No line items yet'}
+Total Change Amount: $${lineItems.reduce((s, i) => s + i.total, 0)}
+
+CURRENT SCHEDULE:
+Total duration: ${schedule?.totalDurationDays ?? 0} days
+Tasks:
+${taskSummary}
+
+Predict schedule delay, cost impact, affected downstream tasks, and give a recommendation. Include compression options to reduce delay.`,
+    schema: changeOrderImpactSchema,
+    tier: 'smart',
+    maxTokens: 2000,
+  });
+  if (!aiResult.success) {
+    throw new Error(aiResult.error || 'Change order analysis unavailable');
+  }
+  console.log('[AI CO] Impact analysis complete');
+  return aiResult.data;
+}
+
+export const weeklySummarySchema = z.object({
+  weekRange: z.string(),
+  portfolioSummary: z.object({
+    totalProjects: z.number(),
+    onTrack: z.number(),
+    atRisk: z.number(),
+    behind: z.number(),
+    combinedValue: z.number(),
+    tasksCompletedThisWeek: z.number(),
+  }),
+  projects: z.array(z.object({
+    name: z.string(),
+    status: z.enum(['on_track', 'at_risk', 'behind', 'ahead']),
+    progressStart: z.number(),
+    progressEnd: z.number(),
+    keyAccomplishment: z.string(),
+    primaryRisk: z.string(),
+    recommendation: z.string(),
+  })),
+  overallRecommendation: z.string(),
+});
+
+export type WeeklySummaryResult = z.infer<typeof weeklySummarySchema>;
+
+export async function rateLimitedGenerate<T extends z.ZodType>(
+  subscriptionTier: SubscriptionTierKey,
+  requestTier: RequestTier,
+  messages: Array<{ role: 'user' | 'assistant'; content: string }>,
+  schema: T,
+): Promise<{ success: true; data: z.infer<T> } | { success: false; data: null; error: string }> {
+  try {
+    const limit = await checkAILimit(subscriptionTier, requestTier);
+    if (!limit.allowed) {
+      return { success: false, data: null, error: limit.message ?? 'Rate limit reached.' };
+    }
+    const prompt = messages.map(m => `${m.role}: ${m.content}`).join('\n\n');
+    const aiResult = await mageAI({ prompt, schema, tier: 'fast' });
+    if (!aiResult.success) {
+      return { success: false, data: null, error: aiResult.error || 'AI analysis unavailable right now. Please try again.' };
+    }
+    await recordAIUsage(requestTier);
+    return { success: true, data: aiResult.data };
+  } catch (err) {
+    console.error('[AI] Generation failed:', err);
+    return { success: false, data: null, error: 'AI analysis unavailable right now. Please try again.' };
+  }
+}
+
+export async function generateWeeklySummary(projects: Project[]): Promise<WeeklySummaryResult> {
+  console.log('[AI Weekly] Generating summary for', projects.length, 'projects');
+  const projectData = projects.map(p => {
+    const schedule = p.schedule;
+    const tasks = schedule?.tasks ?? [];
+    const totalProgress = tasks.length > 0
+      ? Math.round(tasks.reduce((s, t) => s + t.progress, 0) / tasks.length)
+      : 0;
+    const done = tasks.filter(t => t.status === 'done').length;
+    const est = p.linkedEstimate ?? p.estimate;
+    return {
+      name: p.name,
+      type: p.type,
+      status: p.status,
+      totalTasks: tasks.length,
+      completedTasks: done,
+      overallProgress: totalProgress,
+      healthScore: schedule?.healthScore ?? 0,
+      totalValue: est && 'grandTotal' in est ? est.grandTotal : 0,
+      riskItems: schedule?.riskItems?.map(r => r.title) ?? [],
+    };
+  });
+
+  const aiResult = await mageAI({
+    prompt: `You are a construction portfolio manager writing a weekly executive summary. Analyze these projects and generate a professional report.
+
+PROJECTS:
+${JSON.stringify(projectData, null, 2)}
+
+CURRENT DATE: ${new Date().toLocaleDateString()}
+
+Generate a comprehensive weekly executive summary. For each project, assess status, highlight key accomplishments, identify primary risks, and give recommendations. Provide an overall portfolio recommendation.`,
+    schema: weeklySummarySchema,
+    tier: 'fast',
+  });
+  if (!aiResult.success) {
+    throw new Error(aiResult.error || 'Weekly summary unavailable');
+  }
+  console.log('[AI Weekly] Summary generated');
+  return aiResult.data;
+}
+
+export const homeBriefingSchema = z.object({
+  briefing: z.string(),
+  projects: z.array(z.object({
+    name: z.string(),
