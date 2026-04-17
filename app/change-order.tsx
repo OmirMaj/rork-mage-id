@@ -50,6 +50,9 @@ export default function ChangeOrderScreen() {
 
   const [description, setDescription] = useState(existingCO?.description ?? '');
   const [reason, setReason] = useState(existingCO?.reason ?? '');
+  const [scheduleImpactDays, setScheduleImpactDays] = useState<string>(
+    existingCO?.scheduleImpactDays ? String(existingCO.scheduleImpactDays) : ''
+  );
   const [lineItems, setLineItems] = useState<ChangeOrderLineItem[]>(
     existingCO?.lineItems ?? []
   );
@@ -219,6 +222,9 @@ export default function ChangeOrderScreen() {
     const now = new Date().toISOString();
     const recipientInfo = recipientName ? ` to ${recipientName}${recipientEmail ? ` (${recipientEmail})` : ''}` : '';
 
+    const parsedImpactDays = parseInt(scheduleImpactDays, 10);
+    const impactDays = Number.isFinite(parsedImpactDays) && parsedImpactDays > 0 ? parsedImpactDays : undefined;
+
     if (existingCO) {
       updateChangeOrder(existingCO.id, {
         description: description.trim(),
@@ -228,6 +234,7 @@ export default function ChangeOrderScreen() {
         changeAmount,
         newContractTotal,
         status,
+        scheduleImpactDays: impactDays,
       });
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert('Updated', `Change Order #${existingCO.number} has been ${status === 'submitted' ? `submitted for approval${recipientInfo}` : 'saved as draft'}.`);
@@ -246,6 +253,7 @@ export default function ChangeOrderScreen() {
         status,
         createdAt: now,
         updatedAt: now,
+        scheduleImpactDays: impactDays,
       };
       addChangeOrder(co);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -253,7 +261,7 @@ export default function ChangeOrderScreen() {
     }
 
     router.back();
-  }, [projectId, description, reason, lineItems, originalContractValue, changeAmount, newContractTotal, existingCO, nextCoNumber, addChangeOrder, updateChangeOrder, router]);
+  }, [projectId, description, reason, scheduleImpactDays, lineItems, originalContractValue, changeAmount, newContractTotal, existingCO, nextCoNumber, addChangeOrder, updateChangeOrder, router]);
 
   const handleSendPress = useCallback(() => {
     setShowSendRecipient(true);
@@ -391,6 +399,20 @@ export default function ChangeOrderScreen() {
                 />
               </View>
 
+              <View style={styles.fieldSection}>
+                <Text style={styles.fieldLabel}>Schedule Impact (days)</Text>
+                <TextInput
+                  style={styles.input}
+                  value={scheduleImpactDays}
+                  onChangeText={setScheduleImpactDays}
+                  placeholder="Additional days added to project (0 if none)"
+                  placeholderTextColor={Colors.textMuted}
+                  keyboardType="numeric"
+                  testID="co-schedule-impact-input"
+                />
+                <Text style={styles.helperText}>When approved, these days extend the project schedule automatically.</Text>
+              </View>
+
               <View style={{ paddingHorizontal: 16 }}>
                 <AIChangeOrderImpact
                   changeDescription={description}
@@ -406,6 +428,12 @@ export default function ChangeOrderScreen() {
               <View style={styles.lockedCard}>
                 <Text style={styles.lockedTitle}>{existingCO?.description}</Text>
                 {existingCO?.reason ? <Text style={styles.lockedSub}>Reason: {existingCO.reason}</Text> : null}
+                {existingCO?.scheduleImpactDays ? (
+                  <Text style={styles.lockedSub}>
+                    Schedule Impact: +{existingCO.scheduleImpactDays} day{existingCO.scheduleImpactDays === 1 ? '' : 's'}
+                    {existingCO.scheduleImpactApplied ? ' (applied to schedule)' : ''}
+                  </Text>
+                ) : null}
               </View>
             </View>
           )}
@@ -821,6 +849,7 @@ const styles = StyleSheet.create({
   grandValue: { fontSize: 20, fontWeight: '800' as const, color: Colors.primary },
   fieldSection: { marginHorizontal: 20, marginTop: 18 },
   fieldLabel: { fontSize: 13, fontWeight: '600' as const, color: Colors.textSecondary, marginBottom: 6, textTransform: 'uppercase' as const, letterSpacing: 0.5 },
+  helperText: { fontSize: 11, color: Colors.textMuted, marginTop: 6, fontStyle: 'italic' as const },
   input: { minHeight: 48, borderRadius: 14, backgroundColor: Colors.card, paddingHorizontal: 14, fontSize: 15, color: Colors.text, borderWidth: 1, borderColor: Colors.cardBorder },
   textArea: { minHeight: 90, borderRadius: 14, backgroundColor: Colors.card, paddingHorizontal: 14, paddingTop: 12, fontSize: 15, color: Colors.text, borderWidth: 1, borderColor: Colors.cardBorder },
   sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },

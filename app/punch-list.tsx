@@ -8,7 +8,7 @@ import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
   Plus, X, CheckCircle, Clock, Eye, MessageSquare,
-  Trash2,
+  Trash2, Link2, ChevronDown,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
@@ -47,13 +47,19 @@ export default function PunchListScreen() {
   const [assignedSub, setAssignedSub] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [priority, setPriority] = useState<PunchItemPriority>('medium');
+  const [linkedTaskId, setLinkedTaskId] = useState<string>('');
+  const [showTaskPicker, setShowTaskPicker] = useState(false);
   const [rejectionNote, setRejectionNote] = useState('');
   const [showRejectModal, setShowRejectModal] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<PunchItemStatus | 'all'>('all');
 
+  const scheduleTasks = useMemo(() => project?.schedule?.tasks ?? [], [project]);
+  const linkedTask = useMemo(() => scheduleTasks.find(t => t.id === linkedTaskId), [scheduleTasks, linkedTaskId]);
+
   const resetForm = useCallback(() => {
     setDescription(''); setLocation(''); setAssignedSub('');
     setDueDate(''); setPriority('medium'); setEditingItem(null);
+    setLinkedTaskId('');
   }, []);
 
   const closedCount = items.filter(i => i.status === 'closed').length;
@@ -72,16 +78,22 @@ export default function PunchListScreen() {
       Alert.alert('Missing Description', 'Please describe the punch item.');
       return;
     }
+    const linkedTaskName = linkedTask?.title;
     if (editingItem) {
       updatePunchItem(editingItem.id, {
         description: desc, location: location.trim(), assignedSub: assignedSub.trim(),
         dueDate, priority,
+        linkedTaskId: linkedTaskId || undefined,
+        linkedTaskName: linkedTaskName || undefined,
       });
     } else {
       const item: PunchItem = {
         id: createId('punch'), projectId: projectId ?? '', description: desc,
         location: location.trim(), assignedSub: assignedSub.trim(), dueDate,
-        priority, status: 'open', createdAt: new Date().toISOString(),
+        priority, status: 'open',
+        linkedTaskId: linkedTaskId || undefined,
+        linkedTaskName: linkedTaskName || undefined,
+        createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
       addPunchItem(item);
@@ -89,7 +101,7 @@ export default function PunchListScreen() {
     setShowForm(false);
     resetForm();
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [description, location, assignedSub, dueDate, priority, editingItem, projectId, addPunchItem, updatePunchItem, resetForm]);
+  }, [description, location, assignedSub, dueDate, priority, linkedTaskId, linkedTask, editingItem, projectId, addPunchItem, updatePunchItem, resetForm]);
 
   const handleStatusChange = useCallback((item: PunchItem, newStatus: PunchItemStatus) => {
     const updates: Partial<PunchItem> = { status: newStatus };
@@ -188,6 +200,13 @@ export default function PunchListScreen() {
                 {item.dueDate ? <Text style={styles.punchMetaText}>Due: {item.dueDate}</Text> : null}
                 <Text style={[styles.punchMetaText, { color: pc.color }]}>{pc.label} Priority</Text>
               </View>
+
+              {item.linkedTaskName ? (
+                <View style={styles.linkedTaskBadge}>
+                  <Link2 size={11} color={Colors.primary} />
+                  <Text style={styles.linkedTaskBadgeText} numberOfLines={1}>Task: {item.linkedTaskName}</Text>
+                </View>
+              ) : null}
 
               {item.rejectionNote ? (
                 <View style={styles.rejectionBox}>
@@ -314,6 +333,25 @@ export default function PunchListScreen() {
                   })}
                 </View>
 
+                {scheduleTasks.length > 0 ? (
+                  <>
+                    <Text style={styles.fieldLabel}>Link to Schedule Task (optional)</Text>
+                    <TouchableOpacity style={styles.pickerBtn} onPress={() => setShowTaskPicker(true)} activeOpacity={0.7}>
+                      <Link2 size={14} color={Colors.primary} />
+                      <Text style={[styles.pickerBtnText, !linkedTask && { color: Colors.textMuted }]} numberOfLines={1}>
+                        {linkedTask ? linkedTask.title : 'No task linked'}
+                      </Text>
+                      {linkedTask ? (
+                        <TouchableOpacity onPress={() => setLinkedTaskId('')} hitSlop={8}>
+                          <X size={14} color={Colors.textMuted} />
+                        </TouchableOpacity>
+                      ) : (
+                        <ChevronDown size={14} color={Colors.textMuted} />
+                      )}
+                    </TouchableOpacity>
+                  </>
+                ) : null}
+
                 <View style={styles.formActions}>
                   <TouchableOpacity style={styles.cancelBtn} onPress={() => { setShowForm(false); resetForm(); }}>
                     <Text style={styles.cancelBtnText}>Cancel</Text>
@@ -326,6 +364,35 @@ export default function PunchListScreen() {
             </ScrollView>
           </View>
         </KeyboardAvoidingView>
+      </Modal>
+
+      <Modal visible={showTaskPicker} transparent animationType="fade" onRequestClose={() => setShowTaskPicker(false)}>
+        <View style={styles.rejectOverlay}>
+          <View style={[styles.rejectCard, { maxHeight: '70%' as const }]}>
+            <View style={styles.formHeader}>
+              <Text style={styles.rejectTitle}>Link to Task</Text>
+              <TouchableOpacity onPress={() => setShowTaskPicker(false)}>
+                <X size={20} color={Colors.textMuted} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={{ maxHeight: 400 }}>
+              {scheduleTasks.map(t => (
+                <TouchableOpacity
+                  key={t.id}
+                  style={[styles.subChip, { marginVertical: 4, alignSelf: 'stretch' as const }, linkedTaskId === t.id && styles.subChipActive]}
+                  onPress={() => { setLinkedTaskId(t.id); setShowTaskPicker(false); }}
+                >
+                  <Text style={[styles.subChipText, linkedTaskId === t.id && styles.subChipTextActive]} numberOfLines={1}>
+                    {t.title} {t.phase ? `— ${t.phase}` : ''}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+              {scheduleTasks.length === 0 ? (
+                <Text style={[styles.rejectDesc, { textAlign: 'center' as const, padding: 20 }]}>No tasks in the schedule yet.</Text>
+              ) : null}
+            </ScrollView>
+          </View>
+        </View>
       </Modal>
 
       <Modal visible={showRejectModal !== null} transparent animationType="fade" onRequestClose={() => setShowRejectModal(null)}>
@@ -412,4 +479,12 @@ const styles = StyleSheet.create({
   rejectCard: { backgroundColor: Colors.surface, borderRadius: 24, padding: 22, gap: 12, maxWidth: 400, width: '100%', alignSelf: 'center' as const },
   rejectTitle: { fontSize: 18, fontWeight: '700' as const, color: Colors.error },
   rejectDesc: { fontSize: 14, color: Colors.textSecondary },
+  pickerBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, minHeight: 44, borderRadius: 12, backgroundColor: Colors.surfaceAlt },
+  pickerBtnText: { flex: 1, fontSize: 14, color: Colors.text },
+  linkedTaskBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, backgroundColor: Colors.primary + '12', alignSelf: 'flex-start', marginLeft: 18 },
+  linkedTaskBadgeText: { fontSize: 11, fontWeight: '600' as const, color: Colors.primary, flex: 1 },
+  pickerOption: { paddingVertical: 14, paddingHorizontal: 16, borderRadius: 12, backgroundColor: Colors.surfaceAlt, marginBottom: 8 },
+  pickerOptionActive: { backgroundColor: Colors.primary + '15', borderWidth: 1, borderColor: Colors.primary },
+  pickerOptionText: { fontSize: 14, fontWeight: '600' as const, color: Colors.text },
+  pickerOptionMeta: { fontSize: 12, color: Colors.textMuted, marginTop: 2 },
 });

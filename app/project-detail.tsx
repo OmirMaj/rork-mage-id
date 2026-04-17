@@ -10,7 +10,7 @@ import * as Haptics from 'expo-haptics';
 import * as Linking from 'expo-linking';
 import {
   DollarSign, Users, TrendingDown, MapPin,
-  ChevronDown, ChevronUp, Trash2, Package, AlertTriangle, Lightbulb, CalendarDays,
+  ChevronDown, ChevronUp, ChevronRight, Trash2, Package, AlertTriangle, Lightbulb, CalendarDays,
   Mail, MessageSquare, X, BarChart3, ArrowDownRight, Shield, Layers,
   FileText, ShoppingCart, UserPlus, Send, Share2, Eye, PenTool, Crown, Pencil,
   Plus, Receipt, ClipboardList, Repeat, CheckSquare, Camera, Globe, Link, Copy, Wallet,
@@ -1184,9 +1184,28 @@ export default function ProjectDetailScreen() {
                   <TouchableOpacity
                     style={styles.coApproveBtn}
                     onPress={() => {
-                      updateChangeOrder(co.id, { status: 'approved' });
+                      const impactDays = co.scheduleImpactDays ?? 0;
+                      const shouldApplyImpact = impactDays > 0 && !co.scheduleImpactApplied && !!project?.schedule;
+                      updateChangeOrder(co.id, {
+                        status: 'approved',
+                        scheduleImpactApplied: shouldApplyImpact ? true : co.scheduleImpactApplied,
+                      });
+                      if (shouldApplyImpact && project?.schedule) {
+                        const nextSchedule = {
+                          ...project.schedule,
+                          bufferDays: (project.schedule.bufferDays ?? 0) + impactDays,
+                          totalDurationDays: (project.schedule.totalDurationDays ?? 0) + impactDays,
+                          updatedAt: new Date().toISOString(),
+                        };
+                        updateProject(project.id, { schedule: nextSchedule });
+                      }
                       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                      Alert.alert('Approved', `CO #${co.number} has been approved.`);
+                      Alert.alert(
+                        'Approved',
+                        shouldApplyImpact
+                          ? `CO #${co.number} has been approved. Schedule extended by ${impactDays} day${impactDays === 1 ? '' : 's'}.`
+                          : `CO #${co.number} has been approved.`
+                      );
                     }}
                     activeOpacity={0.7}
                   >
@@ -1423,6 +1442,15 @@ export default function ProjectDetailScreen() {
               >
                 <CheckSquare size={16} color={Colors.accent} />
                 <Text style={[styles.coAddBtnText, { color: Colors.accent }]}>Manage Punch List</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.coAddBtn, { marginTop: 8 }]}
+                onPress={() => router.push({ pathname: '/warranties' as any, params: { projectId: id } })}
+                activeOpacity={0.7}
+                testID="open-warranties-btn"
+              >
+                <CheckSquare size={16} color={Colors.primary} />
+                <Text style={[styles.coAddBtnText, { color: Colors.primary }]}>Warranties</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -2301,6 +2329,10 @@ const styles = StyleSheet.create({
   commEventTime: { fontSize: 11, color: Colors.textMuted },
   commAddNoteBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 6, paddingVertical: 10, borderRadius: 10, backgroundColor: Colors.infoLight, marginTop: 8 },
   commAddNoteBtnText: { fontSize: 13, fontWeight: '600' as const, color: Colors.info },
+  quickActions: { flexDirection: 'row' as const, paddingHorizontal: 20, marginTop: 12, gap: 10, flexWrap: 'wrap' as const },
+  quickActionBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, backgroundColor: Colors.surface, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, borderWidth: 1, borderColor: Colors.cardBorder },
+  quickActionIcon: { width: 32, height: 32, borderRadius: 8, alignItems: 'center' as const, justifyContent: 'center' as const },
+  quickActionLabel: { fontSize: 14, fontWeight: '600' as const, color: Colors.text },
 });
 
 const detailStyles = StyleSheet.create({
@@ -2363,8 +2395,4 @@ const detailStyles = StyleSheet.create({
   saverAmount: { fontSize: 15, fontWeight: '700' as const, color: Colors.success },
   saverPct: { fontSize: 11, fontWeight: '600' as const, color: Colors.success },
   saverDivider: { height: 1, backgroundColor: Colors.borderLight },
-  quickActions: { flexDirection: 'row', paddingHorizontal: 20, marginTop: 12, gap: 10 },
-  quickActionBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: Colors.surface, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, borderWidth: 1, borderColor: Colors.cardBorder },
-  quickActionIcon: { width: 32, height: 32, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
-  quickActionLabel: { fontSize: 14, fontWeight: '600' as const, color: Colors.text },
 });

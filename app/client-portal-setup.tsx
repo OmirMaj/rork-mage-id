@@ -9,7 +9,7 @@ import * as Haptics from 'expo-haptics';
 import {
   Globe, Copy, Send, Trash2, Eye, EyeOff, CheckCircle2,
   CalendarDays, DollarSign, Image, FileText, ClipboardList,
-  MessageSquare, BarChart3, Users, ChevronLeft, Plus, Link, Clock,
+  MessageSquare, BarChart3, Users, ChevronLeft, Plus, Link, Clock, Lock,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
@@ -133,6 +133,10 @@ export default function ClientPortalSetupScreen() {
 
   const handleSave = useCallback(async () => {
     if (!id) return;
+    if (portal.requirePasscode && (!portal.passcode || portal.passcode.trim().length < 4)) {
+      Alert.alert('Passcode Required', 'Please enter a passcode of at least 4 characters, or disable passcode protection.');
+      return;
+    }
     setIsSaving(true);
     try {
       updateProject(id, { clientPortal: portal });
@@ -259,6 +263,40 @@ export default function ClientPortalSetupScreen() {
               <Text style={styles.linkActionText}>Share</Text>
             </TouchableOpacity>
           </View>
+        </View>
+
+        {/* Passcode Protection */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Passcode Protection</Text>
+          <Text style={styles.sectionSubtitle}>Require clients to enter a passcode before viewing the portal. Share it separately from the link.</Text>
+          <View style={styles.togglesCard}>
+            <View style={styles.toggleRow}>
+              <View style={styles.toggleLeft}>
+                <Lock size={18} color={Colors.primary} />
+                <View style={styles.toggleLabels}>
+                  <Text style={styles.toggleLabel}>Require Passcode</Text>
+                  <Text style={styles.toggleDesc}>{portal.requirePasscode ? 'Portal is locked' : 'Portal is open with link only'}</Text>
+                </View>
+              </View>
+              <Switch
+                value={!!portal.requirePasscode}
+                onValueChange={val => setPortal(p => ({ ...p, requirePasscode: val }))}
+                trackColor={{ false: Colors.border, true: Colors.primary }}
+                thumbColor="#FFF"
+              />
+            </View>
+          </View>
+          {portal.requirePasscode && (
+            <TextInput
+              style={[styles.welcomeInput, { minHeight: 48, textAlign: 'center' as const, letterSpacing: 2, fontSize: 16, marginTop: 10 }]}
+              value={portal.passcode ?? ''}
+              onChangeText={val => setPortal(p => ({ ...p, passcode: val }))}
+              placeholder="Enter a passcode (4-12 chars)"
+              placeholderTextColor={Colors.textMuted}
+              autoCapitalize="none"
+              maxLength={20}
+            />
+          )}
         </View>
 
         {/* Welcome Message */}

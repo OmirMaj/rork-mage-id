@@ -1,14 +1,15 @@
 import React, { useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Image,
-  ActivityIndicator, Dimensions,
+  ActivityIndicator, Dimensions, TextInput, Platform,
 } from 'react-native';
 import { useLocalSearchParams, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Haptics from 'expo-haptics';
 import {
   Globe, CalendarDays, DollarSign, FileText, Image as ImageIcon,
   ClipboardList, CheckCircle2, MessageSquare, ChevronDown, ChevronUp,
-  TrendingUp, Clock, AlertTriangle, BarChart3, Flag, GitBranch,
+  TrendingUp, Clock, AlertTriangle, BarChart3, Flag, GitBranch, Lock,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
@@ -87,6 +88,10 @@ export default function ClientViewScreen() {
     photos: true, dailyReports: false, punchList: false, rfis: false, documents: false,
   });
 
+  const [passcodeEntry, setPasscodeEntry] = useState('');
+  const [passcodeUnlocked, setPasscodeUnlocked] = useState(false);
+  const [passcodeError, setPasscodeError] = useState(false);
+
   const toggleSection = (key: SectionKey) => setExpanded(p => ({ ...p, [key]: !p[key] }));
 
   // Budget metrics
@@ -109,6 +114,54 @@ export default function ClientViewScreen() {
         <Globe size={48} color={Colors.textMuted} />
         <Text style={styles.notFoundTitle}>Portal Not Found</Text>
         <Text style={styles.notFoundSubtitle}>This portal link may be expired or invalid.</Text>
+      </View>
+    );
+  }
+
+  const passcodeRequired = !!portal.requirePasscode && !!portal.passcode;
+
+  if (passcodeRequired && !passcodeUnlocked) {
+    const verify = () => {
+      if (passcodeEntry.trim() === (portal.passcode ?? '').trim()) {
+        setPasscodeUnlocked(true);
+        setPasscodeError(false);
+        if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      } else {
+        setPasscodeError(true);
+        if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      }
+    };
+    return (
+      <View style={styles.passcodeContainer}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <View style={styles.passcodeCard}>
+          <View style={styles.passcodeIconWrap}>
+            <Lock size={32} color={Colors.primary} />
+          </View>
+          <Text style={styles.passcodeTitle}>Protected Portal</Text>
+          <Text style={styles.passcodeSub}>{project.name}</Text>
+          <Text style={styles.passcodeDesc}>
+            Enter the passcode shared with you to access this project portal.
+          </Text>
+          <TextInput
+            style={[styles.passcodeInput, passcodeError && { borderColor: Colors.error }]}
+            value={passcodeEntry}
+            onChangeText={(v) => { setPasscodeEntry(v); if (passcodeError) setPasscodeError(false); }}
+            placeholder="Enter passcode"
+            placeholderTextColor={Colors.textMuted}
+            secureTextEntry
+            autoCapitalize="none"
+            autoCorrect={false}
+            onSubmitEditing={verify}
+            returnKeyType="done"
+          />
+          {passcodeError ? (
+            <Text style={styles.passcodeErrorText}>Incorrect passcode. Please try again.</Text>
+          ) : null}
+          <TouchableOpacity style={styles.passcodeBtn} onPress={verify} activeOpacity={0.85}>
+            <Text style={styles.passcodeBtnText}>Unlock Portal</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     );
   }
@@ -467,6 +520,17 @@ const styles = StyleSheet.create({
   notFoundContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 32 },
   notFoundTitle: { fontSize: 20, fontWeight: '700', color: Colors.text },
   notFoundSubtitle: { fontSize: 14, color: Colors.textMuted, textAlign: 'center' },
+
+  passcodeContainer: { flex: 1, backgroundColor: Colors.background, alignItems: 'center', justifyContent: 'center', padding: 24 },
+  passcodeCard: { backgroundColor: Colors.surface, borderRadius: 20, padding: 28, width: '100%', maxWidth: 380, alignItems: 'center', borderWidth: 1, borderColor: Colors.cardBorder, gap: 10 },
+  passcodeIconWrap: { width: 64, height: 64, borderRadius: 32, backgroundColor: Colors.primary + '15', alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
+  passcodeTitle: { fontSize: 20, fontWeight: '700', color: Colors.text },
+  passcodeSub: { fontSize: 14, color: Colors.primary, fontWeight: '600' },
+  passcodeDesc: { fontSize: 13, color: Colors.textMuted, textAlign: 'center', lineHeight: 18, marginTop: 4 },
+  passcodeInput: { width: '100%', minHeight: 50, borderRadius: 12, backgroundColor: Colors.surfaceAlt, borderWidth: 1, borderColor: Colors.cardBorder, paddingHorizontal: 14, fontSize: 16, color: Colors.text, marginTop: 12, textAlign: 'center', letterSpacing: 2 },
+  passcodeErrorText: { fontSize: 12, color: Colors.error, marginTop: 4 },
+  passcodeBtn: { width: '100%', minHeight: 50, borderRadius: 12, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center', marginTop: 12 },
+  passcodeBtnText: { fontSize: 15, fontWeight: '700', color: '#FFF' },
 
   header: {
     backgroundColor: Colors.primary,

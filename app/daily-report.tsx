@@ -19,7 +19,7 @@ import { sendEmail, buildDailyReportEmailHtml } from '@/utils/emailService';
 import VoiceRecorder from '@/components/VoiceRecorder';
 import { parseDFRFromTranscript } from '@/utils/voiceDFRParser';
 import AIDailyReportGen from '@/components/AIDailyReportGen';
-import type { ManpowerEntry, DFRPhoto, DailyFieldReport, DFRWeather } from '@/types';
+import type { ManpowerEntry, DFRPhoto, DailyFieldReport, DFRWeather, IncidentReport, IncidentSeverity } from '@/types';
 import type { DailyReportGenResult } from '@/utils/aiService';
 
 function createId(prefix: string): string {
@@ -52,6 +52,17 @@ export default function DailyReportScreen() {
   const [newMaterial, setNewMaterial] = useState('');
   const [issuesAndDelays, setIssuesAndDelays] = useState(existingReport?.issuesAndDelays ?? '');
   const [photos, setPhotos] = useState<DFRPhoto[]>(existingReport?.photos ?? []);
+  const [incident, setIncident] = useState<IncidentReport>(existingReport?.incident ?? {
+    hasIncident: false,
+    severity: undefined,
+    description: '',
+    peopleInvolved: '',
+    injuriesReported: false,
+    medicalTreatment: false,
+    oshaRecordable: false,
+    correctiveAction: '',
+    reportedBy: '',
+  });
   const [showManpowerModal, setShowManpowerModal] = useState(false);
   const [mpTrade, setMpTrade] = useState('');
   const [mpCompany, setMpCompany] = useState('');
@@ -212,6 +223,17 @@ export default function DailyReportScreen() {
     const now = new Date().toISOString();
     const recipientInfo = recipientName ? ` to ${recipientName}${recipientEmail ? ` (${recipientEmail})` : ''}` : '';
 
+    const incidentPayload: IncidentReport | undefined = incident.hasIncident
+      ? {
+          ...incident,
+          description: (incident.description ?? '').trim(),
+          peopleInvolved: (incident.peopleInvolved ?? '').trim(),
+          correctiveAction: (incident.correctiveAction ?? '').trim(),
+          reportedBy: (incident.reportedBy ?? '').trim(),
+          reportedAt: incident.reportedAt ?? now,
+        }
+      : undefined;
+
     if (existingReport) {
       updateDailyReport(existingReport.id, {
         weather,
@@ -221,6 +243,7 @@ export default function DailyReportScreen() {
         issuesAndDelays: issuesAndDelays.trim(),
         photos,
         status,
+        incident: incidentPayload,
       });
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert('Updated', `Daily report has been ${status === 'sent' ? `sent${recipientInfo}` : 'saved'}.`);
@@ -236,6 +259,7 @@ export default function DailyReportScreen() {
         issuesAndDelays: issuesAndDelays.trim(),
         photos,
         status,
+        incident: incidentPayload,
         createdAt: now,
         updatedAt: now,
       };
@@ -255,7 +279,7 @@ export default function DailyReportScreen() {
       Alert.alert('Created', `Daily report has been ${status === 'sent' ? `sent${recipientInfo}` : 'saved as draft'}.`);
     }
     router.back();
-  }, [projectId, weather, manpower, workPerformed, materialsDelivered, issuesAndDelays, photos, existingReport, addDailyReport, updateDailyReport, addProjectPhoto, router]);
+  }, [projectId, weather, manpower, workPerformed, materialsDelivered, issuesAndDelays, photos, incident, existingReport, addDailyReport, updateDailyReport, addProjectPhoto, router]);
 
   const handleSendPress = useCallback(() => {
     setShowSendRecipient(true);
@@ -588,13 +612,118 @@ export default function DailyReportScreen() {
                 style={styles.textArea}
                 value={issuesAndDelays}
                 onChangeText={setIssuesAndDelays}
-                placeholder="Note any problems, delays, or safety incidents..."
+                placeholder="Note any problems or delays..."
                 placeholderTextColor={Colors.textMuted}
                 multiline
                 textAlignVertical="top"
               />
             ) : (
               <Text style={styles.readOnlyText}>{issuesAndDelays || 'No issues reported.'}</Text>
+            )}
+          </View>
+
+          <View style={styles.sectionCard}>
+            <View style={styles.sectionHeader}>
+              <HardHat size={18} color={Colors.error} />
+              <Text style={styles.sectionTitle}>Safety & Incident</Text>
+            </View>
+            {!isLocked ? (
+              <>
+                <TouchableOpacity
+                  style={[styles.incidentToggle, incident.hasIncident && styles.incidentToggleActive]}
+                  onPress={() => setIncident(p => ({ ...p, hasIncident: !p.hasIncident }))}
+                  activeOpacity={0.85}
+                >
+                  <View style={[styles.incidentToggleDot, incident.hasIncident && styles.incidentToggleDotActive]} />
+                  <Text style={[styles.incidentToggleText, incident.hasIncident && { color: Colors.error }]}>
+                    {incident.hasIncident ? 'Incident occurred today' : 'No incidents today'}
+                  </Text>
+                </TouchableOpacity>
+
+                {incident.hasIncident && (
+                  <View style={styles.incidentBlock}>
+                    <Text style={styles.incidentLabel}>Severity</Text>
+                    <View style={styles.severityRow}>
+                      {(['near_miss','minor','moderate','major','critical'] as IncidentSeverity[]).map(sev => {
+                        const active = incident.severity === sev;
+                        const labels: Record<IncidentSeverity, string> = {
+                          near_miss: 'Near Miss', minor: 'Minor', moderate: 'Moderate', major: 'Major', critical: 'Critical',
+                        };
+                        return (
+                          <TouchableOpacity
+                            key={sev}
+                            style={[styles.severityChip, active && styles.severityChipActive]}
+                            onPress={() => setIncident(p => ({ ...p, severity: sev }))}
+                          >
+                            <Text style={[styles.severityChipText, active && styles.severityChipTextActive]}>{labels[sev]}</Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+
+                    <Text style={styles.incidentLabel}>What happened?</Text>
+                    <TextInput
+                      style={styles.textArea}
+                      value={incident.description ?? ''}
+                      onChangeText={val => setIncident(p => ({ ...p, description: val }))}
+                      placeholder="Describe the incident..."
+                      placeholderTextColor={Colors.textMuted}
+                      multiline
+                      textAlignVertical="top"
+                    />
+
+                    <Text style={styles.incidentLabel}>People involved</Text>
+                    <TextInput
+                      style={styles.textInput}
+                      value={incident.peopleInvolved ?? ''}
+                      onChangeText={val => setIncident(p => ({ ...p, peopleInvolved: val }))}
+                      placeholder="Names or roles"
+                      placeholderTextColor={Colors.textMuted}
+                    />
+
+                    <View style={styles.checkboxRow}>
+                      <TouchableOpacity style={styles.checkboxItem} onPress={() => setIncident(p => ({ ...p, injuriesReported: !p.injuriesReported }))}>
+                        <View style={[styles.checkbox, incident.injuriesReported && styles.checkboxActive]} />
+                        <Text style={styles.checkboxLabel}>Injuries</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={styles.checkboxItem} onPress={() => setIncident(p => ({ ...p, medicalTreatment: !p.medicalTreatment }))}>
+                        <View style={[styles.checkbox, incident.medicalTreatment && styles.checkboxActive]} />
+                        <Text style={styles.checkboxLabel}>Medical treatment</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={styles.checkboxItem} onPress={() => setIncident(p => ({ ...p, oshaRecordable: !p.oshaRecordable }))}>
+                        <View style={[styles.checkbox, incident.oshaRecordable && styles.checkboxActive]} />
+                        <Text style={styles.checkboxLabel}>OSHA recordable</Text>
+                      </TouchableOpacity>
+                    </View>
+
+                    <Text style={styles.incidentLabel}>Corrective action</Text>
+                    <TextInput
+                      style={styles.textArea}
+                      value={incident.correctiveAction ?? ''}
+                      onChangeText={val => setIncident(p => ({ ...p, correctiveAction: val }))}
+                      placeholder="Immediate fixes, training, policy changes..."
+                      placeholderTextColor={Colors.textMuted}
+                      multiline
+                      textAlignVertical="top"
+                    />
+
+                    <Text style={styles.incidentLabel}>Reported by</Text>
+                    <TextInput
+                      style={styles.textInput}
+                      value={incident.reportedBy ?? ''}
+                      onChangeText={val => setIncident(p => ({ ...p, reportedBy: val }))}
+                      placeholder="Your name / role"
+                      placeholderTextColor={Colors.textMuted}
+                    />
+                  </View>
+                )}
+              </>
+            ) : (
+              <Text style={styles.readOnlyText}>
+                {incident.hasIncident
+                  ? `${incident.severity?.replace('_', ' ').toUpperCase()} — ${incident.description || 'No description.'}`
+                  : 'No incidents reported.'}
+              </Text>
             )}
           </View>
 
@@ -841,7 +970,25 @@ const styles = StyleSheet.create({
   mpTrade: { fontSize: 14, fontWeight: '600' as const, color: Colors.text },
   mpMeta: { fontSize: 12, color: Colors.textSecondary },
   textArea: { minHeight: 80, borderRadius: 12, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 14, paddingTop: 12, fontSize: 14, color: Colors.text },
+  textInput: { minHeight: 44, borderRadius: 12, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 14, fontSize: 14, color: Colors.text },
   readOnlyText: { fontSize: 14, color: Colors.text, lineHeight: 20 },
+  incidentToggle: { flexDirection: 'row', alignItems: 'center' as const, gap: 10, paddingVertical: 12, paddingHorizontal: 12, borderRadius: 12, backgroundColor: Colors.surfaceAlt, borderWidth: 1, borderColor: Colors.cardBorder },
+  incidentToggleActive: { backgroundColor: Colors.errorLight, borderColor: Colors.error + '40' },
+  incidentToggleDot: { width: 16, height: 16, borderRadius: 8, borderWidth: 2, borderColor: Colors.border },
+  incidentToggleDotActive: { backgroundColor: Colors.error, borderColor: Colors.error },
+  incidentToggleText: { fontSize: 14, fontWeight: '600' as const, color: Colors.text },
+  incidentBlock: { marginTop: 10, gap: 6 },
+  incidentLabel: { fontSize: 13, fontWeight: '600' as const, color: Colors.textSecondary, marginTop: 8 },
+  severityRow: { flexDirection: 'row', flexWrap: 'wrap' as const, gap: 6 },
+  severityChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10, backgroundColor: Colors.fillTertiary },
+  severityChipActive: { backgroundColor: Colors.error },
+  severityChipText: { fontSize: 12, fontWeight: '600' as const, color: Colors.textSecondary },
+  severityChipTextActive: { color: '#FFF' },
+  checkboxRow: { flexDirection: 'row', flexWrap: 'wrap' as const, gap: 12, marginTop: 8 },
+  checkboxItem: { flexDirection: 'row', alignItems: 'center' as const, gap: 6 },
+  checkbox: { width: 18, height: 18, borderRadius: 4, borderWidth: 2, borderColor: Colors.border },
+  checkboxActive: { backgroundColor: Colors.error, borderColor: Colors.error },
+  checkboxLabel: { fontSize: 13, color: Colors.text, fontWeight: '500' as const },
   addMaterialRow: { flexDirection: 'row', gap: 8, marginBottom: 8 },
   materialInput: { flex: 1, minHeight: 40, borderRadius: 10, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 12, fontSize: 14, color: Colors.text },
   addMaterialBtn: { width: 40, height: 40, borderRadius: 10, backgroundColor: Colors.primary + '15', alignItems: 'center', justifyContent: 'center' },

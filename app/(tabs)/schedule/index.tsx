@@ -100,6 +100,8 @@ interface TaskDraft {
   dependencyLinks: DependencyLink[];
   status: ScheduleTask['status'];
   progress: string;
+  assignedSubId: string;
+  assignedSubName: string;
 }
 
 type ScheduleViewMode = 'today' | 'lookahead' | 'board' | 'gantt' | 'resources' | 'summary';
@@ -110,12 +112,13 @@ const EMPTY_DRAFT: TaskDraft = {
   crew: '', crewSize: '2', notes: '', isMilestone: false, wbsCode: '',
   isCriticalPath: false, isWeatherSensitive: false, dependencyLinks: [],
   status: 'not_started', progress: '0',
+  assignedSubId: '', assignedSubName: '',
 };
 
 export default function ScheduleScreen() {
   const insets = useSafeAreaInsets();
   const layout = useResponsiveLayout();
-  const { projects, updateProject, addProject } = useProjects();
+  const { projects, updateProject, addProject, contacts } = useProjects();
 
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(projects[0]?.id ?? null);
   const [isProjectPickerOpen, setIsProjectPickerOpen] = useState(false);
@@ -257,6 +260,8 @@ export default function ScheduleScreen() {
           isCriticalPath: draft.isCriticalPath, isWeatherSensitive: draft.isWeatherSensitive,
           dependencies: depIds, dependencyLinks: depLinks,
           status: draft.status, progress,
+          assignedSubId: draft.assignedSubId || undefined,
+          assignedSubName: draft.assignedSubName || undefined,
         };
         // Only apply start day override when no deps are set (deps control start day automatically)
         if (!Number.isNaN(startDayOverride) && startDayOverride > 0 && depLinks.length === 0) {
@@ -288,6 +293,8 @@ export default function ScheduleScreen() {
         status: 'not_started', isMilestone: draft.isMilestone,
         wbsCode: draft.wbsCode.trim() || undefined,
         isCriticalPath: draft.isCriticalPath, isWeatherSensitive: draft.isWeatherSensitive,
+        assignedSubId: draft.assignedSubId || undefined,
+        assignedSubName: draft.assignedSubName || undefined,
       };
       const currentTasks = sortedTasks.length > 0 ? sortedTasks : [];
       const scheduleName = activeSchedule?.name ?? (selectedProject ? `${selectedProject.name} Schedule` : 'Project Schedule');
@@ -322,6 +329,8 @@ export default function ScheduleScreen() {
       dependencyLinks: getDepLinks(task),
       status: task.status,
       progress: String(task.progress),
+      assignedSubId: task.assignedSubId ?? '',
+      assignedSubName: task.assignedSubName ?? '',
     });
     setIsEditModalOpen(true);
     setTaskDetailModal(null);
@@ -759,6 +768,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
           )}
           <Text style={styles.taskMetaText}>{task.durationDays}d</Text>
           {task.crew ? <Text style={styles.taskMetaText}>{task.crew}</Text> : null}
+          {task.assignedSubName ? <Text style={[styles.taskMetaText, { color: Colors.primary, fontWeight: '600' as const }]}>👷 {task.assignedSubName}</Text> : null}
         </View>
 
         <View style={styles.progressRow}>
@@ -2140,30 +2150,30 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                         return (
                           <TouchableOpacity
                             key={s}
-                            style={[styles.statusChip, { borderColor: colors[s], backgroundColor: active ? colors[s] : 'transparent' }]}
+                            style={[styles.modalStatusChip, { borderColor: colors[s], backgroundColor: active ? colors[s] : 'transparent' }]}
                             onPress={() => {
                               const autoProgress = s === 'done' ? '100' : s === 'not_started' ? '0' : taskDraft.progress;
                               setTaskDraft(p => ({ ...p, status: s, progress: autoProgress }));
                             }}
                           >
-                            <Text style={[styles.statusChipText, { color: active ? '#FFF' : colors[s] }]}>{labels[s]}</Text>
+                            <Text style={[styles.modalStatusChipText, { color: active ? '#FFF' : colors[s] }]}>{labels[s]}</Text>
                           </TouchableOpacity>
                         );
                       })}
                     </View>
 
                     <Text style={styles.fieldLabel}>Progress — {taskDraft.progress}%</Text>
-                    <View style={styles.progressRow}>
+                    <View style={styles.modalProgressRow}>
                       {[0, 25, 50, 75, 100].map(pct => (
                         <TouchableOpacity
                           key={pct}
-                          style={[styles.progressBtn, parseInt(taskDraft.progress, 10) === pct && styles.progressBtnActive]}
+                          style={[styles.modalProgressBtn, parseInt(taskDraft.progress, 10) === pct && styles.modalProgressBtnActive]}
                           onPress={() => {
                             const nextStatus = pct >= 100 ? 'done' as const : pct > 0 ? 'in_progress' as const : 'not_started' as const;
                             setTaskDraft(p => ({ ...p, progress: String(pct), status: nextStatus }));
                           }}
                         >
-                          <Text style={[styles.progressBtnText, parseInt(taskDraft.progress, 10) === pct && styles.progressBtnTextActive]}>{pct}%</Text>
+                          <Text style={[styles.modalProgressBtnText, parseInt(taskDraft.progress, 10) === pct && styles.modalProgressBtnTextActive]}>{pct}%</Text>
                         </TouchableOpacity>
                       ))}
                     </View>
@@ -2192,6 +2202,38 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                       <TextInput style={styles.input} value={taskDraft.startDayOverride} onChangeText={val => setTaskDraft(p => ({ ...p, startDayOverride: val }))} keyboardType="number-pad" placeholder="Auto" placeholderTextColor={Colors.textMuted} />
                     </View>
                   )}
+                </View>
+
+                <View style={{ marginTop: 12 }}>
+                  <Text style={styles.fieldLabel}>Assign Subcontractor</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingVertical: 4 }}>
+                    <TouchableOpacity
+                      style={[styles.phaseChip, !taskDraft.assignedSubId && styles.phaseChipActive]}
+                      onPress={() => setTaskDraft(p => ({ ...p, assignedSubId: '', assignedSubName: '' }))}
+                    >
+                      <Text style={[styles.phaseChipText, !taskDraft.assignedSubId && styles.phaseChipTextActive]}>None</Text>
+                    </TouchableOpacity>
+                    {contacts.filter(c => c.role === 'Sub').map(sub => {
+                      const displayName = `${sub.firstName} ${sub.lastName}`.trim() || sub.companyName || 'Sub';
+                      const active = taskDraft.assignedSubId === sub.id;
+                      return (
+                        <TouchableOpacity
+                          key={sub.id}
+                          style={[styles.phaseChip, active && styles.phaseChipActive]}
+                          onPress={() => setTaskDraft(p => ({ ...p, assignedSubId: sub.id, assignedSubName: displayName }))}
+                        >
+                          <Text style={[styles.phaseChipText, active && styles.phaseChipTextActive]} numberOfLines={1}>
+                            {displayName}{sub.companyName ? ` · ${sub.companyName}` : ''}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                    {contacts.filter(c => c.role === 'Sub').length === 0 ? (
+                      <Text style={{ fontSize: 12, color: Colors.textMuted, alignSelf: 'center' as const, paddingHorizontal: 8 }}>
+                        No subs in contacts. Add one from the Contacts tab.
+                      </Text>
+                    ) : null}
+                  </ScrollView>
                 </View>
 
                 <View style={styles.toggleRow}>
@@ -2658,17 +2700,17 @@ const styles = StyleSheet.create({
   depDoneBtn: { marginTop: 8, minHeight: 44, borderRadius: 12, backgroundColor: '#007AFF', alignItems: 'center', justifyContent: 'center' },
   depDoneBtnText: { fontSize: 14, fontWeight: '700' as const, color: '#FFF' },
 
-  // Status chips
+  // Status chips (modal)
   statusChipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 },
-  statusChip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1.5 },
-  statusChipText: { fontSize: 12, fontWeight: '700' as const },
+  modalStatusChip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1.5 },
+  modalStatusChipText: { fontSize: 12, fontWeight: '700' as const },
 
-  // Progress buttons
-  progressRow: { flexDirection: 'row', gap: 6, marginBottom: 12 },
-  progressBtn: { flex: 1, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: Colors.border, alignItems: 'center' },
-  progressBtnActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  progressBtnText: { fontSize: 12, fontWeight: '600' as const, color: Colors.textMuted },
-  progressBtnTextActive: { color: '#FFF' },
+  // Progress buttons (modal)
+  modalProgressRow: { flexDirection: 'row', gap: 6, marginBottom: 12 },
+  modalProgressBtn: { flex: 1, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: Colors.border, alignItems: 'center' },
+  modalProgressBtnActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  modalProgressBtnText: { fontSize: 12, fontWeight: '600' as const, color: Colors.textMuted },
+  modalProgressBtnTextActive: { color: '#FFF' },
 
   // Dep detail
   depDetailList: { marginTop: 6, marginBottom: 8, gap: 8 },

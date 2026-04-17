@@ -148,6 +148,8 @@ export interface ScheduleTask {
   baselineStartDay?: number;
   baselineEndDay?: number;
   linkedEstimateItems?: string[];
+  assignedSubId?: string;
+  assignedSubName?: string;
   photos?: Array<{
     uri: string;
     timestamp: string;
@@ -350,6 +352,8 @@ export interface ChangeOrder {
   originalContractValue: number;
   changeAmount: number;
   newContractTotal: number;
+  scheduleImpactDays?: number;
+  scheduleImpactApplied?: boolean;
   status: ChangeOrderStatus;
   approvers?: COApprover[];
   approvalMode?: 'sequential' | 'parallel';
@@ -426,6 +430,28 @@ export interface DFRPhoto {
 
 export type DFRStatus = 'draft' | 'sent';
 
+export type IncidentSeverity = 'near_miss' | 'minor' | 'moderate' | 'major' | 'critical';
+
+export interface IncidentReport {
+  hasIncident: boolean;
+  severity?: IncidentSeverity;
+  description?: string;
+  peopleInvolved?: string;
+  injuriesReported?: boolean;
+  medicalTreatment?: boolean;
+  oshaRecordable?: boolean;
+  correctiveAction?: string;
+  reportedBy?: string;
+  reportedAt?: string;
+}
+
+export interface SafetyToolboxTalk {
+  topic: string;
+  durationMinutes?: number;
+  attendees?: number;
+  conductedBy?: string;
+}
+
 export interface DailyFieldReport {
   id: string;
   projectId: string;
@@ -437,6 +463,8 @@ export interface DailyFieldReport {
   issuesAndDelays: string;
   photos: DFRPhoto[];
   status: DFRStatus;
+  incident?: IncidentReport;
+  safetyToolboxTalk?: SafetyToolboxTalk;
   createdAt: string;
   updatedAt: string;
 }
@@ -500,6 +528,8 @@ export interface PunchItem {
   location: string;
   assignedSub: string;
   assignedSubId?: string;
+  linkedTaskId?: string;
+  linkedTaskName?: string;
   dueDate: string;
   priority: PunchItemPriority;
   status: PunchItemStatus;
@@ -565,7 +595,8 @@ export interface ClientPortalInvite {
 export interface ClientPortalSettings {
   enabled: boolean;
   portalId: string;
-  // What clients can see
+  passcode?: string;
+  requirePasscode?: boolean;
   showSchedule: boolean;
   showChangeOrders: boolean;
   showInvoices: boolean;
@@ -575,7 +606,6 @@ export interface ClientPortalSettings {
   showPunchList: boolean;
   showRFIs: boolean;
   showDocuments: boolean;
-  // Client communication
   welcomeMessage?: string;
   invites?: ClientPortalInvite[];
 }
@@ -970,4 +1000,51 @@ export interface Payment {
   description: string;
   createdAt: string;
   completedAt?: string;
+}
+
+export type WarrantyCategory =
+  | 'general'
+  | 'roofing'
+  | 'plumbing'
+  | 'electrical'
+  | 'hvac'
+  | 'foundation'
+  | 'windows'
+  | 'appliances'
+  | 'finishes'
+  | 'structural'
+  | 'other';
+
+export type WarrantyStatus = 'active' | 'expiring_soon' | 'expired' | 'claimed' | 'void';
+
+export interface WarrantyClaim {
+  id: string;
+  date: string;
+  description: string;
+  resolution?: string;
+  cost?: number;
+  resolvedAt?: string;
+  photos?: string[];
+}
+
+export interface Warranty {
+  id: string;
+  projectId: string;
+  projectName: string;
+  title: string;
+  category: WarrantyCategory;
+  description?: string;
+  provider: string;
+  providerContactId?: string;
+  startDate: string;
+  durationMonths: number;
+  endDate: string;
+  coverageDetails?: string;
+  exclusions?: string;
+  documentUri?: string;
+  status: WarrantyStatus;
+  claims: WarrantyClaim[];
+  reminderDays?: number;
+  createdAt: string;
+  updatedAt: string;
 }

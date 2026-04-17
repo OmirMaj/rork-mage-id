@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import createContextHook from '@nkzw/create-context-hook';
-import type { Project, AppSettings, CompanyBranding, ProjectCollaborator, ChangeOrder, Invoice, DailyFieldReport, Subcontractor, PunchItem, ProjectPhoto, PriceAlert, Contact, CommunicationEvent, RFI, Submittal, SubmittalReviewCycle, Equipment, EquipmentUtilizationEntry, PDFNamingSettings } from '@/types';
+import type { Project, AppSettings, CompanyBranding, ProjectCollaborator, ChangeOrder, Invoice, DailyFieldReport, Subcontractor, PunchItem, ProjectPhoto, PriceAlert, Contact, CommunicationEvent, RFI, Submittal, SubmittalReviewCycle, Equipment, EquipmentUtilizationEntry, PDFNamingSettings, Warranty, WarrantyClaim } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { supabaseWrite } from '@/utils/offlineQueue';
@@ -23,6 +23,7 @@ const COMM_EVENTS_KEY = 'tertiary_comm_events';
 const RFIS_KEY = 'tertiary_rfis';
 const SUBMITTALS_KEY = 'tertiary_submittals';
 const EQUIPMENT_KEY = 'tertiary_equipment';
+const WARRANTIES_KEY = 'tertiary_warranties';
 
 const DEFAULT_BRANDING: CompanyBranding = {
   companyName: '',
@@ -82,6 +83,7 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
   const [rfis, setRfis] = useState<RFI[]>([]);
   const [submittals, setSubmittals] = useState<Submittal[]>([]);
   const [equipment, setEquipment] = useState<Equipment[]>([]);
+  const [warranties, setWarranties] = useState<Warranty[]>([]);
   const syncDebounceMap = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
   const canSync = !isGuest && !!userId && isSupabaseConfigured;
@@ -1100,6 +1102,68 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
       }, 0);
   }, [equipment]);
 
+  // Warranties — local-only storage for now
+  useEffect(() => {
+    void loadLocal<Warranty[]>(WARRANTIES_KEY, []).then(setWarranties);
+  }, []);
+
+  const persistWarranties = useCallback((list: Warranty[]) => {
+    setWarranties(list);
+    void saveLocal(WARRANTIES_KEY, list);
+  }, []);
+
+  const computeWarrantyStatus = useCallback((w: Warranty): Warranty['status'] => {
+    if (w.status === 'claimed' || w.status === 'void') return w.status;
+    const end = new Date(w.endDate).getTime();
+    const now = Date.now();
+    if (end < now) return 'expired';
+    const msPerDay = 1000 * 60 * 60 * 24;
+    const daysLeft = Math.ceil((end - now) / msPerDay);
+    const threshold = w.reminderDays ?? 30;
+    if (daysLeft <= threshold) return 'expiring_soon';
+    return 'active';
+  }, []);
+
+  const addWarranty = useCallback((w: Omit<Warranty, 'id' | 'createdAt' | 'updatedAt' | 'status' | 'claims'> & { id?: string; status?: Warranty['status']; claims?: WarrantyClaim[] }) => {
+    const now = new Date().toISOString();
+    const fresh: Warranty = {
+      id: w.id ?? `warr-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      createdAt: now, updatedAt: now,
+      status: w.status ?? 'active',
+      claims: w.claims ?? [],
+      ...w,
+    } as Warranty;
+    fresh.status = computeWarrantyStatus(fresh);
+    persistWarranties([fresh, ...warranties]);
+    return fresh;
+  }, [warranties, persistWarranties, computeWarrantyStatus]);
+
+  const updateWarranty = useCallback((id: string, updates: Partial<Warranty>) => {
+    const now = new Date().toISOString();
+    const next = warranties.map(w => {
+      if (w.id !== id) return w;
+      const merged = { ...w, ...updates, updatedAt: now };
+      merged.status = computeWarrantyStatus(merged);
+      return merged;
+    });
+    persistWarranties(next);
+  }, [warranties, persistWarranties, computeWarrantyStatus]);
+
+  const deleteWarranty = useCallback((id: string) => {
+    persistWarranties(warranties.filter(w => w.id !== id));
+  }, [warranties, persistWarranties]);
+
+  const getWarrantiesForProject = useCallback((projectId: string) =>
+    warranties.filter(w => w.projectId === projectId).sort((a, b) => new Date(a.endDate).getTime() - new Date(b.endDate).getTime()),
+    [warranties]);
+
+  const addWarrantyClaim = useCallback((warrantyId: string, claim: Omit<WarrantyClaim, 'id'>) => {
+    const id = `claim-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const newClaim: WarrantyClaim = { id, ...claim };
+    const next = warranties.map(w => w.id === warrantyId ? { ...w, claims: [newClaim, ...(w.claims ?? [])], updatedAt: new Date().toISOString() } : w);
+    persistWarranties(next);
+  }, [warranties, persistWarranties]);
+
   const sortedProjects = useMemo(() => [...projects].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()), [projects]);
 
   return useMemo(() => ({
@@ -1119,5 +1183,6 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
     rfis, addRFI, updateRFI, deleteRFI, getRFIsForProject,
     submittals, addSubmittal, updateSubmittal, deleteSubmittal, getSubmittalsForProject, addReviewCycle,
     equipment, addEquipment, updateEquipment, deleteEquipment, logUtilization, getEquipmentForProject, getEquipmentCostForProject,
-  }), [sortedProjects, settings, hasSeenOnboarding, completeOnboarding, projectsQuery.isLoading, settingsQuery.isLoading, onboardingQuery.isLoading, addProject, updateProject, deleteProject, getProject, updateSettings, addCollaborator, removeCollaborator, changeOrders, addChangeOrder, updateChangeOrder, getChangeOrdersForProject, addInvoice, updateInvoice, getInvoicesForProject, getTotalOutstandingBalance, invoices, addDailyReport, updateDailyReport, getDailyReportsForProject, subcontractors, addSubcontractor, updateSubcontractor, deleteSubcontractor, getSubcontractor, punchItems, addPunchItem, updatePunchItem, deletePunchItem, getPunchItemsForProject, projectPhotos, addProjectPhoto, deleteProjectPhoto, getPhotosForProject, priceAlerts, addPriceAlert, updatePriceAlert, deletePriceAlert, contacts, addContact, updateContact, deleteContact, getContact, commEvents, addCommEvent, getCommEventsForProject, rfis, addRFI, updateRFI, deleteRFI, getRFIsForProject, submittals, addSubmittal, updateSubmittal, deleteSubmittal, getSubmittalsForProject, addReviewCycle, equipment, addEquipment, updateEquipment, deleteEquipment, logUtilization, getEquipmentForProject, getEquipmentCostForProject]);
+    warranties, addWarranty, updateWarranty, deleteWarranty, getWarrantiesForProject, addWarrantyClaim,
+  }), [sortedProjects, settings, hasSeenOnboarding, completeOnboarding, projectsQuery.isLoading, settingsQuery.isLoading, onboardingQuery.isLoading, addProject, updateProject, deleteProject, getProject, updateSettings, addCollaborator, removeCollaborator, changeOrders, addChangeOrder, updateChangeOrder, getChangeOrdersForProject, addInvoice, updateInvoice, getInvoicesForProject, getTotalOutstandingBalance, invoices, addDailyReport, updateDailyReport, getDailyReportsForProject, subcontractors, addSubcontractor, updateSubcontractor, deleteSubcontractor, getSubcontractor, punchItems, addPunchItem, updatePunchItem, deletePunchItem, getPunchItemsForProject, projectPhotos, addProjectPhoto, deleteProjectPhoto, getPhotosForProject, priceAlerts, addPriceAlert, updatePriceAlert, deletePriceAlert, contacts, addContact, updateContact, deleteContact, getContact, commEvents, addCommEvent, getCommEventsForProject, rfis, addRFI, updateRFI, deleteRFI, getRFIsForProject, submittals, addSubmittal, updateSubmittal, deleteSubmittal, getSubmittalsForProject, addReviewCycle, equipment, addEquipment, updateEquipment, deleteEquipment, logUtilization, getEquipmentForProject, getEquipmentCostForProject, warranties, addWarranty, updateWarranty, deleteWarranty, getWarrantiesForProject, addWarrantyClaim]);
 });
