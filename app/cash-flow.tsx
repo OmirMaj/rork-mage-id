@@ -257,7 +257,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
         return;
       }
       setAiAnalysis(aiResult.data);
-      await setCachedAIAnalysis(result, projectId);
+      await setCachedAIAnalysis(aiResult.data, projectId);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err) {
       console.error('[CashFlow] AI analysis failed:', err);
@@ -620,6 +620,16 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
             <Text style={styles.aiButtonText}>
               {aiLoading ? 'Analyzing...' : 'Get AI Advice'}
             </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.aiButton, { backgroundColor: Colors.accent, marginTop: 10 }]}
+            onPress={() => router.push({ pathname: '/payment-predictions' as any, params: projectId ? { projectId } : {} })}
+            activeOpacity={0.85}
+            testID="payment-forecast-btn"
+          >
+            <TrendingUp size={18} color={Colors.textOnPrimary} />
+            <Text style={styles.aiButtonText}>Payment Forecast</Text>
           </TouchableOpacity>
 
           {showAiResults && aiAnalysis && (

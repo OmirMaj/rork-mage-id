@@ -13,7 +13,7 @@ import {
   ChevronDown, ChevronUp, ChevronRight, Trash2, Package, AlertTriangle, Lightbulb, CalendarDays,
   Mail, MessageSquare, X, BarChart3, ArrowDownRight, Shield, Layers,
   FileText, ShoppingCart, UserPlus, Send, Share2, Eye, PenTool, Crown, Pencil,
-  Plus, Receipt, ClipboardList, Repeat, CheckSquare, Camera, Globe, Link, Copy, Wallet,
+  Plus, Receipt, ClipboardList, Repeat, CheckSquare, Camera, Globe, Link, Copy, Wallet, Archive,
 } from 'lucide-react-native';
 import { PROJECT_TYPES } from '@/types';
 import type { ProjectType } from '@/types';
@@ -24,6 +24,7 @@ import { generateUUID } from '@/utils/generateId';
 import AIProjectReport from '@/components/AIProjectReport';
 import AIAutoScheduleButton from '@/components/AIAutoScheduleButton';
 import { generateAndSharePDF, buildEstimateTextForEmail } from '@/utils/pdfGenerator';
+import { generateAndShareCloseoutPacket } from '@/utils/closeoutPacketGenerator';
 import type { ProjectCollaborator } from '@/types';
 import { formatMoney } from '@/utils/formatters';
 
@@ -40,7 +41,7 @@ export default function ProjectDetailScreen() {
   const layout = useResponsiveLayout();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { getProject, deleteProject, updateProject, settings, addCollaborator, removeCollaborator, getChangeOrdersForProject, getInvoicesForProject, getDailyReportsForProject, updateChangeOrder, getPunchItemsForProject, getPhotosForProject, getCommEventsForProject, addCommEvent, getRFIsForProject, getSubmittalsForProject, invoices: allInvoices, changeOrders: allChangeOrders } = useProjects();
+  const { getProject, deleteProject, updateProject, settings, addCollaborator, removeCollaborator, getChangeOrdersForProject, getInvoicesForProject, getDailyReportsForProject, updateChangeOrder, getPunchItemsForProject, getPhotosForProject, getCommEventsForProject, addCommEvent, getRFIsForProject, getSubmittalsForProject, getWarrantiesForProject, invoices: allInvoices, changeOrders: allChangeOrders } = useProjects();
   const { tier } = useSubscription();
 
   const changeOrders = useMemo(() => getChangeOrdersForProject(id ?? ''), [id, getChangeOrdersForProject]);
@@ -51,6 +52,7 @@ export default function ProjectDetailScreen() {
   const commEvents = useMemo(() => getCommEventsForProject(id ?? ''), [id, getCommEventsForProject]);
   const projectRFIs = useMemo(() => getRFIsForProject(id ?? ''), [id, getRFIsForProject]);
   const projectSubmittals = useMemo(() => getSubmittalsForProject(id ?? ''), [id, getSubmittalsForProject]);
+  const projectWarranties = useMemo(() => getWarrantiesForProject(id ?? ''), [id, getWarrantiesForProject]);
 
   const project = useMemo(() => getProject(id ?? ''), [id, getProject]);
   const [expanded, setExpanded] = useState<Record<SectionKey, boolean>>({
@@ -84,6 +86,7 @@ export default function ProjectDetailScreen() {
   const [editLocation, setEditLocation] = useState('');
   const [editType, setEditType] = useState<ProjectType>('renovation');
   const [editSquareFootage, setEditSquareFootage] = useState('');
+  const [generatingCloseout, setGeneratingCloseout] = useState<boolean>(false);
 
   const toggleSection = useCallback((section: SectionKey) => {
     setExpanded(prev => ({ ...prev, [section]: !prev[section] }));
@@ -190,6 +193,57 @@ export default function ProjectDetailScreen() {
       Alert.alert('Error', 'Failed to generate schedule PDF.');
     }
   }, [project, branding]);
+
+  const handleGenerateCloseoutPacket = useCallback(async () => {
+    if (!project || !id) return;
+    if (generatingCloseout) return;
+    const openPunchCount = punchItems.filter(p => p.status !== 'closed').length;
+    const unpaidInvoices = projectInvoices.filter(i => {
+      const net = (i.totalDue ?? 0) - Math.max(0, (i.retentionAmount ?? 0) - (i.retentionReleased ?? 0));
+      return (i.amountPaid ?? 0) < net;
+    });
+    const warn: string[] = [];
+    if (openPunchCount > 0) warn.push(`${openPunchCount} open punch item${openPunchCount === 1 ? '' : 's'}`);
+    if (unpaidInvoices.length > 0) warn.push(`${unpaidInvoices.length} unpaid invoice${unpaidInvoices.length === 1 ? '' : 's'}`);
+    const proceed = async () => {
+      setGeneratingCloseout(true);
+      try {
+        if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        const ok = await generateAndShareCloseoutPacket({
+          project,
+          branding,
+          changeOrders,
+          invoices: projectInvoices,
+          dailyReports,
+          punchItems,
+          warranties: projectWarranties,
+          photoCount: projectPhotos.length,
+        });
+        if (ok) {
+          if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        } else {
+          Alert.alert('Closeout Packet', 'Could not generate the closeout packet. Please try again.');
+        }
+      } catch (err) {
+        console.error('[ProjectDetail] Closeout packet error:', err);
+        Alert.alert('Error', 'Failed to generate closeout packet.');
+      } finally {
+        setGeneratingCloseout(false);
+      }
+    };
+    if (warn.length > 0) {
+      Alert.alert(
+        'Generate Closeout Packet?',
+        `Heads up — this project still has ${warn.join(' and ')}. Generate anyway?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Generate', onPress: () => { void proceed(); } },
+        ],
+      );
+    } else {
+      void proceed();
+    }
+  }, [project, id, branding, changeOrders, projectInvoices, dailyReports, punchItems, projectWarranties, projectPhotos, generatingCloseout]);
 
   const handleInvite = useCallback(() => {
     if (!project || !id) return;
@@ -686,6 +740,29 @@ export default function ProjectDetailScreen() {
               <Text style={styles.quickActionLabel}>Estimate</Text>
             </TouchableOpacity>
           )}
+          <TouchableOpacity
+            style={styles.quickActionBtn}
+            onPress={() => router.push({ pathname: '/payment-predictions' as any, params: { projectId: id } })}
+            activeOpacity={0.7}
+            testID="project-payment-forecast-btn"
+          >
+            <View style={[styles.quickActionIcon, { backgroundColor: Colors.accent + '15' }]}>
+              <TrendingDown size={18} color={Colors.accent} />
+            </View>
+            <Text style={styles.quickActionLabel}>Forecast</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.quickActionBtn, generatingCloseout && { opacity: 0.5 }]}
+            onPress={handleGenerateCloseoutPacket}
+            activeOpacity={0.7}
+            disabled={generatingCloseout}
+            testID="project-closeout-packet-btn"
+          >
+            <View style={[styles.quickActionIcon, { backgroundColor: Colors.warning + '15' }]}>
+              <Archive size={18} color={Colors.warning} />
+            </View>
+            <Text style={styles.quickActionLabel}>{generatingCloseout ? 'Building…' : 'Closeout'}</Text>
+          </TouchableOpacity>
         </View>
 
         {linkedEstimate && linkedEstimate.items.length > 0 && (

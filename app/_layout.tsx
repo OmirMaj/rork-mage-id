@@ -198,6 +198,15 @@ function RootLayoutNav() {
         }}
       />
       <Stack.Screen
+        name="payment-predictions"
+        options={{
+          title: "Payment Forecast",
+          headerStyle: { backgroundColor: Colors.background },
+          headerTintColor: Colors.primary,
+          headerTitleStyle: { fontWeight: '700', color: Colors.text },
+        }}
+      />
+      <Stack.Screen
         name="contacts"
         options={{
           title: "Contacts",
