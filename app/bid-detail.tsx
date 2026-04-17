@@ -13,6 +13,7 @@ import { useBids } from '@/contexts/BidsContext';
 import { useCompanies } from '@/contexts/CompaniesContext';
 import { CERTIFICATIONS, CERT_COLORS } from '@/constants/certifications';
 import { supabase } from '@/lib/supabase';
+import AIBidScorecard from '@/components/AIBidScorecard';
 import type { PublicBid } from '@/types';
 
 const TRACKED_BIDS_KEY = 'mageid_tracked_bids';
@@ -568,6 +569,20 @@ export default function BidDetailScreen() {
             </View>
           </View>
         ) : null}
+
+        <AIBidScorecard
+          bid={{
+            id: (id as string) ?? title,
+            title,
+            department: department || postedBy || 'Agency',
+            estimated_value: estimatedValue,
+            naics_code: naicsCode,
+            set_aside: setAside || null,
+            state,
+            description: description || scopeOfWork,
+          }}
+          testID="bid-ai-scorecard"
+        />
 
         <View style={{ height: 120 }} />
           </>

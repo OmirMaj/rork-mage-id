@@ -385,6 +385,14 @@ export interface InvoicePayment {
   method: PaymentMethod;
 }
 
+export interface RetentionRelease {
+  id: string;
+  date: string;
+  amount: number;
+  method: PaymentMethod;
+  note?: string;
+}
+
 export interface Invoice {
   id: string;
   number: number;
@@ -403,6 +411,10 @@ export interface Invoice {
   amountPaid: number;
   status: InvoiceStatus;
   payments: InvoicePayment[];
+  retentionPercent?: number;
+  retentionAmount?: number;
+  retentionReleased?: number;
+  retentionReleases?: RetentionRelease[];
   createdAt: string;
   updatedAt: string;
 }

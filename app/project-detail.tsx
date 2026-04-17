@@ -22,6 +22,7 @@ import { useProjects } from '@/contexts/ProjectContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { generateUUID } from '@/utils/generateId';
 import AIProjectReport from '@/components/AIProjectReport';
+import AIAutoScheduleButton from '@/components/AIAutoScheduleButton';
 import { generateAndSharePDF, buildEstimateTextForEmail } from '@/utils/pdfGenerator';
 import type { ProjectCollaborator } from '@/types';
 import { formatMoney } from '@/utils/formatters';
@@ -752,16 +753,16 @@ export default function ProjectDetailScreen() {
                   </View>
                 </View>
                 {!project.schedule && (
-                  <TouchableOpacity
-                    style={styles.crossLinkBtn}
-                    onPress={() => router.push('/(tabs)/discover/schedule' as any)}
-                    activeOpacity={0.7}
-                    testID="estimate-to-schedule-link"
-                  >
-                    <CalendarDays size={16} color={Colors.info} />
-                    <Text style={styles.crossLinkText}>Generate Schedule from Estimate</Text>
-                    <ChevronRight size={16} color={Colors.textMuted} />
-                  </TouchableOpacity>
+                  <View style={{ marginTop: 8 }}>
+                    <AIAutoScheduleButton
+                      project={project}
+                      estimate={linkedEstimate}
+                      onScheduleCreated={(schedule) => {
+                        if (schedule) updateProject(project.id, { schedule });
+                      }}
+                      testID="auto-schedule-from-estimate"
+                    />
+                  </View>
                 )}
                 {project.schedule && (
                   <TouchableOpacity
@@ -1451,6 +1452,15 @@ export default function ProjectDetailScreen() {
               >
                 <CheckSquare size={16} color={Colors.primary} />
                 <Text style={[styles.coAddBtnText, { color: Colors.primary }]}>Warranties</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.coAddBtn, { marginTop: 8 }]}
+                onPress={() => router.push({ pathname: '/retention' as any, params: { projectId: id } })}
+                activeOpacity={0.7}
+                testID="open-retention-btn"
+              >
+                <CheckSquare size={16} color={Colors.warning} />
+                <Text style={[styles.coAddBtnText, { color: Colors.warning }]}>Retention Tracker</Text>
               </TouchableOpacity>
             </View>
           )}

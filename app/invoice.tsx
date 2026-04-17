@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
-  Trash2, X, Send, CreditCard, Check, BookUser, User,
+  Trash2, X, Send, CreditCard, Check, BookUser, User, Percent, Unlock,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
@@ -19,7 +19,7 @@ import * as Sharing from 'expo-sharing';
 import PDFPreSendSheet from '@/components/PDFPreSendSheet';
 import type { PDFSendOptions } from '@/components/PDFPreSendSheet';
 import { sendEmail, buildInvoiceEmailHtml } from '@/utils/emailService';
-import type { InvoiceLineItem, Invoice, PaymentTerms, PaymentMethod, InvoicePayment } from '@/types';
+import type { InvoiceLineItem, Invoice, PaymentTerms, PaymentMethod, InvoicePayment, RetentionRelease } from '@/types';
 
 function createId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -133,8 +133,16 @@ export default function InvoiceScreen() {
   const [sendRecipientEmail, setSendRecipientEmail] = useState('');
   const [showContactPicker, setShowContactPicker] = useState(false);
   const [contactPicked, setContactPicked] = useState(false);
+  const [retentionPercent, setRetentionPercent] = useState<string>(
+    existingInvoice?.retentionPercent != null ? String(existingInvoice.retentionPercent) : '0'
+  );
+  const [showRetentionModal, setShowRetentionModal] = useState(false);
+  const [retentionReleaseAmount, setRetentionReleaseAmount] = useState('');
+  const [retentionReleaseMethod, setRetentionReleaseMethod] = useState<PaymentMethod>('check');
+  const [retentionReleaseNote, setRetentionReleaseNote] = useState('');
 
   const pctValue = parseFloat(progressPercent) || 0;
+  const retentionPctValue = Math.max(0, Math.min(100, parseFloat(retentionPercent) || 0));
 
   const subtotal = useMemo(() => {
     const rawTotal = lineItems.reduce((sum, item) => sum + item.total, 0);
@@ -147,7 +155,11 @@ export default function InvoiceScreen() {
   const totalDue = subtotal + taxAmount;
 
   const amountPaid = existingInvoice?.amountPaid ?? 0;
-  const balanceDue = totalDue - amountPaid;
+  const retentionAmount = useMemo(() => totalDue * (retentionPctValue / 100), [totalDue, retentionPctValue]);
+  const retentionReleased = existingInvoice?.retentionReleased ?? 0;
+  const retentionPending = Math.max(0, retentionAmount - retentionReleased);
+  const netPayable = Math.max(0, totalDue - retentionPending);
+  const balanceDue = netPayable - amountPaid;
 
   const handleRemoveItem = useCallback((id: string) => {
     setLineItems(prev => prev.filter(item => item.id !== id));
@@ -176,6 +188,8 @@ export default function InvoiceScreen() {
         dueDate,
         status,
         progressPercent: isProgressType ? pctValue : undefined,
+        retentionPercent: retentionPctValue || undefined,
+        retentionAmount: retentionPctValue > 0 ? retentionAmount : undefined,
       });
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert('Updated', `Invoice #${existingInvoice.number} has been ${status === 'sent' ? `sent${recipientInfo}` : 'saved'}.`);
@@ -198,6 +212,10 @@ export default function InvoiceScreen() {
         amountPaid: 0,
         status,
         payments: [],
+        retentionPercent: retentionPctValue || undefined,
+        retentionAmount: retentionPctValue > 0 ? retentionAmount : undefined,
+        retentionReleased: 0,
+        retentionReleases: [],
         createdAt: now,
         updatedAt: now,
       };
@@ -206,7 +224,7 @@ export default function InvoiceScreen() {
       Alert.alert('Created', `Invoice #${nextInvoiceNumber} has been ${status === 'sent' ? `sent${recipientInfo}` : 'saved as draft'}.`);
     }
     router.back();
-  }, [projectId, lineItems, paymentTerms, notes, subtotal, taxRate, taxAmount, totalDue, isProgressType, pctValue, existingInvoice, nextInvoiceNumber, addInvoice, updateInvoice, router]);
+  }, [projectId, lineItems, paymentTerms, notes, subtotal, taxRate, taxAmount, totalDue, isProgressType, pctValue, retentionPctValue, retentionAmount, existingInvoice, nextInvoiceNumber, addInvoice, updateInvoice, router]);
 
   const handleSendPress = useCallback(() => {
     setShowSendRecipient(true);
@@ -362,6 +380,36 @@ export default function InvoiceScreen() {
     router.back();
   }, [paymentAmount, paymentMethod, existingInvoice, amountPaid, totalDue, updateInvoice, router]);
 
+  const handleReleaseRetention = useCallback(() => {
+    if (!existingInvoice) return;
+    const amt = parseFloat(retentionReleaseAmount) || 0;
+    if (amt <= 0) {
+      Alert.alert('Invalid Amount', 'Please enter a valid release amount.');
+      return;
+    }
+    if (amt > retentionPending + 0.001) {
+      Alert.alert('Exceeds Pending', `Only ${formatCurrency(retentionPending)} of retention is pending. Reduce the amount.`);
+      return;
+    }
+    const release: RetentionRelease = {
+      id: createId('ret'),
+      date: new Date().toISOString(),
+      amount: amt,
+      method: retentionReleaseMethod,
+      note: retentionReleaseNote.trim() || undefined,
+    };
+    const newReleased = retentionReleased + amt;
+    updateInvoice(existingInvoice.id, {
+      retentionReleased: newReleased,
+      retentionReleases: [...(existingInvoice.retentionReleases || []), release],
+    });
+    setShowRetentionModal(false);
+    setRetentionReleaseAmount('');
+    setRetentionReleaseNote('');
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    Alert.alert('Retention Released', `${formatCurrency(amt)} marked as released.`);
+  }, [existingInvoice, retentionReleaseAmount, retentionReleaseMethod, retentionReleaseNote, retentionPending, retentionReleased, updateInvoice]);
+
   if (!project) {
     return (
       <View style={[styles.container, styles.center]}>
@@ -462,6 +510,29 @@ export default function InvoiceScreen() {
             </View>
           )}
 
+          <View style={styles.termsRow}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Percent size={14} color={Colors.textSecondary} />
+              <Text style={styles.fieldLabelInline}>Retention</Text>
+            </View>
+            {!isLocked ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <TextInput
+                  style={styles.retentionInput}
+                  value={retentionPercent}
+                  onChangeText={setRetentionPercent}
+                  keyboardType="decimal-pad"
+                  placeholder="0"
+                  placeholderTextColor={Colors.textMuted}
+                  maxLength={5}
+                />
+                <Text style={styles.retentionPct}>%</Text>
+              </View>
+            ) : (
+              <Text style={styles.termsSelectorText}>{retentionPctValue}%</Text>
+            )}
+          </View>
+
           <View style={styles.fieldSection}>
             <Text style={styles.fieldLabel}>Line Items</Text>
             {lineItems.map((item) => (
@@ -495,9 +566,28 @@ export default function InvoiceScreen() {
             </View>
             <View style={styles.dividerThick} />
             <View style={styles.totalRow}>
-              <Text style={styles.grandLabel}>Total Due</Text>
+              <Text style={styles.grandLabel}>Contract Total</Text>
               <Text style={styles.grandValue}>{formatCurrency(totalDue)}</Text>
             </View>
+            {retentionPctValue > 0 && (
+              <>
+                <View style={styles.divider} />
+                <View style={styles.totalRow}>
+                  <Text style={[styles.totalLabel, { color: Colors.warning }]}>Retention Held ({retentionPctValue}%)</Text>
+                  <Text style={[styles.totalValue, { color: Colors.warning }]}>-{formatCurrency(retentionPending)}</Text>
+                </View>
+                {retentionReleased > 0 && (
+                  <View style={styles.totalRow}>
+                    <Text style={[styles.totalLabel, { color: Colors.success }]}>Retention Released</Text>
+                    <Text style={[styles.totalValue, { color: Colors.success }]}>{formatCurrency(retentionReleased)}</Text>
+                  </View>
+                )}
+                <View style={styles.totalRow}>
+                  <Text style={styles.grandLabel}>Net Payable Now</Text>
+                  <Text style={styles.grandValue}>{formatCurrency(netPayable)}</Text>
+                </View>
+              </>
+            )}
             {existingInvoice && amountPaid > 0 && (
               <>
                 <View style={styles.divider} />
@@ -514,6 +604,37 @@ export default function InvoiceScreen() {
               </>
             )}
           </View>
+
+          {existingInvoice && retentionPctValue > 0 && retentionPending > 0 && (
+            <TouchableOpacity
+              style={styles.releaseRetentionBtn}
+              onPress={() => setShowRetentionModal(true)}
+              activeOpacity={0.85}
+              testID="release-retention-btn"
+            >
+              <Unlock size={16} color={Colors.warning} />
+              <Text style={styles.releaseRetentionBtnText}>Release Retention</Text>
+              <Text style={styles.releaseRetentionBtnMeta}>{formatCurrency(retentionPending)} pending</Text>
+            </TouchableOpacity>
+          )}
+
+          {existingInvoice && existingInvoice.retentionReleases && existingInvoice.retentionReleases.length > 0 && (
+            <View style={styles.fieldSection}>
+              <Text style={styles.fieldLabel}>Retention Release History</Text>
+              {existingInvoice.retentionReleases.map((r) => (
+                <View key={r.id} style={styles.paymentRow}>
+                  <View style={styles.paymentInfo}>
+                    <Text style={styles.paymentDate}>{new Date(r.date).toLocaleDateString()}</Text>
+                    <Text style={styles.paymentMethodText}>
+                      {r.method.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                      {r.note ? ` · ${r.note}` : ''}
+                    </Text>
+                  </View>
+                  <Text style={[styles.paymentAmount, { color: Colors.warning }]}>{formatCurrency(r.amount)}</Text>
+                </View>
+              ))}
+            </View>
+          )}
 
           {existingInvoice && existingInvoice.status !== 'paid' && existingInvoice.status !== 'draft' && (
             <View style={{ paddingHorizontal: 16 }}>
@@ -638,6 +759,75 @@ export default function InvoiceScreen() {
               <TouchableOpacity style={styles.modalSaveBtn} onPress={handleMarkPaid} activeOpacity={0.85}>
                 <Check size={18} color={Colors.textOnPrimary} />
                 <Text style={styles.modalSaveBtnText}>Record Payment</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      <Modal visible={showRetentionModal} transparent animationType="slide" onRequestClose={() => setShowRetentionModal(false)}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }]}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Release Retention</Text>
+                <TouchableOpacity onPress={() => setShowRetentionModal(false)}>
+                  <X size={20} color={Colors.textMuted} />
+                </TouchableOpacity>
+              </View>
+
+              <Text style={styles.retentionModalMeta}>
+                Pending: <Text style={{ color: Colors.warning, fontWeight: '700' }}>{formatCurrency(retentionPending)}</Text>
+                {retentionReleased > 0 ? `  ·  Released: ${formatCurrency(retentionReleased)}` : ''}
+              </Text>
+
+              <Text style={styles.modalFieldLabel}>Amount to Release</Text>
+              <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+                <TextInput
+                  style={[styles.modalInput, { flex: 1 }]}
+                  value={retentionReleaseAmount}
+                  onChangeText={setRetentionReleaseAmount}
+                  keyboardType="decimal-pad"
+                  placeholder="0.00"
+                  placeholderTextColor={Colors.textMuted}
+                />
+                <TouchableOpacity
+                  style={styles.fullReleaseBtn}
+                  onPress={() => setRetentionReleaseAmount(retentionPending.toFixed(2))}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.fullReleaseBtnText}>Full</Text>
+                </TouchableOpacity>
+              </View>
+
+              <Text style={styles.modalFieldLabel}>Method</Text>
+              <View style={styles.methodGrid}>
+                {PAYMENT_METHOD_OPTIONS.map(opt => (
+                  <TouchableOpacity
+                    key={opt.value}
+                    style={[styles.methodChip, retentionReleaseMethod === opt.value && styles.methodChipActive]}
+                    onPress={() => setRetentionReleaseMethod(opt.value)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.methodChipText, retentionReleaseMethod === opt.value && styles.methodChipTextActive]}>
+                      {opt.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Text style={styles.modalFieldLabel}>Note (optional)</Text>
+              <TextInput
+                style={styles.modalInput}
+                value={retentionReleaseNote}
+                onChangeText={setRetentionReleaseNote}
+                placeholder="e.g. Substantial completion, punch list cleared"
+                placeholderTextColor={Colors.textMuted}
+              />
+
+              <TouchableOpacity style={styles.modalSaveBtn} onPress={handleReleaseRetention} activeOpacity={0.85}>
+                <Unlock size={18} color={Colors.textOnPrimary} />
+                <Text style={styles.modalSaveBtnText}>Release</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -833,4 +1023,12 @@ const styles = StyleSheet.create({
   methodChipTextActive: { color: Colors.textOnPrimary },
   modalSaveBtn: { backgroundColor: Colors.success, borderRadius: 14, paddingVertical: 14, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8, marginTop: 8 },
   modalSaveBtnText: { fontSize: 16, fontWeight: '700' as const, color: Colors.textOnPrimary },
+  retentionInput: { minWidth: 60, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: Colors.surfaceAlt, borderWidth: 1, borderColor: Colors.border, fontSize: 14, fontWeight: '600' as const, color: Colors.text, textAlign: 'right' as const },
+  retentionPct: { fontSize: 14, fontWeight: '700' as const, color: Colors.textSecondary },
+  releaseRetentionBtn: { marginHorizontal: 16, marginBottom: 12, flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 12, backgroundColor: Colors.warning + '15', borderWidth: 1, borderColor: Colors.warning + '40' },
+  releaseRetentionBtnText: { flex: 1, fontSize: 14, fontWeight: '700' as const, color: Colors.warning },
+  releaseRetentionBtnMeta: { fontSize: 12, fontWeight: '600' as const, color: Colors.warning },
+  retentionModalMeta: { fontSize: 13, color: Colors.textSecondary, marginBottom: 12 },
+  fullReleaseBtn: { paddingHorizontal: 14, paddingVertical: 12, borderRadius: 10, backgroundColor: Colors.warning + '20', borderWidth: 1, borderColor: Colors.warning + '40' },
+  fullReleaseBtnText: { fontSize: 13, fontWeight: '700' as const, color: Colors.warning },
 });
