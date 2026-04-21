@@ -15,14 +15,14 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "app.rork.construction-cost-estimator-3g637fu"
+      "bundleIdentifier": "app.mageid.ios"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "app.rork.construction_cost_estimator_3g637fu"
+      "package": "app.mageid.android"
     },
     "web": {
       "favicon": "./assets/images/favicon.png"
