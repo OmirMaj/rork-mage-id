@@ -150,6 +150,18 @@ export interface ScheduleTask {
   linkedEstimateItems?: string[];
   assignedSubId?: string;
   assignedSubName?: string;
+  // As-built tracking (Phase 5). These are OPTIONAL and read-only to the CPM
+  // engine — they don't cascade to successors unless the user explicitly hits
+  // "Reflow from actuals." The rule: the plan stays the plan until you say so.
+  //   actualStartDay: day the task actually started (1-indexed, same basis as startDay)
+  //   actualEndDay:   day the task actually finished (inclusive)
+  //   actualStartDate / actualEndDate: absolute dates captured alongside the
+  //     day numbers — useful for reporting and less fragile than recomputing
+  //     from projectStartDate (which can shift if the user edits it).
+  actualStartDay?: number;
+  actualEndDay?: number;
+  actualStartDate?: string;
+  actualEndDate?: string;
   photos?: Array<{
     uri: string;
     timestamp: string;
@@ -191,6 +203,23 @@ export interface ProjectSchedule {
   healthScore?: number;
   riskItems: ScheduleRiskItem[];
   baseline?: ScheduleBaseline | null;
+  /**
+   * Named baselines captured by the user over the life of the schedule
+   * (e.g. "v1", "Signed", "Approved rev 2"). Sidecar to the legacy `baseline`
+   * field — we keep both so old projects without this field stay valid.
+   * Persisted through updateProject so variance comparisons survive reload.
+   *
+   * We use `unknown[]` here instead of `NamedBaseline[]` to avoid a circular
+   * type import (types/index.ts ← utils/scheduleOps.ts ← types/index.ts).
+   * The callers in schedule-pro.tsx do a safe cast at the boundary.
+   */
+  baselines?: Array<{
+    id: string;
+    name: string;
+    note?: string;
+    savedAt: string;
+    tasks: { id: string; startDay: number; endDay: number }[];
+  }>;
   weatherAlerts?: WeatherAlert[];
   updatedAt: string;
 }
@@ -415,6 +444,11 @@ export interface Invoice {
   retentionAmount?: number;
   retentionReleased?: number;
   retentionReleases?: RetentionRelease[];
+  // Stripe payment link for this invoice. Populated once the GC taps
+  // "Create Pay Link" — the portal then shows a one-tap Pay Now button to the
+  // client. Null / absent means no Stripe link has been generated.
+  payLinkUrl?: string;
+  payLinkId?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -620,6 +654,19 @@ export interface ClientPortalSettings {
   showDocuments: boolean;
   welcomeMessage?: string;
   invites?: ClientPortalInvite[];
+}
+
+export interface PortalMessage {
+  id: string;
+  projectId: string;
+  portalId: string;
+  authorType: 'client' | 'gc';
+  authorName: string;
+  inviteId?: string;        // which client invite authored it (if authorType === 'client')
+  body: string;
+  createdAt: string;
+  readByGc: boolean;
+  readByClient: boolean;
 }
 
 export type ContactRole = 'Client' | 'Architect' | 'Owner\'s Rep' | 'Engineer' | 'Sub' | 'Supplier' | 'Lender' | 'Inspector' | 'Other';

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Dimensions, Platform } from 'react-native';
+import { Dimensions, Platform, type ScaledSize } from 'react-native';
 
 export type ScreenSize = 'phone' | 'tablet' | 'desktop';
 
@@ -32,7 +32,7 @@ export function useResponsiveLayout(): ResponsiveLayout {
   const [dimensions, setDimensions] = useState(Dimensions.get('window'));
 
   useEffect(() => {
-    const handler = ({ window }: { window: { width: number; height: number } }) => {
+    const handler = ({ window }: { window: ScaledSize; screen: ScaledSize }) => {
       setDimensions(window);
     };
     const subscription = Dimensions.addEventListener('change', handler);

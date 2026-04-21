@@ -16,6 +16,7 @@ import {
   Image,
   FlatList,
 } from 'react-native';
+import { useRouter } from 'expo-router';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import * as ImagePicker from 'expo-image-picker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -118,6 +119,7 @@ const EMPTY_DRAFT: TaskDraft = {
 export default function ScheduleScreen() {
   const insets = useSafeAreaInsets();
   const layout = useResponsiveLayout();
+  const router = useRouter();
   const { projects, updateProject, addProject, contacts } = useProjects();
 
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(projects[0]?.id ?? null);
@@ -1121,6 +1123,19 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
               })}
             </View>
           </ScrollView>
+          {/* Open in Schedule Pro — MS-Project-style grid + CPM, web/iPad only.
+              Only rendered when a project is selected; routes to /schedule-pro. */}
+          {selectedProjectId && (
+            <TouchableOpacity
+              style={desktopStyles.proBtn}
+              onPress={() => router.push({ pathname: '/schedule-pro', params: { projectId: selectedProjectId } } as any)}
+              activeOpacity={0.85}
+              testID="open-schedule-pro"
+            >
+              <Zap size={14} color={Colors.textOnPrimary} />
+              <Text style={desktopStyles.proBtnText}>Pro</Text>
+            </TouchableOpacity>
+          )}
           <TouchableOpacity
             style={styles.fab}
             onPress={() => { setTaskDraft({ ...EMPTY_DRAFT }); setQuickAddCount(0); setIsQuickAddOpen(true); }}
@@ -2805,6 +2820,21 @@ const desktopStyles = StyleSheet.create({
     backgroundColor: Colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: Colors.borderLight,
+  },
+  proBtn: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    backgroundColor: Colors.primary,
+  },
+  proBtnText: {
+    fontSize: 12,
+    fontWeight: '800' as const,
+    color: Colors.textOnPrimary,
+    letterSpacing: 0.3,
   },
   desktopHeaderLeft: {
     width: 260,
