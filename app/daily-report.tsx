@@ -246,7 +246,7 @@ export default function DailyReportScreen() {
         incident: incidentPayload,
       });
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert('Updated', `Daily report has been ${status === 'sent' ? `sent${recipientInfo}` : 'saved'}.`);
+      Alert.alert('Updated', `Daily report has been ${status === 'sent' ? `sent${recipientInfo}` : 'saved to project'}.`);
     } else {
       const report: DailyFieldReport = {
         id: createId('dfr'),
@@ -276,7 +276,12 @@ export default function DailyReportScreen() {
         });
       }
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert('Created', `Daily report has been ${status === 'sent' ? `sent${recipientInfo}` : 'saved as draft'}.`);
+      Alert.alert(
+        status === 'sent' ? 'Sent' : 'Saved to Project',
+        status === 'sent'
+          ? `Daily report has been sent${recipientInfo} and saved to the project.`
+          : 'Daily report has been saved to the project. You can view it in the project\'s Daily Reports section.',
+      );
     }
     router.back();
   }, [projectId, weather, manpower, workPerformed, materialsDelivered, issuesAndDelays, photos, incident, existingReport, addDailyReport, updateDailyReport, addProjectPhoto, router]);
@@ -440,7 +445,7 @@ export default function DailyReportScreen() {
             {existingReport && (
               <View style={[styles.statusBadge, { backgroundColor: existingReport.status === 'sent' ? Colors.successLight : Colors.fillTertiary }]}>
                 <Text style={[styles.statusText, { color: existingReport.status === 'sent' ? Colors.success : Colors.textSecondary }]}>
-                  {existingReport.status === 'sent' ? 'Sent' : 'Draft'}
+                  {existingReport.status === 'sent' ? 'Sent' : 'Saved'}
                 </Text>
               </View>
             )}
@@ -778,11 +783,12 @@ export default function DailyReportScreen() {
         {!isLocked && (
           <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]}>
             <TouchableOpacity
-              style={styles.saveDraftBtn}
+              style={styles.saveProjectBtn}
               onPress={() => handleSave('draft')}
               activeOpacity={0.7}
+              testID="save-to-project-btn"
             >
-              <Text style={styles.saveDraftBtnText}>Save Draft</Text>
+              <Text style={styles.saveProjectBtnText}>Save to Project</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.sendBtn}
@@ -791,7 +797,7 @@ export default function DailyReportScreen() {
               testID="send-report-btn"
             >
               <Send size={16} color={Colors.textOnPrimary} />
-              <Text style={styles.sendBtnText}>Send Report</Text>
+              <Text style={styles.sendBtnText}>Send & Save</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -1006,7 +1012,9 @@ const styles = StyleSheet.create({
   bottomBar: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: Colors.surface, borderTopWidth: 0.5, borderTopColor: Colors.borderLight, paddingHorizontal: 20, paddingTop: 12, flexDirection: 'row', gap: 10 },
   saveDraftBtn: { flex: 1, minHeight: 48, borderRadius: 14, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
   saveDraftBtnText: { fontSize: 14, fontWeight: '700' as const, color: Colors.text },
-  sendBtn: { flex: 2, minHeight: 48, borderRadius: 14, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 },
+  saveProjectBtn: { flex: 1, minHeight: 48, borderRadius: 14, backgroundColor: Colors.primary + '15', borderWidth: 1.5, borderColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
+  saveProjectBtnText: { fontSize: 14, fontWeight: '700' as const, color: Colors.primary },
+  sendBtn: { flex: 1.2, minHeight: 48, borderRadius: 14, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 },
   sendBtnText: { fontSize: 14, fontWeight: '700' as const, color: Colors.textOnPrimary },
   selectedRecipientCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.primary + '10', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, gap: 10, borderWidth: 1, borderColor: Colors.primary + '25' },
   selectedRecipientName: { fontSize: 14, fontWeight: '600' as const, color: Colors.text },

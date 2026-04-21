@@ -10,13 +10,19 @@ import {
   Globe, Copy, Send, Trash2, Eye, EyeOff, CheckCircle2,
   CalendarDays, DollarSign, Image, FileText, ClipboardList,
   MessageSquare, BarChart3, Users, ChevronLeft, Plus, Link, Clock, Lock,
+  Mail, RefreshCw, Sparkles,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import type { ClientPortalSettings, ClientPortalInvite } from '@/types';
 import { generateUUID } from '@/utils/generateId';
+import { sendEmailNative } from '@/utils/emailService';
+import {
+  buildPortalSnapshot, buildPortalUrl, estimateSnapshotSizeKb,
+} from '@/utils/portalSnapshot';
 
-const PORTAL_BASE_URL = 'mageid.app/portal';
+const PORTAL_BASE_URL = 'https://mageid.app/portal';
+const DEEP_LINK_SCHEME = 'rork-app://client-view';
 
 interface PermissionToggle {
   key: keyof ClientPortalSettings;
@@ -102,7 +108,14 @@ export default function ClientPortalSetupScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { getProject, updateProject } = useProjects();
+  const {
+    getProject, updateProject, getUnreadPortalMessageCount,
+    settings,
+    getInvoicesForProject, getChangeOrdersForProject,
+    getDailyReportsForProject, getPunchItemsForProject,
+    getPhotosForProject, getRFIsForProject,
+  } = useProjects();
+  const unreadFromClient = id ? getUnreadPortalMessageCount(id, 'gc') : 0;
 
   const project = useMemo(() => getProject(id ?? ''), [id, getProject]);
 
@@ -124,7 +137,65 @@ export default function ClientPortalSetupScreen() {
   const [inviteName, setInviteName] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
-  const portalLink = `${PORTAL_BASE_URL}/${portal.portalId}`;
+  const deepLink = `${DEEP_LINK_SCHEME}?portalId=${portal.portalId}`;
+
+  // Build a fresh snapshot every render so toggle changes / new data flow through
+  // immediately. Snapshot is built only from sections the GC has toggled on,
+  // then base64url-encoded into the URL's hash fragment (never sent to server).
+  const snapshot = useMemo(() => {
+    if (!project) return null;
+    return buildPortalSnapshot({
+      project,
+      portal,
+      settings,
+      invoices: getInvoicesForProject(project.id),
+      changeOrders: getChangeOrdersForProject(project.id),
+      dailyReports: getDailyReportsForProject(project.id),
+      punchItems: getPunchItemsForProject(project.id),
+      photos: getPhotosForProject(project.id),
+      rfis: getRFIsForProject(project.id),
+    });
+  }, [
+    project, portal, settings,
+    getInvoicesForProject, getChangeOrdersForProject,
+    getDailyReportsForProject, getPunchItemsForProject,
+    getPhotosForProject, getRFIsForProject,
+  ]);
+
+  const portalLink = useMemo(() => {
+    if (!snapshot) return `${PORTAL_BASE_URL}/${portal.portalId}`;
+    return buildPortalUrl(PORTAL_BASE_URL, portal.portalId, snapshot);
+  }, [snapshot, portal.portalId]);
+
+  const snapshotSizeKb = useMemo(() => {
+    return snapshot ? estimateSnapshotSizeKb(snapshot) : 0;
+  }, [snapshot]);
+
+  const buildInviteLink = useCallback((invite?: ClientPortalInvite) => {
+    if (!snapshot) return `${PORTAL_BASE_URL}/${portal.portalId}`;
+    // Include invite.id so the portal page can greet the client by name + mark viewed
+    const inviteSnapshot = invite
+      ? { ...snapshot, clientName: invite.name }
+      : snapshot;
+    return buildPortalUrl(
+      PORTAL_BASE_URL,
+      portal.portalId,
+      inviteSnapshot,
+      invite?.id,
+    );
+  }, [snapshot, portal.portalId]);
+
+  const buildInviteEmailBody = useCallback((invite: ClientPortalInvite) => {
+    const link = buildInviteLink(invite);
+    const greeting = invite.name ? `Hi ${invite.name.split(' ')[0]},` : 'Hi,';
+    const welcome = portal.welcomeMessage
+      ? `\n\n${portal.welcomeMessage}\n`
+      : `\n\nWe've set up a private portal where you can follow along with your project in real time — schedule, photos, budget, and any change orders that need your sign-off.\n`;
+    const passcodeLine = portal.requirePasscode && portal.passcode
+      ? `\n\nPasscode (required to view): ${portal.passcode}\n(keep this private — it protects your portal)\n`
+      : '';
+    return `${greeting}${welcome}\nYour portal link:\n${link}${passcodeLine}\n\nIf the link doesn't open on your phone, paste it into Safari or Chrome.\n\n— ${project?.name ?? 'Your project team'}`;
+  }, [buildInviteLink, portal.welcomeMessage, portal.requirePasscode, portal.passcode, project?.name]);
 
   const handleToggle = useCallback((key: keyof ClientPortalSettings, value: boolean) => {
     setPortal(p => ({ ...p, [key]: value }));
@@ -158,15 +229,61 @@ export default function ClientPortalSetupScreen() {
   }, [portalLink]);
 
   const handleShare = useCallback(async () => {
+    const passcodeLine = portal.requirePasscode && portal.passcode
+      ? `\n\nPasscode: ${portal.passcode}`
+      : '';
     const message = portal.welcomeMessage
-      ? `${portal.welcomeMessage}\n\nView your project here: ${portalLink}`
-      : `You're invited to view project updates for "${project?.name}".\n\nLink: ${portalLink}`;
+      ? `${portal.welcomeMessage}\n\nView your project here:\n${portalLink}${passcodeLine}`
+      : `You're invited to view live updates for "${project?.name}".\n\nLink: ${portalLink}${passcodeLine}`;
     if (Platform.OS === 'web') {
       Alert.alert('Share', message);
       return;
     }
     await Share.share({ message, title: 'Client Portal Invite' });
-  }, [portal.welcomeMessage, portalLink, project?.name]);
+  }, [portal.welcomeMessage, portal.requirePasscode, portal.passcode, portalLink, project?.name]);
+
+  const handleEmailInvite = useCallback(async (invite: ClientPortalInvite) => {
+    const link = buildInviteLink(invite);
+    const subject = `Your project portal — ${project?.name ?? 'MAGE ID'}`;
+    const body = buildInviteEmailBody(invite);
+
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined') {
+        window.open(`mailto:${encodeURIComponent(invite.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`);
+      }
+      return;
+    }
+
+    const result = await sendEmailNative({
+      to: invite.email,
+      subject,
+      body,
+      isHtml: false,
+    });
+
+    if (!result.success && result.error && result.error !== 'cancelled') {
+      Alert.alert('Email Not Sent', result.error);
+    } else if (result.success) {
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    }
+  }, [buildInviteLink, buildInviteEmailBody, project?.name]);
+
+  const handleResetPasscode = useCallback(() => {
+    const generate = () => {
+      const digits = Math.floor(1000 + Math.random() * 9000).toString();
+      setPortal(p => ({ ...p, passcode: digits, requirePasscode: true }));
+      if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      Alert.alert('New Passcode', `New passcode: ${digits}\n\nRemember to tap Save and re-share it with clients.`);
+    };
+    Alert.alert(
+      'Reset Passcode',
+      'Generate a new 4-digit passcode? Existing clients will need the new code before they can view the portal.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Generate', onPress: generate },
+      ],
+    );
+  }, []);
 
   const handleAddInvite = useCallback(() => {
     const email = inviteEmail.trim().toLowerCase();
@@ -251,8 +368,15 @@ export default function ClientPortalSetupScreen() {
           </View>
           <View style={styles.linkRow}>
             <Link size={12} color={Colors.info} />
-            <Text style={styles.linkText} numberOfLines={1}>{portalLink}</Text>
+            <Text style={styles.linkText} numberOfLines={1}>
+              {`${PORTAL_BASE_URL}/${portal.portalId}`}
+            </Text>
           </View>
+          {snapshotSizeKb > 6 && (
+            <Text style={styles.sizeWarning}>
+              Snapshot is {snapshotSizeKb} KB — large links may break SMS. Consider hiding photos.
+            </Text>
+          )}
           <View style={styles.linkActions}>
             <TouchableOpacity style={styles.linkActionBtn} onPress={handleCopyLink}>
               <Copy size={15} color={Colors.primary} />
@@ -287,15 +411,21 @@ export default function ClientPortalSetupScreen() {
             </View>
           </View>
           {portal.requirePasscode && (
-            <TextInput
-              style={[styles.welcomeInput, { minHeight: 48, textAlign: 'center' as const, letterSpacing: 2, fontSize: 16, marginTop: 10 }]}
-              value={portal.passcode ?? ''}
-              onChangeText={val => setPortal(p => ({ ...p, passcode: val }))}
-              placeholder="Enter a passcode (4-12 chars)"
-              placeholderTextColor={Colors.textMuted}
-              autoCapitalize="none"
-              maxLength={20}
-            />
+            <>
+              <TextInput
+                style={[styles.welcomeInput, { minHeight: 48, textAlign: 'center' as const, letterSpacing: 2, fontSize: 16, marginTop: 10 }]}
+                value={portal.passcode ?? ''}
+                onChangeText={val => setPortal(p => ({ ...p, passcode: val }))}
+                placeholder="Enter a passcode (4-12 chars)"
+                placeholderTextColor={Colors.textMuted}
+                autoCapitalize="none"
+                maxLength={20}
+              />
+              <TouchableOpacity style={styles.resetPasscodeBtn} onPress={handleResetPasscode} activeOpacity={0.8}>
+                <RefreshCw size={13} color={Colors.primary} />
+                <Text style={styles.resetPasscodeText}>Generate New Passcode</Text>
+              </TouchableOpacity>
+            </>
           )}
         </View>
 
@@ -388,6 +518,9 @@ export default function ClientPortalSetupScreen() {
                         {invite.status === 'viewed' ? 'Viewed' : 'Pending'}
                       </Text>
                     </View>
+                    <TouchableOpacity onPress={() => handleEmailInvite(invite)} style={styles.emailInviteBtn} activeOpacity={0.7}>
+                      <Mail size={14} color={Colors.primary} />
+                    </TouchableOpacity>
                     <TouchableOpacity onPress={() => handleRemoveInvite(invite.id)} style={styles.removeBtn}>
                       <Trash2 size={14} color={Colors.error} />
                     </TouchableOpacity>
@@ -397,6 +530,49 @@ export default function ClientPortalSetupScreen() {
             </View>
           )}
         </View>
+
+        {/* Messages inbox CTA */}
+        <TouchableOpacity
+          style={styles.weeklyUpdateBtn}
+          onPress={() => router.push(`/client-messages?id=${id}` as any)}
+          activeOpacity={0.85}
+          testID="portal-messages-btn"
+        >
+          <View style={styles.weeklyUpdateIcon}>
+            <MessageSquare size={16} color={Colors.primary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.weeklyUpdateTitle}>Messages</Text>
+            <Text style={styles.weeklyUpdateSub}>
+              {unreadFromClient > 0
+                ? `${unreadFromClient} new ${unreadFromClient === 1 ? 'message' : 'messages'} from your client`
+                : 'Two-way Q&A with everyone invited to the portal.'}
+            </Text>
+          </View>
+          {unreadFromClient > 0 && (
+            <View style={styles.unreadPill}>
+              <Text style={styles.unreadPillTxt}>{unreadFromClient}</Text>
+            </View>
+          )}
+          <Text style={styles.weeklyUpdateArrow}>›</Text>
+        </TouchableOpacity>
+
+        {/* Weekly Update CTA */}
+        <TouchableOpacity
+          style={styles.weeklyUpdateBtn}
+          onPress={() => router.push(`/client-update?projectId=${id}` as any)}
+          activeOpacity={0.85}
+          testID="draft-weekly-update-btn"
+        >
+          <View style={styles.weeklyUpdateIcon}>
+            <Sparkles size={16} color={Colors.primary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.weeklyUpdateTitle}>Draft Weekly Update</Text>
+            <Text style={styles.weeklyUpdateSub}>AI writes a friendly progress email from the last 7 days. You edit, then send.</Text>
+          </View>
+          <Text style={styles.weeklyUpdateArrow}>›</Text>
+        </TouchableOpacity>
 
         {/* Danger Zone */}
         <TouchableOpacity style={styles.disableBtn} onPress={handleDisablePortal}>
@@ -503,6 +679,13 @@ const styles = StyleSheet.create({
   inviteStatusViewed: { backgroundColor: '#34C75920' },
   inviteStatusText: { fontSize: 10, fontWeight: '600', color: '#FF9500' },
   removeBtn: { padding: 4 },
+  emailInviteBtn: { padding: 4 },
+  resetPasscodeBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 6, marginTop: 10, paddingVertical: 10, borderRadius: 10,
+    backgroundColor: Colors.primary + '12', borderWidth: 1, borderColor: Colors.primary + '30',
+  },
+  resetPasscodeText: { fontSize: 13, fontWeight: '600', color: Colors.primary },
 
   disableBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
@@ -511,4 +694,35 @@ const styles = StyleSheet.create({
     borderRadius: 12, paddingVertical: 14,
   },
   disableBtnText: { fontSize: 15, fontWeight: '600', color: Colors.error },
+  sizeWarning: {
+    fontSize: 11,
+    color: Colors.warning,
+    marginTop: -6,
+    marginBottom: 10,
+    fontStyle: 'italic',
+  },
+
+  weeklyUpdateBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    marginHorizontal: 16, marginBottom: 16,
+    backgroundColor: Colors.card, borderRadius: 14,
+    borderWidth: 1, borderColor: Colors.primary + '25',
+    padding: 14,
+  },
+  weeklyUpdateIcon: {
+    width: 36, height: 36, borderRadius: 10,
+    backgroundColor: Colors.primary + '12',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  weeklyUpdateTitle: { fontSize: 15, fontWeight: '700', color: Colors.text, marginBottom: 2 },
+  weeklyUpdateSub: { fontSize: 12, color: Colors.textMuted, lineHeight: 16 },
+  weeklyUpdateArrow: { fontSize: 22, color: Colors.textMuted, paddingHorizontal: 4 },
+
+  unreadPill: {
+    minWidth: 22, height: 22, borderRadius: 11,
+    backgroundColor: Colors.error,
+    paddingHorizontal: 7, alignItems: 'center', justifyContent: 'center',
+    marginRight: 4,
+  },
+  unreadPillTxt: { color: '#fff', fontWeight: '800', fontSize: 11 },
 });
