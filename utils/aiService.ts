@@ -93,16 +93,16 @@ export async function saveCopilotHistory(projectId: string, messages: CopilotMes
 }
 
 const copilotResponseSchema = z.object({
-  answer: z.string(),
-  confidence: z.enum(['high', 'medium', 'low']),
+  answer: z.string().default(''),
+  confidence: z.enum(['high', 'medium', 'low']).default('medium'),
   actionItems: z.array(z.object({
     text: z.string(),
     priority: z.enum(['urgent', 'important', 'suggestion']),
-  })).optional(),
+  })).default([]),
   dataPoints: z.array(z.object({
     label: z.string(),
     value: z.string(),
-  })).optional(),
+  })).default([]),
 });
 
 export type CopilotResponse = z.infer<typeof copilotResponseSchema>;
@@ -164,18 +164,18 @@ Respond with a helpful, specific answer based on the project data above. Include
 }
 
 export const scheduleRiskSchema = z.object({
-  overallConfidence: z.number(),
-  predictedEndDate: z.string(),
-  predictedDelay: z.number(),
+  overallConfidence: z.number().default(0),
+  predictedEndDate: z.string().default(''),
+  predictedDelay: z.number().default(0),
   risks: z.array(z.object({
-    taskName: z.string(),
-    severity: z.enum(['high', 'medium', 'low']),
-    delayProbability: z.number(),
-    delayDays: z.number(),
-    reasons: z.array(z.string()),
-    recommendation: z.string(),
-  })),
-  summary: z.string(),
+    taskName: z.string().default(''),
+    severity: z.enum(['high', 'medium', 'low']).default('low'),
+    delayProbability: z.number().default(0),
+    delayDays: z.number().default(0),
+    reasons: z.array(z.string()).default([]),
+    recommendation: z.string().default(''),
+  })).default([]),
+  summary: z.string().default(''),
 });
 
 export type ScheduleRiskResult = z.infer<typeof scheduleRiskSchema>;
@@ -214,6 +214,7 @@ ${weatherData || 'No weather data available'}
 Analyze and predict risks. For each at-risk task, explain WHY based on the data and give ONE specific actionable recommendation. Rate overall project completion confidence 0-100.`,
     schema: scheduleRiskSchema,
     tier: 'smart',
+    maxTokens: 3000,
   });
   if (!aiResult.success) {
     throw new Error(aiResult.error || 'Schedule risk analysis unavailable');
@@ -223,11 +224,11 @@ Analyze and predict risks. For each at-risk task, explain WHY based on the data 
 }
 
 export const bidScoreSchema = z.object({
-  matchScore: z.number(),
-  matchReasons: z.array(z.string()),
-  concerns: z.array(z.string()),
-  bidStrategy: z.string(),
-  estimatedWinProbability: z.number(),
+  matchScore: z.number().default(0),
+  matchReasons: z.array(z.string()).default([]),
+  concerns: z.array(z.string()).default([]),
+  bidStrategy: z.string().default(''),
+  estimatedWinProbability: z.number().default(0),
 });
 
 export type BidScoreResult = z.infer<typeof bidScoreSchema>;
@@ -264,6 +265,7 @@ Certifications: ${profile.certifications.join(', ') || 'None'}
 Score 0-100 match. Give 2-3 reasons why it matches or doesn't. Give one sentence of bid strategy advice. Estimate win probability.`,
     schema: bidScoreSchema,
     tier: 'fast',
+    maxTokens: 2000,
   });
   if (!aiResult.success) {
     throw new Error(aiResult.error || 'Bid scoring unavailable');
@@ -273,18 +275,18 @@ Score 0-100 match. Give 2-3 reasons why it matches or doesn't. Give one sentence
 }
 
 export const dailyReportSchema = z.object({
-  summary: z.string(),
-  workCompleted: z.array(z.string()),
-  workInProgress: z.array(z.string()),
-  issuesAndDelays: z.array(z.string()),
-  tomorrowPlan: z.array(z.string()),
-  weatherImpact: z.string(),
+  summary: z.string().default(''),
+  workCompleted: z.array(z.string()).default([]),
+  workInProgress: z.array(z.string()).default([]),
+  issuesAndDelays: z.array(z.string()).default([]),
+  tomorrowPlan: z.array(z.string()).default([]),
+  weatherImpact: z.string().default(''),
   crewsOnSite: z.array(z.object({
-    trade: z.string(),
-    count: z.number(),
-    activity: z.string(),
-  })),
-  safetyNotes: z.string(),
+    trade: z.string().default(''),
+    count: z.number().default(0),
+    activity: z.string().default(''),
+  })).default([]),
+  safetyNotes: z.string().default(''),
 });
 
 export type DailyReportGenResult = z.infer<typeof dailyReportSchema>;
@@ -321,18 +323,18 @@ Generate a professional daily report. Be specific based on the task data.`,
 }
 
 export const estimateValidationSchema = z.object({
-  overallScore: z.number(),
+  overallScore: z.number().default(5),
   issues: z.array(z.object({
-    type: z.enum(['warning', 'error', 'suggestion', 'ok']),
-    title: z.string(),
-    detail: z.string(),
-    potentialImpact: z.string(),
-  })),
-  missingItems: z.array(z.string()),
-  costPerSqFtAssessment: z.string(),
-  materialLaborRatioAssessment: z.string(),
-  contingencyRecommendation: z.string(),
-  summary: z.string(),
+    type: z.enum(['warning', 'error', 'suggestion', 'ok']).default('suggestion'),
+    title: z.string().default(''),
+    detail: z.string().default(''),
+    potentialImpact: z.string().default(''),
+  })).default([]),
+  missingItems: z.array(z.string()).default([]),
+  costPerSqFtAssessment: z.string().default(''),
+  materialLaborRatioAssessment: z.string().default(''),
+  contingencyRecommendation: z.string().default(''),
+  summary: z.string().default(''),
 });
 
 export type EstimateValidationResult = z.infer<typeof estimateValidationSchema>;
@@ -368,6 +370,7 @@ HAS CONTINGENCY: ${hasContingency ? 'Yes' : 'No'}
 Review this estimate. Flag issues like: unusual mat:lab ratio, missing contingency, cost/SF out of range for project type, missing common items. Score overall estimate health 1-10.`,
     schema: estimateValidationSchema,
     tier: 'smart',
+    maxTokens: 5000,
   });
   if (!aiResult.success) {
     throw new Error(aiResult.error || 'Estimate validation unavailable');
@@ -377,24 +380,24 @@ Review this estimate. Flag issues like: unusual mat:lab ratio, missing contingen
 }
 
 export const aiScheduleSchema = z.object({
-  projectName: z.string(),
-  estimatedDuration: z.number(),
+  projectName: z.string().default(''),
+  estimatedDuration: z.number().default(30),
   tasks: z.array(z.object({
-    title: z.string(),
-    phase: z.string(),
-    durationDays: z.number(),
-    crew: z.string(),
-    crewSize: z.number(),
-    isMilestone: z.boolean(),
-    isCriticalPath: z.boolean(),
-    isWeatherSensitive: z.boolean(),
+    title: z.string().default(''),
+    phase: z.string().default('General'),
+    durationDays: z.number().default(5),
+    crew: z.string().default('General crew'),
+    crewSize: z.number().default(2),
+    isMilestone: z.boolean().default(false),
+    isCriticalPath: z.boolean().default(false),
+    isWeatherSensitive: z.boolean().default(false),
     predecessorIndex: z.number().optional(),
     dependencyType: z.enum(['FS', 'SS', 'FF', 'SF']).optional(),
     lagDays: z.number().optional(),
     notes: z.string().optional(),
-  })),
-  assumptions: z.array(z.string()),
-  warnings: z.array(z.string()),
+  })).default([]),
+  assumptions: z.array(z.string()).default([]),
+  warnings: z.array(z.string()).default([]),
 });
 
 export type AIScheduleResult = z.infer<typeof aiScheduleSchema>;
@@ -422,7 +425,7 @@ Use phases: Site Work, Demo, Foundation, Framing, Roofing, MEP, Plumbing, Electr
 Be specific with task names. Include inspections and mobilization/demobilization.`,
     schema: aiScheduleSchema,
     tier: 'smart',
-    maxTokens: 2000,
+    maxTokens: 8000,
   });
   if (!aiResult.success) {
     throw new Error(aiResult.error || 'AI schedule builder unavailable');
@@ -472,27 +475,35 @@ Be specific with task names. Include inspections and mobilization/demobilization
 }
 
 export const changeOrderImpactSchema = z.object({
-  scheduleDays: z.number(),
+  scheduleDays: z.number().default(0),
   costImpact: z.object({
-    materials: z.number(),
-    labor: z.number(),
-    equipment: z.number(),
-    total: z.number(),
-  }),
+    materials: z.number().default(0),
+    labor: z.number().default(0),
+    equipment: z.number().default(0),
+    total: z.number().default(0),
+  }).default({ materials: 0, labor: 0, equipment: 0, total: 0 }),
   affectedTasks: z.array(z.object({
-    taskName: z.string(),
-    currentEnd: z.string(),
-    newEnd: z.string(),
-    daysAdded: z.number(),
-  })),
-  newProjectEndDate: z.string(),
-  downstreamEffects: z.array(z.string()),
-  recommendation: z.string(),
+    taskName: z.string().default(''),
+    currentEnd: z.string().default(''),
+    newEnd: z.string().default(''),
+    daysAdded: z.number().default(0),
+  })).default([]),
+  newProjectEndDate: z.string().default(''),
+  downstreamEffects: z.array(z.string()).default([]),
+  // The model sometimes returns `recommendation` as a list of suggestions
+  // instead of a single string — coerce so the UI always gets a displayable
+  // paragraph instead of crashing Zod validation and showing a partial banner.
+  recommendation: z.preprocess(
+    v => Array.isArray(v) ? v.filter(x => typeof x === 'string').join('\n\n')
+      : typeof v === 'string' ? v
+      : v != null ? String(v) : '',
+    z.string().default(''),
+  ),
   compressionOptions: z.array(z.object({
-    description: z.string(),
-    costPremium: z.number(),
-    daysSaved: z.number(),
-  })),
+    description: z.string().default(''),
+    costPremium: z.number().default(0),
+    daysSaved: z.number().default(0),
+  })).default([]),
 });
 
 export type ChangeOrderImpactResult = z.infer<typeof changeOrderImpactSchema>;
@@ -524,7 +535,7 @@ ${taskSummary}
 Predict schedule delay, cost impact, affected downstream tasks, and give a recommendation. Include compression options to reduce delay.`,
     schema: changeOrderImpactSchema,
     tier: 'smart',
-    maxTokens: 2000,
+    maxTokens: 3500,
   });
   if (!aiResult.success) {
     throw new Error(aiResult.error || 'Change order analysis unavailable');
@@ -534,25 +545,27 @@ Predict schedule delay, cost impact, affected downstream tasks, and give a recom
 }
 
 export const weeklySummarySchema = z.object({
-  weekRange: z.string(),
+  weekRange: z.string().default(''),
   portfolioSummary: z.object({
-    totalProjects: z.number(),
-    onTrack: z.number(),
-    atRisk: z.number(),
-    behind: z.number(),
-    combinedValue: z.number(),
-    tasksCompletedThisWeek: z.number(),
-  }),
+    totalProjects: z.number().default(0),
+    onTrack: z.number().default(0),
+    atRisk: z.number().default(0),
+    behind: z.number().default(0),
+    combinedValue: z.number().default(0),
+    tasksCompletedThisWeek: z.number().default(0),
+  }).default({ totalProjects: 0, onTrack: 0, atRisk: 0, behind: 0, combinedValue: 0, tasksCompletedThisWeek: 0 }),
   projects: z.array(z.object({
-    name: z.string(),
-    status: z.enum(['on_track', 'at_risk', 'behind', 'ahead']),
-    progressStart: z.number(),
-    progressEnd: z.number(),
-    keyAccomplishment: z.string(),
-    primaryRisk: z.string(),
-    recommendation: z.string(),
-  })),
-  overallRecommendation: z.string(),
+    name: z.string().default(''),
+    // `.catch()` lets us accept any value the model invents (e.g. "delayed",
+    // "starting") and fall back to on_track rather than rejecting the whole row.
+    status: z.enum(['on_track', 'at_risk', 'behind', 'ahead']).catch('on_track').default('on_track'),
+    progressStart: z.number().default(0),
+    progressEnd: z.number().default(0),
+    keyAccomplishment: z.string().default(''),
+    primaryRisk: z.string().default(''),
+    recommendation: z.string().default(''),
+  })).default([]),
+  overallRecommendation: z.string().default(''),
 });
 
 export type WeeklySummaryResult = z.infer<typeof weeklySummarySchema>;
@@ -624,14 +637,15 @@ Generate a comprehensive weekly executive summary. For each project, assess stat
 }
 
 export const homeBriefingSchema = z.object({
-  briefing: z.string(),
+  briefing: z.string().default(''),
   projects: z.array(z.object({
-    name: z.string(),
-    status: z.enum(['on_track', 'at_risk', 'behind']),
-    keyInsight: z.string(),
-    actionItem: z.string(),
-  })),
-  urgentItems: z.array(z.string()),
+    name: z.string().default(''),
+    // Accept 'ahead' too — Gemini often uses it. Any other value falls to on_track.
+    status: z.enum(['on_track', 'at_risk', 'behind', 'ahead']).catch('on_track').default('on_track'),
+    keyInsight: z.string().default(''),
+    actionItem: z.string().default(''),
+  })).default([]),
+  urgentItems: z.array(z.string()).default([]),
 });
 
 export type HomeBriefingResult = z.infer<typeof homeBriefingSchema>;
@@ -680,11 +694,11 @@ DATE: ${new Date().toLocaleDateString()}`,
 }
 
 export const invoicePredictionSchema = z.object({
-  predictedPaymentDate: z.string(),
-  confidenceLevel: z.enum(['high', 'medium', 'low']),
-  daysFromDue: z.number(),
-  reasoning: z.string(),
-  tip: z.string(),
+  predictedPaymentDate: z.string().default(''),
+  confidenceLevel: z.enum(['high', 'medium', 'low']).default('medium'),
+  daysFromDue: z.number().default(0),
+  reasoning: z.string().default(''),
+  tip: z.string().default(''),
 });
 
 export type InvoicePredictionResult = z.infer<typeof invoicePredictionSchema>;
@@ -724,14 +738,14 @@ Predict the actual payment date, confidence level, and give a tip for getting pa
 }
 
 export const subEvaluationSchema = z.object({
-  questionsToAsk: z.array(z.string()),
+  questionsToAsk: z.array(z.string()).default([]),
   typicalRates: z.object({
-    journeyman: z.string(),
-    master: z.string(),
-    apprentice: z.string(),
-  }),
-  redFlags: z.array(z.string()),
-  recommendation: z.string(),
+    journeyman: z.string().default(''),
+    master: z.string().default(''),
+    apprentice: z.string().default(''),
+  }).default({ journeyman: '', master: '', apprentice: '' }),
+  redFlags: z.array(z.string()).default([]),
+  recommendation: z.string().default(''),
   trackRecord: z.string().optional(),
 });
 
@@ -772,12 +786,22 @@ Provide: questions to ask before hiring, typical rates for their trade, red flag
 }
 
 export const equipmentAdviceSchema = z.object({
-  recommendation: z.enum(['rent', 'buy', 'lease']),
-  annualRentalCost: z.number(),
-  purchasePrice: z.string(),
-  breakEvenProjects: z.number(),
-  reasoning: z.string(),
-  reconsiderWhen: z.string(),
+  // Model sometimes returns verbose strings ("it depends") — fall back to 'rent'
+  // instead of letting the whole schema reject.
+  recommendation: z.enum(['rent', 'buy', 'lease']).catch('rent').default('rent'),
+  annualRentalCost: z.number().catch(0).default(0),
+  purchasePrice: z.string().catch('').default(''),
+  breakEvenProjects: z.number().catch(0).default(0),
+  // Model occasionally returns an array of bullet points instead of a string —
+  // coerce by joining.
+  reasoning: z.preprocess(
+    v => Array.isArray(v) ? v.join(' ') : v,
+    z.string().catch('').default(''),
+  ),
+  reconsiderWhen: z.preprocess(
+    v => Array.isArray(v) ? v.join(' ') : v,
+    z.string().catch('').default(''),
+  ),
 });
 
 export type EquipmentAdviceResult = z.infer<typeof equipmentAdviceSchema>;
@@ -818,13 +842,13 @@ Analyze rent vs buy. Include annual rental cost estimate, typical purchase price
 }
 
 export const projectReportSchema = z.object({
-  executiveSummary: z.string(),
-  scheduleStatus: z.string(),
-  budgetStatus: z.string(),
-  keyAccomplishments: z.array(z.string()),
-  issuesAndRisks: z.array(z.string()),
-  nextMilestones: z.array(z.string()),
-  recommendations: z.array(z.string()),
+  executiveSummary: z.string().default(''),
+  scheduleStatus: z.string().default(''),
+  budgetStatus: z.string().default(''),
+  keyAccomplishments: z.array(z.string()).default([]),
+  issuesAndRisks: z.array(z.string()).default([]),
+  nextMilestones: z.array(z.string()).default([]),
+  recommendations: z.array(z.string()).default([]),
 });
 
 export type ProjectReportResult = z.infer<typeof projectReportSchema>;
@@ -832,23 +856,25 @@ export type ProjectReportResult = z.infer<typeof projectReportSchema>;
 export const aiQuickEstimateSchema = z.object({
   projectSummary: z.string().default(''),
   materials: z.array(z.object({
-    name: z.string(),
+    name: z.string().default('Item'),
     category: z.string().default('hardware'),
     unit: z.string().default('ea'),
-    quantity: z.number(),
-    unitPrice: z.number(),
+    // The model sometimes omits quantity/unitPrice — default to 0 so the row
+    // still renders (user can edit) instead of throwing away the whole estimate.
+    quantity: z.number().default(0),
+    unitPrice: z.number().default(0),
     supplier: z.string().default('Home Depot'),
     notes: z.string().optional(),
   })).default([]),
   labor: z.array(z.object({
-    trade: z.string(),
-    hourlyRate: z.number(),
-    hours: z.number(),
+    trade: z.string().default('Labor'),
+    hourlyRate: z.number().default(0),
+    hours: z.number().default(0),
     crew: z.string().default('General crew'),
     notes: z.string().optional(),
   })).default([]),
   assemblies: z.array(z.object({
-    name: z.string(),
+    name: z.string().default('Assembly'),
     category: z.string().default('general'),
     quantity: z.number().default(1),
     unit: z.string().default('ea'),
@@ -861,12 +887,33 @@ export const aiQuickEstimateSchema = z.object({
     cleanup: z.number().default(0),
     contingencyPercent: z.number().default(10),
     overheadPercent: z.number().default(12),
-  }).default({}),
+  }).default({
+    permits: 0,
+    dumpsterRental: 0,
+    equipmentRental: 0,
+    cleanup: 0,
+    contingencyPercent: 10,
+    overheadPercent: 12,
+  }),
   estimatedDuration: z.string().default('TBD'),
   costPerSqFt: z.number().default(0),
   confidenceScore: z.number().default(70),
-  warnings: z.array(z.string()).default([]),
-  savingsTips: z.array(z.string()).default([]),
+  // Model sometimes returns warnings/tips as an object of { warning1: "...", warning2: "..." }
+  // or a single string. Coerce any shape to string[].
+  warnings: z.preprocess(
+    v => Array.isArray(v) ? v
+      : typeof v === 'string' ? [v]
+      : v && typeof v === 'object' ? Object.values(v).map(x => String(x))
+      : [],
+    z.array(z.string()).default([]),
+  ),
+  savingsTips: z.preprocess(
+    v => Array.isArray(v) ? v
+      : typeof v === 'string' ? [v]
+      : v && typeof v === 'object' ? Object.values(v).map(x => String(x))
+      : [],
+    z.array(z.string()).default([]),
+  ),
 });
 
 export type AIQuickEstimateResult = z.infer<typeof aiQuickEstimateSchema>;
@@ -901,7 +948,7 @@ Generate 8-15 material line items with real quantities and 2025 market pricing (
       savingsTips: ["Buy lumber in bulk for 15% savings"],
     },
     tier: 'smart',
-    maxTokens: 3000,
+    maxTokens: 8000,
   });
   if (!aiResult.success) {
     console.warn('[AI Quick Estimate] AI failed, returning stub:', aiResult.error);

@@ -28,8 +28,6 @@ export const AnalyticsEvents = {
   USER_SIGNED_UP: 'user_signed_up',
   USER_LOGGED_IN: 'user_logged_in',
   USER_LOGGED_OUT: 'user_logged_out',
-  GUEST_LOGIN: 'guest_login',
-  GUEST_CONVERTED: 'guest_converted',
   PROJECT_CREATED: 'project_created',
   ESTIMATE_GENERATED: 'estimate_generated',
   INVOICE_CREATED: 'invoice_created',

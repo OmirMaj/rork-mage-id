@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Platform, Alert } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
 import createContextHook from '@nkzw/create-context-hook';
-import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
 import * as SecureStore from 'expo-secure-store';
 import * as WebBrowser from 'expo-web-browser';
 import { makeRedirectUri } from 'expo-auth-session';
@@ -17,7 +17,6 @@ export interface AuthUser {
   id: string;
   email: string;
   name: string;
-  isGuest?: boolean;
 }
 
 function mapSupabaseUser(user: User): AuthUser {
@@ -74,9 +73,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
       console.log('[Auth] Initial session:', currentSession ? 'found' : 'none');
       if (currentSession?.user) {
         setSession(currentSession);
-        const authUser = mapSupabaseUser(currentSession.user);
-        const isAnon = currentSession.user.is_anonymous === true;
-        setUser(isAnon ? { ...authUser, isGuest: true } : authUser);
+        setUser(mapSupabaseUser(currentSession.user));
         setIsAuthenticated(true);
       }
       setIsLoading(false);
@@ -89,9 +86,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
       console.log('[Auth] Auth state changed:', _event);
       if (newSession?.user) {
         setSession(newSession);
-        const authUser = mapSupabaseUser(newSession.user);
-        const isAnon = newSession.user.is_anonymous === true;
-        setUser(isAnon ? { ...authUser, isGuest: true } : authUser);
+        setUser(mapSupabaseUser(newSession.user));
         setIsAuthenticated(true);
       } else {
         setSession(null);
@@ -157,33 +152,6 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     return authUser;
   }, [queryClient]);
 
-  const loginAsGuest = useCallback(async () => {
-    console.log('[Auth] Logging in as guest via anonymous sign-in');
-
-    if (!isSupabaseConfigured) {
-      throw new Error('Cannot sign in as guest — Supabase is not configured. Please set up your environment variables.');
-    }
-
-    const { data, error } = await supabase.auth.signInAnonymously();
-
-    if (error) {
-      console.log('[Auth] Anonymous sign-in failed:', error.message);
-      throw new Error('Guest sign-in failed: ' + error.message);
-    }
-
-    if (!data.user) {
-      throw new Error('Guest sign-in failed: No user returned.');
-    }
-
-    const guestUser: AuthUser = {
-      ...mapSupabaseUser(data.user),
-      isGuest: true,
-    };
-    setUser(guestUser);
-    setIsAuthenticated(true);
-    return guestUser;
-  }, []);
-
   const loginWithBiometrics = useCallback(async () => {
     if (Platform.OS === 'web') {
       throw new Error('Biometric login is not available on web.');
@@ -208,42 +176,6 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
 
     return login(creds.email, creds.password, true);
   }, [login]);
-
-  const convertGuestToAccount = useCallback(async (email: string, password: string, name: string) => {
-    console.log('[Auth] Converting guest to full account:', email);
-    const { data, error } = await supabase.auth.updateUser({
-      email: email.toLowerCase().trim(),
-      password,
-      data: { name },
-    });
-
-    if (error) {
-      console.log('[Auth] Guest conversion error:', error.message);
-      throw new Error(error.message);
-    }
-
-    if (data.user) {
-      const authUser = mapSupabaseUser(data.user);
-      setUser(authUser);
-      await saveCredentials(email.toLowerCase().trim(), password);
-      setHasStoredCredentials(true);
-
-      try {
-        await supabase.from('profiles').update({
-          email: email.toLowerCase().trim(),
-          name,
-        }).eq('id', data.user.id);
-        console.log('[Auth] Profile updated after guest conversion');
-      } catch (profileErr) {
-        console.log('[Auth] Failed to update profile after guest conversion:', profileErr);
-      }
-
-      console.log('[Auth] Guest conversion successful');
-      return authUser;
-    }
-
-    throw new Error('Conversion succeeded but no user data returned.');
-  }, []);
 
   const logout = useCallback(async (clearCredentials: boolean = false) => {
     console.log('[Auth] Logging out');
@@ -377,12 +309,10 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     login,
     signup,
     logout,
-    loginAsGuest,
     loginWithBiometrics,
-    convertGuestToAccount,
     resetPassword,
     updatePassword,
     signInWithGoogle,
     signInWithApple,
-  }), [user, session, isLoading, isAuthenticated, hasStoredCredentials, login, signup, logout, loginAsGuest, loginWithBiometrics, convertGuestToAccount, resetPassword, updatePassword, signInWithGoogle, signInWithApple]);
+  }), [user, session, isLoading, isAuthenticated, hasStoredCredentials, login, signup, logout, loginWithBiometrics, resetPassword, updatePassword, signInWithGoogle, signInWithApple]);
 });

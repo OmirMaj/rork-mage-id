@@ -73,7 +73,6 @@ export const [SubscriptionProvider, useSubscription] = createContextHook(() => {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const userId = user?.id ?? null;
-  const isGuest = user?.isGuest ?? true;
   const [tier, setTier] = useState<SubscriptionTier>('free');
 
   const customerInfoQuery = useQuery<CustomerInfo | null>({
@@ -107,7 +106,7 @@ export const [SubscriptionProvider, useSubscription] = createContextHook(() => {
   const supabaseTierQuery = useQuery({
     queryKey: ['subscription-supabase', userId],
     queryFn: async () => {
-      if (!userId || isGuest || !isSupabaseConfigured) return null;
+      if (!userId || !isSupabaseConfigured) return null;
       try {
         const { data, error } = await supabase
           .from('subscriptions')
@@ -120,7 +119,7 @@ export const [SubscriptionProvider, useSubscription] = createContextHook(() => {
       } catch { /* ok */ }
       return null;
     },
-    enabled: !!userId && !isGuest,
+    enabled: !!userId,
   });
 
   useEffect(() => {

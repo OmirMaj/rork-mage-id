@@ -13,8 +13,7 @@ export const [CompaniesProvider, useCompanies] = createContextHook(() => {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const userId = user?.id ?? null;
-  const isGuest = user?.isGuest ?? true;
-  const canSync = !isGuest && !!userId && isSupabaseConfigured;
+  const canSync = !!userId && isSupabaseConfigured;
   const [companies, setCompanies] = useState<CompanyProfile[]>([]);
 
   const companiesQuery = useQuery({

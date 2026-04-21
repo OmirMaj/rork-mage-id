@@ -89,7 +89,7 @@ export default React.memo(function AISubEvaluator({ sub, projectContext, subscri
       ) : null}
 
       <Text style={styles.sectionLabel}>Questions to Ask</Text>
-      {result.questionsToAsk.map((q, idx) => (
+      {(result.questionsToAsk ?? []).map((q, idx) => (
         <View key={idx} style={styles.questionRow}>
           <HelpCircle size={12} color={Colors.info} />
           <Text style={styles.questionText}>{q}</Text>
@@ -100,22 +100,22 @@ export default React.memo(function AISubEvaluator({ sub, projectContext, subscri
       <View style={styles.rateGrid}>
         <View style={styles.rateItem}>
           <Text style={styles.rateLabel}>Journeyman</Text>
-          <Text style={styles.rateValue}>{result.typicalRates.journeyman}</Text>
+          <Text style={styles.rateValue}>{result.typicalRates?.journeyman ?? '—'}</Text>
         </View>
         <View style={styles.rateItem}>
           <Text style={styles.rateLabel}>Master</Text>
-          <Text style={styles.rateValue}>{result.typicalRates.master}</Text>
+          <Text style={styles.rateValue}>{result.typicalRates?.master ?? '—'}</Text>
         </View>
         <View style={styles.rateItem}>
           <Text style={styles.rateLabel}>Apprentice</Text>
-          <Text style={styles.rateValue}>{result.typicalRates.apprentice}</Text>
+          <Text style={styles.rateValue}>{result.typicalRates?.apprentice ?? '—'}</Text>
         </View>
       </View>
 
-      {result.redFlags.length > 0 && (
+      {(result.redFlags ?? []).length > 0 && (
         <>
           <Text style={styles.sectionLabel}>Red Flags to Watch</Text>
-          {result.redFlags.map((flag, idx) => (
+          {(result.redFlags ?? []).map((flag, idx) => (
             <View key={idx} style={styles.flagRow}>
               <AlertTriangle size={12} color="#FF3B30" />
               <Text style={styles.flagText}>{flag}</Text>

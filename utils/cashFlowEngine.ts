@@ -1,4 +1,5 @@
-import type { Invoice } from '@/types';
+import type { Invoice, ChangeOrder } from '@/types';
+import { getEffectiveInvoiceStatus } from '@/utils/projectFinancials';
 
 export type ExpenseFrequency = 'weekly' | 'biweekly' | 'monthly' | 'one_time';
 export type ExpenseCategory = 'payroll' | 'materials' | 'equipment_rental' | 'subcontractor' | 'insurance' | 'overhead' | 'loan' | 'other';
@@ -42,6 +43,39 @@ export interface CashFlowSummary {
   highestBalance: number;
   highestBalanceWeek: number;
   dangerWeeks: Array<{ weekNumber: number; weekDate: string; balance: number }>;
+}
+
+/**
+ * Effective current cash position = stored starting balance + any invoice
+ * payments recorded since the balance was last set. Lets the GC set the balance
+ * once ("my bank shows $42k today"), then record payments as checks come in
+ * without manually re-typing the balance each time.
+ */
+export function getEffectiveStartingBalance(
+  storedBalance: number,
+  balanceAsOf: string | undefined,
+  invoices: Invoice[],
+): number {
+  if (!balanceAsOf) return storedBalance;
+  const cutoff = new Date(balanceAsOf).getTime();
+  if (Number.isNaN(cutoff)) return storedBalance;
+
+  let additional = 0;
+  for (const inv of invoices) {
+    for (const p of inv.payments ?? []) {
+      const ts = new Date(p.date).getTime();
+      if (!Number.isNaN(ts) && ts > cutoff) {
+        additional += p.amount ?? 0;
+      }
+    }
+    for (const r of inv.retentionReleases ?? []) {
+      const ts = new Date(r.date).getTime();
+      if (!Number.isNaN(ts) && ts > cutoff) {
+        additional += r.amount ?? 0;
+      }
+    }
+  }
+  return storedBalance + additional;
 }
 
 function getPaymentTermsDays(terms: string | undefined): number {
@@ -96,9 +130,10 @@ export function generateForecast(
   invoices: Invoice[],
   expectedPayments: ExpectedPayment[],
   weeksToForecast: number,
-  defaultPaymentTerms: string = 'net_30'
+  defaultPaymentTerms: string = 'net_30',
+  changeOrders: ChangeOrder[] = []
 ): CashFlowWeek[] {
-  console.log('[CashFlowEngine] Generating forecast for', weeksToForecast, 'weeks');
+  console.log('[CashFlowEngine] Generating forecast for', weeksToForecast, 'weeks (COs:', changeOrders.length, ')');
   const weeks: CashFlowWeek[] = [];
   let balance = startingBalance;
   const today = new Date();
@@ -114,18 +149,59 @@ export function generateForecast(
     const expenseItems: CashFlowWeek['expenseItems'] = [];
 
     invoices.forEach(inv => {
-      if (inv.status === 'paid') return;
+      // Use the effective status so an overdue-but-unpaid invoice still forecasts
+      // at its original expected date (and a silently paid-in-full one is excluded).
+      const effStatus = getEffectiveInvoiceStatus(inv);
+      if (effStatus === 'paid' || effStatus === 'draft') return;
       const termsDays = getPaymentTermsDays(inv.paymentTerms ?? defaultPaymentTerms);
       const issueDate = new Date(inv.issueDate);
       const expectedDate = new Date(issueDate);
       expectedDate.setDate(expectedDate.getDate() + termsDays);
       const remaining = inv.totalDue - inv.amountPaid;
       if (remaining > 0 && isDateInWeek(expectedDate.toISOString(), weekStart, weekEnd)) {
+        const confidence =
+          effStatus === 'overdue' ? 'hopeful' :
+          effStatus === 'partially_paid' ? 'expected' :
+          effStatus === 'sent' ? 'expected' : 'hopeful';
         incomeItems.push({
           description: `Invoice #${inv.number} (${inv.projectId?.slice(0, 8) ?? 'N/A'})`,
           amount: remaining,
-          confidence: inv.status === 'sent' ? 'expected' : 'hopeful',
+          confidence,
         });
+      }
+    });
+
+    // Approved change orders that haven't been invoiced yet show as projected
+    // future income. Timing: approval date (updatedAt) + payment terms.
+    // Pending / submitted COs show with 'hopeful' confidence at a conservative
+    // date — today + 21 days (typical approval delay) + payment terms.
+    changeOrders.forEach(co => {
+      if (co.status === 'approved') {
+        const approvedAt = new Date(co.updatedAt);
+        const expectedDate = new Date(approvedAt);
+        expectedDate.setDate(expectedDate.getDate() + getPaymentTermsDays(defaultPaymentTerms));
+        // Only project future CO cash — past expected dates are assumed to have
+        // rolled into invoices already (invoice loop will capture them).
+        if (expectedDate < today) return;
+        if (co.changeAmount > 0 && isDateInWeek(expectedDate.toISOString(), weekStart, weekEnd)) {
+          incomeItems.push({
+            description: `Change Order #${co.number} (approved)`,
+            amount: co.changeAmount,
+            confidence: 'expected',
+          });
+        }
+      } else if (co.status === 'submitted' || co.status === 'under_review') {
+        const projectedApproval = new Date(today);
+        projectedApproval.setDate(projectedApproval.getDate() + 21);
+        const expectedDate = new Date(projectedApproval);
+        expectedDate.setDate(expectedDate.getDate() + getPaymentTermsDays(defaultPaymentTerms));
+        if (co.changeAmount > 0 && isDateInWeek(expectedDate.toISOString(), weekStart, weekEnd)) {
+          incomeItems.push({
+            description: `Change Order #${co.number} (pending)`,
+            amount: co.changeAmount,
+            confidence: 'hopeful',
+          });
+        }
       }
     });
 

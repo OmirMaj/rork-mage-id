@@ -23,7 +23,7 @@ import { THEME_PRESETS } from '@/types';
 import type { PDFNamingSettings } from '@/types';
 import SignaturePad from '@/components/SignaturePad';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { LogOut, UserCircle, CloudUpload, Eye, EyeOff } from 'lucide-react-native';
+import { LogOut, UserCircle, Eye, EyeOff, FolderDown } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { track, AnalyticsEvents } from '@/utils/analytics';
 
@@ -33,9 +33,8 @@ export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { settings, updateSettings, projects, deleteProject } = useProjects();
-  const { user, logout, isAuthenticated, convertGuestToAccount } = useAuth();
+  const { user, logout, isAuthenticated } = useAuth();
   const { tier } = useSubscription();
-  const isGuest = user?.isGuest === true;
   const [aiUsed, setAiUsed] = useState(0);
   const [aiLimit, setAiLimit] = useState(10);
   const [aiSmartUsed, setAiSmartUsed] = useState(0);
@@ -49,13 +48,6 @@ export default function SettingsScreen() {
       setAiSmartLimit(stats.smartLimit);
     }).catch(() => {});
   }, [tier]);
-
-  const [showConvertModal, setShowConvertModal] = useState(false);
-  const [convertEmail, setConvertEmail] = useState('');
-  const [convertPassword, setConvertPassword] = useState('');
-  const [convertName, setConvertName] = useState('');
-  const [showConvertPassword, setShowConvertPassword] = useState(false);
-  const [isConverting, setIsConverting] = useState(false);
 
   const [location, setLocation] = useState(settings.location);
   const [taxRate, setTaxRate] = useState(settings.taxRate.toString());
@@ -261,26 +253,6 @@ export default function SettingsScreen() {
       >
         <Text style={styles.largeTitle}>Settings</Text>
 
-        {isAuthenticated && user && isGuest && (
-          <View style={styles.guestBanner}>
-            <View style={styles.guestBannerIcon}>
-              <CloudUpload size={24} color={Colors.primary} strokeWidth={1.8} />
-            </View>
-            <Text style={styles.guestBannerTitle}>Create an Account</Text>
-            <Text style={styles.guestBannerText}>
-              Save your data to the cloud and access it from any device. Your existing projects and settings will be preserved.
-            </Text>
-            <TouchableOpacity
-              style={styles.guestBannerButton}
-              onPress={() => setShowConvertModal(true)}
-              activeOpacity={0.85}
-              testID="guest-convert-button"
-            >
-              <Text style={styles.guestBannerButtonText}>Create Account</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
         {isAuthenticated && user && (
           <>
             <Text style={styles.sectionHeader}>ACCOUNT</Text>
@@ -290,11 +262,8 @@ export default function SettingsScreen() {
                   <UserCircle size={14} color="#fff" />
                 </View>
                 <View style={{ flex: 1, gap: 2 }}>
-                  <Text style={styles.rowLabel}>{user.name || 'Guest User'}</Text>
+                  <Text style={styles.rowLabel}>{user.name || 'User'}</Text>
                   <Text style={{ fontSize: 13, color: Colors.textSecondary }}>{user.email || 'No email'}</Text>
-                  {isGuest && (
-                    <Text style={{ fontSize: 11, color: Colors.accent, fontWeight: '600' as const }}>Guest Account</Text>
-                  )}
                 </View>
               </View>
               <View style={styles.rowSeparator} />
@@ -927,6 +896,25 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </View>
 
+        <Text style={styles.sectionHeader}>YOUR DATA</Text>
+        <Text style={styles.sectionSubtext}>
+          Your data is yours. Export every project, invoice, RFI, and photo to JSON or CSV — no lock-in, ever.
+        </Text>
+        <View style={styles.group}>
+          <TouchableOpacity
+            style={styles.row}
+            onPress={() => router.push('/data-export' as any)}
+            activeOpacity={0.7}
+            testID="data-export-link"
+          >
+            <View style={[styles.iconWrap, { backgroundColor: Colors.primary }]}>
+              <FolderDown size={14} color="#fff" />
+            </View>
+            <Text style={[styles.rowLabel, { flex: 1 }]}>Export my data</Text>
+            <ChevronRight size={16} color={Colors.textMuted} />
+          </TouchableOpacity>
+        </View>
+
         <Text style={styles.sectionHeader}>SUPPLIER MARKETPLACE</Text>
         <Text style={styles.sectionSubtext}>
           Register as a supplier to list your materials on the MAGE ID Marketplace and sell directly to contractors.
@@ -1115,125 +1103,6 @@ export default function SettingsScreen() {
           Permanently deletes all projects and cannot be undone.
         </Text>
       </ScrollView>
-
-      <Modal
-        visible={showConvertModal}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowConvertModal(false)}
-      >
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-          <View style={styles.sigModalOverlay}>
-            <View style={[styles.sigModalCard, { maxWidth: 420 }]}>
-              <View style={styles.sigModalHeader}>
-                <Text style={styles.sigModalTitle}>Create Account</Text>
-                <TouchableOpacity onPress={() => setShowConvertModal(false)}>
-                  <X size={20} color={Colors.textMuted} />
-                </TouchableOpacity>
-              </View>
-              <Text style={styles.sigModalDesc}>
-                Link your guest data to a real account. All your projects and settings will be preserved.
-              </Text>
-
-              <View style={{ gap: 12 }}>
-                <View>
-                  <Text style={styles.sectionSubtext}>Name</Text>
-                  <TextInput
-                    style={styles.supplierInput}
-                    value={convertName}
-                    onChangeText={setConvertName}
-                    placeholder="Your name"
-                    placeholderTextColor={Colors.textMuted}
-                    autoCapitalize="words"
-                    testID="convert-name"
-                  />
-                </View>
-                <View>
-                  <Text style={styles.sectionSubtext}>Email</Text>
-                  <TextInput
-                    style={styles.supplierInput}
-                    value={convertEmail}
-                    onChangeText={setConvertEmail}
-                    placeholder="you@company.com"
-                    placeholderTextColor={Colors.textMuted}
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                    testID="convert-email"
-                  />
-                </View>
-                <View>
-                  <Text style={styles.sectionSubtext}>Password</Text>
-                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    <TextInput
-                      style={[styles.supplierInput, { flex: 1, marginBottom: 0 }]}
-                      value={convertPassword}
-                      onChangeText={setConvertPassword}
-                      placeholder="Minimum 6 characters"
-                      placeholderTextColor={Colors.textMuted}
-                      secureTextEntry={!showConvertPassword}
-                      autoCapitalize="none"
-                      testID="convert-password"
-                    />
-                    <TouchableOpacity
-                      onPress={() => setShowConvertPassword(!showConvertPassword)}
-                      style={{ position: 'absolute' as const, right: 12 }}
-                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                    >
-                      {showConvertPassword
-                        ? <EyeOff size={18} color={Colors.textSecondary} />
-                        : <Eye size={18} color={Colors.textSecondary} />
-                      }
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              </View>
-
-              <TouchableOpacity
-                style={[styles.saveButton, { marginHorizontal: 0, marginBottom: 0 }, isConverting && { opacity: 0.7 }]}
-                onPress={async () => {
-                  if (!convertEmail.trim() || !convertEmail.includes('@')) {
-                    Alert.alert('Invalid Email', 'Please enter a valid email address.');
-                    return;
-                  }
-                  if (!convertPassword || convertPassword.length < 6) {
-                    Alert.alert('Invalid Password', 'Password must be at least 6 characters.');
-                    return;
-                  }
-                  setIsConverting(true);
-                  try {
-                    await convertGuestToAccount(
-                      convertEmail.trim(),
-                      convertPassword,
-                      convertName.trim() || 'User',
-                    );
-                    track(AnalyticsEvents.GUEST_CONVERTED, { email: convertEmail.trim() });
-                    setShowConvertModal(false);
-                    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                    Alert.alert(
-                      'Account Created!',
-                      'Your data is now backed up to the cloud. You can access it from any device by logging in with your new credentials.',
-                    );
-                  } catch (err: unknown) {
-                    const msg = err instanceof Error ? err.message : 'Failed to create account.';
-                    Alert.alert('Error', msg);
-                  } finally {
-                    setIsConverting(false);
-                  }
-                }}
-                disabled={isConverting}
-                activeOpacity={0.85}
-                testID="convert-submit"
-              >
-                {isConverting ? (
-                  <ActivityIndicator color="#fff" size="small" />
-                ) : (
-                  <Text style={styles.saveButtonText}>Create Account</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
 
       <Modal
         visible={showSignatureModal}
@@ -1705,49 +1574,6 @@ const styles = StyleSheet.create({
     marginTop: -12,
     marginBottom: 20,
     lineHeight: 16,
-  },
-  guestBanner: {
-    marginHorizontal: 16,
-    marginBottom: 20,
-    backgroundColor: Colors.primary + '08',
-    borderRadius: 16,
-    padding: 20,
-    alignItems: 'center',
-    gap: 10,
-    borderWidth: 1.5,
-    borderColor: Colors.primary + '25',
-  },
-  guestBannerIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
-    backgroundColor: Colors.primary + '15',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 4,
-  },
-  guestBannerTitle: {
-    fontSize: 18,
-    fontWeight: '700' as const,
-    color: Colors.text,
-  },
-  guestBannerText: {
-    fontSize: 14,
-    color: Colors.textSecondary,
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-  guestBannerButton: {
-    backgroundColor: Colors.primary,
-    borderRadius: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 32,
-    marginTop: 4,
-  },
-  guestBannerButtonText: {
-    fontSize: 16,
-    fontWeight: '700' as const,
-    color: '#fff',
   },
   supplierRegistered: {
     padding: 16,

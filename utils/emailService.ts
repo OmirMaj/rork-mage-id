@@ -1,5 +1,7 @@
 import * as MailComposer from 'expo-mail-composer';
+import * as FileSystem from 'expo-file-system/legacy';
 import { Platform } from 'react-native';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
 export interface SendEmailParams {
   to: string;
@@ -9,13 +11,103 @@ export interface SendEmailParams {
 }
 
 export interface SendEmailWithAttachmentsParams extends SendEmailParams {
-  attachments?: string[];
+  attachments?: string[]; // local file URIs
+  from?: string;          // override default FROM if needed
 }
 
 interface SendEmailResponse {
   success: boolean;
   id?: string;
   error?: string;
+}
+
+// Read a local file URI and return { filename, content (base64), contentType }.
+// The send-email edge function expects attachments in this shape.
+async function fileUriToAttachment(uri: string): Promise<{ filename: string; content: string; contentType?: string } | null> {
+  try {
+    const filename = decodeURIComponent(uri.split('/').pop() || 'attachment');
+    const lower = filename.toLowerCase();
+    const contentType =
+      lower.endsWith('.pdf') ? 'application/pdf' :
+      lower.endsWith('.png') ? 'image/png' :
+      lower.endsWith('.jpg') || lower.endsWith('.jpeg') ? 'image/jpeg' :
+      lower.endsWith('.csv') ? 'text/csv' :
+      lower.endsWith('.txt') ? 'text/plain' :
+      undefined;
+
+    // On web, expo-file-system isn't available. We'd need to fetch the URI and
+    // convert to base64 via FileReader — for now just skip web attachments.
+    if (Platform.OS === 'web') {
+      const res = await fetch(uri);
+      const blob = await res.blob();
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const result = reader.result as string;
+          // Strip the "data:...;base64," prefix
+          const comma = result.indexOf(',');
+          resolve(comma >= 0 ? result.slice(comma + 1) : result);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+      return { filename, content: base64, contentType };
+    }
+
+    const content = await FileSystem.readAsStringAsync(uri, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+    return { filename, content, contentType };
+  } catch (err) {
+    console.error('[EmailService] Attachment read failed:', uri, err);
+    return null;
+  }
+}
+
+/**
+ * The real server-side sender. Calls the `send-email` Supabase edge function,
+ * which forwards to Resend using the verified mageid.app domain. Replaces the
+ * old mailto: flow that bounced because it sent from the user's personal inbox.
+ */
+async function sendViaResend(params: SendEmailWithAttachmentsParams): Promise<SendEmailResponse> {
+  if (!isSupabaseConfigured) {
+    return { success: false, error: 'Email service not configured (Supabase missing)' };
+  }
+
+  // Encode attachments in parallel — typical invoice is 1-2 files so this is fast.
+  let attachments: Array<{ filename: string; content: string; contentType?: string }> | undefined;
+  if (params.attachments && params.attachments.length > 0) {
+    const encoded = await Promise.all(params.attachments.map(fileUriToAttachment));
+    attachments = encoded.filter((a): a is NonNullable<typeof a> => a !== null);
+  }
+
+  try {
+    const { data, error } = await supabase.functions.invoke('send-email', {
+      body: {
+        to: params.to,
+        subject: params.subject,
+        html: params.html,
+        replyTo: params.replyTo,
+        from: params.from,
+        attachments,
+      },
+    });
+
+    if (error) {
+      console.error('[EmailService] Edge function error:', error);
+      return { success: false, error: error.message || 'Failed to send email' };
+    }
+
+    const result = data as { success?: boolean; id?: string; error?: string } | null;
+    if (!result?.success) {
+      return { success: false, error: result?.error || 'Email send failed' };
+    }
+    console.log('[EmailService] Sent via Resend, id:', result.id);
+    return { success: true, id: result.id };
+  } catch (err) {
+    console.error('[EmailService] Invoke threw:', err);
+    return { success: false, error: String(err) };
+  }
 }
 
 export async function sendEmailNative(params: {
@@ -61,10 +153,29 @@ export async function sendEmailNative(params: {
   }
 }
 
+/**
+ * Primary email send path. Routes through the Supabase `send-email` edge
+ * function, which calls Resend using the verified mageid.app domain.
+ *
+ * Behavior:
+ *   1. Try the server-side Resend pipeline first. This is the path that
+ *      actually works — emails come from noreply@mageid.app with proper
+ *      DKIM signatures and land in inboxes instead of spam/bounce.
+ *   2. If Resend fails (network, outage, not configured), fall back to the
+ *      native mail composer so the GC isn't stranded. The composer still
+ *      bounces for the "spam filter" reason but at least it puts the draft
+ *      in their hand where they can verify it and send manually.
+ */
 export async function sendEmail(params: SendEmailWithAttachmentsParams): Promise<SendEmailResponse> {
+  // Path 1: Resend via Supabase edge function (the path that actually works).
+  const resendResult = await sendViaResend(params);
+  if (resendResult.success) return resendResult;
+
+  console.log('[EmailService] Resend failed, falling back to native composer:', resendResult.error);
+
+  // Path 2: Native mail composer fallback. Only reached if Resend errors out.
   try {
     if (Platform.OS === 'web') {
-      console.log('[EmailService] Native mail not available on web, using mailto fallback');
       const mailtoUrl = `mailto:${encodeURIComponent(params.to)}?subject=${encodeURIComponent(params.subject)}&body=${encodeURIComponent('Please view the attached document.')}`;
       window.open(mailtoUrl, '_blank');
       return { success: true };
@@ -72,7 +183,10 @@ export async function sendEmail(params: SendEmailWithAttachmentsParams): Promise
 
     const isAvailable = await MailComposer.isAvailableAsync();
     if (!isAvailable) {
-      return { success: false, error: 'No email app configured on this device. Please set up an email account in Settings, or use the Share option instead.' };
+      return {
+        success: false,
+        error: resendResult.error || 'No email app configured on this device. Please set up an email account in Settings, or use the Share option instead.',
+      };
     }
 
     const result = await MailComposer.composeAsync({
@@ -88,8 +202,8 @@ export async function sendEmail(params: SendEmailWithAttachmentsParams): Promise
     }
     return { success: true };
   } catch (err) {
-    console.error('[EmailService] Native mail error:', err);
-    return { success: false, error: 'Failed to open email composer' };
+    console.error('[EmailService] Composer fallback failed too:', err);
+    return { success: false, error: resendResult.error || 'Failed to send email' };
   }
 }
 

@@ -265,14 +265,14 @@ export default React.memo(function AIQuickEstimate({
 
   const estimatedTotals = useMemo(() => {
     if (!result) return { materials: 0, labor: 0, assemblies: 0, additional: 0, grand: 0 };
-    const materials = result.materials.reduce((s, m) => s + m.unitPrice * m.quantity, 0);
-    const labor = result.labor.reduce((s, l) => s + l.hourlyRate * l.hours, 0);
-    const assemblies = result.assemblies.length;
-    const add = result.additionalCosts;
-    const additional = add.permits + add.dumpsterRental + add.equipmentRental + add.cleanup;
+    const materials = (result.materials ?? []).reduce((s, m) => s + (m.unitPrice ?? 0) * (m.quantity ?? 0), 0);
+    const labor = (result.labor ?? []).reduce((s, l) => s + (l.hourlyRate ?? 0) * (l.hours ?? 0), 0);
+    const assemblies = (result.assemblies ?? []).length;
+    const add = result.additionalCosts ?? { permits: 0, dumpsterRental: 0, equipmentRental: 0, cleanup: 0, contingencyPercent: 10, overheadPercent: 12 };
+    const additional = (add.permits ?? 0) + (add.dumpsterRental ?? 0) + (add.equipmentRental ?? 0) + (add.cleanup ?? 0);
     const subtotal = materials + labor + additional;
-    const contingency = subtotal * (add.contingencyPercent / 100);
-    const overhead = subtotal * (add.overheadPercent / 100);
+    const contingency = subtotal * ((add.contingencyPercent ?? 0) / 100);
+    const overhead = subtotal * ((add.overheadPercent ?? 0) / 100);
     const grand = subtotal + contingency + overhead;
     return { materials, labor, assemblies, additional, grand };
   }, [result]);
@@ -458,8 +458,6 @@ export default React.memo(function AIQuickEstimate({
             </View>
           </View>
 
-          <Text style={s.resultSummary}>{result.projectSummary}</Text>
-
           <View style={s.totalCard}>
             <View style={s.totalRow}>
               <Text style={s.totalLabel}>Estimated Total</Text>
@@ -496,37 +494,44 @@ export default React.memo(function AIQuickEstimate({
             )}
           </View>
 
-          {renderCollapsible('materials', `Materials (${result.materials.length})`, Package, Colors.primary, () => (
+          {result.projectSummary ? (
+            <View style={s.summaryCard}>
+              <Text style={s.summaryLabel}>Scope Summary</Text>
+              <Text style={s.summaryText}>{result.projectSummary}</Text>
+            </View>
+          ) : null}
+
+          {renderCollapsible('materials', `Materials (${(result.materials ?? []).length})`, Package, Colors.primary, () => (
             <View style={s.itemsList}>
-              {result.materials.map((m, i) => (
+              {(result.materials ?? []).map((m, i) => (
                 <View key={i} style={s.itemRow}>
                   <View style={s.itemLeft}>
                     <Text style={s.itemName} numberOfLines={1}>{m.name}</Text>
                     <Text style={s.itemMeta}>{m.quantity} {m.unit} · {m.supplier}</Text>
                   </View>
-                  <Text style={s.itemPrice}>${(m.unitPrice * m.quantity).toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
+                  <Text style={s.itemPrice}>${((m.unitPrice ?? 0) * (m.quantity ?? 0)).toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
                 </View>
               ))}
             </View>
           ))}
 
-          {renderCollapsible('labor', `Labor (${result.labor.length})`, HardHat, Colors.accent, () => (
+          {renderCollapsible('labor', `Labor (${(result.labor ?? []).length})`, HardHat, Colors.accent, () => (
             <View style={s.itemsList}>
-              {result.labor.map((l, i) => (
+              {(result.labor ?? []).map((l, i) => (
                 <View key={i} style={s.itemRow}>
                   <View style={s.itemLeft}>
                     <Text style={s.itemName}>{l.trade}</Text>
                     <Text style={s.itemMeta}>{l.hours} hrs @ ${l.hourlyRate}/hr · {l.crew}</Text>
                   </View>
-                  <Text style={s.itemPrice}>${(l.hourlyRate * l.hours).toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
+                  <Text style={s.itemPrice}>${((l.hourlyRate ?? 0) * (l.hours ?? 0)).toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
                 </View>
               ))}
             </View>
           ))}
 
-          {result.assemblies.length > 0 && renderCollapsible('assemblies', `Assemblies (${result.assemblies.length})`, Boxes, Colors.info, () => (
+          {(result.assemblies ?? []).length > 0 && renderCollapsible('assemblies', `Assemblies (${(result.assemblies ?? []).length})`, Boxes, Colors.info, () => (
             <View style={s.itemsList}>
-              {result.assemblies.map((a, i) => (
+              {(result.assemblies ?? []).map((a, i) => (
                 <View key={i} style={s.itemRow}>
                   <View style={s.itemLeft}>
                     <Text style={s.itemName}>{a.name}</Text>
@@ -539,60 +544,60 @@ export default React.memo(function AIQuickEstimate({
 
           {renderCollapsible('additional', 'Additional Costs', DollarSign, Colors.textSecondary, () => (
             <View style={s.itemsList}>
-              {result.additionalCosts.permits > 0 && (
+              {(result.additionalCosts?.permits ?? 0) > 0 && (
                 <View style={s.itemRow}>
                   <Text style={s.itemName}>Permits</Text>
-                  <Text style={s.itemPrice}>${result.additionalCosts.permits.toLocaleString()}</Text>
+                  <Text style={s.itemPrice}>${(result.additionalCosts?.permits ?? 0).toLocaleString()}</Text>
                 </View>
               )}
-              {result.additionalCosts.dumpsterRental > 0 && (
+              {(result.additionalCosts?.dumpsterRental ?? 0) > 0 && (
                 <View style={s.itemRow}>
                   <Text style={s.itemName}>Dumpster Rental</Text>
-                  <Text style={s.itemPrice}>${result.additionalCosts.dumpsterRental.toLocaleString()}</Text>
+                  <Text style={s.itemPrice}>${(result.additionalCosts?.dumpsterRental ?? 0).toLocaleString()}</Text>
                 </View>
               )}
-              {result.additionalCosts.equipmentRental > 0 && (
+              {(result.additionalCosts?.equipmentRental ?? 0) > 0 && (
                 <View style={s.itemRow}>
                   <Text style={s.itemName}>Equipment Rental</Text>
-                  <Text style={s.itemPrice}>${result.additionalCosts.equipmentRental.toLocaleString()}</Text>
+                  <Text style={s.itemPrice}>${(result.additionalCosts?.equipmentRental ?? 0).toLocaleString()}</Text>
                 </View>
               )}
-              {result.additionalCosts.cleanup > 0 && (
+              {(result.additionalCosts?.cleanup ?? 0) > 0 && (
                 <View style={s.itemRow}>
                   <Text style={s.itemName}>Cleanup</Text>
-                  <Text style={s.itemPrice}>${result.additionalCosts.cleanup.toLocaleString()}</Text>
+                  <Text style={s.itemPrice}>${(result.additionalCosts?.cleanup ?? 0).toLocaleString()}</Text>
                 </View>
               )}
               <View style={s.itemRow}>
-                <Text style={s.itemName}>Contingency ({result.additionalCosts.contingencyPercent}%)</Text>
-                <Text style={s.itemPrice}>${((estimatedTotals.materials + estimatedTotals.labor + estimatedTotals.additional) * result.additionalCosts.contingencyPercent / 100).toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
+                <Text style={s.itemName}>Contingency ({result.additionalCosts?.contingencyPercent ?? 0}%)</Text>
+                <Text style={s.itemPrice}>${((estimatedTotals.materials + estimatedTotals.labor + estimatedTotals.additional) * (result.additionalCosts?.contingencyPercent ?? 0) / 100).toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
               </View>
               <View style={s.itemRow}>
-                <Text style={s.itemName}>Overhead ({result.additionalCosts.overheadPercent}%)</Text>
-                <Text style={s.itemPrice}>${((estimatedTotals.materials + estimatedTotals.labor + estimatedTotals.additional) * result.additionalCosts.overheadPercent / 100).toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
+                <Text style={s.itemName}>Overhead ({result.additionalCosts?.overheadPercent ?? 0}%)</Text>
+                <Text style={s.itemPrice}>${((estimatedTotals.materials + estimatedTotals.labor + estimatedTotals.additional) * (result.additionalCosts?.overheadPercent ?? 0) / 100).toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
               </View>
             </View>
           ))}
 
-          {result.warnings.length > 0 && (
+          {(result.warnings ?? []).length > 0 && (
             <View style={s.warningsCard}>
               <View style={s.warningsHeader}>
                 <AlertTriangle size={14} color={Colors.warning} />
                 <Text style={s.warningsTitle}>Watch Out</Text>
               </View>
-              {result.warnings.map((w, i) => (
+              {(result.warnings ?? []).map((w, i) => (
                 <Text key={i} style={s.warningItem}>• {w}</Text>
               ))}
             </View>
           )}
 
-          {result.savingsTips.length > 0 && (
+          {(result.savingsTips ?? []).length > 0 && (
             <View style={s.tipsCard}>
               <View style={s.tipsHeader}>
                 <TrendingDown size={14} color={Colors.success} />
                 <Text style={s.tipsTitle}>Savings Tips</Text>
               </View>
-              {result.savingsTips.map((t, i) => (
+              {(result.savingsTips ?? []).map((t, i) => (
                 <Text key={i} style={s.tipItem}>• {t}</Text>
               ))}
             </View>
@@ -1033,6 +1038,28 @@ const s = StyleSheet.create({
     color: Colors.textSecondary,
     lineHeight: 20,
     marginBottom: 16,
+  },
+  summaryCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    padding: 14,
+    marginTop: 12,
+    marginBottom: 8,
+    borderWidth: 0.5,
+    borderColor: Colors.borderLight,
+  },
+  summaryLabel: {
+    fontSize: 11,
+    fontWeight: '700' as const,
+    color: Colors.textMuted,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase' as const,
+    marginBottom: 6,
+  },
+  summaryText: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+    lineHeight: 19,
   },
   totalCard: {
     backgroundColor: Colors.surface,

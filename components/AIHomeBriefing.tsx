@@ -27,6 +27,7 @@ const STATUS_ICONS = {
   on_track: { Icon: CheckCircle2, color: '#34C759', bg: '#E8F5E9' },
   at_risk: { Icon: AlertTriangle, color: '#FF9500', bg: '#FFF3E0' },
   behind: { Icon: TrendingDown, color: '#FF3B30', bg: '#FFF0EF' },
+  ahead: { Icon: CheckCircle2, color: '#30B0C7', bg: '#E1F5FA' },
 } as const;
 
 export default React.memo(function AIHomeBriefing({ projects, invoices, subscriptionTier, onViewFull }: Props) {

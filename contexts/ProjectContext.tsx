@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import createContextHook from '@nkzw/create-context-hook';
-import type { Project, AppSettings, CompanyBranding, ProjectCollaborator, ChangeOrder, Invoice, DailyFieldReport, Subcontractor, PunchItem, ProjectPhoto, PriceAlert, Contact, CommunicationEvent, RFI, Submittal, SubmittalReviewCycle, Equipment, EquipmentUtilizationEntry, PDFNamingSettings, Warranty, WarrantyClaim } from '@/types';
+import type { Project, AppSettings, CompanyBranding, ProjectCollaborator, ChangeOrder, Invoice, DailyFieldReport, Subcontractor, PunchItem, ProjectPhoto, PriceAlert, Contact, CommunicationEvent, RFI, Submittal, SubmittalReviewCycle, Equipment, EquipmentUtilizationEntry, PDFNamingSettings, Warranty, WarrantyClaim, PortalMessage } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { supabaseWrite } from '@/utils/offlineQueue';
@@ -24,6 +24,7 @@ const RFIS_KEY = 'tertiary_rfis';
 const SUBMITTALS_KEY = 'tertiary_submittals';
 const EQUIPMENT_KEY = 'tertiary_equipment';
 const WARRANTIES_KEY = 'tertiary_warranties';
+const PORTAL_MESSAGES_KEY = 'tertiary_portal_messages';
 
 const DEFAULT_BRANDING: CompanyBranding = {
   companyName: '',
@@ -66,7 +67,6 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const userId = user?.id ?? null;
-  const isGuest = user?.isGuest ?? true;
 
   const [projects, setProjects] = useState<Project[]>([]);
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
@@ -86,7 +86,7 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
   const [warranties, setWarranties] = useState<Warranty[]>([]);
   const syncDebounceMap = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
-  const canSync = !isGuest && !!userId && isSupabaseConfigured;
+  const canSync = !!userId && isSupabaseConfigured;
 
   const projectsQuery = useQuery({
     queryKey: ['projects', userId],
@@ -653,21 +653,60 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
 
   const updateChangeOrder = useCallback((id: string, updates: Partial<ChangeOrder>) => {
     const now = new Date().toISOString();
+    const prior = changeOrders.find(c => c.id === id);
     const updated = changeOrders.map(co => co.id === id ? { ...co, ...updates, updatedAt: now } : co);
     setChangeOrders(updated);
     saveChangeOrdersMutation.mutate(updated);
+
+    // Cascade: when a CO transitions to 'approved', push its schedule impact
+    // onto the linked project's schedule exactly once. The `scheduleImpactApplied`
+    // flag guards against double-applying if the CO gets toggled approved→draft→approved.
+    const nextCO = updated.find(c => c.id === id);
+    const transitionedToApproved =
+      !!nextCO &&
+      nextCO.status === 'approved' &&
+      prior?.status !== 'approved' &&
+      !nextCO.scheduleImpactApplied &&
+      (nextCO.scheduleImpactDays ?? 0) > 0;
+
+    if (transitionedToApproved && nextCO) {
+      // 1. Bump the project schedule's totalDurationDays + criticalPathDays.
+      const project = projects.find(p => p.id === nextCO.projectId);
+      if (project?.schedule) {
+        const bumpDays = nextCO.scheduleImpactDays ?? 0;
+        const newSchedule = {
+          ...project.schedule,
+          totalDurationDays: project.schedule.totalDurationDays + bumpDays,
+          criticalPathDays: project.schedule.criticalPathDays + bumpDays,
+          updatedAt: now,
+        };
+        const nextProjects = projects.map(p => p.id === nextCO.projectId ? { ...p, schedule: newSchedule, updatedAt: now } : p);
+        setProjects(nextProjects);
+        saveProjectsMutation.mutate(nextProjects);
+        const proj = nextProjects.find(p => p.id === nextCO.projectId);
+        if (proj) syncProjectToSupabase(proj, 'upsert');
+        console.log('[CO cascade] Extended project', nextCO.projectId, 'schedule by', bumpDays, 'days');
+      }
+
+      // 2. Mark the CO's schedule impact as applied so we never double-apply.
+      const finalCOs = updated.map(co => co.id === id ? { ...co, scheduleImpactApplied: true } : co);
+      setChangeOrders(finalCOs);
+      saveChangeOrdersMutation.mutate(finalCOs);
+    }
+
     if (canSync) {
-      const co = updated.find(c => c.id === id);
+      const co = (transitionedToApproved ? { ...nextCO!, scheduleImpactApplied: true } : nextCO);
       if (co) {
         void supabaseWrite('change_orders', 'update', {
           id, description: co.description, reason: co.reason, line_items: co.lineItems,
           original_contract_value: co.originalContractValue, change_amount: co.changeAmount,
           new_contract_total: co.newContractTotal, status: co.status, approvers: co.approvers,
           audit_trail: co.auditTrail, revision: co.revision, updated_at: now,
+          schedule_impact_days: co.scheduleImpactDays, schedule_impact_applied: co.scheduleImpactApplied,
         });
       }
     }
-  }, [changeOrders, saveChangeOrdersMutation, canSync]);
+  }, [changeOrders, projects, saveChangeOrdersMutation, saveProjectsMutation, syncProjectToSupabase, canSync]);
 
   const getChangeOrdersForProject = useCallback((projectId: string) => {
     return changeOrders.filter(co => co.projectId === projectId).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -1164,6 +1203,55 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
     persistWarranties(next);
   }, [warranties, persistWarranties]);
 
+  // Portal messages — client ↔ GC Q&A thread, local-only storage.
+  const [portalMessages, setPortalMessages] = useState<PortalMessage[]>([]);
+
+  useEffect(() => {
+    void loadLocal<PortalMessage[]>(PORTAL_MESSAGES_KEY, []).then(setPortalMessages);
+  }, []);
+
+  const persistPortalMessages = useCallback((list: PortalMessage[]) => {
+    setPortalMessages(list);
+    void saveLocal(PORTAL_MESSAGES_KEY, list);
+  }, []);
+
+  const addPortalMessage = useCallback((msg: Omit<PortalMessage, 'id' | 'createdAt'>) => {
+    const fresh: PortalMessage = {
+      ...msg,
+      id: `pm-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      createdAt: new Date().toISOString(),
+    };
+    persistPortalMessages([...portalMessages, fresh]);
+    return fresh;
+  }, [portalMessages, persistPortalMessages]);
+
+  const markPortalMessagesRead = useCallback((projectId: string, side: 'gc' | 'client') => {
+    const next = portalMessages.map(m => {
+      if (m.projectId !== projectId) return m;
+      if (side === 'gc' && m.authorType === 'client' && !m.readByGc) return { ...m, readByGc: true };
+      if (side === 'client' && m.authorType === 'gc' && !m.readByClient) return { ...m, readByClient: true };
+      return m;
+    });
+    persistPortalMessages(next);
+  }, [portalMessages, persistPortalMessages]);
+
+  const getPortalMessagesForProject = useCallback((projectId: string) =>
+    portalMessages
+      .filter(m => m.projectId === projectId)
+      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()),
+    [portalMessages]);
+
+  const getUnreadPortalMessageCount = useCallback((projectId: string, side: 'gc' | 'client') =>
+    portalMessages.filter(m =>
+      m.projectId === projectId &&
+      (side === 'gc' ? m.authorType === 'client' && !m.readByGc : m.authorType === 'gc' && !m.readByClient)
+    ).length,
+    [portalMessages]);
+
+  const getTotalUnreadPortalCountForGc = useCallback(() =>
+    portalMessages.filter(m => m.authorType === 'client' && !m.readByGc).length,
+    [portalMessages]);
+
   const sortedProjects = useMemo(() => [...projects].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()), [projects]);
 
   return useMemo(() => ({
@@ -1184,5 +1272,6 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
     submittals, addSubmittal, updateSubmittal, deleteSubmittal, getSubmittalsForProject, addReviewCycle,
     equipment, addEquipment, updateEquipment, deleteEquipment, logUtilization, getEquipmentForProject, getEquipmentCostForProject,
     warranties, addWarranty, updateWarranty, deleteWarranty, getWarrantiesForProject, addWarrantyClaim,
-  }), [sortedProjects, settings, hasSeenOnboarding, completeOnboarding, projectsQuery.isLoading, settingsQuery.isLoading, onboardingQuery.isLoading, addProject, updateProject, deleteProject, getProject, updateSettings, addCollaborator, removeCollaborator, changeOrders, addChangeOrder, updateChangeOrder, getChangeOrdersForProject, addInvoice, updateInvoice, getInvoicesForProject, getTotalOutstandingBalance, invoices, addDailyReport, updateDailyReport, getDailyReportsForProject, subcontractors, addSubcontractor, updateSubcontractor, deleteSubcontractor, getSubcontractor, punchItems, addPunchItem, updatePunchItem, deletePunchItem, getPunchItemsForProject, projectPhotos, addProjectPhoto, deleteProjectPhoto, getPhotosForProject, priceAlerts, addPriceAlert, updatePriceAlert, deletePriceAlert, contacts, addContact, updateContact, deleteContact, getContact, commEvents, addCommEvent, getCommEventsForProject, rfis, addRFI, updateRFI, deleteRFI, getRFIsForProject, submittals, addSubmittal, updateSubmittal, deleteSubmittal, getSubmittalsForProject, addReviewCycle, equipment, addEquipment, updateEquipment, deleteEquipment, logUtilization, getEquipmentForProject, getEquipmentCostForProject, warranties, addWarranty, updateWarranty, deleteWarranty, getWarrantiesForProject, addWarrantyClaim]);
+    portalMessages, addPortalMessage, markPortalMessagesRead, getPortalMessagesForProject, getUnreadPortalMessageCount, getTotalUnreadPortalCountForGc,
+  }), [sortedProjects, settings, hasSeenOnboarding, completeOnboarding, projectsQuery.isLoading, settingsQuery.isLoading, onboardingQuery.isLoading, addProject, updateProject, deleteProject, getProject, updateSettings, addCollaborator, removeCollaborator, changeOrders, addChangeOrder, updateChangeOrder, getChangeOrdersForProject, addInvoice, updateInvoice, getInvoicesForProject, getTotalOutstandingBalance, invoices, addDailyReport, updateDailyReport, getDailyReportsForProject, subcontractors, addSubcontractor, updateSubcontractor, deleteSubcontractor, getSubcontractor, punchItems, addPunchItem, updatePunchItem, deletePunchItem, getPunchItemsForProject, projectPhotos, addProjectPhoto, deleteProjectPhoto, getPhotosForProject, priceAlerts, addPriceAlert, updatePriceAlert, deletePriceAlert, contacts, addContact, updateContact, deleteContact, getContact, commEvents, addCommEvent, getCommEventsForProject, rfis, addRFI, updateRFI, deleteRFI, getRFIsForProject, submittals, addSubmittal, updateSubmittal, deleteSubmittal, getSubmittalsForProject, addReviewCycle, equipment, addEquipment, updateEquipment, deleteEquipment, logUtilization, getEquipmentForProject, getEquipmentCostForProject, warranties, addWarranty, updateWarranty, deleteWarranty, getWarrantiesForProject, addWarrantyClaim, portalMessages, addPortalMessage, markPortalMessagesRead, getPortalMessagesForProject, getUnreadPortalMessageCount, getTotalUnreadPortalCountForGc]);
 });

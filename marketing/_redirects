@@ -1,0 +1,5 @@
+# Route all /portal/* URLs (any portal ID) to the portal placeholder page.
+/portal/*  /portal/index.html  200
+
+# SPA-style fallback: unknown paths go to the landing page rather than the default Netlify 404.
+/*  /index.html  200

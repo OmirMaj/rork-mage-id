@@ -118,10 +118,10 @@ export default React.memo(function AIProjectReport({ project, invoices, changeOr
                 </View>
               </View>
 
-              {result.keyAccomplishments.length > 0 && (
+              {(result.keyAccomplishments ?? []).length > 0 && (
                 <View style={styles.section}>
                   <Text style={styles.sectionTitle}>Key Accomplishments</Text>
-                  {result.keyAccomplishments.map((item, idx) => (
+                  {(result.keyAccomplishments ?? []).map((item, idx) => (
                     <View key={idx} style={styles.listRow}>
                       <CheckCircle2 size={13} color={Colors.success} />
                       <Text style={styles.listText}>{item}</Text>
@@ -130,10 +130,10 @@ export default React.memo(function AIProjectReport({ project, invoices, changeOr
                 </View>
               )}
 
-              {result.issuesAndRisks.length > 0 && (
+              {(result.issuesAndRisks ?? []).length > 0 && (
                 <View style={styles.section}>
                   <Text style={styles.sectionTitle}>Issues & Risks</Text>
-                  {result.issuesAndRisks.map((item, idx) => (
+                  {(result.issuesAndRisks ?? []).map((item, idx) => (
                     <View key={idx} style={styles.listRow}>
                       <AlertTriangle size={13} color={Colors.warning} />
                       <Text style={styles.listText}>{item}</Text>
@@ -142,10 +142,10 @@ export default React.memo(function AIProjectReport({ project, invoices, changeOr
                 </View>
               )}
 
-              {result.nextMilestones.length > 0 && (
+              {(result.nextMilestones ?? []).length > 0 && (
                 <View style={styles.section}>
                   <Text style={styles.sectionTitle}>Next Milestones</Text>
-                  {result.nextMilestones.map((item, idx) => (
+                  {(result.nextMilestones ?? []).map((item, idx) => (
                     <View key={idx} style={styles.listRow}>
                       <Target size={13} color={Colors.primary} />
                       <Text style={styles.listText}>{item}</Text>
@@ -154,10 +154,10 @@ export default React.memo(function AIProjectReport({ project, invoices, changeOr
                 </View>
               )}
 
-              {result.recommendations.length > 0 && (
+              {(result.recommendations ?? []).length > 0 && (
                 <View style={styles.section}>
                   <Text style={styles.sectionTitle}>Recommendations</Text>
-                  {result.recommendations.map((item, idx) => (
+                  {(result.recommendations ?? []).map((item, idx) => (
                     <View key={idx} style={styles.listRow}>
                       <Sparkles size={13} color={Colors.primary} />
                       <Text style={[styles.listText, { color: Colors.primary, fontWeight: '500' as const }]}>{item}</Text>

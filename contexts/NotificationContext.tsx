@@ -28,7 +28,7 @@ export const [NotificationProvider, useNotifications] = createContextHook(() => 
         setPushToken(token);
         console.log('[NotificationContext] Push token obtained:', token);
 
-        if (!user.isGuest && user.id) {
+        if (user.id) {
           try {
             await supabase
               .from('profiles')
@@ -68,7 +68,7 @@ export const [NotificationProvider, useNotifications] = createContextHook(() => 
   }, [isAuthenticated, user, router]);
 
   useEffect(() => {
-    if (!isAuthenticated || !user || user.isGuest) return;
+    if (!isAuthenticated || !user) return;
 
     console.log('[NotificationContext] Setting up bid response realtime listener');
 

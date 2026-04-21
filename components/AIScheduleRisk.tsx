@@ -90,10 +90,11 @@ export default React.memo(function AIScheduleRisk({ schedule, projectId, weather
 
   if (!result) return null;
 
-  const highRisks = result.risks.filter(r => r.severity === 'high');
-  const medRisks = result.risks.filter(r => r.severity === 'medium');
-  const lowCount = result.risks.filter(r => r.severity === 'low').length;
-  const otherCount = schedule.tasks.length - result.risks.length;
+  const risks = Array.isArray(result.risks) ? result.risks : [];
+  const highRisks = risks.filter(r => r?.severity === 'high');
+  const medRisks = risks.filter(r => r?.severity === 'medium');
+  const lowCount = risks.filter(r => r?.severity === 'low').length;
+  const otherCount = Math.max(0, schedule.tasks.length - risks.length);
 
   return (
     <View style={styles.card}>
@@ -123,11 +124,11 @@ export default React.memo(function AIScheduleRisk({ schedule, projectId, weather
               <sev.icon size={14} color={sev.textColor} />
               <Text style={[styles.riskSeverity, { color: sev.textColor }]}>{sev.label}: "{risk.taskName}"</Text>
             </View>
-            <Text style={styles.riskProb}>{risk.delayProbability}% likely to be delayed {risk.delayDays}+ days</Text>
-            {risk.reasons.map((r, i) => (
+            <Text style={styles.riskProb}>{risk.delayProbability ?? 0}% likely to be delayed {risk.delayDays ?? 0}+ days</Text>
+            {(risk.reasons ?? []).map((r, i) => (
               <Text key={i} style={styles.riskReason}>• {r}</Text>
             ))}
-            <Text style={styles.riskRec}>→ {risk.recommendation}</Text>
+            {risk.recommendation ? <Text style={styles.riskRec}>→ {risk.recommendation}</Text> : null}
           </View>
         );
       })}
@@ -140,8 +141,8 @@ export default React.memo(function AIScheduleRisk({ schedule, projectId, weather
               <sev.icon size={14} color={sev.textColor} />
               <Text style={[styles.riskSeverity, { color: sev.textColor }]}>{sev.label}: "{risk.taskName}"</Text>
             </View>
-            <Text style={styles.riskProb}>{risk.delayProbability}% likely to slip {risk.delayDays} days</Text>
-            <Text style={styles.riskRec}>→ {risk.recommendation}</Text>
+            <Text style={styles.riskProb}>{risk.delayProbability ?? 0}% likely to slip {risk.delayDays ?? 0} days</Text>
+            {risk.recommendation ? <Text style={styles.riskRec}>→ {risk.recommendation}</Text> : null}
           </View>
         );
       })}
@@ -160,15 +161,17 @@ export default React.memo(function AIScheduleRisk({ schedule, projectId, weather
       <View style={styles.confidenceRow}>
         <View style={styles.confItem}>
           <Text style={styles.confLabel}>Completion Confidence</Text>
-          <Text style={[styles.confValue, { color: result.overallConfidence >= 70 ? Colors.success : Colors.warning }]}>
-            {result.overallConfidence}%
+          <Text style={[styles.confValue, { color: (result.overallConfidence ?? 0) >= 70 ? Colors.success : Colors.warning }]}>
+            {result.overallConfidence ?? 0}%
           </Text>
         </View>
-        <View style={styles.confItem}>
-          <Text style={styles.confLabel}>Predicted End</Text>
-          <Text style={styles.confValue}>{result.predictedEndDate}</Text>
-        </View>
-        {result.predictedDelay > 0 && (
+        {result.predictedEndDate ? (
+          <View style={styles.confItem}>
+            <Text style={styles.confLabel}>Predicted End</Text>
+            <Text style={styles.confValue}>{result.predictedEndDate}</Text>
+          </View>
+        ) : null}
+        {(result.predictedDelay ?? 0) > 0 && (
           <View style={styles.confItem}>
             <Text style={styles.confLabel}>Delay</Text>
             <Text style={[styles.confValue, { color: Colors.error }]}>+{result.predictedDelay}d</Text>

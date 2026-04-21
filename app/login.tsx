@@ -16,7 +16,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { HardHat, Mail, Lock, Eye, EyeOff, ArrowRight, ScanFace, UserX, KeyRound, Chrome } from 'lucide-react-native';
+import { HardHat, Mail, Lock, Eye, EyeOff, ArrowRight, ScanFace, KeyRound, Chrome } from 'lucide-react-native';
 import Svg, { Path } from 'react-native-svg';
 import { Colors } from '@/constants/colors';
 import { useAuth } from '@/contexts/AuthContext';
@@ -27,7 +27,7 @@ let _LocalAuthentication: typeof import('expo-local-authentication') | null = nu
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { login, loginAsGuest, loginWithBiometrics, resetPassword, hasStoredCredentials, signInWithGoogle, signInWithApple } = useAuth();
+  const { login, loginWithBiometrics, resetPassword, hasStoredCredentials, signInWithGoogle, signInWithApple } = useAuth();
 
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [isAppleLoading, setIsAppleLoading] = useState(false);
@@ -37,7 +37,6 @@ export default function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isGuestLoading, setIsGuestLoading] = useState(false);
   const [isBiometricLoading, setIsBiometricLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [biometricsAvailable, setBiometricsAvailable] = useState(false);
@@ -170,24 +169,6 @@ export default function LoginScreen() {
       setIsAppleLoading(false);
     }
   }, [signInWithApple, router]);
-
-  const handleGuestLogin = useCallback(async () => {
-    setIsGuestLoading(true);
-    try {
-      if (Platform.OS !== 'web') {
-        void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      }
-      await loginAsGuest();
-      track(AnalyticsEvents.GUEST_LOGIN);
-      router.replace('/(tabs)/(home)');
-    } catch (err) {
-      console.log('[Login] Guest login failed:', err);
-      const msg = err instanceof Error ? err.message : 'Failed to continue as guest. Please try again.';
-      Alert.alert('Error', msg);
-    } finally {
-      setIsGuestLoading(false);
-    }
-  }, [loginAsGuest, router]);
 
   return (
     <View style={styles.container}>
@@ -373,31 +354,9 @@ export default function LoginScreen() {
             ) : null}
           </View>
 
-          <View style={styles.dividerRow}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>or</Text>
-            <View style={styles.dividerLine} />
-          </View>
-
-          <TouchableOpacity
-            style={styles.guestButton}
-            onPress={handleGuestLogin}
-            disabled={isGuestLoading}
-            activeOpacity={0.7}
-            testID="login-guest"
-          >
-            {isGuestLoading ? (
-              <ActivityIndicator color={Colors.textSecondary} size="small" />
-            ) : (
-              <>
-                <UserX size={18} color={Colors.textSecondary} strokeWidth={1.8} />
-                <Text style={styles.guestButtonText}>Continue without account</Text>
-              </>
-            )}
-          </TouchableOpacity>
-          <Text style={styles.guestNote}>
-            Your data won't be saved to the cloud
-          </Text>
+          {/* Guest sign-in removed — we require real accounts (Google / Apple / email)
+              so project data persists across devices and the MAU count only reflects
+              real users, not anonymous throwaway rows. */}
 
           <TouchableOpacity
             style={styles.forgotButton}
@@ -583,26 +542,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: Colors.textMuted,
     fontWeight: '500' as const,
-  },
-  guestButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 14,
-    borderRadius: 14,
-    backgroundColor: Colors.fillTertiary,
-  },
-  guestButtonText: {
-    fontSize: 15,
-    fontWeight: '600' as const,
-    color: Colors.textSecondary,
-  },
-  guestNote: {
-    fontSize: 12,
-    color: Colors.textMuted,
-    textAlign: 'center',
-    marginTop: 8,
   },
   socialRow: {
     flexDirection: 'row',

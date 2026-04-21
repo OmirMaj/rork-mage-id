@@ -375,6 +375,42 @@ function RootLayoutNav() {
           headerTitleStyle: { fontWeight: '700', color: Colors.text },
         }}
       />
+      <Stack.Screen
+        name="aia-pay-app"
+        options={{
+          title: "AIA Pay Application",
+          headerStyle: { backgroundColor: Colors.background },
+          headerTintColor: Colors.primary,
+          headerTitleStyle: { fontWeight: '700', color: Colors.text },
+        }}
+      />
+      <Stack.Screen
+        name="data-export"
+        options={{
+          title: "Export My Data",
+          headerStyle: { backgroundColor: Colors.background },
+          headerTintColor: Colors.primary,
+          headerTitleStyle: { fontWeight: '700', color: Colors.text },
+        }}
+      />
+      <Stack.Screen
+        name="client-update"
+        options={{
+          title: "Weekly Client Update",
+          headerStyle: { backgroundColor: Colors.background },
+          headerTintColor: Colors.primary,
+          headerTitleStyle: { fontWeight: '700', color: Colors.text },
+        }}
+      />
+      <Stack.Screen
+        name="client-messages"
+        options={{
+          title: "Messages",
+          headerStyle: { backgroundColor: Colors.background },
+          headerTintColor: Colors.primary,
+          headerTitleStyle: { fontWeight: '700', color: Colors.text },
+        }}
+      />
     </Stack>
   );
 }

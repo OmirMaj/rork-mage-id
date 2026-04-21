@@ -19,8 +19,7 @@ export const [HireProvider, useHire] = createContextHook(() => {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const userId = user?.id ?? null;
-  const isGuest = user?.isGuest ?? true;
-  const canSync = !isGuest && !!userId && isSupabaseConfigured;
+  const canSync = !!userId && isSupabaseConfigured;
 
   const [jobs, setJobs] = useState<JobListing[]>([]);
   const [workers, setWorkers] = useState<WorkerProfile[]>([]);

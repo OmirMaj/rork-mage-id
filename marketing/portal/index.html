@@ -1,0 +1,919 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="theme-color" content="#1A6B3C" />
+<meta name="robots" content="noindex" />
+<title>Project Portal — MAGE ID</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%231A6B3C'/%3E%3Ctext x='50' y='64' font-family='system-ui,-apple-system,sans-serif' font-size='48' font-weight='800' text-anchor='middle' fill='white'%3EM%3C/text%3E%3C/svg%3E" />
+<style>
+  :root {
+    --brand: #1A6B3C;
+    --brand-dark: #145a31;
+    --brand-light: #f0f6f2;
+    --bg: #f7faf8;
+    --surface: #ffffff;
+    --border: #e5e9e6;
+    --border-light: #f0f2f0;
+    --text: #1a1a1a;
+    --text-secondary: #555;
+    --text-muted: #888;
+    --success: #34C759;
+    --warning: #FF9500;
+    --error: #FF3B30;
+    --info: #007AFF;
+    --shadow: 0 2px 8px rgba(0,0,0,0.04);
+    --shadow-lg: 0 10px 40px rgba(26,107,60,0.12), 0 2px 8px rgba(0,0,0,0.04);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    font-size: 15px;
+    min-height: 100vh;
+    padding-bottom: 40px;
+  }
+  .container {
+    max-width: 780px;
+    margin: 0 auto;
+    padding: 0 16px;
+  }
+
+  /* Gate (passcode) */
+  .gate-wrap {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+  .gate {
+    background: var(--surface);
+    max-width: 380px;
+    width: 100%;
+    border-radius: 20px;
+    padding: 36px 28px;
+    box-shadow: var(--shadow-lg);
+    text-align: center;
+  }
+  .gate-logo {
+    width: 64px; height: 64px;
+    border-radius: 18px;
+    background: var(--brand);
+    color: #fff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
+    font-weight: 800;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 16px rgba(26,107,60,0.25);
+  }
+  .gate h1 { font-size: 22px; margin-bottom: 8px; }
+  .gate p { color: var(--text-secondary); font-size: 14px; margin-bottom: 24px; }
+  .gate input {
+    width: 100%;
+    padding: 14px 16px;
+    font-size: 20px;
+    text-align: center;
+    letter-spacing: 8px;
+    font-weight: 600;
+    border: 2px solid var(--border);
+    border-radius: 12px;
+    background: var(--bg);
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .gate input:focus { border-color: var(--brand); }
+  .gate button {
+    width: 100%;
+    margin-top: 14px;
+    padding: 14px;
+    background: var(--brand);
+    color: #fff;
+    border: none;
+    border-radius: 12px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .gate button:hover { background: var(--brand-dark); }
+  .gate .err { color: var(--error); font-size: 13px; margin-top: 12px; min-height: 18px; }
+
+  /* Hero */
+  .hero {
+    background: linear-gradient(135deg, var(--brand) 0%, var(--brand-dark) 100%);
+    color: #fff;
+    padding: 32px 16px 40px;
+    margin-bottom: -28px;
+  }
+  .hero-inner {
+    max-width: 780px;
+    margin: 0 auto;
+  }
+  .brand-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 20px;
+    opacity: 0.9;
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .brand-mark {
+    width: 28px; height: 28px;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.2);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 14px;
+  }
+  .hero h1 {
+    font-size: 26px;
+    font-weight: 700;
+    margin-bottom: 6px;
+    line-height: 1.25;
+  }
+  .hero-meta {
+    font-size: 14px;
+    opacity: 0.85;
+  }
+  .hero-welcome {
+    background: rgba(255,255,255,0.1);
+    backdrop-filter: blur(10px);
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-top: 18px;
+    font-size: 14px;
+    line-height: 1.5;
+    border: 1px solid rgba(255,255,255,0.15);
+  }
+
+  /* Progress summary card */
+  .progress-card {
+    background: var(--surface);
+    border-radius: 16px;
+    padding: 20px;
+    box-shadow: var(--shadow-lg);
+    margin-top: 12px;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 20px;
+    align-items: center;
+  }
+  .ring {
+    position: relative;
+    width: 80px;
+    height: 80px;
+  }
+  .ring svg { transform: rotate(-90deg); }
+  .ring-bg { stroke: var(--border-light); }
+  .ring-fg { stroke: var(--brand); transition: stroke-dashoffset 0.5s ease; }
+  .ring-label {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 18px;
+    color: var(--brand);
+  }
+  .progress-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .stat-label {
+    font-size: 11px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 2px;
+  }
+  .stat-value {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text);
+  }
+
+  /* Section */
+  section {
+    background: var(--surface);
+    border-radius: 14px;
+    box-shadow: var(--shadow);
+    margin-top: 14px;
+    overflow: hidden;
+    border: 1px solid var(--border-light);
+  }
+  .section-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 18px;
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.15s;
+  }
+  .section-head:hover { background: var(--brand-light); }
+  .section-icon {
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    background: var(--brand-light);
+    color: var(--brand);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .section-title {
+    flex: 1;
+    font-weight: 600;
+    font-size: 15px;
+  }
+  .section-count {
+    background: var(--brand-light);
+    color: var(--brand);
+    font-size: 12px;
+    font-weight: 700;
+    padding: 2px 10px;
+    border-radius: 10px;
+  }
+  .section-chevron {
+    color: var(--text-muted);
+    transition: transform 0.2s;
+  }
+  section.open .section-chevron { transform: rotate(180deg); }
+  .section-body {
+    padding: 0 18px 18px;
+    display: none;
+  }
+  section.open .section-body { display: block; }
+
+  /* Generic rows */
+  .row {
+    display: flex;
+    gap: 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border-light);
+    align-items: center;
+  }
+  .row:last-child { border-bottom: none; }
+  .row-main { flex: 1; min-width: 0; }
+  .row-title {
+    font-weight: 600;
+    font-size: 14px;
+    margin-bottom: 2px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .row-meta {
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+  .row-value {
+    font-weight: 700;
+    font-size: 14px;
+    color: var(--brand);
+  }
+
+  /* Status pills */
+  .pill {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+  .pill-success { background: rgba(52,199,89,0.12); color: #2E7D32; }
+  .pill-warning { background: rgba(255,149,0,0.12); color: #E65100; }
+  .pill-error { background: rgba(255,59,48,0.12); color: #D32F2F; }
+  .pill-info { background: rgba(0,122,255,0.12); color: #0050B3; }
+  .pill-muted { background: var(--border-light); color: var(--text-muted); }
+
+  /* Pay Now button (shown on invoice rows when a Stripe pay link is attached) */
+  .pay-now-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 8px;
+    padding: 8px 14px;
+    background: var(--brand);
+    color: #fff;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 700;
+    text-decoration: none;
+    transition: background 0.15s ease;
+  }
+  .pay-now-btn:hover { background: var(--brand-dark); }
+  .pay-now-btn:active { transform: translateY(1px); }
+  .pay-now-btn .amt { font-weight: 800; }
+  .invoice-row-body { display: flex; flex-direction: column; gap: 2px; }
+
+  /* Schedule task */
+  .task-progress {
+    height: 6px;
+    background: var(--border-light);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-top: 6px;
+  }
+  .task-progress-fill {
+    height: 100%;
+    background: var(--brand);
+    border-radius: 3px;
+    transition: width 0.3s;
+  }
+
+  /* Photos grid */
+  .photo-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    padding-top: 4px;
+  }
+  @media (min-width: 480px) {
+    .photo-grid { grid-template-columns: repeat(4, 1fr); }
+  }
+  .photo {
+    aspect-ratio: 1;
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--border-light);
+    cursor: pointer;
+    position: relative;
+  }
+  .photo img {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .photo-caption {
+    position: absolute;
+    inset: auto 0 0 0;
+    padding: 4px 6px;
+    background: linear-gradient(to top, rgba(0,0,0,0.7), transparent);
+    color: #fff;
+    font-size: 10px;
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+
+  /* Lightbox */
+  .lightbox {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.92);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    padding: 20px;
+    cursor: pointer;
+  }
+  .lightbox.open { display: flex; }
+  .lightbox img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    border-radius: 8px;
+  }
+  .lightbox-close {
+    position: absolute;
+    top: 20px; right: 20px;
+    width: 36px; height: 36px;
+    border-radius: 18px;
+    background: rgba(255,255,255,0.15);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    border: none;
+    cursor: pointer;
+  }
+
+  /* Empty state */
+  .empty {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--text-muted);
+    font-size: 14px;
+  }
+  .empty-small {
+    padding: 20px 0;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 13px;
+  }
+
+  /* Error / fallback */
+  .fallback {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+  .fallback-card {
+    background: var(--surface);
+    max-width: 440px;
+    padding: 36px 28px;
+    border-radius: 20px;
+    text-align: center;
+    box-shadow: var(--shadow-lg);
+  }
+  .fallback-card h1 { font-size: 22px; margin-bottom: 10px; }
+  .fallback-card p { color: var(--text-secondary); font-size: 14px; margin-bottom: 20px; }
+  .cta {
+    display: block;
+    background: var(--brand);
+    color: #fff;
+    text-decoration: none;
+    font-weight: 600;
+    padding: 14px 20px;
+    border-radius: 12px;
+    font-size: 15px;
+    margin-bottom: 10px;
+  }
+  .cta.secondary {
+    background: #fff;
+    color: var(--brand);
+    border: 1.5px solid var(--brand);
+  }
+
+  /* Footer */
+  .portal-footer {
+    text-align: center;
+    padding: 30px 16px 10px;
+    color: var(--text-muted);
+    font-size: 12px;
+  }
+  .portal-footer a { color: var(--brand); text-decoration: none; }
+
+  /* Icons (inline SVG helpers) */
+  .icn { width: 16px; height: 16px; stroke-width: 2; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; }
+  .icn-lg { width: 18px; height: 18px; }
+</style>
+</head>
+<body>
+
+  <!-- Passcode gate (shown if portal.requirePasscode) -->
+  <div id="gate" class="gate-wrap" style="display:none">
+    <div class="gate">
+      <div class="gate-logo">M</div>
+      <h1>Enter passcode</h1>
+      <p>This project portal is protected. Please enter the 4-digit code your contractor shared with you.</p>
+      <input id="gate-input" type="tel" maxlength="4" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="••••" />
+      <button id="gate-submit">Unlock</button>
+      <div class="err" id="gate-err"></div>
+    </div>
+  </div>
+
+  <!-- Fallback (no data in URL) -->
+  <div id="fallback" class="fallback" style="display:none">
+    <div class="fallback-card">
+      <div class="gate-logo" style="margin-bottom:16px">M</div>
+      <h1>Portal link expired</h1>
+      <p>This portal link doesn't contain any project data. Ask your contractor for a fresh link — they can share one directly from the MAGE ID app.</p>
+      <a class="cta" href="mailto:support@mageid.app?subject=Portal%20Help">Contact support</a>
+      <a class="cta secondary" href="/">Visit mageid.app</a>
+    </div>
+  </div>
+
+  <!-- Main portal (rendered after data + gate pass) -->
+  <div id="portal" style="display:none">
+    <div class="hero">
+      <div class="hero-inner">
+        <div class="brand-row">
+          <div class="brand-mark" id="brand-mark">M</div>
+          <span id="brand-name">MAGE ID</span>
+        </div>
+        <h1 id="project-name">Project</h1>
+        <div class="hero-meta" id="project-meta"></div>
+        <div class="hero-welcome" id="welcome" style="display:none"></div>
+      </div>
+    </div>
+
+    <div class="container">
+      <div class="progress-card" id="progress-card" style="display:none">
+        <div class="ring">
+          <svg width="80" height="80" viewBox="0 0 80 80">
+            <circle cx="40" cy="40" r="34" stroke-width="6" class="ring-bg" fill="none"/>
+            <circle id="ring-fg" cx="40" cy="40" r="34" stroke-width="6" class="ring-fg" fill="none"
+              stroke-dasharray="213.6" stroke-dashoffset="213.6" stroke-linecap="round"/>
+          </svg>
+          <div class="ring-label" id="ring-label">0%</div>
+        </div>
+        <div class="progress-stats" id="progress-stats"></div>
+      </div>
+
+      <div id="sections"></div>
+
+      <div class="portal-footer">
+        <div>Powered by <a href="/">MAGE ID</a> · <a href="mailto:support@mageid.app">Contact support</a></div>
+        <div style="margin-top:6px">Snapshot taken <span id="snapshot-time">just now</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Lightbox -->
+  <div class="lightbox" id="lightbox">
+    <button class="lightbox-close" id="lightbox-close" aria-label="Close">✕</button>
+    <img id="lightbox-img" alt="" />
+  </div>
+
+<script>
+(function () {
+  'use strict';
+
+  // -------- Icon helper --------
+  function icn(svgInner, size) {
+    var s = size || 16;
+    return '<svg class="icn" width="'+s+'" height="'+s+'" viewBox="0 0 24 24">'+svgInner+'</svg>';
+  }
+  var ICONS = {
+    calendar:   '<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>',
+    dollar:     '<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
+    file:       '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>',
+    image:      '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>',
+    clipboard:  '<path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/>',
+    check:      '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>',
+    chevron:    '<polyline points="6 9 12 15 18 9"/>',
+    alert:      '<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
+    help:       '<circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
+    diff:       '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
+  };
+
+  // -------- URL fragment decoder --------
+  function decodeHashPayload() {
+    try {
+      var h = window.location.hash || '';
+      if (!h) return null;
+      var m = h.match(/[#&]d=([^&]+)/);
+      if (!m) return null;
+      var b64 = decodeURIComponent(m[1]).replace(/-/g, '+').replace(/_/g, '/');
+      // pad to multiple of 4
+      while (b64.length % 4) b64 += '=';
+      var json = decodeURIComponent(escape(atob(b64)));
+      return JSON.parse(json);
+    } catch (e) {
+      console.error('decode failed', e);
+      return null;
+    }
+  }
+
+  // -------- Helpers --------
+  function fmtMoney(n) {
+    if (n == null || isNaN(n)) return '—';
+    return '$' + Number(n).toLocaleString(undefined, { maximumFractionDigits: 0 });
+  }
+  function fmtDate(iso) {
+    if (!iso) return '—';
+    var d = new Date(iso);
+    if (isNaN(d)) return iso;
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+  function fmtDateShort(iso) {
+    if (!iso) return '—';
+    var d = new Date(iso);
+    if (isNaN(d)) return iso;
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  }
+  function esc(s) {
+    if (s == null) return '';
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  function timeAgo(iso) {
+    if (!iso) return 'recently';
+    var diff = Date.now() - new Date(iso).getTime();
+    var mins = Math.floor(diff / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return mins + ' min ago';
+    var hrs = Math.floor(mins / 60);
+    if (hrs < 24) return hrs + ' hr ago';
+    var days = Math.floor(hrs / 24);
+    if (days < 7) return days + ' day' + (days > 1 ? 's' : '') + ' ago';
+    return fmtDate(iso);
+  }
+  function statusPillClass(s) {
+    var x = String(s || '').toLowerCase();
+    if (['paid','approved','completed','closed','answered','done','complete'].indexOf(x) > -1) return 'pill-success';
+    if (['pending','submitted','open','in_progress','draft','review','ready_for_review'].indexOf(x) > -1) return 'pill-warning';
+    if (['overdue','rejected','void'].indexOf(x) > -1) return 'pill-error';
+    return 'pill-muted';
+  }
+  function statusLabel(s) {
+    if (!s) return '';
+    return String(s).replace(/_/g, ' ').replace(/\b\w/g, function (c) { return c.toUpperCase(); });
+  }
+
+  // -------- Section rendering --------
+  function mkSection(id, icon, title, count, body) {
+    var countHtml = (count != null) ? '<span class="section-count">'+count+'</span>' : '';
+    return (
+      '<section id="sec-'+id+'">' +
+        '<div class="section-head" data-toggle="'+id+'">' +
+          '<div class="section-icon">'+icn(icon,18)+'</div>' +
+          '<span class="section-title">'+esc(title)+'</span>' +
+          countHtml +
+          '<span class="section-chevron">'+icn(ICONS.chevron,16)+'</span>' +
+        '</div>' +
+        '<div class="section-body">'+body+'</div>' +
+      '</section>'
+    );
+  }
+
+  function renderSchedule(tasks) {
+    if (!tasks || !tasks.length) return '<div class="empty-small">No tasks shared yet.</div>';
+    return tasks.map(function (t) {
+      return (
+        '<div class="row">' +
+          '<div class="row-main">' +
+            '<div class="row-title">'+esc(t.title)+'</div>' +
+            '<div class="row-meta">'+esc(t.phase || '')+(t.durationDays ? ' · '+t.durationDays+'d' : '')+'</div>' +
+            '<div class="task-progress"><div class="task-progress-fill" style="width:'+(t.progress||0)+'%"></div></div>' +
+          '</div>' +
+          '<span class="pill '+statusPillClass(t.status)+'">'+esc(statusLabel(t.status))+'</span>' +
+        '</div>'
+      );
+    }).join('');
+  }
+
+  function renderBudget(b) {
+    if (!b) return '<div class="empty-small">Budget not shared.</div>';
+    var rows = [
+      { label: 'Contract Value', value: fmtMoney(b.contractValue) },
+      { label: 'Paid to Date', value: fmtMoney(b.paidToDate) },
+      { label: 'Outstanding', value: fmtMoney(b.outstanding) },
+      { label: 'Progress', value: (b.pctComplete != null ? b.pctComplete + '%' : '—') },
+    ];
+    return rows.map(function (r) {
+      return '<div class="row"><div class="row-main"><div class="row-title">'+esc(r.label)+'</div></div><div class="row-value">'+esc(r.value)+'</div></div>';
+    }).join('');
+  }
+
+  function renderInvoices(invs) {
+    if (!invs || !invs.length) return '<div class="empty-small">No invoices shared.</div>';
+    return invs.map(function (i) {
+      var balance = (typeof i.balance === 'number') ? i.balance : i.total;
+      var showPayNow = i.payLinkUrl && i.status !== 'paid' && balance > 0;
+      var payNowBtn = showPayNow
+        ? '<a class="pay-now-btn" href="'+esc(i.payLinkUrl)+'" target="_blank" rel="noopener">Pay <span class="amt">'+fmtMoney(balance)+'</span> now</a>'
+        : '';
+      return (
+        '<div class="row">' +
+          '<div class="row-main">' +
+            '<div class="invoice-row-body">' +
+              '<div class="row-title">Invoice #'+esc(i.number)+'</div>' +
+              '<div class="row-meta">Due '+fmtDate(i.dueDate)+' · '+fmtMoney(i.total)+'</div>' +
+              payNowBtn +
+            '</div>' +
+          '</div>' +
+          '<span class="pill '+statusPillClass(i.status)+'">'+esc(statusLabel(i.status))+'</span>' +
+        '</div>'
+      );
+    }).join('');
+  }
+
+  function renderChangeOrders(cos) {
+    if (!cos || !cos.length) return '<div class="empty-small">No change orders shared.</div>';
+    return cos.map(function (c) {
+      var amt = c.changeAmount || 0;
+      var sign = amt >= 0 ? '+' : '-';
+      return (
+        '<div class="row">' +
+          '<div class="row-main">' +
+            '<div class="row-title">CO #'+esc(c.number)+' — '+esc(c.description || '')+'</div>' +
+            '<div class="row-meta">'+fmtDate(c.dateSubmitted)+' · '+sign+fmtMoney(Math.abs(amt))+'</div>' +
+          '</div>' +
+          '<span class="pill '+statusPillClass(c.status)+'">'+esc(statusLabel(c.status))+'</span>' +
+        '</div>'
+      );
+    }).join('');
+  }
+
+  function renderPhotos(photos) {
+    if (!photos || !photos.length) return '<div class="empty-small">No photos shared yet.</div>';
+    var grid = photos.map(function (p, idx) {
+      var cap = p.caption ? '<div class="photo-caption">'+esc(p.caption)+'</div>' : '';
+      return '<div class="photo" data-photo="'+idx+'"><img loading="lazy" src="'+esc(p.url)+'" alt="'+esc(p.caption||'')+'"/>'+cap+'</div>';
+    }).join('');
+    return '<div class="photo-grid">'+grid+'</div>';
+  }
+
+  function renderDailyReports(drs) {
+    if (!drs || !drs.length) return '<div class="empty-small">No daily reports shared.</div>';
+    return drs.map(function (d) {
+      return (
+        '<div class="row">' +
+          '<div class="row-main">' +
+            '<div class="row-title">'+fmtDate(d.date)+(d.weather ? ' · '+esc(d.weather) : '')+'</div>' +
+            '<div class="row-meta">'+(d.totalManpower ? d.totalManpower+' workers · ' : '')+(d.totalManHours ? d.totalManHours+' hrs' : '')+'</div>' +
+            (d.workPerformed ? '<div class="row-meta" style="margin-top:4px;white-space:pre-wrap">'+esc(d.workPerformed)+'</div>' : '') +
+          '</div>' +
+        '</div>'
+      );
+    }).join('');
+  }
+
+  function renderPunchList(items) {
+    if (!items || !items.length) return '<div class="empty-small">No punch list items shared.</div>';
+    return items.map(function (p) {
+      return (
+        '<div class="row">' +
+          '<div class="row-main">' +
+            '<div class="row-title">'+esc(p.title)+'</div>' +
+            '<div class="row-meta">'+(p.location ? esc(p.location)+' · ' : '')+(p.priority ? 'Priority: '+esc(p.priority) : '')+'</div>' +
+          '</div>' +
+          '<span class="pill '+statusPillClass(p.status)+'">'+esc(statusLabel(p.status))+'</span>' +
+        '</div>'
+      );
+    }).join('');
+  }
+
+  function renderRFIs(rfis) {
+    if (!rfis || !rfis.length) return '<div class="empty-small">No RFIs shared.</div>';
+    return rfis.map(function (r) {
+      return (
+        '<div class="row">' +
+          '<div class="row-main">' +
+            '<div class="row-title">RFI #'+esc(r.number)+' — '+esc(r.subject || '')+'</div>' +
+            '<div class="row-meta">Submitted '+fmtDate(r.dateSubmitted)+'</div>' +
+          '</div>' +
+          '<span class="pill '+statusPillClass(r.status)+'">'+esc(statusLabel(r.status))+'</span>' +
+        '</div>'
+      );
+    }).join('');
+  }
+
+  function renderDocuments(docs) {
+    if (!docs || !docs.length) return '<div class="empty-small">No documents shared.</div>';
+    return docs.map(function (d) {
+      return (
+        '<div class="row">' +
+          '<div class="row-main">' +
+            '<div class="row-title">'+esc(d.name || d.fileName || 'Document')+'</div>' +
+            '<div class="row-meta">'+esc(d.type || '')+(d.dateSent ? ' · '+fmtDate(d.dateSent) : '')+'</div>' +
+          '</div>' +
+        '</div>'
+      );
+    }).join('');
+  }
+
+  // -------- Wire up --------
+  function showFallback() {
+    document.getElementById('fallback').style.display = 'flex';
+  }
+
+  function render(data) {
+    // Brand
+    var companyName = (data.company && data.company.name) || 'MAGE ID';
+    document.getElementById('brand-name').textContent = companyName;
+    document.getElementById('brand-mark').textContent = (companyName.charAt(0) || 'M').toUpperCase();
+
+    // Project hero
+    var project = data.project || {};
+    document.getElementById('project-name').textContent = project.name || 'Project';
+    var metaParts = [];
+    if (project.type) metaParts.push(project.type);
+    if (project.address) metaParts.push(project.address);
+    if (project.status) metaParts.push(statusLabel(project.status));
+    document.getElementById('project-meta').textContent = metaParts.join(' · ');
+
+    if (data.welcomeMessage) {
+      var w = document.getElementById('welcome');
+      w.textContent = data.welcomeMessage;
+      w.style.display = 'block';
+    }
+
+    // Progress card
+    var sections = data.sections || {};
+    var budget = sections.budget;
+    if (budget) {
+      var card = document.getElementById('progress-card');
+      card.style.display = 'grid';
+      var pct = Number(budget.pctComplete || 0);
+      var circumference = 2 * Math.PI * 34;
+      var offset = circumference * (1 - pct / 100);
+      document.getElementById('ring-fg').style.strokeDasharray = circumference;
+      document.getElementById('ring-fg').style.strokeDashoffset = offset;
+      document.getElementById('ring-label').textContent = pct + '%';
+      var stats = [
+        { label: 'Contract', value: fmtMoney(budget.contractValue) },
+        { label: 'Paid', value: fmtMoney(budget.paidToDate) },
+        { label: 'Outstanding', value: fmtMoney(budget.outstanding) },
+        { label: 'Next Milestone', value: budget.nextMilestone || '—' },
+      ];
+      document.getElementById('progress-stats').innerHTML = stats.map(function (s) {
+        return '<div><div class="stat-label">'+esc(s.label)+'</div><div class="stat-value">'+esc(s.value)+'</div></div>';
+      }).join('');
+    }
+
+    // Sections (rendered only if present — GC toggles control what's in the payload)
+    var sectionHtml = '';
+    if (sections.schedule)       sectionHtml += mkSection('schedule',     ICONS.calendar,  'Schedule',       (sections.schedule.tasks || []).length,        renderSchedule(sections.schedule.tasks));
+    if (sections.budget)         sectionHtml += mkSection('budget',       ICONS.dollar,    'Budget Summary', null,                                           renderBudget(sections.budget));
+    if (sections.invoices)       sectionHtml += mkSection('invoices',     ICONS.file,      'Invoices',       sections.invoices.length,                        renderInvoices(sections.invoices));
+    if (sections.changeOrders)   sectionHtml += mkSection('changeOrders', ICONS.diff,      'Change Orders',  sections.changeOrders.length,                    renderChangeOrders(sections.changeOrders));
+    if (sections.photos)         sectionHtml += mkSection('photos',       ICONS.image,     'Photos',         sections.photos.length,                          renderPhotos(sections.photos));
+    if (sections.dailyReports)   sectionHtml += mkSection('dailyReports', ICONS.clipboard, 'Daily Reports',  sections.dailyReports.length,                    renderDailyReports(sections.dailyReports));
+    if (sections.punchList)      sectionHtml += mkSection('punchList',    ICONS.check,     'Punch List',     sections.punchList.length,                       renderPunchList(sections.punchList));
+    if (sections.rfis)           sectionHtml += mkSection('rfis',         ICONS.help,      'RFIs',           sections.rfis.length,                            renderRFIs(sections.rfis));
+    if (sections.documents)      sectionHtml += mkSection('documents',    ICONS.file,      'Documents',      sections.documents.length,                       renderDocuments(sections.documents));
+    if (!sectionHtml) {
+      sectionHtml = '<div class="empty" style="background:var(--surface);border-radius:14px;margin-top:14px">Your contractor hasn\'t shared any details yet. Check back soon — or reach out if you need an update.</div>';
+    }
+    document.getElementById('sections').innerHTML = sectionHtml;
+
+    // Expand first section by default
+    var firstSection = document.querySelector('#sections section');
+    if (firstSection) firstSection.classList.add('open');
+
+    // Snapshot time
+    if (data.snapshotAt) {
+      document.getElementById('snapshot-time').textContent = timeAgo(data.snapshotAt);
+    }
+
+    // Bind toggles
+    document.querySelectorAll('.section-head').forEach(function (el) {
+      el.addEventListener('click', function () {
+        el.parentElement.classList.toggle('open');
+      });
+    });
+
+    // Lightbox for photos
+    var photoData = (sections.photos || []);
+    document.querySelectorAll('.photo').forEach(function (el) {
+      el.addEventListener('click', function () {
+        var idx = parseInt(el.getAttribute('data-photo'), 10);
+        var p = photoData[idx];
+        if (!p) return;
+        document.getElementById('lightbox-img').src = p.url;
+        document.getElementById('lightbox').classList.add('open');
+      });
+    });
+    function closeLightbox() { document.getElementById('lightbox').classList.remove('open'); }
+    document.getElementById('lightbox').addEventListener('click', closeLightbox);
+    document.getElementById('lightbox-close').addEventListener('click', closeLightbox);
+
+    document.getElementById('portal').style.display = 'block';
+  }
+
+  function runGate(data, onPass) {
+    // If no passcode required, go straight through.
+    if (!data.requirePasscode || !data.passcode) {
+      onPass();
+      return;
+    }
+    var gate = document.getElementById('gate');
+    gate.style.display = 'flex';
+    var input = document.getElementById('gate-input');
+    var btn = document.getElementById('gate-submit');
+    var err = document.getElementById('gate-err');
+    input.focus();
+    function attempt() {
+      if (String(input.value).trim() === String(data.passcode).trim()) {
+        sessionStorage.setItem('portal_unlocked_'+(data.project && data.project.id || 'x'), '1');
+        gate.style.display = 'none';
+        onPass();
+      } else {
+        err.textContent = 'Incorrect passcode — please try again.';
+        input.value = '';
+        input.focus();
+      }
+    }
+    btn.addEventListener('click', attempt);
+    input.addEventListener('keydown', function (e) { if (e.key === 'Enter') attempt(); });
+
+    // Skip gate if already unlocked this session
+    if (sessionStorage.getItem('portal_unlocked_'+(data.project && data.project.id || 'x')) === '1') {
+      gate.style.display = 'none';
+      onPass();
+    }
+  }
+
+  // -------- Boot --------
+  var data = decodeHashPayload();
+  if (!data) { showFallback(); return; }
+  runGate(data, function () { render(data); });
+
+})();
+</script>
+</body>
+</html>

@@ -88,7 +88,7 @@ export default React.memo(function AIEstimateValidator(props: Props) {
 
       {isExpanded && (
         <>
-          {result.issues.map((issue, idx) => {
+          {(result.issues ?? []).map((issue, idx) => {
             const config = ISSUE_ICONS[issue.type];
             return (
               <View key={idx} style={[styles.issueRow, { backgroundColor: config.bg }]}>
@@ -104,10 +104,10 @@ export default React.memo(function AIEstimateValidator(props: Props) {
             );
           })}
 
-          {result.missingItems.length > 0 && (
+          {(result.missingItems ?? []).length > 0 && (
             <View style={styles.missingSection}>
               <Text style={styles.missingTitle}>Potentially Missing Items:</Text>
-              {result.missingItems.map((item, idx) => (
+              {(result.missingItems ?? []).map((item, idx) => (
                 <Text key={idx} style={styles.missingItem}>• {item}</Text>
               ))}
             </View>

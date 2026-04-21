@@ -76,7 +76,7 @@ export default React.memo(function AIChangeOrderImpact({ changeDescription, line
               <Text style={styles.sectionTitle}>Schedule Impact</Text>
             </View>
             <Text style={styles.impactValue}>+{result.scheduleDays} days</Text>
-            {result.affectedTasks.map((task, idx) => (
+            {(result.affectedTasks ?? []).map((task, idx) => (
               <View key={idx} style={styles.taskRow}>
                 <ArrowRight size={12} color={Colors.textMuted} />
                 <Text style={styles.taskText}>
@@ -95,30 +95,30 @@ export default React.memo(function AIChangeOrderImpact({ changeDescription, line
             <View style={styles.costGrid}>
               <View style={styles.costItem}>
                 <Text style={styles.costLabel}>Materials</Text>
-                <Text style={styles.costValue}>{formatCurrency(result.costImpact.materials)}</Text>
+                <Text style={styles.costValue}>{formatCurrency(result.costImpact?.materials ?? 0)}</Text>
               </View>
               <View style={styles.costItem}>
                 <Text style={styles.costLabel}>Labor</Text>
-                <Text style={styles.costValue}>{formatCurrency(result.costImpact.labor)}</Text>
+                <Text style={styles.costValue}>{formatCurrency(result.costImpact?.labor ?? 0)}</Text>
               </View>
               <View style={styles.costItem}>
                 <Text style={styles.costLabel}>Equipment</Text>
-                <Text style={styles.costValue}>{formatCurrency(result.costImpact.equipment)}</Text>
+                <Text style={styles.costValue}>{formatCurrency(result.costImpact?.equipment ?? 0)}</Text>
               </View>
               <View style={[styles.costItem, { backgroundColor: `${Colors.primary}10` }]}>
                 <Text style={[styles.costLabel, { fontWeight: '700' as const }]}>Total</Text>
-                <Text style={[styles.costValue, { color: Colors.primary }]}>{formatCurrency(result.costImpact.total)}</Text>
+                <Text style={[styles.costValue, { color: Colors.primary }]}>{formatCurrency(result.costImpact?.total ?? 0)}</Text>
               </View>
             </View>
           </View>
 
-          {result.downstreamEffects.length > 0 && (
+          {(result.downstreamEffects ?? []).length > 0 && (
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
                 <Zap size={14} color={Colors.warning} />
                 <Text style={styles.sectionTitle}>Downstream Effects</Text>
               </View>
-              {result.downstreamEffects.map((effect, idx) => (
+              {(result.downstreamEffects ?? []).map((effect, idx) => (
                 <Text key={idx} style={styles.effectText}>• {effect}</Text>
               ))}
             </View>
@@ -129,10 +129,10 @@ export default React.memo(function AIChangeOrderImpact({ changeDescription, line
             <Text style={styles.recText}>{result.recommendation}</Text>
           </View>
 
-          {result.compressionOptions.length > 0 && (
+          {(result.compressionOptions ?? []).length > 0 && (
             <View style={styles.section}>
               <Text style={styles.recTitle}>Compression Options</Text>
-              {result.compressionOptions.map((opt, idx) => (
+              {(result.compressionOptions ?? []).map((opt, idx) => (
                 <View key={idx} style={styles.compRow}>
                   <Text style={styles.compDesc}>{opt.description}</Text>
                   <Text style={styles.compMeta}>

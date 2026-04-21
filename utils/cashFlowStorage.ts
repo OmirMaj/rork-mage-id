@@ -7,6 +7,10 @@ const CASHFLOW_AI_CACHE_KEY = 'mage_cashflow_ai_cache';
 
 export interface CashFlowData {
   startingBalance: number;
+  // The timestamp the startingBalance was last set. Any invoice payments dated
+  // AFTER this get auto-added to the effective current balance — that way the
+  // GC doesn't have to manually bump the bank balance every time a check clears.
+  balanceAsOf?: string;
   expenses: CashFlowExpense[];
   expectedPayments: ExpectedPayment[];
   defaultPaymentTerms: string;
@@ -16,6 +20,7 @@ export interface CashFlowData {
 
 const DEFAULT_CASHFLOW_DATA: CashFlowData = {
   startingBalance: 0,
+  balanceAsOf: new Date().toISOString(),
   expenses: [],
   expectedPayments: [],
   defaultPaymentTerms: 'net_30',

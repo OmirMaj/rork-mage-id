@@ -13,8 +13,7 @@ export const [BidsProvider, useBids] = createContextHook(() => {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const userId = user?.id ?? null;
-  const isGuest = user?.isGuest ?? true;
-  const canSync = !isGuest && !!userId && isSupabaseConfigured;
+  const canSync = !!userId && isSupabaseConfigured;
   const [bids, setBids] = useState<PublicBid[]>([]);
 
   const bidsQuery = useQuery({

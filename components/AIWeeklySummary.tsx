@@ -84,29 +84,29 @@ export default function AIWeeklySummary({ projects, visible, onClose }: Props) {
               <Text style={styles.sectionLabel}>PORTFOLIO OVERVIEW</Text>
               <View style={styles.overviewGrid}>
                 <View style={styles.overviewItem}>
-                  <Text style={styles.overviewValue}>{result.portfolioSummary.totalProjects}</Text>
+                  <Text style={styles.overviewValue}>{result.portfolioSummary?.totalProjects ?? 0}</Text>
                   <Text style={styles.overviewLabel}>Active</Text>
                 </View>
                 <View style={styles.overviewItem}>
-                  <Text style={[styles.overviewValue, { color: Colors.success }]}>{result.portfolioSummary.onTrack}</Text>
+                  <Text style={[styles.overviewValue, { color: Colors.success }]}>{result.portfolioSummary?.onTrack ?? 0}</Text>
                   <Text style={styles.overviewLabel}>On Track</Text>
                 </View>
                 <View style={styles.overviewItem}>
-                  <Text style={[styles.overviewValue, { color: Colors.warning }]}>{result.portfolioSummary.atRisk}</Text>
+                  <Text style={[styles.overviewValue, { color: Colors.warning }]}>{result.portfolioSummary?.atRisk ?? 0}</Text>
                   <Text style={styles.overviewLabel}>At Risk</Text>
                 </View>
                 <View style={styles.overviewItem}>
-                  <Text style={styles.overviewValue}>{result.portfolioSummary.tasksCompletedThisWeek}</Text>
+                  <Text style={styles.overviewValue}>{result.portfolioSummary?.tasksCompletedThisWeek ?? 0}</Text>
                   <Text style={styles.overviewLabel}>Completed</Text>
                 </View>
               </View>
               <View style={styles.combinedValue}>
                 <Text style={styles.combinedLabel}>Combined portfolio value</Text>
-                <Text style={styles.combinedAmount}>{formatCurrency(result.portfolioSummary.combinedValue)}</Text>
+                <Text style={styles.combinedAmount}>{formatCurrency(result.portfolioSummary?.combinedValue ?? 0)}</Text>
               </View>
             </View>
 
-            {result.projects.map((proj, idx) => {
+            {(result.projects ?? []).map((proj, idx) => {
               const config = STATUS_CONFIG[proj.status] ?? STATUS_CONFIG.on_track;
               const StatusIcon = config.icon;
               return (
