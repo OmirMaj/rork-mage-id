@@ -17,6 +17,7 @@ import CashFlowChart from '@/components/CashFlowChart';
 import CashFlowSetup from '@/components/CashFlowSetup';
 import {
   generateForecast, calculateSummary, formatCurrency, formatCurrencyShort,
+  getEffectiveStartingBalance,
 } from '@/utils/cashFlowEngine';
 import type { CashFlowExpense, ExpectedPayment, CashFlowWeek, CashFlowSummary, ExpenseCategory, ExpenseFrequency } from '@/utils/cashFlowEngine';
 import {
@@ -27,24 +28,58 @@ import type { CashFlowData } from '@/utils/cashFlowStorage';
 import { mageAI } from '@/utils/mageAI';
 import { z } from 'zod';
 
+// Gemini occasionally swaps shapes — returning strings where objects are expected
+// or vice versa. These preprocess coercers normalize the payload so the UI never
+// crashes on a bad shape.
+const coerceStringArray = z.preprocess(
+  (v) => {
+    if (Array.isArray(v)) {
+      return v.map((item) => {
+        if (typeof item === 'string') return item;
+        if (item && typeof item === 'object') {
+          // Pull a sensible string out of {action, description, ...}
+          const obj = item as Record<string, unknown>;
+          return String(obj.action ?? obj.description ?? obj.text ?? obj.title ?? JSON.stringify(obj));
+        }
+        return String(item ?? '');
+      });
+    }
+    if (typeof v === 'string') return [v];
+    if (v && typeof v === 'object') return Object.values(v).map((x) => String(x));
+    return [];
+  },
+  z.array(z.string()).default([]),
+);
+
+const recommendationItemSchema = z.preprocess(
+  (v) => {
+    if (typeof v === 'string') {
+      // Model returned a plain string — wrap it as an object.
+      return { priority: 'important', action: v, impact: '', difficulty: 'moderate' };
+    }
+    return v;
+  },
+  z.object({
+    priority: z.enum(['urgent', 'important', 'suggestion']).catch('important').default('important'),
+    action: z.string().catch('').default(''),
+    impact: z.string().catch('').default(''),
+    difficulty: z.enum(['easy', 'moderate', 'hard']).catch('moderate').default('moderate'),
+  }),
+);
+
 const cashFlowAnalysisSchema = z.object({
-  overallHealth: z.enum(['healthy', 'caution', 'danger']),
-  healthScore: z.number(),
+  overallHealth: z.enum(['healthy', 'caution', 'danger']).catch('caution').default('caution'),
+  healthScore: z.number().catch(50).default(50),
   criticalWeeks: z.array(z.object({
-    weekNumber: z.number(),
-    weekDate: z.string(),
-    balance: z.number(),
-    problem: z.string(),
-  })),
-  recommendations: z.array(z.object({
-    priority: z.enum(['urgent', 'important', 'suggestion']),
-    action: z.string(),
-    impact: z.string(),
-    difficulty: z.enum(['easy', 'moderate', 'hard']),
-  })),
-  billingOptimizations: z.array(z.string()),
-  expenseReductions: z.array(z.string()),
-  summary: z.string(),
+    weekNumber: z.number().catch(0).default(0),
+    weekDate: z.string().catch('').default(''),
+    balance: z.number().catch(0).default(0),
+    problem: z.string().catch('').default(''),
+  })).default([]),
+  recommendations: z.array(recommendationItemSchema).default([]),
+  billingOptimizations: coerceStringArray,
+  expenseReductions: coerceStringArray,
+  summary: z.string().default(''),
 });
 
 type AIAnalysis = z.infer<typeof cashFlowAnalysisSchema>;
@@ -78,7 +113,7 @@ export default function CashFlowScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { projectId } = useLocalSearchParams<{ projectId?: string }>();
-  const { projects, invoices: allInvoices, getInvoicesForProject } = useProjects();
+  const { projects, invoices: allInvoices, getInvoicesForProject, changeOrders: allChangeOrders, getChangeOrdersForProject } = useProjects();
 
   const [loading, setLoading] = useState(true);
   const [showSetup, setShowSetup] = useState(false);
@@ -114,6 +149,11 @@ export default function CashFlowScreen() {
     return allInvoices;
   }, [projectId, allInvoices, getInvoicesForProject]);
 
+  const relevantChangeOrders = useMemo(() => {
+    if (projectId) return getChangeOrdersForProject(projectId);
+    return allChangeOrders;
+  }, [projectId, allChangeOrders, getChangeOrdersForProject]);
+
   useEffect(() => {
     const init = async () => {
       console.log('[CashFlow] Initializing...');
@@ -132,17 +172,27 @@ export default function CashFlowScreen() {
     void init();
   }, [projectId]);
 
+  const effectiveStartingBalance = useMemo<number>(() => {
+    if (!cashFlowData) return 0;
+    return getEffectiveStartingBalance(
+      cashFlowData.startingBalance,
+      cashFlowData.balanceAsOf,
+      relevantInvoices,
+    );
+  }, [cashFlowData, relevantInvoices]);
+
   const forecast = useMemo<CashFlowWeek[]>(() => {
     if (!cashFlowData) return [];
     return generateForecast(
-      cashFlowData.startingBalance,
+      effectiveStartingBalance,
       cashFlowData.expenses,
       relevantInvoices,
       cashFlowData.expectedPayments,
       forecastWeeks,
-      cashFlowData.defaultPaymentTerms
+      cashFlowData.defaultPaymentTerms,
+      relevantChangeOrders,
     );
-  }, [cashFlowData, relevantInvoices, forecastWeeks]);
+  }, [cashFlowData, effectiveStartingBalance, relevantInvoices, relevantChangeOrders, forecastWeeks]);
 
   const summary = useMemo<CashFlowSummary>(() => calculateSummary(forecast), [forecast]);
 
@@ -162,7 +212,9 @@ export default function CashFlowScreen() {
   const handleUpdateBalance = useCallback(async () => {
     if (!cashFlowData) return;
     const bal = parseFloat(editBalanceValue) || 0;
-    const updated = { ...cashFlowData, startingBalance: bal };
+    // Stamp balanceAsOf so future invoice payments can be auto-added on top of
+    // this balance without the GC having to manually re-edit every time a check clears.
+    const updated = { ...cashFlowData, startingBalance: bal, balanceAsOf: new Date().toISOString() };
     setCashFlowData(updated);
     await saveCashFlowData(updated);
     setShowEditBalance(false);
@@ -250,7 +302,7 @@ ${relevantInvoices.filter(i => i.status !== 'paid').map(i => `#${i.number}: ${i.
 Identify any weeks where the balance goes negative or dangerously low (under $5,000). For each problem, give a SPECIFIC fix — not generic advice. Reference actual invoice numbers, expense names, and dollar amounts. Suggest billing optimizations and expense reductions specific to their actual data.`,
         schema: cashFlowAnalysisSchema,
         tier: 'smart',
-        maxTokens: 2000,
+        maxTokens: 3500,
       });
       if (!aiResult.success) {
         Alert.alert('AI Unavailable', aiResult.error || 'Try again.');
@@ -350,7 +402,10 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
         <View style={styles.heroCard}>
           <View style={styles.heroRow}>
             <View style={styles.heroLeft}>
-              <Text style={styles.heroLabel}>Starting Balance</Text>
+              <Text style={styles.heroLabel}>
+                Current Balance
+                {effectiveStartingBalance !== (cashFlowData?.startingBalance ?? 0) ? ' (auto-updated)' : ''}
+              </Text>
               <TouchableOpacity
                 onPress={() => {
                   setEditBalanceValue(cashFlowData?.startingBalance?.toString() ?? '0');
@@ -359,7 +414,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
                 activeOpacity={0.7}
               >
                 <Text style={styles.heroAmount}>
-                  {formatCurrency(cashFlowData?.startingBalance ?? 0)}
+                  {formatCurrency(effectiveStartingBalance)}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -646,10 +701,10 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
 
               <Text style={styles.aiSummary}>{aiAnalysis.summary}</Text>
 
-              {aiAnalysis.criticalWeeks.length > 0 && (
+              {(aiAnalysis.criticalWeeks ?? []).length > 0 && (
                 <View style={styles.aiSection}>
                   <Text style={styles.aiSectionTitle}>Critical Weeks</Text>
-                  {aiAnalysis.criticalWeeks.map((cw, i) => (
+                  {(aiAnalysis.criticalWeeks ?? []).map((cw, i) => (
                     <View key={i} style={styles.criticalWeekRow}>
                       <AlertTriangle size={14} color={Colors.error} />
                       <Text style={styles.criticalWeekText}>
@@ -660,10 +715,10 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
                 </View>
               )}
 
-              {aiAnalysis.recommendations.length > 0 && (
+              {(aiAnalysis.recommendations ?? []).length > 0 && (
                 <View style={styles.aiSection}>
                   <Text style={styles.aiSectionTitle}>Recommendations</Text>
-                  {aiAnalysis.recommendations.map((rec, i) => {
+                  {(aiAnalysis.recommendations ?? []).map((rec, i) => {
                     const pc = priorityConfig(rec.priority);
                     return (
                       <View key={i} style={[styles.recCard, { backgroundColor: pc.bg, borderColor: pc.text + '30' }]}>
@@ -683,10 +738,10 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
                 </View>
               )}
 
-              {aiAnalysis.billingOptimizations.length > 0 && (
+              {(aiAnalysis.billingOptimizations ?? []).length > 0 && (
                 <View style={styles.aiSection}>
                   <Text style={styles.aiSectionTitle}>Billing Optimizations</Text>
-                  {aiAnalysis.billingOptimizations.map((opt, i) => (
+                  {(aiAnalysis.billingOptimizations ?? []).map((opt, i) => (
                     <View key={i} style={styles.bulletRow}>
                       <CheckCircle size={14} color={Colors.success} />
                       <Text style={styles.bulletText}>{opt}</Text>

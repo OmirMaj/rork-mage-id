@@ -3,17 +3,130 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated,
   Platform, Alert,
 } from 'react-native';
-import { Stack } from 'expo-router';
+import { Stack, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import {
-  DollarSign, CreditCard, ArrowUpRight, ArrowDownRight,
-  Clock, Check, XCircle, TrendingUp, Send, RefreshCw,
+  CreditCard, ArrowDownRight,
+  Clock, Check, XCircle, Send, RefreshCw,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
-import { MOCK_PAYMENTS, PROVIDER_INFO } from '@/mocks/payments';
-import type { Payment, PaymentStatus } from '@/types';
+import { PROVIDER_INFO } from '@/mocks/payments';
+import type { Payment, PaymentStatus, PaymentProvider, Invoice, Project, Contact } from '@/types';
 import { formatMoney } from '@/utils/formatters';
+import { useProjects } from '@/contexts/ProjectContext';
+
+// Stripe's posted rate — good enough for a rough "net after fees" column on the
+// payments dashboard. We never charge this ourselves; Stripe takes it out of
+// the deposit. Keeping it here means the GC can see what they actually cleared.
+const STRIPE_FEE_PERCENT = 0.029;
+const STRIPE_FEE_FIXED = 0.30;
+
+// Map the narrower PaymentMethod used on InvoicePayment to the broader
+// PaymentProvider used on the dashboard. credit_card is assumed to flow through
+// Stripe — that's the only card-capable integration we've wired.
+function methodToProvider(method: string): PaymentProvider {
+  switch (method) {
+    case 'credit_card': return 'stripe';
+    case 'check': return 'check';
+    case 'ach': return 'ach';
+    case 'cash': return 'cash';
+    default: return 'check';
+  }
+}
+
+function displayClientName(project: Project, contacts: Contact[]): string {
+  // Prefer an explicitly linked contact; fall back to the project name so a
+  // row is never blank. We don't type-narrow on role here because plenty of
+  // real-world contacts get typed as 'owner' / 'property_manager' / whatever.
+  const linked = contacts.find(c => c.linkedProjectIds?.includes(project.id));
+  if (linked) {
+    const full = `${linked.firstName ?? ''} ${linked.lastName ?? ''}`.trim();
+    if (full) return full;
+    if (linked.companyName) return linked.companyName;
+  }
+  return project.name;
+}
+
+// Build a unified Payment[] from real invoice data.
+//
+// Three row classes:
+//   1. Completed — each InvoicePayment the GC recorded manually.
+//   2. Pending (Stripe) — invoice has payLinkUrl out; client hasn't paid yet.
+//   3. Pending (other) — invoice is sent but no Stripe link and still owed.
+//
+// Sorted newest-first so the dashboard always shows the most recent activity.
+function derivePayments(
+  projects: Project[], invoices: Invoice[], contacts: Contact[],
+): Payment[] {
+  const rows: Payment[] = [];
+
+  for (const inv of invoices) {
+    const project = projects.find(p => p.id === inv.projectId);
+    if (!project) continue;
+    const clientName = displayClientName(project, contacts);
+
+    // 1. Recorded payments — one row per payment, always 'completed'.
+    for (const p of inv.payments ?? []) {
+      const provider = methodToProvider(p.method);
+      const fee = provider === 'stripe'
+        ? Math.round((p.amount * STRIPE_FEE_PERCENT + STRIPE_FEE_FIXED) * 100) / 100
+        : 0;
+      rows.push({
+        id: p.id,
+        invoiceId: inv.id,
+        projectId: project.id,
+        projectName: project.name,
+        clientName,
+        amount: p.amount,
+        fee,
+        netAmount: Math.round((p.amount - fee) * 100) / 100,
+        provider,
+        status: 'completed',
+        description: `Invoice #${inv.number}`,
+        createdAt: p.date,
+        completedAt: p.date,
+      });
+    }
+
+    // 2/3. Outstanding balance row — only for sent/partially_paid/overdue with a
+    // positive balance. Draft and fully-paid invoices don't belong on a
+    // payments feed.
+    const balance = Math.max(0, inv.totalDue - inv.amountPaid);
+    if (
+      balance > 0 &&
+      inv.status !== 'draft' &&
+      inv.status !== 'paid'
+    ) {
+      const hasStripeLink = !!inv.payLinkUrl;
+      const estimatedFee = hasStripeLink
+        ? Math.round((balance * STRIPE_FEE_PERCENT + STRIPE_FEE_FIXED) * 100) / 100
+        : 0;
+      rows.push({
+        id: `pending-${inv.id}`,
+        invoiceId: inv.id,
+        projectId: project.id,
+        projectName: project.name,
+        clientName,
+        amount: balance,
+        fee: estimatedFee,
+        netAmount: Math.round((balance - estimatedFee) * 100) / 100,
+        provider: hasStripeLink ? 'stripe' : 'check',
+        // overdue is still "pending" from our side — the client owes but
+        // nothing has bounced. Reserving 'failed' for actual Stripe card
+        // declines we'll pick up via webhook later.
+        status: 'pending',
+        description: hasStripeLink
+          ? `Invoice #${inv.number} — Stripe link sent`
+          : `Invoice #${inv.number} — awaiting payment`,
+        createdAt: inv.issueDate,
+      });
+    }
+  }
+
+  rows.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  return rows;
+}
 
 const STATUS_CONFIG: Record<PaymentStatus, { label: string; color: string; bgColor: string; icon: React.ElementType }> = {
   pending: { label: 'Pending', color: '#E65100', bgColor: '#FFF3E0', icon: Clock },
@@ -81,8 +194,15 @@ function PaymentCard({ payment, onPress }: { payment: Payment; onPress: () => vo
 
 export default function PaymentsScreen() {
   const insets = useSafeAreaInsets();
-  const [payments] = useState<Payment[]>(MOCK_PAYMENTS);
+  const { projects, invoices, contacts } = useProjects();
   const [selectedTab, setSelectedTab] = useState<'all' | 'pending' | 'completed'>('all');
+
+  // Derive the whole feed from real invoice data. Recomputes cheaply — the
+  // three inputs are already memoized by ProjectContext.
+  const payments = useMemo(
+    () => derivePayments(projects, invoices, contacts),
+    [projects, invoices, contacts],
+  );
 
   const filtered = useMemo(() => {
     if (selectedTab === 'all') return payments;
@@ -98,49 +218,53 @@ export default function PaymentsScreen() {
     return { received, pending, totalFees, failedCount };
   }, [payments]);
 
+  // Tapping any row drops you into the invoice — that's where you record a
+  // payment, generate/share a Stripe link, or see payment history. The old
+  // "Send Reminder" / "Retry" alerts were fake; no backend existed for them.
   const handlePaymentPress = useCallback((payment: Payment) => {
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const providerInfo = PROVIDER_INFO[payment.provider] ?? PROVIDER_INFO.check;
-
-    if (payment.status === 'pending') {
-      Alert.alert(
-        'Payment Pending',
-        `${formatMoney(payment.amount)} from ${payment.clientName}\nVia ${providerInfo.label}\n\n${payment.description}`,
-        [
-          { text: 'Close', style: 'cancel' },
-          { text: 'Send Reminder', onPress: () => Alert.alert('Sent', 'Payment reminder sent to client.') },
-        ]
-      );
-    } else if (payment.status === 'failed') {
-      Alert.alert(
-        'Payment Failed',
-        `${formatMoney(payment.amount)} from ${payment.clientName}\nVia ${providerInfo.label}\n\nThe payment was declined. You can retry or request a different payment method.`,
-        [
-          { text: 'Close', style: 'cancel' },
-          { text: 'Retry', onPress: () => Alert.alert('Retrying', 'Payment retry initiated.') },
-        ]
-      );
-    } else {
-      Alert.alert(
-        'Payment Details',
-        `Amount: ${formatMoney(payment.amount)}\nFee: ${formatMoney(payment.fee, 2)}\nNet: ${formatMoney(payment.netAmount, 2)}\nVia: ${providerInfo.label}\nDate: ${new Date(payment.createdAt).toLocaleDateString()}`
-      );
+    if (payment.invoiceId) {
+      router.push({
+        pathname: '/invoice' as any,
+        params: { projectId: payment.projectId, invoiceId: payment.invoiceId },
+      });
+      return;
     }
-  }, []);
-
-  const handleSendInvoice = useCallback(() => {
-    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    // No invoice anchor (shouldn't happen with real data, but belt-and-braces
+    // so we never leave the user staring at a dead press).
+    const providerInfo = PROVIDER_INFO[payment.provider] ?? PROVIDER_INFO.check;
     Alert.alert(
-      'Send Payment Request',
-      'Choose a payment method to send to your client:',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Stripe Link', onPress: () => console.log('[Payments] Create Stripe link') },
-        { text: 'Square Invoice', onPress: () => console.log('[Payments] Create Square invoice') },
-        { text: 'Zelle Request', onPress: () => console.log('[Payments] Create Zelle request') },
-      ]
+      'Payment Details',
+      `${formatMoney(payment.amount)} • ${providerInfo.label}\n${payment.description}`,
     );
   }, []);
+
+  // Route to the oldest outstanding invoice so the GC can generate a Stripe
+  // link from there. Picking the oldest (not newest) matches "collect what's
+  // overdue first" intuition and is what the user reported needing most.
+  const handleSendInvoice = useCallback(() => {
+    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const outstanding = invoices
+      .filter(inv =>
+        (inv.totalDue - inv.amountPaid) > 0 &&
+        inv.status !== 'draft' &&
+        inv.status !== 'paid',
+      )
+      .sort((a, b) => new Date(a.issueDate).getTime() - new Date(b.issueDate).getTime());
+
+    if (outstanding.length === 0) {
+      Alert.alert(
+        'Nothing to Collect',
+        'No outstanding invoices right now. Create or send an invoice to request payment.',
+      );
+      return;
+    }
+    const target = outstanding[0];
+    router.push({
+      pathname: '/invoice' as any,
+      params: { projectId: target.projectId, invoiceId: target.id },
+    });
+  }, [invoices]);
 
   return (
     <View style={styles.container}>

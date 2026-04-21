@@ -237,7 +237,7 @@ export default function ChangeOrderScreen() {
         scheduleImpactDays: impactDays,
       });
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert('Updated', `Change Order #${existingCO.number} has been ${status === 'submitted' ? `submitted for approval${recipientInfo}` : 'saved as draft'}.`);
+      Alert.alert('Updated', `Change Order #${existingCO.number} has been ${status === 'submitted' ? `submitted for approval${recipientInfo}` : 'saved to project'}.`);
     } else {
       const co: ChangeOrder = {
         id: createId('co'),
@@ -257,7 +257,12 @@ export default function ChangeOrderScreen() {
       };
       addChangeOrder(co);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert('Created', `Change Order #${nextCoNumber} has been ${status === 'submitted' ? `submitted for approval${recipientInfo}` : 'saved as draft'}.`);
+      Alert.alert(
+        status === 'submitted' ? 'Submitted' : 'Saved to Project',
+        status === 'submitted'
+          ? `Change Order #${nextCoNumber} has been submitted for approval${recipientInfo} and saved to the project.`
+          : `Change Order #${nextCoNumber} has been saved to the project. You can view it in the project's Change Orders section.`,
+      );
     }
 
     router.back();
@@ -537,12 +542,12 @@ export default function ChangeOrderScreen() {
         {!isLocked && (
           <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]}>
             <TouchableOpacity
-              style={styles.saveDraftBtn}
+              style={styles.saveProjectBtn}
               onPress={() => handleSave('draft')}
               activeOpacity={0.7}
               testID="save-co-draft"
             >
-              <Text style={styles.saveDraftBtnText}>Save Draft</Text>
+              <Text style={styles.saveProjectBtnText}>Save to Project</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.sendBtn}
@@ -551,7 +556,7 @@ export default function ChangeOrderScreen() {
               testID="send-co-btn"
             >
               <Send size={16} color={Colors.textOnPrimary} />
-              <Text style={styles.sendBtnText}>Send for Approval</Text>
+              <Text style={styles.sendBtnText}>Send & Save</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -879,7 +884,9 @@ const styles = StyleSheet.create({
   bottomBar: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: Colors.surface, borderTopWidth: 0.5, borderTopColor: Colors.borderLight, paddingHorizontal: 20, paddingTop: 12, flexDirection: 'row', gap: 10 },
   saveDraftBtn: { flex: 1, minHeight: 48, borderRadius: 14, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
   saveDraftBtnText: { fontSize: 14, fontWeight: '700' as const, color: Colors.text },
-  sendBtn: { flex: 2, minHeight: 48, borderRadius: 14, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 },
+  saveProjectBtn: { flex: 1, minHeight: 48, borderRadius: 14, backgroundColor: Colors.primary + '15', borderWidth: 1.5, borderColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
+  saveProjectBtnText: { fontSize: 14, fontWeight: '700' as const, color: Colors.primary },
+  sendBtn: { flex: 1.2, minHeight: 48, borderRadius: 14, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 },
   sendBtnText: { fontSize: 14, fontWeight: '700' as const, color: Colors.textOnPrimary },
   selectedRecipientCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.primary + '10', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, gap: 10, borderWidth: 1, borderColor: Colors.primary + '25' },
   selectedRecipientName: { fontSize: 14, fontWeight: '600' as const, color: Colors.text },

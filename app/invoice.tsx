@@ -1,13 +1,15 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  Alert, Platform, KeyboardAvoidingView, Modal,
+  Alert, Platform, KeyboardAvoidingView, Modal, Share, Clipboard,
+  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
-  Trash2, X, Send, CreditCard, Check, BookUser, User, Percent, Unlock,
+  Trash2, X, Send, CreditCard, Check, BookUser, User, Percent, Unlock, FileSpreadsheet,
+  Link2, Copy, Share2, Zap,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
@@ -19,6 +21,8 @@ import * as Sharing from 'expo-sharing';
 import PDFPreSendSheet from '@/components/PDFPreSendSheet';
 import type { PDFSendOptions } from '@/components/PDFPreSendSheet';
 import { sendEmail, buildInvoiceEmailHtml } from '@/utils/emailService';
+import { getEffectiveInvoiceStatus, getDaysPastDue } from '@/utils/projectFinancials';
+import { createPaymentLink } from '@/utils/stripe';
 import type { InvoiceLineItem, Invoice, PaymentTerms, PaymentMethod, InvoicePayment, RetentionRelease } from '@/types';
 
 function createId(prefix: string): string {
@@ -140,6 +144,7 @@ export default function InvoiceScreen() {
   const [retentionReleaseAmount, setRetentionReleaseAmount] = useState('');
   const [retentionReleaseMethod, setRetentionReleaseMethod] = useState<PaymentMethod>('check');
   const [retentionReleaseNote, setRetentionReleaseNote] = useState('');
+  const [generatingPayLink, setGeneratingPayLink] = useState(false);
 
   const pctValue = parseFloat(progressPercent) || 0;
   const retentionPctValue = Math.max(0, Math.min(100, parseFloat(retentionPercent) || 0));
@@ -192,7 +197,7 @@ export default function InvoiceScreen() {
         retentionAmount: retentionPctValue > 0 ? retentionAmount : undefined,
       });
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert('Updated', `Invoice #${existingInvoice.number} has been ${status === 'sent' ? `sent${recipientInfo}` : 'saved'}.`);
+      Alert.alert('Updated', `Invoice #${existingInvoice.number} has been ${status === 'sent' ? `sent${recipientInfo}` : 'saved to project'}.`);
     } else {
       const inv: Invoice = {
         id: createId('inv'),
@@ -221,7 +226,12 @@ export default function InvoiceScreen() {
       };
       addInvoice(inv);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert('Created', `Invoice #${nextInvoiceNumber} has been ${status === 'sent' ? `sent${recipientInfo}` : 'saved as draft'}.`);
+      Alert.alert(
+        status === 'sent' ? 'Sent' : 'Saved to Project',
+        status === 'sent'
+          ? `Invoice #${nextInvoiceNumber} has been sent${recipientInfo} and saved to the project.`
+          : `Invoice #${nextInvoiceNumber} has been saved to the project. You can view it in the project's Invoices section.`,
+      );
     }
     router.back();
   }, [projectId, lineItems, paymentTerms, notes, subtotal, taxRate, taxAmount, totalDue, isProgressType, pctValue, retentionPctValue, retentionAmount, existingInvoice, nextInvoiceNumber, addInvoice, updateInvoice, router]);
@@ -380,6 +390,94 @@ export default function InvoiceScreen() {
     router.back();
   }, [paymentAmount, paymentMethod, existingInvoice, amountPaid, totalDue, updateInvoice, router]);
 
+  // Stripe payment link: generate once per invoice (or regenerate if the link
+  // is lost/stale). We persist `payLinkUrl` + `payLinkId` on the invoice so the
+  // client portal snapshot picks it up and renders the Pay Now button without
+  // needing another round-trip.
+  const handleGeneratePayLink = useCallback(async () => {
+    if (!existingInvoice || !project) return;
+    if (balanceDue <= 0) {
+      Alert.alert('Nothing Due', 'This invoice has no outstanding balance.');
+      return;
+    }
+
+    setGeneratingPayLink(true);
+    try {
+      // Prefer an email tied to the project's client contact so Stripe
+      // pre-fills checkout. Fall back to the send-recipient email if one was
+      // captured, otherwise leave undefined.
+      const clientContact = contacts.find(c =>
+        c.email && project?.name && (
+          c.companyName?.toLowerCase().includes(project.name.toLowerCase()) ||
+          (project as any).clientContactId === c.id
+        ),
+      );
+
+      const res = await createPaymentLink({
+        invoiceId: existingInvoice.id,
+        invoiceNumber: existingInvoice.number,
+        projectName: project.name,
+        amountCents: Math.round(balanceDue * 100),
+        customerEmail: clientContact?.email,
+        companyName: settings.branding?.companyName,
+      });
+
+      if (!res.success || !res.url || !res.id) {
+        Alert.alert('Could Not Create Payment Link', res.error ?? 'Unknown error from Stripe.');
+        return;
+      }
+
+      updateInvoice(existingInvoice.id, {
+        payLinkUrl: res.url,
+        payLinkId: res.id,
+      });
+
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert(
+        'Payment Link Ready',
+        'A Stripe payment link has been generated and attached to this invoice. Your client will see a Pay Now button in the portal.',
+      );
+    } catch (err) {
+      console.error('[Invoice] Generate pay link failed:', err);
+      Alert.alert('Error', 'Failed to generate payment link. Please try again.');
+    } finally {
+      setGeneratingPayLink(false);
+    }
+  }, [existingInvoice, project, balanceDue, contacts, settings, updateInvoice]);
+
+  const handleCopyPayLink = useCallback(() => {
+    if (!existingInvoice?.payLinkUrl) return;
+    try {
+      // RN's legacy Clipboard API is deprecated but still ships in Expo Go and
+      // avoids pulling in @react-native-clipboard/clipboard. Matches the
+      // pattern already used in client-portal-setup.tsx.
+      Clipboard.setString(existingInvoice.payLinkUrl);
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert('Copied', 'Payment link copied to clipboard.');
+    } catch (err) {
+      console.error('[Invoice] Copy pay link failed:', err);
+      Alert.alert('Copy Failed', 'Could not copy to clipboard.');
+    }
+  }, [existingInvoice]);
+
+  const handleSharePayLink = useCallback(async () => {
+    if (!existingInvoice?.payLinkUrl || !project) return;
+    const brandingName = settings.branding?.companyName || 'MAGE ID';
+    const message =
+      `${brandingName} — Invoice #${existingInvoice.number} for ${project.name}\n` +
+      `Amount due: ${formatCurrency(balanceDue)}\n\n` +
+      `Pay securely here:\n${existingInvoice.payLinkUrl}`;
+    try {
+      await Share.share({
+        message,
+        title: `Invoice #${existingInvoice.number}`,
+        url: existingInvoice.payLinkUrl,
+      });
+    } catch (err) {
+      console.error('[Invoice] Share pay link failed:', err);
+    }
+  }, [existingInvoice, project, balanceDue, settings]);
+
   const handleReleaseRetention = useCallback(() => {
     if (!existingInvoice) return;
     const amt = parseFloat(retentionReleaseAmount) || 0;
@@ -422,9 +520,22 @@ export default function InvoiceScreen() {
     );
   }
 
-  const isLocked = existingInvoice?.status === 'paid';
+  // Use the effective status so an unpaid-but-past-due invoice flips to "overdue"
+  // in the UI without anyone having to run a cron to mutate the record, and a
+  // fully-paid invoice reads as "paid" even if the stored status lagged behind.
+  const effectiveStatus = existingInvoice ? getEffectiveInvoiceStatus(existingInvoice) : null;
+  const daysPastDue = existingInvoice ? getDaysPastDue(existingInvoice) : 0;
 
-  const statusColor = existingInvoice ? invoiceStatusColors[existingInvoice.status] : null;
+  const isLocked = effectiveStatus === 'paid';
+
+  const statusColor = effectiveStatus ? invoiceStatusColors[effectiveStatus] : null;
+  const statusLabel = effectiveStatus ? (
+    effectiveStatus === 'sent' ? 'Awaiting Payment' :
+    effectiveStatus === 'partially_paid' ? 'Partially Paid' :
+    effectiveStatus === 'overdue' ? `Overdue${daysPastDue > 0 ? ` • ${daysPastDue}d` : ''}` :
+    effectiveStatus === 'paid' ? 'Paid' :
+    effectiveStatus === 'draft' ? 'Draft' : effectiveStatus
+  ) : '';
 
   return (
     <View style={styles.container}>
@@ -448,7 +559,7 @@ export default function InvoiceScreen() {
             {existingInvoice && statusColor && (
               <View style={[styles.statusBadge, { backgroundColor: statusColor.bg }]}>
                 <Text style={[styles.statusText, { color: statusColor.text }]}>
-                  {existingInvoice.status.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                  {statusLabel}
                 </Text>
               </View>
             )}
@@ -647,6 +758,91 @@ export default function InvoiceScreen() {
             </View>
           )}
 
+          {/* Stripe Payment Link: only meaningful for sent/partially-paid/overdue
+              invoices with a positive balance. Drafts shouldn't be collectable
+              yet; paid invoices don't need a link. */}
+          {existingInvoice && existingInvoice.status !== 'draft' && existingInvoice.status !== 'paid' && balanceDue > 0 && (
+            <View style={styles.payLinkCard}>
+              <View style={styles.payLinkHeader}>
+                <View style={styles.payLinkIconWrap}>
+                  <Zap size={18} color={Colors.primary} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.payLinkTitle}>Stripe Payment Link</Text>
+                  <Text style={styles.payLinkSub}>
+                    {existingInvoice.payLinkUrl
+                      ? 'Clients can pay by card or ACH via the portal.'
+                      : `Let your client pay ${formatCurrency(balanceDue)} online in one tap.`}
+                  </Text>
+                </View>
+              </View>
+
+              {existingInvoice.payLinkUrl ? (
+                <>
+                  <View style={styles.payLinkUrlBox}>
+                    <Link2 size={14} color={Colors.textSecondary} />
+                    <Text style={styles.payLinkUrlText} numberOfLines={1} ellipsizeMode="middle">
+                      {existingInvoice.payLinkUrl}
+                    </Text>
+                  </View>
+                  <View style={styles.payLinkActions}>
+                    <TouchableOpacity
+                      style={styles.payLinkActionBtn}
+                      onPress={handleCopyPayLink}
+                      activeOpacity={0.7}
+                      testID="copy-pay-link-btn"
+                    >
+                      <Copy size={14} color={Colors.primary} />
+                      <Text style={styles.payLinkActionText}>Copy</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.payLinkActionBtn}
+                      onPress={handleSharePayLink}
+                      activeOpacity={0.7}
+                      testID="share-pay-link-btn"
+                    >
+                      <Share2 size={14} color={Colors.primary} />
+                      <Text style={styles.payLinkActionText}>Share</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.payLinkActionBtn, styles.payLinkRegenBtn]}
+                      onPress={handleGeneratePayLink}
+                      activeOpacity={0.7}
+                      disabled={generatingPayLink}
+                      testID="regenerate-pay-link-btn"
+                    >
+                      {generatingPayLink ? (
+                        <ActivityIndicator size="small" color={Colors.textSecondary} />
+                      ) : (
+                        <Text style={styles.payLinkRegenText}>Regenerate</Text>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                </>
+              ) : (
+                <TouchableOpacity
+                  style={styles.payLinkGenerateBtn}
+                  onPress={handleGeneratePayLink}
+                  activeOpacity={0.85}
+                  disabled={generatingPayLink}
+                  testID="generate-pay-link-btn"
+                >
+                  {generatingPayLink ? (
+                    <>
+                      <ActivityIndicator size="small" color={Colors.textOnPrimary} />
+                      <Text style={styles.payLinkGenerateText}>Generating…</Text>
+                    </>
+                  ) : (
+                    <>
+                      <Zap size={16} color={Colors.textOnPrimary} />
+                      <Text style={styles.payLinkGenerateText}>Generate Payment Link</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
+
           {existingInvoice && existingInvoice.payments && existingInvoice.payments.length > 0 && (
             <View style={styles.fieldSection}>
               <Text style={styles.fieldLabel}>Payment History</Text>
@@ -680,6 +876,25 @@ export default function InvoiceScreen() {
               />
             </View>
           )}
+
+          {existingInvoice && isProgressType && (
+            <TouchableOpacity
+              style={styles.aiaCtaCard}
+              onPress={() => router.push(`/aia-pay-app?invoiceId=${existingInvoice.id}` as any)}
+              activeOpacity={0.85}
+            >
+              <View style={styles.aiaCtaIconWrap}>
+                <FileSpreadsheet size={20} color={Colors.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.aiaCtaTitle}>Generate AIA G702/G703</Text>
+                <Text style={styles.aiaCtaSub}>
+                  Create a lender- and architect-ready progress pay application from this invoice.
+                </Text>
+              </View>
+              <Text style={styles.aiaCtaArrow}>›</Text>
+            </TouchableOpacity>
+          )}
         </ScrollView>
 
         {!isLocked && (
@@ -698,11 +913,12 @@ export default function InvoiceScreen() {
             {(!existingInvoice || existingInvoice.status === 'draft') && (
               <>
                 <TouchableOpacity
-                  style={styles.saveDraftBtn}
+                  style={styles.saveProjectBtn}
                   onPress={() => handleSave('draft')}
                   activeOpacity={0.7}
+                  testID="save-invoice-to-project"
                 >
-                  <Text style={styles.saveDraftBtnText}>Save Draft</Text>
+                  <Text style={styles.saveProjectBtnText}>Save to Project</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.sendBtn}
@@ -711,7 +927,7 @@ export default function InvoiceScreen() {
                   testID="send-invoice-btn"
                 >
                   <Send size={16} color={Colors.textOnPrimary} />
-                  <Text style={styles.sendBtnText}>Send Invoice</Text>
+                  <Text style={styles.sendBtnText}>Send & Save</Text>
                 </TouchableOpacity>
               </>
             )}
@@ -999,8 +1215,24 @@ const styles = StyleSheet.create({
   bottomBar: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: Colors.surface, borderTopWidth: 0.5, borderTopColor: Colors.borderLight, paddingHorizontal: 20, paddingTop: 12, flexDirection: 'row', gap: 10 },
   saveDraftBtn: { flex: 1, minHeight: 48, borderRadius: 14, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
   saveDraftBtnText: { fontSize: 14, fontWeight: '700' as const, color: Colors.text },
-  sendBtn: { flex: 2, minHeight: 48, borderRadius: 14, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 },
+  saveProjectBtn: { flex: 1, minHeight: 48, borderRadius: 14, backgroundColor: Colors.primary + '15', borderWidth: 1.5, borderColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
+  saveProjectBtnText: { fontSize: 14, fontWeight: '700' as const, color: Colors.primary },
+  sendBtn: { flex: 1.2, minHeight: 48, borderRadius: 14, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 },
   sendBtnText: { fontSize: 14, fontWeight: '700' as const, color: Colors.textOnPrimary },
+  aiaCtaCard: {
+    flexDirection: 'row' as const, alignItems: 'center' as const, gap: 12,
+    marginHorizontal: 20, marginTop: 8, marginBottom: 20, padding: 14,
+    backgroundColor: Colors.primary + '10',
+    borderRadius: 14, borderWidth: 1, borderColor: Colors.primary + '25',
+  },
+  aiaCtaIconWrap: {
+    width: 40, height: 40, borderRadius: 10,
+    backgroundColor: Colors.primary + '20',
+    alignItems: 'center' as const, justifyContent: 'center' as const,
+  },
+  aiaCtaTitle: { fontSize: 14, fontWeight: '700' as const, color: Colors.text, marginBottom: 2 },
+  aiaCtaSub: { fontSize: 12, color: Colors.textMuted, lineHeight: 16 },
+  aiaCtaArrow: { fontSize: 24, color: Colors.primary, marginLeft: 4 },
   selectedRecipientCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.primary + '10', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, gap: 10, borderWidth: 1, borderColor: Colors.primary + '25' },
   selectedRecipientName: { fontSize: 14, fontWeight: '600' as const, color: Colors.text },
   selectedRecipientEmail: { fontSize: 12, color: Colors.textSecondary },
@@ -1031,4 +1263,42 @@ const styles = StyleSheet.create({
   retentionModalMeta: { fontSize: 13, color: Colors.textSecondary, marginBottom: 12 },
   fullReleaseBtn: { paddingHorizontal: 14, paddingVertical: 12, borderRadius: 10, backgroundColor: Colors.warning + '20', borderWidth: 1, borderColor: Colors.warning + '40' },
   fullReleaseBtnText: { fontSize: 13, fontWeight: '700' as const, color: Colors.warning },
+  payLinkCard: {
+    marginHorizontal: 20, marginTop: 16, padding: 16, borderRadius: 16,
+    backgroundColor: Colors.primary + '08',
+    borderWidth: 1, borderColor: Colors.primary + '25',
+    gap: 12,
+  },
+  payLinkHeader: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 12 },
+  payLinkIconWrap: {
+    width: 36, height: 36, borderRadius: 10,
+    backgroundColor: Colors.primary + '15',
+    alignItems: 'center' as const, justifyContent: 'center' as const,
+  },
+  payLinkTitle: { fontSize: 15, fontWeight: '700' as const, color: Colors.text, marginBottom: 2 },
+  payLinkSub: { fontSize: 12, color: Colors.textMuted, lineHeight: 16 },
+  payLinkUrlBox: {
+    flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8,
+    paddingHorizontal: 12, paddingVertical: 10,
+    backgroundColor: Colors.surface, borderRadius: 10,
+    borderWidth: 1, borderColor: Colors.borderLight,
+  },
+  payLinkUrlText: { flex: 1, fontSize: 12, color: Colors.textSecondary, fontWeight: '500' as const },
+  payLinkActions: { flexDirection: 'row' as const, gap: 8 },
+  payLinkActionBtn: {
+    flex: 1, minHeight: 40, borderRadius: 10,
+    backgroundColor: Colors.primary + '15',
+    alignItems: 'center' as const, justifyContent: 'center' as const,
+    flexDirection: 'row' as const, gap: 6,
+  },
+  payLinkActionText: { fontSize: 13, fontWeight: '700' as const, color: Colors.primary },
+  payLinkRegenBtn: { backgroundColor: Colors.fillTertiary },
+  payLinkRegenText: { fontSize: 13, fontWeight: '600' as const, color: Colors.textSecondary },
+  payLinkGenerateBtn: {
+    minHeight: 48, borderRadius: 12,
+    backgroundColor: Colors.primary,
+    alignItems: 'center' as const, justifyContent: 'center' as const,
+    flexDirection: 'row' as const, gap: 8,
+  },
+  payLinkGenerateText: { fontSize: 15, fontWeight: '700' as const, color: Colors.textOnPrimary },
 });

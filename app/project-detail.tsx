@@ -27,6 +27,7 @@ import { generateAndSharePDF, buildEstimateTextForEmail } from '@/utils/pdfGener
 import { generateAndShareCloseoutPacket } from '@/utils/closeoutPacketGenerator';
 import type { ProjectCollaborator } from '@/types';
 import { formatMoney } from '@/utils/formatters';
+import { getEffectiveInvoiceStatus } from '@/utils/projectFinancials';
 
 type SectionKey = 'linkedEstimate' | 'materials' | 'labor' | 'summary' | 'schedule' | 'notes' | 'collaborators' | 'changeOrders' | 'invoices' | 'dailyReports' | 'punchList' | 'rfis' | 'submittals' | 'budget' | 'photos' | 'clientPortal' | 'communications';
 type DetailModalType = 'total' | 'savings' | null;
@@ -1339,8 +1340,7 @@ export default function ProjectDetailScreen() {
               )}
               {projectInvoices.map(inv => {
                 const _balance = inv.totalDue - inv.amountPaid;
-                const isOverdue = inv.status !== 'paid' && inv.status !== 'draft' && new Date(inv.dueDate) < new Date();
-                const displayStatus = isOverdue ? 'overdue' : inv.status;
+                const displayStatus = getEffectiveInvoiceStatus(inv);
                 return (
                   <TouchableOpacity
                     key={inv.id}
@@ -1432,12 +1432,12 @@ export default function ProjectDetailScreen() {
                     </Text>
                   </View>
                   <View style={[styles.coBadge, {
-                    backgroundColor: dr.status === 'sent' ? Colors.successLight : Colors.fillTertiary
+                    backgroundColor: dr.status === 'sent' ? Colors.successLight : Colors.primary + '15'
                   }]}>
                     <Text style={[styles.coBadgeText, {
-                      color: dr.status === 'sent' ? Colors.success : Colors.textSecondary
+                      color: dr.status === 'sent' ? Colors.success : Colors.primary
                     }]}>
-                      {dr.status === 'sent' ? 'Sent' : 'Draft'}
+                      {dr.status === 'sent' ? 'Sent' : 'Saved'}
                     </Text>
                   </View>
                 </TouchableOpacity>
