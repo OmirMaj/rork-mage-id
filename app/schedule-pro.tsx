@@ -35,6 +35,8 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { ChevronLeft, Zap, Activity, Share2, Undo2, Redo2, Columns, Table2, BarChart2, Sparkles, RefreshCcw, Bookmark, Download } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
+import { useTierAccess } from '@/hooks/useTierAccess';
+import Paywall from '@/components/Paywall';
 import GridPane from '@/components/schedule/GridPane';
 import InteractiveGantt from '@/components/schedule/InteractiveGantt';
 import AIAssistantPanel from '@/components/schedule/AIAssistantPanel';
@@ -65,6 +67,22 @@ const SPLIT_BREAKPOINT = 1600;
 type PaneMode = 'grid' | 'split' | 'gantt';
 
 export default function ScheduleProScreen() {
+  const router = useRouter();
+  const { canAccess } = useTierAccess();
+  if (!canAccess('schedule_gantt_pdf')) {
+    return (
+      <Paywall
+        visible={true}
+        feature="Schedule Pro (Gantt + PDF Export)"
+        requiredTier="pro"
+        onClose={() => router.back()}
+      />
+    );
+  }
+  return <ScheduleProScreenInner />;
+}
+
+function ScheduleProScreenInner() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { width } = useWindowDimensions();

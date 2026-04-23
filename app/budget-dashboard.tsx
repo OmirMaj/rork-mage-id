@@ -4,7 +4,9 @@ import {
   Alert, Platform, Dimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useLocalSearchParams, Stack } from 'expo-router';
+import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
+import { useTierAccess } from '@/hooks/useTierAccess';
+import Paywall from '@/components/Paywall';
 import * as Haptics from 'expo-haptics';
 import {
   TrendingUp, TrendingDown, DollarSign, Clock, Target, BarChart3,
@@ -34,6 +36,22 @@ function getMetricColor(value: number): string {
 }
 
 export default function BudgetDashboardScreen() {
+  const router = useRouter();
+  const { canAccess } = useTierAccess();
+  if (!canAccess('full_budget_dashboard')) {
+    return (
+      <Paywall
+        visible={true}
+        feature="Full Budget Dashboard (EVM)"
+        requiredTier="business"
+        onClose={() => router.back()}
+      />
+    );
+  }
+  return <BudgetDashboardScreenInner />;
+}
+
+function BudgetDashboardScreenInner() {
   const insets = useSafeAreaInsets();
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
   const { getProject, invoices } = useProjects();

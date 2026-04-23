@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Modal,
@@ -25,6 +25,7 @@ import {
   AlertTriangle,
   CalendarDays,
   Camera,
+  Check,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
@@ -79,7 +80,8 @@ import LookaheadView from '@/components/schedule/LookaheadView';
 import VerticalGantt from '@/components/schedule/VerticalGantt';
 import QuickBuildModal from '@/components/schedule/QuickBuildModal';
 import ScheduleShareSheet from '@/components/schedule/ScheduleShareSheet';
-import { getSimulatedForecast, getConditionIcon } from '@/utils/weatherService';
+import ScenariosModal from '@/components/schedule/ScenariosModal';
+import { getSimulatedForecast, getConditionIcon, getForecastWithFallback, type DayForecast } from '@/utils/weatherService';
 import { mageAI } from '@/utils/mageAI';
 import { z } from 'zod';
 import AIScheduleRisk from '@/components/AIScheduleRisk';
@@ -91,6 +93,12 @@ interface TaskDraft {
   phase: string;
   durationDays: string;
   startDayOverride: string;
+  /**
+   * Optional calendar start date (YYYY-MM-DD). When set, takes precedence
+   * over dependency chaining and startDayOverride — the task's startDay is
+   * computed as the day offset from the schedule's projectStartDate.
+   */
+  startDateOverride: string;
   crew: string;
   crewSize: string;
   notes: string;
@@ -110,6 +118,7 @@ type FilterMode = 'all' | 'critical' | 'milestones' | 'overdue';
 
 const EMPTY_DRAFT: TaskDraft = {
   title: '', phase: 'General', durationDays: '5', startDayOverride: '',
+  startDateOverride: '',
   crew: '', crewSize: '2', notes: '', isMilestone: false, wbsCode: '',
   isCriticalPath: false, isWeatherSensitive: false, dependencyLinks: [],
   status: 'not_started', progress: '0',
@@ -128,7 +137,8 @@ export default function ScheduleScreen() {
   const [editingTask, setEditingTask] = useState<ScheduleTask | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
-  const [projectStartDate] = useState<Date>(() => new Date());
+  // projectStartDate is derived from activeSchedule.startDate when set; otherwise today.
+  // Changes persist through the schedule object via setProjectStartDate().
   const [viewMode, setViewMode] = useState<ScheduleViewMode>('today');
   const [isVerticalGantt, setIsVerticalGantt] = useState(false);
   const [isQuickBuildOpen, setIsQuickBuildOpen] = useState(false);
@@ -147,6 +157,8 @@ export default function ScheduleScreen() {
   const [weatherAlerts, setWeatherAlerts] = useState<{ taskName: string; date: string; condition: string }[]>([]);
 
   const [taskDraft, setTaskDraft] = useState<TaskDraft>({ ...EMPTY_DRAFT });
+  const [isProjectStartDatePickerOpen, setIsProjectStartDatePickerOpen] = useState(false);
+  const [projectStartDateInput, setProjectStartDateInput] = useState<string>('');
 
   const selectedProject = useMemo<Project | null>(() => {
     return projects.find(p => p.id === selectedProjectId) ?? null;
@@ -156,10 +168,82 @@ export default function ScheduleScreen() {
     return selectedProject?.schedule ?? null;
   }, [selectedProject]);
 
+  // Derive project start date from the schedule; default to today if missing.
+  // Using noon local time avoids timezone rollover surprises for comparisons.
+  const projectStartDate = useMemo<Date>(() => {
+    if (activeSchedule?.startDate) {
+      const d = new Date(activeSchedule.startDate + 'T12:00:00');
+      if (!Number.isNaN(d.getTime())) return d;
+    }
+    const today = new Date();
+    today.setHours(12, 0, 0, 0);
+    return today;
+  }, [activeSchedule?.startDate]);
+
+  /**
+   * When a What-If scenario is selected, the Gantt reads from that scenario's
+   * task snapshot instead of the baseline. This is a DISPLAY-only swap for
+   * v1 — task edit handlers still mutate the baseline `schedule.tasks`. The
+   * UX surfaces this via a banner so PMs know they're in a read-only view
+   * of the branch. Future iteration: route edits into the active scenario.
+   */
+  const activeScenarioTasks = useMemo<ScheduleTask[] | null>(() => {
+    if (!activeSchedule || !activeSchedule.activeScenarioId) return null;
+    const scenario = (activeSchedule.scenarios ?? []).find(
+      (s) => s.id === activeSchedule.activeScenarioId,
+    );
+    return scenario?.tasks ?? null;
+  }, [activeSchedule]);
+
   const sortedTasks = useMemo<ScheduleTask[]>(() => {
     if (!activeSchedule) return [];
-    return activeSchedule.tasks.slice().sort((a, b) => a.startDay - b.startDay || a.title.localeCompare(b.title));
-  }, [activeSchedule]);
+    const source = activeScenarioTasks ?? activeSchedule.tasks;
+    return source.slice().sort((a, b) => a.startDay - b.startDay || a.title.localeCompare(b.title));
+  }, [activeSchedule, activeScenarioTasks]);
+
+  const [showScenariosModal, setShowScenariosModal] = useState(false);
+
+  const handleScheduleScenariosChange = useCallback(
+    (patch: Partial<ProjectSchedule>) => {
+      if (!selectedProject || !activeSchedule) return;
+      updateProject(selectedProject.id, {
+        schedule: { ...activeSchedule, ...patch, updatedAt: new Date().toISOString() },
+      });
+    },
+    [selectedProject, activeSchedule, updateProject],
+  );
+
+  /**
+   * Forecast driving the Gantt weather badges. We prime synchronously with
+   * simulated data so the first render has something to show, then kick off
+   * a real OpenWeather fetch (keyed to the project's location string) in
+   * an effect and swap in the real payload when it resolves. The service
+   * layer caps real calls to once per 10 minutes per location so this
+   * won't rate-limit us even if the effect re-runs.
+   *
+   * Fallback order: live OpenWeather → cached OpenWeather (<10 min) →
+   * simulated. If no EXPO_PUBLIC_OPENWEATHER_API_KEY is set, we stay on
+   * simulated forever, which is fine for dev and demo.
+   */
+  const [ganttForecast, setGanttForecast] = useState<DayForecast[]>(() =>
+    getSimulatedForecast(projectStartDate, 21),
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    const locationHint = selectedProject?.location?.trim();
+    setGanttForecast(getSimulatedForecast(projectStartDate, 21));
+    void getForecastWithFallback(
+      { city: locationHint },
+      projectStartDate,
+      21,
+    ).then((forecast) => {
+      if (!cancelled) setGanttForecast(forecast);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [projectStartDate, selectedProject?.location]);
 
   const filteredTasks = useMemo(() => {
     switch (filterMode) {
@@ -239,6 +323,24 @@ export default function ScheduleScreen() {
     setSelectedProjectId(newProject.id);
   }, [addProject, updateProject]);
 
+  // Save a new project start date onto the schedule. Tasks keep their startDay
+  // offsets, so the schedule "slides" to the new date wholesale.
+  const setProjectStartDate = useCallback((isoYYYYMMDD: string) => {
+    // Validate YYYY-MM-DD
+    const m = /^\d{4}-\d{2}-\d{2}$/.exec(isoYYYYMMDD.trim());
+    if (!m) { Alert.alert('Invalid date', 'Use format YYYY-MM-DD (e.g. 2026-05-01).'); return; }
+    const parsed = new Date(isoYYYYMMDD + 'T12:00:00');
+    if (Number.isNaN(parsed.getTime())) { Alert.alert('Invalid date'); return; }
+    if (!activeSchedule) {
+      Alert.alert('No schedule', 'Add at least one task before setting a project start date.');
+      return;
+    }
+    const next: ProjectSchedule = { ...activeSchedule, startDate: isoYYYYMMDD };
+    saveSchedule(next, selectedProject);
+    setIsProjectStartDatePickerOpen(false);
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  }, [activeSchedule, saveSchedule, selectedProject]);
+
   const handleSaveTask = useCallback((draft: TaskDraft, editing: ScheduleTask | null) => {
     const title = draft.title.trim();
     if (!title) { Alert.alert('Missing task name'); return; }
@@ -249,6 +351,26 @@ export default function ScheduleScreen() {
     const crewSize = parseInt(draft.crewSize, 10) || 1;
     const depLinks = draft.dependencyLinks;
     const depIds = depLinks.map(l => l.taskId);
+
+    // If user set a calendar start date, translate to a startDay offset from
+    // projectStartDate. +1 because startDay is 1-indexed (Day 1 = project start).
+    let startDayFromDate: number | null = null;
+    const rawStartDate = draft.startDateOverride.trim();
+    if (rawStartDate) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(rawStartDate)) {
+        Alert.alert('Invalid start date', 'Use format YYYY-MM-DD (e.g. 2026-05-01).');
+        return;
+      }
+      const picked = new Date(rawStartDate + 'T12:00:00');
+      if (Number.isNaN(picked.getTime())) { Alert.alert('Invalid start date'); return; }
+      const ms = picked.getTime() - projectStartDate.getTime();
+      const dayOffset = Math.round(ms / (1000 * 60 * 60 * 24)) + 1;
+      if (dayOffset < 1) {
+        Alert.alert('Start date too early', `Pick a date on or after the project start (${projectStartDate.toLocaleDateString()}).`);
+        return;
+      }
+      startDayFromDate = dayOffset;
+    }
 
     if (editing) {
       const progress = Math.max(0, Math.min(100, parseInt(draft.progress, 10) || 0));
@@ -265,8 +387,13 @@ export default function ScheduleScreen() {
           assignedSubId: draft.assignedSubId || undefined,
           assignedSubName: draft.assignedSubName || undefined,
         };
-        // Only apply start day override when no deps are set (deps control start day automatically)
-        if (!Number.isNaN(startDayOverride) && startDayOverride > 0 && depLinks.length === 0) {
+        // Calendar-picked start date wins over day-number override.
+        if (startDayFromDate !== null) {
+          updated.startDay = startDayFromDate;
+          updated.dependencies = [];
+          updated.dependencyLinks = [];
+        } else if (!Number.isNaN(startDayOverride) && startDayOverride > 0 && depLinks.length === 0) {
+          // Only apply startDay override when no deps are set (deps control start day automatically)
           updated.startDay = startDayOverride;
         }
         return updated;
@@ -276,17 +403,24 @@ export default function ScheduleScreen() {
       saveSchedule(nextSchedule, selectedProject);
     } else {
       const lastTask = sortedTasks[sortedTasks.length - 1];
-      const autoLinks: DependencyLink[] = depLinks.length > 0
-        ? depLinks
-        : (lastTask ? [{ taskId: lastTask.id, type: 'FS' as DependencyType, lagDays: 0 }] : []);
+      // Calendar-picked start date wins: skip auto-dependency chaining so the
+      // task truly starts on the picked date rather than trailing the last task.
+      const useExplicitDate = startDayFromDate !== null;
+      const autoLinks: DependencyLink[] = useExplicitDate
+        ? []
+        : (depLinks.length > 0
+          ? depLinks
+          : (lastTask ? [{ taskId: lastTask.id, type: 'FS' as DependencyType, lagDays: 0 }] : []));
       const autoDepIds = autoLinks.map(l => l.taskId);
 
-      const startDay = autoLinks.length > 0
-        ? Math.max(...autoLinks.map(link => {
-            const dep = sortedTasks.find(t => t.id === link.taskId);
-            return dep ? dep.startDay + dep.durationDays + (link.lagDays || 0) : 1;
-          }))
-        : (lastTask ? lastTask.startDay + lastTask.durationDays : 1);
+      const startDay = useExplicitDate
+        ? (startDayFromDate as number)
+        : (autoLinks.length > 0
+          ? Math.max(...autoLinks.map(link => {
+              const dep = sortedTasks.find(t => t.id === link.taskId);
+              return dep ? dep.startDay + dep.durationDays + (link.lagDays || 0) : 1;
+            }))
+          : (lastTask ? lastTask.startDay + lastTask.durationDays : 1));
 
       const newTask: ScheduleTask = {
         id: createId('task'), title, phase: draft.phase, durationDays, startDay,
@@ -304,7 +438,7 @@ export default function ScheduleScreen() {
       saveSchedule(nextSchedule, selectedProject);
     }
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  }, [activeSchedule, saveSchedule, selectedProject, sortedTasks]);
+  }, [activeSchedule, saveSchedule, selectedProject, sortedTasks, projectStartDate]);
 
   const handleQuickAdd = useCallback(() => {
     handleSaveTask(taskDraft, null);
@@ -324,6 +458,7 @@ export default function ScheduleScreen() {
     setTaskDraft({
       title: task.title, phase: task.phase, durationDays: String(task.durationDays),
       startDayOverride: String(task.startDay),
+      startDateOverride: '',
       crew: task.crew, crewSize: String(task.crewSize || 1), notes: task.notes,
       isMilestone: task.isMilestone ?? false, wbsCode: task.wbsCode ?? '',
       isCriticalPath: task.isCriticalPath ?? false,
@@ -1080,6 +1215,343 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
     );
   }, [sortedTasks, healthScore, daysRemaining]);
 
+  // Shared modals rendered in both desktop and mobile branches. Previously only the
+  // mobile branch's return tree contained these modals, so on desktop, tapping
+  // "Edit", "AI Builder", "Templates", "What-If Scenarios", or a dep-picker
+  // trigger set state but rendered nothing (they live inside an early-return
+  // branch the desktop layout never reaches). See bug report 2026-04-23.
+  const extraModals = (
+    <>
+      {/* Edit Task Modal */}
+      <Modal visible={isEditModalOpen} transparent animationType="slide" onRequestClose={() => setIsEditModalOpen(false)}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <View style={styles.bottomSheetOverlay}>
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1, justifyContent: 'flex-end' as const }} keyboardShouldPersistTaps="handled">
+              <View style={[styles.bottomSheet, { paddingBottom: insets.bottom + 16 }]}>
+                <View style={styles.bottomSheetHandle} />
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>{editingTask ? 'Edit Task' : 'New Task'}</Text>
+                  <TouchableOpacity onPress={() => setIsEditModalOpen(false)}>
+                    <X size={20} color={Colors.textMuted} />
+                  </TouchableOpacity>
+                </View>
+
+                <Text style={styles.fieldLabel}>Task Name</Text>
+                <TextInput style={styles.input} value={taskDraft.title} onChangeText={val => setTaskDraft(p => ({ ...p, title: val }))} placeholder="Task name" placeholderTextColor={Colors.textMuted} />
+
+                <Text style={styles.fieldLabel}>Phase</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.phaseScroller}>
+                  <View style={styles.phaseChipRow}>
+                    {PHASE_OPTIONS.map(phase => (
+                      <TouchableOpacity key={phase} style={[styles.phaseChip, taskDraft.phase === phase && styles.phaseChipActive]} onPress={() => setTaskDraft(p => ({ ...p, phase }))}>
+                        <Text style={[styles.phaseChipText, taskDraft.phase === phase && styles.phaseChipTextActive]}>{phase}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </ScrollView>
+
+                {/* Status */}
+                {editingTask && (
+                  <>
+                    <Text style={styles.fieldLabel}>Status</Text>
+                    <View style={styles.statusChipRow}>
+                      {(['not_started', 'in_progress', 'on_hold', 'done'] as ScheduleTask['status'][]).map(s => {
+                        const colors: Record<string, string> = { done: '#34C759', in_progress: '#007AFF', on_hold: '#FF9500', not_started: '#8E8E93' };
+                        const labels: Record<string, string> = { done: 'Done', in_progress: 'In Progress', on_hold: 'On Hold', not_started: 'Not Started' };
+                        const active = taskDraft.status === s;
+                        return (
+                          <TouchableOpacity
+                            key={s}
+                            style={[styles.modalStatusChip, { borderColor: colors[s], backgroundColor: active ? colors[s] : 'transparent' }]}
+                            onPress={() => {
+                              const autoProgress = s === 'done' ? '100' : s === 'not_started' ? '0' : taskDraft.progress;
+                              setTaskDraft(p => ({ ...p, status: s, progress: autoProgress }));
+                            }}
+                          >
+                            <Text style={[styles.modalStatusChipText, { color: active ? '#FFF' : colors[s] }]}>{labels[s]}</Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+
+                    <Text style={styles.fieldLabel}>Progress — {taskDraft.progress}%</Text>
+                    <View style={styles.modalProgressRow}>
+                      {[0, 25, 50, 75, 100].map(pct => (
+                        <TouchableOpacity
+                          key={pct}
+                          style={[styles.modalProgressBtn, parseInt(taskDraft.progress, 10) === pct && styles.modalProgressBtnActive]}
+                          onPress={() => {
+                            const nextStatus = pct >= 100 ? 'done' as const : pct > 0 ? 'in_progress' as const : 'not_started' as const;
+                            setTaskDraft(p => ({ ...p, progress: String(pct), status: nextStatus }));
+                          }}
+                        >
+                          <Text style={[styles.modalProgressBtnText, parseInt(taskDraft.progress, 10) === pct && styles.modalProgressBtnTextActive]}>{pct}%</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </>
+                )}
+
+                <View style={styles.dualRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.fieldLabel}>Duration (days)</Text>
+                    <TextInput style={styles.input} value={taskDraft.durationDays} onChangeText={val => setTaskDraft(p => ({ ...p, durationDays: val }))} keyboardType="number-pad" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.fieldLabel}>Crew Size</Text>
+                    <TextInput style={styles.input} value={taskDraft.crewSize} onChangeText={val => setTaskDraft(p => ({ ...p, crewSize: val }))} keyboardType="number-pad" placeholder="# people" placeholderTextColor={Colors.textMuted} />
+                  </View>
+                </View>
+
+                <View style={styles.dualRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.fieldLabel}>Crew / Trade</Text>
+                    <TextInput style={styles.input} value={taskDraft.crew} onChangeText={val => setTaskDraft(p => ({ ...p, crew: val }))} placeholder="Crew name" placeholderTextColor={Colors.textMuted} />
+                  </View>
+                  {editingTask && taskDraft.dependencyLinks.length === 0 && (
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.fieldLabel}>Start Day Override</Text>
+                      <TextInput style={styles.input} value={taskDraft.startDayOverride} onChangeText={val => setTaskDraft(p => ({ ...p, startDayOverride: val }))} keyboardType="number-pad" placeholder="Auto" placeholderTextColor={Colors.textMuted} />
+                    </View>
+                  )}
+                </View>
+
+                <View style={{ marginTop: 12 }}>
+                  <Text style={styles.fieldLabel}>Assign Subcontractor</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingVertical: 4 }}>
+                    <TouchableOpacity
+                      style={[styles.phaseChip, !taskDraft.assignedSubId && styles.phaseChipActive]}
+                      onPress={() => setTaskDraft(p => ({ ...p, assignedSubId: '', assignedSubName: '' }))}
+                    >
+                      <Text style={[styles.phaseChipText, !taskDraft.assignedSubId && styles.phaseChipTextActive]}>None</Text>
+                    </TouchableOpacity>
+                    {contacts.filter(c => c.role === 'Sub').map(sub => {
+                      const displayName = `${sub.firstName} ${sub.lastName}`.trim() || sub.companyName || 'Sub';
+                      const active = taskDraft.assignedSubId === sub.id;
+                      return (
+                        <TouchableOpacity
+                          key={sub.id}
+                          style={[styles.phaseChip, active && styles.phaseChipActive]}
+                          onPress={() => setTaskDraft(p => ({ ...p, assignedSubId: sub.id, assignedSubName: displayName }))}
+                        >
+                          <Text style={[styles.phaseChipText, active && styles.phaseChipTextActive]} numberOfLines={1}>
+                            {displayName}{sub.companyName ? ` · ${sub.companyName}` : ''}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                    {contacts.filter(c => c.role === 'Sub').length === 0 ? (
+                      <Text style={{ fontSize: 12, color: Colors.textMuted, alignSelf: 'center' as const, paddingHorizontal: 8 }}>
+                        No subs in contacts. Add one from the Contacts tab.
+                      </Text>
+                    ) : null}
+                  </ScrollView>
+                </View>
+
+                <View style={styles.toggleRow}>
+                  <View style={styles.toggleInfo}><Flag size={14} color="#FF9500" /><Text style={styles.toggleLabel}>Milestone</Text></View>
+                  <Switch value={taskDraft.isMilestone} onValueChange={val => setTaskDraft(p => ({ ...p, isMilestone: val }))} trackColor={{ false: Colors.border, true: '#FF9500' }} thumbColor="#FFF" />
+                </View>
+                <View style={styles.toggleRow}>
+                  <View style={styles.toggleInfo}><GitBranch size={14} color={Colors.error} /><Text style={styles.toggleLabel}>Critical Path</Text></View>
+                  <Switch value={taskDraft.isCriticalPath} onValueChange={val => setTaskDraft(p => ({ ...p, isCriticalPath: val }))} trackColor={{ false: Colors.border, true: Colors.error }} thumbColor="#FFF" />
+                </View>
+                <View style={styles.toggleRow}>
+                  <View style={styles.toggleInfo}><Cloud size={14} color="#007AFF" /><Text style={styles.toggleLabel}>Weather Sensitive</Text></View>
+                  <Switch value={taskDraft.isWeatherSensitive} onValueChange={val => setTaskDraft(p => ({ ...p, isWeatherSensitive: val }))} trackColor={{ false: Colors.border, true: '#007AFF' }} thumbColor="#FFF" />
+                </View>
+
+                <Text style={styles.fieldLabel}>Predecessors {taskDraft.dependencyLinks.length > 0 ? '(controls start day)' : '(optional)'}</Text>
+                <TouchableOpacity style={styles.depPickerBtn} onPress={() => setShowDepPicker(true)}>
+                  <Link2 size={14} color={Colors.info} />
+                  <Text style={styles.depPickerBtnText}>{taskDraft.dependencyLinks.length > 0 ? `${taskDraft.dependencyLinks.length} predecessor${taskDraft.dependencyLinks.length > 1 ? 's' : ''} linked` : 'Tap to link predecessors'}</Text>
+                </TouchableOpacity>
+                {/* Dep type and lag per link */}
+                {taskDraft.dependencyLinks.length > 0 && (
+                  <View style={styles.depDetailList}>
+                    {taskDraft.dependencyLinks.map(link => {
+                      const depTask = sortedTasks.find(t => t.id === link.taskId);
+                      if (!depTask) return null;
+                      return (
+                        <View key={link.taskId} style={styles.depDetailRow}>
+                          <Text style={styles.depDetailName} numberOfLines={1}>{depTask.title}</Text>
+                          <View style={styles.depTypeRow}>
+                            {(['FS', 'SS', 'FF', 'SF'] as DependencyType[]).map(type => (
+                              <TouchableOpacity
+                                key={type}
+                                style={[styles.depTypeBtn, link.type === type && styles.depTypeBtnActive]}
+                                onPress={() => setTaskDraft(p => ({
+                                  ...p,
+                                  dependencyLinks: p.dependencyLinks.map(l =>
+                                    l.taskId === link.taskId ? { ...l, type } : l
+                                  ),
+                                }))}
+                              >
+                                <Text style={[styles.depTypeBtnText, link.type === type && styles.depTypeBtnTextActive]}>{type}</Text>
+                              </TouchableOpacity>
+                            ))}
+                            <TextInput
+                              style={styles.lagInput}
+                              value={String(link.lagDays || 0)}
+                              onChangeText={val => setTaskDraft(p => ({
+                                ...p,
+                                dependencyLinks: p.dependencyLinks.map(l =>
+                                  l.taskId === link.taskId ? { ...l, lagDays: parseInt(val, 10) || 0 } : l
+                                ),
+                              }))}
+                              keyboardType="number-pad"
+                              placeholder="+lag"
+                              placeholderTextColor={Colors.textMuted}
+                            />
+                          </View>
+                        </View>
+                      );
+                    })}
+                  </View>
+                )}
+                {editingTask && taskDraft.dependencyLinks.length > 0 && (
+                  <View style={styles.cascadeNote}>
+                    <Text style={styles.cascadeNoteText}>Linked successors will auto-shift when duration changes</Text>
+                  </View>
+                )}
+
+                <Text style={styles.fieldLabel}>Notes</Text>
+                <TextInput style={[styles.input, { minHeight: 70, textAlignVertical: 'top' as const }]} value={taskDraft.notes} onChangeText={val => setTaskDraft(p => ({ ...p, notes: val }))} placeholder="Notes..." placeholderTextColor={Colors.textMuted} multiline />
+
+                <View style={styles.editActionRow}>
+                  <TouchableOpacity style={styles.editCancelBtn} onPress={() => setIsEditModalOpen(false)}>
+                    <Text style={styles.editCancelBtnText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.editSaveBtn} onPress={handleEditSave}>
+                    <Text style={styles.editSaveBtnText}>Save</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Dependency Picker */}
+      <Modal visible={showDepPicker} transparent animationType="fade" onRequestClose={() => setShowDepPicker(false)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setShowDepPicker(false)}>
+          <Pressable style={[styles.modalCard, { maxHeight: '80%' }]} onPress={() => undefined}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Link Predecessors</Text>
+              <TouchableOpacity onPress={() => setShowDepPicker(false)}><X size={20} color={Colors.textMuted} /></TouchableOpacity>
+            </View>
+            <ScrollView style={{ maxHeight: 400 }}>
+              {sortedTasks.filter(t => t.id !== editingTask?.id).map(task => {
+                const isSelected = taskDraft.dependencyLinks.some(l => l.taskId === task.id);
+                return (
+                  <TouchableOpacity key={task.id} style={[styles.depOption, isSelected && styles.depOptionSelected]} onPress={() => toggleDep(task.id)}>
+                    <View style={[styles.depCheckbox, isSelected && styles.depCheckboxSelected]}>
+                      {isSelected && <CheckCircle2 size={14} color="#FFF" />}
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.depOptionTitle}>{task.title}</Text>
+                      <Text style={styles.depOptionMeta}>{task.phase} · {task.durationDays}d</Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+            <TouchableOpacity style={styles.depDoneBtn} onPress={() => setShowDepPicker(false)}>
+              <Text style={styles.depDoneBtnText}>Done ({taskDraft.dependencyLinks.length})</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* AI Builder Modal */}
+      <Modal visible={isAIBuilderOpen} transparent animationType="slide" onRequestClose={() => setIsAIBuilderOpen(false)}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <View style={styles.bottomSheetOverlay}>
+            <Pressable style={{ flex: 1 }} onPress={() => setIsAIBuilderOpen(false)} />
+            <View style={[styles.bottomSheet, { paddingBottom: insets.bottom + 16 }]}>
+              <View style={styles.bottomSheetHandle} />
+              <View style={styles.aiHeader}>
+                <Sparkles size={22} color="#FF9500" />
+                <Text style={styles.aiTitle}>AI Schedule Builder</Text>
+              </View>
+              <Text style={styles.aiSubtitle}>
+                Describe your project and we&apos;ll generate a complete schedule with phases, tasks, durations, and dependencies.
+              </Text>
+              <TextInput
+                style={styles.aiInput}
+                value={aiPrompt}
+                onChangeText={setAiPrompt}
+                placeholder="e.g. 3,000 sq ft home renovation. Gut kitchen and two bathrooms, new flooring throughout, paint the whole house. 12 weeks total."
+                placeholderTextColor={Colors.textMuted}
+                multiline
+                textAlignVertical="top"
+              />
+              <TouchableOpacity
+                style={[styles.aiGenerateBtn, isAILoading && { opacity: 0.6 }]}
+                onPress={handleAIGenerate}
+                disabled={isAILoading}
+                activeOpacity={0.85}
+              >
+                {isAILoading ? (
+                  <ActivityIndicator color="#FFF" size="small" />
+                ) : (
+                  <Sparkles size={16} color="#FFF" />
+                )}
+                <Text style={styles.aiGenerateBtnText}>
+                  {isAILoading ? 'Building your schedule...' : 'Generate Schedule'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* What-If Scenarios */}
+      {activeSchedule && (
+        <ScenariosModal
+          visible={showScenariosModal}
+          onClose={() => setShowScenariosModal(false)}
+          schedule={activeSchedule}
+          onScheduleChange={handleScheduleScenariosChange}
+        />
+      )}
+
+      {/* Template Picker */}
+      <Modal visible={isTemplatePickerOpen} transparent animationType="slide" onRequestClose={() => setIsTemplatePickerOpen(false)}>
+        <View style={styles.bottomSheetOverlay}>
+          <Pressable style={{ flex: 1 }} onPress={() => setIsTemplatePickerOpen(false)} />
+          <View style={[styles.bottomSheet, { paddingBottom: insets.bottom + 16, maxHeight: '75%' }]}>
+            <View style={styles.bottomSheetHandle} />
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Schedule Templates</Text>
+              <TouchableOpacity onPress={() => setIsTemplatePickerOpen(false)}>
+                <X size={20} color={Colors.textMuted} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {SCHEDULE_TEMPLATES.map(template => (
+                <TouchableOpacity
+                  key={template.id}
+                  style={styles.templateCard}
+                  onPress={() => handleTemplateSelect(template, projectStartDate)}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.templateInfo}>
+                    <Text style={styles.templateName}>{template.name}</Text>
+                    <Text style={styles.templateMeta}>
+                      {template.taskCount} tasks · {template.typicalDuration}
+                    </Text>
+                  </View>
+                  <ChevronRight size={16} color={Colors.textMuted} />
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+    </>
+  );
+
   if (layout.isDesktop && hasScheduleData && activeSchedule) {
     return (
       <View style={styles.container}>
@@ -1144,6 +1616,27 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
             <Plus size={18} color="#FFF" />
           </TouchableOpacity>
         </View>
+
+        {activeSchedule && (
+          <View style={styles.projectStartBar}>
+            <CalendarDays size={14} color={Colors.textMuted} />
+            <Text style={styles.projectStartLabel}>Starts</Text>
+            <Text style={styles.projectStartValue}>{projectStartDate.toLocaleDateString()}</Text>
+            <TouchableOpacity
+              style={styles.projectStartEdit}
+              onPress={() => {
+                const yyyy = projectStartDate.getFullYear();
+                const mm = String(projectStartDate.getMonth() + 1).padStart(2, '0');
+                const dd = String(projectStartDate.getDate()).padStart(2, '0');
+                setProjectStartDateInput(`${yyyy}-${mm}-${dd}`);
+                setIsProjectStartDatePickerOpen(true);
+              }}
+              testID="edit-project-start-date-desktop"
+            >
+              <Text style={styles.projectStartEditText}>Change</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         <View style={desktopStyles.splitContainer}>
           {viewMode === 'gantt' && renderDesktopTaskListPanel()}
@@ -1222,6 +1715,19 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
               )}
               {viewMode === 'gantt' && (
                 <View style={styles.ganttWrapper}>
+                  {activeScenarioTasks && (
+                    <TouchableOpacity
+                      style={styles.scenarioBanner}
+                      onPress={() => setShowScenariosModal(true)}
+                      activeOpacity={0.85}
+                      testID="scenario-banner"
+                    >
+                      <GitBranch size={13} color={Colors.primary} />
+                      <Text style={styles.scenarioBannerText} numberOfLines={1}>
+                        Viewing What-If scenario (read-only). Tap to manage.
+                      </Text>
+                    </TouchableOpacity>
+                  )}
                   <View style={styles.ganttControls}>
                     <TouchableOpacity style={[styles.ganttOrientBtn, !isVerticalGantt && styles.ganttOrientBtnActive]} onPress={() => setIsVerticalGantt(false)}>
                       <BarChart3 size={12} color={!isVerticalGantt ? '#FFF' : Colors.textSecondary} />
@@ -1239,11 +1745,19 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                       <Save size={13} color={Colors.primary} />
                       <Text style={styles.saveBaselineBtnText}>Save Baseline</Text>
                     </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.saveBaselineBtn}
+                      onPress={() => setShowScenariosModal(true)}
+                      testID="scenarios-open-btn"
+                    >
+                      <GitBranch size={13} color={Colors.primary} />
+                      <Text style={styles.saveBaselineBtnText}>What-If</Text>
+                    </TouchableOpacity>
                   </View>
                   {isVerticalGantt ? (
                     <VerticalGantt schedule={activeSchedule} tasks={sortedTasks} projectStartDate={projectStartDate} onTaskPress={setTaskDetailModal} showBaseline={showBaseline} />
                   ) : (
-                    <GanttChart schedule={activeSchedule} tasks={sortedTasks} projectStartDate={projectStartDate} onTaskPress={setTaskDetailModal} showBaseline={showBaseline} />
+                    <GanttChart schedule={activeSchedule} tasks={sortedTasks} projectStartDate={projectStartDate} onTaskPress={setTaskDetailModal} showBaseline={showBaseline} forecast={ganttForecast} />
                   )}
                 </View>
               )}
@@ -1282,6 +1796,48 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
             </Pressable>
           </Pressable>
         </Modal>
+        <Modal visible={isProjectStartDatePickerOpen} transparent animationType="fade" onRequestClose={() => setIsProjectStartDatePickerOpen(false)}>
+          <Pressable style={styles.modalOverlay} onPress={() => setIsProjectStartDatePickerOpen(false)}>
+            <Pressable style={[styles.modalCard, { maxWidth: 380, alignSelf: 'center' }]} onPress={() => undefined}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Project Start Date</Text>
+              </View>
+              <Text style={styles.quickAddHint}>
+                This is Day 1 of the schedule. Changing it shifts every task&apos;s calendar dates but keeps their relative order.
+              </Text>
+              <TextInput
+                style={[styles.quickAddInput, { marginTop: 10 }]}
+                value={projectStartDateInput}
+                onChangeText={setProjectStartDateInput}
+                placeholder="YYYY-MM-DD"
+                placeholderTextColor={Colors.textMuted}
+                autoCapitalize="none"
+                autoCorrect={false}
+                keyboardType={Platform.OS === 'ios' ? 'numbers-and-punctuation' : 'default'}
+                autoFocus
+              />
+              <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+                <TouchableOpacity
+                  style={[styles.addTaskBtn, { flex: 1, backgroundColor: Colors.surfaceAlt }]}
+                  onPress={() => setIsProjectStartDatePickerOpen(false)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.addTaskBtnText, { color: Colors.text }]}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.addTaskBtn, { flex: 1 }]}
+                  onPress={() => setProjectStartDate(projectStartDateInput)}
+                  activeOpacity={0.85}
+                  testID="save-project-start-date"
+                >
+                  <Check size={16} color="#FFF" />
+                  <Text style={styles.addTaskBtnText}>Save</Text>
+                </TouchableOpacity>
+              </View>
+            </Pressable>
+          </Pressable>
+        </Modal>
+
         <Modal visible={isQuickAddOpen} transparent animationType="slide" onRequestClose={() => setIsQuickAddOpen(false)}>
           <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
             <View style={styles.bottomSheetOverlay}>
@@ -1291,7 +1847,109 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                 <View style={styles.modalHeader}>
                   <Text style={styles.modalTitle}>Quick Add Task</Text>
                 </View>
-                <TextInput style={styles.quickAddInput} value={taskDraft.title} onChangeText={handleTaskNameChange} placeholder="Task name..." placeholderTextColor={Colors.textMuted} autoFocus />
+                <TextInput
+                  style={styles.quickAddInput}
+                  value={taskDraft.title}
+                  onChangeText={handleTaskNameChange}
+                  placeholder="Task name..."
+                  placeholderTextColor={Colors.textMuted}
+                  autoFocus
+                />
+                <View style={{ marginTop: 4 }}>
+                  <Text style={styles.quickAddFieldLabel}>Start date</Text>
+                  {(() => {
+                    const wdpw = activeSchedule?.workingDaysPerWeek ?? 5;
+                    const toISO = (d: Date) => {
+                      const y = d.getFullYear();
+                      const m = String(d.getMonth() + 1).padStart(2, '0');
+                      const day = String(d.getDate()).padStart(2, '0');
+                      return `${y}-${m}-${day}`;
+                    };
+                    const suggestions: { key: string; label: string; date: Date; iso: string }[] = [];
+                    suggestions.push({
+                      key: 'project-start',
+                      label: 'Project Start',
+                      date: projectStartDate,
+                      iso: toISO(projectStartDate),
+                    });
+                    const recent = sortedTasks.slice(-6);
+                    recent.forEach((t) => {
+                      const { end } = getTaskDateRange(t, projectStartDate, wdpw);
+                      const next = addWorkingDays(end, 1, wdpw);
+                      suggestions.push({
+                        key: `after-${t.id}`,
+                        label: `After ${t.title}`,
+                        date: next,
+                        iso: toISO(next),
+                      });
+                    });
+                    const pickChip = (iso: string) => {
+                      setTaskDraft(prev => ({ ...prev, startDateOverride: iso }));
+                      if (Platform.OS !== 'web') void Haptics.selectionAsync();
+                    };
+                    return (
+                      <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        style={styles.quickAddDateScroller}
+                        contentContainerStyle={styles.quickAddDateChipRow}
+                      >
+                        {suggestions.map((s) => {
+                          const active = taskDraft.startDateOverride === s.iso;
+                          return (
+                            <TouchableOpacity
+                              key={s.key}
+                              onPress={() => pickChip(s.iso)}
+                              activeOpacity={0.75}
+                              style={[styles.quickAddDateChip, active && styles.quickAddDateChipActive]}
+                            >
+                              <Text
+                                style={[styles.quickAddDateChipLabel, active && styles.quickAddDateChipLabelActive]}
+                                numberOfLines={1}
+                              >
+                                {s.label}
+                              </Text>
+                              <Text
+                                style={[styles.quickAddDateChipValue, active && styles.quickAddDateChipValueActive]}
+                              >
+                                {formatShortDate(s.date)}
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </ScrollView>
+                    );
+                  })()}
+                </View>
+                <View style={styles.quickAddFieldRow}>
+                  <View style={styles.quickAddField}>
+                    <Text style={styles.quickAddFieldLabel}>Custom date</Text>
+                    <TextInput
+                      style={styles.quickAddSmallInput}
+                      value={taskDraft.startDateOverride}
+                      onChangeText={(text) => setTaskDraft(prev => ({ ...prev, startDateOverride: text }))}
+                      placeholder="YYYY-MM-DD"
+                      placeholderTextColor={Colors.textMuted}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      keyboardType={Platform.OS === 'ios' ? 'numbers-and-punctuation' : 'default'}
+                    />
+                  </View>
+                  <View style={styles.quickAddField}>
+                    <Text style={styles.quickAddFieldLabel}>Duration (days)</Text>
+                    <TextInput
+                      style={styles.quickAddSmallInput}
+                      value={taskDraft.durationDays}
+                      onChangeText={(text) => setTaskDraft(prev => ({ ...prev, durationDays: text.replace(/[^0-9]/g, '') }))}
+                      placeholder="5"
+                      placeholderTextColor={Colors.textMuted}
+                      keyboardType="number-pad"
+                    />
+                  </View>
+                </View>
+                <Text style={styles.quickAddHint}>
+                  Project starts {projectStartDate.toLocaleDateString()} · leave custom date blank to chain after the last task
+                </Text>
                 <TouchableOpacity style={styles.addTaskBtn} onPress={handleQuickAdd} activeOpacity={0.85}>
                   <Plus size={16} color="#FFF" />
                   <Text style={styles.addTaskBtnText}>Add Task</Text>
@@ -1356,6 +2014,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
           onClose={() => setIsQuickBuildOpen(false)}
           onTemplateSelect={handleTemplateSelect}
         />
+        {extraModals}
       </View>
     );
   }
@@ -1519,6 +2178,27 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
               </View>
             </ScrollView>
 
+            {activeSchedule && !isFieldMode && (
+              <View style={styles.projectStartBar}>
+                <CalendarDays size={14} color={Colors.textMuted} />
+                <Text style={styles.projectStartLabel}>Starts</Text>
+                <Text style={styles.projectStartValue}>{projectStartDate.toLocaleDateString()}</Text>
+                <TouchableOpacity
+                  style={styles.projectStartEdit}
+                  onPress={() => {
+                    const yyyy = projectStartDate.getFullYear();
+                    const mm = String(projectStartDate.getMonth() + 1).padStart(2, '0');
+                    const dd = String(projectStartDate.getDate()).padStart(2, '0');
+                    setProjectStartDateInput(`${yyyy}-${mm}-${dd}`);
+                    setIsProjectStartDatePickerOpen(true);
+                  }}
+                  testID="edit-project-start-date-mobile"
+                >
+                  <Text style={styles.projectStartEditText}>Change</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
             {isFieldMode ? renderFieldMode() : (
               <>
                 {viewMode === 'today' && activeSchedule && (
@@ -1654,6 +2334,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                         projectStartDate={projectStartDate}
                         onTaskPress={setTaskDetailModal}
                         showBaseline={showBaseline}
+                        forecast={ganttForecast}
                       />
                     )}
                   </View>
@@ -1758,6 +2439,49 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
         </Pressable>
       </Modal>
 
+      {/* Project Start Date Picker (mobile) */}
+      <Modal visible={isProjectStartDatePickerOpen} transparent animationType="fade" onRequestClose={() => setIsProjectStartDatePickerOpen(false)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setIsProjectStartDatePickerOpen(false)}>
+          <Pressable style={[styles.modalCard, { maxWidth: 380, alignSelf: 'center' }]} onPress={() => undefined}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Project Start Date</Text>
+            </View>
+            <Text style={styles.quickAddHint}>
+              This is Day 1 of the schedule. Changing it shifts every task&apos;s calendar dates but keeps their relative order.
+            </Text>
+            <TextInput
+              style={[styles.quickAddInput, { marginTop: 10 }]}
+              value={projectStartDateInput}
+              onChangeText={setProjectStartDateInput}
+              placeholder="YYYY-MM-DD"
+              placeholderTextColor={Colors.textMuted}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType={Platform.OS === 'ios' ? 'numbers-and-punctuation' : 'default'}
+              autoFocus
+            />
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+              <TouchableOpacity
+                style={[styles.addTaskBtn, { flex: 1, backgroundColor: Colors.surfaceAlt }]}
+                onPress={() => setIsProjectStartDatePickerOpen(false)}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.addTaskBtnText, { color: Colors.text }]}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.addTaskBtn, { flex: 1 }]}
+                onPress={() => setProjectStartDate(projectStartDateInput)}
+                activeOpacity={0.85}
+                testID="save-project-start-date-mobile"
+              >
+                <Check size={16} color="#FFF" />
+                <Text style={styles.addTaskBtnText}>Save</Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
       {/* Quick Add Bottom Sheet */}
       <Modal visible={isQuickAddOpen} transparent animationType="slide" onRequestClose={() => setIsQuickAddOpen(false)}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
@@ -1799,6 +2523,95 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                   ))}
                 </View>
               </ScrollView>
+
+              <View style={{ marginTop: 4 }}>
+                <Text style={styles.quickAddFieldLabel}>Start date (optional)</Text>
+                {(() => {
+                  // Quick-pick suggestions so the user doesn't have to type a
+                  // raw YYYY-MM-DD when the date they want is already obvious
+                  // from the schedule (project start, or right after an
+                  // existing task finishes). Custom date input still works
+                  // below the chips.
+                  const wdpw = activeSchedule?.workingDaysPerWeek ?? 5;
+                  const toISO = (d: Date) => {
+                    const y = d.getFullYear();
+                    const m = String(d.getMonth() + 1).padStart(2, '0');
+                    const day = String(d.getDate()).padStart(2, '0');
+                    return `${y}-${m}-${day}`;
+                  };
+                  const suggestions: { key: string; label: string; date: Date; iso: string }[] = [];
+                  suggestions.push({
+                    key: 'project-start',
+                    label: 'Project Start',
+                    date: projectStartDate,
+                    iso: toISO(projectStartDate),
+                  });
+                  // "After X" = first working day after task X ends. Show
+                  // last 6 tasks in chronological order (most recent last).
+                  const recent = sortedTasks.slice(-6);
+                  recent.forEach((t) => {
+                    const { end } = getTaskDateRange(t, projectStartDate, wdpw);
+                    const next = addWorkingDays(end, 1, wdpw);
+                    suggestions.push({
+                      key: `after-${t.id}`,
+                      label: `After ${t.title}`,
+                      date: next,
+                      iso: toISO(next),
+                    });
+                  });
+                  const pickChip = (iso: string) => {
+                    setTaskDraft(prev => ({ ...prev, startDateOverride: iso }));
+                    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+                  };
+                  return (
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      style={styles.quickAddDateScroller}
+                      contentContainerStyle={styles.quickAddDateChipRow}
+                    >
+                      {suggestions.map((s) => {
+                        const active = taskDraft.startDateOverride === s.iso;
+                        return (
+                          <TouchableOpacity
+                            key={s.key}
+                            onPress={() => pickChip(s.iso)}
+                            activeOpacity={0.75}
+                            style={[styles.quickAddDateChip, active && styles.quickAddDateChipActive]}
+                            testID={`quick-add-date-${s.key}`}
+                          >
+                            <Text
+                              style={[styles.quickAddDateChipLabel, active && styles.quickAddDateChipLabelActive]}
+                              numberOfLines={1}
+                            >
+                              {s.label}
+                            </Text>
+                            <Text
+                              style={[styles.quickAddDateChipValue, active && styles.quickAddDateChipValueActive]}
+                            >
+                              {formatShortDate(s.date)}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </ScrollView>
+                  );
+                })()}
+                <TextInput
+                  style={styles.quickAddSmallInput}
+                  value={taskDraft.startDateOverride}
+                  onChangeText={(text) => setTaskDraft(prev => ({ ...prev, startDateOverride: text }))}
+                  placeholder="Or type a custom date: YYYY-MM-DD"
+                  placeholderTextColor={Colors.textMuted}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  keyboardType={Platform.OS === 'ios' ? 'numbers-and-punctuation' : 'default'}
+                  testID="quick-add-start-date"
+                />
+                <Text style={styles.quickAddHint}>
+                  Project starts {projectStartDate.toLocaleDateString()} · leave blank to chain after the last task
+                </Text>
+              </View>
 
               <View style={styles.quickAddRow}>
                 <View style={styles.quickAddField}>
@@ -2125,290 +2938,6 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
         </Pressable>
       </Modal>
 
-      {/* Edit Task Modal */}
-      <Modal visible={isEditModalOpen} transparent animationType="slide" onRequestClose={() => setIsEditModalOpen(false)}>
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-          <View style={styles.bottomSheetOverlay}>
-            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ flexGrow: 1, justifyContent: 'flex-end' as const }} keyboardShouldPersistTaps="handled">
-              <View style={[styles.bottomSheet, { paddingBottom: insets.bottom + 16 }]}>
-                <View style={styles.bottomSheetHandle} />
-                <View style={styles.modalHeader}>
-                  <Text style={styles.modalTitle}>{editingTask ? 'Edit Task' : 'New Task'}</Text>
-                  <TouchableOpacity onPress={() => setIsEditModalOpen(false)}>
-                    <X size={20} color={Colors.textMuted} />
-                  </TouchableOpacity>
-                </View>
-
-                <Text style={styles.fieldLabel}>Task Name</Text>
-                <TextInput style={styles.input} value={taskDraft.title} onChangeText={val => setTaskDraft(p => ({ ...p, title: val }))} placeholder="Task name" placeholderTextColor={Colors.textMuted} />
-
-                <Text style={styles.fieldLabel}>Phase</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.phaseScroller}>
-                  <View style={styles.phaseChipRow}>
-                    {PHASE_OPTIONS.map(phase => (
-                      <TouchableOpacity key={phase} style={[styles.phaseChip, taskDraft.phase === phase && styles.phaseChipActive]} onPress={() => setTaskDraft(p => ({ ...p, phase }))}>
-                        <Text style={[styles.phaseChipText, taskDraft.phase === phase && styles.phaseChipTextActive]}>{phase}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </ScrollView>
-
-                {/* Status */}
-                {editingTask && (
-                  <>
-                    <Text style={styles.fieldLabel}>Status</Text>
-                    <View style={styles.statusChipRow}>
-                      {(['not_started', 'in_progress', 'on_hold', 'done'] as ScheduleTask['status'][]).map(s => {
-                        const colors: Record<string, string> = { done: '#34C759', in_progress: '#007AFF', on_hold: '#FF9500', not_started: '#8E8E93' };
-                        const labels: Record<string, string> = { done: 'Done', in_progress: 'In Progress', on_hold: 'On Hold', not_started: 'Not Started' };
-                        const active = taskDraft.status === s;
-                        return (
-                          <TouchableOpacity
-                            key={s}
-                            style={[styles.modalStatusChip, { borderColor: colors[s], backgroundColor: active ? colors[s] : 'transparent' }]}
-                            onPress={() => {
-                              const autoProgress = s === 'done' ? '100' : s === 'not_started' ? '0' : taskDraft.progress;
-                              setTaskDraft(p => ({ ...p, status: s, progress: autoProgress }));
-                            }}
-                          >
-                            <Text style={[styles.modalStatusChipText, { color: active ? '#FFF' : colors[s] }]}>{labels[s]}</Text>
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </View>
-
-                    <Text style={styles.fieldLabel}>Progress — {taskDraft.progress}%</Text>
-                    <View style={styles.modalProgressRow}>
-                      {[0, 25, 50, 75, 100].map(pct => (
-                        <TouchableOpacity
-                          key={pct}
-                          style={[styles.modalProgressBtn, parseInt(taskDraft.progress, 10) === pct && styles.modalProgressBtnActive]}
-                          onPress={() => {
-                            const nextStatus = pct >= 100 ? 'done' as const : pct > 0 ? 'in_progress' as const : 'not_started' as const;
-                            setTaskDraft(p => ({ ...p, progress: String(pct), status: nextStatus }));
-                          }}
-                        >
-                          <Text style={[styles.modalProgressBtnText, parseInt(taskDraft.progress, 10) === pct && styles.modalProgressBtnTextActive]}>{pct}%</Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  </>
-                )}
-
-                <View style={styles.dualRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.fieldLabel}>Duration (days)</Text>
-                    <TextInput style={styles.input} value={taskDraft.durationDays} onChangeText={val => setTaskDraft(p => ({ ...p, durationDays: val }))} keyboardType="number-pad" />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.fieldLabel}>Crew Size</Text>
-                    <TextInput style={styles.input} value={taskDraft.crewSize} onChangeText={val => setTaskDraft(p => ({ ...p, crewSize: val }))} keyboardType="number-pad" placeholder="# people" placeholderTextColor={Colors.textMuted} />
-                  </View>
-                </View>
-
-                <View style={styles.dualRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.fieldLabel}>Crew / Trade</Text>
-                    <TextInput style={styles.input} value={taskDraft.crew} onChangeText={val => setTaskDraft(p => ({ ...p, crew: val }))} placeholder="Crew name" placeholderTextColor={Colors.textMuted} />
-                  </View>
-                  {editingTask && taskDraft.dependencyLinks.length === 0 && (
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.fieldLabel}>Start Day Override</Text>
-                      <TextInput style={styles.input} value={taskDraft.startDayOverride} onChangeText={val => setTaskDraft(p => ({ ...p, startDayOverride: val }))} keyboardType="number-pad" placeholder="Auto" placeholderTextColor={Colors.textMuted} />
-                    </View>
-                  )}
-                </View>
-
-                <View style={{ marginTop: 12 }}>
-                  <Text style={styles.fieldLabel}>Assign Subcontractor</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingVertical: 4 }}>
-                    <TouchableOpacity
-                      style={[styles.phaseChip, !taskDraft.assignedSubId && styles.phaseChipActive]}
-                      onPress={() => setTaskDraft(p => ({ ...p, assignedSubId: '', assignedSubName: '' }))}
-                    >
-                      <Text style={[styles.phaseChipText, !taskDraft.assignedSubId && styles.phaseChipTextActive]}>None</Text>
-                    </TouchableOpacity>
-                    {contacts.filter(c => c.role === 'Sub').map(sub => {
-                      const displayName = `${sub.firstName} ${sub.lastName}`.trim() || sub.companyName || 'Sub';
-                      const active = taskDraft.assignedSubId === sub.id;
-                      return (
-                        <TouchableOpacity
-                          key={sub.id}
-                          style={[styles.phaseChip, active && styles.phaseChipActive]}
-                          onPress={() => setTaskDraft(p => ({ ...p, assignedSubId: sub.id, assignedSubName: displayName }))}
-                        >
-                          <Text style={[styles.phaseChipText, active && styles.phaseChipTextActive]} numberOfLines={1}>
-                            {displayName}{sub.companyName ? ` · ${sub.companyName}` : ''}
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                    {contacts.filter(c => c.role === 'Sub').length === 0 ? (
-                      <Text style={{ fontSize: 12, color: Colors.textMuted, alignSelf: 'center' as const, paddingHorizontal: 8 }}>
-                        No subs in contacts. Add one from the Contacts tab.
-                      </Text>
-                    ) : null}
-                  </ScrollView>
-                </View>
-
-                <View style={styles.toggleRow}>
-                  <View style={styles.toggleInfo}><Flag size={14} color="#FF9500" /><Text style={styles.toggleLabel}>Milestone</Text></View>
-                  <Switch value={taskDraft.isMilestone} onValueChange={val => setTaskDraft(p => ({ ...p, isMilestone: val }))} trackColor={{ false: Colors.border, true: '#FF9500' }} thumbColor="#FFF" />
-                </View>
-                <View style={styles.toggleRow}>
-                  <View style={styles.toggleInfo}><GitBranch size={14} color={Colors.error} /><Text style={styles.toggleLabel}>Critical Path</Text></View>
-                  <Switch value={taskDraft.isCriticalPath} onValueChange={val => setTaskDraft(p => ({ ...p, isCriticalPath: val }))} trackColor={{ false: Colors.border, true: Colors.error }} thumbColor="#FFF" />
-                </View>
-                <View style={styles.toggleRow}>
-                  <View style={styles.toggleInfo}><Cloud size={14} color="#007AFF" /><Text style={styles.toggleLabel}>Weather Sensitive</Text></View>
-                  <Switch value={taskDraft.isWeatherSensitive} onValueChange={val => setTaskDraft(p => ({ ...p, isWeatherSensitive: val }))} trackColor={{ false: Colors.border, true: '#007AFF' }} thumbColor="#FFF" />
-                </View>
-
-                <Text style={styles.fieldLabel}>Predecessors {taskDraft.dependencyLinks.length > 0 ? '(controls start day)' : '(optional)'}</Text>
-                <TouchableOpacity style={styles.depPickerBtn} onPress={() => setShowDepPicker(true)}>
-                  <Link2 size={14} color={Colors.info} />
-                  <Text style={styles.depPickerBtnText}>{taskDraft.dependencyLinks.length > 0 ? `${taskDraft.dependencyLinks.length} predecessor${taskDraft.dependencyLinks.length > 1 ? 's' : ''} linked` : 'Tap to link predecessors'}</Text>
-                </TouchableOpacity>
-                {/* Dep type and lag per link */}
-                {taskDraft.dependencyLinks.length > 0 && (
-                  <View style={styles.depDetailList}>
-                    {taskDraft.dependencyLinks.map(link => {
-                      const depTask = sortedTasks.find(t => t.id === link.taskId);
-                      if (!depTask) return null;
-                      return (
-                        <View key={link.taskId} style={styles.depDetailRow}>
-                          <Text style={styles.depDetailName} numberOfLines={1}>{depTask.title}</Text>
-                          <View style={styles.depTypeRow}>
-                            {(['FS', 'SS', 'FF', 'SF'] as DependencyType[]).map(type => (
-                              <TouchableOpacity
-                                key={type}
-                                style={[styles.depTypeBtn, link.type === type && styles.depTypeBtnActive]}
-                                onPress={() => setTaskDraft(p => ({
-                                  ...p,
-                                  dependencyLinks: p.dependencyLinks.map(l =>
-                                    l.taskId === link.taskId ? { ...l, type } : l
-                                  ),
-                                }))}
-                              >
-                                <Text style={[styles.depTypeBtnText, link.type === type && styles.depTypeBtnTextActive]}>{type}</Text>
-                              </TouchableOpacity>
-                            ))}
-                            <TextInput
-                              style={styles.lagInput}
-                              value={String(link.lagDays || 0)}
-                              onChangeText={val => setTaskDraft(p => ({
-                                ...p,
-                                dependencyLinks: p.dependencyLinks.map(l =>
-                                  l.taskId === link.taskId ? { ...l, lagDays: parseInt(val, 10) || 0 } : l
-                                ),
-                              }))}
-                              keyboardType="number-pad"
-                              placeholder="+lag"
-                              placeholderTextColor={Colors.textMuted}
-                            />
-                          </View>
-                        </View>
-                      );
-                    })}
-                  </View>
-                )}
-                {editingTask && taskDraft.dependencyLinks.length > 0 && (
-                  <View style={styles.cascadeNote}>
-                    <Text style={styles.cascadeNoteText}>Linked successors will auto-shift when duration changes</Text>
-                  </View>
-                )}
-
-                <Text style={styles.fieldLabel}>Notes</Text>
-                <TextInput style={[styles.input, { minHeight: 70, textAlignVertical: 'top' as const }]} value={taskDraft.notes} onChangeText={val => setTaskDraft(p => ({ ...p, notes: val }))} placeholder="Notes..." placeholderTextColor={Colors.textMuted} multiline />
-
-                <View style={styles.editActionRow}>
-                  <TouchableOpacity style={styles.editCancelBtn} onPress={() => setIsEditModalOpen(false)}>
-                    <Text style={styles.editCancelBtnText}>Cancel</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.editSaveBtn} onPress={handleEditSave}>
-                    <Text style={styles.editSaveBtnText}>Save</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </ScrollView>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
-
-      {/* Dependency Picker */}
-      <Modal visible={showDepPicker} transparent animationType="fade" onRequestClose={() => setShowDepPicker(false)}>
-        <Pressable style={styles.modalOverlay} onPress={() => setShowDepPicker(false)}>
-          <Pressable style={[styles.modalCard, { maxHeight: '80%' }]} onPress={() => undefined}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Link Predecessors</Text>
-              <TouchableOpacity onPress={() => setShowDepPicker(false)}><X size={20} color={Colors.textMuted} /></TouchableOpacity>
-            </View>
-            <ScrollView style={{ maxHeight: 400 }}>
-              {sortedTasks.filter(t => t.id !== editingTask?.id).map(task => {
-                const isSelected = taskDraft.dependencyLinks.some(l => l.taskId === task.id);
-                return (
-                  <TouchableOpacity key={task.id} style={[styles.depOption, isSelected && styles.depOptionSelected]} onPress={() => toggleDep(task.id)}>
-                    <View style={[styles.depCheckbox, isSelected && styles.depCheckboxSelected]}>
-                      {isSelected && <CheckCircle2 size={14} color="#FFF" />}
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.depOptionTitle}>{task.title}</Text>
-                      <Text style={styles.depOptionMeta}>{task.phase} · {task.durationDays}d</Text>
-                    </View>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
-            <TouchableOpacity style={styles.depDoneBtn} onPress={() => setShowDepPicker(false)}>
-              <Text style={styles.depDoneBtnText}>Done ({taskDraft.dependencyLinks.length})</Text>
-            </TouchableOpacity>
-          </Pressable>
-        </Pressable>
-      </Modal>
-
-      {/* AI Builder Modal */}
-      <Modal visible={isAIBuilderOpen} transparent animationType="slide" onRequestClose={() => setIsAIBuilderOpen(false)}>
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-          <View style={styles.bottomSheetOverlay}>
-            <Pressable style={{ flex: 1 }} onPress={() => setIsAIBuilderOpen(false)} />
-            <View style={[styles.bottomSheet, { paddingBottom: insets.bottom + 16 }]}>
-              <View style={styles.bottomSheetHandle} />
-              <View style={styles.aiHeader}>
-                <Sparkles size={22} color="#FF9500" />
-                <Text style={styles.aiTitle}>AI Schedule Builder</Text>
-              </View>
-              <Text style={styles.aiSubtitle}>
-                Describe your project and we'll generate a complete schedule with phases, tasks, durations, and dependencies.
-              </Text>
-              <TextInput
-                style={styles.aiInput}
-                value={aiPrompt}
-                onChangeText={setAiPrompt}
-                placeholder="e.g. 3,000 sq ft home renovation. Gut kitchen and two bathrooms, new flooring throughout, paint the whole house. 12 weeks total."
-                placeholderTextColor={Colors.textMuted}
-                multiline
-                textAlignVertical="top"
-              />
-              <TouchableOpacity
-                style={[styles.aiGenerateBtn, isAILoading && { opacity: 0.6 }]}
-                onPress={handleAIGenerate}
-                disabled={isAILoading}
-                activeOpacity={0.85}
-              >
-                {isAILoading ? (
-                  <ActivityIndicator color="#FFF" size="small" />
-                ) : (
-                  <Sparkles size={16} color="#FFF" />
-                )}
-                <Text style={styles.aiGenerateBtnText}>
-                  {isAILoading ? 'Building your schedule...' : 'Generate Schedule'}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
-
       {/* Quick Build Modal */}
       <QuickBuildModal
         visible={isQuickBuildOpen}
@@ -2428,39 +2957,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
         />
       )}
 
-      {/* Template Picker */}
-      <Modal visible={isTemplatePickerOpen} transparent animationType="slide" onRequestClose={() => setIsTemplatePickerOpen(false)}>
-        <View style={styles.bottomSheetOverlay}>
-          <Pressable style={{ flex: 1 }} onPress={() => setIsTemplatePickerOpen(false)} />
-          <View style={[styles.bottomSheet, { paddingBottom: insets.bottom + 16, maxHeight: '75%' }]}>
-            <View style={styles.bottomSheetHandle} />
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Schedule Templates</Text>
-              <TouchableOpacity onPress={() => setIsTemplatePickerOpen(false)}>
-                <X size={20} color={Colors.textMuted} />
-              </TouchableOpacity>
-            </View>
-            <ScrollView showsVerticalScrollIndicator={false}>
-              {SCHEDULE_TEMPLATES.map(template => (
-                <TouchableOpacity
-                  key={template.id}
-                  style={styles.templateCard}
-                  onPress={() => handleTemplateSelect(template, projectStartDate)}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.templateInfo}>
-                    <Text style={styles.templateName}>{template.name}</Text>
-                    <Text style={styles.templateMeta}>
-                      {template.taskCount} tasks · {template.typicalDuration}
-                    </Text>
-                  </View>
-                  <ChevronRight size={16} color={Colors.textMuted} />
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
+      {extraModals}
     </View>
   );
 }
@@ -2653,6 +3150,8 @@ const styles = StyleSheet.create({
   baselineToggleText: { fontSize: 12, fontWeight: '600' as const, color: Colors.textSecondary },
   baselineToggleTextActive: { color: '#FFF' },
   saveBaselineBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8, backgroundColor: Colors.fillTertiary },
+  scenarioBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: Colors.primary + '15', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 8, borderWidth: 1, borderColor: Colors.primary + '30' },
+  scenarioBannerText: { flex: 1, fontSize: 12, fontWeight: '600' as const, color: Colors.primary },
   saveBaselineBtnText: { fontSize: 12, fontWeight: '600' as const, color: Colors.primary },
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', padding: 20 },
@@ -2671,6 +3170,51 @@ const styles = StyleSheet.create({
   doneBtnText: { fontSize: 13, fontWeight: '700' as const, color: '#FFF' },
 
   quickAddInput: { minHeight: 48, borderRadius: 14, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 14, fontSize: 16, fontWeight: '600' as const, color: Colors.text },
+  quickAddFieldRow: { flexDirection: 'row' as const, gap: 10, marginTop: 10 },
+  quickAddFieldLabel: { fontSize: 11, fontWeight: '600' as const, color: Colors.textMuted, marginBottom: 4, letterSpacing: 0.3 },
+  quickAddSmallInput: { minHeight: 44, borderRadius: 12, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 12, fontSize: 14, fontWeight: '600' as const, color: Colors.text },
+  quickAddHint: { fontSize: 11, color: Colors.textMuted, marginTop: 6, marginBottom: 4, lineHeight: 14 },
+  quickAddDateScroller: { marginBottom: 8, marginTop: 2 },
+  quickAddDateChipRow: { flexDirection: 'row' as const, gap: 8, paddingVertical: 2 },
+  quickAddDateChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    backgroundColor: Colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+    minWidth: 96,
+    alignItems: 'flex-start' as const,
+    gap: 2,
+  },
+  quickAddDateChipActive: {
+    backgroundColor: Colors.primary + '15',
+    borderColor: Colors.primary,
+  },
+  quickAddDateChipLabel: {
+    fontSize: 10,
+    fontWeight: '600' as const,
+    color: Colors.textMuted,
+    textTransform: 'uppercase' as const,
+    letterSpacing: 0.4,
+    maxWidth: 140,
+  },
+  quickAddDateChipLabelActive: {
+    color: Colors.primary,
+  },
+  quickAddDateChipValue: {
+    fontSize: 13,
+    fontWeight: '700' as const,
+    color: Colors.text,
+  },
+  quickAddDateChipValueActive: {
+    color: Colors.primary,
+  },
+  projectStartBar: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, paddingHorizontal: 16, paddingVertical: 8, backgroundColor: Colors.surfaceAlt, borderRadius: 10, marginHorizontal: 16, marginBottom: 8 },
+  projectStartLabel: { fontSize: 11, fontWeight: '600' as const, color: Colors.textMuted, letterSpacing: 0.4, textTransform: 'uppercase' as const },
+  projectStartValue: { flex: 1, fontSize: 14, fontWeight: '700' as const, color: Colors.text },
+  projectStartEdit: { paddingVertical: 4, paddingHorizontal: 10, borderRadius: 8, backgroundColor: Colors.primary + '15' },
+  projectStartEditText: { fontSize: 12, fontWeight: '700' as const, color: Colors.primary },
   phaseScroller: { marginBottom: 4 },
   phaseChipRow: { flexDirection: 'row', gap: 6 },
   phaseChip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 18, backgroundColor: Colors.fillTertiary },

@@ -55,8 +55,8 @@ export default function PaywallScreen() {
   const packagesLoaded = !!proPackage || !!businessPackage;
   const packagesStillLoading = isLoading && !packagesLoaded;
 
-  const proPrice = proPackage?.product?.priceString ?? (packagesStillLoading ? null : '$29.99/mo');
-  const businessPrice = businessPackage?.product?.priceString ?? (packagesStillLoading ? null : '$79.99/mo');
+  const proPrice = proPackage?.product?.priceString ?? (packagesStillLoading ? null : '$24.16/mo');
+  const businessPrice = businessPackage?.product?.priceString ?? (packagesStillLoading ? null : '$63.99/mo');
   const isFallbackPricing = !packagesLoaded && !packagesStillLoading;
 
   const handlePurchasePro = useCallback(async () => {

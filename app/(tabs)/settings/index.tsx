@@ -22,12 +22,59 @@ import { Sparkles, Hash } from 'lucide-react-native';
 import { THEME_PRESETS } from '@/types';
 import type { PDFNamingSettings } from '@/types';
 import SignaturePad from '@/components/SignaturePad';
+import Tutorial from '@/components/Tutorial';
+import Paywall from '@/components/Paywall';
+import { HelpCircle, MessageCircle, BookOpen } from 'lucide-react-native';
+import { Linking } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LogOut, UserCircle, Eye, EyeOff, FolderDown } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { track, AnalyticsEvents } from '@/utils/analytics';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
+
+const FAQ_ITEMS: { q: string; a: string }[] = [
+  {
+    q: 'How do I create my first project?',
+    a: 'Tap the Projects tab, then the + button in the top right. Enter a name, location and budget and MAGE ID sets up the estimate, schedule and budget dashboard for you automatically.',
+  },
+  {
+    q: 'What\u2019s the difference between Free, Pro and Business?',
+    a: 'Free includes 1 active project and basic estimating. Pro unlocks unlimited projects, cash flow forecasting, Gantt PDF exports, AI code checks and proposal templates. Business adds time tracking, QuickBooks sync, plan viewer, subcontractor management and RFIs/submittals.',
+  },
+  {
+    q: 'How does the AI estimate work?',
+    a: 'Type a short description of the project and MAGE AI returns itemized materials and labor using current bulk pricing. You can edit any line, and the totals and tax update live.',
+  },
+  {
+    q: 'Is my data private?',
+    a: 'Yes. Your projects live in your own Supabase row with Row-Level Security so only you can read them. We never share data with third parties.',
+  },
+  {
+    q: 'Can I use MAGE ID offline?',
+    a: 'Mostly. Estimates, schedules and field reports work offline and sync when you reconnect. AI calls and bulk pricing updates need a connection.',
+  },
+  {
+    q: 'How do I share an estimate or schedule with a client?',
+    a: 'From the Project screen, tap Share \u2192 Generate Link. This creates a read-only snapshot URL you can text or email. Pro tier lets you export to PDF with your logo.',
+  },
+  {
+    q: 'Do you support iPad?',
+    a: 'iPad support is on our roadmap. Today MAGE ID runs on iPhone, Android phones and the web app at app.mageid.app.',
+  },
+  {
+    q: 'How do I cancel or change my subscription?',
+    a: 'Subscriptions are billed through Apple or Google. Manage them in your device\u2019s Subscriptions settings. If you run into issues, email support@mageid.com and we\u2019ll sort it out.',
+  },
+  {
+    q: 'Does MAGE ID replace a lawyer or licensed inspector?',
+    a: 'No. AI code checks, estimates and permit guidance are helpful starting points but the local Authority Having Jurisdiction (AHJ) and a licensed professional always govern your project.',
+  },
+  {
+    q: 'Where do I send feedback or feature requests?',
+    a: 'We read every note \u2014 email support@mageid.com or tap Contact Support above. Shipping fast is how we build, so your feedback directly shapes the roadmap.',
+  },
+];
 
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
@@ -67,6 +114,9 @@ export default function SettingsScreen() {
   const [signatureData, setSignatureData] = useState<string[] | undefined>(branding.signatureData);
   const [showSignatureModal, setShowSignatureModal] = useState(false);
   const [showSupplierForm, setShowSupplierForm] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(false);
+  const [paywallTier, setPaywallTier] = useState<'pro' | 'business' | null>(null);
+  const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
   const [selectedTheme, setSelectedTheme] = useState<string>(() => {
     const saved = settings.themeColors;
     if (!saved) return 'forest';
@@ -1012,26 +1062,15 @@ export default function SettingsScreen() {
                   style={[styles.planCard, isActive && { borderColor: plan.color, borderWidth: 2 }]}
                   onPress={() => {
                     if (isActive) return;
-                    Alert.alert(
-                      `Upgrade to ${plan.label}`,
-                      `Switch to the ${plan.label} plan at ${plan.price}?\n\nNote: In-app purchases will be available in the next update.`,
-                      [
-                        { text: 'Cancel', style: 'cancel' },
-                        {
-                          text: 'Select Plan',
-                          onPress: () => {
-                            updateSettings({
-                              subscription: {
-                                tier: plan.id,
-                                startDate: new Date().toISOString(),
-                              },
-                            });
-                            if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                            Alert.alert('Plan Updated', `You're now on the ${plan.label} plan.`);
-                          },
-                        },
-                      ]
-                    );
+                    if (plan.id === 'free') {
+                      Alert.alert(
+                        'Contact Support',
+                        'To downgrade to Free, manage your subscription in the App Store (Settings → Apple ID → Subscriptions) or contact support@mageid.com.',
+                      );
+                      return;
+                    }
+                    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+                    setPaywallTier(plan.id as 'pro' | 'business');
                   }}
                   activeOpacity={isActive ? 1 : 0.7}
                 >
@@ -1069,6 +1108,77 @@ export default function SettingsScreen() {
           </View>
         </View>
 
+        <Text style={styles.sectionHeader}>HELP & SUPPORT</Text>
+        <View style={styles.group}>
+          <TouchableOpacity
+            style={styles.row}
+            onPress={() => setShowTutorial(true)}
+            activeOpacity={0.6}
+            testID="show-tutorial"
+          >
+            <View style={[styles.iconWrap, { backgroundColor: Colors.primary }]}>
+              <BookOpen size={14} color="#fff" />
+            </View>
+            <Text style={styles.rowLabel}>Show Tutorial</Text>
+            <ChevronRight size={16} color={Colors.textMuted} />
+          </TouchableOpacity>
+          <View style={styles.rowSeparator} />
+          <TouchableOpacity
+            style={styles.row}
+            onPress={() => {
+              Linking.openURL('mailto:support@mageid.com?subject=MAGE%20ID%20Support').catch(() =>
+                Alert.alert('Could not open mail', 'Email us at support@mageid.com')
+              );
+            }}
+            activeOpacity={0.6}
+            testID="contact-support"
+          >
+            <View style={[styles.iconWrap, { backgroundColor: Colors.primary }]}>
+              <MessageCircle size={14} color="#fff" />
+            </View>
+            <Text style={styles.rowLabel}>Contact Support</Text>
+            <ChevronRight size={16} color={Colors.textMuted} />
+          </TouchableOpacity>
+        </View>
+
+        <Text style={styles.sectionHeader}>FAQ</Text>
+        <View style={styles.group}>
+          {FAQ_ITEMS.map((item, i) => {
+            const isLast = i === FAQ_ITEMS.length - 1;
+            const isOpen = expandedFaq === i;
+            return (
+              <View key={i}>
+                <TouchableOpacity
+                  style={styles.row}
+                  onPress={() => setExpandedFaq(isOpen ? null : i)}
+                  activeOpacity={0.6}
+                  testID={`faq-${i}`}
+                >
+                  <View style={[styles.iconWrap, { backgroundColor: Colors.primary }]}>
+                    <HelpCircle size={14} color="#fff" />
+                  </View>
+                  <Text style={[styles.rowLabel, { flex: 1 }]} numberOfLines={isOpen ? undefined : 2}>
+                    {item.q}
+                  </Text>
+                  <ChevronRight
+                    size={16}
+                    color={Colors.textMuted}
+                    style={{ transform: [{ rotate: isOpen ? '90deg' : '0deg' }] }}
+                  />
+                </TouchableOpacity>
+                {isOpen ? (
+                  <View style={{ paddingHorizontal: 16, paddingBottom: 12, paddingTop: 0 }}>
+                    <Text style={{ fontSize: 13, color: Colors.textMuted, lineHeight: 19 }}>
+                      {item.a}
+                    </Text>
+                  </View>
+                ) : null}
+                {!isLast ? <View style={styles.rowSeparator} /> : null}
+              </View>
+            );
+          })}
+        </View>
+
         <Text style={styles.sectionHeader}>ABOUT</Text>
         <View style={styles.group}>
           <View style={styles.row}>
@@ -1104,6 +1214,14 @@ export default function SettingsScreen() {
         </Text>
       </ScrollView>
 
+      <Tutorial visible={showTutorial} onClose={() => setShowTutorial(false)} />
+      <Paywall
+        visible={paywallTier !== null}
+        feature={paywallTier === 'business' ? 'Business Plan' : 'Pro Plan'}
+        requiredTier={paywallTier ?? 'pro'}
+        onClose={() => setPaywallTier(null)}
+      />
+
       <Modal
         visible={showSignatureModal}
         transparent
@@ -1131,140 +1249,198 @@ export default function SettingsScreen() {
           </View>
         </View>
       </Modal>
+      {/*
+        Supplier Profile modal — responsive across iPhone + Web.
+
+        Previously this shared the global `sigModalCard` + reused `sectionSubtext`
+        / `saveButton` styles which had hard-coded horizontal padding/margins from
+        the outer list view. Inside a dialog card those offsets misaligned labels
+        with inputs and pushed the Save button outside the card on iPhone. The
+        modal also anchored to the bottom of the screen with `justifyContent:
+        'flex-end'`, which felt glitchy on small phones (keyboard + short
+        viewport) and out of place on web.
+
+        Now:
+        - iOS: native `pageSheet` presentation, no transparent overlay.
+        - Web / Android: centered card with a dim backdrop, capped at 560px.
+        - Dedicated `supProfile*` styles so labels/inputs/button all align to
+          the same inner padding and the card grows predictably.
+        - Sticky Save button pinned to the bottom so users never have to scroll
+          to find the primary CTA.
+      */}
       <Modal
         visible={showSupplierForm}
-        transparent
-        animationType="slide"
+        transparent={Platform.OS !== 'ios'}
+        animationType={Platform.OS === 'ios' ? 'slide' : 'fade'}
+        presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : undefined}
         onRequestClose={() => setShowSupplierForm(false)}
       >
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-          <View style={styles.sigModalOverlay}>
-            <ScrollView
-              style={{ flex: 1 }}
-              contentContainerStyle={{ flexGrow: 1, justifyContent: 'flex-end' as const }}
-              keyboardShouldPersistTaps="handled"
-            >
-              <View style={[styles.sigModalCard, { maxWidth: 500, width: '100%', alignSelf: 'center' as const, paddingBottom: insets.bottom + 20 }]}>
-                <View style={styles.sigModalHeader}>
-                  <Text style={styles.sigModalTitle}>Supplier Profile</Text>
-                  <TouchableOpacity onPress={() => setShowSupplierForm(false)}>
-                    <X size={20} color={Colors.textMuted} />
-                  </TouchableOpacity>
+        <View style={styles.supProfileBackdrop}>
+          <KeyboardAvoidingView
+            style={styles.supProfileCenter}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          >
+            <View style={styles.supProfileCard}>
+              <View style={styles.supProfileHeader}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.supProfileTitle}>Supplier Profile</Text>
+                  <Text style={styles.supProfileDesc}>
+                    Fill in your business details to appear on the MAGE ID Marketplace.
+                  </Text>
                 </View>
-                <Text style={styles.sigModalDesc}>
-                  Fill in your business details to appear on the MAGE ID Marketplace.
-                </Text>
-
-                <Text style={styles.sectionSubtext}>Company Name *</Text>
-                <TextInput
-                  style={styles.supplierInput}
-                  value={supCompanyName}
-                  onChangeText={setSupCompanyName}
-                  placeholder="Your Supply Company"
-                  placeholderTextColor={Colors.textMuted}
-                  testID="sup-company"
-                />
-
-                <Text style={styles.sectionSubtext}>Contact Name</Text>
-                <TextInput
-                  style={styles.supplierInput}
-                  value={supContactName}
-                  onChangeText={setSupContactName}
-                  placeholder="John Smith"
-                  placeholderTextColor={Colors.textMuted}
-                />
-
-                <Text style={styles.sectionSubtext}>Email *</Text>
-                <TextInput
-                  style={styles.supplierInput}
-                  value={supEmail}
-                  onChangeText={setSupEmail}
-                  placeholder="sales@company.com"
-                  placeholderTextColor={Colors.textMuted}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                />
-
-                <Text style={styles.sectionSubtext}>Phone</Text>
-                <TextInput
-                  style={styles.supplierInput}
-                  value={supPhone}
-                  onChangeText={setSupPhone}
-                  placeholder="(555) 123-4567"
-                  placeholderTextColor={Colors.textMuted}
-                  keyboardType="phone-pad"
-                />
-
-                <Text style={styles.sectionSubtext}>Address</Text>
-                <TextInput
-                  style={styles.supplierInput}
-                  value={supAddress}
-                  onChangeText={setSupAddress}
-                  placeholder="123 Industrial Blvd, City, State"
-                  placeholderTextColor={Colors.textMuted}
-                />
-
-                <Text style={styles.sectionSubtext}>Website</Text>
-                <TextInput
-                  style={styles.supplierInput}
-                  value={supWebsite}
-                  onChangeText={setSupWebsite}
-                  placeholder="yourcompany.com"
-                  placeholderTextColor={Colors.textMuted}
-                  autoCapitalize="none"
-                />
-
-                <Text style={styles.sectionSubtext}>Description</Text>
-                <TextInput
-                  style={[styles.supplierInput, { minHeight: 70, paddingTop: 12, textAlignVertical: 'top' as const }]}
-                  value={supDescription}
-                  onChangeText={setSupDescription}
-                  placeholder="Brief description of your business..."
-                  placeholderTextColor={Colors.textMuted}
-                  multiline
-                />
-
-                <Text style={styles.sectionSubtext}>Min Order Amount ($)</Text>
-                <TextInput
-                  style={styles.supplierInput}
-                  value={supMinOrder}
-                  onChangeText={setSupMinOrder}
-                  placeholder="250"
-                  placeholderTextColor={Colors.textMuted}
-                  keyboardType="numeric"
-                />
-
-                <Text style={styles.sectionSubtext}>Delivery Options (comma separated)</Text>
-                <TextInput
-                  style={styles.supplierInput}
-                  value={supDelivery}
-                  onChangeText={setSupDelivery}
-                  placeholder="Local Delivery, Will Call, Freight"
-                  placeholderTextColor={Colors.textMuted}
-                />
-
-                <Text style={styles.sectionSubtext}>Categories</Text>
-                <View style={styles.supplierCatGrid}>
-                  {['lumber', 'concrete', 'roofing', 'electrical', 'plumbing', 'insulation', 'flooring', 'steel', 'paint', 'landscape', 'hvac', 'hardware'].map(cat => (
-                    <TouchableOpacity
-                      key={cat}
-                      style={[styles.supplierCatChip, supCategories.includes(cat) && styles.supplierCatChipActive]}
-                      onPress={() => {
-                        setSupCategories(prev =>
-                          prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat]
-                        );
-                      }}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={[styles.supplierCatText, supCategories.includes(cat) && styles.supplierCatTextActive]}>
-                        {cat.charAt(0).toUpperCase() + cat.slice(1)}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-
                 <TouchableOpacity
-                  style={styles.saveButton}
+                  onPress={() => setShowSupplierForm(false)}
+                  style={styles.supProfileClose}
+                  activeOpacity={0.7}
+                  testID="sup-close"
+                >
+                  <X size={20} color={Colors.textMuted} />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView
+                style={styles.supProfileScroll}
+                contentContainerStyle={styles.supProfileScrollContent}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+              >
+                <View style={styles.supFieldGroup}>
+                  <Text style={styles.supFieldLabel}>Company Name *</Text>
+                  <TextInput
+                    style={styles.supFieldInput}
+                    value={supCompanyName}
+                    onChangeText={setSupCompanyName}
+                    placeholder="Your Supply Company"
+                    placeholderTextColor={Colors.textMuted}
+                    testID="sup-company"
+                  />
+                </View>
+
+                <View style={styles.supFieldGroup}>
+                  <Text style={styles.supFieldLabel}>Contact Name</Text>
+                  <TextInput
+                    style={styles.supFieldInput}
+                    value={supContactName}
+                    onChangeText={setSupContactName}
+                    placeholder="John Smith"
+                    placeholderTextColor={Colors.textMuted}
+                  />
+                </View>
+
+                <View style={styles.supRow}>
+                  <View style={[styles.supFieldGroup, styles.supRowItem]}>
+                    <Text style={styles.supFieldLabel}>Email *</Text>
+                    <TextInput
+                      style={styles.supFieldInput}
+                      value={supEmail}
+                      onChangeText={setSupEmail}
+                      placeholder="sales@company.com"
+                      placeholderTextColor={Colors.textMuted}
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                    />
+                  </View>
+                  <View style={[styles.supFieldGroup, styles.supRowItem]}>
+                    <Text style={styles.supFieldLabel}>Phone</Text>
+                    <TextInput
+                      style={styles.supFieldInput}
+                      value={supPhone}
+                      onChangeText={setSupPhone}
+                      placeholder="(555) 123-4567"
+                      placeholderTextColor={Colors.textMuted}
+                      keyboardType="phone-pad"
+                    />
+                  </View>
+                </View>
+
+                <View style={styles.supFieldGroup}>
+                  <Text style={styles.supFieldLabel}>Address</Text>
+                  <TextInput
+                    style={styles.supFieldInput}
+                    value={supAddress}
+                    onChangeText={setSupAddress}
+                    placeholder="123 Industrial Blvd, City, State"
+                    placeholderTextColor={Colors.textMuted}
+                  />
+                </View>
+
+                <View style={styles.supFieldGroup}>
+                  <Text style={styles.supFieldLabel}>Website</Text>
+                  <TextInput
+                    style={styles.supFieldInput}
+                    value={supWebsite}
+                    onChangeText={setSupWebsite}
+                    placeholder="yourcompany.com"
+                    placeholderTextColor={Colors.textMuted}
+                    autoCapitalize="none"
+                  />
+                </View>
+
+                <View style={styles.supFieldGroup}>
+                  <Text style={styles.supFieldLabel}>Description</Text>
+                  <TextInput
+                    style={[styles.supFieldInput, styles.supFieldInputMulti]}
+                    value={supDescription}
+                    onChangeText={setSupDescription}
+                    placeholder="Brief description of your business..."
+                    placeholderTextColor={Colors.textMuted}
+                    multiline
+                  />
+                </View>
+
+                <View style={styles.supRow}>
+                  <View style={[styles.supFieldGroup, styles.supRowItem]}>
+                    <Text style={styles.supFieldLabel}>Min Order ($)</Text>
+                    <TextInput
+                      style={styles.supFieldInput}
+                      value={supMinOrder}
+                      onChangeText={setSupMinOrder}
+                      placeholder="250"
+                      placeholderTextColor={Colors.textMuted}
+                      keyboardType="numeric"
+                    />
+                  </View>
+                  <View style={[styles.supFieldGroup, styles.supRowItem]}>
+                    <Text style={styles.supFieldLabel}>Delivery Options</Text>
+                    <TextInput
+                      style={styles.supFieldInput}
+                      value={supDelivery}
+                      onChangeText={setSupDelivery}
+                      placeholder="Local, Freight"
+                      placeholderTextColor={Colors.textMuted}
+                    />
+                  </View>
+                </View>
+
+                <View style={styles.supFieldGroup}>
+                  <Text style={styles.supFieldLabel}>Categories</Text>
+                  <View style={styles.supCatGrid}>
+                    {['lumber', 'concrete', 'roofing', 'electrical', 'plumbing', 'insulation', 'flooring', 'steel', 'paint', 'landscape', 'hvac', 'hardware'].map(cat => {
+                      const active = supCategories.includes(cat);
+                      return (
+                        <TouchableOpacity
+                          key={cat}
+                          style={[styles.supCatChip, active && styles.supCatChipActive]}
+                          onPress={() => {
+                            setSupCategories(prev =>
+                              prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat]
+                            );
+                          }}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={[styles.supCatText, active && styles.supCatTextActive]}>
+                            {cat.charAt(0).toUpperCase() + cat.slice(1)}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </View>
+              </ScrollView>
+
+              <View style={[styles.supProfileFooter, { paddingBottom: Math.max(insets.bottom + 12, 16) }]}>
+                <TouchableOpacity
+                  style={styles.supProfileSaveBtn}
                   onPress={() => {
                     const name = supCompanyName.trim();
                     const email = supEmail.trim();
@@ -1300,12 +1476,12 @@ export default function SettingsScreen() {
                   activeOpacity={0.85}
                   testID="save-supplier"
                 >
-                  <Text style={styles.saveButtonText}>{supplierProfile ? 'Update Profile' : 'Register as Supplier'}</Text>
+                  <Text style={styles.supProfileSaveBtnText}>{supplierProfile ? 'Update Profile' : 'Register as Supplier'}</Text>
                 </TouchableOpacity>
               </View>
-            </ScrollView>
-          </View>
-        </KeyboardAvoidingView>
+            </View>
+          </KeyboardAvoidingView>
+        </View>
       </Modal>
     </KeyboardAvoidingView>
   );
@@ -1659,6 +1835,154 @@ const styles = StyleSheet.create({
   },
   supplierCatTextActive: {
     color: Colors.textOnPrimary,
+  },
+  // --- Supplier Profile modal (responsive: iOS pageSheet + web centered card) ---
+  supProfileBackdrop: {
+    flex: 1,
+    // On iOS the Modal uses pageSheet so the "backdrop" is the native sheet
+    // chrome — we don't want a second dim layer. On web/Android we dim the
+    // underlying view manually.
+    backgroundColor: Platform.OS === 'ios' ? Colors.background : 'rgba(0,0,0,0.45)',
+  },
+  supProfileCenter: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: Platform.OS === 'ios' ? 0 : 20,
+  },
+  supProfileCard: {
+    flex: 1,
+    width: '100%',
+    maxWidth: Platform.OS === 'ios' ? undefined : 560,
+    // On iOS the pageSheet already rounds the top corners for us — round only
+    // on web/Android.
+    borderRadius: Platform.OS === 'ios' ? 0 : 20,
+    backgroundColor: Colors.background,
+    overflow: 'hidden',
+    // On web we cap the height so the card doesn't fill the whole viewport.
+    ...(Platform.OS === 'web' ? { maxHeight: '92%' as any, flex: 0 as any } : {}),
+  },
+  supProfileHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    paddingHorizontal: 20,
+    paddingTop: Platform.OS === 'ios' ? 18 : 20,
+    paddingBottom: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Colors.border,
+    backgroundColor: Colors.surface,
+  },
+  supProfileTitle: {
+    fontSize: 20,
+    fontWeight: '700' as const,
+    color: Colors.text,
+    letterSpacing: -0.3,
+  },
+  supProfileDesc: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+    lineHeight: 18,
+    marginTop: 4,
+  },
+  supProfileClose: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.fillTertiary,
+  },
+  supProfileScroll: {
+    flex: 1,
+  },
+  supProfileScrollContent: {
+    padding: 20,
+    gap: 14,
+  },
+  supFieldGroup: {
+    gap: 6,
+  },
+  supFieldLabel: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: Colors.textSecondary,
+    letterSpacing: -0.1,
+  },
+  supFieldInput: {
+    minHeight: 44,
+    borderRadius: 10,
+    backgroundColor: Colors.surfaceAlt,
+    paddingHorizontal: 12,
+    paddingVertical: Platform.OS === 'ios' ? 12 : 8,
+    fontSize: 15,
+    color: Colors.text,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.border,
+  },
+  supFieldInputMulti: {
+    minHeight: 80,
+    paddingTop: 12,
+    textAlignVertical: 'top' as const,
+  },
+  supRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  supRowItem: {
+    flex: 1,
+    minWidth: 0,
+  },
+  supCatGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 2,
+  },
+  supCatChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: Colors.fillTertiary,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.border,
+  },
+  supCatChipActive: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  supCatText: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: Colors.textSecondary,
+  },
+  supCatTextActive: {
+    color: Colors.textOnPrimary,
+  },
+  supProfileFooter: {
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: Colors.border,
+    backgroundColor: Colors.surface,
+  },
+  supProfileSaveBtn: {
+    backgroundColor: Colors.primary,
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  supProfileSaveBtnText: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: Colors.textOnPrimary,
+    letterSpacing: -0.2,
   },
   sigModalOverlay: {
     flex: 1,

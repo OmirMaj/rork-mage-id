@@ -1,7 +1,8 @@
 import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Linking, ActivityIndicator, Alert, Platform,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Linking, Alert, Platform,
 } from 'react-native';
+import ConstructionLoader from '@/components/ConstructionLoader';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { MapPin, Clock, DollarSign, Shield, ExternalLink, Mail, Building2, ChevronRight, Globe, Heart, Bookmark, Phone, FileText, Tag, Calendar, Users, ChevronDown } from 'lucide-react-native';
@@ -239,8 +240,7 @@ export default function BidDetailScreen() {
       <View style={styles.container}>
         <Stack.Screen options={{ title: 'Bid Details' }} />
         <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={Colors.primary} />
-          <Text style={styles.loadingText}>Loading bid details...</Text>
+          <ConstructionLoader size="lg" label="Loading bid details..." />
         </View>
       </View>
     );

@@ -12,6 +12,8 @@ import {
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
+import { useTierAccess } from '@/hooks/useTierAccess';
+import Paywall from '@/components/Paywall';
 import type { EquipmentCategory } from '@/types';
 import { EQUIPMENT_CATEGORIES } from '@/types';
 import { formatMoney } from '@/utils/formatters';
@@ -30,6 +32,7 @@ export default function EquipmentScreen() {
   const router = useRouter();
   const { equipment, addEquipment, getProject } = useProjects();
   const { isProOrAbove } = useSubscription();
+  const { canAccess } = useTierAccess();
 
   const [filter, setFilter] = useState<FilterType>('all');
   const [showAddModal, setShowAddModal] = useState(false);
@@ -78,26 +81,14 @@ export default function EquipmentScreen() {
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }, [newName, newType, newCategory, newMake, newModel, newDailyRate, addEquipment]);
 
-  if (!isProOrAbove) {
+  if (!canAccess('equipment_rental') || !isProOrAbove) {
     return (
-      <View style={[styles.container, { paddingTop: insets.top }]}>
-        <View style={styles.lockedContainer}>
-          <View style={styles.lockedIconWrap}>
-            <Crown size={40} color={Colors.accent} />
-          </View>
-          <Text style={styles.lockedTitle}>Equipment Tracking</Text>
-          <Text style={styles.lockedDesc}>
-            Track your fleet, schedule maintenance, and log daily utilization. Upgrade to Pro to unlock.
-          </Text>
-          <TouchableOpacity
-            style={styles.upgradeBtn}
-            onPress={() => router.push('/paywall')}
-            activeOpacity={0.85}
-          >
-            <Text style={styles.upgradeBtnText}>Upgrade to Pro</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+      <Paywall
+        visible={true}
+        feature="Equipment Tracking"
+        requiredTier="pro"
+        onClose={() => router.back()}
+      />
     );
   }
 

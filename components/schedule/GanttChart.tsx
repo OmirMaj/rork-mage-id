@@ -7,7 +7,7 @@ import {
   StyleSheet,
   Dimensions,
 } from 'react-native';
-import { Flag, GitBranch } from 'lucide-react-native';
+import { Flag, GitBranch, CloudRain } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ScheduleTask, ProjectSchedule } from '@/types';
 import {
@@ -15,6 +15,7 @@ import {
   getStatusColor,
   getPhaseColor,
 } from '@/utils/scheduleEngine';
+import { findWeatherRisk, type DayForecast } from '@/utils/weatherService';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
@@ -24,9 +25,17 @@ interface GanttChartProps {
   projectStartDate: Date;
   onTaskPress: (task: ScheduleTask) => void;
   showBaseline: boolean;
+  /**
+   * Optional forecast used to overlay weather warnings on tasks flagged
+   * with `isWeatherSensitive`. When absent, no badges are rendered — the
+   * chart stays visually identical to its pre-weather behavior. Callers
+   * that want real-time weather coverage should pass the same forecast
+   * they compute for the schedule screen so both views stay consistent.
+   */
+  forecast?: DayForecast[];
 }
 
-function GanttChart({ schedule, tasks, projectStartDate, onTaskPress, showBaseline }: GanttChartProps) {
+function GanttChart({ schedule, tasks, projectStartDate, onTaskPress, showBaseline, forecast }: GanttChartProps) {
   const totalDays = schedule.totalDurationDays;
   const ganttWidth = Math.max(SCREEN_WIDTH * 1.5, totalDays * 14 + 200);
 
@@ -51,6 +60,16 @@ function GanttChart({ schedule, tasks, projectStartDate, onTaskPress, showBaseli
     const barLeft = totalDays > 0 ? ((task.startDay - 1) / totalDays) * 100 : 0;
     const barWidth = totalDays > 0 ? Math.max((task.durationDays / totalDays) * 100, 1.5) : 3;
 
+    const weatherRisk =
+      task.isWeatherSensitive && forecast && forecast.length > 0
+        ? findWeatherRisk(
+            projectStartDate,
+            task.startDay,
+            task.durationDays,
+            forecast,
+          )
+        : null;
+
     const baselineTask = showBaseline && schedule.baseline
       ? schedule.baseline.tasks.find(b => b.id === task.id)
       : null;
@@ -70,6 +89,7 @@ function GanttChart({ schedule, tasks, projectStartDate, onTaskPress, showBaseli
           <View style={s.ganttLabelIcons}>
             {task.isMilestone && <Flag size={9} color="#FF9500" />}
             {task.isCriticalPath && <GitBranch size={9} color={Colors.error} />}
+            {weatherRisk && <CloudRain size={9} color="#F5A623" />}
           </View>
           <Text style={s.ganttLabelText} numberOfLines={1}>{task.title}</Text>
           <Text style={s.ganttLabelPercent}>{task.progress}%</Text>
@@ -106,10 +126,21 @@ function GanttChart({ schedule, tasks, projectStartDate, onTaskPress, showBaseli
               )}
             </View>
           )}
+          {weatherRisk && (
+            <View
+              style={[
+                s.ganttWeatherBadge,
+                { left: `${Math.min(barLeft + barWidth, 99)}%` as any },
+              ]}
+              testID={`gantt-weather-warning-${task.id}`}
+            >
+              <Text style={s.ganttWeatherIcon}>{weatherRisk.icon}</Text>
+            </View>
+          )}
         </View>
       </TouchableOpacity>
     );
-  }, [totalDays, schedule, showBaseline, onTaskPress]);
+  }, [totalDays, schedule, showBaseline, onTaskPress, forecast, projectStartDate]);
 
   return (
     <View style={s.container}>
@@ -290,6 +321,22 @@ const s = StyleSheet.create({
     height: 10,
     borderRadius: 2,
     transform: [{ rotate: '45deg' }],
+  },
+  ganttWeatherBadge: {
+    position: 'absolute' as const,
+    top: -2,
+    marginLeft: -8,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#FFF4E0',
+    borderWidth: 1,
+    borderColor: '#F5A623',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  ganttWeatherIcon: {
+    fontSize: 8,
   },
 });
 

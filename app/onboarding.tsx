@@ -161,7 +161,9 @@ export default function OnboardingScreen() {
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
     void completeOnboarding();
-    router.replace('/(tabs)/(home)');
+    // Route through the onboarding paywall for first-time users. It will
+    // self-route to /(tabs)/(home) on close or on successful purchase.
+    router.replace('/onboarding-paywall' as never);
   }, [router, completeOnboarding]);
 
   const handleNext = useCallback(() => {
@@ -189,7 +191,9 @@ export default function OnboardingScreen() {
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
     void completeOnboarding();
-    router.replace('/(tabs)/(home)');
+    // Skipping the onboarding carousel still routes through the paywall;
+    // the paywall itself is dismissable so users aren't trapped.
+    router.replace('/onboarding-paywall' as never);
   }, [router, completeOnboarding]);
 
   const iconScale = iconAnim.interpolate({

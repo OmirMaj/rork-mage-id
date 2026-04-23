@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useRef, useMemo } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
-  Animated, ScrollView, ActivityIndicator, Linking, RefreshControl, Platform, Modal,
+  Animated, ScrollView, Linking, RefreshControl, Platform, Modal,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -9,6 +9,7 @@ import { MapPin, Clock, DollarSign, ArrowLeft, Navigation, AlertCircle, Crosshai
 import * as Haptics from 'expo-haptics';
 import { useQuery } from '@tanstack/react-query';
 import { Colors } from '@/constants/colors';
+import ConstructionLoader from '@/components/ConstructionLoader';
 import { supabase } from '@/lib/supabase';
 import { useUserLocation, getDistanceMiles } from '@/utils/location';
 import { US_STATES } from '@/constants/states';
@@ -443,8 +444,7 @@ export default function CachedBidsScreen() {
         </View>
       ) : loading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.primary} />
-          <Text style={styles.loadingText}>Loading bids...</Text>
+          <ConstructionLoader size="lg" label="Loading bids..." />
         </View>
       ) : (
         <FlatList

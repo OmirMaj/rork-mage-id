@@ -183,14 +183,21 @@ export const [SubscriptionProvider, useSubscription] = createContextHook(() => {
       const result = await Purchases.purchasePackage(pkg);
       return result;
     },
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       const newTier = tierFromCustomerInfo(data.customerInfo);
       console.log('[RC] Purchase successful, new tier:', newTier);
+      // Update UI state synchronously so any subscriber re-renders this frame.
       setTier(newTier);
       void AsyncStorage.setItem(SUBSCRIPTION_KEY, newTier);
+      // Prime the RC query cache with the fresh CustomerInfo, then invalidate so
+      // any screen that reads from the query (Settings plan row, paywall, gated
+      // features) refetches and stays in sync even if it mounted after purchase.
       queryClient.setQueryData(['rc-customer-info'], data.customerInfo);
+      await queryClient.invalidateQueries({ queryKey: ['rc-customer-info'] });
       if (userId) {
-        void syncTierToSupabase(userId, newTier, data.customerInfo.originalAppUserId);
+        await syncTierToSupabase(userId, newTier, data.customerInfo.originalAppUserId);
+        // Also refresh the Supabase mirror so cross-device tier is consistent.
+        await queryClient.invalidateQueries({ queryKey: ['subscription-supabase', userId] });
       }
     },
   });
@@ -213,32 +220,56 @@ export const [SubscriptionProvider, useSubscription] = createContextHook(() => {
   });
 
   const proPackage = useMemo(() => {
-    return offeringsQuery.data?.current?.availablePackages.find(
-      (p) => p.identifier === 'pro_monthly' || p.identifier === '$rc_monthly'
+    const packages = offeringsQuery.data?.current?.availablePackages ?? [];
+    return packages.find((p) =>
+      p.identifier === 'pro_monthly' ||
+      p.identifier === '$rc_monthly' ||
+      p.product?.identifier === 'com.mageid.pro.monthly'
+    ) ?? null;
+  }, [offeringsQuery.data]);
+
+  const proAnnualPackage = useMemo(() => {
+    const packages = offeringsQuery.data?.current?.availablePackages ?? [];
+    return packages.find((p) =>
+      p.identifier === 'pro_annual' ||
+      p.identifier === '$rc_annual' ||
+      p.product?.identifier === 'com.mageid.pro.annual'
     ) ?? null;
   }, [offeringsQuery.data]);
 
   const businessPackage = useMemo(() => {
-    return offeringsQuery.data?.current?.availablePackages.find(
-      (p) => p.identifier === 'business_monthly'
+    const packages = offeringsQuery.data?.current?.availablePackages ?? [];
+    return packages.find((p) =>
+      p.identifier === 'business_monthly' ||
+      p.product?.identifier === 'com.mageid.business.monthly'
     ) ?? null;
   }, [offeringsQuery.data]);
 
-  const purchasePro = useCallback(async () => {
-    if (proPackage) {
-      await purchaseMutation.mutateAsync(proPackage);
-    } else {
-      throw new Error('Subscription packages not available. Please try again later.');
-    }
-  }, [proPackage, purchaseMutation]);
+  const businessAnnualPackage = useMemo(() => {
+    const packages = offeringsQuery.data?.current?.availablePackages ?? [];
+    return packages.find((p) =>
+      p.identifier === 'business_annual' ||
+      p.product?.identifier === 'com.mageid.business.annual'
+    ) ?? null;
+  }, [offeringsQuery.data]);
 
-  const purchaseBusiness = useCallback(async () => {
-    if (businessPackage) {
-      await purchaseMutation.mutateAsync(businessPackage);
+  const purchasePro = useCallback(async (period: 'monthly' | 'annual' = 'monthly') => {
+    const pkg = period === 'annual' ? proAnnualPackage : proPackage;
+    if (pkg) {
+      await purchaseMutation.mutateAsync(pkg);
     } else {
       throw new Error('Subscription packages not available. Please try again later.');
     }
-  }, [businessPackage, purchaseMutation]);
+  }, [proPackage, proAnnualPackage, purchaseMutation]);
+
+  const purchaseBusiness = useCallback(async (period: 'monthly' | 'annual' = 'monthly') => {
+    const pkg = period === 'annual' ? businessAnnualPackage : businessPackage;
+    if (pkg) {
+      await purchaseMutation.mutateAsync(pkg);
+    } else {
+      throw new Error('Subscription packages not available. Please try again later.');
+    }
+  }, [businessPackage, businessAnnualPackage, purchaseMutation]);
 
   const restorePurchases = useCallback(async () => {
     await restoreMutation.mutateAsync();
@@ -257,7 +288,9 @@ export const [SubscriptionProvider, useSubscription] = createContextHook(() => {
     purchaseBusiness,
     restorePurchases,
     proPackage,
+    proAnnualPackage,
     businessPackage,
+    businessAnnualPackage,
     offerings: offeringsQuery.data,
     isPurchasing: purchaseMutation.isPending,
     ...__DEV__ ? {
@@ -270,7 +303,8 @@ export const [SubscriptionProvider, useSubscription] = createContextHook(() => {
   }), [
     tier, isProOrAbove, isBusinessTier, isLoading,
     purchasePro, purchaseBusiness, restorePurchases,
-    proPackage, businessPackage, offeringsQuery.data, purchaseMutation.isPending,
+    proPackage, proAnnualPackage, businessPackage, businessAnnualPackage,
+    offeringsQuery.data, purchaseMutation.isPending,
   ]);
 });
 

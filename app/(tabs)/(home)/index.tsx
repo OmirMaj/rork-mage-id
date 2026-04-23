@@ -1,15 +1,16 @@
 import React, { useCallback, useState, useMemo, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator,
+  View, Text, StyleSheet, FlatList, TouchableOpacity,
   Platform, Modal, TextInput, Pressable, ScrollView, Alert, KeyboardAvoidingView,
 } from 'react-native';
+import ConstructionLoader from '@/components/ConstructionLoader';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
   Plus, TrendingUp, FolderOpen, Layers, X, ChevronRight, Calculator, CalendarDays,
   BarChart3, TrendingDown, Package, DollarSign, Percent, ShoppingCart, ArrowDownRight,
-  Receipt, Wallet,
+  Receipt, Wallet, Search, Sparkles, ChevronDown, ChevronUp,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
@@ -17,19 +18,25 @@ import ProjectCard from '@/components/ProjectCard';
 import AIWeeklySummary from '@/components/AIWeeklySummary';
 import AICopilot from '@/components/AICopilot';
 import AIHomeBriefing from '@/components/AIHomeBriefing';
+import SmartInbox from '@/components/SmartInbox';
 import { useSubscription } from '@/contexts/SubscriptionContext';
+import { useEntityNavigation } from '@/hooks/useEntityNavigation';
+import { useSearch } from '@/contexts/SearchContext';
+import EntityActionSheet from '@/components/EntityActionSheet';
 import EmptyState from '@/components/EmptyState';
 import CashFlowAlerts from '@/components/CashFlowAlerts';
+import QuickFieldUpdate from '@/components/QuickFieldUpdate';
 import { generateForecast } from '@/utils/cashFlowEngine';
 import type { CashFlowWeek } from '@/utils/cashFlowEngine';
 import { loadCashFlowData, isSetupComplete } from '@/utils/cashFlowStorage';
-import type { Project, ProjectType } from '@/types';
-import { PROJECT_TYPES } from '@/types';
+import { PROJECT_TYPES, type Project, type ProjectType, type EntityRef } from '@/types';
 import { formatMoney, formatMoneyShort } from '@/utils/formatters';
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { navigateTo } = useEntityNavigation();
+  const { openSearch } = useSearch();
   const { projects, isLoading, addProject, getTotalOutstandingBalance, invoices } = useProjects();
   const { tier } = useSubscription();
 
@@ -39,12 +46,14 @@ export default function HomeScreen() {
   const [projectType, setProjectType] = useState<ProjectType>('renovation');
   const [_createdProjectId, setCreatedProjectId] = useState<string | null>(null);
   const [showNextStepModal, setShowNextStepModal] = useState(false);
+  const [actionSheetRef, setActionSheetRef] = useState<EntityRef | null>(null);
 
   const totalOutstanding = getTotalOutstandingBalance();
 
   const [showTotalDetail, setShowTotalDetail] = useState(false);
   const [showSavingsDetail, setShowSavingsDetail] = useState(false);
   const [showWeeklySummary, setShowWeeklySummary] = useState(false);
+  const [showAIBriefing, setShowAIBriefing] = useState(false);
   const [cashFlowForecast, setCashFlowForecast] = useState<CashFlowWeek[] | null>(null);
 
   useEffect(() => {
@@ -145,8 +154,8 @@ export default function HomeScreen() {
 
   const handleProjectPress = useCallback((project: Project) => {
     console.log('[Home] Opening project:', project.id);
-    router.push({ pathname: '/project-detail' as any, params: { id: project.id } });
-  }, [router]);
+    navigateTo({ kind: 'project', id: project.id });
+  }, [navigateTo]);
 
   const handleCreateProject = useCallback(() => {
     const name = projectName.trim();
@@ -182,24 +191,35 @@ export default function HomeScreen() {
 
   const handleNextStep = useCallback((step: 'estimate' | 'schedule' | 'later') => {
     setShowNextStepModal(false);
+    // Cross-tab navigation: replace rather than push so the destination tab
+    // surfaces correctly. A push stacks the target tab ON TOP of the current
+    // tab's stack, which on iOS causes the new screen to render behind the
+    // active one (classic "press back and the new screen appears" bug).
     if (step === 'estimate') {
-      router.push('/(tabs)/estimate' as any);
+      router.replace('/(tabs)/estimate' as any);
     } else if (step === 'schedule') {
-      router.push('/(tabs)/schedule' as any);
+      router.replace('/(tabs)/schedule' as any);
     }
     setCreatedProjectId(null);
   }, [router]);
 
   const renderProject = useCallback(({ item }: { item: Project }) => (
-    <ProjectCard project={item} onPress={() => handleProjectPress(item)} />
+    <ProjectCard
+      project={item}
+      onPress={() => handleProjectPress(item)}
+      onLongPress={() => {
+        if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        setActionSheetRef({ kind: 'project', id: item.id, label: item.name });
+      }}
+    />
   ), [handleProjectPress]);
 
   const keyExtractor = useCallback((item: Project) => item.id, []);
 
   if (isLoading) {
     return (
-      <View style={[styles.container, { paddingTop: insets.top }]}>
-        <ActivityIndicator size="large" color={Colors.primary} style={{ flex: 1 }} />
+      <View style={[styles.container, styles.loaderWrap, { paddingTop: insets.top }]}>
+        <ConstructionLoader size="lg" label="Loading your projects" />
       </View>
     );
   }
@@ -222,6 +242,14 @@ export default function HomeScreen() {
             <View style={styles.navBar}>
               <Text style={styles.navTitle}>MAGE ID</Text>
               <View style={{ flexDirection: 'row', gap: 8 }}>
+                <TouchableOpacity
+                  style={[styles.addButton, { backgroundColor: Colors.fillTertiary }]}
+                  onPress={openSearch}
+                  activeOpacity={0.7}
+                  testID="universal-search-btn"
+                >
+                  <Search size={18} color={Colors.primary} strokeWidth={2} />
+                </TouchableOpacity>
                 {projects.length > 0 && (
                   <TouchableOpacity
                     style={[styles.addButton, { backgroundColor: Colors.fillTertiary }]}
@@ -310,18 +338,42 @@ export default function HomeScreen() {
               </View>
             )}
 
+            {projects.length > 0 && <SmartInbox />}
+
             {projects.length > 0 && (
-              <AIHomeBriefing
-                projects={projects}
-                invoices={invoices}
-                subscriptionTier={tier as any}
-                onViewFull={() => setShowWeeklySummary(true)}
-              />
+              <View style={styles.aiBriefingWrap}>
+                <TouchableOpacity
+                  style={styles.aiBriefingToggle}
+                  onPress={() => setShowAIBriefing(prev => !prev)}
+                  activeOpacity={0.7}
+                  testID="ai-briefing-toggle"
+                >
+                  <View style={styles.aiBriefingToggleLeft}>
+                    <Sparkles size={14} color={Colors.primary} strokeWidth={2.2} />
+                    <Text style={styles.aiBriefingToggleText}>
+                      {showAIBriefing ? 'Hide AI summary' : 'Get AI summary'}
+                    </Text>
+                  </View>
+                  {showAIBriefing
+                    ? <ChevronUp size={14} color={Colors.textSecondary} strokeWidth={2} />
+                    : <ChevronDown size={14} color={Colors.textSecondary} strokeWidth={2} />}
+                </TouchableOpacity>
+                {showAIBriefing && (
+                  <AIHomeBriefing
+                    projects={projects}
+                    invoices={invoices}
+                    subscriptionTier={tier as any}
+                    onViewFull={() => setShowWeeklySummary(true)}
+                  />
+                )}
+              </View>
             )}
 
             {projects.length > 0 && (
               <CashFlowAlerts forecast={cashFlowForecast} invoices={[]} />
             )}
+
+            {projects.length > 0 && <QuickFieldUpdate />}
 
             {projects.length > 0 && (
               <Text style={styles.sectionHeader}>RECENT</Text>
@@ -673,6 +725,11 @@ export default function HomeScreen() {
       />
 
       <AICopilot />
+
+      <EntityActionSheet
+        entityRef={actionSheetRef}
+        onClose={() => setActionSheetRef(null)}
+      />
     </View>
   );
 }
@@ -681,6 +738,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
+  },
+  loaderWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   listContent: {
     paddingBottom: 20,
@@ -770,6 +831,32 @@ const styles = StyleSheet.create({
     letterSpacing: 0.6,
     paddingHorizontal: 20,
     marginBottom: 10,
+  },
+  aiBriefingWrap: {
+    marginHorizontal: 16,
+    marginTop: 4,
+    marginBottom: 4,
+  },
+  aiBriefingToggle: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'space-between' as const,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+  },
+  aiBriefingToggleLeft: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 8,
+  },
+  aiBriefingToggleText: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: Colors.text,
   },
   modalOverlay: {
     flex: 1,

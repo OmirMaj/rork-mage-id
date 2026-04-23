@@ -255,7 +255,7 @@ export default function DiscoverScreen() {
           <View style={[styles.sectionAccent, { backgroundColor: '#0A84FF' }]} />
           <View>
             <Text style={styles.sectionLabel}>SMART TOOLS</Text>
-            <Text style={styles.sectionHint}>Quick estimates & project schedules</Text>
+            <Text style={styles.sectionHint}>AI estimates, schedules, code checks & pricing</Text>
           </View>
         </View>
 
@@ -266,6 +266,24 @@ export default function DiscoverScreen() {
           title="Estimator"
           subtitle="AI-powered quick estimates & templates"
           onPress={() => navigateTo('/(tabs)/discover/estimate')}
+        />
+
+        <NavigationCard
+          icon={Award}
+          iconColor="#5E5CE6"
+          iconBg="#5E5CE615"
+          title="Quick Estimate Wizard"
+          subtitle="Answer 8 questions, get an AI-generated estimate"
+          onPress={() => navigateTo('/estimate-wizard')}
+        />
+
+        <NavigationCard
+          icon={Gavel}
+          iconColor="#AF52DE"
+          iconBg="#AF52DE15"
+          title="Construction AI"
+          subtitle="Ask building code questions, get instant answers"
+          onPress={() => navigateTo('/(tabs)/construction-ai')}
         />
 
         <NavigationCard

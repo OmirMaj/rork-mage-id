@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
-  Animated, ScrollView, ActivityIndicator, RefreshControl, Platform, Modal, TextInput,
+  Animated, ScrollView, RefreshControl, Platform, Modal, TextInput,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MapPin, Clock, DollarSign, Navigation, AlertCircle, Crosshair, ChevronDown, X, Filter, Building, Search, Heart, Bookmark, FileText, Tag, ChevronRight } from 'lucide-react-native';
@@ -10,6 +10,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Colors } from '@/constants/colors';
+import ConstructionLoader from '@/components/ConstructionLoader';
 import { supabase } from '@/lib/supabase';
 import { useUserLocation, getDistanceMiles } from '@/utils/location';
 import { US_STATES } from '@/constants/states';
@@ -568,8 +569,7 @@ export default function BidsScreen() {
         </View>
       ) : loading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.primary} />
-          <Text style={styles.loadingText}>Loading bids...</Text>
+          <ConstructionLoader size="lg" label="Loading bids..." />
         </View>
       ) : (
         <FlatList

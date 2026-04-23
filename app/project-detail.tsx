@@ -10,26 +10,27 @@ import * as Haptics from 'expo-haptics';
 import * as Linking from 'expo-linking';
 import {
   DollarSign, Users, TrendingDown, MapPin,
-  ChevronDown, ChevronUp, ChevronRight, Trash2, Package, AlertTriangle, Lightbulb, CalendarDays,
+  ChevronDown, ChevronUp, ChevronRight, ChevronLeft, Trash2, Package, AlertTriangle, Lightbulb, CalendarDays,
   Mail, MessageSquare, X, BarChart3, ArrowDownRight, Shield, Layers,
   FileText, ShoppingCart, UserPlus, Send, Share2, Eye, PenTool, Crown, Pencil,
-  Plus, Receipt, ClipboardList, Repeat, CheckSquare, Camera, Globe, Link, Copy, Wallet, Archive,
+  Plus, Receipt, ClipboardList, Repeat, CheckSquare, Camera, Globe, Link, Copy, Wallet, Archive, Activity,
 } from 'lucide-react-native';
-import { PROJECT_TYPES } from '@/types';
-import type { ProjectType } from '@/types';
+import { PROJECT_TYPES, type ProjectType, type ProjectCollaborator, type EntityRef } from '@/types';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
+import { useEntityNavigation } from '@/hooks/useEntityNavigation';
+import EntityActionSheet from '@/components/EntityActionSheet';
 import { generateUUID } from '@/utils/generateId';
 import AIProjectReport from '@/components/AIProjectReport';
 import AIAutoScheduleButton from '@/components/AIAutoScheduleButton';
 import { generateAndSharePDF, buildEstimateTextForEmail } from '@/utils/pdfGenerator';
 import { generateAndShareCloseoutPacket } from '@/utils/closeoutPacketGenerator';
-import type { ProjectCollaborator } from '@/types';
+import { exportProjectIcs } from '@/utils/icsGenerator';
 import { formatMoney } from '@/utils/formatters';
 import { getEffectiveInvoiceStatus } from '@/utils/projectFinancials';
 
-type SectionKey = 'linkedEstimate' | 'materials' | 'labor' | 'summary' | 'schedule' | 'notes' | 'collaborators' | 'changeOrders' | 'invoices' | 'dailyReports' | 'punchList' | 'rfis' | 'submittals' | 'budget' | 'photos' | 'clientPortal' | 'communications';
+type SectionKey = 'linkedEstimate' | 'materials' | 'labor' | 'summary' | 'schedule' | 'notes' | 'collaborators' | 'changeOrders' | 'invoices' | 'dailyReports' | 'punchList' | 'rfis' | 'submittals' | 'budget' | 'photos' | 'clientPortal' | 'communications' | 'activity' | 'calendar';
 type DetailModalType = 'total' | 'savings' | null;
 type EditModalType = boolean;
 
@@ -41,6 +42,7 @@ export default function ProjectDetailScreen() {
   const insets = useSafeAreaInsets();
   const layout = useResponsiveLayout();
   const router = useRouter();
+  const { navigateTo } = useEntityNavigation();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { getProject, deleteProject, updateProject, settings, addCollaborator, removeCollaborator, getChangeOrdersForProject, getInvoicesForProject, getDailyReportsForProject, updateChangeOrder, getPunchItemsForProject, getPhotosForProject, getCommEventsForProject, addCommEvent, getRFIsForProject, getSubmittalsForProject, getWarrantiesForProject, invoices: allInvoices, changeOrders: allChangeOrders } = useProjects();
   const { tier } = useSubscription();
@@ -74,6 +76,8 @@ export default function ProjectDetailScreen() {
     photos: true,
     clientPortal: false,
     communications: true,
+    activity: false,
+    calendar: false,
   });
   const [detailModal, setDetailModal] = useState<DetailModalType>(null);
   const [showShareModal, setShowShareModal] = useState(false);
@@ -82,16 +86,31 @@ export default function ProjectDetailScreen() {
   const [inviteName, setInviteName] = useState('');
   const [inviteRole, setInviteRole] = useState<'editor' | 'viewer'>('editor');
   const [showEditModal, setShowEditModal] = useState<EditModalType>(false);
+  const [activeTile, setActiveTile] = useState<SectionKey | null>(null);
   const [editName, setEditName] = useState('');
   const [editDescription, setEditDescription] = useState('');
   const [editLocation, setEditLocation] = useState('');
   const [editType, setEditType] = useState<ProjectType>('renovation');
   const [editSquareFootage, setEditSquareFootage] = useState('');
   const [generatingCloseout, setGeneratingCloseout] = useState<boolean>(false);
+  const [actionSheetRef, setActionSheetRef] = useState<EntityRef | null>(null);
 
   const toggleSection = useCallback((section: SectionKey) => {
     setExpanded(prev => ({ ...prev, [section]: !prev[section] }));
   }, []);
+
+  // The tile-section modal renders as an iOS pageSheet. If we navigate while
+  // it's still presented, the new screen mounts BEHIND the sheet — the classic
+  // "press back and the new screen appears" bug. Dismiss the sheet first,
+  // then navigate after iOS finishes the dismiss animation (~300ms).
+  const navigateFromTile = useCallback((route: string | { pathname: string; params?: Record<string, string | number | undefined> }, mode: 'push' | 'replace' = 'push') => {
+    setActiveTile(null);
+    const delay = Platform.OS === 'ios' ? 350 : 0;
+    setTimeout(() => {
+      if (mode === 'replace') router.replace(route as any);
+      else router.push(route as any);
+    }, delay);
+  }, [router]);
 
   const openEditModal = useCallback(() => {
     if (!project) return;
@@ -245,6 +264,33 @@ export default function ProjectDetailScreen() {
       void proceed();
     }
   }, [project, id, branding, changeOrders, projectInvoices, dailyReports, punchItems, projectWarranties, projectPhotos, generatingCloseout]);
+
+  const handleExportCalendar = useCallback(async () => {
+    if (!project) return;
+    try {
+      if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      const result = await exportProjectIcs({
+        project,
+        invoices: projectInvoices,
+        warranties: projectWarranties,
+      });
+      if (result.eventCount === 0) {
+        Alert.alert(
+          'Calendar Feed',
+          'No schedule tasks, invoice due dates, or warranty expirations found for this project yet. Add items to the schedule to populate the feed.',
+        );
+        return;
+      }
+      if (Platform.OS !== 'web') {
+        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      } else {
+        Alert.alert('Calendar Feed', `Downloaded ${result.eventCount} event${result.eventCount === 1 ? '' : 's'} to your calendar file. Open it to import.`);
+      }
+    } catch (err) {
+      console.error('[ProjectDetail] Calendar export error:', err);
+      Alert.alert('Calendar Feed', 'Could not generate the calendar feed. Please try again.');
+    }
+  }, [project, projectInvoices, projectWarranties]);
 
   const handleInvite = useCallback(() => {
     if (!project || !id) return;
@@ -692,7 +738,7 @@ export default function ProjectDetailScreen() {
           {!hasAnyEstimate && (
             <TouchableOpacity
               style={styles.quickActionBtn}
-              onPress={() => router.push('/(tabs)/discover/estimate' as any)}
+              onPress={() => router.replace('/(tabs)/discover/estimate' as any)}
               activeOpacity={0.7}
               testID="project-create-estimate-btn"
             >
@@ -705,7 +751,7 @@ export default function ProjectDetailScreen() {
           {!project.schedule && (
             <TouchableOpacity
               style={styles.quickActionBtn}
-              onPress={() => router.push('/(tabs)/discover/schedule' as any)}
+              onPress={() => router.replace('/(tabs)/discover/schedule' as any)}
               activeOpacity={0.7}
               testID="project-create-schedule-btn"
             >
@@ -718,7 +764,7 @@ export default function ProjectDetailScreen() {
           {project.schedule && (
             <TouchableOpacity
               style={styles.quickActionBtn}
-              onPress={() => router.push('/(tabs)/schedule' as any)}
+              onPress={() => router.replace('/(tabs)/schedule' as any)}
               activeOpacity={0.7}
               testID="project-view-schedule-btn"
             >
@@ -731,7 +777,7 @@ export default function ProjectDetailScreen() {
           {hasAnyEstimate && (
             <TouchableOpacity
               style={styles.quickActionBtn}
-              onPress={() => router.push('/(tabs)/estimate' as any)}
+              onPress={() => router.replace('/(tabs)/estimate' as any)}
               activeOpacity={0.7}
               testID="project-view-estimate-btn"
             >
@@ -753,7 +799,7 @@ export default function ProjectDetailScreen() {
             <Text style={styles.quickActionLabel}>Forecast</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.quickActionBtn, generatingCloseout && { opacity: 0.5 }]}
+            style={[styles.quickActionBtn, styles.quickActionBtnFull, generatingCloseout && { opacity: 0.5 }]}
             onPress={handleGenerateCloseoutPacket}
             activeOpacity={0.7}
             disabled={generatingCloseout}
@@ -766,7 +812,106 @@ export default function ProjectDetailScreen() {
           </TouchableOpacity>
         </View>
 
-        {linkedEstimate && linkedEstimate.items.length > 0 && (
+        {/* Section tile grid — replaces the long scroll of cards */}
+        <View style={styles.sectionGrid}>
+          {([
+            ...(hasAnyEstimate ? [{ key: 'linkedEstimate' as SectionKey, label: 'Estimate Items', icon: ShoppingCart, color: Colors.primary, count: linkedEstimate?.items.length ?? estimate?.materials.length ?? 0 }] : []),
+            ...(project.schedule ? [{ key: 'schedule' as SectionKey, label: 'Schedule', icon: CalendarDays, color: Colors.info, count: project.schedule.tasks.length }] : []),
+            { key: 'collaborators' as SectionKey, label: 'Team', icon: Users, color: Colors.info, count: collaborators.length + 1 },
+            { key: 'changeOrders' as SectionKey, label: 'Change Orders', icon: Repeat, color: Colors.accent, count: changeOrders.length },
+            { key: 'invoices' as SectionKey, label: 'Invoices', icon: Receipt, color: Colors.success, count: projectInvoices.length },
+            { key: 'dailyReports' as SectionKey, label: 'Daily Reports', icon: ClipboardList, color: Colors.primary, count: dailyReports.length },
+            { key: 'punchList' as SectionKey, label: 'Punch List', icon: CheckSquare, color: Colors.accent, count: punchItems.length },
+            { key: 'rfis' as SectionKey, label: 'RFIs', icon: FileText, color: Colors.info, count: projectRFIs.length },
+            { key: 'submittals' as SectionKey, label: 'Submittals', icon: FileText, color: '#5856D6', count: projectSubmittals.length },
+            ...(hasAnyEstimate ? [{ key: 'budget' as SectionKey, label: 'Financial Health', icon: DollarSign, color: Colors.success, count: null as number | null }] : []),
+            { key: 'photos' as SectionKey, label: 'Photos', icon: Camera, color: Colors.info, count: projectPhotos.length },
+            { key: 'clientPortal' as SectionKey, label: 'Client Portal', icon: Globe, color: '#5856D6', count: null as number | null },
+            { key: 'communications' as SectionKey, label: 'Communications', icon: Mail, color: Colors.info, count: commEvents.length },
+            { key: 'activity' as SectionKey, label: 'Activity', icon: Activity, color: Colors.accent, count: null as number | null },
+            { key: 'calendar' as SectionKey, label: 'Calendar Feed', icon: CalendarDays, color: Colors.info, count: null as number | null },
+          ]).map(tile => {
+            const TileIcon = tile.icon;
+            return (
+              <TouchableOpacity
+                key={tile.key}
+                style={styles.sectionTile}
+                onPress={() => {
+                  if (Platform.OS !== 'web') void Haptics.selectionAsync();
+                  if (tile.key === 'activity') {
+                    router.push({ pathname: '/activity-feed' as any, params: { projectId: id } });
+                    return;
+                  }
+                  if (tile.key === 'calendar') {
+                    void handleExportCalendar();
+                    return;
+                  }
+                  setActiveTile(tile.key);
+                }}
+                activeOpacity={0.7}
+                testID={`section-tile-${tile.key}`}
+              >
+                <View style={[styles.sectionTileIcon, { backgroundColor: tile.color + '15' }]}>
+                  <TileIcon size={20} color={tile.color} />
+                </View>
+                <Text style={styles.sectionTileLabel} numberOfLines={1}>{tile.label}</Text>
+                {tile.count !== null && tile.count !== undefined && (
+                  <View style={styles.sectionTileBadge}>
+                    <Text style={styles.sectionTileBadgeText}>{tile.count}</Text>
+                  </View>
+                )}
+                <ChevronRight size={16} color={Colors.textMuted} />
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        <Modal
+          visible={activeTile !== null}
+          animationType="slide"
+          presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : undefined}
+          onRequestClose={() => setActiveTile(null)}
+        >
+          <View style={{ flex: 1, backgroundColor: Colors.background, paddingTop: Platform.OS === 'ios' ? 12 : insets.top + 8 }}>
+            <View style={styles.sectionModalHeader}>
+              <TouchableOpacity
+                onPress={() => setActiveTile(null)}
+                style={styles.sectionModalBack}
+                activeOpacity={0.7}
+                testID="section-modal-back"
+              >
+                <ChevronLeft size={22} color={Colors.text} />
+                <Text style={styles.sectionModalBackText}>Back</Text>
+              </TouchableOpacity>
+              <Text style={styles.sectionModalTitle} numberOfLines={1}>
+                {activeTile === 'linkedEstimate' ? 'Estimate Items'
+                  : activeTile === 'schedule' ? 'Schedule'
+                  : activeTile === 'materials' ? 'Materials'
+                  : activeTile === 'labor' ? 'Labor'
+                  : activeTile === 'summary' ? 'Cost Summary'
+                  : activeTile === 'notes' ? 'Tips & Notes'
+                  : activeTile === 'collaborators' ? 'Team'
+                  : activeTile === 'changeOrders' ? 'Change Orders'
+                  : activeTile === 'invoices' ? 'Invoices'
+                  : activeTile === 'dailyReports' ? 'Daily Reports'
+                  : activeTile === 'punchList' ? 'Punch List'
+                  : activeTile === 'rfis' ? 'RFIs'
+                  : activeTile === 'submittals' ? 'Submittals'
+                  : activeTile === 'budget' ? 'Financial Health'
+                  : activeTile === 'photos' ? 'Photos'
+                  : activeTile === 'clientPortal' ? 'Client Portal'
+                  : activeTile === 'communications' ? 'Communications'
+                  : ''}
+              </Text>
+              <View style={{ width: 72 }} />
+            </View>
+            <ScrollView
+              style={{ flex: 1 }}
+              contentContainerStyle={{ paddingBottom: insets.bottom + 40, paddingTop: 4 }}
+              showsVerticalScrollIndicator={false}
+            >
+
+        {linkedEstimate && linkedEstimate.items.length > 0 && activeTile === 'linkedEstimate' && (
           <View style={styles.section}>
             <TouchableOpacity
               style={styles.sectionHeader}
@@ -845,7 +990,7 @@ export default function ProjectDetailScreen() {
                 {project.schedule && (
                   <TouchableOpacity
                     style={styles.crossLinkBtn}
-                    onPress={() => router.push('/(tabs)/schedule' as any)}
+                    onPress={() => navigateFromTile('/(tabs)/schedule' as any, 'replace')}
                     activeOpacity={0.7}
                     testID="estimate-view-schedule-link"
                   >
@@ -859,7 +1004,7 @@ export default function ProjectDetailScreen() {
           </View>
         )}
 
-        {project.schedule && (
+        {project.schedule && activeTile === 'schedule' && (
           <View style={styles.section}>
             <TouchableOpacity
               style={styles.sectionHeader}
@@ -907,7 +1052,7 @@ export default function ProjectDetailScreen() {
 
                 <TouchableOpacity
                   style={styles.crossLinkBtn}
-                  onPress={() => router.push('/(tabs)/schedule' as any)}
+                  onPress={() => navigateFromTile('/(tabs)/schedule' as any, 'replace')}
                   activeOpacity={0.7}
                   testID="schedule-open-full-link"
                 >
@@ -931,7 +1076,7 @@ export default function ProjectDetailScreen() {
                 {!hasAnyEstimate && (
                   <TouchableOpacity
                     style={styles.crossLinkBtn}
-                    onPress={() => router.push('/(tabs)/discover/estimate' as any)}
+                    onPress={() => navigateFromTile('/(tabs)/discover/estimate' as any, 'replace')}
                     activeOpacity={0.7}
                     testID="schedule-create-estimate-link"
                   >
@@ -945,7 +1090,7 @@ export default function ProjectDetailScreen() {
           </View>
         )}
 
-        {estimate && (
+        {estimate && activeTile === 'linkedEstimate' && (
           <>
             <View style={styles.section}>
               <TouchableOpacity
@@ -1132,6 +1277,7 @@ export default function ProjectDetailScreen() {
           </>
         )}
 
+        {activeTile === 'collaborators' && (
         <View style={styles.section}>
           <TouchableOpacity
             style={styles.sectionHeader}
@@ -1207,7 +1353,9 @@ export default function ProjectDetailScreen() {
             </View>
           )}
         </View>
+        )}
 
+        {activeTile === 'changeOrders' && (
         <View style={styles.section}>
           <TouchableOpacity
             style={styles.sectionHeader}
@@ -1235,7 +1383,7 @@ export default function ProjectDetailScreen() {
                 <TouchableOpacity
                   key={co.id}
                   style={styles.coRow}
-                  onPress={() => router.push({ pathname: '/change-order' as any, params: { projectId: id, coId: co.id } })}
+                  onPress={() => navigateFromTile({ pathname: '/change-order' as any, params: { projectId: id, coId: co.id } })}
                   activeOpacity={0.7}
                 >
                   <View style={styles.coInfo}>
@@ -1304,7 +1452,7 @@ export default function ProjectDetailScreen() {
               ))}
               <TouchableOpacity
                 style={styles.coAddBtn}
-                onPress={() => router.push({ pathname: '/change-order' as any, params: { projectId: id } })}
+                onPress={() => navigateFromTile({ pathname: '/change-order' as any, params: { projectId: id } })}
                 activeOpacity={0.7}
                 testID="add-change-order-btn"
               >
@@ -1314,7 +1462,9 @@ export default function ProjectDetailScreen() {
             </View>
           )}
         </View>
+        )}
 
+        {activeTile === 'invoices' && (
         <View style={styles.section}>
           <TouchableOpacity
             style={styles.sectionHeader}
@@ -1345,7 +1495,16 @@ export default function ProjectDetailScreen() {
                   <TouchableOpacity
                     key={inv.id}
                     style={styles.coRow}
-                    onPress={() => router.push({ pathname: '/invoice' as any, params: { projectId: id, invoiceId: inv.id } })}
+                    onPress={() => navigateFromTile({ pathname: '/invoice' as any, params: { projectId: id, invoiceId: inv.id } })}
+                    onLongPress={() => {
+                      if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                      setActiveTile(null);
+                      const delay = Platform.OS === 'ios' ? 350 : 0;
+                      setTimeout(() => {
+                        setActionSheetRef({ kind: 'invoice', id: inv.id, projectId: id });
+                      }, delay);
+                    }}
+                    delayLongPress={350}
                     activeOpacity={0.7}
                   >
                     <View style={styles.coInfo}>
@@ -1374,7 +1533,7 @@ export default function ProjectDetailScreen() {
               <View style={styles.invBtnRow}>
                 <TouchableOpacity
                   style={[styles.coAddBtn, { flex: 1 }]}
-                  onPress={() => router.push({ pathname: '/invoice' as any, params: { projectId: id, type: 'full' } })}
+                  onPress={() => navigateFromTile({ pathname: '/bill-from-estimate' as any, params: { projectId: id, type: 'full' } })}
                   activeOpacity={0.7}
                   testID="add-full-invoice-btn"
                 >
@@ -1383,7 +1542,7 @@ export default function ProjectDetailScreen() {
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.coAddBtn, { flex: 1 }]}
-                  onPress={() => router.push({ pathname: '/invoice' as any, params: { projectId: id, type: 'progress' } })}
+                  onPress={() => navigateFromTile({ pathname: '/bill-from-estimate' as any, params: { projectId: id, type: 'progress' } })}
                   activeOpacity={0.7}
                   testID="add-progress-bill-btn"
                 >
@@ -1394,7 +1553,9 @@ export default function ProjectDetailScreen() {
             </View>
           )}
         </View>
+        )}
 
+        {activeTile === 'dailyReports' && (
         <View style={styles.section}>
           <TouchableOpacity
             style={styles.sectionHeader}
@@ -1422,7 +1583,7 @@ export default function ProjectDetailScreen() {
                 <TouchableOpacity
                   key={dr.id}
                   style={styles.coRow}
-                  onPress={() => router.push({ pathname: '/daily-report' as any, params: { projectId: id, reportId: dr.id } })}
+                  onPress={() => navigateFromTile({ pathname: '/daily-report' as any, params: { projectId: id, reportId: dr.id } })}
                   activeOpacity={0.7}
                 >
                   <View style={styles.coInfo}>
@@ -1444,7 +1605,7 @@ export default function ProjectDetailScreen() {
               ))}
               <TouchableOpacity
                 style={styles.coAddBtn}
-                onPress={() => router.push({ pathname: '/daily-report' as any, params: { projectId: id } })}
+                onPress={() => navigateFromTile({ pathname: '/daily-report' as any, params: { projectId: id } })}
                 activeOpacity={0.7}
                 testID="add-daily-report-btn"
               >
@@ -1454,7 +1615,9 @@ export default function ProjectDetailScreen() {
             </View>
           )}
         </View>
+        )}
 
+        {activeTile === 'punchList' && (
         <View style={styles.section}>
           <TouchableOpacity
             style={styles.sectionHeader}
@@ -1514,7 +1677,7 @@ export default function ProjectDetailScreen() {
               )}
               <TouchableOpacity
                 style={styles.coAddBtn}
-                onPress={() => router.push({ pathname: '/punch-list' as any, params: { projectId: id } })}
+                onPress={() => navigateFromTile({ pathname: '/punch-list' as any, params: { projectId: id } })}
                 activeOpacity={0.7}
                 testID="open-punch-list-btn"
               >
@@ -1523,7 +1686,7 @@ export default function ProjectDetailScreen() {
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.coAddBtn, { marginTop: 8 }]}
-                onPress={() => router.push({ pathname: '/warranties' as any, params: { projectId: id } })}
+                onPress={() => navigateFromTile({ pathname: '/warranties' as any, params: { projectId: id } })}
                 activeOpacity={0.7}
                 testID="open-warranties-btn"
               >
@@ -1532,7 +1695,7 @@ export default function ProjectDetailScreen() {
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.coAddBtn, { marginTop: 8 }]}
-                onPress={() => router.push({ pathname: '/retention' as any, params: { projectId: id } })}
+                onPress={() => navigateFromTile({ pathname: '/retention' as any, params: { projectId: id } })}
                 activeOpacity={0.7}
                 testID="open-retention-btn"
               >
@@ -1542,7 +1705,9 @@ export default function ProjectDetailScreen() {
             </View>
           )}
         </View>
+        )}
 
+        {activeTile === 'rfis' && (
         <View style={styles.section}>
           <TouchableOpacity
             style={styles.sectionHeader}
@@ -1572,7 +1737,21 @@ export default function ProjectDetailScreen() {
                   <TouchableOpacity
                     key={rfi.id}
                     style={styles.coRow}
-                    onPress={() => router.push({ pathname: '/rfi' as any, params: { projectId: id, rfiId: rfi.id } })}
+                    onPress={() =>
+                      navigateTo(
+                        { kind: 'rfi', id: rfi.id, projectId: id },
+                        { fromSheet: true, onBeforeNavigate: () => setActiveTile(null) },
+                      )
+                    }
+                    onLongPress={() => {
+                      if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                      setActiveTile(null);
+                      const delay = Platform.OS === 'ios' ? 350 : 0;
+                      setTimeout(() => {
+                        setActionSheetRef({ kind: 'rfi', id: rfi.id, projectId: id });
+                      }, delay);
+                    }}
+                    delayLongPress={350}
                     activeOpacity={0.7}
                   >
                     <View style={styles.coInfo}>
@@ -1596,7 +1775,7 @@ export default function ProjectDetailScreen() {
               })}
               <TouchableOpacity
                 style={styles.coAddBtn}
-                onPress={() => router.push({ pathname: '/rfi' as any, params: { projectId: id } })}
+                onPress={() => navigateFromTile({ pathname: '/rfi' as any, params: { projectId: id } })}
                 activeOpacity={0.7}
                 testID="add-rfi-btn"
               >
@@ -1606,7 +1785,9 @@ export default function ProjectDetailScreen() {
             </View>
           )}
         </View>
+        )}
 
+        {activeTile === 'submittals' && (
         <View style={styles.section}>
           <TouchableOpacity
             style={styles.sectionHeader}
@@ -1634,7 +1815,7 @@ export default function ProjectDetailScreen() {
                 <TouchableOpacity
                   key={sub.id}
                   style={styles.coRow}
-                  onPress={() => router.push({ pathname: '/submittal' as any, params: { projectId: id, submittalId: sub.id } })}
+                  onPress={() => navigateFromTile({ pathname: '/submittal' as any, params: { projectId: id, submittalId: sub.id } })}
                   activeOpacity={0.7}
                 >
                   <View style={styles.coInfo}>
@@ -1654,7 +1835,7 @@ export default function ProjectDetailScreen() {
               ))}
               <TouchableOpacity
                 style={styles.coAddBtn}
-                onPress={() => router.push({ pathname: '/submittal' as any, params: { projectId: id } })}
+                onPress={() => navigateFromTile({ pathname: '/submittal' as any, params: { projectId: id } })}
                 activeOpacity={0.7}
                 testID="add-submittal-btn"
               >
@@ -1664,8 +1845,9 @@ export default function ProjectDetailScreen() {
             </View>
           )}
         </View>
+        )}
 
-        {hasAnyEstimate && (
+        {hasAnyEstimate && activeTile === 'budget' && (
           <View style={styles.section}>
             <TouchableOpacity
               style={styles.sectionHeader}
@@ -1700,7 +1882,7 @@ export default function ProjectDetailScreen() {
                 </View>
                 <TouchableOpacity
                   style={styles.coAddBtn}
-                  onPress={() => router.push({ pathname: '/budget-dashboard' as any, params: { projectId: id } })}
+                  onPress={() => navigateFromTile({ pathname: '/budget-dashboard' as any, params: { projectId: id } })}
                   activeOpacity={0.7}
                   testID="open-budget-dashboard"
                 >
@@ -1712,6 +1894,7 @@ export default function ProjectDetailScreen() {
           </View>
         )}
 
+        {activeTile === 'photos' && (
         <View style={styles.section}>
           <TouchableOpacity
             style={styles.sectionHeader}
@@ -1751,7 +1934,9 @@ export default function ProjectDetailScreen() {
             </View>
           )}
         </View>
+        )}
 
+        {activeTile === 'clientPortal' && (
         <View style={styles.section}>
           <TouchableOpacity
             style={styles.sectionHeader}
@@ -1796,7 +1981,7 @@ export default function ProjectDetailScreen() {
                   </View>
                   <TouchableOpacity
                     style={styles.portalEnableBtn}
-                    onPress={() => router.push({ pathname: '/client-portal-setup', params: { id } })}
+                    onPress={() => navigateFromTile({ pathname: '/client-portal-setup', params: { id } })}
                     activeOpacity={0.7}
                   >
                     <Globe size={16} color={'#5856D6'} />
@@ -1824,7 +2009,7 @@ export default function ProjectDetailScreen() {
                       },
                     });
                     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                    router.push({ pathname: '/client-portal-setup', params: { id } });
+                    navigateFromTile({ pathname: '/client-portal-setup', params: { id } });
                   }}
                   activeOpacity={0.7}
                 >
@@ -1835,7 +2020,9 @@ export default function ProjectDetailScreen() {
             </View>
           )}
         </View>
+        )}
 
+        {activeTile === 'communications' && (
         <View style={styles.section}>
           <TouchableOpacity
             style={styles.sectionHeader}
@@ -1911,6 +2098,10 @@ export default function ProjectDetailScreen() {
             </View>
           )}
         </View>
+        )}
+            </ScrollView>
+          </View>
+        </Modal>
 
         {hasAnyEstimate && (
           <View style={styles.shareSection}>
@@ -2232,6 +2423,11 @@ export default function ProjectDetailScreen() {
         </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      <EntityActionSheet
+        entityRef={actionSheetRef}
+        onClose={() => setActionSheetRef(null)}
+      />
     </View>
   );
 }
@@ -2417,9 +2613,20 @@ const styles = StyleSheet.create({
   commAddNoteBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 6, paddingVertical: 10, borderRadius: 10, backgroundColor: Colors.infoLight, marginTop: 8 },
   commAddNoteBtnText: { fontSize: 13, fontWeight: '600' as const, color: Colors.info },
   quickActions: { flexDirection: 'row' as const, paddingHorizontal: 20, marginTop: 12, gap: 10, flexWrap: 'wrap' as const },
-  quickActionBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, backgroundColor: Colors.surface, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, borderWidth: 1, borderColor: Colors.cardBorder },
+  quickActionBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, backgroundColor: Colors.surface, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, borderWidth: 1, borderColor: Colors.cardBorder, flexGrow: 1, flexShrink: 1, flexBasis: '47%' as const, minHeight: 56 },
+  quickActionBtnFull: { flexBasis: '100%' as const },
   quickActionIcon: { width: 32, height: 32, borderRadius: 8, alignItems: 'center' as const, justifyContent: 'center' as const },
-  quickActionLabel: { fontSize: 14, fontWeight: '600' as const, color: Colors.text },
+  quickActionLabel: { fontSize: 14, fontWeight: '600' as const, color: Colors.text, flexShrink: 1 },
+  sectionGrid: { paddingHorizontal: 20, marginTop: 18, gap: 8 },
+  sectionTile: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 12, backgroundColor: Colors.card, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, borderWidth: 1, borderColor: Colors.cardBorder, minHeight: 56 },
+  sectionTileIcon: { width: 36, height: 36, borderRadius: 10, alignItems: 'center' as const, justifyContent: 'center' as const },
+  sectionTileLabel: { flex: 1, fontSize: 15, fontWeight: '600' as const, color: Colors.text },
+  sectionTileBadge: { backgroundColor: Colors.fillTertiary, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2, minWidth: 24, alignItems: 'center' as const },
+  sectionTileBadgeText: { fontSize: 12, fontWeight: '700' as const, color: Colors.textSecondary },
+  sectionModalHeader: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'space-between' as const, paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight },
+  sectionModalBack: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 2, paddingVertical: 6, paddingHorizontal: 4, minWidth: 72 },
+  sectionModalBackText: { fontSize: 16, fontWeight: '500' as const, color: Colors.primary },
+  sectionModalTitle: { flex: 1, textAlign: 'center' as const, fontSize: 17, fontWeight: '700' as const, color: Colors.text },
 });
 
 const detailStyles = StyleSheet.create({

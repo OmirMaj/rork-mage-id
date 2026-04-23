@@ -45,7 +45,7 @@ export default function AIAutoScheduleButton({ project, estimate, onScheduleCrea
         `Created ${result.tasks.length} tasks across ${new Set(result.tasks.map(t => t.phase)).size} phases. ${result.linkedItemCount} estimate items linked to tasks.`,
         [
           { text: 'Stay Here', style: 'cancel' },
-          { text: 'View Schedule', onPress: () => router.push('/(tabs)/schedule' as any) },
+          { text: 'View Schedule', onPress: () => router.replace('/(tabs)/schedule' as any) },
         ],
       );
     } catch (err: any) {

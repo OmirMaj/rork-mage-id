@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useRef, useMemo } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
-  Animated, ScrollView, ActivityIndicator, Linking, RefreshControl, Platform,
+  Animated, ScrollView, Linking, RefreshControl, Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -9,6 +9,7 @@ import { MapPin, DollarSign, ArrowLeft, Navigation, AlertCircle, Briefcase } fro
 import * as Haptics from 'expo-haptics';
 import { useQuery } from '@tanstack/react-query';
 import { Colors } from '@/constants/colors';
+import ConstructionLoader from '@/components/ConstructionLoader';
 import { supabase } from '@/lib/supabase';
 import { useUserLocation, getDistanceMiles } from '@/utils/location';
 
@@ -257,8 +258,7 @@ export default function CachedHireScreen() {
 
       {loading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.primary} />
-          <Text style={styles.loadingText}>Finding jobs near you...</Text>
+          <ConstructionLoader size="lg" label="Finding jobs near you..." />
         </View>
       ) : (
         <FlatList

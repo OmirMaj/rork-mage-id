@@ -2,7 +2,10 @@ import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Image,
   ActivityIndicator, Dimensions, TextInput, Platform, Modal, Alert,
+  RefreshControl,
 } from 'react-native';
+import { useQueryClient } from '@tanstack/react-query';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { useLocalSearchParams, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
@@ -99,6 +102,83 @@ export default function ClientViewScreen() {
     messages: true, schedule: true, budget: true, invoices: true, changeOrders: false,
     photos: true, dailyReports: false, punchList: false, rfis: false, documents: false,
   });
+
+  // Realtime: when the GC updates anything on this project, invalidate local
+  // react-query caches so the client portal re-renders with fresh data.
+  // We scope the subscription to the single project row to avoid noisy
+  // re-fetches when unrelated records change.
+  const queryClient = useQueryClient();
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<Date>(new Date());
+  const [refreshing, setRefreshing] = useState(false);
+
+  const refreshAll = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['projects'] }),
+        queryClient.invalidateQueries({ queryKey: ['changeOrders'] }),
+        queryClient.invalidateQueries({ queryKey: ['invoices'] }),
+        queryClient.invalidateQueries({ queryKey: ['dailyReports'] }),
+        queryClient.invalidateQueries({ queryKey: ['punchItems'] }),
+        queryClient.invalidateQueries({ queryKey: ['photos'] }),
+        queryClient.invalidateQueries({ queryKey: ['rfis'] }),
+      ]);
+      setLastUpdatedAt(new Date());
+    } finally {
+      setRefreshing(false);
+    }
+  }, [queryClient]);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured || !project?.id) return;
+    const projectId = project.id;
+    const channel = supabase
+      .channel(`client-portal-${projectId}`)
+      .on(
+        'postgres_changes' as any,
+        { event: '*', schema: 'public', table: 'projects', filter: `id=eq.${projectId}` },
+        () => {
+          void queryClient.invalidateQueries({ queryKey: ['projects'] });
+          setLastUpdatedAt(new Date());
+        },
+      )
+      .on(
+        'postgres_changes' as any,
+        { event: '*', schema: 'public', table: 'change_orders', filter: `project_id=eq.${projectId}` },
+        () => {
+          void queryClient.invalidateQueries({ queryKey: ['changeOrders'] });
+          setLastUpdatedAt(new Date());
+        },
+      )
+      .on(
+        'postgres_changes' as any,
+        { event: '*', schema: 'public', table: 'invoices', filter: `project_id=eq.${projectId}` },
+        () => {
+          void queryClient.invalidateQueries({ queryKey: ['invoices'] });
+          setLastUpdatedAt(new Date());
+        },
+      )
+      .on(
+        'postgres_changes' as any,
+        { event: '*', schema: 'public', table: 'daily_reports', filter: `project_id=eq.${projectId}` },
+        () => {
+          void queryClient.invalidateQueries({ queryKey: ['dailyReports'] });
+          setLastUpdatedAt(new Date());
+        },
+      )
+      .on(
+        'postgres_changes' as any,
+        { event: '*', schema: 'public', table: 'photos', filter: `project_id=eq.${projectId}` },
+        () => {
+          void queryClient.invalidateQueries({ queryKey: ['photos'] });
+          setLastUpdatedAt(new Date());
+        },
+      )
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [project?.id, queryClient]);
 
   const [passcodeEntry, setPasscodeEntry] = useState('');
   const [passcodeUnlocked, setPasscodeUnlocked] = useState(false);
@@ -368,6 +448,13 @@ export default function ClientViewScreen() {
         style={styles.container}
         contentContainerStyle={{ paddingBottom: insets.bottom + 32 }}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={refreshAll}
+            tintColor={Colors.primary}
+          />
+        }
       >
         {/* Header */}
         <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
@@ -377,6 +464,9 @@ export default function ClientViewScreen() {
           </View>
           <Text style={styles.headerProjectName}>{project.name}</Text>
           <Text style={styles.headerLocation}>{project.location}</Text>
+          <Text style={styles.headerLastUpdated} testID="client-last-updated">
+            Last updated {lastUpdatedAt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+          </Text>
           <View style={[styles.statusBadge, { backgroundColor: project.status === 'in_progress' ? '#34C75940' : '#FF950040' }]}>
             <Text style={[styles.statusBadgeText, { color: project.status === 'in_progress' ? '#34C759' : '#FF9500' }]}>
               {project.status === 'in_progress' ? 'In Progress' : project.status === 'completed' ? 'Completed' : 'Active'}
@@ -996,7 +1086,8 @@ const styles = StyleSheet.create({
   headerBrand: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12, opacity: 0.8 },
   headerBrandText: { fontSize: 12, fontWeight: '600', color: '#FFF', letterSpacing: 1 },
   headerProjectName: { fontSize: 24, fontWeight: '800', color: '#FFF', marginBottom: 4 },
-  headerLocation: { fontSize: 13, color: '#FFFFFF99', marginBottom: 12 },
+  headerLocation: { fontSize: 13, color: '#FFFFFF99', marginBottom: 4 },
+  headerLastUpdated: { fontSize: 11, color: '#FFFFFF80', marginBottom: 12, fontStyle: 'italic' as const },
   statusBadge: { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 },
   statusBadgeText: { fontSize: 12, fontWeight: '700' },
 

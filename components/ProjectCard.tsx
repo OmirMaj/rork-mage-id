@@ -32,9 +32,10 @@ function getTypeIcon(type: ProjectType) {
 interface ProjectCardProps {
   project: Project;
   onPress: () => void;
+  onLongPress?: () => void;
 }
 
-function ProjectCard({ project, onPress }: ProjectCardProps) {
+function ProjectCard({ project, onPress, onLongPress }: ProjectCardProps) {
   const scaleAnim = React.useRef(new Animated.Value(1)).current;
   const IconComponent = getTypeIcon(project.type);
   const status = STATUS_CONFIG[project.status] ?? STATUS_CONFIG.draft;
@@ -58,6 +59,8 @@ function ProjectCard({ project, onPress }: ProjectCardProps) {
     <Animated.View style={[styles.wrapper, { transform: [{ scale: scaleAnim }] }]}>
       <TouchableOpacity
         onPress={onPress}
+        onLongPress={onLongPress}
+        delayLongPress={350}
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
         activeOpacity={1}

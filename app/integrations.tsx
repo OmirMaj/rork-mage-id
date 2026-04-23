@@ -3,7 +3,9 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated,
   Platform, Alert, Linking,
 } from 'react-native';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
+import { useTierAccess } from '@/hooks/useTierAccess';
+import Paywall from '@/components/Paywall';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import {
@@ -74,9 +76,12 @@ function IntegrationCard({ item, onConnect }: { item: Integration; onConnect: (i
 
 export default function IntegrationsScreen() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const { canAccess } = useTierAccess();
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [integrations, setIntegrations] = useState<Integration[]>(MOCK_INTEGRATIONS);
+  const [paywallFeature, setPaywallFeature] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     let result = integrations;
@@ -97,6 +102,14 @@ export default function IntegrationsScreen() {
 
   const handleConnect = useCallback((item: Integration) => {
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+    // Deep integrations (accounting/CRM sync like QuickBooks) are Business-tier only.
+    const nameLower = item.name.toLowerCase();
+    const isQuickbooks = nameLower.includes('quickbooks') || nameLower.includes('quick books');
+    if (item.status !== 'connected' && (isQuickbooks || item.tier === 'deep') && !canAccess('quickbooks_sync')) {
+      setPaywallFeature(item.name);
+      return;
+    }
 
     if (item.status === 'connected') {
       Alert.alert(
@@ -145,7 +158,7 @@ export default function IntegrationsScreen() {
         ]
       );
     }
-  }, []);
+  }, [canAccess]);
 
   return (
     <View style={styles.container}>
@@ -239,6 +252,14 @@ export default function IntegrationsScreen() {
           </View>
         )}
       </ScrollView>
+      {paywallFeature ? (
+        <Paywall
+          visible={true}
+          feature={`${paywallFeature} Sync`}
+          requiredTier="business"
+          onClose={() => setPaywallFeature(null)}
+        />
+      ) : null}
     </View>
   );
 }

@@ -2,15 +2,18 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect, useRef } from "react";
-import { AppState } from "react-native";
+import { AppState, Platform, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import ConstructionLoader from "@/components/ConstructionLoader";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ProjectProvider, useProjects } from "@/contexts/ProjectContext";
-import { SubscriptionProvider } from "@/contexts/SubscriptionContext";
+import { SubscriptionProvider, useSubscription } from "@/contexts/SubscriptionContext";
 import { BidsProvider } from "@/contexts/BidsContext";
 import { CompaniesProvider } from "@/contexts/CompaniesContext";
 import { HireProvider } from "@/contexts/HireContext";
 import { NotificationProvider } from "@/contexts/NotificationContext";
+import { SearchProvider, useSearch } from "@/contexts/SearchContext";
+import UniversalSearch from "@/components/UniversalSearch";
 import { Colors, setCustomColors } from "@/constants/colors";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -69,17 +72,56 @@ function OfflineSyncManager() {
   return null;
 }
 
+// Keys for the 3-day free-tier onboarding-paywall re-show gate. First-seen
+// is stamped once by the paywall screen itself; last-seen is stamped on
+// every show (close or open) so the gate can skip same-day reopens.
+const PAYWALL_GATE_FIRST_KEY = 'buildwise_onboarding_paywall_first_at';
+const PAYWALL_GATE_LAST_KEY = 'buildwise_onboarding_paywall_last_at';
+const PAYWALL_GATE_WINDOW_DAYS = 3;
+
+// Pure helper so the gate decision is testable without mounting the layout.
+// Returns true when the paywall should be re-shown on this cold boot.
+function shouldShowOnboardingPaywallGate(params: {
+  firstSeenIso: string | null;
+  lastSeenIso: string | null;
+  now: Date;
+}): boolean {
+  const { firstSeenIso, lastSeenIso, now } = params;
+  // If first-seen is missing, the user hasn't hit the paywall post-onboarding
+  // yet. Don't preempt here — the onboarding screen's own redirect will
+  // handle it when they finish/skip.
+  if (!firstSeenIso) return false;
+  const first = new Date(firstSeenIso);
+  const ageDays = (now.getTime() - first.getTime()) / (1000 * 60 * 60 * 24);
+  if (!Number.isFinite(ageDays) || ageDays > PAYWALL_GATE_WINDOW_DAYS) return false;
+  // Don't show more than once per calendar day. We compare Y-M-D strings
+  // rather than millisecond deltas so a user who dismisses at 11pm doesn't
+  // get re-shown at 1am — the check is "did we already show today?"
+  if (lastSeenIso) {
+    const last = new Date(lastSeenIso);
+    const sameDay =
+      last.getFullYear() === now.getFullYear() &&
+      last.getMonth() === now.getMonth() &&
+      last.getDate() === now.getDate();
+    if (sameDay) return false;
+  }
+  return true;
+}
+
 function RootLayoutNav() {
   const router = useRouter();
   const segments = useSegments();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const { hasSeenOnboarding, isLoading: projectLoading } = useProjects();
+  const { tier } = useSubscription();
+  const paywallGateRanRef = useRef(false);
 
   useEffect(() => {
     if (authLoading || projectLoading || hasSeenOnboarding === null) return;
 
     const inAuth = segments[0] === 'login' || segments[0] === 'signup';
     const inOnboarding = segments[0] === 'onboarding';
+    const inOnboardingPaywall = (segments[0] as string) === 'onboarding-paywall';
     const inResetPassword = segments[0] === 'reset-password';
 
     if (inResetPassword) return;
@@ -90,7 +132,7 @@ function RootLayoutNav() {
       return;
     }
 
-    if (isAuthenticated && !hasSeenOnboarding && !inOnboarding) {
+    if (isAuthenticated && !hasSeenOnboarding && !inOnboarding && !inOnboardingPaywall) {
       console.log('[Layout] First launch — redirecting to onboarding');
       router.replace('/onboarding');
       return;
@@ -98,10 +140,69 @@ function RootLayoutNav() {
 
     if (isAuthenticated && inAuth) {
       console.log('[Layout] Already authenticated — redirecting to home');
-      router.replace('/(tabs)/(home)');
+      router.replace('/(tabs)/summary' as any);
       return;
     }
-  }, [isAuthenticated, hasSeenOnboarding, authLoading, projectLoading, segments, router]);
+
+    // 3-day free-tier paywall re-show gate. Runs at most once per
+    // mount — if the user dismisses we don't re-queue it mid-session,
+    // only on the next cold boot. Gate only fires when we've resolved
+    // a concrete tier; while tier is still hydrating from RC, skip.
+    if (
+      isAuthenticated &&
+      hasSeenOnboarding &&
+      tier === 'free' &&
+      !inOnboardingPaywall &&
+      !inOnboarding &&
+      !paywallGateRanRef.current
+    ) {
+      paywallGateRanRef.current = true;
+      (async () => {
+        try {
+          const [firstSeenIso, lastSeenIso] = await Promise.all([
+            AsyncStorage.getItem(PAYWALL_GATE_FIRST_KEY),
+            AsyncStorage.getItem(PAYWALL_GATE_LAST_KEY),
+          ]);
+          const show = shouldShowOnboardingPaywallGate({
+            firstSeenIso,
+            lastSeenIso,
+            now: new Date(),
+          });
+          if (show) {
+            console.log('[Layout] 3-day gate: showing onboarding paywall');
+            router.push('/onboarding-paywall' as never);
+          }
+        } catch (err) {
+          console.log('[Layout] paywall gate check failed', err);
+        }
+      })();
+    }
+  }, [isAuthenticated, hasSeenOnboarding, authLoading, projectLoading, segments, router, tier]);
+
+  // Cold-start gate: while the auth + project contexts are hydrating from
+  // AsyncStorage/Supabase, render the branded construction loader instead
+  // of a blank white screen. `hasSeenOnboarding === null` means the
+  // onboarding-state check hasn't resolved yet either. Once all three are
+  // ready, we drop into the normal Stack and the effect above handles
+  // redirects.
+  const bootstrapping =
+    authLoading || projectLoading || hasSeenOnboarding === null;
+
+  if (bootstrapping) {
+    return (
+      <View
+        style={{
+          flex: 1,
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: Colors.background,
+        }}
+        testID="cold-start-loader"
+      >
+        <ConstructionLoader size="lg" label="MAGE ID" />
+      </View>
+    );
+  }
 
   return (
     <Stack screenOptions={{ headerBackTitle: "Back" }}>
@@ -162,6 +263,19 @@ function RootLayoutNav() {
         }}
       />
       <Stack.Screen
+        name="bill-from-estimate"
+        options={{
+          title: "Bill from Estimate",
+          headerStyle: { backgroundColor: Colors.background },
+          headerTintColor: Colors.primary,
+          headerTitleStyle: { fontWeight: '700', color: Colors.text },
+        }}
+      />
+      <Stack.Screen
+        name="activity-feed"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
         name="daily-report"
         options={{
           title: "Daily Report",
@@ -220,6 +334,14 @@ function RootLayoutNav() {
         options={{
           headerShown: false,
           presentation: 'modal',
+        }}
+      />
+      <Stack.Screen
+        name="onboarding-paywall"
+        options={{
+          headerShown: false,
+          presentation: 'modal',
+          gestureEnabled: false,
         }}
       />
       <Stack.Screen
@@ -411,8 +533,37 @@ function RootLayoutNav() {
           headerTitleStyle: { fontWeight: '700', color: Colors.text },
         }}
       />
+      <Stack.Screen
+        name="estimate-wizard"
+        options={{
+          title: "Quick Estimate",
+          presentation: "modal",
+          headerStyle: { backgroundColor: Colors.background },
+          headerTintColor: Colors.primary,
+          headerTitleStyle: { fontWeight: '700', color: Colors.text },
+        }}
+      />
     </Stack>
   );
+}
+
+function SearchHotkeyListener() {
+  const { toggleSearch } = useSearch();
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const handler = (e: KeyboardEvent) => {
+      const isK = e.key === 'k' || e.key === 'K';
+      if (isK && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        toggleSearch();
+      }
+    };
+    // @ts-ignore - DOM event on web
+    window.addEventListener('keydown', handler);
+    // @ts-ignore
+    return () => window.removeEventListener('keydown', handler);
+  }, [toggleSearch]);
+  return null;
 }
 
 function ThemeLoader({ children }: { children: React.ReactNode }) {
@@ -454,8 +605,12 @@ export default function RootLayout() {
                     <CompaniesProvider>
                       <HireProvider>
                         <NotificationProvider>
-                          <OfflineSyncManager />
-                          <RootLayoutNav />
+                          <SearchProvider>
+                            <OfflineSyncManager />
+                            <RootLayoutNav />
+                            <UniversalSearch />
+                            <SearchHotkeyListener />
+                          </SearchProvider>
                         </NotificationProvider>
                       </HireProvider>
                     </CompaniesProvider>

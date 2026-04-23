@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert,
-  TextInput, Animated, Platform, FlatList, Modal, KeyboardAvoidingView, AppState, Pressable,
+  TextInput, Animated, Platform, FlatList, Modal, KeyboardAvoidingView, Pressable,
 } from 'react-native';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -19,7 +19,7 @@ import {
 import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
 import { Colors } from '@/constants/colors';
-import { CATEGORY_META, getLivePrices, getRegionMultiplier, EXPANDED_MATERIALS, type MaterialItem } from '@/constants/materials';
+import { CATEGORY_META, getLivePrices, getRegionMultiplier, EXPANDED_MATERIALS, REGIONAL_FACTORS, type MaterialItem } from '@/constants/materials';
 import { useProjects } from '@/contexts/ProjectContext';
 import { generateUUID } from '@/utils/generateId';
 import { findMaterials, type AIMaterialResult } from '@/utils/materialFinder';
@@ -117,12 +117,21 @@ function getCategoryColor(category: string): string {
 export default function EstimateScreen() {
   const insets = useSafeAreaInsets();
   const layout = useResponsiveLayout();
-  const appState = useRef(AppState.currentState);
   const router = useRouter();
   const { projects, updateProject, settings, updateSettings, contacts } = useProjects();
 
   const locationMultiplier = useMemo(() => getRegionMultiplier(settings.location), [settings.location]);
-  const [materials, setMaterials] = useState<MaterialItem[]>(() => getLivePrices(Date.now() / 10000, locationMultiplier));
+  const regionLabel = useMemo(() => {
+    // Pick the region whose multiplier matches. Ties (both ~1.00) are rare and
+    // fall through to "National Avg" which is fine.
+    const match = REGIONAL_FACTORS.find(r => Math.abs(r.multiplier - locationMultiplier) < 0.001);
+    return match?.label ?? 'National Avg';
+  }, [locationMultiplier]);
+  // Stable seed — previously Date.now()/10000 which caused prices to drift by a cent
+  // on every refresh (app resume, 5min interval, location change). Pricing is now
+  // deterministic per-location so estimates don't mysteriously change after you leave.
+  const PRICE_SEED = 1;
+  const [materials, setMaterials] = useState<MaterialItem[]>(() => getLivePrices(PRICE_SEED, locationMultiplier));
   const [_lastUpdated, setLastUpdated] = useState(new Date());
   const [query, setQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState('all');
@@ -340,8 +349,8 @@ export default function EstimateScreen() {
   }, [materials]);
 
   const refreshPrices = useCallback(() => {
-    const seed = Date.now() / 10000;
-    const newPrices = getLivePrices(seed, locationMultiplier);
+    // Uses the stable PRICE_SEED so prices only change when the location changes.
+    const newPrices = getLivePrices(PRICE_SEED, locationMultiplier);
     setMaterials(newPrices);
     setLastUpdated(new Date());
     setCart(prev => prev.map(cartItem => {
@@ -351,24 +360,12 @@ export default function EstimateScreen() {
     }));
   }, [locationMultiplier]);
 
-  useEffect(() => {
-    const interval = setInterval(refreshPrices, 5 * 60 * 1000);
-    return () => clearInterval(interval);
-  }, [refreshPrices]);
-
+  // Only re-price when location changes. Removed the 5-minute interval and the
+  // AppState resume refresh — those were causing estimates to drift by a cent
+  // every time the user left and came back.
   useEffect(() => {
     refreshPrices();
   }, [locationMultiplier, refreshPrices]);
-
-  useEffect(() => {
-    const sub = AppState.addEventListener('change', nextState => {
-      if (appState.current.match(/inactive|background/) && nextState === 'active') {
-        refreshPrices();
-      }
-      appState.current = nextState;
-    });
-    return () => sub.remove();
-  }, [refreshPrices]);
 
   const filteredMaterials = useMemo(() => {
     let results = materials;
@@ -1189,6 +1186,21 @@ export default function EstimateScreen() {
 
   const listHeaderComponent = useMemo(() => (
     <View>
+      <TouchableOpacity
+        style={styles.wizardCta}
+        onPress={() => router.push('/estimate-wizard' as any)}
+        activeOpacity={0.85}
+        testID="wizard-cta"
+      >
+        <View style={styles.wizardCtaIcon}>
+          <Sparkles size={18} color="#FFFFFF" />
+        </View>
+        <View style={styles.wizardCtaText}>
+          <Text style={styles.wizardCtaTitle}>Quick Estimate Wizard</Text>
+          <Text style={styles.wizardCtaSubtitle}>Answer 8 questions, get an AI-generated estimate</Text>
+        </View>
+        <ChevronRight size={18} color="#FFFFFF" />
+      </TouchableOpacity>
       <View style={styles.header}>
         <View style={styles.headerTop}>
           <View>
@@ -1534,7 +1546,7 @@ export default function EstimateScreen() {
         </View>
       )}
     </View>
-  ), [materials.length, totalMaterialCount, pulseAnim, refreshPrices, cart.length, totalItemCount, cartAnim, isSearchFocused, query, globalMarkup, globalMarkupInput, applyGlobalMarkup, activeCategory, activeTab, filteredMaterials.length, regionalVisibleCount, opportunities, laborCart.length, assemblyCart.length, recentMaterials, popularMaterials, showAiResults, isAiSearching, aiSearchError, aiSearchResults, handleAiSearch, handleAddAiMaterial, handleAddRecentToCart]);
+  ), [materials.length, totalMaterialCount, pulseAnim, refreshPrices, cart.length, totalItemCount, cartAnim, isSearchFocused, query, globalMarkup, globalMarkupInput, applyGlobalMarkup, activeCategory, activeTab, filteredMaterials.length, regionalVisibleCount, opportunities, laborCart.length, assemblyCart.length, recentMaterials, popularMaterials, showAiResults, isAiSearching, aiSearchError, aiSearchResults, handleAiSearch, handleAddAiMaterial, handleAddRecentToCart, router]);
 
   const renderLaborCard = useCallback(({ item }: { item: LaborRate }) => {
     const inCart = laborCart.find(i => i.labor.id === item.id);
@@ -2370,6 +2382,15 @@ export default function EstimateScreen() {
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <Pressable style={styles.popupOverlay} onPress={() => setShowItemPopup(false)}>
           <Pressable style={styles.popupCard} onPress={() => undefined}>
+            {/* Wrap body in a ScrollView so tall content (price breakdown + quantity +
+                totals + Add button) is fully reachable on small screens / with the
+                keyboard raised. Previously the card just clipped to maxHeight 80% and
+                the primary CTA sat below the viewport with no way to scroll to it. */}
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={{ gap: 14, paddingBottom: 4 }}
+            >
             {selectedMaterial && (
               <>
                 <View style={styles.popupHeader}>
@@ -2441,6 +2462,60 @@ export default function EstimateScreen() {
                   </View>
                 )}
 
+                {/* Transparent pricing breakdown — shows exactly how we got from
+                    the MSRP to the current retail price, and what bulk buys you.
+                    Users kept asking "why is this $615 and not $500?" — this is
+                    the answer spelled out. */}
+                {(() => {
+                  const mult = locationMultiplier || 1;
+                  const msrp = selectedMaterial.baseRetailPrice / mult;
+                  const regionDelta = selectedMaterial.baseRetailPrice - msrp;
+                  const bulkSavings = selectedMaterial.baseRetailPrice - selectedMaterial.baseBulkPrice;
+                  const bulkPct = selectedMaterial.baseRetailPrice > 0
+                    ? (bulkSavings / selectedMaterial.baseRetailPrice) * 100
+                    : 0;
+                  return (
+                    <View style={styles.popupBreakdown}>
+                      <Text style={styles.popupBreakdownTitle}>Price Breakdown</Text>
+                      <View style={styles.popupBreakdownRow}>
+                        <Text style={styles.popupBreakdownLabel}>MSRP base</Text>
+                        <Text style={styles.popupBreakdownValue}>${msrp.toFixed(2)}</Text>
+                      </View>
+                      <View style={styles.popupBreakdownRow}>
+                        <Text style={styles.popupBreakdownLabel}>
+                          {regionLabel} ×{mult.toFixed(2)}
+                        </Text>
+                        <Text style={[
+                          styles.popupBreakdownValue,
+                          { color: regionDelta >= 0 ? Colors.warning : Colors.success },
+                        ]}>
+                          {regionDelta >= 0 ? '+' : '−'}${Math.abs(regionDelta).toFixed(2)}
+                        </Text>
+                      </View>
+                      <View style={[styles.popupBreakdownRow, styles.popupBreakdownDivider]}>
+                        <Text style={styles.popupBreakdownLabelBold}>Retail / {selectedMaterial.unit}</Text>
+                        <Text style={styles.popupBreakdownValueBold}>
+                          ${selectedMaterial.baseRetailPrice.toFixed(2)}
+                        </Text>
+                      </View>
+                      <View style={styles.popupBreakdownRow}>
+                        <Text style={[styles.popupBreakdownLabel, { color: Colors.success }]}>
+                          Bulk @ {selectedMaterial.bulkMinQty}+ ({bulkPct.toFixed(0)}% off)
+                        </Text>
+                        <Text style={[styles.popupBreakdownValue, { color: Colors.success }]}>
+                          ${selectedMaterial.baseBulkPrice.toFixed(2)}
+                        </Text>
+                      </View>
+                      <View style={styles.popupBreakdownRow}>
+                        <Text style={styles.popupBreakdownLabel}>You save / unit</Text>
+                        <Text style={[styles.popupBreakdownValue, { color: Colors.success }]}>
+                          ${bulkSavings.toFixed(2)}
+                        </Text>
+                      </View>
+                    </View>
+                  );
+                })()}
+
                 <View style={styles.popupTotalRow}>
                   <Text style={styles.popupTotalLabel}>Line Total</Text>
                   <Text style={styles.popupTotalValue}>{formatMoney(popupLineTotal, 2)}</Text>
@@ -2467,6 +2542,7 @@ export default function EstimateScreen() {
                 </TouchableOpacity>
               </>
             )}
+            </ScrollView>
           </Pressable>
         </Pressable>
         </KeyboardAvoidingView>
@@ -3108,6 +3184,45 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
+  },
+  wizardCta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 4,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+    backgroundColor: '#5E5CE6',
+    shadowColor: '#5E5CE6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  wizardCtaIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  wizardCtaText: {
+    flex: 1,
+  },
+  wizardCtaTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: 0.2,
+  },
+  wizardCtaSubtitle: {
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.85)',
+    marginTop: 1,
   },
   header: {
     backgroundColor: Colors.surface,
@@ -4211,6 +4326,53 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600' as const,
     color: Colors.success,
+  },
+  popupBreakdown: {
+    backgroundColor: Colors.surfaceAlt,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+    padding: 12,
+    gap: 6,
+  },
+  popupBreakdownTitle: {
+    fontSize: 11,
+    fontWeight: '700' as const,
+    color: Colors.textMuted,
+    textTransform: 'uppercase' as const,
+    letterSpacing: 0.8,
+    marginBottom: 2,
+  },
+  popupBreakdownRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  popupBreakdownLabel: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+  },
+  popupBreakdownLabelBold: {
+    fontSize: 13,
+    fontWeight: '700' as const,
+    color: Colors.text,
+  },
+  popupBreakdownValue: {
+    fontSize: 13,
+    fontVariant: ['tabular-nums'] as any,
+    color: Colors.text,
+  },
+  popupBreakdownValueBold: {
+    fontSize: 14,
+    fontWeight: '800' as const,
+    fontVariant: ['tabular-nums'] as any,
+    color: Colors.text,
+  },
+  popupBreakdownDivider: {
+    borderTopWidth: 1,
+    borderTopColor: Colors.borderLight,
+    paddingTop: 6,
+    marginTop: 2,
   },
   popupTotalRow: {
     flexDirection: 'row',

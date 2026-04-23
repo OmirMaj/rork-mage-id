@@ -4,9 +4,10 @@ import { useRouter, usePathname } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Home, Compass, Wrench, Settings, BarChart3, CalendarDays,
-  Hammer, FileText, Building2, Search, HardHat,
+  Hammer, FileText, Building2, Search, HardHat, Gavel, LayoutDashboard,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import { useSearch } from '@/contexts/SearchContext';
 
 interface NavItem {
   key: string;
@@ -17,6 +18,7 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
+  { key: 'summary', label: 'Summary', icon: LayoutDashboard, route: '/(tabs)/summary', section: 'PROJECT' },
   { key: 'home', label: 'Projects', icon: Home, route: '/(tabs)/(home)', section: 'PROJECT' },
   { key: 'estimate', label: 'Estimate', icon: BarChart3, route: '/(tabs)/discover/estimate', section: 'PROJECT' },
   { key: 'schedule', label: 'Schedule', icon: CalendarDays, route: '/(tabs)/discover/schedule', section: 'PROJECT' },
@@ -25,17 +27,20 @@ const NAV_ITEMS: NavItem[] = [
   { key: 'companies', label: 'Companies', icon: Building2, route: '/(tabs)/companies', section: 'NETWORK' },
   { key: 'discover', label: 'Discover', icon: Search, route: '/(tabs)/discover', section: 'NETWORK' },
   { key: 'hire', label: 'Hire', icon: HardHat, route: '/(tabs)/hire', section: 'NETWORK' },
+  { key: 'construction-ai', label: 'Construction AI', icon: Gavel, route: '/(tabs)/construction-ai', section: 'NETWORK' },
   { key: 'settings', label: 'Settings', icon: Settings, route: '/(tabs)/settings', section: 'ACCOUNT' },
 ];
 
 const SECTIONS = ['PROJECT', 'FIELD', 'NETWORK', 'ACCOUNT'];
 
 function isActiveRoute(pathname: string, navKey: string): boolean {
+  if (navKey === 'summary') return pathname.includes('summary');
   if (navKey === 'home') return pathname === '/' || pathname.includes('(home)');
   if (navKey === 'estimate') return pathname.includes('estimate');
   if (navKey === 'schedule') return pathname.includes('schedule');
   if (navKey === 'equipment') return pathname.includes('equipment');
   if (navKey === 'bids') return pathname.includes('bids');
+  if (navKey === 'construction-ai') return pathname.includes('construction-ai');
   if (navKey === 'companies') return pathname.includes('companies');
   if (navKey === 'discover') return pathname.includes('discover');
   if (navKey === 'hire') return pathname.includes('hire');
@@ -51,6 +56,7 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
   const router = useRouter();
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
+  const { openSearch } = useSearch();
   const [hoveredKey, setHoveredKey] = useState<string | null>(null);
 
   const handleNav = useCallback((route: string) => {
@@ -73,6 +79,32 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
       </View>
 
       <ScrollView style={styles.navScroll} showsVerticalScrollIndicator={false}>
+        <View style={styles.navSection}>
+          <TouchableOpacity
+            style={[styles.navItem, styles.searchItem]}
+            onPress={openSearch}
+            activeOpacity={0.7}
+            {...(Platform.OS === 'web' ? {
+              onMouseEnter: () => setHoveredKey('__search'),
+              onMouseLeave: () => setHoveredKey(null),
+            } as any : {})}
+            testID="sidebar-search"
+          >
+            <Search
+              size={18}
+              color={hoveredKey === '__search' ? Colors.text : Colors.textSecondary}
+              strokeWidth={1.8}
+            />
+            <Text style={[styles.navLabel, hoveredKey === '__search' && styles.navLabelHovered]}>
+              Search
+            </Text>
+            {Platform.OS === 'web' && (
+              <View style={styles.kbdWrap}>
+                <Text style={styles.kbd}>⌘K</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
         {groupedItems.map(({ section, items }) => (
           <View key={section} style={styles.navSection}>
             <Text style={styles.sectionLabel}>{section}</Text>
@@ -214,6 +246,24 @@ const styles = StyleSheet.create({
   },
   navLabelHovered: {
     color: '#FFFFFF',
+  },
+  searchItem: {
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+  },
+  kbdWrap: {
+    marginLeft: 'auto' as const,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+  kbd: {
+    fontSize: 10,
+    fontWeight: '600' as const,
+    color: 'rgba(255,255,255,0.5)',
+    letterSpacing: 0.3,
   },
   footer: {
     alignItems: 'center' as const,

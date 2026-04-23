@@ -3,7 +3,9 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated,
   Platform, Alert, Modal,
 } from 'react-native';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
+import { useTierAccess } from '@/hooks/useTierAccess';
+import Paywall from '@/components/Paywall';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import {
@@ -104,6 +106,22 @@ function LiveTimeCard({ entry, onAction }: { entry: TimeEntry; onAction: (entry:
 }
 
 export default function TimeTrackingScreen() {
+  const router = useRouter();
+  const { canAccess } = useTierAccess();
+  if (!canAccess('time_tracking')) {
+    return (
+      <Paywall
+        visible={true}
+        feature="Crew Time Tracking"
+        requiredTier="business"
+        onClose={() => router.back()}
+      />
+    );
+  }
+  return <TimeTrackingScreenInner />;
+}
+
+function TimeTrackingScreenInner() {
   const insets = useSafeAreaInsets();
   const [entries, setEntries] = useState<TimeEntry[]>(MOCK_TIME_ENTRIES);
   const [showClockInModal, setShowClockInModal] = useState(false);

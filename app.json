@@ -15,7 +15,10 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "app.mageid.ios"
+      "bundleIdentifier": "com.mageid.app",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -40,6 +43,21 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {
+        "origin": "https://rork.com/"
+      },
+      "eas": {
+        "projectId": "9f6536e0-0774-47e0-a0ae-2f10a4e46b2b"
+      }
+    },
+    "owner": "omirmajeed",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/9f6536e0-0774-47e0-a0ae-2f10a4e46b2b"
     }
   }
 }

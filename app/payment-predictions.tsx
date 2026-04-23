@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, ActivityIndicator, Alert,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -9,6 +9,7 @@ import {
   Sparkles, TrendingUp, AlertTriangle, Clock, CheckCircle2, ChevronRight, Wallet, RefreshCw, Phone,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import ConstructionLoader from '@/components/ConstructionLoader';
 import { useProjects } from '@/contexts/ProjectContext';
 import { predictInvoicePayments } from '@/utils/paymentPrediction';
 import type { PaymentPredictionResult, InvoicePrediction } from '@/utils/paymentPrediction';
@@ -155,8 +156,7 @@ export default function PaymentPredictionsScreen() {
 
       {loading && (
         <View style={styles.loadingCard}>
-          <ActivityIndicator size="large" color={Colors.accent} />
-          <Text style={styles.loadingText}>Analyzing {unpaidCount} invoice{unpaidCount === 1 ? '' : 's'}…</Text>
+          <ConstructionLoader size="lg" label={`Analyzing ${unpaidCount} invoice${unpaidCount === 1 ? '' : 's'}…`} />
           <Text style={styles.loadingSub}>Checking payment history, terms, and project status</Text>
         </View>
       )}

@@ -200,7 +200,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
         `Generated ${tasks.length} tasks. View it now?`,
         [
           { text: 'Later', style: 'cancel' },
-          { text: 'View Schedule', onPress: () => router.push('/(tabs)/schedule' as any) },
+          { text: 'View Schedule', onPress: () => router.replace('/(tabs)/schedule' as any) },
         ]
       );
     } catch (err) {
@@ -268,7 +268,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
       `Created from "${template.name}" template with ${tasks.length} tasks.`,
       [
         { text: 'Later', style: 'cancel' },
-        { text: 'View Schedule', onPress: () => router.push('/(tabs)/schedule' as any) },
+        { text: 'View Schedule', onPress: () => router.replace('/(tabs)/schedule' as any) },
       ]
     );
   }, [addProject, updateProject, router]);
@@ -411,7 +411,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                 <TouchableOpacity
                   key={project.id}
                   style={s.existingCard}
-                  onPress={() => router.push('/(tabs)/schedule' as any)}
+                  onPress={() => router.replace('/(tabs)/schedule' as any)}
                   activeOpacity={0.7}
                 >
                   <View style={s.existingIconWrap}>

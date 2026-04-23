@@ -1,12 +1,13 @@
 import React, { useState, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, ActivityIndicator,
+  View, Text, StyleSheet, TouchableOpacity,
   ScrollView, Modal,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { Sparkles, X, TrendingUp, AlertTriangle, CheckCircle2, Share2 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import ConstructionLoader from '@/components/ConstructionLoader';
 import { generateWeeklySummary, type WeeklySummaryResult } from '@/utils/aiService';
 import type { Project } from '@/types';
 
@@ -70,8 +71,7 @@ export default function AIWeeklySummary({ projects, visible, onClose }: Props) {
 
         {isLoading && !result ? (
           <View style={styles.loadingState}>
-            <ActivityIndicator size="large" color={Colors.primary} />
-            <Text style={styles.loadingText}>Analyzing your portfolio...</Text>
+            <ConstructionLoader size="lg" label="Analyzing your portfolio..." />
             <Text style={styles.loadingSubtext}>Reviewing {projects.length} project(s)</Text>
           </View>
         ) : result ? (

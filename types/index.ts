@@ -194,6 +194,12 @@ export interface ProjectSchedule {
   id: string;
   name: string;
   projectId: string | null;
+  /**
+   * ISO date (YYYY-MM-DD) of Day 1 of the schedule. All task `startDay`
+   * values are offsets from this date. Optional for back-compat — when
+   * absent, consumers should fall back to today.
+   */
+  startDate?: string;
   workingDaysPerWeek: number;
   bufferDays: number;
   tasks: ScheduleTask[];
@@ -221,7 +227,30 @@ export interface ProjectSchedule {
     tasks: { id: string; startDay: number; endDay: number }[];
   }>;
   weatherAlerts?: WeatherAlert[];
+  /**
+   * What-If scenarios — user-created alternate timelines branched off the
+   * baseline `tasks` array. A scenario stores a full task snapshot plus a
+   * name/note so PMs can compare e.g. "overtime push" vs. "weather delay"
+   * without losing the working plan. When `activeScenarioId` matches one
+   * of the scenario IDs, consumers should render that scenario's `tasks`
+   * instead of `ProjectSchedule.tasks`. When null/undefined the baseline
+   * plan is shown.
+   *
+   * Gated behind the `schedule_scenarios` feature key (Pro+). The data
+   * structure is stored even for free users who had scenarios created
+   * during a trial — we just hide the UI.
+   */
+  scenarios?: ScheduleScenario[];
+  activeScenarioId?: string | null;
   updatedAt: string;
+}
+
+export interface ScheduleScenario {
+  id: string;
+  name: string;
+  note?: string;
+  createdAt: string;
+  tasks: ScheduleTask[];
 }
 
 export interface CompanyBranding {
@@ -401,6 +430,13 @@ export interface InvoiceLineItem {
   unit: string;
   unitPrice: number;
   total: number;
+  // Optional: link back to an estimate line item so we can compute "already
+  // billed" per estimate row across multiple progress invoices. Populated by
+  // the Bill-from-Estimate flow; absent for line items added manually.
+  sourceEstimateItemId?: string;
+  // The portion (0-100) of the estimate item's quantity being billed on this
+  // invoice line. Only meaningful when sourceEstimateItemId is set.
+  billedPercent?: number;
 }
 
 export type InvoiceStatus = 'draft' | 'sent' | 'partially_paid' | 'paid' | 'overdue';
@@ -1106,4 +1142,40 @@ export interface Warranty {
   reminderDays?: number;
   createdAt: string;
   updatedAt: string;
+}
+
+// ============================================================================
+// Universal Entity Reference (EntityRef)
+// ----------------------------------------------------------------------------
+// A lightweight pointer to any domain object in the app. Any feature that
+// needs to deep-link, cite, or navigate to a thing (activity feeds, action
+// sheets, notifications, mentions, @refs in comments) should accept / emit
+// an EntityRef rather than a hand-rolled {type, id} pair. See
+// utils/ENTITY_REF.md for patterns.
+// ============================================================================
+
+export type EntityKind =
+  | 'project'
+  | 'task'
+  | 'photo'
+  | 'rfi'
+  | 'submittal'
+  | 'changeOrder'
+  | 'invoice'
+  | 'payment'
+  | 'dailyReport'
+  | 'punchItem'
+  | 'warranty'
+  | 'contact'
+  | 'document'
+  | 'permit'
+  | 'equipment';
+
+export interface EntityRef {
+  kind: EntityKind;
+  id: string;
+  /** Parent project for nested entities. Omitted for top-level kinds (project, contact, equipment). */
+  projectId?: string;
+  /** Optional precomputed display label — if absent, resolvers will look it up. */
+  label?: string;
 }

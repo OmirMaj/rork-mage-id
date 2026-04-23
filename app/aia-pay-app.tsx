@@ -10,6 +10,7 @@ import {
   ChevronLeft, FileText, Download, Info, Percent, Printer, TrendingUp,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import ConstructionLoader from '@/components/ConstructionLoader';
 import { useProjects } from '@/contexts/ProjectContext';
 import { formatMoney } from '@/utils/formatters';
 import {
@@ -102,7 +103,7 @@ export default function AIAPayAppScreen() {
     return (
       <View style={styles.loadingContainer}>
         <Stack.Screen options={{ title: 'Pay Application' }} />
-        <ActivityIndicator size="large" color={Colors.primary} />
+        <ConstructionLoader size="lg" />
       </View>
     );
   }

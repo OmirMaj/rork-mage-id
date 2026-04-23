@@ -88,7 +88,7 @@ export default function LoginScreen() {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
       track(AnalyticsEvents.USER_LOGGED_IN, { method: 'biometric' });
-      router.replace('/(tabs)/(home)');
+      router.replace('/(tabs)/summary' as any);
     } catch (err) {
       console.log('[Login] Biometric auth failed:', err);
       const msg = err instanceof Error ? err.message : 'Biometric authentication failed.';
@@ -123,7 +123,7 @@ export default function LoginScreen() {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
       track(AnalyticsEvents.USER_LOGGED_IN, { method: 'email' });
-      router.replace('/(tabs)/(home)');
+      router.replace('/(tabs)/summary' as any);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Login failed. Please try again.';
       setErrorMessage(message);
@@ -145,7 +145,7 @@ export default function LoginScreen() {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
       track(AnalyticsEvents.USER_LOGGED_IN, { method: 'google' });
-      router.replace('/(tabs)/(home)');
+      router.replace('/(tabs)/summary' as any);
     } catch (err) {
       console.log('[Login] Google login failed:', err);
     } finally {
@@ -162,7 +162,7 @@ export default function LoginScreen() {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
       track(AnalyticsEvents.USER_LOGGED_IN, { method: 'apple' });
-      router.replace('/(tabs)/(home)');
+      router.replace('/(tabs)/summary' as any);
     } catch (err) {
       console.log('[Login] Apple login failed:', err);
     } finally {

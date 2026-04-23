@@ -1,6 +1,7 @@
 {
   "cli": {
-    "version": ">= 3.0.0"
+    "version": ">= 3.0.0",
+    "appVersionSource": "remote"
   },
   "build": {
     "development": {
@@ -8,15 +9,23 @@
       "distribution": "internal"
     },
     "preview": {
-      "distribution": "internal"
+      "distribution": "internal",
+      "channel": "preview",
+      "env": {
+        "EXPO_PUBLIC_REVENUECAT_IOS_API_KEY": "appl_RYYINGxrGAHJtWlcGmSZyWSkVWu",
+        "EXPO_PUBLIC_REVENUECAT_TEST_API_KEY": "appl_RYYINGxrGAHJtWlcGmSZyWSkVWu"
+      }
     },
     "production": {
       "autoIncrement": true,
       "credentialsSource": "remote",
+      "channel": "production",
       "env": {
         "EXPO_NO_CAPABILITY_SYNC": "1",
         "EAS_NO_FROZEN_LOCKFILE": "true",
-        "EAS_BUILD_NO_EXPO_GO_WARNING": "true"
+        "EAS_BUILD_NO_EXPO_GO_WARNING": "true",
+        "EXPO_PUBLIC_REVENUECAT_IOS_API_KEY": "appl_RYYINGxrGAHJtWlcGmSZyWSkVWu",
+        "EXPO_PUBLIC_REVENUECAT_TEST_API_KEY": "appl_RYYINGxrGAHJtWlcGmSZyWSkVWu"
       },
       "ios": {
         "credentialsSource": "remote",
@@ -25,6 +34,11 @@
     }
   },
   "submit": {
-    "production": {}
+    "production": {
+      "ios": {
+        "ascAppId": "6762229238",
+        "appleTeamId": "HKT2J284D2"
+      }
+    }
   }
 }

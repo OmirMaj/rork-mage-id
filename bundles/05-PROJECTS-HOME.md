@@ -1,0 +1,4209 @@
+# Projects — Home Tab & Project Detail
+
+
+> **Bundle from MAGE ID codebase.** This file is one of ~15 topical bundles designed to be uploaded to Claude Projects so Claude can understand the entire React Native / Expo construction-management app.
+
+
+## Overview
+
+The project list (home tab) and the Project Detail screen — the most
+complex screen in the app. Project Detail uses a tile-grid + pageSheet-modal
+pattern: the main screen shows section tiles; tapping one opens a pageSheet
+modal with that section's content (Estimate, Schedule, Materials, Invoices,
+Change Orders, Daily Reports, RFIs, Submittals, Warranties, Budget, Client
+Portal, Team, etc).
+
+**Important navigation rule**: navigating from inside the tile pageSheet must
+first dismiss the sheet (`setActiveTile(null)` then a ~350 ms timeout on iOS)
+before calling `router.push`/`replace`, otherwise the new screen mounts
+BEHIND the sheet. `project-detail.tsx` implements this via `navigateFromTile`.
+
+
+## Files in this bundle
+
+- `app/(tabs)/(home)/index.tsx`
+- `app/project-detail.tsx`
+- `components/ProjectCard.tsx`
+- `components/EmptyState.tsx`
+- `components/ConstructionLoader.tsx`
+
+
+---
+
+### `app/(tabs)/(home)/index.tsx`
+
+```tsx
+import React, { useCallback, useState, useMemo, useEffect } from 'react';
+import {
+  View, Text, StyleSheet, FlatList, TouchableOpacity,
+  Platform, Modal, TextInput, Pressable, ScrollView, Alert, KeyboardAvoidingView,
+} from 'react-native';
+import ConstructionLoader from '@/components/ConstructionLoader';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
+import * as Haptics from 'expo-haptics';
+import {
+  Plus, TrendingUp, FolderOpen, Layers, X, ChevronRight, Calculator, CalendarDays,
+  BarChart3, TrendingDown, Package, DollarSign, Percent, ShoppingCart, ArrowDownRight,
+  Receipt, Wallet,
+} from 'lucide-react-native';
+import { Colors } from '@/constants/colors';
+import { useProjects } from '@/contexts/ProjectContext';
+import ProjectCard from '@/components/ProjectCard';
+import AIWeeklySummary from '@/components/AIWeeklySummary';
+import AICopilot from '@/components/AICopilot';
+import AIHomeBriefing from '@/components/AIHomeBriefing';
+import { useSubscription } from '@/contexts/SubscriptionContext';
+import EmptyState from '@/components/EmptyState';
+import CashFlowAlerts from '@/components/CashFlowAlerts';
+import QuickFieldUpdate from '@/components/QuickFieldUpdate';
+import { generateForecast } from '@/utils/cashFlowEngine';
+import type { CashFlowWeek } from '@/utils/cashFlowEngine';
+import { loadCashFlowData, isSetupComplete } from '@/utils/cashFlowStorage';
+import type { Project, ProjectType } from '@/types';
+import { PROJECT_TYPES } from '@/types';
+import { formatMoney, formatMoneyShort } from '@/utils/formatters';
+
+export default function HomeScreen() {
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const { projects, isLoading, addProject, getTotalOutstandingBalance, invoices } = useProjects();
+  const { tier } = useSubscription();
+
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [projectName, setProjectName] = useState('');
+  const [projectDescription, setProjectDescription] = useState('');
+  const [projectType, setProjectType] = useState<ProjectType>('renovation');
+  const [_createdProjectId, setCreatedProjectId] = useState<string | null>(null);
+  const [showNextStepModal, setShowNextStepModal] = useState(false);
+
+  const totalOutstanding = getTotalOutstandingBalance();
+
+  const [showTotalDetail, setShowTotalDetail] = useState(false);
+  const [showSavingsDetail, setShowSavingsDetail] = useState(false);
+  const [showWeeklySummary, setShowWeeklySummary] = useState(false);
+  const [cashFlowForecast, setCashFlowForecast] = useState<CashFlowWeek[] | null>(null);
+
+  useEffect(() => {
+    const loadForecast = async () => {
+      try {
+        const setupDone = await isSetupComplete();
+        if (!setupDone) return;
+        const data = await loadCashFlowData();
+        if (data.startingBalance > 0 || data.expenses.length > 0) {
+          const forecast = generateForecast(
+            data.startingBalance,
+            data.expenses,
+            [],
+            data.expectedPayments,
+            12,
+            data.defaultPaymentTerms
+          );
+          setCashFlowForecast(forecast);
+        }
+      } catch (err) {
+        console.log('[Home] Cash flow forecast load failed:', err);
+      }
+    };
+    void loadForecast();
+  }, [projects]);
+
+  const totalEstimated = projects.reduce((sum, p) => {
+    const linked = p.linkedEstimate;
+    if (linked && linked.items.length > 0) return sum + linked.grandTotal;
+    return sum + (p.estimate?.grandTotal ?? 0);
+  }, 0);
+  const totalSavings = projects.reduce((sum, p) => {
+    let savings = p.estimate?.bulkSavingsTotal ?? 0;
+    if (p.linkedEstimate) {
+      const linked = p.linkedEstimate;
+      linked.items.forEach(item => {
+        if (item.usesBulk) {
+          savings += (item.bulkPrice > 0 ? (item.unitPrice - item.bulkPrice) * item.quantity : 0);
+        }
+      });
+    }
+    return sum + savings;
+  }, 0);
+
+  const projectBreakdowns = useMemo(() => {
+    return projects.map(p => {
+      const linked = p.linkedEstimate;
+      const legacy = p.estimate;
+      let total = 0;
+      let materialCost = 0;
+      let laborCost = 0;
+      let markupCost = 0;
+      let bulkSavings = 0;
+      let itemCount = 0;
+
+      if (linked && linked.items.length > 0) {
+        total = linked.grandTotal;
+        materialCost = linked.baseTotal;
+        markupCost = linked.markupTotal;
+        itemCount = linked.items.length;
+        linked.items.forEach(item => {
+          if (item.usesBulk) {
+            bulkSavings += (item.unitPrice - item.bulkPrice) * item.quantity;
+          }
+        });
+      } else if (legacy) {
+        total = legacy.grandTotal;
+        materialCost = legacy.materialTotal;
+        laborCost = legacy.laborTotal;
+        bulkSavings = legacy.bulkSavingsTotal;
+        itemCount = legacy.materials.length;
+      }
+
+      return {
+        id: p.id,
+        name: p.name,
+        type: p.type,
+        total,
+        materialCost,
+        laborCost,
+        markupCost,
+        bulkSavings,
+        itemCount,
+        hasLinked: !!(linked && linked.items.length > 0),
+        hasLegacy: !!legacy,
+      };
+    }).filter(b => b.total > 0);
+  }, [projects]);
+
+  const portfolioStats = useMemo(() => {
+    const totalMaterials = projectBreakdowns.reduce((s, b) => s + b.materialCost, 0);
+    const totalLabor = projectBreakdowns.reduce((s, b) => s + b.laborCost, 0);
+    const totalMarkup = projectBreakdowns.reduce((s, b) => s + b.markupCost, 0);
+    const totalBulk = projectBreakdowns.reduce((s, b) => s + b.bulkSavings, 0);
+    const avgPerProject = projectBreakdowns.length > 0 ? totalEstimated / projectBreakdowns.length : 0;
+    return { totalMaterials, totalLabor, totalMarkup, totalBulk, avgPerProject };
+  }, [projectBreakdowns, totalEstimated]);
+
+  const handleProjectPress = useCallback((project: Project) => {
+    console.log('[Home] Opening project:', project.id);
+    router.push({ pathname: '/project-detail' as any, params: { id: project.id } });
+  }, [router]);
+
+  const handleCreateProject = useCallback(() => {
+    const name = projectName.trim();
+    if (!name) {
+      Alert.alert('Missing Name', 'Please enter a project name.');
+      return;
+    }
+    const now = new Date().toISOString();
+    const id = `project-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const newProject: Project = {
+      id,
+      name,
+      type: projectType,
+      location: 'United States',
+      squareFootage: 0,
+      quality: 'standard',
+      description: projectDescription.trim(),
+      createdAt: now,
+      updatedAt: now,
+      estimate: null,
+      schedule: null,
+      status: 'draft',
+    };
+    addProject(newProject);
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setShowCreateModal(false);
+    setCreatedProjectId(id);
+    setShowNextStepModal(true);
+    setProjectName('');
+    setProjectDescription('');
+    setProjectType('renovation');
+  }, [projectName, projectDescription, projectType, addProject]);
+
+  const handleNextStep = useCallback((step: 'estimate' | 'schedule' | 'later') => {
+    setShowNextStepModal(false);
+    // Cross-tab navigation: replace rather than push so the destination tab
+    // surfaces correctly. A push stacks the target tab ON TOP of the current
+    // tab's stack, which on iOS causes the new screen to render behind the
+    // active one (classic "press back and the new screen appears" bug).
+    if (step === 'estimate') {
+      router.replace('/(tabs)/estimate' as any);
+    } else if (step === 'schedule') {
+      router.replace('/(tabs)/schedule' as any);
+    }
+    setCreatedProjectId(null);
+  }, [router]);
+
+  const renderProject = useCallback(({ item }: { item: Project }) => (
+    <ProjectCard project={item} onPress={() => handleProjectPress(item)} />
+  ), [handleProjectPress]);
+
+  const keyExtractor = useCallback((item: Project) => item.id, []);
+
+  if (isLoading) {
+    return (
+      <View style={[styles.container, styles.loaderWrap, { paddingTop: insets.top }]}>
+        <ConstructionLoader size="lg" label="Loading your projects" />
+      </View>
+    );
+  }
+
+
+
+  return (
+    <View style={styles.container}>
+      <FlatList
+        data={projects}
+        renderItem={renderProject}
+        keyExtractor={keyExtractor}
+        contentContainerStyle={[
+          styles.listContent,
+          { paddingTop: insets.top, paddingBottom: insets.bottom + 90 },
+          projects.length === 0 && styles.emptyList,
+        ]}
+        ListHeaderComponent={
+          <View>
+            <View style={styles.navBar}>
+              <Text style={styles.navTitle}>MAGE ID</Text>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                {projects.length > 0 && (
+                  <TouchableOpacity
+                    style={[styles.addButton, { backgroundColor: Colors.fillTertiary }]}
+                    onPress={() => router.push('/cash-flow' as any)}
+                    activeOpacity={0.7}
+                    testID="cash-flow-btn"
+                  >
+                    <Wallet size={18} color={Colors.primary} strokeWidth={2} />
+                  </TouchableOpacity>
+                )}
+                {projects.length > 0 && (
+                  <TouchableOpacity
+                    style={[styles.addButton, { backgroundColor: Colors.fillTertiary }]}
+                    onPress={() => setShowWeeklySummary(true)}
+                    activeOpacity={0.7}
+                    testID="weekly-summary-btn"
+                  >
+                    <BarChart3 size={18} color={Colors.primary} strokeWidth={2} />
+                  </TouchableOpacity>
+                )}
+                <TouchableOpacity
+                  style={styles.addButton}
+                  onPress={() => setShowCreateModal(true)}
+                  activeOpacity={0.7}
+                  testID="new-project-btn"
+                >
+                  <Plus size={18} color={Colors.surface} strokeWidth={2.5} />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <Text style={styles.largeTitle}>Your Projects</Text>
+
+            {projects.length > 0 && (
+              <View style={styles.statsSection}>
+                <View style={styles.statsGrid}>
+                  <View style={styles.statCard}>
+                    <View style={[styles.statIconWrap, { backgroundColor: Colors.primary + '15' }]}>
+                      <Layers size={16} color={Colors.primary} />
+                    </View>
+                    <Text style={styles.statNumber}>{projects.length}</Text>
+                    <Text style={styles.statLabel}>Projects</Text>
+                  </View>
+                  {totalOutstanding > 0 && (
+                    <View style={styles.statCard}>
+                      <View style={[styles.statIconWrap, { backgroundColor: Colors.accent + '15' }]}>
+                        <Receipt size={16} color={Colors.accent} />
+                      </View>
+                      <Text style={[styles.statNumber, { color: Colors.accent }]}>{formatMoneyShort(totalOutstanding)}</Text>
+                      <Text style={styles.statLabel}>Outstanding</Text>
+                    </View>
+                  )}
+                  <TouchableOpacity
+                    style={[styles.statCard, styles.statCardMiddle]}
+                    onPress={() => {
+                      if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      setShowTotalDetail(true);
+                    }}
+                    activeOpacity={0.7}
+                    testID="total-value-tap"
+                  >
+                    <View style={[styles.statIconWrap, { backgroundColor: Colors.info + '15' }]}>
+                      <TrendingUp size={16} color={Colors.info} />
+                    </View>
+                    <Text style={styles.statNumber}>{formatMoneyShort(totalEstimated)}</Text>
+                    <Text style={styles.statLabel}>Total Value</Text>
+                    <ArrowDownRight size={10} color={Colors.textMuted} style={{ position: 'absolute', top: 10, right: 10 }} />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.statCard}
+                    onPress={() => {
+                      if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      setShowSavingsDetail(true);
+                    }}
+                    activeOpacity={0.7}
+                    testID="bulk-savings-tap"
+                  >
+                    <View style={[styles.statIconWrap, { backgroundColor: Colors.success + '15' }]}>
+                      <TrendingDown size={16} color={Colors.success} />
+                    </View>
+                    <Text style={[styles.statNumber, { color: Colors.success }]}>{formatMoneyShort(totalSavings)}</Text>
+                    <Text style={styles.statLabel}>Bulk Savings</Text>
+                    <ArrowDownRight size={10} color={Colors.textMuted} style={{ position: 'absolute', top: 10, right: 10 }} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+
+            {projects.length > 0 && (
+              <AIHomeBriefing
+                projects={projects}
+                invoices={invoices}
+                subscriptionTier={tier as any}
+                onViewFull={() => setShowWeeklySummary(true)}
+              />
+            )}
+
+            {projects.length > 0 && (
+              <CashFlowAlerts forecast={cashFlowForecast} invoices={[]} />
+            )}
+
+            {projects.length > 0 && <QuickFieldUpdate />}
+
+            {projects.length > 0 && (
+              <Text style={styles.sectionHeader}>RECENT</Text>
+            )}
+          </View>
+        }
+        ListEmptyComponent={
+          <EmptyState
+            icon={<FolderOpen size={36} color={Colors.textMuted} />}
+            title="No Projects Yet"
+            message="Create your first construction project to get started with estimates and scheduling."
+            actionLabel="Create Project"
+            onAction={() => setShowCreateModal(true)}
+          />
+        }
+        showsVerticalScrollIndicator={false}
+      />
+
+      <Modal visible={showCreateModal} transparent animationType="slide" onRequestClose={() => setShowCreateModal(false)}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <View style={styles.modalOverlay}>
+            <View style={[styles.createModalCard, { paddingBottom: insets.bottom + 20 }]}>
+              <View style={styles.createModalHeader}>
+                <Text style={styles.createModalTitle}>New Project</Text>
+                <TouchableOpacity onPress={() => setShowCreateModal(false)} style={styles.closeBtn}>
+                  <X size={20} color={Colors.textMuted} />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView showsVerticalScrollIndicator={false} style={styles.createModalScroll} keyboardShouldPersistTaps="handled">
+                <Text style={styles.fieldLabel}>Project Name</Text>
+                <TextInput
+                  style={styles.input}
+                  value={projectName}
+                  onChangeText={setProjectName}
+                  placeholder="e.g. Kitchen Renovation"
+                  placeholderTextColor={Colors.textMuted}
+                  autoFocus
+                  testID="project-name-input"
+                />
+
+                <Text style={styles.fieldLabel}>Description</Text>
+                <TextInput
+                  style={[styles.input, styles.descInput]}
+                  value={projectDescription}
+                  onChangeText={setProjectDescription}
+                  placeholder="Brief description of the project..."
+                  placeholderTextColor={Colors.textMuted}
+                  multiline
+                  textAlignVertical="top"
+                  testID="project-desc-input"
+                />
+
+                <Text style={styles.fieldLabel}>Project Type</Text>
+                <View style={styles.typeGrid}>
+                  {PROJECT_TYPES.map(pt => (
+                    <TouchableOpacity
+                      key={pt.id}
+                      style={[styles.typeChip, projectType === pt.id && styles.typeChipActive]}
+                      onPress={() => setProjectType(pt.id)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[styles.typeChipLabel, projectType === pt.id && styles.typeChipLabelActive]}>{pt.label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <View style={{ height: 20 }} />
+              </ScrollView>
+
+              <TouchableOpacity style={styles.createBtn} onPress={handleCreateProject} activeOpacity={0.85} testID="create-project-btn">
+                <Text style={styles.createBtnText}>Create Project</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      <Modal
+        visible={showTotalDetail}
+        animationType="slide"
+        presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : undefined}
+        onRequestClose={() => setShowTotalDetail(false)}
+      >
+        <View style={[detailStyles.modalContainer, { paddingTop: Platform.OS === 'ios' ? 12 : insets.top + 8 }]}>
+          <View style={detailStyles.modalHandle} />
+          <View style={detailStyles.modalHeader}>
+            <Text style={detailStyles.modalTitle}>Portfolio Value</Text>
+            <TouchableOpacity
+              style={detailStyles.modalCloseBtn}
+              onPress={() => setShowTotalDetail(false)}
+              activeOpacity={0.7}
+              testID="close-total-detail"
+            >
+              <X size={20} color={Colors.text} />
+            </TouchableOpacity>
+          </View>
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: insets.bottom + 30 }}>
+            <View style={detailStyles.heroSection}>
+              <View style={detailStyles.heroIconWrap}>
+                <BarChart3 size={28} color={Colors.primary} />
+              </View>
+              <Text style={detailStyles.heroAmount}>${totalEstimated.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</Text>
+              <Text style={detailStyles.heroSubtitle}>Total Portfolio Value</Text>
+              <View style={detailStyles.heroChips}>
+                <View style={detailStyles.heroChip}>
+                  <Text style={detailStyles.heroChipLabel}>{projectBreakdowns.length}</Text>
+                  <Text style={detailStyles.heroChipSub}>with estimates</Text>
+                </View>
+                <View style={[detailStyles.heroChip, { backgroundColor: Colors.infoLight }]}>
+                  <Text style={[detailStyles.heroChipLabel, { color: Colors.info }]}>
+                    ${portfolioStats.avgPerProject.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                  </Text>
+                  <Text style={[detailStyles.heroChipSub, { color: Colors.info }]}>avg / project</Text>
+                </View>
+              </View>
+            </View>
+
+            <Text style={detailStyles.sectionLabel}>Cost Composition</Text>
+            <View style={detailStyles.barChartWrap}>
+              {[
+                { label: 'Materials', value: portfolioStats.totalMaterials, color: '#1A6B3C', icon: Package },
+                { label: 'Labor', value: portfolioStats.totalLabor, color: '#007AFF', icon: DollarSign },
+                { label: 'Markup', value: portfolioStats.totalMarkup, color: '#FF9500', icon: Percent },
+              ].filter(r => r.value > 0).map(row => {
+                const pct = totalEstimated > 0 ? (row.value / totalEstimated) * 100 : 0;
+                return (
+                  <View key={row.label} style={detailStyles.barRow}>
+                    <View style={detailStyles.barLabelRow}>
+                      <row.icon size={14} color={row.color} />
+                      <Text style={detailStyles.barLabel}>{row.label}</Text>
+                      <Text style={detailStyles.barPct}>{pct.toFixed(1)}%</Text>
+                    </View>
+                    <View style={detailStyles.barTrack}>
+                      <View style={[detailStyles.barFill, { width: `${Math.min(pct, 100)}%`, backgroundColor: row.color }]} />
+                    </View>
+                    <Text style={detailStyles.barValue}>${row.value.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
+                  </View>
+                );
+              })}
+              {totalSavings > 0 && (
+                <View style={detailStyles.barRow}>
+                  <View style={detailStyles.barLabelRow}>
+                    <TrendingDown size={14} color={Colors.success} />
+                    <Text style={[detailStyles.barLabel, { color: Colors.success }]}>Bulk Savings</Text>
+                  </View>
+                  <Text style={[detailStyles.barValue, { color: Colors.success }]}>-${totalSavings.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
+                </View>
+              )}
+            </View>
+
+            <Text style={detailStyles.sectionLabel}>By Project</Text>
+            <View style={detailStyles.projectListCard}>
+              {projectBreakdowns.map((b, idx) => (
+                <View key={b.id}>
+                  <View style={detailStyles.projectRow}>
+                    <View style={detailStyles.projectRank}>
+                      <Text style={detailStyles.projectRankText}>#{idx + 1}</Text>
+                    </View>
+                    <View style={detailStyles.projectInfo}>
+                      <Text style={detailStyles.projectName} numberOfLines={1}>{b.name}</Text>
+                      <Text style={detailStyles.projectMeta}>
+                        {b.itemCount} items · {b.hasLinked ? 'Linked' : 'Estimated'}
+                      </Text>
+                    </View>
+                    <View style={detailStyles.projectValues}>
+                      <Text style={detailStyles.projectTotal}>${b.total.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
+                      <Text style={detailStyles.projectPct}>
+                        {totalEstimated > 0 ? ((b.total / totalEstimated) * 100).toFixed(0) : 0}%
+                      </Text>
+                    </View>
+                  </View>
+                  {idx < projectBreakdowns.length - 1 && <View style={detailStyles.projectDivider} />}
+                </View>
+              ))}
+              {projectBreakdowns.length === 0 && (
+                <View style={detailStyles.emptyProject}>
+                  <Text style={detailStyles.emptyProjectText}>No projects with estimates yet</Text>
+                </View>
+              )}
+            </View>
+          </ScrollView>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={showSavingsDetail}
+        animationType="slide"
+        presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : undefined}
+        onRequestClose={() => setShowSavingsDetail(false)}
+      >
+        <View style={[detailStyles.modalContainer, { paddingTop: Platform.OS === 'ios' ? 12 : insets.top + 8 }]}>
+          <View style={detailStyles.modalHandle} />
+          <View style={detailStyles.modalHeader}>
+            <Text style={detailStyles.modalTitle}>Bulk Savings</Text>
+            <TouchableOpacity
+              style={detailStyles.modalCloseBtn}
+              onPress={() => setShowSavingsDetail(false)}
+              activeOpacity={0.7}
+              testID="close-savings-detail"
+            >
+              <X size={20} color={Colors.text} />
+            </TouchableOpacity>
+          </View>
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: insets.bottom + 30 }}>
+            <View style={detailStyles.heroSection}>
+              <View style={[detailStyles.heroIconWrap, { backgroundColor: Colors.successLight }]}>
+                <TrendingDown size={28} color={Colors.success} />
+              </View>
+              <Text style={[detailStyles.heroAmount, { color: Colors.success }]}>
+                ${totalSavings.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+              </Text>
+              <Text style={detailStyles.heroSubtitle}>Total Bulk Savings</Text>
+              <View style={detailStyles.heroChips}>
+                <View style={[detailStyles.heroChip, { backgroundColor: Colors.successLight }]}>
+                  <Text style={[detailStyles.heroChipLabel, { color: Colors.success }]}>
+                    {totalEstimated > 0 ? ((totalSavings / (totalEstimated + totalSavings)) * 100).toFixed(1) : '0'}%
+                  </Text>
+                  <Text style={[detailStyles.heroChipSub, { color: Colors.success }]}>savings rate</Text>
+                </View>
+                <View style={detailStyles.heroChip}>
+                  <Text style={detailStyles.heroChipLabel}>
+                    {projectBreakdowns.filter(b => b.bulkSavings > 0).length}
+                  </Text>
+                  <Text style={detailStyles.heroChipSub}>projects saving</Text>
+                </View>
+              </View>
+            </View>
+
+            <Text style={detailStyles.sectionLabel}>How Bulk Savings Work</Text>
+            <View style={detailStyles.infoCard}>
+              <View style={detailStyles.infoRow}>
+                <View style={[detailStyles.infoStep, { backgroundColor: Colors.primary + '15' }]}>
+                  <Text style={[detailStyles.infoStepNum, { color: Colors.primary }]}>1</Text>
+                </View>
+                <View style={detailStyles.infoTextWrap}>
+                  <Text style={detailStyles.infoTitle}>Volume Thresholds</Text>
+                  <Text style={detailStyles.infoDesc}>Each material has a min bulk quantity. Once met, a lower per-unit price is unlocked.</Text>
+                </View>
+              </View>
+              <View style={detailStyles.infoRow}>
+                <View style={[detailStyles.infoStep, { backgroundColor: Colors.success + '15' }]}>
+                  <Text style={[detailStyles.infoStepNum, { color: Colors.success }]}>2</Text>
+                </View>
+                <View style={detailStyles.infoTextWrap}>
+                  <Text style={detailStyles.infoTitle}>Automatic Application</Text>
+                  <Text style={detailStyles.infoDesc}>When quantities exceed thresholds, savings are calculated automatically in your estimates.</Text>
+                </View>
+              </View>
+              <View style={detailStyles.infoRow}>
+                <View style={[detailStyles.infoStep, { backgroundColor: Colors.accent + '15' }]}>
+                  <Text style={[detailStyles.infoStepNum, { color: Colors.accent }]}>3</Text>
+                </View>
+                <View style={detailStyles.infoTextWrap}>
+                  <Text style={detailStyles.infoTitle}>Buy Direct</Text>
+                  <Text style={detailStyles.infoDesc}>Visit the Marketplace tab to buy materials directly from suppliers at bulk rates.</Text>
+                </View>
+              </View>
+            </View>
+
+            <Text style={detailStyles.sectionLabel}>Savings by Project</Text>
+            <View style={detailStyles.projectListCard}>
+              {projectBreakdowns.filter(b => b.bulkSavings > 0).map((b, idx) => (
+                <View key={b.id}>
+                  <View style={detailStyles.projectRow}>
+                    <View style={[detailStyles.projectRank, { backgroundColor: Colors.successLight }]}>
+                      <Text style={[detailStyles.projectRankText, { color: Colors.success }]}>#{idx + 1}</Text>
+                    </View>
+                    <View style={detailStyles.projectInfo}>
+                      <Text style={detailStyles.projectName} numberOfLines={1}>{b.name}</Text>
+                      <Text style={detailStyles.projectMeta}>{b.itemCount} items</Text>
+                    </View>
+                    <View style={detailStyles.projectValues}>
+                      <Text style={[detailStyles.projectTotal, { color: Colors.success }]}>
+                        -${b.bulkSavings.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                      </Text>
+                    </View>
+                  </View>
+                  {idx < projectBreakdowns.filter(bd => bd.bulkSavings > 0).length - 1 && (
+                    <View style={detailStyles.projectDivider} />
+                  )}
+                </View>
+              ))}
+              {projectBreakdowns.filter(b => b.bulkSavings > 0).length === 0 && (
+                <View style={detailStyles.emptyProject}>
+                  <Text style={detailStyles.emptyProjectText}>No bulk savings yet. Increase quantities to unlock bulk pricing.</Text>
+                </View>
+              )}
+            </View>
+
+            {projectBreakdowns.some(b => b.bulkSavings === 0 && b.total > 0) && (
+              <>
+                <Text style={detailStyles.sectionLabel}>Optimization Tips</Text>
+                <View style={[detailStyles.infoCard, { backgroundColor: Colors.warningLight, borderColor: Colors.warning + '30' }]}>
+                  <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10 }}>
+                    <ShoppingCart size={18} color={Colors.warning} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={[detailStyles.infoTitle, { marginBottom: 4 }]}>Unlock More Savings</Text>
+                      <Text style={detailStyles.infoDesc}>
+                        {projectBreakdowns.filter(b => b.bulkSavings === 0 && b.total > 0).length} project(s) have no bulk savings yet. Increase material quantities past bulk thresholds to save more.
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              </>
+            )}
+          </ScrollView>
+        </View>
+      </Modal>
+
+      <Modal visible={showNextStepModal} transparent animationType="fade" onRequestClose={() => setShowNextStepModal(false)}>
+        <Pressable style={styles.modalOverlayCenter} onPress={() => handleNextStep('later')}>
+          <Pressable style={styles.nextStepCard} onPress={() => undefined}>
+            <Text style={styles.nextStepTitle}>Project Created!</Text>
+            <Text style={styles.nextStepDesc}>What would you like to do next?</Text>
+
+            <TouchableOpacity style={styles.nextStepOption} onPress={() => handleNextStep('estimate')} activeOpacity={0.7}>
+              <View style={[styles.nextStepIconWrap, { backgroundColor: Colors.primary + '15' }]}>
+                <Calculator size={20} color={Colors.primary} />
+              </View>
+              <View style={styles.nextStepTextWrap}>
+                <Text style={styles.nextStepOptionTitle}>Create Estimate</Text>
+                <Text style={styles.nextStepOptionDesc}>Search materials and build a cost estimate</Text>
+              </View>
+              <ChevronRight size={18} color={Colors.textMuted} />
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.nextStepOption} onPress={() => handleNextStep('schedule')} activeOpacity={0.7}>
+              <View style={[styles.nextStepIconWrap, { backgroundColor: Colors.info + '15' }]}>
+                <CalendarDays size={20} color={Colors.info} />
+              </View>
+              <View style={styles.nextStepTextWrap}>
+                <Text style={styles.nextStepOptionTitle}>Create Schedule</Text>
+                <Text style={styles.nextStepOptionDesc}>Plan tasks and timeline for this project</Text>
+              </View>
+              <ChevronRight size={18} color={Colors.textMuted} />
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.laterBtn} onPress={() => handleNextStep('later')} activeOpacity={0.7}>
+              <Text style={styles.laterBtnText}>I'll do this later</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      <AIWeeklySummary
+        projects={projects}
+        visible={showWeeklySummary}
+        onClose={() => setShowWeeklySummary(false)}
+      />
+
+      <AICopilot />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+  loaderWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  listContent: {
+    paddingBottom: 20,
+  },
+  emptyList: {
+    flex: 1,
+  },
+  navBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 4,
+  },
+  navTitle: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: Colors.primary,
+    letterSpacing: 0.3,
+    textTransform: 'uppercase' as const,
+  },
+  addButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  largeTitle: {
+    fontSize: 34,
+    fontWeight: '700' as const,
+    color: Colors.text,
+    letterSpacing: -0.5,
+    paddingHorizontal: 20,
+    marginTop: 4,
+    marginBottom: 20,
+  },
+  statsSection: {
+    paddingHorizontal: 20,
+    marginBottom: 28,
+  },
+  statsGrid: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  statCard: {
+    flex: 1,
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    padding: 14,
+    alignItems: 'flex-start',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  statCardMiddle: {
+    backgroundColor: Colors.surface,
+  },
+  statIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  statNumber: {
+    fontSize: 20,
+    fontWeight: '700' as const,
+    color: Colors.text,
+    letterSpacing: -0.5,
+    marginBottom: 2,
+  },
+  statLabel: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    fontWeight: '400' as const,
+  },
+  sectionHeader: {
+    fontSize: 12,
+    fontWeight: '600' as const,
+    color: Colors.textSecondary,
+    letterSpacing: 0.6,
+    paddingHorizontal: 20,
+    marginBottom: 10,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: Colors.overlay,
+    justifyContent: 'flex-end',
+  },
+  modalOverlayCenter: {
+    flex: 1,
+    backgroundColor: Colors.overlay,
+    justifyContent: 'center',
+    padding: 24,
+  },
+  createModalCard: {
+    backgroundColor: Colors.surface,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    padding: 20,
+    maxHeight: '85%',
+  },
+  createModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  createModalTitle: {
+    fontSize: 22,
+    fontWeight: '700' as const,
+    color: Colors.text,
+    letterSpacing: -0.3,
+  },
+  closeBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: Colors.fillTertiary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  createModalScroll: {
+    marginBottom: 16,
+  },
+  fieldLabel: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: Colors.textSecondary,
+    marginBottom: 6,
+    marginTop: 12,
+  },
+  input: {
+    minHeight: 48,
+    borderRadius: 14,
+    backgroundColor: Colors.surfaceAlt,
+    paddingHorizontal: 14,
+    fontSize: 16,
+    color: Colors.text,
+  },
+  descInput: {
+    minHeight: 90,
+    paddingTop: 14,
+    textAlignVertical: 'top' as const,
+  },
+  typeGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 4,
+  },
+  typeChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: Colors.fillTertiary,
+  },
+  typeChipActive: {
+    backgroundColor: Colors.primary,
+  },
+  typeChipLabel: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: Colors.textSecondary,
+  },
+  typeChipLabelActive: {
+    color: Colors.textOnPrimary,
+  },
+  createBtn: {
+    backgroundColor: Colors.primary,
+    borderRadius: 14,
+    paddingVertical: 16,
+    alignItems: 'center',
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  createBtnText: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: Colors.textOnPrimary,
+  },
+  nextStepCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 24,
+    padding: 24,
+    gap: 16,
+  },
+  nextStepTitle: {
+    fontSize: 22,
+    fontWeight: '700' as const,
+    color: Colors.text,
+    textAlign: 'center',
+  },
+  nextStepDesc: {
+    fontSize: 15,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  nextStepOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.surfaceAlt,
+    borderRadius: 16,
+    padding: 16,
+    gap: 14,
+  },
+  nextStepIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  nextStepTextWrap: {
+    flex: 1,
+    gap: 2,
+  },
+  nextStepOptionTitle: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: Colors.text,
+  },
+  nextStepOptionDesc: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+  },
+  laterBtn: {
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  laterBtnText: {
+    fontSize: 15,
+    fontWeight: '500' as const,
+    color: Colors.textMuted,
+  },
+});
+
+const detailStyles = StyleSheet.create({
+  modalContainer: { flex: 1, backgroundColor: Colors.background },
+  modalHandle: { width: 36, height: 5, borderRadius: 3, backgroundColor: Colors.border, alignSelf: 'center', marginBottom: 8 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingBottom: 14, borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight, backgroundColor: Colors.background },
+  modalTitle: { fontSize: 20, fontWeight: '700' as const, color: Colors.text, letterSpacing: -0.3 },
+  modalCloseBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
+  heroSection: { alignItems: 'center', paddingVertical: 28, paddingHorizontal: 20, gap: 6 },
+  heroIconWrap: { width: 56, height: 56, borderRadius: 28, backgroundColor: Colors.primary + '12', alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
+  heroAmount: { fontSize: 38, fontWeight: '800' as const, color: Colors.text, letterSpacing: -1.5 },
+  heroSubtitle: { fontSize: 14, color: Colors.textSecondary, fontWeight: '500' as const },
+  heroChips: { flexDirection: 'row', gap: 10, marginTop: 14 },
+  heroChip: { backgroundColor: Colors.fillTertiary, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 8, alignItems: 'center', gap: 2 },
+  heroChipLabel: { fontSize: 16, fontWeight: '700' as const, color: Colors.text },
+  heroChipSub: { fontSize: 11, color: Colors.textMuted, fontWeight: '500' as const },
+  sectionLabel: { fontSize: 13, fontWeight: '600' as const, color: Colors.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.8, paddingHorizontal: 20, marginBottom: 8, marginTop: 4 },
+  barChartWrap: { marginHorizontal: 20, backgroundColor: Colors.surface, borderRadius: 16, padding: 16, gap: 16, marginBottom: 20, borderWidth: 1, borderColor: Colors.cardBorder },
+  barRow: { gap: 6 },
+  barLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  barLabel: { flex: 1, fontSize: 14, fontWeight: '500' as const, color: Colors.text },
+  barPct: { fontSize: 13, fontWeight: '700' as const, color: Colors.textSecondary },
+  barTrack: { height: 8, borderRadius: 4, backgroundColor: Colors.fillTertiary, overflow: 'hidden' as const },
+  barFill: { height: 8, borderRadius: 4 },
+  barValue: { fontSize: 13, fontWeight: '600' as const, color: Colors.text },
+  projectListCard: { marginHorizontal: 20, backgroundColor: Colors.surface, borderRadius: 16, padding: 14, marginBottom: 20, borderWidth: 1, borderColor: Colors.cardBorder },
+  projectRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10 },
+  projectRank: { width: 26, height: 26, borderRadius: 13, backgroundColor: Colors.infoLight, alignItems: 'center', justifyContent: 'center' },
+  projectRankText: { fontSize: 11, fontWeight: '700' as const, color: Colors.info },
+  projectInfo: { flex: 1, gap: 2 },
+  projectName: { fontSize: 14, fontWeight: '500' as const, color: Colors.text },
+  projectMeta: { fontSize: 12, color: Colors.textMuted },
+  projectValues: { alignItems: 'flex-end', gap: 1 },
+  projectTotal: { fontSize: 15, fontWeight: '700' as const, color: Colors.text },
+  projectPct: { fontSize: 11, fontWeight: '600' as const, color: Colors.textSecondary, backgroundColor: Colors.fillTertiary, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, overflow: 'hidden' as const },
+  projectDivider: { height: 1, backgroundColor: Colors.borderLight },
+  emptyProject: { alignItems: 'center', paddingVertical: 20 },
+  emptyProjectText: { fontSize: 14, color: Colors.textMuted, textAlign: 'center' as const },
+  infoCard: { marginHorizontal: 20, backgroundColor: Colors.surface, borderRadius: 16, padding: 16, gap: 16, marginBottom: 20, borderWidth: 1, borderColor: Colors.cardBorder },
+  infoRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  infoStep: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  infoStepNum: { fontSize: 13, fontWeight: '700' as const },
+  infoTextWrap: { flex: 1 },
+  infoTitle: { fontSize: 14, fontWeight: '600' as const, color: Colors.text },
+  infoDesc: { fontSize: 13, color: Colors.textSecondary, lineHeight: 19, marginTop: 2 },
+});
+
+```
+
+
+---
+
+### `app/project-detail.tsx`
+
+```tsx
+import React, { useState, useMemo, useCallback } from 'react';
+import {
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Platform, Modal,
+  TextInput, Pressable, KeyboardAvoidingView,
+} from 'react-native';
+import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
+import * as Haptics from 'expo-haptics';
+import * as Linking from 'expo-linking';
+import {
+  DollarSign, Users, TrendingDown, MapPin,
+  ChevronDown, ChevronUp, ChevronRight, ChevronLeft, Trash2, Package, AlertTriangle, Lightbulb, CalendarDays,
+  Mail, MessageSquare, X, BarChart3, ArrowDownRight, Shield, Layers,
+  FileText, ShoppingCart, UserPlus, Send, Share2, Eye, PenTool, Crown, Pencil,
+  Plus, Receipt, ClipboardList, Repeat, CheckSquare, Camera, Globe, Link, Copy, Wallet, Archive,
+} from 'lucide-react-native';
+import { PROJECT_TYPES } from '@/types';
+import type { ProjectType } from '@/types';
+import { Colors } from '@/constants/colors';
+import { useProjects } from '@/contexts/ProjectContext';
+import { useSubscription } from '@/contexts/SubscriptionContext';
+import { generateUUID } from '@/utils/generateId';
+import AIProjectReport from '@/components/AIProjectReport';
+import AIAutoScheduleButton from '@/components/AIAutoScheduleButton';
+import { generateAndSharePDF, buildEstimateTextForEmail } from '@/utils/pdfGenerator';
+import { generateAndShareCloseoutPacket } from '@/utils/closeoutPacketGenerator';
+import type { ProjectCollaborator } from '@/types';
+import { formatMoney } from '@/utils/formatters';
+import { getEffectiveInvoiceStatus } from '@/utils/projectFinancials';
+
+type SectionKey = 'linkedEstimate' | 'materials' | 'labor' | 'summary' | 'schedule' | 'notes' | 'collaborators' | 'changeOrders' | 'invoices' | 'dailyReports' | 'punchList' | 'rfis' | 'submittals' | 'budget' | 'photos' | 'clientPortal' | 'communications';
+type DetailModalType = 'total' | 'savings' | null;
+type EditModalType = boolean;
+
+function createId(prefix: string): string {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+export default function ProjectDetailScreen() {
+  const insets = useSafeAreaInsets();
+  const layout = useResponsiveLayout();
+  const router = useRouter();
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const { getProject, deleteProject, updateProject, settings, addCollaborator, removeCollaborator, getChangeOrdersForProject, getInvoicesForProject, getDailyReportsForProject, updateChangeOrder, getPunchItemsForProject, getPhotosForProject, getCommEventsForProject, addCommEvent, getRFIsForProject, getSubmittalsForProject, getWarrantiesForProject, invoices: allInvoices, changeOrders: allChangeOrders } = useProjects();
+  const { tier } = useSubscription();
+
+  const changeOrders = useMemo(() => getChangeOrdersForProject(id ?? ''), [id, getChangeOrdersForProject]);
+  const projectInvoices = useMemo(() => getInvoicesForProject(id ?? ''), [id, getInvoicesForProject]);
+  const dailyReports = useMemo(() => getDailyReportsForProject(id ?? ''), [id, getDailyReportsForProject]);
+  const punchItems = useMemo(() => getPunchItemsForProject(id ?? ''), [id, getPunchItemsForProject]);
+  const projectPhotos = useMemo(() => getPhotosForProject(id ?? ''), [id, getPhotosForProject]);
+  const commEvents = useMemo(() => getCommEventsForProject(id ?? ''), [id, getCommEventsForProject]);
+  const projectRFIs = useMemo(() => getRFIsForProject(id ?? ''), [id, getRFIsForProject]);
+  const projectSubmittals = useMemo(() => getSubmittalsForProject(id ?? ''), [id, getSubmittalsForProject]);
+  const projectWarranties = useMemo(() => getWarrantiesForProject(id ?? ''), [id, getWarrantiesForProject]);
+
+  const project = useMemo(() => getProject(id ?? ''), [id, getProject]);
+  const [expanded, setExpanded] = useState<Record<SectionKey, boolean>>({
+    linkedEstimate: true,
+    materials: true,
+    labor: true,
+    summary: true,
+    schedule: true,
+    notes: false,
+    collaborators: true,
+    changeOrders: true,
+    invoices: true,
+    dailyReports: true,
+    punchList: true,
+    rfis: true,
+    submittals: true,
+    budget: true,
+    photos: true,
+    clientPortal: false,
+    communications: true,
+  });
+  const [detailModal, setDetailModal] = useState<DetailModalType>(null);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteName, setInviteName] = useState('');
+  const [inviteRole, setInviteRole] = useState<'editor' | 'viewer'>('editor');
+  const [showEditModal, setShowEditModal] = useState<EditModalType>(false);
+  const [activeTile, setActiveTile] = useState<SectionKey | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  const [editLocation, setEditLocation] = useState('');
+  const [editType, setEditType] = useState<ProjectType>('renovation');
+  const [editSquareFootage, setEditSquareFootage] = useState('');
+  const [generatingCloseout, setGeneratingCloseout] = useState<boolean>(false);
+
+  const toggleSection = useCallback((section: SectionKey) => {
+    setExpanded(prev => ({ ...prev, [section]: !prev[section] }));
+  }, []);
+
+  // The tile-section modal renders as an iOS pageSheet. If we navigate while
+  // it's still presented, the new screen mounts BEHIND the sheet — the classic
+  // "press back and the new screen appears" bug. Dismiss the sheet first,
+  // then navigate after iOS finishes the dismiss animation (~300ms).
+  const navigateFromTile = useCallback((route: string | { pathname: string; params?: Record<string, string | number | undefined> }, mode: 'push' | 'replace' = 'push') => {
+    setActiveTile(null);
+    const delay = Platform.OS === 'ios' ? 350 : 0;
+    setTimeout(() => {
+      if (mode === 'replace') router.replace(route as any);
+      else router.push(route as any);
+    }, delay);
+  }, [router]);
+
+  const openEditModal = useCallback(() => {
+    if (!project) return;
+    setEditName(project.name);
+    setEditDescription(project.description || '');
+    setEditLocation(project.location || '');
+    setEditType(project.type);
+    setEditSquareFootage(project.squareFootage > 0 ? project.squareFootage.toString() : '');
+    setShowEditModal(true);
+  }, [project]);
+
+  const handleSaveEdit = useCallback(() => {
+    if (!id) return;
+    const name = editName.trim();
+    if (!name) {
+      Alert.alert('Missing Name', 'Please enter a project name.');
+      return;
+    }
+    const sqft = parseFloat(editSquareFootage) || 0;
+    updateProject(id, {
+      name,
+      description: editDescription.trim(),
+      location: editLocation.trim() || 'United States',
+      type: editType,
+      squareFootage: sqft,
+    });
+    setShowEditModal(false);
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    console.log('[ProjectDetail] Project updated:', id);
+  }, [id, editName, editDescription, editLocation, editType, editSquareFootage, updateProject]);
+
+  const branding = useMemo(() => settings.branding ?? {
+    companyName: '', contactName: '', email: '', phone: '', address: '', licenseNumber: '', tagline: '',
+  }, [settings.branding]);
+
+  const handleSharePDF = useCallback(async () => {
+    if (!project) return;
+    try {
+      setShowShareModal(false);
+      await generateAndSharePDF(project, branding, 'share');
+    } catch (e) {
+      console.error('[ProjectDetail] PDF share error:', e);
+      Alert.alert('Error', 'Failed to generate PDF. Please try again.');
+    }
+  }, [project, branding]);
+
+  const handleShareEmail = useCallback(async () => {
+    if (!project) return;
+    setShowShareModal(false);
+
+    const subject = branding.companyName
+      ? `${branding.companyName} - Estimate: ${project.name}`
+      : `Estimate: ${project.name}`;
+
+    const body = buildEstimateTextForEmail(project, branding);
+    const mailtoUrl = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    Linking.openURL(mailtoUrl).catch(() => {
+      Alert.alert('Unable to open email', 'Please check your email app is configured.');
+    });
+  }, [project, branding]);
+
+  const handleShareText = useCallback(() => {
+    if (!project) return;
+    setShowShareModal(false);
+    let body = '';
+    if (branding.companyName) body += `${branding.companyName}\n`;
+    body += `Estimate: ${project.name}\n`;
+    body += `Location: ${project.location}\n`;
+    const linked = project.linkedEstimate;
+    const legacy = project.estimate;
+    if (linked) {
+      body += `Total: $${linked.grandTotal.toFixed(2)} (${linked.items.length} items)\n`;
+    } else if (legacy) {
+      body += `\nCost Summary:\n`;
+      body += `Materials: $${legacy.materialTotal.toLocaleString()}\n`;
+      body += `Labor: $${legacy.laborTotal.toLocaleString()}\n`;
+      body += `Grand Total: $${legacy.grandTotal.toLocaleString()}\n`;
+    }
+    if (project.schedule) {
+      body += `\nSchedule: ${project.schedule.totalDurationDays} days, ${project.schedule.tasks.length} tasks\n`;
+    }
+    if (branding.contactName) body += `\nContact: ${branding.contactName}`;
+    if (branding.phone) body += `\nPhone: ${branding.phone}`;
+    if (branding.email) body += `\nEmail: ${branding.email}`;
+    const url = Platform.OS === 'ios'
+      ? `sms:&body=${encodeURIComponent(body)}`
+      : `sms:?body=${encodeURIComponent(body)}`;
+    Linking.openURL(url).catch(() => {
+      Alert.alert('Unable to open messages', 'Please check your messaging app.');
+    });
+  }, [project, branding]);
+
+  const handleShareSchedulePDF = useCallback(async () => {
+    if (!project) return;
+    try {
+      setShowShareModal(false);
+      await generateAndSharePDF(project, branding, 'share');
+    } catch (e) {
+      console.error('[ProjectDetail] Schedule PDF share error:', e);
+      Alert.alert('Error', 'Failed to generate schedule PDF.');
+    }
+  }, [project, branding]);
+
+  const handleGenerateCloseoutPacket = useCallback(async () => {
+    if (!project || !id) return;
+    if (generatingCloseout) return;
+    const openPunchCount = punchItems.filter(p => p.status !== 'closed').length;
+    const unpaidInvoices = projectInvoices.filter(i => {
+      const net = (i.totalDue ?? 0) - Math.max(0, (i.retentionAmount ?? 0) - (i.retentionReleased ?? 0));
+      return (i.amountPaid ?? 0) < net;
+    });
+    const warn: string[] = [];
+    if (openPunchCount > 0) warn.push(`${openPunchCount} open punch item${openPunchCount === 1 ? '' : 's'}`);
+    if (unpaidInvoices.length > 0) warn.push(`${unpaidInvoices.length} unpaid invoice${unpaidInvoices.length === 1 ? '' : 's'}`);
+    const proceed = async () => {
+      setGeneratingCloseout(true);
+      try {
+        if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        const ok = await generateAndShareCloseoutPacket({
+          project,
+          branding,
+          changeOrders,
+          invoices: projectInvoices,
+          dailyReports,
+          punchItems,
+          warranties: projectWarranties,
+          photoCount: projectPhotos.length,
+        });
+        if (ok) {
+          if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        } else {
+          Alert.alert('Closeout Packet', 'Could not generate the closeout packet. Please try again.');
+        }
+      } catch (err) {
+        console.error('[ProjectDetail] Closeout packet error:', err);
+        Alert.alert('Error', 'Failed to generate closeout packet.');
+      } finally {
+        setGeneratingCloseout(false);
+      }
+    };
+    if (warn.length > 0) {
+      Alert.alert(
+        'Generate Closeout Packet?',
+        `Heads up — this project still has ${warn.join(' and ')}. Generate anyway?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Generate', onPress: () => { void proceed(); } },
+        ],
+      );
+    } else {
+      void proceed();
+    }
+  }, [project, id, branding, changeOrders, projectInvoices, dailyReports, punchItems, projectWarranties, projectPhotos, generatingCloseout]);
+
+  const handleInvite = useCallback(() => {
+    if (!project || !id) return;
+    const email = inviteEmail.trim();
+    const name = inviteName.trim() || email.split('@')[0];
+    if (!email || !email.includes('@')) {
+      Alert.alert('Invalid Email', 'Please enter a valid email address.');
+      return;
+    }
+    const collab: ProjectCollaborator = {
+      id: createId('collab'),
+      email,
+      name,
+      role: inviteRole,
+      status: 'pending',
+      invitedAt: new Date().toISOString(),
+    };
+    addCollaborator(id, collab);
+
+    const inviteLink = `https://mageid.app/invite/${id}?email=${encodeURIComponent(email)}&role=${inviteRole}`;
+    const subject = `${branding.companyName || 'MAGE ID'} - Project Invitation: ${project.name}`;
+    const body = `You've been invited to collaborate on "${project.name}" as ${inviteRole === 'editor' ? 'an Editor' : 'a Viewer'}.\n\nProject: ${project.name}\nLocation: ${project.location}\n\nClick the link below to join this project:\n${inviteLink}\n\n${branding.companyName ? `From: ${branding.companyName}` : 'From: MAGE ID'}${branding.contactName ? `\nContact: ${branding.contactName}` : ''}${branding.phone ? `\nPhone: ${branding.phone}` : ''}`;
+    const mailUrl = `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    Linking.openURL(mailUrl).catch(() => {
+      console.log('[ProjectDetail] Could not open email client');
+    });
+
+    setInviteEmail('');
+    setInviteName('');
+    setShowInviteModal(false);
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    Alert.alert('Invited', `${name} has been invited as ${inviteRole}.`);
+  }, [project, id, inviteEmail, inviteName, inviteRole, branding, addCollaborator]);
+
+  const handleRemoveCollaborator = useCallback((collabId: string, collabName: string) => {
+    if (!id) return;
+    Alert.alert('Remove Collaborator', `Remove ${collabName} from this project?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Remove', style: 'destructive',
+        onPress: () => {
+          removeCollaborator(id, collabId);
+          if (Platform.OS !== 'web') void Haptics.selectionAsync();
+        },
+      },
+    ]);
+  }, [id, removeCollaborator]);
+
+  const handleDelete = useCallback(() => {
+    Alert.alert(
+      'Delete Project',
+      'Are you sure you want to delete this project? This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            if (id) deleteProject(id);
+            if (Platform.OS !== 'web') {
+              void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+            }
+            router.back();
+          },
+        },
+      ]
+    );
+  }, [id, deleteProject, router]);
+
+  if (!project) {
+    return (
+      <View style={[styles.container, styles.center]}>
+        <Stack.Screen options={{ title: 'Not Found' }} />
+        <Text style={styles.notFoundText}>Project not found</Text>
+        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+          <Text style={styles.backBtnText}>Go Back</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  const estimate = project.estimate;
+  const linkedEstimate = project.linkedEstimate;
+  const hasAnyEstimate = !!(linkedEstimate && linkedEstimate.items.length > 0) || !!estimate;
+  const collaborators = project.collaborators ?? [];
+
+  const heroTotal = linkedEstimate?.grandTotal ?? estimate?.grandTotal ?? 0;
+  const heroLabel = linkedEstimate ? `${linkedEstimate.items.length} items` : estimate ? `${estimate.materials.length} materials` : '';
+
+  const totalBreakdown = useMemo(() => {
+    if (!estimate) return null;
+    const materialPct = estimate.subtotal > 0 ? (estimate.materialTotal / estimate.subtotal) * 100 : 0;
+    const laborPct = estimate.subtotal > 0 ? (estimate.laborTotal / estimate.subtotal) * 100 : 0;
+    const permitPct = estimate.subtotal > 0 ? (estimate.permits / estimate.subtotal) * 100 : 0;
+    const overheadPct = estimate.subtotal > 0 ? (estimate.overhead / estimate.subtotal) * 100 : 0;
+    const taxRate = estimate.subtotal > 0 ? (estimate.tax / estimate.subtotal) * 100 : 0;
+    const contingencyRate = estimate.subtotal > 0 ? (estimate.contingency / estimate.subtotal) * 100 : 0;
+    return { materialPct, laborPct, permitPct, overheadPct, taxRate, contingencyRate };
+  }, [estimate]);
+
+  const savingsBreakdown = useMemo(() => {
+    if (!estimate) return null;
+    const itemsWithSavings = estimate.materials.filter(m => m.savings > 0);
+    const topSavers = [...itemsWithSavings].sort((a, b) => b.savings - a.savings).slice(0, 8);
+    const totalBulkSavings = estimate.bulkSavingsTotal;
+    const savingsRate = estimate.grandTotal > 0 ? (totalBulkSavings / (estimate.grandTotal + totalBulkSavings)) * 100 : 0;
+    const itemsAtBulk = itemsWithSavings.length;
+    const totalItems = estimate.materials.length;
+    return { topSavers, totalBulkSavings, savingsRate, itemsAtBulk, totalItems };
+  }, [estimate]);
+
+  const openDetail = useCallback((type: 'total' | 'savings') => {
+    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setDetailModal(type);
+  }, []);
+
+  const renderTotalDetailModal = useCallback(() => {
+    if (!estimate || !totalBreakdown) return null;
+    const rows = [
+      { label: 'Materials', value: estimate.materialTotal, pct: totalBreakdown.materialPct, color: '#1A6B3C', icon: Package },
+      { label: 'Labor', value: estimate.laborTotal, pct: totalBreakdown.laborPct, color: '#007AFF', icon: Users },
+      { label: 'Permits & Fees', value: estimate.permits, pct: totalBreakdown.permitPct, color: '#FF9500', icon: Shield },
+      { label: 'Overhead', value: estimate.overhead, pct: totalBreakdown.overheadPct, color: '#AF52DE', icon: Layers },
+    ];
+    const maxPct = Math.max(...rows.map(r => r.pct));
+
+    return (
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: insets.bottom + 30 }}>
+        <View style={detailStyles.heroSection}>
+          <View style={detailStyles.heroIconWrap}>
+            <BarChart3 size={28} color={Colors.primary} />
+          </View>
+          <Text style={detailStyles.heroAmount}>${estimate.grandTotal.toLocaleString()}</Text>
+          <Text style={detailStyles.heroSubtitle}>Total Project Value</Text>
+          <View style={detailStyles.heroChips}>
+            <View style={detailStyles.heroChip}>
+              <Text style={detailStyles.heroChipLabel}>${estimate.pricePerSqFt.toFixed(2)}</Text>
+              <Text style={detailStyles.heroChipSub}>per sq ft</Text>
+            </View>
+            <View style={[detailStyles.heroChip, { backgroundColor: Colors.successLight }]}>
+              <Text style={[detailStyles.heroChipLabel, { color: Colors.success }]}>-${estimate.bulkSavingsTotal.toLocaleString()}</Text>
+              <Text style={[detailStyles.heroChipSub, { color: Colors.success }]}>savings applied</Text>
+            </View>
+          </View>
+        </View>
+
+        <Text style={detailStyles.sectionLabel}>Cost Composition</Text>
+        <View style={detailStyles.barChartWrap}>
+          {rows.map(row => (
+            <View key={row.label} style={detailStyles.barRow}>
+              <View style={detailStyles.barLabelRow}>
+                <row.icon size={14} color={row.color} />
+                <Text style={detailStyles.barLabel}>{row.label}</Text>
+                <Text style={detailStyles.barPct}>{row.pct.toFixed(1)}%</Text>
+              </View>
+              <View style={detailStyles.barTrack}>
+                <View style={[detailStyles.barFill, { width: `${maxPct > 0 ? (row.pct / maxPct) * 100 : 0}%`, backgroundColor: row.color }]} />
+              </View>
+              <Text style={detailStyles.barValue}>${row.value.toLocaleString()}</Text>
+            </View>
+          ))}
+        </View>
+
+        <Text style={detailStyles.sectionLabel}>Additional Costs</Text>
+        <View style={detailStyles.additionalCard}>
+          <View style={detailStyles.additionalRow}>
+            <View style={detailStyles.additionalLeft}>
+              <View style={[detailStyles.additionalDot, { backgroundColor: Colors.warning }]} />
+              <Text style={detailStyles.additionalLabel}>Tax</Text>
+            </View>
+            <View style={detailStyles.additionalRight}>
+              <Text style={detailStyles.additionalValue}>${estimate.tax.toLocaleString()}</Text>
+              <Text style={detailStyles.additionalPct}>{totalBreakdown.taxRate.toFixed(1)}%</Text>
+            </View>
+          </View>
+          <View style={detailStyles.additionalDivider} />
+          <View style={detailStyles.additionalRow}>
+            <View style={detailStyles.additionalLeft}>
+              <View style={[detailStyles.additionalDot, { backgroundColor: Colors.error }]} />
+              <Text style={detailStyles.additionalLabel}>Contingency</Text>
+            </View>
+            <View style={detailStyles.additionalRight}>
+              <Text style={detailStyles.additionalValue}>${estimate.contingency.toLocaleString()}</Text>
+              <Text style={detailStyles.additionalPct}>{totalBreakdown.contingencyRate.toFixed(1)}%</Text>
+            </View>
+          </View>
+          <View style={detailStyles.additionalDivider} />
+          <View style={detailStyles.additionalRow}>
+            <View style={detailStyles.additionalLeft}>
+              <View style={[detailStyles.additionalDot, { backgroundColor: Colors.success }]} />
+              <Text style={[detailStyles.additionalLabel, { color: Colors.success }]}>Bulk Savings</Text>
+            </View>
+            <View style={detailStyles.additionalRight}>
+              <Text style={[detailStyles.additionalValue, { color: Colors.success }]}>-${estimate.bulkSavingsTotal.toLocaleString()}</Text>
+            </View>
+          </View>
+        </View>
+
+        <Text style={detailStyles.sectionLabel}>Full Breakdown</Text>
+        <View style={detailStyles.fullBreakdownCard}>
+          {[
+            { label: 'Materials Subtotal', value: estimate.materialTotal },
+            { label: 'Labor Subtotal', value: estimate.laborTotal },
+            { label: 'Permits & Fees', value: estimate.permits },
+            { label: 'Overhead', value: estimate.overhead },
+          ].map((item, idx) => (
+            <View key={idx}>
+              <View style={detailStyles.breakdownRow}>
+                <Text style={detailStyles.breakdownLabel}>{item.label}</Text>
+                <Text style={detailStyles.breakdownValue}>${item.value.toLocaleString()}</Text>
+              </View>
+              {idx < 3 && <View style={detailStyles.breakdownDivider} />}
+            </View>
+          ))}
+          <View style={detailStyles.breakdownDividerThick} />
+          <View style={detailStyles.breakdownRow}>
+            <Text style={detailStyles.breakdownLabelBold}>Subtotal</Text>
+            <Text style={detailStyles.breakdownValueBold}>${estimate.subtotal.toLocaleString()}</Text>
+          </View>
+          <View style={detailStyles.breakdownRow}>
+            <Text style={detailStyles.breakdownLabel}>+ Tax</Text>
+            <Text style={detailStyles.breakdownValue}>${estimate.tax.toLocaleString()}</Text>
+          </View>
+          <View style={detailStyles.breakdownRow}>
+            <Text style={detailStyles.breakdownLabel}>+ Contingency</Text>
+            <Text style={detailStyles.breakdownValue}>${estimate.contingency.toLocaleString()}</Text>
+          </View>
+          <View style={detailStyles.breakdownRow}>
+            <Text style={[detailStyles.breakdownLabel, { color: Colors.success }]}>- Bulk Savings</Text>
+            <Text style={[detailStyles.breakdownValue, { color: Colors.success }]}>-${estimate.bulkSavingsTotal.toLocaleString()}</Text>
+          </View>
+          <View style={detailStyles.breakdownDividerThick} />
+          <View style={detailStyles.breakdownRow}>
+            <Text style={detailStyles.grandLabel}>Grand Total</Text>
+            <Text style={detailStyles.grandValue}>${estimate.grandTotal.toLocaleString()}</Text>
+          </View>
+        </View>
+      </ScrollView>
+    );
+  }, [estimate, totalBreakdown, insets.bottom]);
+
+  const renderSavingsDetailModal = useCallback(() => {
+    if (!estimate || !savingsBreakdown) return null;
+
+    return (
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: insets.bottom + 30 }}>
+        <View style={detailStyles.heroSection}>
+          <View style={[detailStyles.heroIconWrap, { backgroundColor: Colors.successLight }]}>
+            <TrendingDown size={28} color={Colors.success} />
+          </View>
+          <Text style={[detailStyles.heroAmount, { color: Colors.success }]}>${savingsBreakdown.totalBulkSavings.toLocaleString()}</Text>
+          <Text style={detailStyles.heroSubtitle}>Total Bulk Savings</Text>
+          <View style={detailStyles.heroChips}>
+            <View style={[detailStyles.heroChip, { backgroundColor: Colors.successLight }]}>
+              <Text style={[detailStyles.heroChipLabel, { color: Colors.success }]}>{savingsBreakdown.savingsRate.toFixed(1)}%</Text>
+              <Text style={[detailStyles.heroChipSub, { color: Colors.success }]}>savings rate</Text>
+            </View>
+            <View style={detailStyles.heroChip}>
+              <Text style={detailStyles.heroChipLabel}>{savingsBreakdown.itemsAtBulk}/{savingsBreakdown.totalItems}</Text>
+              <Text style={detailStyles.heroChipSub}>items w/ savings</Text>
+            </View>
+          </View>
+        </View>
+
+        <Text style={detailStyles.sectionLabel}>How Bulk Savings Work</Text>
+        <View style={detailStyles.infoCard}>
+          <View style={detailStyles.infoRow}>
+            <View style={[detailStyles.infoStep, { backgroundColor: Colors.primary + '15' }]}>
+              <Text style={[detailStyles.infoStepNum, { color: Colors.primary }]}>1</Text>
+            </View>
+            <View style={detailStyles.infoTextWrap}>
+              <Text style={detailStyles.infoTitle}>Volume Thresholds</Text>
+              <Text style={detailStyles.infoDesc}>Each material has a minimum bulk quantity. Once met, a lower per-unit price is unlocked.</Text>
+            </View>
+          </View>
+          <View style={detailStyles.infoRow}>
+            <View style={[detailStyles.infoStep, { backgroundColor: Colors.success + '15' }]}>
+              <Text style={[detailStyles.infoStepNum, { color: Colors.success }]}>2</Text>
+            </View>
+            <View style={detailStyles.infoTextWrap}>
+              <Text style={detailStyles.infoTitle}>Automatic Application</Text>
+              <Text style={detailStyles.infoDesc}>When your estimate quantities exceed bulk thresholds, savings are calculated automatically.</Text>
+            </View>
+          </View>
+          <View style={detailStyles.infoRow}>
+            <View style={[detailStyles.infoStep, { backgroundColor: Colors.accent + '15' }]}>
+              <Text style={[detailStyles.infoStepNum, { color: Colors.accent }]}>3</Text>
+            </View>
+            <View style={detailStyles.infoTextWrap}>
+              <Text style={detailStyles.infoTitle}>Reflected in Total</Text>
+              <Text style={detailStyles.infoDesc}>Bulk savings are deducted from the grand total, reducing your overall project cost.</Text>
+            </View>
+          </View>
+        </View>
+
+        {savingsBreakdown.topSavers.length > 0 && (
+          <>
+            <Text style={detailStyles.sectionLabel}>Top Savings by Item</Text>
+            <View style={detailStyles.topSaversCard}>
+              {savingsBreakdown.topSavers.map((item, idx) => {
+                const savingsPct = item.unitPrice > 0 ? ((item.savings) / (item.unitPrice * item.quantity)) * 100 : 0;
+                return (
+                  <View key={idx}>
+                    <View style={detailStyles.saverRow}>
+                      <View style={detailStyles.saverRank}>
+                        <Text style={detailStyles.saverRankText}>#{idx + 1}</Text>
+                      </View>
+                      <View style={detailStyles.saverInfo}>
+                        <Text style={detailStyles.saverName} numberOfLines={1}>{item.name}</Text>
+                        <Text style={detailStyles.saverMeta}>{item.quantity} {item.unit} · ${item.unitPrice.toFixed(2)}/unit</Text>
+                      </View>
+                      <View style={detailStyles.saverSavings}>
+                        <Text style={detailStyles.saverAmount}>${item.savings.toFixed(0)}</Text>
+                        <Text style={detailStyles.saverPct}>{savingsPct.toFixed(0)}% off</Text>
+                      </View>
+                    </View>
+                    {idx < savingsBreakdown.topSavers.length - 1 && <View style={detailStyles.saverDivider} />}
+                  </View>
+                );
+              })}
+            </View>
+          </>
+        )}
+
+        {savingsBreakdown.itemsAtBulk < savingsBreakdown.totalItems && (
+          <>
+            <Text style={detailStyles.sectionLabel}>Optimization Tip</Text>
+            <View style={[detailStyles.infoCard, { backgroundColor: Colors.warningLight, borderColor: Colors.warning + '30' }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10 }}>
+                <Lightbulb size={18} color={Colors.warning} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[detailStyles.infoTitle, { marginBottom: 4 }]}>Unlock More Savings</Text>
+                  <Text style={detailStyles.infoDesc}>
+                    {savingsBreakdown.totalItems - savingsBreakdown.itemsAtBulk} material(s) aren't yet at bulk thresholds. Increasing quantities on those items could unlock additional discounts.
+                  </Text>
+                </View>
+              </View>
+            </View>
+          </>
+        )}
+      </ScrollView>
+    );
+  }, [estimate, savingsBreakdown, insets.bottom]);
+
+  return (
+    <View style={styles.container}>
+      <Stack.Screen options={{
+        title: project.name || 'Project Details',
+        headerRight: () => (
+          <TouchableOpacity onPress={openEditModal} style={{ padding: 6 }} activeOpacity={0.7} testID="edit-project-btn">
+            <Pencil size={20} color={Colors.primary} />
+          </TouchableOpacity>
+        ),
+      }} />
+      <ScrollView
+        contentContainerStyle={[{ paddingBottom: insets.bottom + 40 }, layout.isDesktop && { maxWidth: 1200, alignSelf: 'center' as const, width: '100%' as any }]}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.heroCard}>
+          <View style={styles.heroHeader}>
+            <View style={styles.heroTitleBlock}>
+              <Text style={styles.heroName}>{project.name}</Text>
+              <View style={styles.heroMeta}>
+                <MapPin size={14} color={Colors.textMuted} />
+                <Text style={styles.heroMetaText}>{project.location}</Text>
+              </View>
+              {project.description ? (
+                <Text style={styles.heroDesc}>{project.description}</Text>
+              ) : null}
+            </View>
+          </View>
+
+          {hasAnyEstimate && (
+            <View style={styles.heroStats}>
+              <TouchableOpacity
+                style={styles.heroStatMain}
+                onPress={() => estimate ? openDetail('total') : undefined}
+                activeOpacity={estimate ? 0.7 : 1}
+                testID="hero-total-tap"
+              >
+                <Text style={styles.heroStatLabel}>Total Estimate</Text>
+                <Text style={styles.heroStatValue}>{formatMoney(heroTotal)}</Text>
+                <Text style={styles.heroTapHint}>{heroLabel}{estimate ? ' · Tap for breakdown' : ''}</Text>
+              </TouchableOpacity>
+              <View style={styles.heroStatsRow}>
+                {estimate && (
+                  <>
+                    <View style={styles.heroStatSmall}>
+                      <Text style={styles.smallStatLabel}>Per Sq Ft</Text>
+                      <Text style={styles.smallStatValue}>${estimate.pricePerSqFt.toFixed(2)}</Text>
+                    </View>
+                    <View style={styles.heroStatSmall}>
+                      <Text style={styles.smallStatLabel}>Duration</Text>
+                      <Text style={styles.smallStatValue}>{estimate.estimatedDuration}</Text>
+                    </View>
+                    <TouchableOpacity
+                      style={styles.heroStatSmall}
+                      onPress={() => openDetail('savings')}
+                      activeOpacity={0.7}
+                      testID="hero-savings-tap"
+                    >
+                      <Text style={styles.smallStatLabel}>Bulk Savings</Text>
+                      <Text style={[styles.smallStatValue, { color: Colors.success }]}>
+                        {formatMoney(estimate.bulkSavingsTotal)}
+                      </Text>
+                      <ArrowDownRight size={10} color="rgba(255,255,255,0.5)" />
+                    </TouchableOpacity>
+                  </>
+                )}
+                {!estimate && linkedEstimate && (
+                  <>
+                    <View style={styles.heroStatSmall}>
+                      <Text style={styles.smallStatLabel}>Markup</Text>
+                      <Text style={styles.smallStatValue}>{linkedEstimate.globalMarkup}%</Text>
+                    </View>
+                    <View style={styles.heroStatSmall}>
+                      <Text style={styles.smallStatLabel}>Base Cost</Text>
+                      <Text style={styles.smallStatValue}>{formatMoney(linkedEstimate.baseTotal)}</Text>
+                    </View>
+                    <View style={styles.heroStatSmall}>
+                      <Text style={styles.smallStatLabel}>+ Markup</Text>
+                      <Text style={[styles.smallStatValue, { color: Colors.accent }]}>
+                        {formatMoney(linkedEstimate.markupTotal)}
+                      </Text>
+                    </View>
+                  </>
+                )}
+              </View>
+            </View>
+          )}
+        </View>
+
+        <View style={styles.quickActions}>
+          <TouchableOpacity
+            style={styles.quickActionBtn}
+            onPress={() => router.push({ pathname: '/cash-flow' as any, params: { projectId: id } })}
+            activeOpacity={0.7}
+            testID="project-cash-flow-btn"
+          >
+            <View style={[styles.quickActionIcon, { backgroundColor: Colors.success + '15' }]}>
+              <Wallet size={18} color={Colors.success} />
+            </View>
+            <Text style={styles.quickActionLabel}>Cash Flow</Text>
+          </TouchableOpacity>
+          {!hasAnyEstimate && (
+            <TouchableOpacity
+              style={styles.quickActionBtn}
+              onPress={() => router.replace('/(tabs)/discover/estimate' as any)}
+              activeOpacity={0.7}
+              testID="project-create-estimate-btn"
+            >
+              <View style={[styles.quickActionIcon, { backgroundColor: Colors.primary + '15' }]}>
+                <Receipt size={18} color={Colors.primary} />
+              </View>
+              <Text style={styles.quickActionLabel}>Estimate</Text>
+            </TouchableOpacity>
+          )}
+          {!project.schedule && (
+            <TouchableOpacity
+              style={styles.quickActionBtn}
+              onPress={() => router.replace('/(tabs)/discover/schedule' as any)}
+              activeOpacity={0.7}
+              testID="project-create-schedule-btn"
+            >
+              <View style={[styles.quickActionIcon, { backgroundColor: Colors.info + '15' }]}>
+                <CalendarDays size={18} color={Colors.info} />
+              </View>
+              <Text style={styles.quickActionLabel}>Schedule</Text>
+            </TouchableOpacity>
+          )}
+          {project.schedule && (
+            <TouchableOpacity
+              style={styles.quickActionBtn}
+              onPress={() => router.replace('/(tabs)/schedule' as any)}
+              activeOpacity={0.7}
+              testID="project-view-schedule-btn"
+            >
+              <View style={[styles.quickActionIcon, { backgroundColor: Colors.info + '15' }]}>
+                <CalendarDays size={18} color={Colors.info} />
+              </View>
+              <Text style={styles.quickActionLabel}>Schedule</Text>
+            </TouchableOpacity>
+          )}
+          {hasAnyEstimate && (
+            <TouchableOpacity
+              style={styles.quickActionBtn}
+              onPress={() => router.replace('/(tabs)/estimate' as any)}
+              activeOpacity={0.7}
+              testID="project-view-estimate-btn"
+            >
+              <View style={[styles.quickActionIcon, { backgroundColor: Colors.primary + '15' }]}>
+                <Receipt size={18} color={Colors.primary} />
+              </View>
+              <Text style={styles.quickActionLabel}>Estimate</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity
+            style={styles.quickActionBtn}
+            onPress={() => router.push({ pathname: '/payment-predictions' as any, params: { projectId: id } })}
+            activeOpacity={0.7}
+            testID="project-payment-forecast-btn"
+          >
+            <View style={[styles.quickActionIcon, { backgroundColor: Colors.accent + '15' }]}>
+              <TrendingDown size={18} color={Colors.accent} />
+            </View>
+            <Text style={styles.quickActionLabel}>Forecast</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.quickActionBtn, styles.quickActionBtnFull, generatingCloseout && { opacity: 0.5 }]}
+            onPress={handleGenerateCloseoutPacket}
+            activeOpacity={0.7}
+            disabled={generatingCloseout}
+            testID="project-closeout-packet-btn"
+          >
+            <View style={[styles.quickActionIcon, { backgroundColor: Colors.warning + '15' }]}>
+              <Archive size={18} color={Colors.warning} />
+            </View>
+            <Text style={styles.quickActionLabel}>{generatingCloseout ? 'Building…' : 'Closeout'}</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Section tile grid — replaces the long scroll of cards */}
+        <View style={styles.sectionGrid}>
+          {([
+            ...(hasAnyEstimate ? [{ key: 'linkedEstimate' as SectionKey, label: 'Estimate Items', icon: ShoppingCart, color: Colors.primary, count: linkedEstimate?.items.length ?? estimate?.materials.length ?? 0 }] : []),
+            ...(project.schedule ? [{ key: 'schedule' as SectionKey, label: 'Schedule', icon: CalendarDays, color: Colors.info, count: project.schedule.tasks.length }] : []),
+            { key: 'collaborators' as SectionKey, label: 'Team', icon: Users, color: Colors.info, count: collaborators.length + 1 },
+            { key: 'changeOrders' as SectionKey, label: 'Change Orders', icon: Repeat, color: Colors.accent, count: changeOrders.length },
+            { key: 'invoices' as SectionKey, label: 'Invoices', icon: Receipt, color: Colors.success, count: projectInvoices.length },
+            { key: 'dailyReports' as SectionKey, label: 'Daily Reports', icon: ClipboardList, color: Colors.primary, count: dailyReports.length },
+            { key: 'punchList' as SectionKey, label: 'Punch List', icon: CheckSquare, color: Colors.accent, count: punchItems.length },
+            { key: 'rfis' as SectionKey, label: 'RFIs', icon: FileText, color: Colors.info, count: projectRFIs.length },
+            { key: 'submittals' as SectionKey, label: 'Submittals', icon: FileText, color: '#5856D6', count: projectSubmittals.length },
+            ...(hasAnyEstimate ? [{ key: 'budget' as SectionKey, label: 'Financial Health', icon: DollarSign, color: Colors.success, count: null as number | null }] : []),
+            { key: 'photos' as SectionKey, label: 'Photos', icon: Camera, color: Colors.info, count: projectPhotos.length },
+            { key: 'clientPortal' as SectionKey, label: 'Client Portal', icon: Globe, color: '#5856D6', count: null as number | null },
+            { key: 'communications' as SectionKey, label: 'Communications', icon: Mail, color: Colors.info, count: commEvents.length },
+          ]).map(tile => {
+            const TileIcon = tile.icon;
+            return (
+              <TouchableOpacity
+                key={tile.key}
+                style={styles.sectionTile}
+                onPress={() => {
+                  if (Platform.OS !== 'web') void Haptics.selectionAsync();
+                  setActiveTile(tile.key);
+                }}
+                activeOpacity={0.7}
+                testID={`section-tile-${tile.key}`}
+              >
+                <View style={[styles.sectionTileIcon, { backgroundColor: tile.color + '15' }]}>
+                  <TileIcon size={20} color={tile.color} />
+                </View>
+                <Text style={styles.sectionTileLabel} numberOfLines={1}>{tile.label}</Text>
+                {tile.count !== null && tile.count !== undefined && (
+                  <View style={styles.sectionTileBadge}>
+                    <Text style={styles.sectionTileBadgeText}>{tile.count}</Text>
+                  </View>
+                )}
+                <ChevronRight size={16} color={Colors.textMuted} />
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        <Modal
+          visible={activeTile !== null}
+          animationType="slide"
+          presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : undefined}
+          onRequestClose={() => setActiveTile(null)}
+        >
+          <View style={{ flex: 1, backgroundColor: Colors.background, paddingTop: Platform.OS === 'ios' ? 12 : insets.top + 8 }}>
+            <View style={styles.sectionModalHeader}>
+              <TouchableOpacity
+                onPress={() => setActiveTile(null)}
+                style={styles.sectionModalBack}
+                activeOpacity={0.7}
+                testID="section-modal-back"
+              >
+                <ChevronLeft size={22} color={Colors.text} />
+                <Text style={styles.sectionModalBackText}>Back</Text>
+              </TouchableOpacity>
+              <Text style={styles.sectionModalTitle} numberOfLines={1}>
+                {activeTile === 'linkedEstimate' ? 'Estimate Items'
+                  : activeTile === 'schedule' ? 'Schedule'
+                  : activeTile === 'materials' ? 'Materials'
+                  : activeTile === 'labor' ? 'Labor'
+                  : activeTile === 'summary' ? 'Cost Summary'
+                  : activeTile === 'notes' ? 'Tips & Notes'
+                  : activeTile === 'collaborators' ? 'Team'
+                  : activeTile === 'changeOrders' ? 'Change Orders'
+                  : activeTile === 'invoices' ? 'Invoices'
+                  : activeTile === 'dailyReports' ? 'Daily Reports'
+                  : activeTile === 'punchList' ? 'Punch List'
+                  : activeTile === 'rfis' ? 'RFIs'
+                  : activeTile === 'submittals' ? 'Submittals'
+                  : activeTile === 'budget' ? 'Financial Health'
+                  : activeTile === 'photos' ? 'Photos'
+                  : activeTile === 'clientPortal' ? 'Client Portal'
+                  : activeTile === 'communications' ? 'Communications'
+                  : ''}
+              </Text>
+              <View style={{ width: 72 }} />
+            </View>
+            <ScrollView
+              style={{ flex: 1 }}
+              contentContainerStyle={{ paddingBottom: insets.bottom + 40, paddingTop: 4 }}
+              showsVerticalScrollIndicator={false}
+            >
+
+        {linkedEstimate && linkedEstimate.items.length > 0 && activeTile === 'linkedEstimate' && (
+          <View style={styles.section}>
+            <TouchableOpacity
+              style={styles.sectionHeader}
+              onPress={() => toggleSection('linkedEstimate')}
+              activeOpacity={0.7}
+              testID="linked-estimate-section"
+            >
+              <ShoppingCart size={20} color={Colors.primary} />
+              <Text style={styles.sectionTitle}>
+                Estimate Items — {formatMoney(linkedEstimate.grandTotal, 2)}
+              </Text>
+              {expanded.linkedEstimate ? (
+                <ChevronUp size={18} color={Colors.textMuted} />
+              ) : (
+                <ChevronDown size={18} color={Colors.textMuted} />
+              )}
+            </TouchableOpacity>
+
+            {expanded.linkedEstimate && (
+              <View style={styles.tableContainer}>
+                <View style={styles.tableHeader}>
+                  <Text style={[styles.tableHeaderText, { flex: 2 }]}>Item</Text>
+                  <Text style={[styles.tableHeaderText, { flex: 1 }]}>Qty</Text>
+                  <Text style={[styles.tableHeaderText, { flex: 1 }]}>Markup</Text>
+                  <Text style={[styles.tableHeaderText, { flex: 1, textAlign: 'right' as const }]}>Total</Text>
+                </View>
+                {linkedEstimate.items.map((item, idx) => (
+                  <View key={idx} style={[styles.tableRow, idx % 2 === 0 && styles.tableRowAlt]}>
+                    <View style={{ flex: 2 }}>
+                      <Text style={styles.tableCellName} numberOfLines={1}>{item.name}</Text>
+                      <Text style={styles.tableCellSub}>{item.category} · {item.supplier}</Text>
+                      {item.usesBulk && (
+                        <View style={styles.bulkBadge}>
+                          <TrendingDown size={10} color={Colors.success} />
+                          <Text style={styles.bulkBadgeText}>Bulk rate</Text>
+                        </View>
+                      )}
+                    </View>
+                    <Text style={[styles.tableCell, { flex: 1 }]}>
+                      {item.quantity} {item.unit}
+                    </Text>
+                    <Text style={[styles.tableCell, { flex: 1 }]}>
+                      {item.markup}%
+                    </Text>
+                    <Text style={[styles.tableCellBold, { flex: 1, textAlign: 'right' as const }]}>
+                      ${item.lineTotal.toFixed(2)}
+                    </Text>
+                  </View>
+                ))}
+                <View style={styles.linkedSummaryRow}>
+                  <View style={styles.linkedSummaryItem}>
+                    <Text style={styles.linkedSummaryLabel}>Base</Text>
+                    <Text style={styles.linkedSummaryValue}>{formatMoney(linkedEstimate.baseTotal, 2)}</Text>
+                  </View>
+                  <View style={styles.linkedSummaryItem}>
+                    <Text style={[styles.linkedSummaryLabel, { color: Colors.accent }]}>Markup</Text>
+                    <Text style={[styles.linkedSummaryValue, { color: Colors.accent }]}>+{formatMoney(linkedEstimate.markupTotal, 2)}</Text>
+                  </View>
+                  <View style={styles.linkedSummaryItem}>
+                    <Text style={[styles.linkedSummaryLabel, { fontWeight: '700' as const }]}>Total</Text>
+                    <Text style={[styles.linkedSummaryValue, { color: Colors.primary, fontWeight: '800' as const }]}>{formatMoney(linkedEstimate.grandTotal, 2)}</Text>
+                  </View>
+                </View>
+                {!project.schedule && (
+                  <View style={{ marginTop: 8 }}>
+                    <AIAutoScheduleButton
+                      project={project}
+                      estimate={linkedEstimate}
+                      onScheduleCreated={(schedule) => {
+                        if (schedule) updateProject(project.id, { schedule });
+                      }}
+                      testID="auto-schedule-from-estimate"
+                    />
+                  </View>
+                )}
+                {project.schedule && (
+                  <TouchableOpacity
+                    style={styles.crossLinkBtn}
+                    onPress={() => navigateFromTile('/(tabs)/schedule' as any, 'replace')}
+                    activeOpacity={0.7}
+                    testID="estimate-view-schedule-link"
+                  >
+                    <CalendarDays size={16} color={Colors.info} />
+                    <Text style={styles.crossLinkText}>View Schedule ({project.schedule.tasks.length} tasks · {project.schedule.totalDurationDays}d)</Text>
+                    <ChevronRight size={16} color={Colors.textMuted} />
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
+          </View>
+        )}
+
+        {project.schedule && activeTile === 'schedule' && (
+          <View style={styles.section}>
+            <TouchableOpacity
+              style={styles.sectionHeader}
+              onPress={() => toggleSection('schedule')}
+              activeOpacity={0.7}
+              testID="project-schedule-section"
+            >
+              <CalendarDays size={20} color={Colors.info} />
+              <Text style={styles.sectionTitle}>Schedule</Text>
+              {expanded.schedule ? (
+                <ChevronUp size={18} color={Colors.textMuted} />
+              ) : (
+                <ChevronDown size={18} color={Colors.textMuted} />
+              )}
+            </TouchableOpacity>
+
+            {expanded.schedule && (
+              <View style={styles.scheduleCard}>
+                <View style={styles.scheduleTopRow}>
+                  <View style={styles.scheduleMetric}>
+                    <Text style={styles.scheduleMetricLabel}>Duration</Text>
+                    <Text style={styles.scheduleMetricValue}>{project.schedule.totalDurationDays} days</Text>
+                  </View>
+                  <View style={styles.scheduleMetric}>
+                    <Text style={styles.scheduleMetricLabel}>Critical path</Text>
+                    <Text style={styles.scheduleMetricValue}>{project.schedule.criticalPathDays} days</Text>
+                  </View>
+                  <View style={styles.scheduleMetric}>
+                    <Text style={styles.scheduleMetricLabel}>Alignment</Text>
+                    <Text style={styles.scheduleMetricValue}>{project.schedule.laborAlignmentScore}/100</Text>
+                  </View>
+                </View>
+
+                <Text style={styles.scheduleSectionTitle}>Tasks</Text>
+                {project.schedule.tasks.map(task => (
+                  <View key={task.id} style={styles.scheduleTaskRow}>
+                    <View style={[styles.scheduleStatusDot, { backgroundColor: task.status === 'done' ? Colors.success : task.status === 'in_progress' ? Colors.info : Colors.warning }]} />
+                    <View style={styles.scheduleTaskTextWrap}>
+                      <Text style={styles.scheduleTaskName}>{task.title}</Text>
+                      <Text style={styles.scheduleTaskMeta}>{task.phase} · Day {task.startDay} · {task.durationDays}d · {task.crew}</Text>
+                    </View>
+                    <Text style={styles.scheduleTaskProgress}>{task.progress}%</Text>
+                  </View>
+                ))}
+
+                <TouchableOpacity
+                  style={styles.crossLinkBtn}
+                  onPress={() => navigateFromTile('/(tabs)/schedule' as any, 'replace')}
+                  activeOpacity={0.7}
+                  testID="schedule-open-full-link"
+                >
+                  <CalendarDays size={16} color={Colors.info} />
+                  <Text style={styles.crossLinkText}>Open Full Schedule</Text>
+                  <ChevronRight size={16} color={Colors.textMuted} />
+                </TouchableOpacity>
+
+                {hasAnyEstimate && (
+                  <TouchableOpacity
+                    style={styles.crossLinkBtn}
+                    onPress={() => estimate ? openDetail('total') : undefined}
+                    activeOpacity={estimate ? 0.7 : 1}
+                    testID="schedule-view-estimate-link"
+                  >
+                    <Receipt size={16} color={Colors.primary} />
+                    <Text style={styles.crossLinkText}>View Estimate ({formatMoney(heroTotal)})</Text>
+                    <ChevronRight size={16} color={Colors.textMuted} />
+                  </TouchableOpacity>
+                )}
+                {!hasAnyEstimate && (
+                  <TouchableOpacity
+                    style={styles.crossLinkBtn}
+                    onPress={() => navigateFromTile('/(tabs)/discover/estimate' as any, 'replace')}
+                    activeOpacity={0.7}
+                    testID="schedule-create-estimate-link"
+                  >
+                    <Receipt size={16} color={Colors.primary} />
+                    <Text style={styles.crossLinkText}>Create Estimate for This Project</Text>
+                    <ChevronRight size={16} color={Colors.textMuted} />
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
+          </View>
+        )}
+
+        {estimate && activeTile === 'linkedEstimate' && (
+          <>
+            <View style={styles.section}>
+              <TouchableOpacity
+                style={styles.sectionHeader}
+                onPress={() => toggleSection('materials')}
+                activeOpacity={0.7}
+              >
+                <Package size={20} color={Colors.primary} />
+                <Text style={styles.sectionTitle}>
+                  Materials — ${estimate.materialTotal.toLocaleString()}
+                </Text>
+                {expanded.materials ? (
+                  <ChevronUp size={18} color={Colors.textMuted} />
+                ) : (
+                  <ChevronDown size={18} color={Colors.textMuted} />
+                )}
+              </TouchableOpacity>
+
+              {expanded.materials && (
+                <View style={styles.tableContainer}>
+                  <View style={styles.tableHeader}>
+                    <Text style={[styles.tableHeaderText, { flex: 2 }]}>Item</Text>
+                    <Text style={[styles.tableHeaderText, { flex: 1 }]}>Qty</Text>
+                    <Text style={[styles.tableHeaderText, { flex: 1, textAlign: 'right' as const }]}>Unit $</Text>
+                    <Text style={[styles.tableHeaderText, { flex: 1, textAlign: 'right' as const }]}>Total</Text>
+                  </View>
+                  {estimate.materials.map((item, idx) => (
+                    <View key={idx} style={[styles.tableRow, idx % 2 === 0 && styles.tableRowAlt]}>
+                      <View style={{ flex: 2 }}>
+                        <Text style={styles.tableCellName} numberOfLines={1}>{item.name}</Text>
+                        {item.savings > 0 && (
+                          <View style={styles.savingsBadge}>
+                            <TrendingDown size={10} color={Colors.success} />
+                            <Text style={styles.savingsText}>Save ${item.savings.toFixed(0)}</Text>
+                          </View>
+                        )}
+                      </View>
+                      <Text style={[styles.tableCell, { flex: 1 }]}>
+                        {item.quantity} {item.unit}
+                      </Text>
+                      <Text style={[styles.tableCell, { flex: 1, textAlign: 'right' as const }]}>
+                        ${item.unitPrice.toFixed(2)}
+                      </Text>
+                      <Text style={[styles.tableCellBold, { flex: 1, textAlign: 'right' as const }]}>
+                        ${item.totalPrice.toLocaleString()}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+            </View>
+
+            <View style={styles.section}>
+              <TouchableOpacity
+                style={styles.sectionHeader}
+                onPress={() => toggleSection('labor')}
+                activeOpacity={0.7}
+              >
+                <Users size={20} color={Colors.primary} />
+                <Text style={styles.sectionTitle}>
+                  Labor — ${estimate.laborTotal.toLocaleString()}
+                </Text>
+                {expanded.labor ? (
+                  <ChevronUp size={18} color={Colors.textMuted} />
+                ) : (
+                  <ChevronDown size={18} color={Colors.textMuted} />
+                )}
+              </TouchableOpacity>
+
+              {expanded.labor && (
+                <View style={styles.tableContainer}>
+                  <View style={styles.tableHeader}>
+                    <Text style={[styles.tableHeaderText, { flex: 2 }]}>Role</Text>
+                    <Text style={[styles.tableHeaderText, { flex: 1 }]}>Rate/hr</Text>
+                    <Text style={[styles.tableHeaderText, { flex: 1 }]}>Hours</Text>
+                    <Text style={[styles.tableHeaderText, { flex: 1, textAlign: 'right' as const }]}>Total</Text>
+                  </View>
+                  {estimate.labor.map((item, idx) => (
+                    <View key={idx} style={[styles.tableRow, idx % 2 === 0 && styles.tableRowAlt]}>
+                      <Text style={[styles.tableCellName, { flex: 2 }]} numberOfLines={1}>{item.role}</Text>
+                      <Text style={[styles.tableCell, { flex: 1 }]}>${item.hourlyRate}</Text>
+                      <Text style={[styles.tableCell, { flex: 1 }]}>{item.hours}h</Text>
+                      <Text style={[styles.tableCellBold, { flex: 1, textAlign: 'right' as const }]}>
+                        ${item.totalCost.toLocaleString()}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+            </View>
+
+            <View style={styles.section}>
+              <TouchableOpacity
+                style={styles.sectionHeader}
+                onPress={() => toggleSection('summary')}
+                activeOpacity={0.7}
+              >
+                <DollarSign size={20} color={Colors.primary} />
+                <Text style={styles.sectionTitle}>Cost Summary</Text>
+                {expanded.summary ? (
+                  <ChevronUp size={18} color={Colors.textMuted} />
+                ) : (
+                  <ChevronDown size={18} color={Colors.textMuted} />
+                )}
+              </TouchableOpacity>
+
+              {expanded.summary && (
+                <View style={styles.summaryCard}>
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>Materials</Text>
+                    <Text style={styles.summaryValue}>${estimate.materialTotal.toLocaleString()}</Text>
+                  </View>
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>Labor</Text>
+                    <Text style={styles.summaryValue}>${estimate.laborTotal.toLocaleString()}</Text>
+                  </View>
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>Permits</Text>
+                    <Text style={styles.summaryValue}>${estimate.permits.toLocaleString()}</Text>
+                  </View>
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>Overhead</Text>
+                    <Text style={styles.summaryValue}>${estimate.overhead.toLocaleString()}</Text>
+                  </View>
+                  <View style={styles.summaryDivider} />
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>Subtotal</Text>
+                    <Text style={styles.summaryValue}>${estimate.subtotal.toLocaleString()}</Text>
+                  </View>
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>Tax</Text>
+                    <Text style={styles.summaryValue}>${estimate.tax.toLocaleString()}</Text>
+                  </View>
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>Contingency</Text>
+                    <Text style={styles.summaryValue}>${estimate.contingency.toLocaleString()}</Text>
+                  </View>
+                  <View style={styles.summaryRow}>
+                    <View style={styles.savingsHighlight}>
+                      <TrendingDown size={14} color={Colors.success} />
+                      <Text style={[styles.summaryLabel, { color: Colors.success }]}>Bulk Savings</Text>
+                    </View>
+                    <Text style={[styles.summaryValue, { color: Colors.success }]}>
+                      -${estimate.bulkSavingsTotal.toLocaleString()}
+                    </Text>
+                  </View>
+                  <View style={styles.grandTotalDivider} />
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.grandTotalLabel}>Grand Total</Text>
+                    <Text style={styles.grandTotalValue}>${estimate.grandTotal.toLocaleString()}</Text>
+                  </View>
+                </View>
+              )}
+            </View>
+
+            {estimate.notes.length > 0 && (
+              <View style={styles.section}>
+                <TouchableOpacity
+                  style={styles.sectionHeader}
+                  onPress={() => toggleSection('notes')}
+                  activeOpacity={0.7}
+                >
+                  <Lightbulb size={20} color={Colors.accent} />
+                  <Text style={styles.sectionTitle}>Tips & Notes</Text>
+                  {expanded.notes ? (
+                    <ChevronUp size={18} color={Colors.textMuted} />
+                  ) : (
+                    <ChevronDown size={18} color={Colors.textMuted} />
+                  )}
+                </TouchableOpacity>
+
+                {expanded.notes && (
+                  <View style={styles.notesContainer}>
+                    {estimate.notes.map((note, idx) => (
+                      <View key={idx} style={styles.noteRow}>
+                        <View style={styles.noteBullet} />
+                        <Text style={styles.noteText}>{note}</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </View>
+            )}
+          </>
+        )}
+
+        {activeTile === 'collaborators' && (
+        <View style={styles.section}>
+          <TouchableOpacity
+            style={styles.sectionHeader}
+            onPress={() => toggleSection('collaborators')}
+            activeOpacity={0.7}
+            testID="collaborators-section"
+          >
+            <Users size={20} color={Colors.info} />
+            <Text style={styles.sectionTitle}>
+              Team ({collaborators.length + 1})
+            </Text>
+            {expanded.collaborators ? (
+              <ChevronUp size={18} color={Colors.textMuted} />
+            ) : (
+              <ChevronDown size={18} color={Colors.textMuted} />
+            )}
+          </TouchableOpacity>
+
+          {expanded.collaborators && (
+            <View style={styles.collabCard}>
+              <View style={styles.collabMember}>
+                <View style={[styles.collabAvatar, { backgroundColor: Colors.primary }]}>
+                  <Crown size={14} color={Colors.textOnPrimary} />
+                </View>
+                <View style={styles.collabInfo}>
+                  <Text style={styles.collabName}>You (Owner)</Text>
+                  <Text style={styles.collabEmail}>{branding.email || 'Set email in settings'}</Text>
+                </View>
+                <View style={[styles.collabRoleBadge, { backgroundColor: Colors.primary + '15' }]}>
+                  <Text style={[styles.collabRoleText, { color: Colors.primary }]}>Owner</Text>
+                </View>
+              </View>
+
+              {collaborators.map(collab => (
+                <View key={collab.id} style={styles.collabMember}>
+                  <View style={[styles.collabAvatar, { backgroundColor: collab.role === 'editor' ? Colors.info : Colors.textMuted }]}>
+                    {collab.role === 'editor' ? <PenTool size={12} color="#fff" /> : <Eye size={12} color="#fff" />}
+                  </View>
+                  <View style={styles.collabInfo}>
+                    <Text style={styles.collabName}>{collab.name}</Text>
+                    <Text style={styles.collabEmail}>{collab.email}</Text>
+                  </View>
+                  <View style={styles.collabActions}>
+                    <View style={[styles.collabRoleBadge, {
+                      backgroundColor: collab.status === 'pending' ? Colors.warningLight : (collab.role === 'editor' ? Colors.infoLight : Colors.fillTertiary),
+                    }]}>
+                      <Text style={[styles.collabRoleText, {
+                        color: collab.status === 'pending' ? Colors.warning : (collab.role === 'editor' ? Colors.info : Colors.textSecondary),
+                      }]}>
+                        {collab.status === 'pending' ? 'Pending' : collab.role === 'editor' ? 'Editor' : 'Viewer'}
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      style={styles.collabRemoveBtn}
+                      onPress={() => handleRemoveCollaborator(collab.id, collab.name)}
+                      activeOpacity={0.7}
+                    >
+                      <X size={14} color={Colors.error} />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ))}
+
+              <TouchableOpacity
+                style={styles.inviteBtn}
+                onPress={() => setShowInviteModal(true)}
+                activeOpacity={0.7}
+                testID="invite-collab-btn"
+              >
+                <UserPlus size={16} color={Colors.primary} />
+                <Text style={styles.inviteBtnText}>Invite Collaborator</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+        )}
+
+        {activeTile === 'changeOrders' && (
+        <View style={styles.section}>
+          <TouchableOpacity
+            style={styles.sectionHeader}
+            onPress={() => toggleSection('changeOrders')}
+            activeOpacity={0.7}
+            testID="change-orders-section"
+          >
+            <Repeat size={20} color={Colors.accent} />
+            <Text style={styles.sectionTitle}>
+              Change Orders ({changeOrders.length})
+            </Text>
+            {expanded.changeOrders ? (
+              <ChevronUp size={18} color={Colors.textMuted} />
+            ) : (
+              <ChevronDown size={18} color={Colors.textMuted} />
+            )}
+          </TouchableOpacity>
+
+          {expanded.changeOrders && (
+            <View style={styles.coCard}>
+              {changeOrders.length === 0 && (
+                <Text style={styles.coEmptyText}>No change orders yet.</Text>
+              )}
+              {changeOrders.map(co => (
+                <TouchableOpacity
+                  key={co.id}
+                  style={styles.coRow}
+                  onPress={() => navigateFromTile({ pathname: '/change-order' as any, params: { projectId: id, coId: co.id } })}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.coInfo}>
+                    <Text style={styles.coNumber}>CO #{co.number}</Text>
+                    <Text style={styles.coDesc} numberOfLines={1}>{co.description}</Text>
+                  </View>
+                  <View style={styles.coRight}>
+                    <Text style={[styles.coAmount, { color: co.changeAmount >= 0 ? Colors.accent : Colors.success }]}>
+                      {co.changeAmount >= 0 ? '+' : '-'}${Math.abs(co.changeAmount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </Text>
+                    <View style={[styles.coBadge, {
+                      backgroundColor: co.status === 'approved' ? Colors.successLight : co.status === 'rejected' ? Colors.errorLight : co.status === 'submitted' ? Colors.infoLight : Colors.fillTertiary
+                    }]}>
+                      <Text style={[styles.coBadgeText, {
+                        color: co.status === 'approved' ? Colors.success : co.status === 'rejected' ? Colors.error : co.status === 'submitted' ? Colors.info : Colors.textSecondary
+                      }]}>
+                        {co.status.charAt(0).toUpperCase() + co.status.slice(1)}
+                      </Text>
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              ))}
+              {changeOrders.filter(co => co.status === 'submitted').map(co => (
+                <View key={`approve-${co.id}`} style={styles.coApproveRow}>
+                  <TouchableOpacity
+                    style={styles.coApproveBtn}
+                    onPress={() => {
+                      const impactDays = co.scheduleImpactDays ?? 0;
+                      const shouldApplyImpact = impactDays > 0 && !co.scheduleImpactApplied && !!project?.schedule;
+                      updateChangeOrder(co.id, {
+                        status: 'approved',
+                        scheduleImpactApplied: shouldApplyImpact ? true : co.scheduleImpactApplied,
+                      });
+                      if (shouldApplyImpact && project?.schedule) {
+                        const nextSchedule = {
+                          ...project.schedule,
+                          bufferDays: (project.schedule.bufferDays ?? 0) + impactDays,
+                          totalDurationDays: (project.schedule.totalDurationDays ?? 0) + impactDays,
+                          updatedAt: new Date().toISOString(),
+                        };
+                        updateProject(project.id, { schedule: nextSchedule });
+                      }
+                      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                      Alert.alert(
+                        'Approved',
+                        shouldApplyImpact
+                          ? `CO #${co.number} has been approved. Schedule extended by ${impactDays} day${impactDays === 1 ? '' : 's'}.`
+                          : `CO #${co.number} has been approved.`
+                      );
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.coApproveBtnText}>Approve CO #{co.number}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.coRejectBtn}
+                    onPress={() => {
+                      updateChangeOrder(co.id, { status: 'rejected' });
+                      if (Platform.OS !== 'web') void Haptics.selectionAsync();
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.coRejectBtnText}>Reject</Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+              <TouchableOpacity
+                style={styles.coAddBtn}
+                onPress={() => navigateFromTile({ pathname: '/change-order' as any, params: { projectId: id } })}
+                activeOpacity={0.7}
+                testID="add-change-order-btn"
+              >
+                <Plus size={16} color={Colors.accent} />
+                <Text style={styles.coAddBtnText}>New Change Order</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+        )}
+
+        {activeTile === 'invoices' && (
+        <View style={styles.section}>
+          <TouchableOpacity
+            style={styles.sectionHeader}
+            onPress={() => toggleSection('invoices')}
+            activeOpacity={0.7}
+            testID="invoices-section"
+          >
+            <Receipt size={20} color={Colors.success} />
+            <Text style={styles.sectionTitle}>
+              Invoices ({projectInvoices.length})
+            </Text>
+            {expanded.invoices ? (
+              <ChevronUp size={18} color={Colors.textMuted} />
+            ) : (
+              <ChevronDown size={18} color={Colors.textMuted} />
+            )}
+          </TouchableOpacity>
+
+          {expanded.invoices && (
+            <View style={styles.coCard}>
+              {projectInvoices.length === 0 && (
+                <Text style={styles.coEmptyText}>No invoices yet.</Text>
+              )}
+              {projectInvoices.map(inv => {
+                const _balance = inv.totalDue - inv.amountPaid;
+                const displayStatus = getEffectiveInvoiceStatus(inv);
+                return (
+                  <TouchableOpacity
+                    key={inv.id}
+                    style={styles.coRow}
+                    onPress={() => navigateFromTile({ pathname: '/invoice' as any, params: { projectId: id, invoiceId: inv.id } })}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.coInfo}>
+                      <Text style={styles.coNumber}>
+                        {inv.type === 'progress' ? 'Progress Bill' : 'Invoice'} #{inv.number}
+                      </Text>
+                      <Text style={styles.coDesc} numberOfLines={1}>
+                        {inv.paymentTerms.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())} · Due {new Date(inv.dueDate).toLocaleDateString()}
+                      </Text>
+                    </View>
+                    <View style={styles.coRight}>
+                      <Text style={styles.invAmount}>${inv.totalDue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
+                      <View style={[styles.coBadge, {
+                        backgroundColor: displayStatus === 'paid' ? Colors.successLight : displayStatus === 'overdue' ? Colors.errorLight : displayStatus === 'partially_paid' ? Colors.warningLight : displayStatus === 'sent' ? Colors.infoLight : Colors.fillTertiary
+                      }]}>
+                        <Text style={[styles.coBadgeText, {
+                          color: displayStatus === 'paid' ? Colors.success : displayStatus === 'overdue' ? Colors.error : displayStatus === 'partially_paid' ? Colors.warning : displayStatus === 'sent' ? Colors.info : Colors.textSecondary
+                        }]}>
+                          {displayStatus.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                        </Text>
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+              <View style={styles.invBtnRow}>
+                <TouchableOpacity
+                  style={[styles.coAddBtn, { flex: 1 }]}
+                  onPress={() => navigateFromTile({ pathname: '/bill-from-estimate' as any, params: { projectId: id, type: 'full' } })}
+                  activeOpacity={0.7}
+                  testID="add-full-invoice-btn"
+                >
+                  <Receipt size={16} color={Colors.success} />
+                  <Text style={[styles.coAddBtnText, { color: Colors.success }]}>Full Invoice</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.coAddBtn, { flex: 1 }]}
+                  onPress={() => navigateFromTile({ pathname: '/bill-from-estimate' as any, params: { projectId: id, type: 'progress' } })}
+                  activeOpacity={0.7}
+                  testID="add-progress-bill-btn"
+                >
+                  <ClipboardList size={16} color={Colors.info} />
+                  <Text style={[styles.coAddBtnText, { color: Colors.info }]}>Progress Bill</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+        </View>
+        )}
+
+        {activeTile === 'dailyReports' && (
+        <View style={styles.section}>
+          <TouchableOpacity
+            style={styles.sectionHeader}
+            onPress={() => toggleSection('dailyReports')}
+            activeOpacity={0.7}
+            testID="daily-reports-section"
+          >
+            <ClipboardList size={20} color={Colors.primary} />
+            <Text style={styles.sectionTitle}>
+              Daily Reports ({dailyReports.length})
+            </Text>
+            {expanded.dailyReports ? (
+              <ChevronUp size={18} color={Colors.textMuted} />
+            ) : (
+              <ChevronDown size={18} color={Colors.textMuted} />
+            )}
+          </TouchableOpacity>
+
+          {expanded.dailyReports && (
+            <View style={styles.coCard}>
+              {dailyReports.length === 0 && (
+                <Text style={styles.coEmptyText}>No daily reports yet.</Text>
+              )}
+              {dailyReports.map(dr => (
+                <TouchableOpacity
+                  key={dr.id}
+                  style={styles.coRow}
+                  onPress={() => navigateFromTile({ pathname: '/daily-report' as any, params: { projectId: id, reportId: dr.id } })}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.coInfo}>
+                    <Text style={styles.coNumber}>{new Date(dr.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</Text>
+                    <Text style={styles.coDesc} numberOfLines={1}>
+                      {dr.weather.conditions || 'No weather'} · {dr.manpower.reduce((s, m) => s + m.headcount, 0)} workers · {dr.photos.length} photos
+                    </Text>
+                  </View>
+                  <View style={[styles.coBadge, {
+                    backgroundColor: dr.status === 'sent' ? Colors.successLight : Colors.primary + '15'
+                  }]}>
+                    <Text style={[styles.coBadgeText, {
+                      color: dr.status === 'sent' ? Colors.success : Colors.primary
+                    }]}>
+                      {dr.status === 'sent' ? 'Sent' : 'Saved'}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+              <TouchableOpacity
+                style={styles.coAddBtn}
+                onPress={() => navigateFromTile({ pathname: '/daily-report' as any, params: { projectId: id } })}
+                activeOpacity={0.7}
+                testID="add-daily-report-btn"
+              >
+                <Plus size={16} color={Colors.primary} />
+                <Text style={styles.coAddBtnText}>New Daily Report</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+        )}
+
+        {activeTile === 'punchList' && (
+        <View style={styles.section}>
+          <TouchableOpacity
+            style={styles.sectionHeader}
+            onPress={() => toggleSection('punchList')}
+            activeOpacity={0.7}
+            testID="punch-list-section"
+          >
+            <CheckSquare size={20} color={Colors.accent} />
+            <Text style={styles.sectionTitle}>
+              Punch List ({punchItems.length})
+            </Text>
+            {expanded.punchList ? (
+              <ChevronUp size={18} color={Colors.textMuted} />
+            ) : (
+              <ChevronDown size={18} color={Colors.textMuted} />
+            )}
+          </TouchableOpacity>
+
+          {expanded.punchList && (
+            <View style={styles.coCard}>
+              {punchItems.length > 0 && (
+                <View style={styles.punchProgress}>
+                  <View style={styles.punchProgressHeader}>
+                    <Text style={styles.punchProgressLabel}>Completion</Text>
+                    <Text style={styles.punchProgressPercent}>
+                      {punchItems.length > 0 ? Math.round((punchItems.filter(pi => pi.status === 'closed').length / punchItems.length) * 100) : 0}%
+                    </Text>
+                  </View>
+                  <View style={styles.punchProgressTrack}>
+                    <View style={[styles.punchProgressFill, { width: `${punchItems.length > 0 ? (punchItems.filter(pi => pi.status === 'closed').length / punchItems.length) * 100 : 0}%` }]} />
+                  </View>
+                </View>
+              )}
+              {punchItems.length === 0 && (
+                <Text style={styles.coEmptyText}>No punch items yet.</Text>
+              )}
+              {punchItems.slice(0, 5).map(pi => (
+                <View key={pi.id} style={styles.coRow}>
+                  <View style={[styles.punchDot, { backgroundColor: pi.status === 'closed' ? Colors.success : pi.status === 'ready_for_review' ? Colors.warning : pi.status === 'in_progress' ? Colors.info : Colors.error }]} />
+                  <View style={styles.coInfo}>
+                    <Text style={styles.coNumber} numberOfLines={1}>{pi.description}</Text>
+                    <Text style={styles.coDesc} numberOfLines={1}>{pi.location || 'No location'} · {pi.assignedSub || 'Unassigned'}</Text>
+                  </View>
+                  <View style={[styles.coBadge, {
+                    backgroundColor: pi.status === 'closed' ? Colors.successLight : pi.status === 'ready_for_review' ? Colors.warningLight : pi.status === 'in_progress' ? Colors.infoLight : Colors.errorLight
+                  }]}>
+                    <Text style={[styles.coBadgeText, {
+                      color: pi.status === 'closed' ? Colors.success : pi.status === 'ready_for_review' ? Colors.warning : pi.status === 'in_progress' ? Colors.info : Colors.error
+                    }]}>
+                      {pi.status === 'ready_for_review' ? 'Review' : pi.status.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                    </Text>
+                  </View>
+                </View>
+              ))}
+              {punchItems.length > 5 && (
+                <Text style={styles.punchMoreText}>+{punchItems.length - 5} more items</Text>
+              )}
+              <TouchableOpacity
+                style={styles.coAddBtn}
+                onPress={() => navigateFromTile({ pathname: '/punch-list' as any, params: { projectId: id } })}
+                activeOpacity={0.7}
+                testID="open-punch-list-btn"
+              >
+                <CheckSquare size={16} color={Colors.accent} />
+                <Text style={[styles.coAddBtnText, { color: Colors.accent }]}>Manage Punch List</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.coAddBtn, { marginTop: 8 }]}
+                onPress={() => navigateFromTile({ pathname: '/warranties' as any, params: { projectId: id } })}
+                activeOpacity={0.7}
+                testID="open-warranties-btn"
+              >
+                <CheckSquare size={16} color={Colors.primary} />
+                <Text style={[styles.coAddBtnText, { color: Colors.primary }]}>Warranties</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.coAddBtn, { marginTop: 8 }]}
+                onPress={() => navigateFromTile({ pathname: '/retention' as any, params: { projectId: id } })}
+                activeOpacity={0.7}
+                testID="open-retention-btn"
+              >
+                <CheckSquare size={16} color={Colors.warning} />
+                <Text style={[styles.coAddBtnText, { color: Colors.warning }]}>Retention Tracker</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+        )}
+
+        {activeTile === 'rfis' && (
+        <View style={styles.section}>
+          <TouchableOpacity
+            style={styles.sectionHeader}
+            onPress={() => toggleSection('rfis')}
+            activeOpacity={0.7}
+            testID="rfis-section"
+          >
+            <FileText size={20} color={Colors.info} />
+            <Text style={styles.sectionTitle}>
+              RFIs ({projectRFIs.length})
+            </Text>
+            {expanded.rfis ? (
+              <ChevronUp size={18} color={Colors.textMuted} />
+            ) : (
+              <ChevronDown size={18} color={Colors.textMuted} />
+            )}
+          </TouchableOpacity>
+
+          {expanded.rfis && (
+            <View style={styles.coCard}>
+              {projectRFIs.length === 0 && (
+                <Text style={styles.coEmptyText}>No RFIs yet.</Text>
+              )}
+              {projectRFIs.slice(0, 5).map(rfi => {
+                const isOverdue = rfi.status === 'open' && new Date(rfi.dateRequired) < new Date();
+                return (
+                  <TouchableOpacity
+                    key={rfi.id}
+                    style={styles.coRow}
+                    onPress={() => navigateFromTile({ pathname: '/rfi' as any, params: { projectId: id, rfiId: rfi.id } })}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.coInfo}>
+                      <Text style={styles.coNumber}>RFI #{rfi.number}: {rfi.subject}</Text>
+                      <Text style={styles.coDesc} numberOfLines={1}>{rfi.assignedTo || 'Unassigned'} · {rfi.priority}</Text>
+                    </View>
+                    <View style={styles.coRight}>
+                      {isOverdue && <Text style={{ fontSize: 11, color: Colors.error, fontWeight: '600' as const }}>Overdue</Text>}
+                      <View style={[styles.coBadge, {
+                        backgroundColor: rfi.status === 'open' ? Colors.warningLight : rfi.status === 'answered' ? Colors.infoLight : rfi.status === 'closed' ? Colors.successLight : Colors.fillTertiary
+                      }]}>
+                        <Text style={[styles.coBadgeText, {
+                          color: rfi.status === 'open' ? Colors.warning : rfi.status === 'answered' ? Colors.info : rfi.status === 'closed' ? Colors.success : Colors.textSecondary
+                        }]}>
+                          {rfi.status.charAt(0).toUpperCase() + rfi.status.slice(1)}
+                        </Text>
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+              <TouchableOpacity
+                style={styles.coAddBtn}
+                onPress={() => navigateFromTile({ pathname: '/rfi' as any, params: { projectId: id } })}
+                activeOpacity={0.7}
+                testID="add-rfi-btn"
+              >
+                <Plus size={16} color={Colors.info} />
+                <Text style={[styles.coAddBtnText, { color: Colors.info }]}>New RFI</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+        )}
+
+        {activeTile === 'submittals' && (
+        <View style={styles.section}>
+          <TouchableOpacity
+            style={styles.sectionHeader}
+            onPress={() => toggleSection('submittals')}
+            activeOpacity={0.7}
+            testID="submittals-section"
+          >
+            <FileText size={20} color={'#5856D6'} />
+            <Text style={styles.sectionTitle}>
+              Submittals ({projectSubmittals.length})
+            </Text>
+            {expanded.submittals ? (
+              <ChevronUp size={18} color={Colors.textMuted} />
+            ) : (
+              <ChevronDown size={18} color={Colors.textMuted} />
+            )}
+          </TouchableOpacity>
+
+          {expanded.submittals && (
+            <View style={styles.coCard}>
+              {projectSubmittals.length === 0 && (
+                <Text style={styles.coEmptyText}>No submittals yet.</Text>
+              )}
+              {projectSubmittals.slice(0, 5).map(sub => (
+                <TouchableOpacity
+                  key={sub.id}
+                  style={styles.coRow}
+                  onPress={() => navigateFromTile({ pathname: '/submittal' as any, params: { projectId: id, submittalId: sub.id } })}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.coInfo}>
+                    <Text style={styles.coNumber}>#{sub.number}: {sub.title}</Text>
+                    <Text style={styles.coDesc} numberOfLines={1}>{sub.specSection} · {sub.reviewCycles.length} cycles</Text>
+                  </View>
+                  <View style={[styles.coBadge, {
+                    backgroundColor: sub.currentStatus === 'approved' ? Colors.successLight : sub.currentStatus === 'rejected' ? Colors.errorLight : sub.currentStatus === 'revise_resubmit' ? Colors.errorLight : Colors.warningLight
+                  }]}>
+                    <Text style={[styles.coBadgeText, {
+                      color: sub.currentStatus === 'approved' ? Colors.success : sub.currentStatus === 'rejected' ? Colors.error : sub.currentStatus === 'revise_resubmit' ? Colors.error : Colors.warning
+                    }]}>
+                      {sub.currentStatus.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+              <TouchableOpacity
+                style={styles.coAddBtn}
+                onPress={() => navigateFromTile({ pathname: '/submittal' as any, params: { projectId: id } })}
+                activeOpacity={0.7}
+                testID="add-submittal-btn"
+              >
+                <Plus size={16} color={'#5856D6'} />
+                <Text style={[styles.coAddBtnText, { color: '#5856D6' }]}>New Submittal</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+        )}
+
+        {hasAnyEstimate && activeTile === 'budget' && (
+          <View style={styles.section}>
+            <TouchableOpacity
+              style={styles.sectionHeader}
+              onPress={() => toggleSection('budget')}
+              activeOpacity={0.7}
+              testID="budget-section"
+            >
+              <DollarSign size={20} color={Colors.success} />
+              <Text style={styles.sectionTitle}>Financial Health</Text>
+              {expanded.budget ? (
+                <ChevronUp size={18} color={Colors.textMuted} />
+              ) : (
+                <ChevronDown size={18} color={Colors.textMuted} />
+              )}
+            </TouchableOpacity>
+
+            {expanded.budget && (
+              <View style={styles.coCard}>
+                <View style={{ flexDirection: 'row', gap: 10, marginBottom: 8 }}>
+                  <View style={{ flex: 1, backgroundColor: Colors.successLight, borderRadius: 10, padding: 12, alignItems: 'center' as const }}>
+                    <Text style={{ fontSize: 11, fontWeight: '600' as const, color: Colors.success }}>Budget</Text>
+                    <Text style={{ fontSize: 16, fontWeight: '800' as const, color: Colors.success }}>
+                      ${(project.linkedEstimate?.grandTotal ?? project.estimate?.grandTotal ?? 0).toLocaleString()}
+                    </Text>
+                  </View>
+                  <View style={{ flex: 1, backgroundColor: Colors.infoLight, borderRadius: 10, padding: 12, alignItems: 'center' as const }}>
+                    <Text style={{ fontSize: 11, fontWeight: '600' as const, color: Colors.info }}>Spent</Text>
+                    <Text style={{ fontSize: 16, fontWeight: '800' as const, color: Colors.info }}>
+                      ${allInvoices.filter(inv => inv.projectId === id).reduce((s, inv) => s + inv.amountPaid, 0).toLocaleString()}
+                    </Text>
+                  </View>
+                </View>
+                <TouchableOpacity
+                  style={styles.coAddBtn}
+                  onPress={() => navigateFromTile({ pathname: '/budget-dashboard' as any, params: { projectId: id } })}
+                  activeOpacity={0.7}
+                  testID="open-budget-dashboard"
+                >
+                  <DollarSign size={16} color={Colors.success} />
+                  <Text style={[styles.coAddBtnText, { color: Colors.success }]}>Full Budget Dashboard</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        )}
+
+        {activeTile === 'photos' && (
+        <View style={styles.section}>
+          <TouchableOpacity
+            style={styles.sectionHeader}
+            onPress={() => toggleSection('photos')}
+            activeOpacity={0.7}
+            testID="photos-section"
+          >
+            <Camera size={20} color={Colors.info} />
+            <Text style={styles.sectionTitle}>
+              Photos ({projectPhotos.length})
+            </Text>
+            {expanded.photos ? (
+              <ChevronUp size={18} color={Colors.textMuted} />
+            ) : (
+              <ChevronDown size={18} color={Colors.textMuted} />
+            )}
+          </TouchableOpacity>
+
+          {expanded.photos && (
+            <View style={styles.coCard}>
+              {projectPhotos.length === 0 && (
+                <Text style={styles.coEmptyText}>No photos yet. Photos from daily reports will appear here.</Text>
+              )}
+              {projectPhotos.length > 0 && (
+                <View style={styles.photoGrid}>
+                  {projectPhotos.slice(0, 6).map(photo => (
+                    <View key={photo.id} style={styles.photoThumb}>
+                      <Camera size={20} color={Colors.textMuted} />
+                      <Text style={styles.photoThumbDate}>{new Date(photo.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+              {projectPhotos.length > 6 && (
+                <Text style={styles.punchMoreText}>+{projectPhotos.length - 6} more photos</Text>
+              )}
+            </View>
+          )}
+        </View>
+        )}
+
+        {activeTile === 'clientPortal' && (
+        <View style={styles.section}>
+          <TouchableOpacity
+            style={styles.sectionHeader}
+            onPress={() => toggleSection('clientPortal')}
+            activeOpacity={0.7}
+            testID="client-portal-section"
+          >
+            <Globe size={20} color={'#5856D6'} />
+            <Text style={styles.sectionTitle}>Client Portal</Text>
+            {expanded.clientPortal ? (
+              <ChevronUp size={18} color={Colors.textMuted} />
+            ) : (
+              <ChevronDown size={18} color={Colors.textMuted} />
+            )}
+          </TouchableOpacity>
+
+          {expanded.clientPortal && (
+            <View style={styles.coCard}>
+              <View style={styles.portalInfo}>
+                <Globe size={24} color={'#5856D6'} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.portalTitle}>Share Project with Client</Text>
+                  <Text style={styles.portalDesc}>Give clients a read-only link to view schedule, invoices, photos & more. Control exactly what they see.</Text>
+                </View>
+              </View>
+              {project.clientPortal?.enabled ? (
+                <>
+                  <View style={styles.portalLinkRow}>
+                    <View style={styles.portalLinkBox}>
+                      <Link size={12} color={Colors.info} />
+                      <Text style={styles.portalLinkText} numberOfLines={1}>mageid.app/portal/{project.clientPortal.portalId}</Text>
+                    </View>
+                    <TouchableOpacity style={styles.portalCopyBtn} onPress={() => { Alert.alert('Copied', 'Portal link copied to clipboard.'); }}>
+                      <Copy size={14} color={Colors.primary} />
+                    </TouchableOpacity>
+                  </View>
+                  <View style={styles.portalInviteCount}>
+                    <Users size={13} color={Colors.textMuted} />
+                    <Text style={styles.portalInviteCountText}>
+                      {project.clientPortal.invites?.length ?? 0} client{(project.clientPortal.invites?.length ?? 0) !== 1 ? 's' : ''} invited
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.portalEnableBtn}
+                    onPress={() => navigateFromTile({ pathname: '/client-portal-setup', params: { id } })}
+                    activeOpacity={0.7}
+                  >
+                    <Globe size={16} color={'#5856D6'} />
+                    <Text style={styles.portalEnableBtnText}>Manage Portal Settings</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <TouchableOpacity
+                  style={styles.portalEnableBtn}
+                  onPress={() => {
+                    updateProject(id ?? '', {
+                      clientPortal: {
+                        enabled: true,
+                        portalId: `portal-${id?.slice(0, 8)}-${Date.now().toString(36)}`,
+                        showSchedule: true,
+                        showChangeOrders: true,
+                        showInvoices: true,
+                        showPhotos: true,
+                        showBudgetSummary: false,
+                        showDailyReports: false,
+                        showPunchList: false,
+                        showRFIs: false,
+                        showDocuments: false,
+                        invites: [],
+                      },
+                    });
+                    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                    navigateFromTile({ pathname: '/client-portal-setup', params: { id } });
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Globe size={16} color={'#5856D6'} />
+                  <Text style={styles.portalEnableBtnText}>Enable Client Portal</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
+        </View>
+        )}
+
+        {activeTile === 'communications' && (
+        <View style={styles.section}>
+          <TouchableOpacity
+            style={styles.sectionHeader}
+            onPress={() => toggleSection('communications')}
+            activeOpacity={0.7}
+            testID="communications-section"
+          >
+            <Mail size={20} color={Colors.info} />
+            <Text style={styles.sectionTitle}>Communications</Text>
+            <View style={styles.coBadge}>
+              <Text style={styles.coBadgeText}>{commEvents.length}</Text>
+            </View>
+            {expanded.communications ? (
+              <ChevronUp size={18} color={Colors.textMuted} />
+            ) : (
+              <ChevronDown size={18} color={Colors.textMuted} />
+            )}
+          </TouchableOpacity>
+
+          {expanded.communications && (
+            <View style={styles.coCard}>
+              {commEvents.length === 0 ? (
+                <View style={styles.commEmpty}>
+                  <Mail size={24} color={Colors.textMuted} />
+                  <Text style={styles.commEmptyText}>No activity yet. Sending documents, approvals, and notes will appear here.</Text>
+                </View>
+              ) : (
+                commEvents.slice(0, 10).map(event => (
+                  <View key={event.id} style={styles.commEventRow}>
+                    <View style={[styles.commEventDot, {
+                      backgroundColor: event.type.includes('approved') ? Colors.success
+                        : event.type.includes('rejected') ? Colors.error
+                        : event.type.includes('overdue') ? Colors.warning
+                        : event.isPrivate ? Colors.textMuted
+                        : Colors.info
+                    }]} />
+                    <View style={styles.commEventContent}>
+                      <Text style={styles.commEventSummary} numberOfLines={2}>{event.summary}</Text>
+                      <Text style={styles.commEventTime}>
+                        {new Date(event.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                        {event.isPrivate ? ' · Private' : ''}
+                      </Text>
+                    </View>
+                  </View>
+                ))
+              )}
+              <TouchableOpacity
+                style={styles.commAddNoteBtn}
+                onPress={() => {
+                  if (Platform.OS === 'ios' && typeof (Alert as any).prompt === 'function') {
+                    (Alert as any).prompt('Internal Note', 'Add a private note to this project', (text: string) => {
+                      if (text?.trim()) {
+                        addCommEvent({
+                          id: generateUUID(),
+                          projectId: id ?? '',
+                          type: 'internal_note',
+                          summary: text.trim(),
+                          actor: settings.branding?.contactName || 'You',
+                          isPrivate: true,
+                          timestamp: new Date().toISOString(),
+                        });
+                      }
+                    });
+                  } else {
+                    Alert.alert('Add Note', 'Use the note feature to log internal project notes.');
+                  }
+                }}
+                activeOpacity={0.7}
+              >
+                <Plus size={14} color={Colors.info} />
+                <Text style={styles.commAddNoteBtnText}>Add Internal Note</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+        )}
+            </ScrollView>
+          </View>
+        </Modal>
+
+        {hasAnyEstimate && (
+          <View style={styles.shareSection}>
+            <Text style={styles.shareSectionTitle}>Share</Text>
+            {branding.companyName ? (
+              <Text style={styles.shareBrandingNote}>Branded as: {branding.companyName}</Text>
+            ) : null}
+            {branding.signatureData && branding.signatureData.length > 0 && (
+              <View style={styles.signatureNote}>
+                <PenTool size={12} color={Colors.primary} />
+                <Text style={styles.signatureNoteText}>Signature will be included</Text>
+              </View>
+            )}
+            <TouchableOpacity
+              style={styles.shareBtnPrimary}
+              onPress={() => setShowShareModal(true)}
+              activeOpacity={0.7}
+              testID="open-share-modal"
+            >
+              <Share2 size={18} color={Colors.textOnPrimary} />
+              <Text style={styles.shareBtnPrimaryText}>Share Estimate</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {!hasAnyEstimate && (
+          <View style={styles.noEstimate}>
+            <AlertTriangle size={32} color={Colors.warning} />
+            <Text style={styles.noEstimateTitle}>No Estimate Yet</Text>
+            <Text style={styles.noEstimateText}>
+              Go to the Estimate tab to search materials and link an estimate to this project.
+            </Text>
+          </View>
+        )}
+
+        {project && (
+          <View style={{ paddingHorizontal: 20, marginBottom: 12 }}>
+            <AIProjectReport
+              project={project}
+              invoices={allInvoices}
+              changeOrders={allChangeOrders}
+              subscriptionTier={tier as any}
+            />
+          </View>
+        )}
+
+        <TouchableOpacity style={styles.editButton} onPress={openEditModal} activeOpacity={0.7} testID="edit-project-bottom-btn">
+          <Pencil size={18} color={Colors.primary} />
+          <Text style={styles.editButtonText}>Edit Project</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.deleteButton} onPress={handleDelete} activeOpacity={0.7}>
+          <Trash2 size={18} color={Colors.error} />
+          <Text style={styles.deleteButtonText}>Delete Project</Text>
+        </TouchableOpacity>
+      </ScrollView>
+
+      <Modal
+        visible={detailModal !== null}
+        animationType="slide"
+        presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : undefined}
+        onRequestClose={() => setDetailModal(null)}
+      >
+        <View style={[detailStyles.modalContainer, { paddingTop: Platform.OS === 'ios' ? 12 : insets.top + 8 }]}>
+          <View style={detailStyles.modalHandle} />
+          <View style={detailStyles.modalHeader}>
+            <Text style={detailStyles.modalTitle}>
+              {detailModal === 'total' ? 'Cost Breakdown' : 'Savings Detail'}
+            </Text>
+            <TouchableOpacity
+              style={detailStyles.modalCloseBtn}
+              onPress={() => setDetailModal(null)}
+              activeOpacity={0.7}
+              testID="close-detail-modal"
+            >
+              <X size={20} color={Colors.text} />
+            </TouchableOpacity>
+          </View>
+          {detailModal === 'total' && renderTotalDetailModal()}
+          {detailModal === 'savings' && renderSavingsDetailModal()}
+        </View>
+      </Modal>
+
+      <Modal
+        visible={showShareModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowShareModal(false)}
+      >
+        <Pressable style={styles.shareModalOverlay} onPress={() => setShowShareModal(false)}>
+          <Pressable style={styles.shareModalCard} onPress={() => undefined}>
+            <View style={styles.shareModalHeader}>
+              <Text style={styles.shareModalTitle}>Share Estimate</Text>
+              <TouchableOpacity onPress={() => setShowShareModal(false)}>
+                <X size={20} color={Colors.textMuted} />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.shareModalDesc}>
+              Choose how to share your estimate{project.schedule ? ' and schedule' : ''}. PDFs include your company branding{branding.signatureData?.length ? ', logo, and signature' : branding.logoUri ? ' and logo' : ''}.
+            </Text>
+
+            <TouchableOpacity style={styles.shareOption} onPress={handleSharePDF} activeOpacity={0.7} testID="share-pdf-option">
+              <View style={[styles.shareOptionIcon, { backgroundColor: Colors.primary + '12' }]}>
+                <FileText size={20} color={Colors.primary} />
+              </View>
+              <View style={styles.shareOptionInfo}>
+                <Text style={styles.shareOptionTitle}>Share as PDF</Text>
+                <Text style={styles.shareOptionDesc}>Professional document with full branding</Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.shareOption} onPress={handleShareEmail} activeOpacity={0.7} testID="share-email-option">
+              <View style={[styles.shareOptionIcon, { backgroundColor: Colors.info + '12' }]}>
+                <Mail size={20} color={Colors.info} />
+              </View>
+              <View style={styles.shareOptionInfo}>
+                <Text style={styles.shareOptionTitle}>Send via Email</Text>
+                <Text style={styles.shareOptionDesc}>Formatted text in your email client</Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.shareOption} onPress={handleShareText} activeOpacity={0.7} testID="share-text-option">
+              <View style={[styles.shareOptionIcon, { backgroundColor: Colors.success + '12' }]}>
+                <MessageSquare size={20} color={Colors.success} />
+              </View>
+              <View style={styles.shareOptionInfo}>
+                <Text style={styles.shareOptionTitle}>Send via Text</Text>
+                <Text style={styles.shareOptionDesc}>Quick summary with cost breakdown</Text>
+              </View>
+            </TouchableOpacity>
+
+            {project.schedule && (
+              <TouchableOpacity style={styles.shareOption} onPress={handleShareSchedulePDF} activeOpacity={0.7} testID="share-schedule-option">
+                <View style={[styles.shareOptionIcon, { backgroundColor: '#FF9500' + '12' }]}>
+                  <CalendarDays size={20} color="#FF9500" />
+                </View>
+                <View style={styles.shareOptionInfo}>
+                  <Text style={styles.shareOptionTitle}>Schedule PDF</Text>
+                  <Text style={styles.shareOptionDesc}>Estimate + schedule with company logo</Text>
+                </View>
+              </TouchableOpacity>
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      <Modal
+        visible={showEditModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowEditModal(false)}
+      >
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <View style={styles.inviteModalOverlay}>
+            <ScrollView
+              style={{ flex: 1 }}
+              contentContainerStyle={{ flexGrow: 1, justifyContent: 'flex-end' as const }}
+              keyboardShouldPersistTaps="handled"
+            >
+              <View style={[styles.inviteModalCard, { paddingBottom: insets.bottom + 20 }]}>
+                <View style={styles.inviteModalHeader}>
+                  <Text style={styles.inviteModalTitle}>Edit Project</Text>
+                  <TouchableOpacity onPress={() => setShowEditModal(false)}>
+                    <X size={20} color={Colors.textMuted} />
+                  </TouchableOpacity>
+                </View>
+
+                <Text style={styles.inviteFieldLabel}>Project Name</Text>
+                <TextInput
+                  style={styles.inviteInput}
+                  value={editName}
+                  onChangeText={setEditName}
+                  placeholder="Project name"
+                  placeholderTextColor={Colors.textMuted}
+                  testID="edit-name-input"
+                />
+
+                <Text style={styles.inviteFieldLabel}>Description</Text>
+                <TextInput
+                  style={[styles.inviteInput, { minHeight: 80, paddingTop: 12, textAlignVertical: 'top' as const }]}
+                  value={editDescription}
+                  onChangeText={setEditDescription}
+                  placeholder="Brief description..."
+                  placeholderTextColor={Colors.textMuted}
+                  multiline
+                  testID="edit-desc-input"
+                />
+
+                <Text style={styles.inviteFieldLabel}>Location</Text>
+                <TextInput
+                  style={styles.inviteInput}
+                  value={editLocation}
+                  onChangeText={setEditLocation}
+                  placeholder="City, State"
+                  placeholderTextColor={Colors.textMuted}
+                  testID="edit-location-input"
+                />
+
+                <Text style={styles.inviteFieldLabel}>Square Footage</Text>
+                <TextInput
+                  style={styles.inviteInput}
+                  value={editSquareFootage}
+                  onChangeText={setEditSquareFootage}
+                  placeholder="e.g. 2000"
+                  placeholderTextColor={Colors.textMuted}
+                  keyboardType="numeric"
+                  testID="edit-sqft-input"
+                />
+
+                <Text style={styles.inviteFieldLabel}>Project Type</Text>
+                <View style={styles.editTypeGrid}>
+                  {PROJECT_TYPES.map(pt => (
+                    <TouchableOpacity
+                      key={pt.id}
+                      style={[styles.editTypeChip, editType === pt.id && styles.editTypeChipActive]}
+                      onPress={() => setEditType(pt.id)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[styles.editTypeChipLabel, editType === pt.id && styles.editTypeChipLabelActive]}>{pt.label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                <View style={styles.inviteActionRow}>
+                  <TouchableOpacity style={styles.inviteCancelBtn} onPress={() => setShowEditModal(false)} activeOpacity={0.8}>
+                    <Text style={styles.inviteCancelBtnText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.inviteSendBtn} onPress={handleSaveEdit} activeOpacity={0.85} testID="save-edit-btn">
+                    <Text style={styles.inviteSendBtnText}>Save Changes</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      <Modal
+        visible={showInviteModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowInviteModal(false)}
+      >
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <View style={styles.inviteModalOverlay}>
+          <ScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={{ flexGrow: 1, justifyContent: 'flex-end' as const }}
+            keyboardShouldPersistTaps="handled"
+          >
+            <View style={[styles.inviteModalCard, { paddingBottom: insets.bottom + 20 }]}>
+              <View style={styles.inviteModalHeader}>
+                <Text style={styles.inviteModalTitle}>Invite Collaborator</Text>
+                <TouchableOpacity onPress={() => setShowInviteModal(false)}>
+                  <X size={20} color={Colors.textMuted} />
+                </TouchableOpacity>
+              </View>
+
+              <Text style={styles.inviteDesc}>
+                Invite someone to collaborate on "{project.name}". They'll receive an email invitation.
+              </Text>
+
+              <Text style={styles.inviteFieldLabel}>Email Address</Text>
+              <TextInput
+                style={styles.inviteInput}
+                value={inviteEmail}
+                onChangeText={setInviteEmail}
+                placeholder="colleague@company.com"
+                placeholderTextColor={Colors.textMuted}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                testID="invite-email-input"
+              />
+
+              <Text style={styles.inviteFieldLabel}>Name (optional)</Text>
+              <TextInput
+                style={styles.inviteInput}
+                value={inviteName}
+                onChangeText={setInviteName}
+                placeholder="John Smith"
+                placeholderTextColor={Colors.textMuted}
+                testID="invite-name-input"
+              />
+
+              <Text style={styles.inviteFieldLabel}>Role</Text>
+              <View style={styles.inviteRoleRow}>
+                <TouchableOpacity
+                  style={[styles.inviteRoleBtn, inviteRole === 'editor' && styles.inviteRoleBtnActive]}
+                  onPress={() => setInviteRole('editor')}
+                  activeOpacity={0.7}
+                >
+                  <PenTool size={14} color={inviteRole === 'editor' ? Colors.textOnPrimary : Colors.text} />
+                  <Text style={[styles.inviteRoleBtnText, inviteRole === 'editor' && styles.inviteRoleBtnTextActive]}>Editor</Text>
+                  <Text style={[styles.inviteRoleDesc, inviteRole === 'editor' && { color: 'rgba(255,255,255,0.7)' }]}>Can edit</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.inviteRoleBtn, inviteRole === 'viewer' && styles.inviteRoleBtnActive]}
+                  onPress={() => setInviteRole('viewer')}
+                  activeOpacity={0.7}
+                >
+                  <Eye size={14} color={inviteRole === 'viewer' ? Colors.textOnPrimary : Colors.text} />
+                  <Text style={[styles.inviteRoleBtnText, inviteRole === 'viewer' && styles.inviteRoleBtnTextActive]}>Viewer</Text>
+                  <Text style={[styles.inviteRoleDesc, inviteRole === 'viewer' && { color: 'rgba(255,255,255,0.7)' }]}>Read only</Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.inviteActionRow}>
+                <TouchableOpacity style={styles.inviteCancelBtn} onPress={() => setShowInviteModal(false)} activeOpacity={0.8}>
+                  <Text style={styles.inviteCancelBtnText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.inviteSendBtn} onPress={handleInvite} activeOpacity={0.85} testID="send-invite-btn">
+                  <Send size={16} color={Colors.textOnPrimary} />
+                  <Text style={styles.inviteSendBtnText}>Send Invite</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </ScrollView>
+        </View>
+        </KeyboardAvoidingView>
+      </Modal>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: Colors.background },
+  center: { alignItems: 'center', justifyContent: 'center' },
+  notFoundText: { fontSize: 18, color: Colors.textSecondary, marginBottom: 16 },
+  backBtn: { backgroundColor: Colors.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 10 },
+  backBtnText: { color: Colors.textOnPrimary, fontSize: 15, fontWeight: '600' as const },
+  heroCard: { backgroundColor: Colors.primary, marginHorizontal: 20, marginTop: 16, borderRadius: 20, padding: 22, shadowColor: Colors.primaryDark, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.25, shadowRadius: 16, elevation: 8 },
+  heroHeader: { marginBottom: 16 },
+  heroTitleBlock: {},
+  heroName: { fontSize: 22, fontWeight: '800' as const, color: Colors.textOnPrimary, letterSpacing: -0.3 },
+  heroMeta: { flexDirection: 'row', alignItems: 'center', marginTop: 6, gap: 4 },
+  heroMetaText: { fontSize: 14, color: 'rgba(255,255,255,0.75)' },
+  heroDesc: { fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 6, lineHeight: 18 },
+  heroStats: {},
+  heroStatMain: { backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 14, padding: 16, alignItems: 'center', marginBottom: 12 },
+  heroTapHint: { fontSize: 10, color: 'rgba(255,255,255,0.45)', fontWeight: '500' as const, marginTop: 4, letterSpacing: 0.3 },
+  heroStatLabel: { fontSize: 13, color: 'rgba(255,255,255,0.7)', fontWeight: '500' as const, marginBottom: 4 },
+  heroStatValue: { fontSize: 32, fontWeight: '800' as const, color: Colors.textOnPrimary, letterSpacing: -1 },
+  heroStatsRow: { flexDirection: 'row', gap: 8 },
+  heroStatSmall: { flex: 1, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 10, padding: 10, alignItems: 'center' },
+  smallStatLabel: { fontSize: 11, color: 'rgba(255,255,255,0.6)', fontWeight: '500' as const, marginBottom: 2 },
+  smallStatValue: { fontSize: 14, fontWeight: '700' as const, color: Colors.textOnPrimary },
+  section: { marginHorizontal: 20, marginTop: 18 },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.card, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: Colors.cardBorder, gap: 10 },
+  sectionTitle: { flex: 1, fontSize: 16, fontWeight: '700' as const, color: Colors.text },
+  tableContainer: { backgroundColor: Colors.card, borderRadius: 12, marginTop: 8, borderWidth: 1, borderColor: Colors.cardBorder, overflow: 'hidden' },
+  tableHeader: { flexDirection: 'row', backgroundColor: Colors.surfaceAlt, paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.borderLight },
+  tableHeaderText: { fontSize: 12, fontWeight: '600' as const, color: Colors.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.5 },
+  tableRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.borderLight },
+  tableRowAlt: { backgroundColor: Colors.surfaceAlt },
+  tableCellName: { fontSize: 14, fontWeight: '500' as const, color: Colors.text },
+  tableCellSub: { fontSize: 11, color: Colors.textMuted, marginTop: 2 },
+  tableCell: { fontSize: 13, color: Colors.textSecondary },
+  tableCellBold: { fontSize: 14, fontWeight: '600' as const, color: Colors.text },
+  bulkBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 3 },
+  bulkBadgeText: { fontSize: 10, fontWeight: '600' as const, color: Colors.success },
+  savingsBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 2 },
+  savingsText: { fontSize: 11, fontWeight: '600' as const, color: Colors.success },
+  linkedSummaryRow: { flexDirection: 'row', paddingHorizontal: 14, paddingVertical: 12, gap: 8, backgroundColor: Colors.primary + '06', borderTopWidth: 1, borderTopColor: Colors.primary + '15' },
+  linkedSummaryItem: { flex: 1, alignItems: 'center', gap: 2 },
+  linkedSummaryLabel: { fontSize: 11, fontWeight: '500' as const, color: Colors.textSecondary },
+  linkedSummaryValue: { fontSize: 15, fontWeight: '700' as const, color: Colors.text },
+  summaryCard: { backgroundColor: Colors.card, borderRadius: 12, padding: 18, marginTop: 8, borderWidth: 1, borderColor: Colors.cardBorder },
+  scheduleCard: { backgroundColor: Colors.card, borderRadius: 12, padding: 16, marginTop: 8, borderWidth: 1, borderColor: Colors.cardBorder },
+  scheduleTopRow: { flexDirection: 'row', gap: 8, marginBottom: 14 },
+  scheduleMetric: { flex: 1, backgroundColor: Colors.surfaceAlt, borderRadius: 12, padding: 12 },
+  scheduleMetricLabel: { fontSize: 11, fontWeight: '600' as const, color: Colors.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.5, marginBottom: 4 },
+  scheduleMetricValue: { fontSize: 15, fontWeight: '700' as const, color: Colors.text },
+  scheduleSectionTitle: { fontSize: 14, fontWeight: '700' as const, color: Colors.text, marginBottom: 10 },
+  scheduleTaskRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, borderTopWidth: 1, borderTopColor: Colors.borderLight },
+  scheduleStatusDot: { width: 8, height: 8, borderRadius: 4 },
+  scheduleTaskTextWrap: { flex: 1 },
+  scheduleTaskName: { fontSize: 14, fontWeight: '600' as const, color: Colors.text, marginBottom: 2 },
+  scheduleTaskMeta: { fontSize: 12, color: Colors.textSecondary },
+  scheduleTaskProgress: { fontSize: 13, fontWeight: '700' as const, color: Colors.info },
+  crossLinkBtn: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, paddingHorizontal: 14, marginTop: 10, backgroundColor: Colors.surfaceAlt, borderRadius: 12, borderWidth: 1, borderColor: Colors.cardBorder },
+  crossLinkText: { flex: 1, fontSize: 13, fontWeight: '600' as const, color: Colors.text },
+  summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6 },
+  summaryLabel: { fontSize: 15, color: Colors.textSecondary },
+  summaryValue: { fontSize: 15, fontWeight: '600' as const, color: Colors.text },
+  summaryDivider: { height: 1, backgroundColor: Colors.borderLight, marginVertical: 8 },
+  savingsHighlight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  grandTotalDivider: { height: 2, backgroundColor: Colors.primary, marginVertical: 10, borderRadius: 1 },
+  grandTotalLabel: { fontSize: 18, fontWeight: '800' as const, color: Colors.text },
+  grandTotalValue: { fontSize: 22, fontWeight: '800' as const, color: Colors.primary },
+  notesContainer: { backgroundColor: Colors.card, borderRadius: 12, padding: 16, marginTop: 8, borderWidth: 1, borderColor: Colors.cardBorder, gap: 12 },
+  noteRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  noteBullet: { width: 6, height: 6, borderRadius: 3, backgroundColor: Colors.accent, marginTop: 7 },
+  noteText: { flex: 1, fontSize: 14, color: Colors.textSecondary, lineHeight: 20 },
+  noEstimate: { alignItems: 'center', paddingVertical: 40, paddingHorizontal: 40, marginTop: 20 },
+  noEstimateTitle: { fontSize: 18, fontWeight: '700' as const, color: Colors.text, marginTop: 12 },
+  noEstimateText: { fontSize: 15, color: Colors.textSecondary, textAlign: 'center' as const, marginTop: 8, lineHeight: 22 },
+  collabCard: { backgroundColor: Colors.card, borderRadius: 12, marginTop: 8, borderWidth: 1, borderColor: Colors.cardBorder, padding: 14, gap: 10 },
+  collabMember: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 6 },
+  collabAvatar: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  collabInfo: { flex: 1, gap: 2 },
+  collabName: { fontSize: 14, fontWeight: '600' as const, color: Colors.text },
+  collabEmail: { fontSize: 12, color: Colors.textSecondary },
+  collabActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  collabRoleBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+  collabRoleText: { fontSize: 11, fontWeight: '700' as const },
+  collabRemoveBtn: { width: 28, height: 28, borderRadius: 14, backgroundColor: Colors.errorLight, alignItems: 'center', justifyContent: 'center' },
+  inviteBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12, borderRadius: 12, backgroundColor: Colors.primary + '10', borderWidth: 1, borderColor: Colors.primary + '20', marginTop: 4 },
+  inviteBtnText: { fontSize: 14, fontWeight: '600' as const, color: Colors.primary },
+  shareSection: { marginHorizontal: 20, marginTop: 18, backgroundColor: Colors.card, borderRadius: 16, padding: 18, borderWidth: 1, borderColor: Colors.cardBorder, gap: 12 },
+  shareSectionTitle: { fontSize: 16, fontWeight: '700' as const, color: Colors.text },
+  shareBrandingNote: { fontSize: 12, color: Colors.textMuted, marginTop: -6 },
+  signatureNote: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: -4 },
+  signatureNoteText: { fontSize: 12, color: Colors.primary, fontWeight: '500' as const },
+  shareBtnPrimary: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: Colors.primary, borderRadius: 14, paddingVertical: 14, shadowColor: Colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 12, elevation: 3 },
+  shareBtnPrimaryText: { fontSize: 16, fontWeight: '700' as const, color: Colors.textOnPrimary },
+  editButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.primary + '10', borderRadius: 12, paddingVertical: 16, gap: 8, marginHorizontal: 20, marginTop: 24, borderWidth: 1, borderColor: Colors.primary + '20' },
+  editButtonText: { fontSize: 16, fontWeight: '600' as const, color: Colors.primary },
+  editTypeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
+  editTypeChip: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, backgroundColor: Colors.fillTertiary },
+  editTypeChipActive: { backgroundColor: Colors.primary },
+  editTypeChipLabel: { fontSize: 13, fontWeight: '600' as const, color: Colors.textSecondary },
+  editTypeChipLabelActive: { color: Colors.textOnPrimary },
+  deleteButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.errorLight, borderRadius: 12, paddingVertical: 16, gap: 8, marginHorizontal: 20, marginTop: 14, borderWidth: 1, borderColor: Colors.error + '30' },
+  deleteButtonText: { fontSize: 16, fontWeight: '600' as const, color: Colors.error },
+  shareModalOverlay: { flex: 1, backgroundColor: Colors.overlay, justifyContent: 'center', padding: 20 },
+  shareModalCard: { backgroundColor: Colors.surface, borderRadius: 24, padding: 22, gap: 14, maxWidth: 400, width: '100%', alignSelf: 'center' as const },
+  shareModalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  shareModalTitle: { fontSize: 20, fontWeight: '700' as const, color: Colors.text },
+  shareModalDesc: { fontSize: 14, color: Colors.textSecondary, lineHeight: 20 },
+  shareOption: { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: Colors.surfaceAlt, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: Colors.cardBorder },
+  shareOptionIcon: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  shareOptionInfo: { flex: 1, gap: 2 },
+  shareOptionTitle: { fontSize: 15, fontWeight: '600' as const, color: Colors.text },
+  shareOptionDesc: { fontSize: 12, color: Colors.textSecondary },
+  inviteModalOverlay: { flex: 1, backgroundColor: Colors.overlay, justifyContent: 'flex-end' },
+  inviteModalCard: { backgroundColor: Colors.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 22, gap: 10 },
+  inviteModalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+  inviteModalTitle: { fontSize: 20, fontWeight: '700' as const, color: Colors.text },
+  inviteDesc: { fontSize: 14, color: Colors.textSecondary, lineHeight: 20 },
+  inviteFieldLabel: { fontSize: 13, fontWeight: '600' as const, color: Colors.textSecondary, marginTop: 4 },
+  inviteInput: { minHeight: 48, borderRadius: 14, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 14, fontSize: 15, color: Colors.text },
+  inviteRoleRow: { flexDirection: 'row', gap: 10, marginTop: 4 },
+  inviteRoleBtn: { flex: 1, alignItems: 'center', gap: 4, paddingVertical: 14, borderRadius: 14, backgroundColor: Colors.fillTertiary },
+  inviteRoleBtnActive: { backgroundColor: Colors.primary },
+  inviteRoleBtnText: { fontSize: 14, fontWeight: '700' as const, color: Colors.text },
+  inviteRoleBtnTextActive: { color: Colors.textOnPrimary },
+  inviteRoleDesc: { fontSize: 11, color: Colors.textSecondary },
+  inviteActionRow: { flexDirection: 'row', gap: 10, marginTop: 8 },
+  inviteCancelBtn: { flex: 1, minHeight: 48, borderRadius: 14, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
+  inviteCancelBtnText: { fontSize: 14, fontWeight: '700' as const, color: Colors.text },
+  inviteSendBtn: { flex: 1, minHeight: 48, borderRadius: 14, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 },
+  inviteSendBtnText: { fontSize: 14, fontWeight: '700' as const, color: Colors.textOnPrimary },
+  coCard: { backgroundColor: Colors.card, borderRadius: 12, marginTop: 8, borderWidth: 1, borderColor: Colors.cardBorder, padding: 14, gap: 4 },
+  coEmptyText: { fontSize: 13, color: Colors.textMuted, fontStyle: 'italic' as const, paddingVertical: 8 },
+  coRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.borderLight, gap: 10 },
+  coInfo: { flex: 1, gap: 2 },
+  coNumber: { fontSize: 14, fontWeight: '600' as const, color: Colors.text },
+  coDesc: { fontSize: 12, color: Colors.textSecondary },
+  coRight: { alignItems: 'flex-end', gap: 4 },
+  coAmount: { fontSize: 14, fontWeight: '700' as const },
+  invAmount: { fontSize: 14, fontWeight: '700' as const, color: Colors.text },
+  coBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  coBadgeText: { fontSize: 10, fontWeight: '700' as const, textTransform: 'uppercase' as const, letterSpacing: 0.3 },
+  coApproveRow: { flexDirection: 'row', gap: 8, paddingTop: 8 },
+  coApproveBtn: { flex: 1, paddingVertical: 10, borderRadius: 10, backgroundColor: Colors.successLight, alignItems: 'center', borderWidth: 1, borderColor: Colors.success + '30' },
+  coApproveBtnText: { fontSize: 13, fontWeight: '700' as const, color: Colors.success },
+  coRejectBtn: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: 10, backgroundColor: Colors.errorLight, alignItems: 'center', borderWidth: 1, borderColor: Colors.error + '30' },
+  coRejectBtnText: { fontSize: 13, fontWeight: '700' as const, color: Colors.error },
+  coAddBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 10, backgroundColor: Colors.primary + '10', borderWidth: 1, borderColor: Colors.primary + '20', marginTop: 8 },
+  coAddBtnText: { fontSize: 13, fontWeight: '600' as const, color: Colors.primary },
+  invBtnRow: { flexDirection: 'row', gap: 8 },
+  punchProgress: { marginBottom: 8 },
+  punchProgressHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+  punchProgressLabel: { fontSize: 12, fontWeight: '600' as const, color: Colors.textSecondary },
+  punchProgressPercent: { fontSize: 14, fontWeight: '800' as const, color: Colors.primary },
+  punchProgressTrack: { height: 6, backgroundColor: Colors.fillTertiary, borderRadius: 3, overflow: 'hidden' as const },
+  punchProgressFill: { height: 6, backgroundColor: Colors.primary, borderRadius: 3 },
+  punchDot: { width: 8, height: 8, borderRadius: 4, marginTop: 6 },
+  punchMoreText: { fontSize: 12, color: Colors.textMuted, fontStyle: 'italic' as const, paddingVertical: 4 },
+  photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  photoThumb: { width: 72, height: 72, borderRadius: 10, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center', gap: 4 },
+  photoThumbDate: { fontSize: 9, color: Colors.textMuted, fontWeight: '600' as const },
+  portalInfo: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 8 },
+  portalTitle: { fontSize: 15, fontWeight: '700' as const, color: Colors.text, marginBottom: 2 },
+  portalDesc: { fontSize: 13, color: Colors.textSecondary, lineHeight: 18 },
+  portalBadge: { alignSelf: 'flex-start' as const, backgroundColor: '#5856D6' + '15', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, marginBottom: 8 },
+  portalBadgeText: { fontSize: 11, fontWeight: '700' as const, color: '#5856D6' },
+  portalLinkRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  portalLinkBox: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: Colors.surfaceAlt, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
+  portalLinkText: { flex: 1, fontSize: 13, color: Colors.info },
+  portalCopyBtn: { width: 40, height: 40, borderRadius: 10, backgroundColor: Colors.primary + '12', alignItems: 'center', justifyContent: 'center' },
+  portalEnableBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12, borderRadius: 10, backgroundColor: '#5856D6' + '12', borderWidth: 1, borderColor: '#5856D6' + '20' },
+  portalEnableBtnText: { fontSize: 14, fontWeight: '600' as const, color: '#5856D6' },
+  portalInviteCount: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 5, marginBottom: 10 },
+  portalInviteCountText: { fontSize: 12, color: Colors.textMuted },
+  commEmpty: { alignItems: 'center' as const, paddingVertical: 20, gap: 8 },
+  commEmptyText: { fontSize: 13, color: Colors.textMuted, textAlign: 'center' as const, lineHeight: 18 },
+  commEventRow: { flexDirection: 'row' as const, alignItems: 'flex-start' as const, gap: 10, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.borderLight },
+  commEventDot: { width: 8, height: 8, borderRadius: 4, marginTop: 5 },
+  commEventContent: { flex: 1, gap: 2 },
+  commEventSummary: { fontSize: 13, fontWeight: '500' as const, color: Colors.text, lineHeight: 18 },
+  commEventTime: { fontSize: 11, color: Colors.textMuted },
+  commAddNoteBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 6, paddingVertical: 10, borderRadius: 10, backgroundColor: Colors.infoLight, marginTop: 8 },
+  commAddNoteBtnText: { fontSize: 13, fontWeight: '600' as const, color: Colors.info },
+  quickActions: { flexDirection: 'row' as const, paddingHorizontal: 20, marginTop: 12, gap: 10, flexWrap: 'wrap' as const },
+  quickActionBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, backgroundColor: Colors.surface, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, borderWidth: 1, borderColor: Colors.cardBorder, flexGrow: 1, flexShrink: 1, flexBasis: '47%' as const, minHeight: 56 },
+  quickActionBtnFull: { flexBasis: '100%' as const },
+  quickActionIcon: { width: 32, height: 32, borderRadius: 8, alignItems: 'center' as const, justifyContent: 'center' as const },
+  quickActionLabel: { fontSize: 14, fontWeight: '600' as const, color: Colors.text, flexShrink: 1 },
+  sectionGrid: { paddingHorizontal: 20, marginTop: 18, gap: 8 },
+  sectionTile: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 12, backgroundColor: Colors.card, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, borderWidth: 1, borderColor: Colors.cardBorder, minHeight: 56 },
+  sectionTileIcon: { width: 36, height: 36, borderRadius: 10, alignItems: 'center' as const, justifyContent: 'center' as const },
+  sectionTileLabel: { flex: 1, fontSize: 15, fontWeight: '600' as const, color: Colors.text },
+  sectionTileBadge: { backgroundColor: Colors.fillTertiary, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2, minWidth: 24, alignItems: 'center' as const },
+  sectionTileBadgeText: { fontSize: 12, fontWeight: '700' as const, color: Colors.textSecondary },
+  sectionModalHeader: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'space-between' as const, paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight },
+  sectionModalBack: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 2, paddingVertical: 6, paddingHorizontal: 4, minWidth: 72 },
+  sectionModalBackText: { fontSize: 16, fontWeight: '500' as const, color: Colors.primary },
+  sectionModalTitle: { flex: 1, textAlign: 'center' as const, fontSize: 17, fontWeight: '700' as const, color: Colors.text },
+});
+
+const detailStyles = StyleSheet.create({
+  modalContainer: { flex: 1, backgroundColor: Colors.background },
+  modalHandle: { width: 36, height: 5, borderRadius: 3, backgroundColor: Colors.border, alignSelf: 'center', marginBottom: 8 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingBottom: 14, borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight, backgroundColor: Colors.background },
+  modalTitle: { fontSize: 20, fontWeight: '700' as const, color: Colors.text, letterSpacing: -0.3 },
+  modalCloseBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
+  heroSection: { alignItems: 'center', paddingVertical: 28, paddingHorizontal: 20, gap: 6 },
+  heroIconWrap: { width: 56, height: 56, borderRadius: 28, backgroundColor: Colors.primary + '12', alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
+  heroAmount: { fontSize: 38, fontWeight: '800' as const, color: Colors.text, letterSpacing: -1.5 },
+  heroSubtitle: { fontSize: 14, color: Colors.textSecondary, fontWeight: '500' as const },
+  heroChips: { flexDirection: 'row', gap: 10, marginTop: 14 },
+  heroChip: { backgroundColor: Colors.fillTertiary, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 8, alignItems: 'center', gap: 2 },
+  heroChipLabel: { fontSize: 16, fontWeight: '700' as const, color: Colors.text },
+  heroChipSub: { fontSize: 11, color: Colors.textMuted, fontWeight: '500' as const },
+  sectionLabel: { fontSize: 13, fontWeight: '600' as const, color: Colors.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.8, paddingHorizontal: 20, marginBottom: 8, marginTop: 4 },
+  barChartWrap: { marginHorizontal: 20, backgroundColor: Colors.surface, borderRadius: 16, padding: 16, gap: 16, marginBottom: 20, borderWidth: 1, borderColor: Colors.cardBorder },
+  barRow: { gap: 6 },
+  barLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  barLabel: { flex: 1, fontSize: 14, fontWeight: '500' as const, color: Colors.text },
+  barPct: { fontSize: 13, fontWeight: '700' as const, color: Colors.textSecondary },
+  barTrack: { height: 8, borderRadius: 4, backgroundColor: Colors.fillTertiary, overflow: 'hidden' as const },
+  barFill: { height: 8, borderRadius: 4 },
+  barValue: { fontSize: 13, fontWeight: '600' as const, color: Colors.text },
+  additionalCard: { marginHorizontal: 20, backgroundColor: Colors.surface, borderRadius: 16, padding: 16, marginBottom: 20, borderWidth: 1, borderColor: Colors.cardBorder },
+  additionalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6 },
+  additionalLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  additionalDot: { width: 8, height: 8, borderRadius: 4 },
+  additionalLabel: { fontSize: 15, color: Colors.text, fontWeight: '500' as const },
+  additionalRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  additionalValue: { fontSize: 15, fontWeight: '600' as const, color: Colors.text },
+  additionalPct: { fontSize: 12, fontWeight: '600' as const, color: Colors.textMuted, backgroundColor: Colors.fillTertiary, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, overflow: 'hidden' as const },
+  additionalDivider: { height: 1, backgroundColor: Colors.borderLight, marginVertical: 4 },
+  fullBreakdownCard: { marginHorizontal: 20, backgroundColor: Colors.surface, borderRadius: 16, padding: 18, gap: 8, marginBottom: 20, borderWidth: 1, borderColor: Colors.cardBorder },
+  breakdownRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  breakdownLabel: { fontSize: 14, color: Colors.textSecondary },
+  breakdownValue: { fontSize: 14, fontWeight: '600' as const, color: Colors.text },
+  breakdownLabelBold: { fontSize: 15, fontWeight: '700' as const, color: Colors.text },
+  breakdownValueBold: { fontSize: 15, fontWeight: '700' as const, color: Colors.text },
+  breakdownDivider: { height: 1, backgroundColor: Colors.borderLight },
+  breakdownDividerThick: { height: 2, backgroundColor: Colors.primary + '30', borderRadius: 1, marginVertical: 4 },
+  grandLabel: { fontSize: 18, fontWeight: '800' as const, color: Colors.text },
+  grandValue: { fontSize: 22, fontWeight: '800' as const, color: Colors.primary },
+  infoCard: { marginHorizontal: 20, backgroundColor: Colors.surface, borderRadius: 16, padding: 16, gap: 16, marginBottom: 20, borderWidth: 1, borderColor: Colors.cardBorder },
+  infoRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  infoStep: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  infoStepNum: { fontSize: 13, fontWeight: '700' as const },
+  infoTextWrap: { flex: 1 },
+  infoTitle: { fontSize: 14, fontWeight: '600' as const, color: Colors.text },
+  infoDesc: { fontSize: 13, color: Colors.textSecondary, lineHeight: 19, marginTop: 2 },
+  topSaversCard: { marginHorizontal: 20, backgroundColor: Colors.surface, borderRadius: 16, padding: 14, marginBottom: 20, borderWidth: 1, borderColor: Colors.cardBorder },
+  saverRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10 },
+  saverRank: { width: 26, height: 26, borderRadius: 13, backgroundColor: Colors.successLight, alignItems: 'center', justifyContent: 'center' },
+  saverRankText: { fontSize: 11, fontWeight: '700' as const, color: Colors.success },
+  saverInfo: { flex: 1, gap: 2 },
+  saverName: { fontSize: 14, fontWeight: '500' as const, color: Colors.text },
+  saverMeta: { fontSize: 12, color: Colors.textMuted },
+  saverSavings: { alignItems: 'flex-end', gap: 1 },
+  saverAmount: { fontSize: 15, fontWeight: '700' as const, color: Colors.success },
+  saverPct: { fontSize: 11, fontWeight: '600' as const, color: Colors.success },
+  saverDivider: { height: 1, backgroundColor: Colors.borderLight },
+});
+
+```
+
+
+---
+
+### `components/ProjectCard.tsx`
+
+```tsx
+import React from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Animated } from 'react-native';
+import {
+  Building2, Hammer, Plus, PenLine, Store, Trees, Home,
+  LayoutGrid, Paintbrush, Droplets, Zap, Boxes, ChevronRight, MapPin,
+} from 'lucide-react-native';
+import { Colors } from '@/constants/colors';
+import { formatMoney } from '@/utils/formatters';
+import type { Project, ProjectType } from '@/types';
+
+const ICON_MAP: Record<string, React.ComponentType<{ size: number; color: string; strokeWidth?: number }>> = {
+  Building2, Hammer, Plus, PenLine, Store, Trees, Home, LayoutGrid, Paintbrush, Droplets, Zap, Boxes,
+};
+
+const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
+  draft: { label: 'Draft', color: Colors.warning },
+  estimated: { label: 'Estimated', color: Colors.success },
+  in_progress: { label: 'In Progress', color: Colors.info },
+  completed: { label: 'Completed', color: Colors.textSecondary },
+};
+
+const TYPE_ICON_MAP: Record<ProjectType, string> = {
+  new_build: 'Building2', renovation: 'Hammer', addition: 'Plus', remodel: 'PenLine',
+  commercial: 'Store', landscape: 'Trees', roofing: 'Home', flooring: 'LayoutGrid',
+  painting: 'Paintbrush', plumbing: 'Droplets', electrical: 'Zap', concrete: 'Boxes',
+};
+
+function getTypeIcon(type: ProjectType) {
+  return ICON_MAP[TYPE_ICON_MAP[type]] ?? Building2;
+}
+
+interface ProjectCardProps {
+  project: Project;
+  onPress: () => void;
+}
+
+function ProjectCard({ project, onPress }: ProjectCardProps) {
+  const scaleAnim = React.useRef(new Animated.Value(1)).current;
+  const IconComponent = getTypeIcon(project.type);
+  const status = STATUS_CONFIG[project.status] ?? STATUS_CONFIG.draft;
+
+  const handlePressIn = () => {
+    Animated.spring(scaleAnim, { toValue: 0.975, useNativeDriver: true, speed: 60, bounciness: 0 }).start();
+  };
+
+  const handlePressOut = () => {
+    Animated.spring(scaleAnim, { toValue: 1, useNativeDriver: true, speed: 40, bounciness: 0 }).start();
+  };
+
+  const linkedEstimate = project.linkedEstimate;
+  const legacyEstimate = project.estimate;
+  const hasEstimate = !!(linkedEstimate && linkedEstimate.items.length > 0) || !!legacyEstimate;
+  const estimateTotal = linkedEstimate && linkedEstimate.items.length > 0
+    ? linkedEstimate.grandTotal
+    : legacyEstimate?.grandTotal ?? 0;
+
+  return (
+    <Animated.View style={[styles.wrapper, { transform: [{ scale: scaleAnim }] }]}>
+      <TouchableOpacity
+        onPress={onPress}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        activeOpacity={1}
+        testID={`project-card-${project.id}`}
+      >
+        <View style={styles.card}>
+          <View style={styles.topRow}>
+            <View style={styles.iconWrap}>
+              <IconComponent size={20} color={Colors.primary} strokeWidth={1.8} />
+            </View>
+            <View style={styles.titleBlock}>
+              <Text style={styles.name} numberOfLines={1}>{project.name}</Text>
+              {project.location ? (
+                <View style={styles.locationRow}>
+                  <MapPin size={11} color={Colors.textMuted} />
+                  <Text style={styles.locationText} numberOfLines={1}>{project.location}</Text>
+                </View>
+              ) : null}
+            </View>
+            <View style={[styles.statusDot, { backgroundColor: status.color + '20' }]}>
+              <View style={[styles.statusDotInner, { backgroundColor: status.color }]} />
+              <Text style={[styles.statusLabel, { color: status.color }]}>{status.label}</Text>
+            </View>
+          </View>
+
+          <View style={styles.separator} />
+
+          <View style={styles.bottomRow}>
+            <View style={styles.metaItem}>
+              <Text style={styles.metaLabel}>Area</Text>
+              <Text style={styles.metaValue}>{project.squareFootage > 0 ? `${project.squareFootage.toLocaleString()} sf` : '—'}</Text>
+            </View>
+            <View style={styles.metaDivider} />
+            <View style={styles.metaItem}>
+              <Text style={styles.metaLabel}>Quality</Text>
+              <Text style={styles.metaValue}>{project.quality.charAt(0).toUpperCase() + project.quality.slice(1)}</Text>
+            </View>
+            <View style={styles.metaDivider} />
+            <View style={styles.metaItem}>
+              <Text style={styles.metaLabel}>Estimate</Text>
+              <Text style={[styles.metaValue, hasEstimate && styles.estimateHighlight]}>
+                {hasEstimate ? formatMoney(estimateTotal) : '—'}
+              </Text>
+            </View>
+            <ChevronRight size={16} color={Colors.textMuted} strokeWidth={1.8} style={styles.chevron} />
+          </View>
+        </View>
+      </TouchableOpacity>
+    </Animated.View>
+  );
+}
+
+export default React.memo(ProjectCard);
+
+const styles = StyleSheet.create({
+  wrapper: {
+    marginHorizontal: 16,
+    marginBottom: 10,
+  },
+  card: {
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    elevation: 3,
+    overflow: 'hidden' as const,
+  },
+  topRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    gap: 12,
+  },
+  iconWrap: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    backgroundColor: Colors.primary + '12',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  titleBlock: {
+    flex: 1,
+    gap: 3,
+  },
+  name: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: Colors.text,
+    letterSpacing: -0.2,
+  },
+  locationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+  },
+  locationText: {
+    fontSize: 12,
+    color: Colors.textMuted,
+  },
+  statusDot: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 20,
+  },
+  statusDotInner: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  statusLabel: {
+    fontSize: 11,
+    fontWeight: '600' as const,
+  },
+  separator: {
+    height: 0.5,
+    backgroundColor: Colors.borderLight,
+    marginHorizontal: 16,
+  },
+  bottomRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    gap: 4,
+  },
+  metaItem: {
+    flex: 1,
+    gap: 2,
+  },
+  metaLabel: {
+    fontSize: 11,
+    color: Colors.textMuted,
+    fontWeight: '400' as const,
+  },
+  metaValue: {
+    fontSize: 14,
+    fontWeight: '600' as const,
+    color: Colors.text,
+    letterSpacing: -0.2,
+  },
+  estimateHighlight: {
+    color: Colors.primary,
+  },
+  metaDivider: {
+    width: 0.5,
+    height: 28,
+    backgroundColor: Colors.borderLight,
+    marginHorizontal: 8,
+  },
+  chevron: {
+    marginLeft: 4,
+  },
+});
+
+```
+
+
+---
+
+### `components/EmptyState.tsx`
+
+```tsx
+import React from 'react';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { Colors } from '@/constants/colors';
+
+interface EmptyStateProps {
+  icon: React.ReactNode;
+  title: string;
+  message: string;
+  actionLabel?: string;
+  onAction?: () => void;
+}
+
+export default function EmptyState({ icon, title, message, actionLabel, onAction }: EmptyStateProps) {
+  return (
+    <View style={styles.container} testID="empty-state">
+      <View style={styles.iconContainer}>{icon}</View>
+      <Text style={styles.title}>{title}</Text>
+      <Text style={styles.message}>{message}</Text>
+      {actionLabel && onAction && (
+        <TouchableOpacity style={styles.button} onPress={onAction} activeOpacity={0.8}>
+          <Text style={styles.buttonText}>{actionLabel}</Text>
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 40,
+    paddingVertical: 60,
+  },
+  iconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 24,
+    backgroundColor: '#E8F5EE',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+  },
+  title: {
+    fontSize: 22,
+    fontWeight: '700' as const,
+    color: Colors.text,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  message: {
+    fontSize: 16,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 24,
+  },
+  button: {
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 28,
+    paddingVertical: 14,
+    borderRadius: 12,
+  },
+  buttonText: {
+    color: Colors.textOnPrimary,
+    fontSize: 16,
+    fontWeight: '600' as const,
+  },
+});
+
+```
+
+
+---
+
+### `components/ConstructionLoader.tsx`
+
+```tsx
+import React, { useEffect, useRef } from 'react';
+import { Animated, Easing, StyleSheet, Text, View, ViewStyle } from 'react-native';
+import { Colors } from '@/constants/colors';
+
+/**
+ * Stacking-bricks construction animation used across the app wherever a
+ * loading indicator is needed — app cold start, context hydration, screen-
+ * level spinners, etc. Three blocks rise into position one at a time (with
+ * a spring-like ease), the whole stack takes a single breath, then resets
+ * and loops.
+ *
+ * Built on the built-in Animated API (no Reanimated dep) so it runs on
+ * iOS, Android, and web identically. The animation driver is NOT native
+ * because opacity + translate + scale on the same View would split drivers;
+ * perf is still fine because we're animating ~4 Views at 60fps.
+ *
+ * Sizes:
+ *   - sm  used inline (cards, list spinners)   → 32×32 total
+ *   - md  default for screens                  → 60×60 total
+ *   - lg  app cold-start, big empty states     → 96×96 total
+ *
+ * Accessibility: we label the animation container so screen readers
+ * announce "Loading" once instead of narrating every frame.
+ */
+
+type LoaderSize = 'sm' | 'md' | 'lg';
+
+interface ConstructionLoaderProps {
+  size?: LoaderSize;
+  /** Optional label rendered beneath the animation. Kept short; this isn't a toast. */
+  label?: string;
+  /** Wrapper style override — e.g. flex:1 for full-screen centering. */
+  style?: ViewStyle;
+  /** Override colors if you need the loader on a non-default background. */
+  colorTop?: string;
+  colorMid?: string;
+  colorBase?: string;
+}
+
+const SIZE_MAP: Record<LoaderSize, { brickW: number; brickH: number; gap: number; labelSize: number }> = {
+  sm: { brickW: 26, brickH: 7, gap: 2, labelSize: 11 },
+  md: { brickW: 48, brickH: 12, gap: 3, labelSize: 13 },
+  lg: { brickW: 80, brickH: 20, gap: 4, labelSize: 15 },
+};
+
+// Timing constants tuned to feel "construction-paced": confident, deliberate,
+// not frantic. Total cycle ≈ 1.8s — long enough to feel intentional, short
+// enough that nobody wonders if the app has hung.
+const STAGGER_MS = 180;
+const HOLD_MS = 260;
+const FADE_OUT_MS = 260;
+const BREATHE_UP_MS = 220;
+const BREATHE_DOWN_MS = 220;
+
+export default function ConstructionLoader({
+  size = 'md',
+  label,
+  style,
+  colorTop,
+  colorMid,
+  colorBase,
+}: ConstructionLoaderProps) {
+  const dims = SIZE_MAP[size];
+  const brick1 = useRef(new Animated.Value(0)).current; // base (bottom)
+  const brick2 = useRef(new Animated.Value(0)).current; // middle
+  const brick3 = useRef(new Animated.Value(0)).current; // top
+  const breathe = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    let mounted = true;
+
+    const buildOne = (val: Animated.Value) =>
+      Animated.timing(val, {
+        toValue: 1,
+        duration: 280,
+        easing: Easing.out(Easing.back(1.4)), // slight overshoot → "placed"
+        useNativeDriver: true,
+      });
+
+    const fadeOut = (val: Animated.Value) =>
+      Animated.timing(val, {
+        toValue: 0,
+        duration: FADE_OUT_MS,
+        easing: Easing.in(Easing.quad),
+        useNativeDriver: true,
+      });
+
+    const cycle = Animated.sequence([
+      Animated.stagger(STAGGER_MS, [buildOne(brick1), buildOne(brick2), buildOne(brick3)]),
+      Animated.delay(HOLD_MS),
+      // Single breath — the stack takes a quick inhale/exhale to feel alive.
+      Animated.sequence([
+        Animated.timing(breathe, {
+          toValue: 1.06,
+          duration: BREATHE_UP_MS,
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.timing(breathe, {
+          toValue: 1,
+          duration: BREATHE_DOWN_MS,
+          easing: Easing.in(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ]),
+      Animated.delay(120),
+      Animated.parallel([fadeOut(brick1), fadeOut(brick2), fadeOut(brick3)]),
+    ]);
+
+    const loop = Animated.loop(cycle);
+
+    const tick = () => {
+      if (!mounted) return;
+      // Reset opacity-tracked values before each loop. `Animated.loop` already
+      // resets but we go belt-and-suspenders because the cycle mutates three
+      // different values at different times.
+      brick1.setValue(0);
+      brick2.setValue(0);
+      brick3.setValue(0);
+      breathe.setValue(1);
+    };
+
+    tick();
+    loop.start();
+    return () => {
+      mounted = false;
+      loop.stop();
+    };
+  }, [brick1, brick2, brick3, breathe]);
+
+  const buildBrickStyle = (val: Animated.Value) => {
+    return {
+      opacity: val,
+      transform: [
+        {
+          translateY: val.interpolate({
+            inputRange: [0, 1],
+            outputRange: [dims.brickH + dims.gap + 4, 0],
+          }),
+        },
+        { scale: breathe },
+      ],
+    };
+  };
+
+  const top = colorTop ?? Colors.primary;
+  const mid = colorMid ?? Colors.primary + 'CC';
+  const base = colorBase ?? Colors.primary + '99';
+
+  return (
+    <View
+      style={[styles.container, style]}
+      accessible
+      accessibilityRole="progressbar"
+      accessibilityLabel={label ?? 'Loading'}
+      testID="construction-loader"
+    >
+      <View
+        style={[
+          styles.stack,
+          {
+            width: dims.brickW + 8,
+            height: dims.brickH * 3 + dims.gap * 2,
+          },
+        ]}
+      >
+        {/* Top brick — narrower by design to suggest a "roof" taper */}
+        <Animated.View
+          style={[
+            styles.brick,
+            {
+              width: dims.brickW * 0.7,
+              height: dims.brickH,
+              backgroundColor: top,
+              borderRadius: Math.max(2, dims.brickH * 0.2),
+              top: 0,
+            },
+            buildBrickStyle(brick3),
+          ]}
+        />
+        {/* Middle brick */}
+        <Animated.View
+          style={[
+            styles.brick,
+            {
+              width: dims.brickW * 0.88,
+              height: dims.brickH,
+              backgroundColor: mid,
+              borderRadius: Math.max(2, dims.brickH * 0.2),
+              top: dims.brickH + dims.gap,
+            },
+            buildBrickStyle(brick2),
+          ]}
+        />
+        {/* Base brick */}
+        <Animated.View
+          style={[
+            styles.brick,
+            {
+              width: dims.brickW,
+              height: dims.brickH,
+              backgroundColor: base,
+              borderRadius: Math.max(2, dims.brickH * 0.2),
+              top: (dims.brickH + dims.gap) * 2,
+            },
+            buildBrickStyle(brick1),
+          ]}
+        />
+      </View>
+      {!!label && (
+        <Text style={[styles.label, { fontSize: dims.labelSize }]} numberOfLines={1}>
+          {label}
+        </Text>
+      )}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  stack: {
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    position: 'relative',
+  },
+  brick: {
+    position: 'absolute',
+    alignSelf: 'center',
+  },
+  label: {
+    color: Colors.textSecondary,
+    fontWeight: '500' as const,
+    letterSpacing: 0.2,
+  },
+});
+
+```

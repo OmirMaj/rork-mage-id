@@ -4,7 +4,7 @@ import {
   Alert, Platform, Modal, KeyboardAvoidingView, ScrollView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Stack, useRouter } from 'expo-router';
+import { Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
   Search, Plus, X, User, Mail, Phone, MapPin,
@@ -12,6 +12,7 @@ import {
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
+import { useEntityNavigation } from '@/hooks/useEntityNavigation';
 import type { Contact, ContactRole } from '@/types';
 
 function createId(prefix: string): string {
@@ -46,7 +47,7 @@ function getRoleColor(role: ContactRole): string {
 
 export default function ContactsScreen() {
   const insets = useSafeAreaInsets();
-  const router = useRouter();
+  const { navigateTo } = useEntityNavigation();
   const { contacts, addContact, updateContact, deleteContact, projects, getInvoicesForProject } = useProjects();
 
   const [query, setQuery] = useState('');
@@ -431,8 +432,10 @@ export default function ContactsScreen() {
                             key={p.id}
                             style={styles.linkedProjectRow}
                             onPress={() => {
-                              setShowDetailModal(false);
-                              router.push({ pathname: '/project-detail', params: { id: p.id } });
+                              navigateTo(
+                                { kind: 'project', id: p.id, label: p.name },
+                                { onBeforeNavigate: () => setShowDetailModal(false) },
+                              );
                             }}
                           >
                             <Text style={styles.linkedProjectName}>{p.name}</Text>

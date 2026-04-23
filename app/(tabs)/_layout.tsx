@@ -1,13 +1,18 @@
 import React from 'react';
 import { View, StyleSheet, Platform } from 'react-native';
 import { Tabs, Slot } from 'expo-router';
-import { Home, Compass, Settings } from 'lucide-react-native';
+import { Home, Compass, Settings, LayoutDashboard } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import DesktopSidebar from '@/components/DesktopSidebar';
+import { useSmartInbox } from '@/hooks/useSmartInbox';
 
 export default function TabLayout() {
   const layout = useResponsiveLayout();
+  const { counts } = useSmartInbox();
+  const inboxBadge = counts.all > 0
+    ? (counts.all > 99 ? '99+' : String(counts.all))
+    : undefined;
 
   if (layout.showSidebar) {
     return (
@@ -20,9 +25,11 @@ export default function TabLayout() {
               tabBarStyle: { display: 'none' },
             }}
           >
+            <Tabs.Screen name="summary" options={{ title: 'Summary' }} />
             <Tabs.Screen name="(home)" options={{ title: 'Your Projects' }} />
             <Tabs.Screen name="discover" options={{ title: 'Discover' }} />
             <Tabs.Screen name="settings" options={{ title: 'Settings' }} />
+            <Tabs.Screen name="construction-ai" options={{ href: null }} />
             <Tabs.Screen name="bids" options={{ href: null }} />
             <Tabs.Screen name="companies" options={{ href: null }} />
             <Tabs.Screen name="hire" options={{ href: null }} />
@@ -61,9 +68,20 @@ export default function TabLayout() {
       }}
     >
       <Tabs.Screen
+        name="summary"
+        options={{
+          title: 'Summary',
+          tabBarIcon: ({ color, focused }) => (
+            <LayoutDashboard size={23} color={color} strokeWidth={focused ? 2.2 : 1.8} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="(home)"
         options={{
           title: 'Your Projects',
+          tabBarBadge: inboxBadge,
+          tabBarBadgeStyle: { backgroundColor: '#FF3B30', color: '#FFFFFF' },
           tabBarIcon: ({ color, focused }) => (
             <Home size={23} color={color} strokeWidth={focused ? 2.2 : 1.8} />
           ),
@@ -96,6 +114,7 @@ export default function TabLayout() {
       <Tabs.Screen name="marketplace" options={{ href: null }} />
       <Tabs.Screen name="subs" options={{ href: null }} />
       <Tabs.Screen name="equipment" options={{ href: null }} />
+      <Tabs.Screen name="construction-ai" options={{ href: null }} />
     </Tabs>
   );
 }

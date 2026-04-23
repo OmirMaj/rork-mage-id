@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, Modal, TextInput,
-  KeyboardAvoidingView, Platform, Animated, ActivityIndicator,
+  KeyboardAvoidingView, Platform, Animated,
   Pressable, ScrollView, FlatList,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -11,6 +11,7 @@ import {
   RotateCcw, ChevronRight, Clock, Sparkles, MessageSquare,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import ConstructionLoader from '@/components/ConstructionLoader';
 import type { ScheduleTask } from '@/types';
 import {
   parseVoiceCommand,
@@ -342,7 +343,7 @@ export default function VoiceCommandModal({
 
   const renderProcessing = () => (
     <View style={s.stateContainer}>
-      <ActivityIndicator size="large" color={Colors.primary} />
+      <ConstructionLoader size="lg" />
       <Text style={s.stateTitle}>Understanding...</Text>
       <Text style={s.stateSubtitle}>Analyzing your command</Text>
     </View>

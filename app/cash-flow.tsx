@@ -12,6 +12,7 @@ import {
   Calendar, Clock, Wallet, BarChart3, RefreshCw,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import ConstructionLoader from '@/components/ConstructionLoader';
 import { useProjects } from '@/contexts/ProjectContext';
 import CashFlowChart from '@/components/CashFlowChart';
 import CashFlowSetup from '@/components/CashFlowSetup';
@@ -27,6 +28,8 @@ import {
 import type { CashFlowData } from '@/utils/cashFlowStorage';
 import { mageAI } from '@/utils/mageAI';
 import { z } from 'zod';
+import { useTierAccess } from '@/hooks/useTierAccess';
+import Paywall from '@/components/Paywall';
 
 // Gemini occasionally swaps shapes — returning strings where objects are expected
 // or vice versa. These preprocess coercers normalize the payload so the UI never
@@ -103,13 +106,33 @@ const FREQUENCY_OPTIONS: Array<{ value: ExpenseFrequency; label: string }> = [
 ];
 
 const FORECAST_OPTIONS = [
-  { weeks: 4, label: '4 Weeks' },
-  { weeks: 8, label: '8 Weeks' },
-  { weeks: 12, label: '12 Weeks' },
-  { weeks: 26, label: '6 Months' },
+  { weeks: 4, label: '4w' },
+  { weeks: 8, label: '8w' },
+  { weeks: 12, label: '12w' },
+  { weeks: 24, label: '6mo' },
+  { weeks: 52, label: '1yr' },
 ];
 
+const MIN_FORECAST_WEEKS = 1;
+const MAX_FORECAST_WEEKS = 260; // 5 years — plenty of headroom for long projects.
+
 export default function CashFlowScreen() {
+  const router = useRouter();
+  const { canAccess } = useTierAccess();
+  if (!canAccess('cash_flow_forecaster')) {
+    return (
+      <Paywall
+        visible={true}
+        feature="Cash Flow Forecaster"
+        requiredTier="pro"
+        onClose={() => router.back()}
+      />
+    );
+  }
+  return <CashFlowScreenInner />;
+}
+
+function CashFlowScreenInner() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { projectId } = useLocalSearchParams<{ projectId?: string }>();
@@ -119,6 +142,7 @@ export default function CashFlowScreen() {
   const [showSetup, setShowSetup] = useState(false);
   const [cashFlowData, setCashFlowData] = useState<CashFlowData | null>(null);
   const [forecastWeeks, setForecastWeeks] = useState(12);
+  const [customWeeksInput, setCustomWeeksInput] = useState('');
   const [selectedWeek, setSelectedWeek] = useState<number | null>(null);
   const [showAddExpense, setShowAddExpense] = useState(false);
   const [showAddPayment, setShowAddPayment] = useState(false);
@@ -195,6 +219,31 @@ export default function CashFlowScreen() {
   }, [cashFlowData, effectiveStartingBalance, relevantInvoices, relevantChangeOrders, forecastWeeks]);
 
   const summary = useMemo<CashFlowSummary>(() => calculateSummary(forecast), [forecast]);
+
+  // Aggregate "Total Pending" across every source of expected money that hasn't landed:
+  //   - unpaid invoice balances (totalDue - amountPaid)
+  //   - manually-entered expected payments
+  //   - approved change orders not yet rolled into an invoice
+  // Used for the Expected Income header so the GC can see the real dollar figure,
+  // not just a "3 pending" count.
+  const totalPending = useMemo(() => {
+    const invoiceTotal = relevantInvoices
+      .filter(i => i.status !== 'paid')
+      .reduce((sum, i) => sum + Math.max(0, (i.totalDue ?? 0) - (i.amountPaid ?? 0)), 0);
+    const expectedTotal = (cashFlowData?.expectedPayments ?? [])
+      .reduce((sum, p) => sum + (p.amount ?? 0), 0);
+    const changeOrderTotal = relevantChangeOrders
+      .filter(co => co.status === 'approved')
+      .reduce((sum, co) => sum + (co.changeAmount ?? 0), 0);
+    return invoiceTotal + expectedTotal + changeOrderTotal;
+  }, [relevantInvoices, cashFlowData?.expectedPayments, relevantChangeOrders]);
+
+  const pendingCount = useMemo(() => {
+    const inv = relevantInvoices.filter(i => i.status !== 'paid').length;
+    const exp = (cashFlowData?.expectedPayments ?? []).length;
+    const co = relevantChangeOrders.filter(c => c.status === 'approved').length;
+    return inv + exp + co;
+  }, [relevantInvoices, cashFlowData?.expectedPayments, relevantChangeOrders]);
 
   const selectedWeekData = useMemo(() => {
     if (selectedWeek === null || !forecast[selectedWeek]) return null;
@@ -372,7 +421,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
     return (
       <View style={[styles.container, styles.center]}>
         <Stack.Screen options={{ title: 'Cash Flow' }} />
-        <ActivityIndicator size="large" color={Colors.primary} />
+        <ConstructionLoader size="lg" />
       </View>
     );
   }
@@ -436,7 +485,11 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
               <TouchableOpacity
                 key={opt.weeks}
                 style={[styles.forecastChip, forecastWeeks === opt.weeks && styles.forecastChipActive]}
-                onPress={() => { setForecastWeeks(opt.weeks); setSelectedWeek(null); }}
+                onPress={() => {
+                  setForecastWeeks(opt.weeks);
+                  setCustomWeeksInput('');
+                  setSelectedWeek(null);
+                }}
                 activeOpacity={0.7}
               >
                 <Text style={[styles.forecastChipText, forecastWeeks === opt.weeks && styles.forecastChipTextActive]}>
@@ -444,6 +497,39 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
                 </Text>
               </TouchableOpacity>
             ))}
+            <View style={styles.customWeeksChip}>
+              <TextInput
+                style={styles.customWeeksInput}
+                value={customWeeksInput}
+                onChangeText={(text) => {
+                  const cleaned = text.replace(/[^0-9]/g, '').slice(0, 3);
+                  setCustomWeeksInput(cleaned);
+                  const n = parseInt(cleaned, 10);
+                  if (!isNaN(n) && n >= MIN_FORECAST_WEEKS && n <= MAX_FORECAST_WEEKS) {
+                    setForecastWeeks(n);
+                    setSelectedWeek(null);
+                  }
+                }}
+                placeholder="#"
+                placeholderTextColor="rgba(255,255,255,0.5)"
+                keyboardType="number-pad"
+                maxLength={3}
+                returnKeyType="done"
+              />
+              <Text style={styles.customWeeksLabel}>wks</Text>
+            </View>
+          </View>
+
+          <View style={styles.pendingRow}>
+            <View style={styles.pendingItem}>
+              <Text style={styles.pendingLabel}>Total Pending</Text>
+              <Text style={styles.pendingValue}>{formatCurrency(totalPending)}</Text>
+            </View>
+            <View style={styles.pendingDivider} />
+            <View style={styles.pendingItem}>
+              <Text style={styles.pendingLabel}>Sources</Text>
+              <Text style={styles.pendingValue}>{pendingCount}</Text>
+            </View>
           </View>
         </View>
 
@@ -603,7 +689,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
             <TrendingUp size={18} color={Colors.success} />
             <Text style={styles.sectionTitle}>Expected Income</Text>
             <Text style={[styles.sectionAmount, { color: Colors.success }]}>
-              {relevantInvoices.filter(i => i.status !== 'paid').length} pending
+              {formatCurrencyShort(totalPending)} pending
             </Text>
             {expandedSections.income ? <ChevronUp size={18} color={Colors.textMuted} /> : <ChevronDown size={18} color={Colors.textMuted} />}
           </TouchableOpacity>
@@ -887,11 +973,19 @@ const styles = StyleSheet.create({
   heroAmount: { fontSize: 32, fontWeight: '800' as const, color: '#FFFFFF', letterSpacing: -1 },
   editBalanceBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
   editBalanceBtnText: { fontSize: 13, fontWeight: '600' as const, color: '#FFFFFF' },
-  forecastSelector: { flexDirection: 'row', gap: 6 },
+  forecastSelector: { flexDirection: 'row', flexWrap: 'wrap' as const, gap: 6 },
   forecastChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.15)' },
   forecastChipActive: { backgroundColor: '#FFFFFF' },
   forecastChipText: { fontSize: 12, fontWeight: '600' as const, color: 'rgba(255,255,255,0.8)' },
   forecastChipTextActive: { color: Colors.primary },
+  customWeeksChip: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.15)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)' },
+  customWeeksInput: { minWidth: 34, paddingVertical: 0, paddingHorizontal: 2, fontSize: 12, fontWeight: '700' as const, color: '#FFFFFF', textAlign: 'center' as const },
+  customWeeksLabel: { fontSize: 12, fontWeight: '600' as const, color: 'rgba(255,255,255,0.8)' },
+  pendingRow: { flexDirection: 'row' as const, alignItems: 'center' as const, backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 12, paddingVertical: 10, paddingHorizontal: 14, gap: 14 },
+  pendingItem: { flex: 1, gap: 2 },
+  pendingLabel: { fontSize: 11, fontWeight: '600' as const, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' as const, letterSpacing: 0.5 },
+  pendingValue: { fontSize: 18, fontWeight: '800' as const, color: '#FFFFFF', letterSpacing: -0.3 },
+  pendingDivider: { width: 1, alignSelf: 'stretch' as const, backgroundColor: 'rgba(255,255,255,0.2)' },
   section: { marginHorizontal: 16, marginTop: 20 },
   sectionLabel: { fontSize: 12, fontWeight: '600' as const, color: Colors.textMuted, letterSpacing: 0.8, textTransform: 'uppercase' as const, marginBottom: 10 },
   sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: Colors.surface, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: Colors.cardBorder },
