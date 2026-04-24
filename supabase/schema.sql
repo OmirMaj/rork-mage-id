@@ -947,6 +947,92 @@ ALTER TABLE public.estimate_versions ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "estimate_versions_all_own" ON public.estimate_versions FOR ALL USING (auth.uid() = user_id);
 
 -- ============================================
+-- PLAN SHEETS, DRAWING PINS, MARKUPS, CALIBRATIONS
+-- ============================================
+-- Full schema in supabase/migrations/add_plans_sync.sql. Also inlined here
+-- so fresh installs running schema.sql end-to-end pick these up.
+CREATE TABLE IF NOT EXISTS public.plan_sheets (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  project_id UUID NOT NULL REFERENCES public.projects(id) ON DELETE CASCADE,
+  name TEXT NOT NULL DEFAULT '',
+  sheet_number TEXT,
+  image_uri TEXT NOT NULL,
+  page_number INTEGER,
+  width NUMERIC,
+  height NUMERIC,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_plan_sheets_project ON public.plan_sheets(project_id);
+CREATE INDEX IF NOT EXISTS idx_plan_sheets_user ON public.plan_sheets(user_id);
+CREATE TRIGGER plan_sheets_updated_at BEFORE UPDATE ON public.plan_sheets
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+ALTER TABLE public.plan_sheets ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "plan_sheets_all_own" ON public.plan_sheets
+  FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+
+CREATE TABLE IF NOT EXISTS public.drawing_pins (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  project_id UUID NOT NULL REFERENCES public.projects(id) ON DELETE CASCADE,
+  plan_sheet_id UUID NOT NULL REFERENCES public.plan_sheets(id) ON DELETE CASCADE,
+  x NUMERIC NOT NULL,
+  y NUMERIC NOT NULL,
+  kind TEXT NOT NULL CHECK (kind IN ('note', 'photo', 'punch', 'rfi')),
+  label TEXT,
+  color TEXT,
+  linked_photo_id UUID,
+  linked_punch_item_id UUID,
+  linked_rfi_id UUID,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_drawing_pins_sheet ON public.drawing_pins(plan_sheet_id);
+CREATE INDEX IF NOT EXISTS idx_drawing_pins_project ON public.drawing_pins(project_id);
+CREATE INDEX IF NOT EXISTS idx_drawing_pins_user ON public.drawing_pins(user_id);
+CREATE TRIGGER drawing_pins_updated_at BEFORE UPDATE ON public.drawing_pins
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+ALTER TABLE public.drawing_pins ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "drawing_pins_all_own" ON public.drawing_pins
+  FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+
+CREATE TABLE IF NOT EXISTS public.plan_markups (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  project_id UUID NOT NULL REFERENCES public.projects(id) ON DELETE CASCADE,
+  plan_sheet_id UUID NOT NULL REFERENCES public.plan_sheets(id) ON DELETE CASCADE,
+  type TEXT NOT NULL CHECK (type IN ('arrow', 'rectangle', 'circle', 'freehand', 'text')),
+  color TEXT NOT NULL DEFAULT '#FF0000',
+  stroke_width NUMERIC,
+  points JSONB NOT NULL DEFAULT '[]'::JSONB,
+  text TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_plan_markups_sheet ON public.plan_markups(plan_sheet_id);
+CREATE INDEX IF NOT EXISTS idx_plan_markups_project ON public.plan_markups(project_id);
+CREATE INDEX IF NOT EXISTS idx_plan_markups_user ON public.plan_markups(user_id);
+ALTER TABLE public.plan_markups ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "plan_markups_all_own" ON public.plan_markups
+  FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+
+CREATE TABLE IF NOT EXISTS public.plan_calibrations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  project_id UUID NOT NULL REFERENCES public.projects(id) ON DELETE CASCADE,
+  plan_sheet_id UUID NOT NULL UNIQUE REFERENCES public.plan_sheets(id) ON DELETE CASCADE,
+  p1 JSONB NOT NULL,
+  p2 JSONB NOT NULL,
+  real_distance_ft NUMERIC NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_plan_calibrations_sheet ON public.plan_calibrations(plan_sheet_id);
+CREATE INDEX IF NOT EXISTS idx_plan_calibrations_user ON public.plan_calibrations(user_id);
+ALTER TABLE public.plan_calibrations ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "plan_calibrations_all_own" ON public.plan_calibrations
+  FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+
+-- ============================================
 -- ENABLE REALTIME
 -- ============================================
 ALTER PUBLICATION supabase_realtime ADD TABLE public.messages;

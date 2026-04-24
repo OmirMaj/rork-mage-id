@@ -1375,26 +1375,53 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
     const now = new Date().toISOString();
     const fresh: PlanSheet = {
       ...sheet,
-      id: `plan-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      // UUID (not a prefixed timestamp) so the Supabase write path can
+      // round-trip the id into a Postgres UUID column without rejection.
+      id: generateUUID(),
       createdAt: now,
       updatedAt: now,
     };
     persistPlanSheets([fresh, ...planSheets]);
+    if (canSync) {
+      void supabaseWrite('plan_sheets', 'insert', {
+        id: fresh.id, user_id: userId, project_id: fresh.projectId,
+        name: fresh.name, sheet_number: fresh.sheetNumber ?? null,
+        image_uri: fresh.imageUri, page_number: fresh.pageNumber ?? null,
+        width: fresh.width ?? null, height: fresh.height ?? null,
+        created_at: fresh.createdAt, updated_at: fresh.updatedAt,
+      });
+    }
     return fresh;
-  }, [planSheets, persistPlanSheets]);
+  }, [planSheets, persistPlanSheets, canSync, userId]);
 
   const updatePlanSheet = useCallback((id: string, updates: Partial<PlanSheet>) => {
     const now = new Date().toISOString();
     persistPlanSheets(planSheets.map(s => s.id === id ? { ...s, ...updates, updatedAt: now } : s));
-  }, [planSheets, persistPlanSheets]);
+    if (canSync) {
+      // Only forward persisted columns — `projectId` is immutable after
+      // creation, so we never write it on update.
+      const patch: Record<string, unknown> = { updated_at: now };
+      if (updates.name !== undefined) patch.name = updates.name;
+      if (updates.sheetNumber !== undefined) patch.sheet_number = updates.sheetNumber;
+      if (updates.imageUri !== undefined) patch.image_uri = updates.imageUri;
+      if (updates.pageNumber !== undefined) patch.page_number = updates.pageNumber;
+      if (updates.width !== undefined) patch.width = updates.width;
+      if (updates.height !== undefined) patch.height = updates.height;
+      void supabaseWrite('plan_sheets', 'update', { id, ...patch });
+    }
+  }, [planSheets, persistPlanSheets, canSync]);
 
   const deletePlanSheet = useCallback((id: string) => {
     persistPlanSheets(planSheets.filter(s => s.id !== id));
-    // cascade: pins, markups, calibrations on that sheet
+    // cascade: pins, markups, calibrations on that sheet.
+    // Server side relies on ON DELETE CASCADE from plan_sheets — we only
+    // need to issue the parent delete. Local state still needs the manual
+    // fan-out because AsyncStorage doesn't have FK cascades.
     persistDrawingPins(drawingPins.filter(p => p.planSheetId !== id));
     persistPlanMarkups(planMarkups.filter(m => m.planSheetId !== id));
     persistPlanCalibrations(planCalibrations.filter(c => c.planSheetId !== id));
-  }, [planSheets, drawingPins, planMarkups, planCalibrations, persistPlanSheets, persistDrawingPins, persistPlanMarkups, persistPlanCalibrations]);
+    if (canSync) void supabaseWrite('plan_sheets', 'delete', { id });
+  }, [planSheets, drawingPins, planMarkups, planCalibrations, persistPlanSheets, persistDrawingPins, persistPlanMarkups, persistPlanCalibrations, canSync]);
 
   const getPlanSheetsForProject = useCallback((projectId: string) =>
     planSheets.filter(s => s.projectId === projectId).sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()),
@@ -1406,22 +1433,46 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
     const now = new Date().toISOString();
     const fresh: DrawingPin = {
       ...pin,
-      id: `pin-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      id: generateUUID(),
       createdAt: now,
       updatedAt: now,
     };
     persistDrawingPins([fresh, ...drawingPins]);
+    if (canSync) {
+      void supabaseWrite('drawing_pins', 'insert', {
+        id: fresh.id, user_id: userId, project_id: fresh.projectId,
+        plan_sheet_id: fresh.planSheetId, x: fresh.x, y: fresh.y,
+        kind: fresh.kind, label: fresh.label ?? null, color: fresh.color ?? null,
+        linked_photo_id: fresh.linkedPhotoId ?? null,
+        linked_punch_item_id: fresh.linkedPunchItemId ?? null,
+        linked_rfi_id: fresh.linkedRfiId ?? null,
+        created_at: fresh.createdAt, updated_at: fresh.updatedAt,
+      });
+    }
     return fresh;
-  }, [drawingPins, persistDrawingPins]);
+  }, [drawingPins, persistDrawingPins, canSync, userId]);
 
   const updateDrawingPin = useCallback((id: string, updates: Partial<DrawingPin>) => {
     const now = new Date().toISOString();
     persistDrawingPins(drawingPins.map(p => p.id === id ? { ...p, ...updates, updatedAt: now } : p));
-  }, [drawingPins, persistDrawingPins]);
+    if (canSync) {
+      const patch: Record<string, unknown> = { updated_at: now };
+      if (updates.x !== undefined) patch.x = updates.x;
+      if (updates.y !== undefined) patch.y = updates.y;
+      if (updates.label !== undefined) patch.label = updates.label;
+      if (updates.color !== undefined) patch.color = updates.color;
+      if (updates.kind !== undefined) patch.kind = updates.kind;
+      if (updates.linkedPhotoId !== undefined) patch.linked_photo_id = updates.linkedPhotoId;
+      if (updates.linkedPunchItemId !== undefined) patch.linked_punch_item_id = updates.linkedPunchItemId;
+      if (updates.linkedRfiId !== undefined) patch.linked_rfi_id = updates.linkedRfiId;
+      void supabaseWrite('drawing_pins', 'update', { id, ...patch });
+    }
+  }, [drawingPins, persistDrawingPins, canSync]);
 
   const deleteDrawingPin = useCallback((id: string) => {
     persistDrawingPins(drawingPins.filter(p => p.id !== id));
-  }, [drawingPins, persistDrawingPins]);
+    if (canSync) void supabaseWrite('drawing_pins', 'delete', { id });
+  }, [drawingPins, persistDrawingPins, canSync]);
 
   const getPinsForPlan = useCallback((planSheetId: string) =>
     drawingPins.filter(p => p.planSheetId === planSheetId),
@@ -1434,16 +1485,26 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
   const addPlanMarkup = useCallback((markup: Omit<PlanMarkup, 'id' | 'createdAt'>) => {
     const fresh: PlanMarkup = {
       ...markup,
-      id: `mk-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      id: generateUUID(),
       createdAt: new Date().toISOString(),
     };
     persistPlanMarkups([fresh, ...planMarkups]);
+    if (canSync) {
+      void supabaseWrite('plan_markups', 'insert', {
+        id: fresh.id, user_id: userId, project_id: fresh.projectId,
+        plan_sheet_id: fresh.planSheetId, type: fresh.type, color: fresh.color,
+        stroke_width: fresh.strokeWidth ?? null,
+        points: fresh.points, text: fresh.text ?? null,
+        created_at: fresh.createdAt,
+      });
+    }
     return fresh;
-  }, [planMarkups, persistPlanMarkups]);
+  }, [planMarkups, persistPlanMarkups, canSync, userId]);
 
   const deletePlanMarkup = useCallback((id: string) => {
     persistPlanMarkups(planMarkups.filter(m => m.id !== id));
-  }, [planMarkups, persistPlanMarkups]);
+    if (canSync) void supabaseWrite('plan_markups', 'delete', { id });
+  }, [planMarkups, persistPlanMarkups, canSync]);
 
   const getMarkupsForPlan = useCallback((planSheetId: string) =>
     planMarkups.filter(m => m.planSheetId === planSheetId),
@@ -1454,16 +1515,35 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
     if (existing) {
       const next: PlanCalibration = { ...existing, ...cal };
       persistPlanCalibrations(planCalibrations.map(c => c.id === existing.id ? next : c));
+      if (canSync) {
+        // Server schema has a UNIQUE on plan_sheet_id, so the insert path
+        // via `supabaseWrite` (which uses upsert) handles both create and
+        // replace. Cheaper than branching to an update here.
+        void supabaseWrite('plan_calibrations', 'insert', {
+          id: next.id, user_id: userId, project_id: next.projectId,
+          plan_sheet_id: next.planSheetId,
+          p1: next.p1, p2: next.p2, real_distance_ft: next.realDistanceFt,
+          created_at: next.createdAt,
+        });
+      }
       return next;
     }
     const fresh: PlanCalibration = {
       ...cal,
-      id: `cal-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      id: generateUUID(),
       createdAt: new Date().toISOString(),
     };
     persistPlanCalibrations([fresh, ...planCalibrations]);
+    if (canSync) {
+      void supabaseWrite('plan_calibrations', 'insert', {
+        id: fresh.id, user_id: userId, project_id: fresh.projectId,
+        plan_sheet_id: fresh.planSheetId,
+        p1: fresh.p1, p2: fresh.p2, real_distance_ft: fresh.realDistanceFt,
+        created_at: fresh.createdAt,
+      });
+    }
     return fresh;
-  }, [planCalibrations, persistPlanCalibrations]);
+  }, [planCalibrations, persistPlanCalibrations, canSync, userId]);
 
   const getCalibrationForPlan = useCallback((planSheetId: string) =>
     planCalibrations.find(c => c.planSheetId === planSheetId),

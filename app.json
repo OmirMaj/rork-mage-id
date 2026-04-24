@@ -39,7 +39,8 @@
       ],
       "expo-font",
       "expo-web-browser",
-      "expo-mail-composer"
+      "expo-mail-composer",
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true

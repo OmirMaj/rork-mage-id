@@ -17,12 +17,25 @@ import type { SubscriptionTier } from '@/types';
 const SUBSCRIPTION_KEY = 'mageid_subscription_tier';
 
 function getRCApiKey(): string | undefined {
-  if (__DEV__ || Platform.OS === 'web') {
+  // Per-platform production keys. RevenueCat requires separate App-level keys
+  // for iOS, Android, and Web — they map to distinct billing integrations
+  // (StoreKit, Google Play Billing, RevenueCat Web Billing / Stripe).
+  //
+  // In dev (__DEV__) we fall back to the shared test key so simulator builds
+  // and Metro hot-reload don't burn through real entitlements. In production
+  // we pick the platform-specific key and fall back to the test key only as
+  // a last resort so the app still boots without a paywall if a key is
+  // accidentally missing from the build env.
+  if (__DEV__) {
     return process.env.EXPO_PUBLIC_REVENUECAT_TEST_API_KEY;
   }
   return Platform.select({
-    ios: process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY,
-    android: process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY,
+    ios: process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY
+      ?? process.env.EXPO_PUBLIC_REVENUECAT_TEST_API_KEY,
+    android: process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY
+      ?? process.env.EXPO_PUBLIC_REVENUECAT_TEST_API_KEY,
+    web: process.env.EXPO_PUBLIC_REVENUECAT_WEB_API_KEY
+      ?? process.env.EXPO_PUBLIC_REVENUECAT_TEST_API_KEY,
     default: process.env.EXPO_PUBLIC_REVENUECAT_TEST_API_KEY,
   });
 }

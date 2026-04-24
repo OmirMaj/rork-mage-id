@@ -59,6 +59,11 @@ export default function ProjectDetailScreen() {
   const projectPlans = useMemo(() => getPlanSheetsForProject(id ?? ''), [id, getPlanSheetsForProject]);
 
   const project = useMemo(() => getProject(id ?? ''), [id, getProject]);
+  // `estimate` is nullable until the project loads (or if it has no estimate
+  // attached). We compute it here so the useMemo/useCallback hooks below can
+  // depend on it unconditionally — moving them below the `if (!project)` early
+  // return would violate rules of hooks.
+  const estimate = useMemo(() => project?.estimate, [project]);
   const [expanded, setExpanded] = useState<Record<SectionKey, boolean>>({
     linkedEstimate: true,
     materials: true,
@@ -362,26 +367,9 @@ export default function ProjectDetailScreen() {
     );
   }, [id, deleteProject, router]);
 
-  if (!project) {
-    return (
-      <View style={[styles.container, styles.center]}>
-        <Stack.Screen options={{ title: 'Not Found' }} />
-        <Text style={styles.notFoundText}>Project not found</Text>
-        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-          <Text style={styles.backBtnText}>Go Back</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
-
-  const estimate = project.estimate;
-  const linkedEstimate = project.linkedEstimate;
-  const hasAnyEstimate = !!(linkedEstimate && linkedEstimate.items.length > 0) || !!estimate;
-  const collaborators = project.collaborators ?? [];
-
-  const heroTotal = linkedEstimate?.grandTotal ?? estimate?.grandTotal ?? 0;
-  const heroLabel = linkedEstimate ? `${linkedEstimate.items.length} items` : estimate ? `${estimate.materials.length} materials` : '';
-
+  // --- Estimate-dependent hooks ---
+  // These must live ABOVE the `if (!project)` early return so they run on
+  // every render. They already handle the null case internally.
   const totalBreakdown = useMemo(() => {
     if (!estimate) return null;
     const materialPct = estimate.subtotal > 0 ? (estimate.materialTotal / estimate.subtotal) * 100 : 0;
@@ -636,6 +624,25 @@ export default function ProjectDetailScreen() {
       </ScrollView>
     );
   }, [estimate, savingsBreakdown, insets.bottom]);
+
+  if (!project) {
+    return (
+      <View style={[styles.container, styles.center]}>
+        <Stack.Screen options={{ title: 'Not Found' }} />
+        <Text style={styles.notFoundText}>Project not found</Text>
+        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+          <Text style={styles.backBtnText}>Go Back</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  const linkedEstimate = project.linkedEstimate;
+  const hasAnyEstimate = !!(linkedEstimate && linkedEstimate.items.length > 0) || !!estimate;
+  const collaborators = project.collaborators ?? [];
+
+  const heroTotal = linkedEstimate?.grandTotal ?? estimate?.grandTotal ?? 0;
+  const heroLabel = linkedEstimate ? `${linkedEstimate.items.length} items` : estimate ? `${estimate.materials.length} materials` : '';
 
   return (
     <View style={styles.container}>
