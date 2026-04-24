@@ -13,8 +13,6 @@
       "channel": "preview",
       "env": {
         "EXPO_PUBLIC_REVENUECAT_IOS_API_KEY": "appl_RYYINGxrGAHJtWlcGmSZyWSkVWu",
-        "EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY": "",
-        "EXPO_PUBLIC_REVENUECAT_WEB_API_KEY": "",
         "EXPO_PUBLIC_REVENUECAT_TEST_API_KEY": "appl_RYYINGxrGAHJtWlcGmSZyWSkVWu"
       }
     },
@@ -27,8 +25,6 @@
         "EAS_NO_FROZEN_LOCKFILE": "true",
         "EAS_BUILD_NO_EXPO_GO_WARNING": "true",
         "EXPO_PUBLIC_REVENUECAT_IOS_API_KEY": "appl_RYYINGxrGAHJtWlcGmSZyWSkVWu",
-        "EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY": "",
-        "EXPO_PUBLIC_REVENUECAT_WEB_API_KEY": "",
         "EXPO_PUBLIC_REVENUECAT_TEST_API_KEY": "appl_RYYINGxrGAHJtWlcGmSZyWSkVWu"
       },
       "ios": {
