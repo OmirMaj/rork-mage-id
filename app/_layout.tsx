@@ -123,8 +123,13 @@ function RootLayoutNav() {
     const inOnboarding = segments[0] === 'onboarding';
     const inOnboardingPaywall = (segments[0] as string) === 'onboarding-paywall';
     const inResetPassword = segments[0] === 'reset-password';
+    const inPrequalForm = segments[0] === 'prequal-form';
 
-    if (inResetPassword) return;
+    // Public magic-link destinations: never redirect away from these, even
+    // when the user is unauthenticated. The prequal-form route is opened by
+    // subcontractors via a tokenized email link; if we redirect to /login
+    // before the token is consumed, the link is dead on arrival.
+    if (inResetPassword || inPrequalForm) return;
 
     if (!isAuthenticated && !inAuth) {
       console.log('[Layout] Not authenticated — redirecting to login');
@@ -294,6 +299,10 @@ function RootLayoutNav() {
         }}
       />
       <Stack.Screen
+        name="punch-walk"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
         name="warranties"
         options={{
           title: "Warranties",
@@ -370,6 +379,26 @@ function RootLayoutNav() {
           headerTintColor: Colors.primary,
           headerTitleStyle: { fontWeight: '700', color: Colors.text },
         }}
+      />
+      <Stack.Screen
+        name="job-costing"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="prequal-manager"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="prequal-form"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="plans"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="plan-viewer"
+        options={{ headerShown: false }}
       />
       <Stack.Screen
         name="equipment-detail"

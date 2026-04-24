@@ -25,6 +25,9 @@ export type FeatureKey =
   | 'change_orders_invoicing'
   | 'daily_field_reports'
   | 'schedule_scenarios'
+  | 'job_costing'
+  | 'prequal_coi'
+  | 'plan_markup'
   // Business-only features
   | 'unlimited_bid_responses'
   | 'time_tracking'
@@ -59,6 +62,9 @@ const REQUIRED_TIER: Record<FeatureKey, 'free' | 'pro' | 'business'> = {
   change_orders_invoicing: 'pro',
   daily_field_reports: 'pro',
   schedule_scenarios: 'pro',
+  job_costing: 'pro',
+  prequal_coi: 'pro',
+  plan_markup: 'pro',
   // Business-only
   unlimited_bid_responses: 'business',
   time_tracking: 'business',

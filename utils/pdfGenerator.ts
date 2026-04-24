@@ -1,7 +1,7 @@
 import { Platform } from 'react-native';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
-import type { CompanyBranding, Project, ChangeOrder, Invoice, DailyFieldReport } from '@/types';
+import type { CompanyBranding, Project, ChangeOrder, Invoice, DailyFieldReport, ScheduleTask } from '@/types';
 
 function escapeHtml(text: string): string {
   return text
@@ -155,6 +155,63 @@ function buildEstimateHtml(
   if (schedule && schedule.tasks.length > 0) {
     const milestones = schedule.tasks.filter(t => t.isMilestone);
     const criticalTasks = schedule.tasks.filter(t => t.isCriticalPath);
+    const totalDays = Math.max(1, schedule.totalDurationDays || 1);
+    const hasWbs = schedule.tasks.some(t => t.wbsCode);
+
+    // Build month/week tick labels along the top of the timeline.
+    // We emit ~10 evenly-spaced ticks regardless of project length so the
+    // axis stays legible on long schedules.
+    const tickCount = Math.min(10, Math.max(4, Math.floor(totalDays / 7)));
+    const tickLabels: string[] = [];
+    for (let i = 0; i <= tickCount; i++) {
+      const day = Math.round((totalDays * i) / tickCount);
+      const leftPct = (i / tickCount) * 100;
+      tickLabels.push(
+        `<div class="gx-tick" style="left:${leftPct}%">${day === 0 ? 'Start' : `D${day}`}</div>`,
+      );
+    }
+
+    const ganttRows = schedule.tasks.map((task, i) => {
+      const startDay = Math.max(1, task.startDay || 1);
+      const dur = Math.max(0, task.durationDays || 0);
+      const leftPct = ((startDay - 1) / totalDays) * 100;
+      const widthPct = Math.max(0.3, (dur / totalDays) * 100);
+      const critical = !!task.isCriticalPath;
+      const isSummary = !!(task as ScheduleTask & { isSummary?: boolean }).isSummary;
+      const isMilestone = !!task.isMilestone || dur === 0;
+      const indent = Math.max(0, (task.outlineLevel ?? 0)) * 10;
+      const progress = Math.max(0, Math.min(100, task.progress ?? 0));
+
+      const barStyle = isMilestone
+        ? `left:calc(${leftPct}% - 4px);width:8px;height:8px;transform:rotate(45deg);background:${critical ? '#FF3B30' : '#1A6B3C'};top:8px;border-radius:1px;`
+        : isSummary
+          ? `left:${leftPct}%;width:${widthPct}%;height:5px;background:#1a1a1a;top:10px;border-radius:1px;`
+          : `left:${leftPct}%;width:${widthPct}%;height:12px;top:6px;background:${critical ? '#FFDDDA' : '#E8F3EC'};border:1.4px solid ${critical ? '#FF3B30' : '#1A6B3C'};border-radius:3px;`;
+
+      const progressOverlay = !isSummary && !isMilestone && progress > 0
+        ? `<div class="gx-progress" style="left:${leftPct}%;width:${(widthPct * progress) / 100}%;top:9px;background:${critical ? '#FF3B30' : '#1A6B3C'};"></div>`
+        : '';
+
+      const flags: string[] = [];
+      if (task.isMilestone) flags.push('<span class="flag milestone">◆</span>');
+      if (task.isCriticalPath) flags.push('<span class="flag critical">C</span>');
+
+      return `
+        <tr class="${i % 2 === 0 ? 'alt' : ''}">
+          <td class="gx-num">${i + 1}</td>
+          <td class="gx-title" style="padding-left:${8 + indent}px">${isSummary ? '<b>' : ''}${escapeHtml(task.title)}${isSummary ? '</b>' : ''}</td>
+          ${hasWbs ? `<td class="gx-wbs">${task.wbsCode ? escapeHtml(task.wbsCode) : '-'}</td>` : ''}
+          <td class="gx-num">D${task.startDay}</td>
+          <td class="gx-num">${task.durationDays}d</td>
+          <td class="gx-num">${progress}%</td>
+          <td class="gx-crew">${escapeHtml(task.crew || '')}</td>
+          <td class="gx-flags">${flags.join(' ') || ''}</td>
+          <td class="gx-timeline">
+            <div class="gx-bar" style="${barStyle}"></div>
+            ${progressOverlay}
+          </td>
+        </tr>`;
+    }).join('');
 
     scheduleHtml = `
       <div class="page-break"></div>
@@ -165,38 +222,45 @@ function buildEstimateHtml(
         <div class="schedule-stat"><strong>${schedule.tasks.length}</strong> tasks</div>
         ${milestones.length > 0 ? `<div class="schedule-stat"><strong>${milestones.length}</strong> milestones</div>` : ''}
       </div>
-      <table>
+
+      <table class="gx-table">
+        <colgroup>
+          <col style="width:24px" />
+          <col style="width:170px" />
+          ${hasWbs ? '<col style="width:48px" />' : ''}
+          <col style="width:42px" />
+          <col style="width:36px" />
+          <col style="width:36px" />
+          <col style="width:72px" />
+          <col style="width:36px" />
+          <col />
+        </colgroup>
         <thead>
           <tr>
-            <th style="text-align:left;width:25%">Task</th>
-            <th>Phase</th>
-            ${schedule.tasks.some(t => t.wbsCode) ? '<th>WBS</th>' : ''}
-            <th>Start Day</th>
-            <th>Duration</th>
+            <th>#</th>
+            <th style="text-align:left">Task</th>
+            ${hasWbs ? '<th>WBS</th>' : ''}
+            <th>Start</th>
+            <th>Dur</th>
+            <th>%</th>
             <th>Crew</th>
-            <th>Status</th>
-            <th>Flags</th>
+            <th></th>
+            <th class="gx-axis-head">
+              <div class="gx-ticks">${tickLabels.join('')}</div>
+            </th>
           </tr>
         </thead>
-        <tbody>
-          ${schedule.tasks.map((task, i) => {
-            const flags: string[] = [];
-            if (task.isMilestone) flags.push('<span class="flag milestone">Milestone</span>');
-            if (task.isCriticalPath) flags.push('<span class="flag critical">Critical</span>');
-            return `
-            <tr class="${i % 2 === 0 ? 'alt' : ''}">
-              <td style="text-align:left;font-weight:500">${escapeHtml(task.title)}</td>
-              <td>${escapeHtml(task.phase)}</td>
-              ${schedule.tasks.some(t => t.wbsCode) ? `<td>${task.wbsCode ? escapeHtml(task.wbsCode) : '-'}</td>` : ''}
-              <td>Day ${task.startDay}</td>
-              <td>${task.durationDays}d</td>
-              <td>${escapeHtml(task.crew)}</td>
-              <td>${task.progress}%</td>
-              <td>${flags.join(' ') || '-'}</td>
-            </tr>`;
-          }).join('')}
-        </tbody>
+        <tbody>${ganttRows}</tbody>
       </table>
+
+      <div class="gx-legend">
+        <div class="gx-legend-item"><span class="gx-swatch" style="background:#E8F3EC;border:1.4px solid #1A6B3C"></span>On-time task</div>
+        <div class="gx-legend-item"><span class="gx-swatch" style="background:#FFDDDA;border:1.4px solid #FF3B30"></span>Critical</div>
+        <div class="gx-legend-item"><span class="gx-swatch" style="background:#1a1a1a;height:4px"></span>Summary roll-up</div>
+        <div class="gx-legend-item"><span class="gx-swatch" style="background:#1A6B3C;width:8px;height:8px;transform:rotate(45deg);border-radius:0"></span>Milestone</div>
+        <div class="gx-legend-item"><span class="gx-swatch" style="background:#1A6B3C;opacity:0.85;height:5px"></span>% complete</div>
+      </div>
+
       ${criticalTasks.length > 0 ? `
         <h3>Critical Path</h3>
         <div class="critical-path-chain">
@@ -289,6 +353,27 @@ function buildEstimateHtml(
   .signature-date { font-size: 11px; color: #888; margin-top: 4px; }
   .footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid #e5e5e5; text-align: center; font-size: 10px; color: #999; }
   .page-break { page-break-before: always; }
+
+  /* Gantt chart (MAGE schedule) */
+  .gx-table { table-layout: fixed; width: 100%; font-size: 9.5px; }
+  .gx-table thead th { padding: 5px 6px; font-size: 8px; }
+  .gx-table td { padding: 4px 6px; font-size: 9.5px; vertical-align: middle; border-bottom: 1px solid #eee; }
+  .gx-num { text-align: right; font-variant-numeric: tabular-nums; color: #333; }
+  .gx-title { text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .gx-wbs { text-align: center; color: #666; font-variant-numeric: tabular-nums; }
+  .gx-crew { text-align: left; color: #555; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .gx-flags { text-align: center; }
+  .gx-timeline { position: relative; height: 22px; padding: 0; background: repeating-linear-gradient(to right, transparent 0 calc(100% / 20 - 1px), #f4f4f4 calc(100% / 20 - 1px) calc(100% / 20)); }
+  .gx-bar { position: absolute; box-shadow: 0 1px 0 rgba(0,0,0,0.05); }
+  .gx-progress { position: absolute; height: 5px; opacity: 0.9; border-radius: 2px; }
+  .gx-axis-head { padding: 0 !important; background: #fafbfa; position: relative; height: 18px; }
+  .gx-ticks { position: relative; height: 18px; }
+  .gx-tick { position: absolute; top: 3px; font-size: 8px; color: #666; transform: translateX(-50%); }
+  .gx-legend { display: flex; flex-wrap: wrap; gap: 14px; margin: 10px 0 16px; padding: 10px 14px; background: #fafbfa; border: 1px solid #eee; border-radius: 6px; font-size: 10px; color: #555; }
+  .gx-legend-item { display: flex; align-items: center; gap: 6px; }
+  .gx-swatch { display: inline-block; width: 14px; height: 8px; border-radius: 2px; vertical-align: middle; }
+  tr { page-break-inside: avoid; }
+
   @media print { body { padding: 20px; } }
 </style>
 </head>

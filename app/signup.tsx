@@ -18,6 +18,7 @@ import { HardHat, Mail, Lock, Eye, EyeOff, User, ArrowRight, ChevronLeft } from 
 import Svg, { Path } from 'react-native-svg';
 import { Colors } from '@/constants/colors';
 import { useAuth } from '@/contexts/AuthContext';
+import ConfirmEmailModal from '@/components/ConfirmEmailModal';
 
 export default function SignupScreen() {
   const insets = useSafeAreaInsets();
@@ -33,6 +34,8 @@ export default function SignupScreen() {
   const [errorMessage, setErrorMessage] = useState('');
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [isAppleLoading, setIsAppleLoading] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [pendingEmail, setPendingEmail] = useState('');
 
   const buttonScale = useRef(new Animated.Value(1)).current;
   const shakeAnim = useRef(new Animated.Value(0)).current;
@@ -124,7 +127,12 @@ export default function SignupScreen() {
       if (Platform.OS !== 'web') {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
-      router.replace('/onboarding');
+      // Supabase fires a confirmation email. Show the "check your inbox" modal
+      // instead of routing straight into the app — the session isn't valid
+      // until they tap the link. AuthProvider's SIGNED_IN listener navigates
+      // on confirmation, so we don't need to router.replace here.
+      setPendingEmail(email.trim());
+      setShowConfirmModal(true);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Signup failed. Please try again.';
       setErrorMessage(message);
@@ -135,7 +143,7 @@ export default function SignupScreen() {
     } finally {
       setIsSubmitting(false);
     }
-  }, [name, email, password, confirmPassword, signup, router, buttonScale, shake]);
+  }, [name, email, password, confirmPassword, signup, buttonScale, shake]);
 
   return (
     <View style={styles.container}>
@@ -343,6 +351,16 @@ export default function SignupScreen() {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <ConfirmEmailModal
+        visible={showConfirmModal}
+        email={pendingEmail}
+        onClose={() => setShowConfirmModal(false)}
+        onChangeEmail={() => {
+          setShowConfirmModal(false);
+          setTimeout(() => emailRef.current?.focus(), 150);
+        }}
+      />
     </View>
   );
 }

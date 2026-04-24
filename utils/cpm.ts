@@ -39,7 +39,7 @@
 //
 // (For SS/FF/SF the "+1" convention only applies where a finish meets a start.)
 
-import type { ScheduleTask, DependencyLink } from '@/types';
+import type { ScheduleTask, DependencyLink, AnchorType } from '@/types';
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -60,7 +60,7 @@ export interface CpmTaskResult {
 
 export interface CpmConflict {
   /** Machine-readable kind so the UI can show different icons / copy. */
-  kind: 'cycle' | 'resource_overallocation' | 'resource_delayed_project';
+  kind: 'cycle' | 'resource_overallocation' | 'resource_delayed_project' | 'anchor_violation';
   /** Short human-readable summary. */
   message: string;
   /** Task ids involved in the conflict. */
@@ -102,6 +102,74 @@ export interface RunCpmOptions {
    * blow it.
    */
   targetFinishDay?: number;
+  /**
+   * Tasks with totalFloat <= threshold are marked critical. Default 0
+   * (strict CPM). Set higher to surface "near-critical" tasks. ProjectSchedule
+   * carries this as `criticalFloatThresholdDays` — schedule-pro passes it in.
+   */
+  criticalFloatThresholdDays?: number;
+  /**
+   * Schedule start date (ISO YYYY-MM-DD) — needed to resolve anchorDate
+   * strings into day numbers so the forward/backward pass can honor them.
+   * When absent, anchors are ignored (back-compat with callers that don't
+   * know about anchors yet).
+   */
+  scheduleStartDate?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Anchor helpers
+// ---------------------------------------------------------------------------
+//
+// Anchors (our rebrand of MS Project "constraints") let a user pin a task's
+// start or finish to an absolute date. They apply as additional floor/ceiling
+// clamps on top of the dependency-driven ES/EF.
+//
+// The date-to-day math mirrors the convention used elsewhere in the app:
+// day 1 = scheduleStartDate. Anchors without a scheduleStartDate context are
+// dropped silently — the caller should set the field in RunCpmOptions.
+
+function isoToDay(iso: string | undefined, scheduleStart: string | undefined): number | null {
+  if (!iso || !scheduleStart) return null;
+  const a = Date.parse(iso + 'T00:00:00Z');
+  const b = Date.parse(scheduleStart + 'T00:00:00Z');
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return null;
+  // +1 so scheduleStart itself is day 1 (matching the 1-indexed convention).
+  return Math.round((a - b) / 86400000) + 1;
+}
+
+interface AnchorClamp {
+  /** Earliest allowed ES (inclusive). */
+  esMin?: number;
+  /** Latest allowed ES (inclusive). */
+  esMax?: number;
+  /** Earliest allowed EF (inclusive). */
+  efMin?: number;
+  /** Latest allowed EF (inclusive). */
+  efMax?: number;
+  /** Pin ES to exact value — hard constraint. */
+  esExact?: number;
+  /** Pin EF to exact value — hard constraint. */
+  efExact?: number;
+  /** ALAP: push this task to its LS during a second pass. */
+  alap?: boolean;
+}
+
+function computeAnchor(task: ScheduleTask, scheduleStart: string | undefined): AnchorClamp | null {
+  const type: AnchorType = task.anchorType || 'none';
+  if (type === 'none') return null;
+  if (type === 'as-late-as-possible') return { alap: true };
+  const day = isoToDay(task.anchorDate, scheduleStart);
+  if (day === null) return null;
+  switch (type) {
+    case 'start-no-earlier':  return { esMin: day };
+    case 'start-no-later':    return { esMax: day };
+    case 'finish-no-earlier': return { efMin: day };
+    case 'finish-no-later':   return { efMax: day };
+    case 'must-start-on':     return { esExact: day };
+    case 'must-finish-on':    return { efExact: day };
+    default: return null;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -248,6 +316,7 @@ function topoSort(tasks: ScheduleTask[]): ScheduleTask[] {
 function forwardPass(
   ordered: ScheduleTask[],
   all: ScheduleTask[],
+  scheduleStart?: string,
 ): Map<string, { es: number; ef: number }> {
   const map = new Map<string, { es: number; ef: number }>();
   const byId = new Map(all.map(t => [t.id, t]));
@@ -255,6 +324,7 @@ function forwardPass(
   for (const task of ordered) {
     const links = getLinks(task);
     const pins = Math.max(1, task.startDay || 1);
+    const anchor = computeAnchor(task, scheduleStart);
 
     let es = pins;
     for (const link of links) {
@@ -277,6 +347,26 @@ function forwardPass(
     }
 
     const dur = Math.max(0, task.durationDays || 0);
+
+    // Apply anchor floor/ceiling clamps. Hard pins (must-start-on /
+    // must-finish-on) override dependency-derived ES; soft ones (SNET/SNLT/
+    // FNET/FNLT) act as min/max bounds. If a clamp pushes ES below its
+    // dependency floor, we log a conflict-like note by leaving ES untouched —
+    // MS Project shows a warning indicator here too.
+    if (anchor) {
+      if (anchor.esExact !== undefined) es = anchor.esExact;
+      if (anchor.esMin !== undefined && anchor.esMin > es) es = anchor.esMin;
+      if (anchor.efMin !== undefined) {
+        const req = dur === 0 ? anchor.efMin : anchor.efMin - dur + 1;
+        if (req > es) es = req;
+      }
+      if (anchor.efExact !== undefined) {
+        es = dur === 0 ? anchor.efExact : anchor.efExact - dur + 1;
+      }
+      // esMax / efMax don't push ES earlier — they're enforced as warnings
+      // (conflict surfacing is wired in runCpm below, not here).
+    }
+
     const ef = dur === 0 ? es : es + dur - 1; // milestone: duration 0, ES=EF
     map.set(task.id, { es, ef });
   }
@@ -543,7 +633,7 @@ export function runCpm(tasks: ScheduleTask[], options: RunCpmOptions = {}): CpmR
   const ordered = topoSort(tasks);
 
   // 3. Forward pass.
-  const forward = forwardPass(ordered, tasks);
+  const forward = forwardPass(ordered, tasks, options.scheduleStartDate);
 
   // 4. Project finish = max EF, unless caller pinned a target.
   let projectFinish = 1;
@@ -565,6 +655,7 @@ export function runCpm(tasks: ScheduleTask[], options: RunCpmOptions = {}): CpmR
     const bwd = backward.get(task.id);
     if (!fwd || !bwd) continue;
     const tf = bwd.ls - fwd.es;
+    const threshold = Math.max(0, options.criticalFloatThresholdDays ?? 0);
     perTask.set(task.id, {
       id: task.id,
       es: fwd.es,
@@ -573,7 +664,7 @@ export function runCpm(tasks: ScheduleTask[], options: RunCpmOptions = {}): CpmR
       lf: bwd.lf,
       totalFloat: tf,
       freeFloat: freeFloat.get(task.id) ?? 0,
-      isCritical: tf <= 0,
+      isCritical: tf <= threshold,
     });
   }
 
@@ -582,6 +673,37 @@ export function runCpm(tasks: ScheduleTask[], options: RunCpmOptions = {}): CpmR
     .map(t => perTask.get(t.id))
     .filter((r): r is CpmTaskResult => !!r && r.isCritical)
     .map(r => r.id);
+
+  // 8b. Anchor violations — a task whose computed ES/EF exceeds an upper
+  // anchor bound (SNLT / FNLT / MSO / MFO drift) gets reported so the UI can
+  // flag it with a warning glyph. This doesn't rewrite the schedule; it tells
+  // the PM what to negotiate.
+  for (const task of tasks) {
+    const clamp = computeAnchor(task, options.scheduleStartDate);
+    const r = perTask.get(task.id);
+    if (!clamp || !r) continue;
+    const violations: string[] = [];
+    if (clamp.esMax !== undefined && r.es > clamp.esMax) {
+      violations.push(`start drifted past anchor by ${r.es - clamp.esMax}d`);
+    }
+    if (clamp.efMax !== undefined && r.ef > clamp.efMax) {
+      violations.push(`finish drifted past anchor by ${r.ef - clamp.efMax}d`);
+    }
+    if (clamp.esExact !== undefined && r.es !== clamp.esExact) {
+      violations.push(`dependencies push start off the must-start-on anchor`);
+    }
+    if (clamp.efExact !== undefined && r.ef !== clamp.efExact) {
+      violations.push(`dependencies push finish off the must-finish-on anchor`);
+    }
+    if (violations.length > 0) {
+      conflicts.push({
+        kind: 'anchor_violation',
+        message: `Anchor conflict on "${task.title}": ${violations.join('; ')}`,
+        taskIds: [task.id],
+        detail: { anchor: task.anchorType, anchorDate: task.anchorDate },
+      });
+    }
+  }
 
   // 9. Optional resource leveling.
   let leveledStartDays: Map<string, number> | undefined;

@@ -158,15 +158,34 @@ export function getHealthColor(score: number): string {
   return '#FF3B30';
 }
 
-export function addWorkingDays(start: Date, days: number, workingDaysPerWeek: number): Date {
+/**
+ * Advances `start` by `days` working days. Weekends are skipped when
+ * `workingDaysPerWeek < 7`. When `nonWorkingDates` (ISO YYYY-MM-DD) is passed
+ * in, those calendar days are also skipped — used to model holidays, rain
+ * days, and site closures. We keep the signature backwards-compatible: old
+ * callers passing just three args get weekend-only behavior.
+ */
+export function addWorkingDays(
+  start: Date,
+  days: number,
+  workingDaysPerWeek: number,
+  nonWorkingDates?: string[],
+): Date {
   const result = new Date(start);
+  const blocked = nonWorkingDates && nonWorkingDates.length > 0
+    ? new Set(nonWorkingDates)
+    : null;
   let added = 0;
   while (added < days) {
     result.setDate(result.getDate() + 1);
     const dow = result.getDay();
-    if (workingDaysPerWeek >= 7 || (dow !== 0 && dow !== 6)) {
-      added++;
+    const weekendSkip = workingDaysPerWeek < 7 && (dow === 0 || dow === 6);
+    if (weekendSkip) continue;
+    if (blocked) {
+      const iso = `${result.getFullYear()}-${String(result.getMonth() + 1).padStart(2, '0')}-${String(result.getDate()).padStart(2, '0')}`;
+      if (blocked.has(iso)) continue;
     }
+    added++;
   }
   return result;
 }

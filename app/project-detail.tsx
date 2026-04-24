@@ -30,7 +30,7 @@ import { exportProjectIcs } from '@/utils/icsGenerator';
 import { formatMoney } from '@/utils/formatters';
 import { getEffectiveInvoiceStatus } from '@/utils/projectFinancials';
 
-type SectionKey = 'linkedEstimate' | 'materials' | 'labor' | 'summary' | 'schedule' | 'notes' | 'collaborators' | 'changeOrders' | 'invoices' | 'dailyReports' | 'punchList' | 'rfis' | 'submittals' | 'budget' | 'photos' | 'clientPortal' | 'communications' | 'activity' | 'calendar';
+type SectionKey = 'linkedEstimate' | 'materials' | 'labor' | 'summary' | 'schedule' | 'notes' | 'collaborators' | 'changeOrders' | 'invoices' | 'dailyReports' | 'punchList' | 'rfis' | 'submittals' | 'budget' | 'photos' | 'clientPortal' | 'communications' | 'activity' | 'calendar' | 'plans';
 type DetailModalType = 'total' | 'savings' | null;
 type EditModalType = boolean;
 
@@ -44,7 +44,7 @@ export default function ProjectDetailScreen() {
   const router = useRouter();
   const { navigateTo } = useEntityNavigation();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { getProject, deleteProject, updateProject, settings, addCollaborator, removeCollaborator, getChangeOrdersForProject, getInvoicesForProject, getDailyReportsForProject, updateChangeOrder, getPunchItemsForProject, getPhotosForProject, getCommEventsForProject, addCommEvent, getRFIsForProject, getSubmittalsForProject, getWarrantiesForProject, invoices: allInvoices, changeOrders: allChangeOrders } = useProjects();
+  const { getProject, deleteProject, updateProject, settings, addCollaborator, removeCollaborator, getChangeOrdersForProject, getInvoicesForProject, getDailyReportsForProject, updateChangeOrder, getPunchItemsForProject, getPhotosForProject, getCommEventsForProject, addCommEvent, getRFIsForProject, getSubmittalsForProject, getWarrantiesForProject, getPlanSheetsForProject, invoices: allInvoices, changeOrders: allChangeOrders } = useProjects();
   const { tier } = useSubscription();
 
   const changeOrders = useMemo(() => getChangeOrdersForProject(id ?? ''), [id, getChangeOrdersForProject]);
@@ -56,6 +56,7 @@ export default function ProjectDetailScreen() {
   const projectRFIs = useMemo(() => getRFIsForProject(id ?? ''), [id, getRFIsForProject]);
   const projectSubmittals = useMemo(() => getSubmittalsForProject(id ?? ''), [id, getSubmittalsForProject]);
   const projectWarranties = useMemo(() => getWarrantiesForProject(id ?? ''), [id, getWarrantiesForProject]);
+  const projectPlans = useMemo(() => getPlanSheetsForProject(id ?? ''), [id, getPlanSheetsForProject]);
 
   const project = useMemo(() => getProject(id ?? ''), [id, getProject]);
   const [expanded, setExpanded] = useState<Record<SectionKey, boolean>>({
@@ -78,6 +79,7 @@ export default function ProjectDetailScreen() {
     communications: true,
     activity: false,
     calendar: false,
+    plans: false,
   });
   const [detailModal, setDetailModal] = useState<DetailModalType>(null);
   const [showShareModal, setShowShareModal] = useState(false);
@@ -826,6 +828,7 @@ export default function ProjectDetailScreen() {
             { key: 'submittals' as SectionKey, label: 'Submittals', icon: FileText, color: '#5856D6', count: projectSubmittals.length },
             ...(hasAnyEstimate ? [{ key: 'budget' as SectionKey, label: 'Financial Health', icon: DollarSign, color: Colors.success, count: null as number | null }] : []),
             { key: 'photos' as SectionKey, label: 'Photos', icon: Camera, color: Colors.info, count: projectPhotos.length },
+            { key: 'plans' as SectionKey, label: 'Plans', icon: Layers, color: Colors.primary, count: projectPlans.length },
             { key: 'clientPortal' as SectionKey, label: 'Client Portal', icon: Globe, color: '#5856D6', count: null as number | null },
             { key: 'communications' as SectionKey, label: 'Communications', icon: Mail, color: Colors.info, count: commEvents.length },
             { key: 'activity' as SectionKey, label: 'Activity', icon: Activity, color: Colors.accent, count: null as number | null },
@@ -844,6 +847,10 @@ export default function ProjectDetailScreen() {
                   }
                   if (tile.key === 'calendar') {
                     void handleExportCalendar();
+                    return;
+                  }
+                  if (tile.key === 'plans') {
+                    router.push({ pathname: '/plans' as any, params: { projectId: id } });
                     return;
                   }
                   setActiveTile(tile.key);
@@ -1888,6 +1895,15 @@ export default function ProjectDetailScreen() {
                 >
                   <DollarSign size={16} color={Colors.success} />
                   <Text style={[styles.coAddBtnText, { color: Colors.success }]}>Full Budget Dashboard</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.coAddBtn, { marginTop: 8 }]}
+                  onPress={() => navigateFromTile({ pathname: '/job-costing' as any, params: { projectId: id } })}
+                  activeOpacity={0.7}
+                  testID="open-job-costing"
+                >
+                  <BarChart3 size={16} color={Colors.primary} />
+                  <Text style={[styles.coAddBtnText, { color: Colors.primary }]}>Job Cost-to-Complete</Text>
                 </TouchableOpacity>
               </View>
             )}

@@ -47,6 +47,7 @@ import Svg, { Path, Defs, Marker, Polygon, Line as SvgLine, Rect as SvgRect } fr
 import { Colors } from '@/constants/colors';
 import type { ScheduleTask } from '@/types';
 import { wouldCreateCycle, type CpmResult } from '@/utils/cpm';
+import { getHiddenTaskIds } from '@/utils/summaryRollup';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -63,6 +64,24 @@ export interface InteractiveGanttProps {
   onDependencyCreate?: (fromId: string, toId: string) => void;
   /** Forced initial zoom. Defaults to 'day' unless the project exceeds 90 days. */
   initialZoom?: ZoomMode;
+  /**
+   * Timeline-only mode. When true, the task-name gutter is hidden — the caller
+   * (typically the Schedule Pro split view) is already showing task names in a
+   * spreadsheet to the left, so repeating them here makes the layout feel
+   * stacked and redundant. Row heights still match (40px) so the parent can
+   * align the two panes visually.
+   */
+  compact?: boolean;
+  /**
+   * The "pathed" task. When set, the gantt dims every bar that is NOT part of
+   * the focused task's driving-predecessor chain (ancestors walked through
+   * dependencyLinks/legacy dependencies). Empty/null = no highlight, all bars
+   * render normally. Pairs with `onFocusTask` so the parent owns the state
+   * (so the Grid can highlight the same row simultaneously).
+   */
+  focusedTaskId?: string | null;
+  /** Fires when the user clicks a bar. Pass the id, or null to clear focus. */
+  onFocusTask?: (id: string | null) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -112,17 +131,36 @@ function daysBetween(a: Date, b: Date): number {
 // ---------------------------------------------------------------------------
 
 export default function InteractiveGantt(props: InteractiveGanttProps) {
-  const { tasks, cpm, projectStartDate, onEdit, onDependencyCreate, initialZoom } = props;
+  const { tasks: tasksRaw, cpm, projectStartDate, onEdit, onDependencyCreate, initialZoom, compact, focusedTaskId, onFocusTask } = props;
+  // Filter rows belonging to collapsed summaries. CPM still honored them (we
+  // received the pre-rolled set); we only hide them visually so the gantt
+  // stays uncluttered while the user is focused on top-level phases.
+  const tasks = useMemo(() => {
+    const hidden = getHiddenTaskIds(tasksRaw);
+    return tasksRaw.filter(t => !hidden.has(t.id));
+  }, [tasksRaw]);
+  // In compact (split-view) mode the left task-name column is suppressed. We
+  // branch on a local constant so the rest of the layout math stays the same.
+  const leftGutter = compact ? 0 : LEFT_GUTTER;
 
   // --- Zoom -----------------------------------------------------------------
-  const [zoom, setZoom] = useState<ZoomMode>(() => {
-    if (initialZoom) return initialZoom;
-    const span = Math.max(1, cpm.projectFinish);
-    if (span > 180) return 'month';
-    if (span > 60) return 'week';
-    return 'day';
+  // Continuous zoom: pxPerDay is the single source of truth. The `zoom`
+  // density tier (day / week / month) is derived so header ticks, tail
+  // padding, and gridline spacing still pick sensible labels at any slider
+  // position. Keeping the tier as a derived value lets old call sites (and
+  // the Day/Week/Month preset chips) treat this as three discrete modes
+  // while power users get continuous scaling via the slider.
+  const [pxPerDay, setPxPerDay] = useState<number>(() => {
+    const mode: ZoomMode = initialZoom ?? (() => {
+      const span = Math.max(1, cpm.projectFinish);
+      if (span > 180) return 'month';
+      if (span > 60) return 'week';
+      return 'day';
+    })();
+    return PX_PER_DAY[mode];
   });
-  const pxPerDay = PX_PER_DAY[zoom];
+  const zoom: ZoomMode = pxPerDay >= 16 ? 'day' : pxPerDay >= 6 ? 'week' : 'month';
+  const setZoom = useCallback((z: ZoomMode) => setPxPerDay(PX_PER_DAY[z]), []);
 
   // --- Derived totals -------------------------------------------------------
   // Always render at least ~30 days to the right of project finish so users can
@@ -143,6 +181,20 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
     // "Day 1" is projectStartDate. So today = daysBetween + 1.
     return daysBetween(projectStartDate, now) + 1;
   }, [projectStartDate]);
+
+  // Convert an ISO date (YYYY-MM-DD) to our 1-indexed day number. Returns
+  // null if the date is unparseable. Used for anchor markers and deadline
+  // chevrons.
+  const isoToDayLocal = useCallback((iso: string | undefined): number | null => {
+    if (!iso) return null;
+    const parsed = Date.parse(iso + 'T00:00:00');
+    if (!Number.isFinite(parsed)) return null;
+    const d = new Date(parsed);
+    return daysBetween(projectStartDate, d) + 1;
+  }, [projectStartDate]);
+
+  // --- Scroll refs (for Fit / Today / Focus toolbar buttons) --------------
+  const hScrollRef = useRef<ScrollView | null>(null);
 
   // --- Hover / drag state --------------------------------------------------
   const [hoverTaskId, setHoverTaskId] = useState<string | null>(null);
@@ -196,6 +248,38 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
     bars.forEach(b => m.set(b.task.id, b));
     return m;
   }, [bars]);
+
+  // --- Task path (driving predecessors) -----------------------------------
+  // Given a focused task, walk its dependency graph backward so every bar
+  // that feeds into it (direct or transitive) can render at full brightness
+  // while unrelated bars dim to a ghost. MAGE calls this the "task path"
+  // rather than MSP's "task inspector" — same idea, different branding.
+  // Reads both the new typed links (dependencyLinks) and the legacy string
+  // array so old schedules keep working.
+  const taskPathIds = useMemo(() => {
+    if (!focusedTaskId) return null;
+    const byId = new Map(tasksRaw.map(t => [t.id, t]));
+    const visited = new Set<string>([focusedTaskId]);
+    const queue: string[] = [focusedTaskId];
+    while (queue.length > 0) {
+      const cur = queue.shift()!;
+      const t = byId.get(cur);
+      if (!t) continue;
+      const predIds: string[] = [];
+      if (t.dependencyLinks && t.dependencyLinks.length > 0) {
+        for (const link of t.dependencyLinks) predIds.push(link.taskId);
+      } else if (t.dependencies) {
+        for (const d of t.dependencies) predIds.push(d);
+      }
+      for (const pid of predIds) {
+        if (!visited.has(pid)) {
+          visited.add(pid);
+          queue.push(pid);
+        }
+      }
+    }
+    return visited;
+  }, [focusedTaskId, tasksRaw]);
 
   // --- Marching ants animation -------------------------------------------
   // A single Animated.Value shared by every dashed arrow. We animate it from
@@ -343,26 +427,58 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
     });
   }, [hitTestBar, tasks]);
 
+  // Pending link — set when drag-to-link completes successfully. The popover
+  // asks the user to pick FS/SS/FF/SF + a lag. This is the MS Project
+  // semantics that was missing: defaulting to FS+0 obscures real logic like
+  // "pour cures 3 days before tile can start" (FS+3).
+  const [pendingLink, setPendingLink] = useState<{
+    fromId: string;
+    toId: string;
+    x: number;
+    y: number;
+  } | null>(null);
+
   const endLinkDrag = useCallback(() => {
     setLinkDrag(prev => {
       if (!prev) return null;
       if (prev.hoverTargetId && !prev.invalid) {
-        if (onDependencyCreate) {
-          onDependencyCreate(prev.sourceTaskId, prev.hoverTargetId);
-        } else {
-          // Fallback: patch the successor ourselves.
-          const target = tasks.find(t => t.id === prev.hoverTargetId);
-          if (target && !target.dependencies.includes(prev.sourceTaskId)) {
-            onEdit(prev.hoverTargetId, {
-              dependencies: [...target.dependencies, prev.sourceTaskId],
-            });
-          }
-        }
+        // Pop a menu so the user picks FS/SS/FF/SF + lag. The commit happens
+        // from the menu, not here.
+        setPendingLink({
+          fromId: prev.sourceTaskId,
+          toId: prev.hoverTargetId,
+          x: prev.pointerLocalX,
+          y: prev.pointerLocalY,
+        });
       }
       return null;
     });
     linkOriginRef.current = null;
-  }, [onDependencyCreate, onEdit, tasks]);
+  }, []);
+
+  const commitPendingLink = useCallback((type: 'FS' | 'SS' | 'FF' | 'SF', lagDays: number) => {
+    if (!pendingLink) return;
+    const { fromId, toId } = pendingLink;
+    const target = tasks.find(t => t.id === toId);
+    if (!target) { setPendingLink(null); return; }
+    // Build dependencyLinks[], upgrading legacy deps if needed.
+    const existing = target.dependencyLinks && target.dependencyLinks.length > 0
+      ? target.dependencyLinks
+      : target.dependencies.map(id => ({ taskId: id, type: 'FS' as const, lagDays: 0 }));
+    // Replace any existing link with same fromId (editing via re-drag), else append.
+    const without = existing.filter(l => l.taskId !== fromId);
+    const nextLinks = [...without, { taskId: fromId, type, lagDays }];
+    // Keep dependencies[] as a simple predecessor id list for legacy code.
+    const nextDeps = Array.from(new Set([...target.dependencies, fromId]));
+    if (onDependencyCreate) {
+      onDependencyCreate(fromId, toId);
+    }
+    onEdit(toId, {
+      dependencies: nextDeps,
+      dependencyLinks: nextLinks,
+    });
+    setPendingLink(null);
+  }, [pendingLink, tasks, onDependencyCreate, onEdit]);
 
   // --- Phase 5: as-built quick actions ------------------------------------
   const logStartToday = useCallback((task: ScheduleTask) => {
@@ -425,33 +541,63 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
           dragState?.taskId === pred.task.id ||
           dragState?.taskId === succ.task.id;
 
-        // Endpoints
-        let x1 = pred.x + pred.w;
-        let y1 = pred.y + BAR_HEIGHT / 2;
-        let x2 = succ.x;
-        let y2 = succ.y + BAR_HEIGHT / 2;
-        if (linkType === 'SS') {
-          x1 = pred.x;
-          x2 = succ.x;
-        } else if (linkType === 'FF') {
-          x1 = pred.x + pred.w;
-          x2 = succ.x + succ.w;
-        } else if (linkType === 'SF') {
-          x1 = pred.x;
-          x2 = succ.x + succ.w;
+        // Endpoints — each dep type exits/enters a different edge. `exitDir`
+        // and `enterDir` are +1 (right) or -1 (left); they determine which
+        // direction the initial/final stub heads so the elbow reads cleanly
+        // and the arrowhead points at the actual edge we're connecting to.
+        let x1: number, y1: number, x2: number, y2: number;
+        let exitDir: 1 | -1;
+        let enterDir: 1 | -1;
+        y1 = pred.y + BAR_HEIGHT / 2;
+        y2 = succ.y + BAR_HEIGHT / 2;
+        switch (linkType) {
+          case 'SS':
+            x1 = pred.x;            exitDir = -1;
+            x2 = succ.x;            enterDir = 1;
+            break;
+          case 'FF':
+            x1 = pred.x + pred.w;   exitDir = 1;
+            x2 = succ.x + succ.w;   enterDir = -1;
+            break;
+          case 'SF':
+            x1 = pred.x;            exitDir = -1;
+            x2 = succ.x + succ.w;   enterDir = -1;
+            break;
+          case 'FS':
+          default:
+            x1 = pred.x + pred.w;   exitDir = 1;
+            x2 = succ.x;            enterDir = 1;
+            break;
         }
-        // Elbow path: short horizontal stub out, vertical, horizontal in.
-        const stubOut = 14;
-        const stubIn = 14;
-        // If successor is left of predecessor, route above the predecessor to
-        // avoid slicing through it.
-        const goingForward = x2 >= x1;
-        const midX = goingForward
-          ? Math.max(x1 + stubOut, x2 - stubIn)
-          : x1 + stubOut;
-        const d = goingForward
-          ? `M ${x1} ${y1} H ${midX} V ${y2} H ${x2 - 3}`
-          : `M ${x1} ${y1} H ${midX} V ${pred.y - 8} H ${x2 - stubIn} V ${y2} H ${x2 - 3}`;
+
+        const stub = 12;
+        // Step 1: move in exitDir for `stub` px. Step 2: vertical to y2. Step
+        // 3: approach x2 from enterDir. If the natural path would cross back
+        // over a bar, route above via yDetour.
+        const x1End = x1 + exitDir * stub;
+        const x2End = x2 - enterDir * stub;
+        const yDetour = Math.min(pred.y, succ.y) - 10;
+        let d: string;
+        if (exitDir === 1 && enterDir === 1) {
+          // FS-like: right then down/up then right-in.
+          if (x2End >= x1End) {
+            const midX = Math.max(x1End, x2End);
+            d = `M ${x1} ${y1} H ${midX} V ${y2} H ${x2 - 3}`;
+          } else {
+            d = `M ${x1} ${y1} H ${x1End} V ${yDetour} H ${x2End} V ${y2} H ${x2 - 3}`;
+          }
+        } else if (exitDir === -1 && enterDir === 1) {
+          // SS-like: left then vertical then right-in (always via detour
+          // because we're heading backward before coming forward).
+          d = `M ${x1} ${y1} H ${x1End} V ${yDetour} H ${x2End} V ${y2} H ${x2 - 3}`;
+        } else if (exitDir === 1 && enterDir === -1) {
+          // FF-like: right then vertical then right-in (arrowhead at the
+          // right edge of successor, so entry comes from the right).
+          d = `M ${x1} ${y1} H ${x1End} V ${yDetour} H ${x2End} V ${y2} H ${x2 + 3}`;
+        } else {
+          // SF-like: left then vertical then right-in to the right edge.
+          d = `M ${x1} ${y1} H ${x1End} V ${yDetour} H ${x2End} V ${y2} H ${x2 + 3}`;
+        }
         out.push({
           id: `${pred.task.id}->${succ.task.id}`,
           d,
@@ -530,6 +676,88 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
             </TouchableOpacity>
           ))}
         </View>
+        {/* Continuous zoom slider. Web renders a native range input so the
+            user can dial in any density between month-overview (1px/day) and
+            detail view (40px/day). Native falls back to −/+ stepper buttons
+            (Reanimated slider is overkill for a toolbar control). */}
+        {Platform.OS === 'web' ? (
+          <View style={styles.zoomSliderWrap}>
+            {React.createElement('input' as any, {
+              type: 'range',
+              min: 1,
+              max: 40,
+              step: 1,
+              value: Math.round(pxPerDay),
+              onChange: (e: any) => setPxPerDay(Number(e.target.value) || 1),
+              style: { width: 120, cursor: 'pointer' },
+              'aria-label': 'Zoom',
+            })}
+            <Text style={styles.zoomSliderValue}>{Math.round(pxPerDay)}px/d</Text>
+          </View>
+        ) : (
+          <View style={styles.zoomSliderWrap}>
+            <TouchableOpacity
+              onPress={() => setPxPerDay(v => Math.max(1, v - 2))}
+              style={styles.zoomStepBtn}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.zoomStepBtnText}>−</Text>
+            </TouchableOpacity>
+            <Text style={styles.zoomSliderValue}>{Math.round(pxPerDay)}px/d</Text>
+            <TouchableOpacity
+              onPress={() => setPxPerDay(v => Math.min(40, v + 2))}
+              style={styles.zoomStepBtn}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.zoomStepBtnText}>+</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+        {/* Fit / Today / Focus navigation. These don't change zoom — they
+            scroll the timeline to a useful x offset. "Fit" auto-picks the
+            zoom that puts the whole project on screen; Today snaps to the
+            red line; Focus centers on the selected row's bar. */}
+        <View style={styles.navGroup}>
+          <TouchableOpacity
+            onPress={() => {
+              // Fit: compute exact pxPerDay so the full project spans the
+              // (approximate) viewport. Clamp into the slider range so the
+              // slider UI stays in sync with the derived scale.
+              const viewport = 800;
+              const span = Math.max(1, cpm.projectFinish);
+              const pxDay = Math.max(1, Math.min(40, Math.round(viewport / span)));
+              setPxPerDay(pxDay);
+              hScrollRef.current?.scrollTo({ x: 0, animated: true });
+            }}
+            style={styles.navBtn}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.navBtnText}>Fit</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => {
+              const x = Math.max(0, (todayDayNumber - 3) * pxPerDay);
+              hScrollRef.current?.scrollTo({ x, animated: true });
+            }}
+            style={styles.navBtn}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.navBtnText}>Today</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => {
+              if (!hoverTaskId) return;
+              const b = barById.get(hoverTaskId);
+              if (!b) return;
+              const x = Math.max(0, b.x - 80);
+              hScrollRef.current?.scrollTo({ x, animated: true });
+            }}
+            style={[styles.navBtn, !hoverTaskId && styles.navBtnDisabled]}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.navBtnText}>Focus</Text>
+          </TouchableOpacity>
+        </View>
         <View style={styles.legend}>
           <View style={[styles.legendDot, { backgroundColor: Colors.error }]} />
           <Text style={styles.legendText}>Critical path</Text>
@@ -545,7 +773,8 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
             we use a shared vertical ScrollView that contains both the gutter
             and the timeline side-by-side. The gutter stays fixed horizontally
             because the outer container clips. */}
-        <View style={[styles.gutter, { width: LEFT_GUTTER }]}>
+        {leftGutter > 0 && (
+        <View style={[styles.gutter, { width: leftGutter }]}>
           <View style={[styles.gutterHeader, { height: HEADER_HEIGHT }]}>
             <Text style={styles.gutterHeaderText}>Task</Text>
           </View>
@@ -575,10 +804,12 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
             );
           })}
         </View>
+        )}
 
         {/* Right: horizontally scrolling timeline. We pair it with a vertical
             ScrollView so long schedules scroll both ways. */}
         <ScrollView
+          ref={hScrollRef}
           horizontal
           showsHorizontalScrollIndicator
           contentContainerStyle={{ minWidth: timelineWidth }}
@@ -778,28 +1009,72 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                 })}
               </Svg>
 
+              {/* --- Deadline chevrons (MAGE "due-by" markers) --- */}
+              {/* A deadline is a soft limit (no CPM effect). We draw a red
+                  downward chevron pointing at the end-of-day column of the
+                  deadline date, aligned to the task's row. The chevron sits
+                  slightly above the bar so it reads as "target" rather than
+                  "finish". Intentionally different visual from MSP's green
+                  arrow to avoid trade-dress overlap. */}
+              <Svg
+                width={timelineWidth}
+                height={gridHeight}
+                style={StyleSheet.absoluteFill}
+                pointerEvents="none"
+              >
+                {bars.map(bar => {
+                  const d = isoToDayLocal(bar.task.deadline);
+                  if (d == null) return null;
+                  const cx = (d - 1) * pxPerDay + pxPerDay / 2;
+                  const cy = bar.y - 2;
+                  const path = `M ${cx - 6} ${cy} L ${cx + 6} ${cy} L ${cx} ${cy + 8} Z`;
+                  const overdue = bar.cpmRow && bar.cpmRow.ef > d;
+                  const color = overdue ? '#FF3B30' : '#FF9500';
+                  return (
+                    <Path
+                      key={`deadline-${bar.task.id}`}
+                      d={path}
+                      fill={color}
+                      stroke="#fff"
+                      strokeWidth={1}
+                    />
+                  );
+                })}
+              </Svg>
+
               {/* --- Bars --- */}
-              {bars.map(bar => (
-                <BarView
-                  key={bar.task.id}
-                  bar={bar}
-                  isHovered={hoverTaskId === bar.task.id}
-                  isDragging={dragState?.taskId === bar.task.id}
-                  isLinkTarget={linkDrag?.hoverTargetId === bar.task.id}
-                  linkInvalid={!!linkDrag?.invalid && linkDrag.hoverTargetId === bar.task.id}
-                  todayDayNumber={todayDayNumber}
-                  onHoverIn={() => setHoverTaskId(bar.task.id)}
-                  onHoverOut={() => setHoverTaskId(null)}
-                  onBeginDrag={(mode, evt) => beginDrag(bar.task, mode, evt)}
-                  onMoveDrag={updateDrag}
-                  onEndDrag={endDrag}
-                  onBeginLink={(evt) => beginLinkDrag(bar.task.id, evt)}
-                  onMoveLink={updateLinkDrag}
-                  onEndLink={endLinkDrag}
-                  onLogStartToday={() => logStartToday(bar.task)}
-                  onLogFinishToday={() => logFinishToday(bar.task)}
-                />
-              ))}
+              {bars.map(bar => {
+                // When a task-path focus is active, dim everything not in the
+                // predecessor chain. The focused bar itself always stays
+                // bright; the pathed ancestors render normally; everyone
+                // else fades to a ghost so the user's eye tracks the chain.
+                const inPath = !taskPathIds || taskPathIds.has(bar.task.id);
+                const isFocusedBar = focusedTaskId === bar.task.id;
+                return (
+                  <BarView
+                    key={bar.task.id}
+                    bar={bar}
+                    isHovered={hoverTaskId === bar.task.id}
+                    isDragging={dragState?.taskId === bar.task.id}
+                    isLinkTarget={linkDrag?.hoverTargetId === bar.task.id}
+                    linkInvalid={!!linkDrag?.invalid && linkDrag.hoverTargetId === bar.task.id}
+                    todayDayNumber={todayDayNumber}
+                    dimmed={!inPath}
+                    isFocusTarget={isFocusedBar}
+                    onHoverIn={() => setHoverTaskId(bar.task.id)}
+                    onHoverOut={() => setHoverTaskId(null)}
+                    onBeginDrag={(mode, evt) => beginDrag(bar.task, mode, evt)}
+                    onMoveDrag={updateDrag}
+                    onEndDrag={endDrag}
+                    onBeginLink={(evt) => beginLinkDrag(bar.task.id, evt)}
+                    onMoveLink={updateLinkDrag}
+                    onEndLink={endLinkDrag}
+                    onFocus={() => onFocusTask?.(isFocusedBar ? null : bar.task.id)}
+                    onLogStartToday={() => logStartToday(bar.task)}
+                    onLogFinishToday={() => logFinishToday(bar.task)}
+                  />
+                );
+              })}
 
               {/* --- Rubber-band dependency line (Phase 4) --- */}
               {linkDrag && (() => {
@@ -835,6 +1110,61 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                       rx={5}
                     />
                   </Svg>
+                );
+              })()}
+
+              {/* --- Pending link type popover --- */}
+              {/* After a drag-to-link gesture, the user picks the exact
+                  dependency semantics. Defaults to FS+0 but exposes SS/FF/SF
+                  and a lag stepper. This is the canonical MS Project
+                  workflow — without it every link reads as "then", which
+                  misses logic like "cure concrete before tile" (FS+3). */}
+              {pendingLink && (() => {
+                const fromBar = barById.get(pendingLink.fromId);
+                const toBar = barById.get(pendingLink.toId);
+                const tipX = Math.max(4, Math.min(timelineWidth - 260, pendingLink.x - 130));
+                const tipY = Math.max(HEADER_HEIGHT + 4, pendingLink.y - 120);
+                return (
+                  <View style={[styles.linkPopover, { left: tipX, top: tipY }]}>
+                    <Text style={styles.linkPopoverTitle} numberOfLines={1}>
+                      {fromBar?.task.title || '…'} → {toBar?.task.title || '…'}
+                    </Text>
+                    <View style={styles.linkTypeRow}>
+                      {(['FS', 'SS', 'FF', 'SF'] as const).map(t => (
+                        <TouchableOpacity
+                          key={t}
+                          style={styles.linkTypeBtn}
+                          onPress={() => commitPendingLink(t, 0)}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={styles.linkTypeLabel}>{t}</Text>
+                          <Text style={styles.linkTypeHelp}>
+                            {t === 'FS' ? 'then' : t === 'SS' ? 'start together' : t === 'FF' ? 'end together' : 'start→end'}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                    <View style={styles.linkLagRow}>
+                      <Text style={styles.linkLagLabel}>Lag (days)</Text>
+                      {[-3, -1, 0, 1, 3, 7].map(n => (
+                        <TouchableOpacity
+                          key={n}
+                          style={styles.linkLagBtn}
+                          onPress={() => commitPendingLink('FS', n)}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={styles.linkLagText}>{n > 0 ? `+${n}` : n}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                    <TouchableOpacity
+                      style={styles.linkCancel}
+                      onPress={() => setPendingLink(null)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.linkCancelText}>Cancel</Text>
+                    </TouchableOpacity>
+                  </View>
                 );
               })()}
 
@@ -903,6 +1233,10 @@ interface BarViewProps {
   isLinkTarget: boolean;
   linkInvalid: boolean;
   todayDayNumber: number;
+  /** When true, render at reduced opacity — outside current task-path focus. */
+  dimmed?: boolean;
+  /** When true, this bar is the focused task head (MAGE accent outline). */
+  isFocusTarget?: boolean;
   onHoverIn: () => void;
   onHoverOut: () => void;
   onBeginDrag: (mode: 'move' | 'resize', evt: any) => void;
@@ -911,15 +1245,18 @@ interface BarViewProps {
   onBeginLink: (evt: any) => void;
   onMoveLink: (evt: any) => void;
   onEndLink: () => void;
+  onFocus?: () => void;
   onLogStartToday: () => void;
   onLogFinishToday: () => void;
 }
 
 function BarView({
   bar, isHovered, isDragging, isLinkTarget, linkInvalid, todayDayNumber,
+  dimmed, isFocusTarget,
   onHoverIn, onHoverOut,
   onBeginDrag, onMoveDrag, onEndDrag,
   onBeginLink, onMoveLink, onEndLink,
+  onFocus,
   onLogStartToday, onLogFinishToday,
 }: BarViewProps) {
   // Decide whether a touch at offsetX is on the body (move) or right edge (resize).
@@ -990,6 +1327,73 @@ function BarView({
   const progressColor = bar.isCritical ? Colors.error : Colors.primary;
   const progressPct = Math.max(0, Math.min(1, (bar.task.progress ?? 0) / 100));
 
+  // Summary bars: rendered as a dark span with inverted "fangs" at each end
+  // — visually distinct from normal bars so WBS parents read differently.
+  // We don't allow drag/resize on summaries (their span is derived from
+  // children) — just a hover affordance.
+  if (bar.task.isSummary) {
+    const fang = 6;
+    return (
+      <>
+        <View
+          style={{
+            position: 'absolute',
+            left: bar.x,
+            top: bar.y + 4,
+            width: bar.w,
+            height: 6,
+            backgroundColor: Colors.text,
+            borderRadius: 1,
+            zIndex: 3,
+          }}
+          // @ts-expect-error — RN web pointer events
+          onMouseEnter={onHoverIn}
+          onMouseLeave={onHoverOut}
+        />
+        {/* Left fang */}
+        <View
+          style={{
+            position: 'absolute',
+            left: bar.x,
+            top: bar.y + 10,
+            width: 0,
+            height: 0,
+            borderStyle: 'solid',
+            borderTopWidth: fang,
+            borderLeftWidth: fang,
+            borderRightWidth: 0,
+            borderBottomWidth: 0,
+            borderTopColor: Colors.text,
+            borderLeftColor: Colors.text,
+            borderRightColor: 'transparent',
+            borderBottomColor: 'transparent',
+            zIndex: 3,
+          } as any}
+        />
+        {/* Right fang */}
+        <View
+          style={{
+            position: 'absolute',
+            left: bar.x + bar.w - fang,
+            top: bar.y + 10,
+            width: 0,
+            height: 0,
+            borderStyle: 'solid',
+            borderTopWidth: fang,
+            borderRightWidth: fang,
+            borderLeftWidth: 0,
+            borderBottomWidth: 0,
+            borderTopColor: Colors.text,
+            borderRightColor: Colors.text,
+            borderLeftColor: 'transparent',
+            borderBottomColor: 'transparent',
+            zIndex: 3,
+          } as any}
+        />
+      </>
+    );
+  }
+
   if (bar.isMilestone) {
     // Diamond, centered at bar.x, fills its row vertically.
     const size = BAR_HEIGHT;
@@ -997,6 +1401,7 @@ function BarView({
     const cy = bar.y + BAR_HEIGHT / 2;
     return (
       <View
+        {...(Platform.OS === 'web' && onFocus ? ({ onClick: (e: any) => { if (isDragging) return; e?.stopPropagation?.(); onFocus(); } } as any) : {})}
         style={{
           position: 'absolute',
           left: cx - size / 2,
@@ -1008,15 +1413,17 @@ function BarView({
           transform: [{ rotate: '45deg' }],
           backgroundColor: barColor,
           borderRadius: 4,
-          shadowColor: barColor,
-          shadowOpacity: isHovered || isDragging ? 0.4 : 0.15,
-          shadowRadius: isHovered || isDragging ? 6 : 2,
+          borderWidth: isFocusTarget ? 2 : 0,
+          borderColor: Colors.accent,
+          opacity: dimmed ? 0.25 : 1,
+          shadowColor: isFocusTarget ? Colors.accent : barColor,
+          shadowOpacity: isFocusTarget ? 0.6 : (isHovered || isDragging ? 0.4 : 0.15),
+          shadowRadius: isFocusTarget ? 8 : (isHovered || isDragging ? 6 : 2),
           shadowOffset: { width: 0, height: 1 },
-          zIndex: isDragging ? 20 : 2,
+          zIndex: isDragging ? 20 : (isFocusTarget ? 10 : 2),
         }}
-        // @ts-expect-error — RN web pointer events
-        onMouseEnter={onHoverIn}
-        onMouseLeave={onHoverOut}
+        onPointerEnter={onHoverIn as any}
+        onPointerLeave={onHoverOut as any}
         {...responder.panHandlers}
       />
     );
@@ -1046,6 +1453,11 @@ function BarView({
         />
       )}
     <View
+      {...(Platform.OS === 'web' && onFocus ? ({ onClick: (e: any) => {
+        if (isDragging) return;
+        e?.stopPropagation?.();
+        onFocus();
+      } } as any) : {})}
       style={{
         position: 'absolute',
         left: bar.x,
@@ -1054,31 +1466,40 @@ function BarView({
         height: BAR_HEIGHT,
         borderRadius: 6,
         backgroundColor: barBg,
-        borderWidth: 1.5,
-        borderColor: barColor,
+        borderWidth: isFocusTarget ? 2.5 : 1.5,
+        borderColor: isFocusTarget ? Colors.accent : barColor,
         overflow: 'hidden',
-        shadowColor: barColor,
-        shadowOpacity: isHovered || isDragging ? 0.35 : 0,
-        shadowRadius: isHovered || isDragging ? 8 : 0,
+        opacity: dimmed ? 0.25 : 1,
+        shadowColor: isFocusTarget ? Colors.accent : barColor,
+        shadowOpacity: isFocusTarget ? 0.5 : (isHovered || isDragging ? 0.35 : 0),
+        shadowRadius: isFocusTarget ? 10 : (isHovered || isDragging ? 8 : 0),
         shadowOffset: { width: 0, height: 1 },
-        zIndex: isDragging ? 20 : 2,
+        zIndex: isDragging ? 20 : (isFocusTarget ? 10 : 2),
         cursor: Platform.OS === 'web' ? 'grab' : undefined,
       } as any}
-      // @ts-expect-error — RN web pointer events
-      onMouseEnter={onHoverIn}
-      onMouseLeave={onHoverOut}
+      onPointerEnter={onHoverIn as any}
+      onPointerLeave={onHoverOut as any}
       {...responder.panHandlers}
     >
-      {/* Progress fill */}
-      <View
-        style={{
-          position: 'absolute',
-          left: 0, top: 0, bottom: 0,
-          width: `${progressPct * 100}%`,
-          backgroundColor: progressColor,
-          opacity: 0.35,
-        }}
-      />
+      {/* Progress overlay — MSP-style inner band. A thin solid bar centered
+          vertically whose width tracks % complete. Reads cleanly against the
+          tinted bar background even when the task title overflows, and the
+          solid-vs-translucent contrast makes "done so far" vs "remaining"
+          instantly scannable. Zero-progress tasks skip rendering. */}
+      {progressPct > 0 && (
+        <View
+          style={{
+            position: 'absolute',
+            left: 0,
+            top: (BAR_HEIGHT - 8) / 2,
+            height: 8,
+            width: `${progressPct * 100}%`,
+            backgroundColor: progressColor,
+            borderRadius: 2,
+            opacity: 0.85,
+          }}
+        />
+      )}
       {/* Title */}
       <View style={styles.barLabel}>
         <Text style={[styles.barLabelText, bar.isCritical && { color: Colors.error }]} numberOfLines={1}>
@@ -1240,6 +1661,50 @@ const styles = StyleSheet.create({
   zoomBtnTextActive: {
     color: Colors.text,
   },
+  zoomSliderWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  zoomStepBtn: {
+    width: 22,
+    height: 22,
+    borderRadius: 4,
+    backgroundColor: Colors.fillTertiary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  zoomStepBtnText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.text,
+  },
+  zoomSliderValue: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: Colors.textSecondary,
+    minWidth: 48,
+    textAlign: 'center',
+  },
+  navGroup: {
+    flexDirection: 'row',
+    gap: 6,
+    marginLeft: 8,
+  },
+  navBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
+    backgroundColor: Colors.fillTertiary,
+  },
+  navBtnDisabled: {
+    opacity: 0.4,
+  },
+  navBtnText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.text,
+  },
   legend: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1396,6 +1861,82 @@ const styles = StyleSheet.create({
   tooltipDelta: {
     color: Colors.accentLight,
     fontWeight: '700',
+  },
+  linkPopover: {
+    position: 'absolute',
+    width: 260,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    zIndex: 1001,
+    shadowColor: '#000',
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+  },
+  linkPopoverTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.text,
+    marginBottom: 8,
+  },
+  linkTypeRow: {
+    flexDirection: 'row',
+    gap: 4,
+    marginBottom: 8,
+  },
+  linkTypeBtn: {
+    flex: 1,
+    paddingVertical: 6,
+    paddingHorizontal: 4,
+    borderRadius: 6,
+    backgroundColor: Colors.fillTertiary,
+    alignItems: 'center',
+  },
+  linkTypeLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.primary,
+  },
+  linkTypeHelp: {
+    fontSize: 9,
+    color: Colors.textSecondary,
+    marginTop: 1,
+  },
+  linkLagRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    flexWrap: 'wrap',
+    marginBottom: 6,
+  },
+  linkLagLabel: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: Colors.textSecondary,
+    marginRight: 4,
+  },
+  linkLagBtn: {
+    paddingVertical: 3,
+    paddingHorizontal: 6,
+    borderRadius: 4,
+    backgroundColor: Colors.fillTertiary,
+  },
+  linkLagText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: Colors.text,
+  },
+  linkCancel: {
+    alignItems: 'center',
+    paddingVertical: 4,
+  },
+  linkCancelText: {
+    fontSize: 11,
+    color: Colors.textSecondary,
   },
 
   footer: {

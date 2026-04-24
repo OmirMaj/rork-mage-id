@@ -1,0 +1,139 @@
+<!--
+  MAGE ID — Confirm Signup email
+  Paste the entire <body> block below (or everything from <!DOCTYPE html>) into:
+    Supabase Dashboard → Authentication → Email Templates → Confirm signup → Message (HTML)
+  Subject line: Confirm your email to get started with MAGE ID
+
+  Supabase template variables you can use here:
+    {{ .ConfirmationURL }}  — confirmation link (required)
+    {{ .Email }}            — signup email
+    {{ .Token }}            — 6-digit OTP (if using magic-link style)
+    {{ .Data.name }}        — the name we pass via options.data.name in signUp()
+    {{ .SiteURL }}          — Site URL from Auth settings
+
+  Keep inline styles — Gmail, Outlook, and Apple Mail strip <style> blocks.
+-->
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Confirm your email</title>
+  </head>
+  <body style="margin:0; padding:0; background-color:#F2F2F7; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; color:#1C1C1E;">
+    <!-- Preheader (hidden preview text) -->
+    <div style="display:none; font-size:1px; color:#F2F2F7; line-height:1px; max-height:0; max-width:0; opacity:0; overflow:hidden;">
+      One tap to activate your MAGE ID account — the link expires in 24 hours.
+    </div>
+
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#F2F2F7; padding:32px 16px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0" style="max-width:560px; width:100%; background-color:#FFFFFF; border-radius:20px; overflow:hidden; box-shadow:0 1px 2px rgba(0,0,0,0.04);">
+
+            <!-- Header -->
+            <tr>
+              <td style="background-color:#FF6B35; padding:32px 32px 28px;">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                  <tr>
+                    <td style="vertical-align:middle;">
+                      <div style="font-size:22px; font-weight:800; color:#FFFFFF; letter-spacing:-0.4px; line-height:1;">MAGE ID</div>
+                      <div style="font-size:13px; font-weight:500; color:rgba(255,255,255,0.78); margin-top:4px;">Construction command center</div>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <!-- Body -->
+            <tr>
+              <td style="padding:36px 32px 8px;">
+                <h1 style="font-size:24px; font-weight:800; color:#1C1C1E; letter-spacing:-0.4px; margin:0 0 12px;">
+                  Welcome to MAGE ID, {{ .Data.name }}
+                </h1>
+                <p style="font-size:15px; line-height:22px; color:#3A3A3C; margin:0 0 20px;">
+                  You're one tap away from your new command center for projects, bids, estimates, punch lists, and daily reports. Confirm your email to finish setting up your account.
+                </p>
+
+                <!-- CTA button -->
+                <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 24px;">
+                  <tr>
+                    <td align="center" bgcolor="#FF6B35" style="border-radius:12px;">
+                      <a href="{{ .ConfirmationURL }}"
+                         style="display:inline-block; padding:14px 28px; font-size:16px; font-weight:700; color:#FFFFFF; text-decoration:none; border-radius:12px; letter-spacing:-0.2px;">
+                        Confirm your email
+                      </a>
+                    </td>
+                  </tr>
+                </table>
+
+                <p style="font-size:13px; line-height:20px; color:#8E8E93; margin:0 0 24px;">
+                  Or paste this link into your browser:<br />
+                  <a href="{{ .ConfirmationURL }}" style="color:#FF6B35; word-break:break-all; text-decoration:underline;">{{ .ConfirmationURL }}</a>
+                </p>
+
+                <!-- What's inside -->
+                <div style="border-top:1px solid #E5E5EA; padding-top:24px; margin-bottom:8px;">
+                  <div style="font-size:13px; font-weight:700; text-transform:uppercase; letter-spacing:0.6px; color:#8E8E93; margin-bottom:14px;">
+                    What you can do next
+                  </div>
+
+                  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:10px;">
+                    <tr>
+                      <td width="28" valign="top" style="padding-top:2px;">
+                        <div style="width:22px; height:22px; border-radius:6px; background-color:#FFEDE2; text-align:center; line-height:22px; font-size:13px; font-weight:700; color:#FF6B35;">1</div>
+                      </td>
+                      <td style="padding-left:12px; padding-bottom:14px;">
+                        <div style="font-size:14px; font-weight:600; color:#1C1C1E; margin-bottom:2px;">Create your first project</div>
+                        <div style="font-size:13px; line-height:19px; color:#6C6C70;">Add a jobsite, set the scope, invite your team. Takes about a minute.</div>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td width="28" valign="top" style="padding-top:2px;">
+                        <div style="width:22px; height:22px; border-radius:6px; background-color:#FFEDE2; text-align:center; line-height:22px; font-size:13px; font-weight:700; color:#FF6B35;">2</div>
+                      </td>
+                      <td style="padding-left:12px; padding-bottom:14px;">
+                        <div style="font-size:14px; font-weight:600; color:#1C1C1E; margin-bottom:2px;">Build an estimate in minutes</div>
+                        <div style="font-size:13px; line-height:19px; color:#6C6C70;">The estimate wizard walks you through scope, materials, labor, and margin.</div>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td width="28" valign="top" style="padding-top:2px;">
+                        <div style="width:22px; height:22px; border-radius:6px; background-color:#FFEDE2; text-align:center; line-height:22px; font-size:13px; font-weight:700; color:#FF6B35;">3</div>
+                      </td>
+                      <td style="padding-left:12px;">
+                        <div style="font-size:14px; font-weight:600; color:#1C1C1E; margin-bottom:2px;">Run the jobsite from your phone</div>
+                        <div style="font-size:13px; line-height:19px; color:#6C6C70;">Daily reports, punch items, change orders, and photos — all offline-first.</div>
+                      </td>
+                    </tr>
+                  </table>
+                </div>
+
+                <!-- Spam tip -->
+                <div style="background-color:#F2F2F7; border-radius:12px; padding:14px 16px; margin:16px 0 8px;">
+                  <div style="font-size:13px; font-weight:700; color:#1C1C1E; margin-bottom:4px;">Didn't expect this email?</div>
+                  <div style="font-size:13px; line-height:19px; color:#6C6C70;">
+                    If you didn't create a MAGE ID account, you can safely ignore this message — nothing will happen without your confirmation.
+                  </div>
+                </div>
+              </td>
+            </tr>
+
+            <!-- Footer -->
+            <tr>
+              <td style="padding:24px 32px 32px; border-top:1px solid #E5E5EA;">
+                <p style="font-size:12px; line-height:18px; color:#8E8E93; margin:0 0 6px;">
+                  Questions? Reply to this email or write to
+                  <a href="mailto:support@mageid.app" style="color:#FF6B35; text-decoration:none;">support@mageid.app</a>.
+                </p>
+                <p style="font-size:12px; line-height:18px; color:#B0B0B5; margin:0;">
+                  MAGE ID · Confirmation links expire in 24 hours.
+                </p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

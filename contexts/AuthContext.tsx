@@ -220,6 +220,23 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     console.log('[Auth] Password updated');
   }, []);
 
+  // Resend the email-confirmation link for a pending signup. We call this
+  // from the post-signup "check your inbox" modal when a user taps "Resend".
+  // Supabase rate-limits this (default 1/60s) and returns a clear error if
+  // the user has already confirmed — the modal surfaces both states.
+  const resendConfirmation = useCallback(async (email: string) => {
+    console.log('[Auth] Resending confirmation email to:', email);
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email: email.toLowerCase().trim(),
+    });
+    if (error) {
+      console.log('[Auth] Resend error:', error.message);
+      throw new Error(error.message);
+    }
+    console.log('[Auth] Confirmation email resent');
+  }, []);
+
   const signInWithGoogle = useCallback(async () => {
     console.log('[Auth] Starting Google sign-in');
     try {
@@ -312,7 +329,8 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     loginWithBiometrics,
     resetPassword,
     updatePassword,
+    resendConfirmation,
     signInWithGoogle,
     signInWithApple,
-  }), [user, session, isLoading, isAuthenticated, hasStoredCredentials, login, signup, logout, loginWithBiometrics, resetPassword, updatePassword, signInWithGoogle, signInWithApple]);
+  }), [user, session, isLoading, isAuthenticated, hasStoredCredentials, login, signup, logout, loginWithBiometrics, resetPassword, updatePassword, resendConfirmation, signInWithGoogle, signInWithApple]);
 });

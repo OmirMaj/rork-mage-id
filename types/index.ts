@@ -128,6 +128,28 @@ export interface DependencyLink {
 
 export type TaskStatus = 'not_started' | 'in_progress' | 'on_hold' | 'done';
 
+/**
+ * MAGE "Anchors" — our term for what MS Project calls constraints. Renamed so
+ * the UI reads as our own vocabulary rather than MSP's. Semantics map 1:1:
+ *  - start-no-earlier  ≈ SNET  (task can't start before anchorDate)
+ *  - start-no-later    ≈ SNLT  (task must start by anchorDate)
+ *  - finish-no-earlier ≈ FNET
+ *  - finish-no-later   ≈ FNLT
+ *  - must-start-on     ≈ MSO   (hard-pin start to anchorDate)
+ *  - must-finish-on    ≈ MFO   (hard-pin finish to anchorDate)
+ *  - as-late-as-possible ≈ ALAP (push task to its LS without slipping project)
+ *  - none              ≈ ASAP default — CPM decides.
+ */
+export type AnchorType =
+  | 'none'
+  | 'start-no-earlier'
+  | 'start-no-later'
+  | 'finish-no-earlier'
+  | 'finish-no-later'
+  | 'must-start-on'
+  | 'must-finish-on'
+  | 'as-late-as-possible';
+
 export interface ScheduleTask {
   id: string;
   title: string;
@@ -150,6 +172,35 @@ export interface ScheduleTask {
   linkedEstimateItems?: string[];
   assignedSubId?: string;
   assignedSubName?: string;
+  /**
+   * WBS outline (MAGE calls this the "stack"). A task with a `parentId` rolls
+   * up into its parent summary task. `outlineLevel` is 0 for top-level,
+   * incrementing per nesting depth. `collapsed` hides children in the grid.
+   * `isSummary` means this row's dates/progress are derived from its children
+   * — the CPM engine ignores its own duration/startDay in favour of rollup.
+   */
+  parentId?: string;
+  outlineLevel?: number;
+  collapsed?: boolean;
+  isSummary?: boolean;
+  /**
+   * Anchors (our constraints). `anchorType` tells the CPM engine how to treat
+   * `anchorDate` (ISO YYYY-MM-DD). Absent = ASAP behavior. See AnchorType.
+   */
+  anchorType?: AnchorType;
+  anchorDate?: string;
+  /**
+   * Soft deadline (no CPM effect — shown as red chevron marker on the Gantt
+   * and a "Late vs deadline" column in the grid). Distinct from anchors:
+   * anchors move the schedule; deadlines only flag it.
+   */
+  deadline?: string;
+  /**
+   * Resource IDs assigned (optional, for resource overallocation view).
+   * Distinct from `crew` which is a free-text lane. Resources are structured
+   * pool members with capacity limits; see `ProjectSchedule.resources`.
+   */
+  resourceIds?: string[];
   // As-built tracking (Phase 5). These are OPTIONAL and read-only to the CPM
   // engine — they don't cascade to successors unless the user explicitly hits
   // "Reflow from actuals." The rule: the plan stays the plan until you say so.
@@ -179,6 +230,20 @@ export interface ScheduleRiskItem {
 export interface ScheduleBaseline {
   savedAt: string;
   tasks: { id: string; startDay: number; endDay: number }[];
+}
+
+/**
+ * Structured resource for overallocation checks and the swim-lane view. We
+ * keep `crew` (free text) for legacy projects; `ProjectResource` is the new
+ * pool-member model: each resource has a capacity (how many concurrent tasks
+ * it can absorb) and an optional rate for cost rollups.
+ */
+export interface ProjectResource {
+  id: string;
+  name: string;
+  color?: string;
+  maxConcurrent?: number;
+  ratePerHour?: number;
 }
 
 export interface WeatherAlert {
@@ -242,6 +307,21 @@ export interface ProjectSchedule {
    */
   scenarios?: ScheduleScenario[];
   activeScenarioId?: string | null;
+  /**
+   * ISO dates (YYYY-MM-DD) marked as non-working — holidays, rain days, site
+   * closures. Duration calculations skip these in addition to the weekend rule
+   * implied by workingDaysPerWeek. Rendered as grey shading in the Gantt
+   * header so users can see suppressed days.
+   */
+  nonWorkingDates?: string[];
+  /**
+   * Tasks whose total float is <= this number of days are treated as critical
+   * and highlighted in MAGE orange. Default 0 (strict CPM). Raising this to
+   * e.g. 2 catches "near-critical" tasks that a single slip would turn red.
+   */
+  criticalFloatThresholdDays?: number;
+  /** Resource pool for overallocation / swim-lane view. */
+  resources?: ProjectResource[];
   updatedAt: string;
 }
 
@@ -600,6 +680,178 @@ export interface Subcontractor {
   updatedAt: string;
 }
 
+/**
+ * Commitment — a signed subcontract or purchase order. Distinct from an
+ * `Invoice` (which is a bill that has been received) and from an
+ * `EstimateItem` (which is just a budget line). Job costing needs all three
+ * to compute cost-to-complete: budget (estimate) → committed (subs/POs) →
+ * actual (paid invoices). The variance between budget and committed catches
+ * bad bids early; the variance between committed and actual catches
+ * cost-overruns on already-signed work.
+ *
+ * EAC method (MAGE opinionated default):
+ *   EAC = actualPaid + (committed - actualPaidAgainstCommitment)
+ *                   + (budget - committed)   // uncommitted remainder
+ *
+ * This matches what Knowify/Planyard use. If budget < committed we flag
+ * the variance as negative (over-bid). If a change order references a
+ * commitment, its change_amount rolls into the commitment's `changeAmount`.
+ */
+export type CommitmentType = 'subcontract' | 'purchase_order';
+export type CommitmentStatus = 'draft' | 'active' | 'closed';
+
+export interface Commitment {
+  id: string;
+  projectId: string;
+  number: string;
+  type: CommitmentType;
+  /** One of subcontractorId OR vendorName should be present. */
+  subcontractorId?: string;
+  vendorName?: string;
+  description: string;
+  /** Original signed amount — do NOT mutate this; CO revisions go into `changeAmount`. */
+  amount: number;
+  /** Net change from approved change orders touching this commitment. */
+  changeAmount?: number;
+  signedDate: string;
+  phase?: string;
+  csiDivision?: string;
+  /** Estimate line items this commitment fulfils, for variance tracing. */
+  linkedEstimateItems?: string[];
+  status: CommitmentStatus;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Prequalification + COI tracking.
+ *
+ * Why this exists (MAGE product angle): OSHA's Multi-Employer Citation
+ * Policy treats the GC as a "controlling employer." Missed licenses or
+ * insurance lapses can be $16,550 per instance. Small GCs track this in
+ * spreadsheets; ISNetworld charges $15K/year. We do it in-app for free
+ * on the sub side (pro for the GC) and auto-review obvious cases.
+ *
+ * Flow: GC invites sub → sub fills form via magic link (no login) →
+ * auto-review against `PrequalCriteria` → GC either accepts or flags
+ * manual review. Annual renewals on a 60/30/7 cadence.
+ */
+export type PrequalStatus =
+  | 'draft'            // GC is building the packet, not yet sent
+  | 'invited'          // magic link sent, awaiting sub
+  | 'in_progress'      // sub started filling
+  | 'submitted'        // sub completed, pending review
+  | 'approved'         // auto or manual approved
+  | 'needs_changes'    // kicked back for missing docs
+  | 'rejected'         // failed criteria, sub not eligible
+  | 'expired';         // past expiresAt, needs renewal
+
+export interface PrequalFinancials {
+  annualRevenue?: number;       // USD
+  yearsInBusiness?: number;
+  largestProjectCompleted?: number;
+  bondingCapacitySingle?: number;
+  bondingCapacityAggregate?: number;
+  bankReference?: string;
+  attestationSigned?: boolean;
+}
+
+export interface PrequalSafetyRecord {
+  /** Experience Modification Rate (OSHA proxy). < 1.0 is better than average. */
+  emr3yr?: [number | undefined, number | undefined, number | undefined];
+  /** OSHA 300A logs uploaded (paths to stored files). */
+  osha300ALogs?: string[];
+  writtenSafetyProgram?: boolean;
+  lastOshaInspection?: { date: string; outcome: string } | null;
+  /** true if had a recordable incident in last 3 yrs. */
+  hadRecordableIncident?: boolean;
+}
+
+export interface PrequalInsurance {
+  cglPerOccurrence?: number;           // e.g. 1_000_000
+  cglAggregate?: number;               // e.g. 2_000_000
+  autoLiability?: number;
+  workersCompActive?: boolean;
+  /** Name of the workers-comp carrier (insurance-side field, surfaced in the
+   * GC review modal alongside coverage limits). */
+  workersCompCarrier?: string;
+  umbrella?: number;
+  /** Additional-insured endorsement: CG 20 10 (ongoing) vs CG 20 37 (completed). */
+  hasCG2010?: boolean;
+  hasCG2037?: boolean;
+  waiverOfSubrogation?: boolean;
+  coiExpiry?: string;                  // YYYY-MM-DD
+  coiDocPath?: string;                 // uploaded scan
+}
+
+export interface PrequalLicense {
+  id: string;
+  state: string;
+  number: string;
+  classification: string;
+  expiresAt: string;
+  docPath?: string;
+}
+
+/**
+ * GC-defined acceptance criteria for this packet. We seed reasonable
+ * defaults but the GC can tighten them per project (e.g. $5M CGL minimum
+ * on large commercial).
+ */
+export interface PrequalCriteria {
+  minCglPerOccurrence: number;
+  minCglAggregate: number;
+  requireWorkersComp: boolean;
+  requireCG2010: boolean;
+  requireCG2037: boolean;
+  requireW9: boolean;
+  maxEmr: number;
+  minYearsInBusiness: number;
+}
+
+export const DEFAULT_PREQUAL_CRITERIA: PrequalCriteria = {
+  minCglPerOccurrence: 1_000_000,
+  minCglAggregate: 2_000_000,
+  requireWorkersComp: true,
+  requireCG2010: true,
+  requireCG2037: false,
+  requireW9: true,
+  maxEmr: 1.0,
+  minYearsInBusiness: 2,
+};
+
+export interface PrequalPacket {
+  id: string;
+  /** Link the packet back to the sub. Packets are stored per-sub, not per-project. */
+  subcontractorId: string;
+  /** Optional — set when the packet is gated to a specific project's criteria. */
+  projectId?: string;
+  status: PrequalStatus;
+  criteria: PrequalCriteria;
+  financials: PrequalFinancials;
+  safety: PrequalSafetyRecord;
+  insurance: PrequalInsurance;
+  licenses: PrequalLicense[];
+  w9OnFile: boolean;
+  w9DocPath?: string;
+  /** Magic-link token — sub visits /prequal-form?token=… to fill it out. No auth. */
+  inviteToken?: string;
+  inviteSentAt?: string;
+  inviteEmail?: string;
+  submittedAt?: string;
+  reviewedAt?: string;
+  reviewedBy?: string;
+  /** Auto-review results: which criteria passed/failed. */
+  autoReviewFindings?: Array<{ criterion: string; passed: boolean; note?: string }>;
+  /** Human reviewer notes on top of auto-review. */
+  reviewerNotes?: string;
+  /** When this packet needs to be renewed. Usually 1 year from reviewedAt. */
+  expiresAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export type PunchItemStatus = 'open' | 'in_progress' | 'ready_for_review' | 'closed';
 export type PunchItemPriority = 'low' | 'medium' | 'high';
 
@@ -641,6 +893,78 @@ export interface PhotoMarkup {
   color: 'red' | 'yellow' | 'green';
   points: { x: number; y: number }[];
   text?: string;
+}
+
+/**
+ * A single drawing sheet. MAGE treats plans as images (rendered from PDF
+ * upstream); this sidesteps native PDF renderers and keeps pinch-zoom/markup
+ * identical across iOS, Android, and web. For a multi-page PDF, create one
+ * PlanSheet per page.
+ */
+export interface PlanSheet {
+  id: string;
+  projectId: string;
+  name: string;               // "A-101 Floor Plan"
+  sheetNumber?: string;       // "A-101"
+  imageUri: string;           // file://, https://, or data URI
+  pageNumber?: number;        // 1-indexed if imported from a multi-page PDF
+  width?: number;             // pixel dimensions of the image
+  height?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Two reference points on a plan with a known real-world distance between
+ * them. Enables all other measurements on the sheet (distance, area) via a
+ * single uniform scale. Stored separately from PlanSheet so you can
+ * recalibrate without re-importing the image.
+ */
+export interface PlanCalibration {
+  id: string;
+  planSheetId: string;
+  projectId: string;
+  p1: { x: number; y: number };      // 0..1 normalized to image
+  p2: { x: number; y: number };
+  realDistanceFt: number;
+  createdAt: string;
+}
+
+export type DrawingPinKind = 'note' | 'photo' | 'punch' | 'rfi';
+
+/**
+ * A pin dropped on a plan sheet. Normalized (x, y) in [0, 1] means the pin
+ * survives zoom and image resizes.
+ */
+export interface DrawingPin {
+  id: string;
+  planSheetId: string;
+  projectId: string;
+  x: number;
+  y: number;
+  kind: DrawingPinKind;
+  label?: string;
+  color?: string;              // hex
+  linkedPhotoId?: string;
+  linkedPunchItemId?: string;
+  linkedRfiId?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Freehand / shape annotation on a plan sheet. Coords normalized 0..1.
+ */
+export interface PlanMarkup {
+  id: string;
+  planSheetId: string;
+  projectId: string;
+  type: 'arrow' | 'rectangle' | 'circle' | 'freehand' | 'text';
+  color: string;
+  strokeWidth?: number;
+  points: { x: number; y: number }[];
+  text?: string;
+  createdAt: string;
 }
 
 export type AlertDirection = 'below' | 'above';

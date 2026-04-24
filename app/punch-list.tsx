@@ -8,7 +8,7 @@ import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
   Plus, X, CheckCircle, Clock, Eye, MessageSquare,
-  Trash2, Link2, ChevronDown,
+  Trash2, Link2, ChevronDown, Mic,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
@@ -266,6 +266,16 @@ export default function PunchListScreen() {
           <Text style={styles.addItemBtnText}>Add Punch Item</Text>
         </TouchableOpacity>
 
+        <TouchableOpacity
+          style={styles.walkBtn}
+          onPress={() => router.push({ pathname: '/punch-walk' as never, params: { projectId: projectId ?? '' } as never })}
+          activeOpacity={0.85}
+          testID="open-punch-walk"
+        >
+          <Mic size={16} color={Colors.textOnPrimary} />
+          <Text style={styles.walkBtnText}>Walk Mode — voice capture</Text>
+        </TouchableOpacity>
+
         {allClosed && totalCount > 0 && (
           <TouchableOpacity style={styles.closeProjectBtn} onPress={handleCloseProject} activeOpacity={0.85}>
             <CheckCircle size={18} color="#fff" />
@@ -456,6 +466,8 @@ const styles = StyleSheet.create({
   emptyDesc: { fontSize: 14, color: Colors.textSecondary },
   addItemBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginHorizontal: 20, marginTop: 8, paddingVertical: 14, borderRadius: 14, backgroundColor: Colors.primary + '12', borderWidth: 1, borderColor: Colors.primary + '20' },
   addItemBtnText: { fontSize: 15, fontWeight: '600' as const, color: Colors.primary },
+  walkBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginHorizontal: 20, marginTop: 10, paddingVertical: 14, borderRadius: 14, backgroundColor: Colors.primary },
+  walkBtnText: { fontSize: 15, fontWeight: '700' as const, color: Colors.textOnPrimary },
   closeProjectBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginHorizontal: 20, marginTop: 16, paddingVertical: 16, borderRadius: 14, backgroundColor: Colors.success },
   closeProjectBtnText: { fontSize: 16, fontWeight: '700' as const, color: '#fff' },
   modalOverlay: { flex: 1, backgroundColor: Colors.overlay, justifyContent: 'flex-end' },

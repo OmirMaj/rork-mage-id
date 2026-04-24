@@ -32,7 +32,7 @@ import React, { useCallback, useMemo, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, useWindowDimensions, Platform, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { ChevronLeft, Zap, Activity, Share2, Undo2, Redo2, Columns, Table2, BarChart2, Sparkles, RefreshCcw, Bookmark, Download } from 'lucide-react-native';
+import { ChevronLeft, Zap, Activity, Share2, Undo2, Redo2, Columns, Table2, BarChart2, Sparkles, RefreshCcw, Bookmark, Download, CalendarX, Settings, Users, FileText } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
@@ -40,7 +40,13 @@ import Paywall from '@/components/Paywall';
 import GridPane from '@/components/schedule/GridPane';
 import InteractiveGantt from '@/components/schedule/InteractiveGantt';
 import AIAssistantPanel from '@/components/schedule/AIAssistantPanel';
+import ClosuresModal from '@/components/schedule/ClosuresModal';
+import ScheduleSettingsMenu from '@/components/schedule/ScheduleSettingsMenu';
+import TaskInspector from '@/components/schedule/TaskInspector';
+import ResourceSwimlanes from '@/components/schedule/ResourceSwimlanes';
+import { exportSchedulePdf } from '@/utils/exportSchedulePdf';
 import { runCpm, type CpmResult } from '@/utils/cpm';
+import { computeSummaryRollup } from '@/utils/summaryRollup';
 import { buildScheduleFromTasks, createId, generateWbsCodes } from '@/utils/scheduleEngine';
 import { seedDemoSchedule } from '@/utils/demoSchedule';
 import {
@@ -64,7 +70,7 @@ const GRID_BREAKPOINT = 900;
 // means the gantt gets ~30px of width — useless.
 const SPLIT_BREAKPOINT = 1600;
 
-type PaneMode = 'grid' | 'split' | 'gantt';
+type PaneMode = 'grid' | 'split' | 'gantt' | 'resources';
 
 export default function ScheduleProScreen() {
   const router = useRouter();
@@ -87,6 +93,11 @@ function ScheduleProScreenInner() {
   const router = useRouter();
   const { width } = useWindowDimensions();
   const { projectId } = useLocalSearchParams<{ projectId?: string }>();
+  // Re-read tier access inside the inner so the PDF handler can guard
+  // on the narrower `schedule_gantt_pdf` feature flag directly (the outer
+  // gate covers full Schedule Pro access — this is the export-specific
+  // gate should we split the bundle in the future).
+  const { canAccess } = useTierAccess();
 
   const { projects, updateProject } = useProjects();
 
@@ -111,6 +122,8 @@ function ScheduleProScreenInner() {
 
   // AI assistant drawer (right-side slide-out).
   const [showAI, setShowAI] = useState(false);
+  const [showClosures, setShowClosures] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
 
   // Named baselines captured over the life of the schedule. Persisted into
   // `project.schedule.baselines` so variance comparisons survive reloads;
@@ -139,7 +152,21 @@ function ScheduleProScreenInner() {
   // CPM + persistence
   // -------------------------------------------------------------------------
 
-  const cpm: CpmResult = useMemo(() => runCpm(workingTasks), [workingTasks]);
+  // CPM honors anchors (via scheduleStartDate) and the user-configured
+  // critical-float threshold so "near-critical" tasks can glow red too.
+  const scheduleStartIso = project?.schedule?.startDate;
+  const criticalFloatThresholdDays = project?.schedule?.criticalFloatThresholdDays ?? 0;
+  // Summary rollup — derive summary-row dates/progress from their children
+  // before running CPM. This keeps the WBS tree honest: editing a child
+  // auto-updates the summary's span, the same way MS Project's outline does.
+  const rolledTasks = useMemo(() => computeSummaryRollup(workingTasks), [workingTasks]);
+  const cpm: CpmResult = useMemo(
+    () => runCpm(rolledTasks, {
+      scheduleStartDate: scheduleStartIso,
+      criticalFloatThresholdDays,
+    }),
+    [rolledTasks, scheduleStartIso, criticalFloatThresholdDays],
+  );
 
   // Anchored early so the export/share/AI handlers below can reference it
   // without running into the `used before declaration` trap — TS is strict
@@ -180,7 +207,17 @@ function ScheduleProScreenInner() {
       // Preserve named baselines across debounced writes — `buildScheduleFromTasks`
       // rebuilds a fresh schedule object, so without this spread the baselines
       // column would silently vanish on the next keystroke.
-      const withBaselines = { ...newSchedule, baselines: baselinesRef.current };
+      const withBaselines = {
+        ...newSchedule,
+        baselines: baselinesRef.current,
+        // Preserve schedule-level settings that buildScheduleFromTasks doesn't
+        // know about — closures, critical threshold, resource pool, scenarios.
+        nonWorkingDates: project.schedule?.nonWorkingDates,
+        criticalFloatThresholdDays: project.schedule?.criticalFloatThresholdDays,
+        resources: project.schedule?.resources,
+        scenarios: project.schedule?.scenarios,
+        activeScenarioId: project.schedule?.activeScenarioId,
+      };
       console.log('[ScheduleProScreen] Persist', {
         tasks: tasks.length,
         baselines: baselinesRef.current.length,
@@ -203,7 +240,15 @@ function ScheduleProScreenInner() {
             project.schedule?.baseline ?? null,
           );
           updateProject(project.id, {
-            schedule: { ...newSchedule, baselines: baselinesRef.current },
+            schedule: {
+              ...newSchedule,
+              baselines: baselinesRef.current,
+              nonWorkingDates: project.schedule?.nonWorkingDates,
+              criticalFloatThresholdDays: project.schedule?.criticalFloatThresholdDays,
+              resources: project.schedule?.resources,
+              scenarios: project.schedule?.scenarios,
+              activeScenarioId: project.schedule?.activeScenarioId,
+            },
           });
         }
       }
@@ -317,6 +362,12 @@ function ScheduleProScreenInner() {
   // grid proposes ops; we apply them here, always as a single batch.
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  // Task-path focus. When set, the gantt dims everyone not on this task's
+  // predecessor chain and the grid highlights the same row. Clicking a bar
+  // toggles; Escape (or re-clicking the same bar) clears. Shared between
+  // panes so the two views stay in lock-step.
+  const [focusedTaskId, setFocusedTaskId] = useState<string | null>(null);
 
   const handleBulkDelete = useCallback((ids: string[]) => {
     const idSet = new Set(ids);
@@ -474,6 +525,65 @@ function ScheduleProScreenInner() {
     }
   }, [workingTasks, projectStartDate, project?.name]);
 
+  // PDF export — gated on Pro tier. Uses expo-print under the hood to render
+  // a styled HTML document → PDF → native share sheet (or browser print
+  // dialog on web). Rolled-up tasks (summaries) are used so WBS bars show
+  // the combined span, matching what the user sees on-screen.
+  //
+  // When baselines exist, we pop a picker so the PM can export a variance
+  // report. Skipping ("Current plan only") reverts to the classic single-
+  // plan export. No picker appears if there are no baselines.
+  const runPdfExport = useCallback(async (baseline?: NamedBaseline) => {
+    try {
+      await exportSchedulePdf({
+        projectName: project?.name ?? 'Schedule',
+        scheduleStartIso: project?.schedule?.startDate,
+        tasks: rolledTasks,
+        cpm,
+        baseline,
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (Platform.OS === 'web') window.alert?.(`PDF export failed: ${msg}`);
+      else Alert.alert('PDF export failed', msg);
+    }
+  }, [project?.name, project?.schedule?.startDate, rolledTasks, cpm]);
+
+  const handleExportPdf = useCallback(async () => {
+    if (!canAccess('schedule_gantt_pdf')) {
+      Alert.alert('Pro feature', 'PDF export is available on the Pro plan. Upgrade to unlock it.');
+      return;
+    }
+    if (namedBaselines.length === 0) {
+      await runPdfExport();
+      return;
+    }
+    // Offer the most-recent baseline as the default compare target. Show
+    // "Current only" as a secondary option so the classic export stays
+    // one tap away. We cap the picker at the last 3 baselines — older
+    // ones are rarely the interesting comparison.
+    const recent = namedBaselines.slice(-3).reverse();
+    if (Platform.OS === 'web') {
+      const msg = `Compare against a baseline?\n\nOK → ${recent[0]?.name ?? 'most recent'}\nCancel → current plan only`;
+      const yes = window.confirm?.(msg);
+      await runPdfExport(yes ? recent[0] : undefined);
+      return;
+    }
+    Alert.alert(
+      'Export PDF',
+      'Include baseline variance in the export?',
+      [
+        { text: 'Current plan only', onPress: () => { void runPdfExport(); } },
+        ...recent.map(b => ({
+          text: `vs ${b.name}`,
+          onPress: () => { void runPdfExport(b); },
+        })),
+        { text: 'Cancel', style: 'cancel' as const },
+      ],
+      { cancelable: true },
+    );
+  }, [canAccess, namedBaselines, runPdfExport]);
+
   // -------------------------------------------------------------------------
   // Share link — base64 payload in URL, no backend
   // -------------------------------------------------------------------------
@@ -576,6 +686,25 @@ function ScheduleProScreenInner() {
     return () => window.removeEventListener('keydown', handler);
   }, [handleUndo, handleRedo, handleExportCsv, handleShare]);
 
+  // Escape clears task-path focus. Separate effect because it's single-key
+  // (no mod required) and must skip input fields so typing Escape while
+  // editing a cell doesn't double-dismiss.
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      const target = e.target as HTMLElement | null;
+      const inInput = !!target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
+      if (inInput) return;
+      if (focusedTaskId) {
+        e.preventDefault();
+        setFocusedTaskId(null);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [focusedTaskId]);
+
   // -------------------------------------------------------------------------
   // Early returns — no project, or screen too narrow
   // -------------------------------------------------------------------------
@@ -653,6 +782,7 @@ function ScheduleProScreenInner() {
             <PaneBtn icon={Table2} label="Grid" active={paneMode === 'grid'} onPress={() => setPaneMode('grid')} />
             <PaneBtn icon={Columns} label="Split" active={paneMode === 'split'} onPress={() => setPaneMode('split')} />
             <PaneBtn icon={BarChart2} label="Gantt" active={paneMode === 'gantt'} onPress={() => setPaneMode('gantt')} />
+            <PaneBtn icon={Users} label="Lanes" active={paneMode === 'resources'} onPress={() => setPaneMode('resources')} />
           </View>
 
           {/* AI first — the headline feature. Highlighted style so it stands out. */}
@@ -660,6 +790,7 @@ function ScheduleProScreenInner() {
           <HeaderBtn icon={RefreshCcw} label="Reflow" onPress={handleReflow} />
           <HeaderBtn icon={Bookmark} label="Baseline" onPress={handleCaptureBaseline} onLongPress={handleCompareBaseline} />
           <HeaderBtn icon={Download} label="CSV" onPress={handleExportCsv} />
+          <HeaderBtn icon={FileText} label="PDF" onPress={handleExportPdf} />
           <HeaderBtn icon={Sparkles} label="Demo" onPress={handleLoadDemo} />
           <HeaderBtn icon={Undo2} label="Undo" onPress={handleUndo} disabled={history.length === 0} />
           <HeaderBtn icon={Redo2} label="Redo" onPress={handleRedo} disabled={future.length === 0} />
@@ -672,18 +803,32 @@ function ScheduleProScreenInner() {
               else Alert.alert('Schedule analysis', msg);
             }}
           />
+          <HeaderBtn icon={CalendarX} label="Closures" onPress={() => setShowClosures(true)} />
+          <HeaderBtn icon={Settings} label="Settings" onPress={() => setShowSettings(true)} />
           <HeaderBtn icon={Share2} label="Share" onPress={handleShare} />
         </View>
       </View>
 
-      {/* Body — renders grid, gantt, or both depending on pane mode */}
+      {/* Body — renders grid, gantt, both, or the resource swim-lanes
+          depending on pane mode. Resource mode replaces the grid+gantt
+          split entirely since it's a different axis (resources, not tasks). */}
       <View style={styles.body}>
-        {paneMode !== 'gantt' && (
+        {paneMode === 'resources' && (
+          <View style={styles.paneFull}>
+            <ResourceSwimlanes
+              tasks={rolledTasks}
+              resources={project?.schedule?.resources}
+              projectStartDate={projectStartDate}
+            />
+          </View>
+        )}
+        {paneMode !== 'gantt' && paneMode !== 'resources' && (
           <View style={paneMode === 'split' ? styles.paneHalf : styles.paneFull}>
             <GridPane
-              tasks={workingTasks}
+              tasks={rolledTasks}
               projectStartDate={projectStartDate}
               workingDaysPerWeek={workingDaysPerWeek}
+              focusedTaskId={focusedTaskId}
               onEdit={handleEdit}
               onAddTask={handleAddTask}
               onDeleteTask={handleDeleteTask}
@@ -695,21 +840,87 @@ function ScheduleProScreenInner() {
               onBulkSetPhase={handleBulkSetPhase}
               onBulkSetCrew={handleBulkSetCrew}
               onBulkAskAI={handleBulkAskAI}
+              // In split mode the gantt on the right already shows Start /
+              // Finish / Float visually. Hiding those three columns on the
+              // grid leaves the table as a focused "edit the fields" pane and
+              // lets the timeline breathe.
+              compact={paneMode === 'split'}
             />
           </View>
         )}
-        {paneMode !== 'grid' && (
+        {paneMode !== 'grid' && paneMode !== 'resources' && (
           <View style={paneMode === 'split' ? styles.paneHalfRight : styles.paneFull}>
             <InteractiveGantt
-              tasks={workingTasks}
+              tasks={rolledTasks}
               cpm={cpm}
               projectStartDate={projectStartDate}
               onEdit={handleEdit}
               onDependencyCreate={handleDependencyCreate}
+              focusedTaskId={focusedTaskId}
+              onFocusTask={setFocusedTaskId}
+              // Hide the gantt's own task-name gutter in split view — it
+              // would repeat the task column already shown in the grid.
+              compact={paneMode === 'split'}
             />
           </View>
         )}
+        {/* Task inspector — right-docked. Appears when a task has focus
+            (click a bar, or add a row-click handler to the grid). Lets
+            users view CPM numbers, flip status, and tweak progress with
+            the timeline still visible. Escape clears focus (handled in
+            the keyboard effect above). */}
+        {focusedTaskId && (() => {
+          const focusedTask = rolledTasks.find(t => t.id === focusedTaskId) ?? null;
+          return (
+            <TaskInspector
+              task={focusedTask}
+              allTasks={rolledTasks}
+              cpm={cpm}
+              projectStartDate={projectStartDate}
+              onClose={() => setFocusedTaskId(null)}
+              onEdit={handleEdit}
+            />
+          );
+        })()}
       </View>
+
+      {/* Closures (non-working dates) editor. */}
+      <ClosuresModal
+        visible={showClosures}
+        value={project?.schedule?.nonWorkingDates ?? []}
+        scheduleStartIso={project?.schedule?.startDate}
+        workingDaysPerWeek={workingDaysPerWeek}
+        onClose={() => setShowClosures(false)}
+        onApply={(next) => {
+          if (!project) return;
+          updateProject(project.id, {
+            schedule: {
+              ...(project.schedule as ProjectSchedule),
+              nonWorkingDates: next,
+            },
+          });
+          setShowClosures(false);
+        }}
+      />
+
+      {/* Schedule settings (critical threshold + working days per week). */}
+      <ScheduleSettingsMenu
+        visible={showSettings}
+        criticalFloatThresholdDays={criticalFloatThresholdDays}
+        workingDaysPerWeek={workingDaysPerWeek}
+        onClose={() => setShowSettings(false)}
+        onApply={(patch) => {
+          if (!project) return;
+          updateProject(project.id, {
+            schedule: {
+              ...(project.schedule as ProjectSchedule),
+              criticalFloatThresholdDays: patch.criticalFloatThresholdDays,
+              workingDaysPerWeek: patch.workingDaysPerWeek,
+            },
+          });
+          setShowSettings(false);
+        }}
+      />
 
       {/* AI drawer — mounted always so opening/closing animates, but invisible
           (pointerEvents="none" inside) when !visible to avoid swallowing clicks. */}
@@ -840,8 +1051,11 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   paneFull: { flex: 1 },
-  paneHalf: { flex: 1, minWidth: 0 },
-  paneHalfRight: { flex: 1, minWidth: 0 },
+  // Split-view ratios. The grid's compact column set is ~900px wide at its
+  // natural size; the gantt (now without a duplicated task column) benefits
+  // from extra room for the timeline, so we bias a little wider to the right.
+  paneHalf: { flex: 1, minWidth: 440 },
+  paneHalfRight: { flex: 1.4, minWidth: 0 },
 
   paneToggle: {
     flexDirection: 'row',

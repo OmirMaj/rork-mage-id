@@ -4,10 +4,11 @@ import {
   Alert, Platform, ScrollView, KeyboardAvoidingView, Switch,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
   Plus, Search, X, Phone, Mail, MapPin, Shield, FileText,
-  AlertTriangle, CheckCircle, Clock, Trash2, Users,
+  AlertTriangle, CheckCircle, Clock, Trash2, Users, ShieldCheck, ChevronRight,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
@@ -46,7 +47,8 @@ function getStatusLabel(status: ComplianceStatus): string {
 
 export default function SubsScreen() {
   const insets = useSafeAreaInsets();
-  const { subcontractors, addSubcontractor, updateSubcontractor, deleteSubcontractor, projects } = useProjects();
+  const router = useRouter();
+  const { subcontractors, addSubcontractor, updateSubcontractor, deleteSubcontractor, projects, prequalPackets } = useProjects();
   const { tier } = useSubscription();
   const [searchQuery, setSearchQuery] = useState('');
   const [filterTrade, setFilterTrade] = useState<SubTrade | 'All'>('All');
@@ -161,6 +163,17 @@ export default function SubsScreen() {
     return { compliant, expiring, expired, total: subcontractors.length };
   }, [subcontractors]);
 
+  // Prequal compliance summary for the banner. We surface this above the
+  // legacy COI/license stats so the user notices the Pro-tier feature
+  // without it feeling like an upsell — it's a real CTA that gets OSHA
+  // controlling-employer coverage in one tap.
+  const prequalSummary = useMemo(() => {
+    const approved = prequalPackets.filter(p => p.status === 'approved').length;
+    const pending = prequalPackets.filter(p => p.status === 'submitted' || p.status === 'in_progress' || p.status === 'invited').length;
+    const issues = prequalPackets.filter(p => p.status === 'rejected' || p.status === 'needs_changes' || p.status === 'expired').length;
+    return { approved, pending, issues, total: prequalPackets.length };
+  }, [prequalPackets]);
+
   const renderSub = useCallback(({ item }: { item: Subcontractor }) => {
     const status = getComplianceStatus(item);
     const statusColor = getStatusColor(status);
@@ -220,6 +233,26 @@ export default function SubsScreen() {
                 <Plus size={20} color="#fff" />
               </TouchableOpacity>
             </View>
+
+            <TouchableOpacity
+              style={styles.prequalBanner}
+              onPress={() => router.push('/prequal-manager' as never)}
+              activeOpacity={0.8}
+              testID="open-prequal-manager"
+            >
+              <View style={styles.prequalIcon}>
+                <ShieldCheck size={18} color={Colors.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.prequalTitle}>Prequal + COI tracking</Text>
+                <Text style={styles.prequalSub}>
+                  {prequalSummary.total === 0
+                    ? 'Invite subs to complete prequalification via magic link'
+                    : `${prequalSummary.approved} approved · ${prequalSummary.pending} pending${prequalSummary.issues > 0 ? ` · ${prequalSummary.issues} issue${prequalSummary.issues === 1 ? '' : 's'}` : ''}`}
+                </Text>
+              </View>
+              <ChevronRight size={16} color={Colors.textMuted} />
+            </TouchableOpacity>
 
             {stats.total > 0 && (
               <View style={styles.statsRow}>
@@ -476,6 +509,18 @@ const styles = StyleSheet.create({
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 4, marginBottom: 16 },
   largeTitle: { fontSize: 34, fontWeight: '700' as const, color: Colors.text, letterSpacing: -0.5 },
   addBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center', shadowColor: Colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
+  prequalBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    marginHorizontal: 16, marginBottom: 12,
+    paddingHorizontal: 14, paddingVertical: 12, borderRadius: 14,
+    backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.cardBorder,
+  },
+  prequalIcon: {
+    width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: `${Colors.primary}15`,
+  },
+  prequalTitle: { fontSize: 14, fontWeight: '700' as const, color: Colors.text },
+  prequalSub: { fontSize: 11, color: Colors.textSecondary, marginTop: 1 },
   statsRow: { flexDirection: 'row', paddingHorizontal: 16, gap: 8, marginBottom: 16 },
   statCard: { flex: 1, backgroundColor: Colors.surface, borderRadius: 12, padding: 14, borderLeftWidth: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 1 },
   statNum: { fontSize: 24, fontWeight: '800' as const },

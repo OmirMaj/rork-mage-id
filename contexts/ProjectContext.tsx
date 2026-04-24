@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import createContextHook from '@nkzw/create-context-hook';
-import type { Project, AppSettings, CompanyBranding, ProjectCollaborator, ChangeOrder, Invoice, DailyFieldReport, Subcontractor, PunchItem, ProjectPhoto, PriceAlert, Contact, CommunicationEvent, RFI, Submittal, SubmittalReviewCycle, Equipment, EquipmentUtilizationEntry, PDFNamingSettings, Warranty, WarrantyClaim, PortalMessage } from '@/types';
+import type { Project, AppSettings, CompanyBranding, ProjectCollaborator, ChangeOrder, Invoice, DailyFieldReport, Subcontractor, PunchItem, ProjectPhoto, PriceAlert, Contact, CommunicationEvent, RFI, Submittal, SubmittalReviewCycle, Equipment, EquipmentUtilizationEntry, PDFNamingSettings, Warranty, WarrantyClaim, PortalMessage, Commitment, PrequalPacket, PlanSheet, DrawingPin, PlanCalibration, PlanMarkup } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { supabaseWrite } from '@/utils/offlineQueue';
@@ -25,6 +25,12 @@ const SUBMITTALS_KEY = 'tertiary_submittals';
 const EQUIPMENT_KEY = 'tertiary_equipment';
 const WARRANTIES_KEY = 'tertiary_warranties';
 const PORTAL_MESSAGES_KEY = 'tertiary_portal_messages';
+const COMMITMENTS_KEY = 'tertiary_commitments';
+const PREQUAL_KEY = 'tertiary_prequal_packets';
+const DRAWING_PINS_KEY = 'tertiary_drawing_pins';
+const PLAN_CALIBRATIONS_KEY = 'tertiary_plan_calibrations';
+const PLAN_SHEETS_KEY = 'tertiary_plan_sheets';
+const PLAN_MARKUPS_KEY = 'tertiary_plan_markups';
 
 const DEFAULT_BRANDING: CompanyBranding = {
   companyName: '',
@@ -73,6 +79,8 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
   const [hasSeenOnboarding, setHasSeenOnboarding] = useState<boolean | null>(null);
   const [changeOrders, setChangeOrders] = useState<ChangeOrder[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [commitments, setCommitments] = useState<Commitment[]>([]);
+  const [prequalPackets, setPrequalPackets] = useState<PrequalPacket[]>([]);
   const [dailyReports, setDailyReports] = useState<DailyFieldReport[]>([]);
   const [subcontractors, setSubcontractors] = useState<Subcontractor[]>([]);
   const [punchItems, setPunchItems] = useState<PunchItem[]>([]);
@@ -208,6 +216,21 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
       }
       return loadLocal<Invoice[]>(INVOICES_KEY, []);
     },
+  });
+
+  // Commitments — signed subs/POs for job costing. Local-only for now; a
+  // Supabase `commitments` table lives in a future migration.
+  const commitmentsQuery = useQuery({
+    queryKey: ['commitments', userId],
+    queryFn: async () => loadLocal<Commitment[]>(COMMITMENTS_KEY, []),
+  });
+
+  // Prequal packets — one per subcontractor. Magic-link token lives on
+  // the packet; the sub's /prequal-form route looks the packet up by
+  // token. No auth on the sub side by design.
+  const prequalQuery = useQuery({
+    queryKey: ['prequalPackets', userId],
+    queryFn: async () => loadLocal<PrequalPacket[]>(PREQUAL_KEY, []),
   });
 
   const dailyReportsQuery = useQuery({
@@ -483,6 +506,8 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
   useEffect(() => { if (settingsQuery.data) setSettings(settingsQuery.data); }, [settingsQuery.data]);
   useEffect(() => { if (changeOrdersQuery.data) setChangeOrders(changeOrdersQuery.data); }, [changeOrdersQuery.data]);
   useEffect(() => { if (invoicesQuery.data) setInvoices(invoicesQuery.data); }, [invoicesQuery.data]);
+  useEffect(() => { if (commitmentsQuery.data) setCommitments(commitmentsQuery.data); }, [commitmentsQuery.data]);
+  useEffect(() => { if (prequalQuery.data) setPrequalPackets(prequalQuery.data); }, [prequalQuery.data]);
   useEffect(() => { if (dailyReportsQuery.data) setDailyReports(dailyReportsQuery.data); }, [dailyReportsQuery.data]);
   useEffect(() => { if (subsQuery.data) setSubcontractors(subsQuery.data); }, [subsQuery.data]);
   useEffect(() => { if (punchItemsQuery.data) setPunchItems(punchItemsQuery.data); }, [punchItemsQuery.data]);
@@ -528,6 +553,14 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
   const saveInvoicesMutation = useMutation({
     mutationFn: async (updated: Invoice[]) => { await saveLocal(INVOICES_KEY, updated); return updated; },
     onSuccess: (data) => { queryClient.setQueryData(['invoices', userId], data); },
+  });
+  const saveCommitmentsMutation = useMutation({
+    mutationFn: async (updated: Commitment[]) => { await saveLocal(COMMITMENTS_KEY, updated); return updated; },
+    onSuccess: (data) => { queryClient.setQueryData(['commitments', userId], data); },
+  });
+  const savePrequalMutation = useMutation({
+    mutationFn: async (updated: PrequalPacket[]) => { await saveLocal(PREQUAL_KEY, updated); return updated; },
+    onSuccess: (data) => { queryClient.setQueryData(['prequalPackets', userId], data); },
   });
   const saveDailyReportsMutation = useMutation({
     mutationFn: async (updated: DailyFieldReport[]) => { await saveLocal(DAILY_REPORTS_KEY, updated); return updated; },
@@ -747,6 +780,61 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
 
   const getInvoicesForProject = useCallback((projectId: string) => invoices.filter(inv => inv.projectId === projectId).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()), [invoices]);
   const getTotalOutstandingBalance = useCallback(() => invoices.filter(inv => inv.status !== 'paid' && inv.status !== 'draft').reduce((sum, inv) => sum + (inv.totalDue - inv.amountPaid), 0), [invoices]);
+
+  // Commitments — signed sub contracts and POs. Core data for the job
+  // costing dashboard (see utils/jobCostEngine.ts). Stored locally only;
+  // no Supabase sync yet because the `commitments` table hasn't been
+  // migrated. Offline-first writes still work through the same pattern.
+  const addCommitment = useCallback((c: Commitment) => {
+    const updated = [c, ...commitments];
+    setCommitments(updated);
+    saveCommitmentsMutation.mutate(updated);
+  }, [commitments, saveCommitmentsMutation]);
+
+  const updateCommitment = useCallback((id: string, updates: Partial<Commitment>) => {
+    const now = new Date().toISOString();
+    const updated = commitments.map(c => c.id === id ? { ...c, ...updates, updatedAt: now } : c);
+    setCommitments(updated);
+    saveCommitmentsMutation.mutate(updated);
+  }, [commitments, saveCommitmentsMutation]);
+
+  const deleteCommitment = useCallback((id: string) => {
+    const updated = commitments.filter(c => c.id !== id);
+    setCommitments(updated);
+    saveCommitmentsMutation.mutate(updated);
+  }, [commitments, saveCommitmentsMutation]);
+
+  const getCommitmentsForProject = useCallback(
+    (projectId: string) => commitments.filter(c => c.projectId === projectId).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
+    [commitments],
+  );
+
+  // Prequal packets — one per sub. We key packet lookup by sub id AND by
+  // magic-link token (sub side) so the public route can resolve without
+  // auth. Upsert semantics: re-submitting a packet overwrites the prior.
+  const upsertPrequalPacket = useCallback((packet: PrequalPacket) => {
+    const updated = prequalPackets.some(p => p.id === packet.id)
+      ? prequalPackets.map(p => p.id === packet.id ? packet : p)
+      : [packet, ...prequalPackets];
+    setPrequalPackets(updated);
+    savePrequalMutation.mutate(updated);
+  }, [prequalPackets, savePrequalMutation]);
+
+  const deletePrequalPacket = useCallback((id: string) => {
+    const updated = prequalPackets.filter(p => p.id !== id);
+    setPrequalPackets(updated);
+    savePrequalMutation.mutate(updated);
+  }, [prequalPackets, savePrequalMutation]);
+
+  const getPrequalPacketForSub = useCallback(
+    (subId: string) => prequalPackets.find(p => p.subcontractorId === subId) ?? null,
+    [prequalPackets],
+  );
+
+  const getPrequalPacketByToken = useCallback(
+    (token: string) => prequalPackets.find(p => p.inviteToken === token) ?? null,
+    [prequalPackets],
+  );
 
   const addDailyReport = useCallback((report: DailyFieldReport) => {
     const updated = [report, ...dailyReports];
@@ -1252,6 +1340,135 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
     portalMessages.filter(m => m.authorType === 'client' && !m.readByGc).length,
     [portalMessages]);
 
+  // Plan sheets, drawing pins, markups, and calibrations — local-only
+  // storage for now. Matches the portal-messages pattern above.
+  const [planSheets, setPlanSheets] = useState<PlanSheet[]>([]);
+  const [drawingPins, setDrawingPins] = useState<DrawingPin[]>([]);
+  const [planMarkups, setPlanMarkups] = useState<PlanMarkup[]>([]);
+  const [planCalibrations, setPlanCalibrations] = useState<PlanCalibration[]>([]);
+
+  useEffect(() => {
+    void loadLocal<PlanSheet[]>(PLAN_SHEETS_KEY, []).then(setPlanSheets);
+    void loadLocal<DrawingPin[]>(DRAWING_PINS_KEY, []).then(setDrawingPins);
+    void loadLocal<PlanMarkup[]>(PLAN_MARKUPS_KEY, []).then(setPlanMarkups);
+    void loadLocal<PlanCalibration[]>(PLAN_CALIBRATIONS_KEY, []).then(setPlanCalibrations);
+  }, []);
+
+  const persistPlanSheets = useCallback((list: PlanSheet[]) => {
+    setPlanSheets(list);
+    void saveLocal(PLAN_SHEETS_KEY, list);
+  }, []);
+  const persistDrawingPins = useCallback((list: DrawingPin[]) => {
+    setDrawingPins(list);
+    void saveLocal(DRAWING_PINS_KEY, list);
+  }, []);
+  const persistPlanMarkups = useCallback((list: PlanMarkup[]) => {
+    setPlanMarkups(list);
+    void saveLocal(PLAN_MARKUPS_KEY, list);
+  }, []);
+  const persistPlanCalibrations = useCallback((list: PlanCalibration[]) => {
+    setPlanCalibrations(list);
+    void saveLocal(PLAN_CALIBRATIONS_KEY, list);
+  }, []);
+
+  const addPlanSheet = useCallback((sheet: Omit<PlanSheet, 'id' | 'createdAt' | 'updatedAt'>) => {
+    const now = new Date().toISOString();
+    const fresh: PlanSheet = {
+      ...sheet,
+      id: `plan-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      createdAt: now,
+      updatedAt: now,
+    };
+    persistPlanSheets([fresh, ...planSheets]);
+    return fresh;
+  }, [planSheets, persistPlanSheets]);
+
+  const updatePlanSheet = useCallback((id: string, updates: Partial<PlanSheet>) => {
+    const now = new Date().toISOString();
+    persistPlanSheets(planSheets.map(s => s.id === id ? { ...s, ...updates, updatedAt: now } : s));
+  }, [planSheets, persistPlanSheets]);
+
+  const deletePlanSheet = useCallback((id: string) => {
+    persistPlanSheets(planSheets.filter(s => s.id !== id));
+    // cascade: pins, markups, calibrations on that sheet
+    persistDrawingPins(drawingPins.filter(p => p.planSheetId !== id));
+    persistPlanMarkups(planMarkups.filter(m => m.planSheetId !== id));
+    persistPlanCalibrations(planCalibrations.filter(c => c.planSheetId !== id));
+  }, [planSheets, drawingPins, planMarkups, planCalibrations, persistPlanSheets, persistDrawingPins, persistPlanMarkups, persistPlanCalibrations]);
+
+  const getPlanSheetsForProject = useCallback((projectId: string) =>
+    planSheets.filter(s => s.projectId === projectId).sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()),
+    [planSheets]);
+
+  const getPlanSheet = useCallback((id: string) => planSheets.find(s => s.id === id), [planSheets]);
+
+  const addDrawingPin = useCallback((pin: Omit<DrawingPin, 'id' | 'createdAt' | 'updatedAt'>) => {
+    const now = new Date().toISOString();
+    const fresh: DrawingPin = {
+      ...pin,
+      id: `pin-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      createdAt: now,
+      updatedAt: now,
+    };
+    persistDrawingPins([fresh, ...drawingPins]);
+    return fresh;
+  }, [drawingPins, persistDrawingPins]);
+
+  const updateDrawingPin = useCallback((id: string, updates: Partial<DrawingPin>) => {
+    const now = new Date().toISOString();
+    persistDrawingPins(drawingPins.map(p => p.id === id ? { ...p, ...updates, updatedAt: now } : p));
+  }, [drawingPins, persistDrawingPins]);
+
+  const deleteDrawingPin = useCallback((id: string) => {
+    persistDrawingPins(drawingPins.filter(p => p.id !== id));
+  }, [drawingPins, persistDrawingPins]);
+
+  const getPinsForPlan = useCallback((planSheetId: string) =>
+    drawingPins.filter(p => p.planSheetId === planSheetId),
+    [drawingPins]);
+
+  const getPinsForPhoto = useCallback((photoId: string) =>
+    drawingPins.filter(p => p.linkedPhotoId === photoId),
+    [drawingPins]);
+
+  const addPlanMarkup = useCallback((markup: Omit<PlanMarkup, 'id' | 'createdAt'>) => {
+    const fresh: PlanMarkup = {
+      ...markup,
+      id: `mk-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      createdAt: new Date().toISOString(),
+    };
+    persistPlanMarkups([fresh, ...planMarkups]);
+    return fresh;
+  }, [planMarkups, persistPlanMarkups]);
+
+  const deletePlanMarkup = useCallback((id: string) => {
+    persistPlanMarkups(planMarkups.filter(m => m.id !== id));
+  }, [planMarkups, persistPlanMarkups]);
+
+  const getMarkupsForPlan = useCallback((planSheetId: string) =>
+    planMarkups.filter(m => m.planSheetId === planSheetId),
+    [planMarkups]);
+
+  const upsertPlanCalibration = useCallback((cal: Omit<PlanCalibration, 'id' | 'createdAt'>) => {
+    const existing = planCalibrations.find(c => c.planSheetId === cal.planSheetId);
+    if (existing) {
+      const next: PlanCalibration = { ...existing, ...cal };
+      persistPlanCalibrations(planCalibrations.map(c => c.id === existing.id ? next : c));
+      return next;
+    }
+    const fresh: PlanCalibration = {
+      ...cal,
+      id: `cal-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      createdAt: new Date().toISOString(),
+    };
+    persistPlanCalibrations([fresh, ...planCalibrations]);
+    return fresh;
+  }, [planCalibrations, persistPlanCalibrations]);
+
+  const getCalibrationForPlan = useCallback((planSheetId: string) =>
+    planCalibrations.find(c => c.planSheetId === planSheetId),
+    [planCalibrations]);
+
   const sortedProjects = useMemo(() => [...projects].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()), [projects]);
 
   return useMemo(() => ({
@@ -1261,6 +1478,8 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
     addCollaborator, removeCollaborator,
     changeOrders, addChangeOrder, updateChangeOrder, getChangeOrdersForProject,
     addInvoice, updateInvoice, getInvoicesForProject, getTotalOutstandingBalance, invoices,
+    commitments, addCommitment, updateCommitment, deleteCommitment, getCommitmentsForProject,
+    prequalPackets, upsertPrequalPacket, deletePrequalPacket, getPrequalPacketForSub, getPrequalPacketByToken,
     addDailyReport, updateDailyReport, getDailyReportsForProject,
     subcontractors, addSubcontractor, updateSubcontractor, deleteSubcontractor, getSubcontractor,
     punchItems, addPunchItem, updatePunchItem, deletePunchItem, getPunchItemsForProject,
@@ -1273,5 +1492,9 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
     equipment, addEquipment, updateEquipment, deleteEquipment, logUtilization, getEquipmentForProject, getEquipmentCostForProject,
     warranties, addWarranty, updateWarranty, deleteWarranty, getWarrantiesForProject, addWarrantyClaim,
     portalMessages, addPortalMessage, markPortalMessagesRead, getPortalMessagesForProject, getUnreadPortalMessageCount, getTotalUnreadPortalCountForGc,
-  }), [sortedProjects, settings, hasSeenOnboarding, completeOnboarding, projectsQuery.isLoading, settingsQuery.isLoading, onboardingQuery.isLoading, addProject, updateProject, deleteProject, getProject, updateSettings, addCollaborator, removeCollaborator, changeOrders, addChangeOrder, updateChangeOrder, getChangeOrdersForProject, addInvoice, updateInvoice, getInvoicesForProject, getTotalOutstandingBalance, invoices, addDailyReport, updateDailyReport, getDailyReportsForProject, subcontractors, addSubcontractor, updateSubcontractor, deleteSubcontractor, getSubcontractor, punchItems, addPunchItem, updatePunchItem, deletePunchItem, getPunchItemsForProject, projectPhotos, addProjectPhoto, deleteProjectPhoto, getPhotosForProject, priceAlerts, addPriceAlert, updatePriceAlert, deletePriceAlert, contacts, addContact, updateContact, deleteContact, getContact, commEvents, addCommEvent, getCommEventsForProject, rfis, addRFI, updateRFI, deleteRFI, getRFIsForProject, submittals, addSubmittal, updateSubmittal, deleteSubmittal, getSubmittalsForProject, addReviewCycle, equipment, addEquipment, updateEquipment, deleteEquipment, logUtilization, getEquipmentForProject, getEquipmentCostForProject, warranties, addWarranty, updateWarranty, deleteWarranty, getWarrantiesForProject, addWarrantyClaim, portalMessages, addPortalMessage, markPortalMessagesRead, getPortalMessagesForProject, getUnreadPortalMessageCount, getTotalUnreadPortalCountForGc]);
+    planSheets, addPlanSheet, updatePlanSheet, deletePlanSheet, getPlanSheetsForProject, getPlanSheet,
+    drawingPins, addDrawingPin, updateDrawingPin, deleteDrawingPin, getPinsForPlan, getPinsForPhoto,
+    planMarkups, addPlanMarkup, deletePlanMarkup, getMarkupsForPlan,
+    planCalibrations, upsertPlanCalibration, getCalibrationForPlan,
+  }), [sortedProjects, settings, hasSeenOnboarding, completeOnboarding, projectsQuery.isLoading, settingsQuery.isLoading, onboardingQuery.isLoading, addProject, updateProject, deleteProject, getProject, updateSettings, addCollaborator, removeCollaborator, changeOrders, addChangeOrder, updateChangeOrder, getChangeOrdersForProject, addInvoice, updateInvoice, getInvoicesForProject, getTotalOutstandingBalance, invoices, commitments, addCommitment, updateCommitment, deleteCommitment, getCommitmentsForProject, prequalPackets, upsertPrequalPacket, deletePrequalPacket, getPrequalPacketForSub, getPrequalPacketByToken, addDailyReport, updateDailyReport, getDailyReportsForProject, subcontractors, addSubcontractor, updateSubcontractor, deleteSubcontractor, getSubcontractor, punchItems, addPunchItem, updatePunchItem, deletePunchItem, getPunchItemsForProject, projectPhotos, addProjectPhoto, deleteProjectPhoto, getPhotosForProject, priceAlerts, addPriceAlert, updatePriceAlert, deletePriceAlert, contacts, addContact, updateContact, deleteContact, getContact, commEvents, addCommEvent, getCommEventsForProject, rfis, addRFI, updateRFI, deleteRFI, getRFIsForProject, submittals, addSubmittal, updateSubmittal, deleteSubmittal, getSubmittalsForProject, addReviewCycle, equipment, addEquipment, updateEquipment, deleteEquipment, logUtilization, getEquipmentForProject, getEquipmentCostForProject, warranties, addWarranty, updateWarranty, deleteWarranty, getWarrantiesForProject, addWarrantyClaim, portalMessages, addPortalMessage, markPortalMessagesRead, getPortalMessagesForProject, getUnreadPortalMessageCount, getTotalUnreadPortalCountForGc, planSheets, addPlanSheet, updatePlanSheet, deletePlanSheet, getPlanSheetsForProject, getPlanSheet, drawingPins, addDrawingPin, updateDrawingPin, deleteDrawingPin, getPinsForPlan, getPinsForPhoto, planMarkups, addPlanMarkup, deletePlanMarkup, getMarkupsForPlan, planCalibrations, upsertPlanCalibration, getCalibrationForPlan]);
 });
