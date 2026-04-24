@@ -87,16 +87,15 @@ header.nav {
   color: #fff;
 }
 .brand-mark {
-  width: 32px; height: 32px;
-  display: inline-flex; align-items: center; justify-content: center;
+  width: 32px;
+  height: 32px;
   flex-shrink: 0;
-}
-img.brand-mark,
-.brand-mark img {
-  width: 100%; height: 100%;
   object-fit: contain;
-  display: block;
+  display: inline-block;
+  vertical-align: middle;
 }
+img.brand-mark { max-width: 32px; max-height: 32px; }
+footer .brand .brand-mark { width: 28px; height: 28px; max-width: 28px; max-height: 28px; }
 nav.links, .links {
   display: flex; gap: clamp(16px, 2.5vw, 28px);
   font-size: 14px;
