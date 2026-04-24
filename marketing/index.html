@@ -3,420 +3,492 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>MAGE ID — The GC's operating system</title>
-  <meta name="description" content="MAGE ID is the mobile-first platform for general contractors. Estimates, AIA pay applications, daily reports, change orders, scheduling, federal bid discovery, and a live client portal — all in one app." />
-  <meta name="theme-color" content="#1A6B3C" />
+  <title>MAGE ID — The operating system for general contractors</title>
+  <meta name="description" content="The field-first OS for general contractors. Plans, estimates, daily reports, change orders, pay applications, a live client portal — one app. On iOS, Android, and the web." />
+  <meta name="theme-color" content="#0B0D10" />
 
   <meta property="og:type" content="website" />
-  <meta property="og:title" content="MAGE ID — The GC's operating system" />
-  <meta property="og:description" content="Estimates, pay apps, daily reports, scheduling, federal bids, and a live client portal — built for general contractors, on your phone." />
+  <meta property="og:title" content="MAGE ID — The operating system for general contractors" />
+  <meta property="og:description" content="Plans, estimates, field ops, financials, and a live client portal. One app. Built for the trade." />
   <meta property="og:url" content="https://mageid.app" />
   <meta property="og:site_name" content="MAGE ID" />
 
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%231A6B3C'/%3E%3Ctext x='50' y='68' font-size='56' font-weight='700' text-anchor='middle' fill='white' font-family='system-ui'%3EM%3C/text%3E%3C/svg%3E" />
-  <link rel="stylesheet" href="/styles.css" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230B0D10'/%3E%3Ctext x='50' y='68' font-size='56' font-weight='700' text-anchor='middle' fill='%23FF6A1A' font-family='system-ui'%3EM%3C/text%3E%3C/svg%3E" />
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500;1,9..144,600&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="/landing.css" />
 </head>
 <body>
+  <!-- Grain overlay (pointer-events: none; global) -->
+  <div class="grain" aria-hidden="true"></div>
+
+  <!-- Cursor blob (desktop only) -->
+  <div class="cursor-blob" aria-hidden="true"></div>
+
   <header class="nav">
     <div class="nav-inner">
       <a href="/" class="brand" aria-label="MAGE ID home">
         <span class="brand-mark">M</span>
-        <span>MAGE&nbsp;ID</span>
+        <span class="brand-word">MAGE&nbsp;ID</span>
       </a>
-      <nav class="links" aria-label="Primary">
+      <nav class="nav-links" aria-label="Primary">
+        <a href="#product">Product</a>
+        <a href="#pricing">Pricing</a>
+        <a href="/features/field.html">Features</a>
+        <a href="/support.html">Support</a>
+      </nav>
+      <a class="nav-cta" href="#cta">
+        <span>Get access</span>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </a>
+    </div>
+  </header>
+
+  <main>
+    <!-- =========================================================
+         HERO
+         ========================================================= -->
+    <section class="hero" id="top">
+      <div class="hero-grid" aria-hidden="true"></div>
+      <div class="hero-spotlight" aria-hidden="true"></div>
+
+      <div class="hero-content">
+        <p class="eyebrow reveal"><span>●</span> Now in private beta · iOS · Android · Web</p>
+
+        <h1 class="hero-title">
+          <span class="reveal-word">Build&nbsp;it.</span>
+          <span class="reveal-word"><em>Bill it.</em></span>
+          <span class="reveal-word">Track every dollar.</span>
+        </h1>
+
+        <p class="lede reveal">
+          MAGE ID is the operating system for general contractors. Plans, estimates, daily reports,
+          change orders, pay applications, and a live client portal — replaced a dozen tools with
+          one app that lives in your pocket.
+        </p>
+
+        <div class="cta-row reveal">
+          <a class="btn btn-primary magnetic" href="#cta">
+            <span>Get early access</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+          </a>
+          <a class="btn btn-ghost" href="#product">
+            <span>See the product</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M6 13l6 6 6-6"/></svg>
+          </a>
+        </div>
+      </div>
+
+      <div class="hero-meta reveal">
+        <div class="meta-tick"><span>01</span><p>No per-seat sub fees</p></div>
+        <div class="meta-tick"><span>02</span><p>Works offline on site</p></div>
+        <div class="meta-tick"><span>03</span><p>Live portal for clients</p></div>
+      </div>
+
+      <a class="scroll-hint" href="#problem" aria-label="Scroll">
+        <span></span>
+      </a>
+    </section>
+
+    <!-- =========================================================
+         PROBLEM INTERLUDE
+         ========================================================= -->
+    <section class="problem" id="problem">
+      <div class="problem-grid">
+        <h2 class="problem-headline reveal">
+          The job has <span class="scrub-out">twelve tabs</span>. <br />
+          We made it <em>one app</em>.
+        </h2>
+        <div class="problem-chips" aria-hidden="true">
+          <span class="chip chip-blueprint">Plans.pdf</span>
+          <span class="chip chip-excel">Estimate v7.xlsx</span>
+          <span class="chip chip-email">RFI thread #42</span>
+          <span class="chip chip-photo">IMG_4821.HEIC</span>
+          <span class="chip chip-excel">Pay-App-Mar.xlsx</span>
+          <span class="chip chip-note">Punch list.docx</span>
+          <span class="chip chip-email">Change order?</span>
+          <span class="chip chip-blueprint">Floor-3-rev-C.pdf</span>
+          <span class="chip chip-photo">Site_043.JPG</span>
+          <span class="chip chip-excel">Schedule.gantt</span>
+          <span class="chip chip-note">Daily log.txt</span>
+          <span class="chip chip-email">Invoice chase</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- =========================================================
+         PRODUCT PILLARS
+         ========================================================= -->
+    <section class="product" id="product">
+      <div class="product-intro wrap">
+        <p class="eyebrow">The product</p>
+        <h2 class="product-intro-h">Five pillars. One system of record.</h2>
+        <p class="product-intro-sub">Every pillar is production — not a roadmap. Scroll to tour the whole project lifecycle.</p>
+      </div>
+
+      <!-- Pillar 01 · Plans -->
+      <article class="pillar pillar-dark">
+        <div class="pillar-inner wrap">
+          <div class="pillar-text">
+            <p class="eyebrow"><span class="num">01</span> Plans &amp; Markup</p>
+            <h3 class="pillar-h">Every markup, pin, and dimension. Everywhere.</h3>
+            <p class="pillar-sub">
+              Drop the roll. Upload PDFs or photos of drawings, calibrate the scale once,
+              and pin RFIs, photos, and punch items straight onto the sheet — synced across
+              every device in real time.
+            </p>
+            <ul class="pillar-bullets">
+              <li><b>Scale calibration.</b> Two taps, real feet and inches.</li>
+              <li><b>Linked pins.</b> Tap a pin → jump to the RFI, photo, or punch.</li>
+              <li><b>Offline-first.</b> Markups sync when you hit service again.</li>
+            </ul>
+          </div>
+          <div class="pillar-mockup" data-mock="plans">
+            <div class="phone">
+              <div class="phone-notch"></div>
+              <div class="phone-screen phone-screen-plans">
+                <div class="plan-sheet">
+                  <div class="plan-grid"></div>
+                  <div class="plan-pin" style="top:22%;left:28%" data-kind="rfi">42</div>
+                  <div class="plan-pin" style="top:58%;left:62%" data-kind="photo">📷</div>
+                  <div class="plan-pin" style="top:74%;left:34%" data-kind="punch">✓</div>
+                  <div class="plan-scale"><span>12'-6"</span></div>
+                </div>
+                <div class="phone-chrome">
+                  <span>Sheet A-301 · Level 3 RCP</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <!-- Pillar 02 · Estimates -->
+      <article class="pillar pillar-light pillar-reverse">
+        <div class="pillar-inner wrap">
+          <div class="pillar-text">
+            <p class="eyebrow"><span class="num">02</span> Estimates &amp; AI</p>
+            <h3 class="pillar-h">From napkin sketch to signed estimate in minutes.</h3>
+            <p class="pillar-sub">
+              The AI wizard turns a plan PDF or a voice memo into a takeoff with real
+              material prices by ZIP. Every line editable, every margin transparent.
+            </p>
+            <ul class="pillar-bullets">
+              <li><b>AI takeoff.</b> Plans or voice input → line items, instantly.</li>
+              <li><b>Live pricing.</b> Material costs factored by ZIP and trade.</li>
+              <li><b>Version control.</b> Every revision saved, diffed, and signable.</li>
+            </ul>
+          </div>
+          <div class="pillar-mockup" data-mock="estimate">
+            <div class="phone">
+              <div class="phone-notch"></div>
+              <div class="phone-screen phone-screen-light">
+                <div class="doc-header">
+                  <span class="doc-eyebrow">ESTIMATE · v7</span>
+                  <h4>Jefferson Ave Renovation</h4>
+                </div>
+                <div class="line-rows">
+                  <div class="line-row"><span>Framing, 2×6</span><span class="unit">1,240 lf</span><span class="amt">$8,420</span></div>
+                  <div class="line-row"><span>Drywall + tape</span><span class="unit">4,100 sf</span><span class="amt">$11,070</span></div>
+                  <div class="line-row"><span>Electrical rough-in</span><span class="unit">1 lot</span><span class="amt">$14,500</span></div>
+                  <div class="line-row highlight"><span>Plumbing fixtures</span><span class="unit">8 ea</span><span class="amt">$6,800</span></div>
+                  <div class="line-row"><span>Cabinetry</span><span class="unit">1 lot</span><span class="amt">$22,100</span></div>
+                </div>
+                <div class="doc-footer">
+                  <span>Subtotal</span>
+                  <span class="total">$62,890</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <!-- Pillar 03 · Field Ops -->
+      <article class="pillar pillar-dark">
+        <div class="pillar-inner wrap">
+          <div class="pillar-text">
+            <p class="eyebrow"><span class="num">03</span> Field Ops</p>
+            <h3 class="pillar-h">Daily reports, photos, RFIs, punch — from the hood of the truck.</h3>
+            <p class="pillar-sub">
+              Field data capture designed for gloves, sunlight, and spotty service.
+              Dictate daily logs, snap time-stamped photos, issue RFIs, and burn down
+              the punch — all offline-first.
+            </p>
+            <ul class="pillar-bullets">
+              <li><b>Voice-to-log.</b> Dictate the day in 30 seconds.</li>
+              <li><b>Geo-stamped photos.</b> Timestamp, location, sheet pin — automatic.</li>
+              <li><b>RFI + punch pipelines.</b> Issue, assign, close, archive.</li>
+            </ul>
+          </div>
+          <div class="pillar-mockup" data-mock="field">
+            <div class="phone">
+              <div class="phone-notch"></div>
+              <div class="phone-screen phone-screen-dark">
+                <div class="log-card">
+                  <div class="log-head">
+                    <span class="log-date">Mon · Apr 22</span>
+                    <span class="log-weather">72° · clear</span>
+                  </div>
+                  <p class="log-body">Poured slab on grade — NW corner. Framing crew arrives Wed. Inspector cleared rebar this AM.</p>
+                  <div class="log-meta">
+                    <span class="log-chip">4 photos</span>
+                    <span class="log-chip">2 RFIs</span>
+                    <span class="log-chip">1 delay</span>
+                  </div>
+                </div>
+                <div class="log-card log-card-punch">
+                  <div class="log-head">
+                    <span class="log-date">PUNCH · 3 open</span>
+                  </div>
+                  <div class="punch-row"><span class="dot"></span>Caulk window head — unit 4B</div>
+                  <div class="punch-row"><span class="dot"></span>Replace cracked tile — foyer</div>
+                  <div class="punch-row"><span class="dot"></span>Touch up paint — stair nosings</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <!-- Pillar 04 · Financials -->
+      <article class="pillar pillar-light pillar-reverse">
+        <div class="pillar-inner wrap">
+          <div class="pillar-text">
+            <p class="eyebrow"><span class="num">04</span> Financials</p>
+            <h3 class="pillar-h">Change orders, pay apps, invoices. Signed, sealed, billable.</h3>
+            <p class="pillar-sub">
+              AIA-style pay applications with retention math built in, change orders
+              your owner actually signs, and job-cost tracking that tells you which
+              projects are making money in real time.
+            </p>
+            <ul class="pillar-bullets">
+              <li><b>AIA G702 / G703.</b> Auto-generated. Export or e-sign.</li>
+              <li><b>Change orders.</b> Pricing, markup, approval trail — one screen.</li>
+              <li><b>Job costing.</b> Budget vs. actual, by cost code, live.</li>
+            </ul>
+          </div>
+          <div class="pillar-mockup" data-mock="financials">
+            <div class="phone">
+              <div class="phone-notch"></div>
+              <div class="phone-screen phone-screen-light">
+                <div class="doc-header">
+                  <span class="doc-eyebrow">PAY APP #04 · APRIL</span>
+                  <h4>Jefferson Ave Renovation</h4>
+                </div>
+                <div class="finance-bar">
+                  <div class="finance-track"><div class="finance-fill" style="width:68%"></div></div>
+                  <div class="finance-legend">
+                    <span>Billed to date</span>
+                    <span class="amt">$342,400 / $502,000</span>
+                  </div>
+                </div>
+                <div class="finance-grid">
+                  <div class="fg-cell"><span class="fg-label">This period</span><span class="fg-val">$48,200</span></div>
+                  <div class="fg-cell"><span class="fg-label">Retention</span><span class="fg-val">$17,120</span></div>
+                  <div class="fg-cell"><span class="fg-label">Change orders</span><span class="fg-val">+$12,400</span></div>
+                  <div class="fg-cell"><span class="fg-label">Net due</span><span class="fg-val hl">$31,080</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <!-- Pillar 05 · Client Portal -->
+      <article class="pillar pillar-dark">
+        <div class="pillar-inner wrap">
+          <div class="pillar-text">
+            <p class="eyebrow"><span class="num">05</span> Client Portal</p>
+            <h3 class="pillar-h">Your client sees exactly what you want them to see.</h3>
+            <p class="pillar-sub">
+              Every project gets a live, no-login portal. Owners see milestones, photos,
+              invoices, and the schedule — without the "any updates?" text at 9 PM.
+            </p>
+            <ul class="pillar-bullets">
+              <li><b>No login required.</b> One link, one token, one portal.</li>
+              <li><b>Milestones &amp; photos.</b> Pushed in real time from the field.</li>
+              <li><b>Signed invoices + e-sign.</b> Approval in one tap.</li>
+            </ul>
+          </div>
+          <div class="pillar-mockup" data-mock="portal">
+            <div class="phone">
+              <div class="phone-notch"></div>
+              <div class="phone-screen phone-screen-portal">
+                <div class="portal-hero">
+                  <span class="portal-tag">PROJECT · LIVE</span>
+                  <h4>Jefferson Ave</h4>
+                  <p class="portal-progress"><span>Week 14 of 22</span><b>68% complete</b></p>
+                </div>
+                <div class="portal-tile">
+                  <span class="dot dot-amber"></span>
+                  <div>
+                    <p>Framing complete · Level 3</p>
+                    <span>2 hours ago</span>
+                  </div>
+                </div>
+                <div class="portal-tile">
+                  <span class="dot"></span>
+                  <div>
+                    <p>Pay App #04 ready for review</p>
+                    <span>Yesterday</span>
+                  </div>
+                </div>
+                <div class="portal-tile">
+                  <span class="dot"></span>
+                  <div>
+                    <p>8 new site photos</p>
+                    <span>Yesterday</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <!-- =========================================================
+         PROOF
+         ========================================================= -->
+    <section class="proof">
+      <div class="wrap">
+        <p class="eyebrow reveal">The numbers</p>
+        <h2 class="proof-h reveal">Built lean. Shipped fast. Priced for the trade.</h2>
+        <div class="stats-row">
+          <div class="stat-card">
+            <div class="stat-val" data-count="15" data-suffix="+">0</div>
+            <div class="stat-label">Integrated workflows shipped</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-val" data-count="3" data-suffix="×">0</div>
+            <div class="stat-label">Faster pay‑app turnaround</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-val" data-count="0" data-prefix="$">$0</div>
+            <div class="stat-label">Per‑seat fees for your subs</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-val" data-text="Live">Live</div>
+            <div class="stat-label">Client portal · no login needed</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =========================================================
+         PRICING
+         ========================================================= -->
+    <section class="pricing" id="pricing">
+      <div class="wrap">
+        <p class="eyebrow reveal">Pricing</p>
+        <h2 class="pricing-h reveal">One flat price per GC. Your subs are free.</h2>
+        <p class="pricing-sub reveal">
+          Unlike the legacy players, we don't charge per-seat. Invite every sub, every foreman,
+          every estimator. One price covers the company.
+        </p>
+
+        <div class="tier-grid">
+          <div class="tier tier-free reveal">
+            <p class="tier-name">Free</p>
+            <div class="tier-price"><span>$</span>0<small>/mo</small></div>
+            <p class="tier-cap">1 active project · solo operators</p>
+            <ul class="tier-list">
+              <li>Plans + markup</li>
+              <li>Basic estimates</li>
+              <li>Daily reports</li>
+              <li>Punch + RFI</li>
+            </ul>
+            <a class="btn btn-ghost tier-cta" href="#cta">Start free</a>
+          </div>
+
+          <div class="tier tier-pro reveal">
+            <span class="tier-flag">Most teams</span>
+            <p class="tier-name">Pro</p>
+            <div class="tier-price"><span>$</span>49<small>/mo</small></div>
+            <p class="tier-cap">Unlimited projects · unlimited subs</p>
+            <ul class="tier-list">
+              <li>Everything in Free</li>
+              <li>AI estimates + takeoff</li>
+              <li>AIA pay applications</li>
+              <li>Change orders + job costing</li>
+              <li>Live client portals</li>
+              <li>Federal bid discovery</li>
+            </ul>
+            <a class="btn btn-primary tier-cta magnetic" href="#cta">Go Pro</a>
+          </div>
+
+          <div class="tier tier-business reveal">
+            <p class="tier-name">Business</p>
+            <div class="tier-price"><span>$</span>149<small>/mo</small></div>
+            <p class="tier-cap">Multi-entity · unlimited everything</p>
+            <ul class="tier-list">
+              <li>Everything in Pro</li>
+              <li>Multiple companies</li>
+              <li>Priority support</li>
+              <li>API access (coming)</li>
+              <li>Dedicated onboarding</li>
+            </ul>
+            <a class="btn btn-ghost tier-cta" href="#cta">Talk to us</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =========================================================
+         FINAL CTA
+         ========================================================= -->
+    <section class="cta-final" id="cta">
+      <div class="cta-grid" aria-hidden="true"></div>
+      <div class="wrap cta-inner">
+        <p class="eyebrow reveal">Let's get you building</p>
+        <h2 class="cta-h reveal">
+          Stop juggling <em>tabs</em>. <br />
+          Start <em>shipping</em> projects.
+        </h2>
+        <p class="cta-sub reveal">
+          Private beta is live. Request access and we'll onboard your first project this week.
+        </p>
+        <form class="cta-form reveal" action="https://formspree.io/f/mblabgzr" method="POST" aria-label="Request access">
+          <input type="email" name="email" placeholder="you@your-company.com" required autocomplete="email" />
+          <button type="submit" class="btn btn-primary magnetic">
+            <span>Request access</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+          </button>
+        </form>
+        <p class="cta-foot reveal">
+          Or try it right now on <a href="https://app.mageid.app">app.mageid.app</a> — no download.
+        </p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <div class="wrap foot-inner">
+      <div class="foot-brand">
+        <span class="brand-mark">M</span>
+        <span>MAGE&nbsp;ID</span>
+      </div>
+      <nav class="foot-links">
         <a href="/features/field.html">Field Ops</a>
         <a href="/features/financials.html">Financials</a>
         <a href="/features/scheduling.html">Scheduling</a>
         <a href="/features/bids.html">Bid Discovery</a>
         <a href="/features/marketplace.html">Marketplace</a>
-        <a href="#contact">Support</a>
+        <a href="/support.html">Support</a>
+        <a href="/privacy.html">Privacy</a>
       </nav>
-    </div>
-  </header>
-
-  <main>
-    <section class="hero wrap">
-      <h1>Build, bill, and <em>keep clients in the loop</em>.</h1>
-      <p class="lede">
-        MAGE ID is the mobile-first platform for general contractors. Estimates, AIA pay applications,
-        daily field reports, change orders, scheduling, federal bid discovery, and a live client portal —
-        in one app, on your phone.
-      </p>
-      <div class="cta-row">
-        <a class="btn btn-primary" href="#contact">
-          Get early access
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-        </a>
-        <a class="btn btn-secondary" href="#features">See what's inside</a>
-      </div>
-      <p style="margin-top: 18px; font-size: 13px; color: var(--muted);">
-        iOS + Android apps<span class="badge badge-soon">coming soon</span>
-      </p>
-    </section>
-
-    <!-- Demo video slot -->
-    <section class="section wrap-wide">
-      <div class="section-title">See it in 90 seconds</div>
-      <h2 class="section-heading">A quick tour of the app</h2>
-      <p class="section-sub">
-        From estimate to pay app to punch list — this is what a week in MAGE ID looks like.
-      </p>
-      <div class="video-slot" role="button" aria-label="Play demo video">
-        <div class="play-btn" aria-hidden="true"></div>
-        <div class="video-label">Demo video · coming soon</div>
-      </div>
-    </section>
-
-    <!-- Stat strip -->
-    <section class="wrap-wide">
-      <div class="stat-strip">
-        <div class="stat">
-          <div class="stat-val">15+</div>
-          <div class="stat-label">Integrated workflows</div>
-        </div>
-        <div class="stat">
-          <div class="stat-val">3×</div>
-          <div class="stat-label">Faster pay app turnaround</div>
-        </div>
-        <div class="stat">
-          <div class="stat-val">$0</div>
-          <div class="stat-label">Per-seat fees for subs</div>
-        </div>
-        <div class="stat">
-          <div class="stat-val">Live</div>
-          <div class="stat-label">Client portal, no login needed</div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Feature showcase (expanded grid organized by category) -->
-    <section class="section wrap-wide" id="features">
-      <div class="section-title">Everything the job needs</div>
-      <h2 class="section-heading">One app, the entire project lifecycle</h2>
-      <p class="section-sub">
-        MAGE ID replaces a dozen spreadsheets, PDFs, and email threads with structured workflows
-        built specifically for general contractors.
-      </p>
-
-      <!-- Preconstruction -->
-      <h3 style="margin: 32px 0 12px; font-size: 13px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--brand);">Preconstruction</h3>
-      <div class="grid">
-        <div class="card">
-          <div class="emoji">📐</div>
-          <h3>Smart estimates</h3>
-          <p>AI-assisted takeoffs from plans or notes. Editable line items, real material prices.</p>
-          <a href="/features/financials.html#estimates" class="arrow">Learn more →</a>
-        </div>
-        <div class="card">
-          <div class="emoji">🔍</div>
-          <h3>Federal bid discovery <span class="badge badge-new">New</span></h3>
-          <p>SAM.gov federal opportunities surfaced daily. Filter by NAICS, location, and dollar value.</p>
-          <a href="/features/bids.html" class="arrow">Learn more →</a>
-        </div>
-        <div class="card">
-          <div class="emoji">🏗️</div>
-          <h3>Supplier & material directory</h3>
-          <p>Local suppliers mapped across 9 major metros. Compare prices before you commit.</p>
-          <a href="/features/marketplace.html" class="arrow">Learn more →</a>
-        </div>
-      </div>
-
-      <!-- Field Ops -->
-      <h3 style="margin: 36px 0 12px; font-size: 13px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--brand);">Field Operations</h3>
-      <div class="grid">
-        <div class="card">
-          <div class="emoji">📸</div>
-          <h3>Daily field reports</h3>
-          <p>Weather, crew, photos, and incidents captured in the field. Save to project and auto-email stakeholders.</p>
-          <a href="/features/field.html#dfr" class="arrow">Learn more →</a>
-        </div>
-        <div class="card">
-          <div class="emoji">📋</div>
-          <h3>RFIs & Submittals</h3>
-          <p>Structured RFI log with response tracking. Submittal register with revision history.</p>
-          <a href="/features/field.html#rfis" class="arrow">Learn more →</a>
-        </div>
-        <div class="card">
-          <div class="emoji">✅</div>
-          <h3>Punch list</h3>
-          <p>Photo-attached punch items with priority, location, and assignee. Track until closeout.</p>
-          <a href="/features/field.html#punch" class="arrow">Learn more →</a>
-        </div>
-        <div class="card">
-          <div class="emoji">⏱️</div>
-          <h3>Time tracking</h3>
-          <p>Crew clock-in/out with geolocation. Rolls up into DFR man-hours and labor costs.</p>
-          <a href="/features/field.html#time" class="arrow">Learn more →</a>
-        </div>
-      </div>
-
-      <!-- Financials -->
-      <h3 style="margin: 36px 0 12px; font-size: 13px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--brand);">Financials</h3>
-      <div class="grid">
-        <div class="card">
-          <div class="emoji">📄</div>
-          <h3>AIA G702 / G703</h3>
-          <p>One-tap progress pay applications that look exactly like what your lender and architect expect.</p>
-          <a href="/features/financials.html#aia" class="arrow">Learn more →</a>
-        </div>
-        <div class="card">
-          <div class="emoji">✍️</div>
-          <h3>Digital change orders</h3>
-          <p>Clients approve or reject right from the portal, with signatures — no PDF ping-pong.</p>
-          <a href="/features/financials.html#change-orders" class="arrow">Learn more →</a>
-        </div>
-        <div class="card">
-          <div class="emoji">💵</div>
-          <h3>Cash flow forecast</h3>
-          <p>Weekly inflow/outflow projections based on invoice schedules and material commitments.</p>
-          <a href="/features/financials.html#cashflow" class="arrow">Learn more →</a>
-        </div>
-        <div class="card">
-          <div class="emoji">📊</div>
-          <h3>Earned value</h3>
-          <p>PV, EV, AC, CPI, SPI — the full EVM panel for any project, updated as work completes.</p>
-          <a href="/features/financials.html#evm" class="arrow">Learn more →</a>
-        </div>
-        <div class="card">
-          <div class="emoji">🔮</div>
-          <h3>Payment predictions <span class="badge badge-pro">Pro</span></h3>
-          <p>AI predicts which client pays late based on their history. Timing that protects your cash.</p>
-          <a href="/features/financials.html#predictions" class="arrow">Learn more →</a>
-        </div>
-      </div>
-
-      <!-- Planning & Collaboration -->
-      <h3 style="margin: 36px 0 12px; font-size: 13px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--brand);">Planning & Collaboration</h3>
-      <div class="grid">
-        <div class="card">
-          <div class="emoji">📅</div>
-          <h3>Gantt scheduling</h3>
-          <p>Phased tasks with dependencies, critical path, and milestone tracking. Pan, pinch, and go.</p>
-          <a href="/features/scheduling.html" class="arrow">Learn more →</a>
-        </div>
-        <div class="card">
-          <div class="emoji">⚠️</div>
-          <h3>AI schedule risk <span class="badge badge-pro">Pro</span></h3>
-          <p>Proactively flags tasks likely to slip based on weather, crew size, and dependency chains.</p>
-          <a href="/features/scheduling.html#risk" class="arrow">Learn more →</a>
-        </div>
-        <div class="card">
-          <div class="emoji">🔓</div>
-          <h3>Client portal</h3>
-          <p>Live read-only portal for owners — schedule, photos, invoices, change orders — all gated behind a passcode you control.</p>
-          <a href="#portal" class="arrow">Learn more →</a>
-        </div>
-        <div class="card">
-          <div class="emoji">👷</div>
-          <h3>Sub & collaborator management</h3>
-          <p>Invite subs to specific projects with scoped permissions. No per-seat fees.</p>
-          <a href="/features/field.html#collaborators" class="arrow">Learn more →</a>
-        </div>
-        <div class="card">
-          <div class="emoji">📜</div>
-          <h3>Permits & warranties</h3>
-          <p>Permit tracking with expiration alerts. Warranty log linked to installed materials and subs.</p>
-          <a href="/features/field.html#permits" class="arrow">Learn more →</a>
-        </div>
-        <div class="card">
-          <div class="emoji">🤖</div>
-          <h3>AI weekly updates</h3>
-          <p>The app drafts a friendly owner email from the last 7 days of field data. You edit, then send.</p>
-          <a href="/features/field.html#ai-updates" class="arrow">Learn more →</a>
-        </div>
-        <div class="card">
-          <div class="emoji">💬</div>
-          <h3>Messaging & notifications</h3>
-          <p>Project-scoped threads with the crew and owners. Push notifications for critical events.</p>
-        </div>
-        <div class="card">
-          <div class="emoji">🔓</div>
-          <h3>Export anything</h3>
-          <p>One-click JSON + CSV export of every project, invoice, and photo. Your data is yours.</p>
-        </div>
-      </div>
-    </section>
-
-    <!-- Feature deep-dive (scheduling) -->
-    <section class="section-alt">
-      <div class="wrap-wide">
-        <div class="feature-row">
-          <div>
-            <div class="section-title" style="text-align: left; margin-bottom: 8px;">Scheduling</div>
-            <h2>Pinch-to-zoom Gantt, right on your phone.</h2>
-            <p>
-              Build schedules with phases, dependencies, and milestones — no laptop required.
-              Critical path auto-calculates. When approved change orders add days, the schedule
-              shifts automatically.
-            </p>
-            <ul>
-              <li>Tap to edit duration, drag to reschedule</li>
-              <li>Critical path highlighted in red</li>
-              <li>AI risk forecast flags weather-sensitive tasks</li>
-              <li>Share a read-only view with the owner via portal</li>
-            </ul>
-            <a class="btn btn-secondary" href="/features/scheduling.html">
-              See scheduling in detail →
-            </a>
-          </div>
-          <div class="screenshot phone" data-label="Schedule · Gantt view"></div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Feature deep-dive (daily report) -->
-    <section class="section">
-      <div class="wrap-wide">
-        <div class="feature-row reverse">
-          <div>
-            <div class="section-title" style="text-align: left; margin-bottom: 8px;">Daily Field Reports</div>
-            <h2>Voice-in, save to project, send later.</h2>
-            <p>
-              Talk through the day and the app fills out the report — weather, crews, materials,
-              issues, and incidents. Save it to the project first, send to the owner when you're ready.
-              Photos automatically sync to the project gallery.
-            </p>
-            <ul>
-              <li>Voice-to-report transcription with AI parsing</li>
-              <li>Auto-fetched weather from project location</li>
-              <li>Photo gallery synced across project + DFR</li>
-              <li>OSHA-recordable incident workflow built in</li>
-            </ul>
-            <a class="btn btn-secondary" href="/features/field.html#dfr">
-              See field ops in detail →
-            </a>
-          </div>
-          <div class="screenshot phone" data-label="Daily Field Report · Voice input"></div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Feature deep-dive (AIA) -->
-    <section class="section-alt">
-      <div class="wrap-wide">
-        <div class="feature-row">
-          <div>
-            <div class="section-title" style="text-align: left; margin-bottom: 8px;">AIA Pay Applications</div>
-            <h2>G702 and G703, one tap away.</h2>
-            <p>
-              Progress billing that actually looks like what the architect expects. Retainage,
-              stored materials, and prior billings all calculate correctly. Send as PDF or push
-              straight to the portal for owner signature.
-            </p>
-            <ul>
-              <li>Auto-filled from your schedule of values</li>
-              <li>Retainage and stored materials handled</li>
-              <li>Exports to PDF with the real AIA form layout</li>
-              <li>Owner can approve from the client portal</li>
-            </ul>
-            <a class="btn btn-secondary" href="/features/financials.html#aia">
-              See financials in detail →
-            </a>
-          </div>
-          <div class="screenshot phone" data-label="AIA G702 · Progress Payment"></div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Feature deep-dive (federal bids) -->
-    <section class="section">
-      <div class="wrap-wide">
-        <div class="feature-row reverse">
-          <div>
-            <div class="section-title" style="text-align: left; margin-bottom: 8px;">Bid Discovery</div>
-            <h2>Federal opportunities in your pocket.</h2>
-            <p>
-              SAM.gov federal contract opportunities refreshed every few hours. Filter by NAICS,
-              location, set-aside, and dollar range. One tap to save, add to your bid pipeline, or
-              open in SAM directly.
-            </p>
-            <ul>
-              <li>SAM.gov federal contracts refreshed daily</li>
-              <li>NAICS-code and keyword filters</li>
-              <li>Set-aside filters (8(a), WOSB, HUBZone, SDVOSB)</li>
-              <li>Saved searches with push alerts</li>
-            </ul>
-            <a class="btn btn-secondary" href="/features/bids.html">
-              See bid discovery in detail →
-            </a>
-          </div>
-          <div class="screenshot phone" data-label="Bid Discovery · Federal opportunities"></div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Portal callout -->
-    <section class="portal-callout" id="portal">
-      <div class="wrap">
-        <h2>You've got a client portal link.</h2>
-        <p>
-          If your contractor sent you a link that looks like this,
-          open it on your phone — the MAGE ID app takes it from there.
-        </p>
-        <code>https://mageid.app/portal/&lt;your-code&gt;</code>
-        <div style="margin-top: 22px;">
-          <a class="btn btn-secondary" href="/portal/" style="background: rgba(255,255,255,0.12); color: #fff; border-color: rgba(255,255,255,0.3);">
-            What clients see →
-          </a>
-        </div>
-      </div>
-    </section>
-
-    <!-- Contact -->
-    <section class="contact wrap" id="contact">
-      <h2>Questions, demos, or support?</h2>
-      <p>
-        We're a small team and we read every message. Shoot us a note — we usually reply the same day.
-      </p>
-      <div class="contact-links">
-        <a href="mailto:support@mageid.app">support@mageid.app</a>
-        <a href="mailto:hello@mageid.app">hello@mageid.app</a>
-      </div>
-    </section>
-  </main>
-
-  <footer>
-    <div class="wrap-wide">
-      <div class="footer-grid">
-        <div>
-          <div class="brand" style="margin-bottom: 10px;">
-            <span class="brand-mark">M</span>
-            <span>MAGE&nbsp;ID</span>
-          </div>
-          <p style="margin: 0; max-width: 300px;">
-            The GC's operating system. Built by builders, for builders — so the field, the books, and the client all stay in sync.
-          </p>
-        </div>
-        <div>
-          <h4>Product</h4>
-          <ul>
-            <li><a href="/features/field.html">Field Ops</a></li>
-            <li><a href="/features/financials.html">Financials</a></li>
-            <li><a href="/features/scheduling.html">Scheduling</a></li>
-            <li><a href="/features/bids.html">Bid Discovery</a></li>
-            <li><a href="/features/marketplace.html">Marketplace</a></li>
-          </ul>
-        </div>
-        <div>
-          <h4>For Clients</h4>
-          <ul>
-            <li><a href="/portal/">Client portal</a></li>
-            <li><a href="#contact">Support</a></li>
-          </ul>
-        </div>
-        <div>
-          <h4>Company</h4>
-          <ul>
-            <li><a href="mailto:hello@mageid.app">Contact</a></li>
-            <li><a href="/privacy">Privacy</a></li>
-            <li><a href="/terms">Terms</a></li>
-          </ul>
-        </div>
-      </div>
-      <div class="footer-bottom">
-        © <script>document.write(new Date().getFullYear())</script> MAGE ID. Built for general contractors.
-      </div>
+      <p class="foot-copy">© <span id="year">2026</span> MAGE ID · Built in the U.S.</p>
     </div>
   </footer>
+
+  <!-- Motion -->
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js"></script>
+  <script src="/motion.js" defer></script>
 </body>
 </html>
