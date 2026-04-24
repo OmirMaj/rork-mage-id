@@ -87,12 +87,15 @@ header.nav {
   color: #fff;
 }
 .brand-mark {
-  width: 28px; height: 28px; border-radius: 7px;
-  background: var(--amber);
-  color: var(--ink);
+  width: 32px; height: 32px;
   display: inline-flex; align-items: center; justify-content: center;
-  font-weight: 800; font-size: 15px;
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 8px 20px var(--amber-soft);
+  flex-shrink: 0;
+}
+img.brand-mark,
+.brand-mark img {
+  width: 100%; height: 100%;
+  object-fit: contain;
+  display: block;
 }
 nav.links, .links {
   display: flex; gap: clamp(16px, 2.5vw, 28px);
