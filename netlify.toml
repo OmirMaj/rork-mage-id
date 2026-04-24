@@ -1,0 +1,27 @@
+# Netlify build config for app.mageid.app (Expo web export).
+#
+# This file pins the build so the site rebuilds deterministically on every
+# push to main. Without it, the build command + publish dir live only in the
+# Netlify dashboard — if someone disables the Git integration or the hook
+# breaks, pushes silently stop shipping. Config-as-code fixes that.
+
+[build]
+  # Metro produces dist/ via `expo export --platform web`.
+  command = "bunx expo export --platform web"
+  publish = "dist"
+
+[build.environment]
+  # Match the local dev setup. Netlify images ship a recent Node; we let
+  # Expo CLI pick its own Metro version from the lockfile.
+  NODE_VERSION = "20"
+  # Netlify defaults to npm; we use bun. Setting this keeps bun's lockfile
+  # authoritative even when Netlify tries to run `npm install` automatically.
+  NPM_FLAGS = "--version"
+
+# SPA fallback — Expo Router serves all routes from index.html on web. Without
+# this, a direct hit on /plans or /prequal-form?token=XYZ 404s because there's
+# no physical /plans/index.html on disk.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
