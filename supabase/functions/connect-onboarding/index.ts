@@ -111,12 +111,22 @@ serve(async (req) => {
     });
   }
 
-  const { userId, email, returnUrl, refreshUrl, companyName } = body;
-  if (!userId || !email || !returnUrl || !refreshUrl) {
+  const { userId, email, returnUrl: rawReturnUrl, refreshUrl: rawRefreshUrl, companyName } = body;
+  if (!userId || !email) {
     return new Response(JSON.stringify({ success: false, error: "missing required fields" }), {
       status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
+
+  // Stripe's account_links endpoint hard-rejects anything that isn't HTTPS
+  // — custom schemes (mageid://, exp://) come back with "Not a valid URL".
+  // Old app builds were sending custom schemes; rather than gate on bundle
+  // freshness, we always normalize here. If the client passes an HTTPS URL,
+  // we trust it; otherwise we substitute our canonical web fallback.
+  const APP_WEB_BASE = "https://app.mageid.app/payments-setup";
+  const isHttps = (u: unknown): u is string => typeof u === "string" && u.startsWith("https://");
+  const returnUrl = isHttps(rawReturnUrl) ? rawReturnUrl : `${APP_WEB_BASE}?return=1`;
+  const refreshUrl = isHttps(rawRefreshUrl) ? rawRefreshUrl : `${APP_WEB_BASE}?refresh=1`;
 
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
