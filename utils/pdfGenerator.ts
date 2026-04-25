@@ -1,7 +1,7 @@
 import { Platform } from 'react-native';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
-import type { CompanyBranding, Project, ChangeOrder, Invoice, DailyFieldReport, ScheduleTask } from '@/types';
+import type { CompanyBranding, Project, ChangeOrder, Invoice, DailyFieldReport, ScheduleTask, RFI } from '@/types';
 
 function escapeHtml(text: string): string {
   return text
@@ -655,6 +655,204 @@ function buildDFRHtml(dfr: DailyFieldReport, project: Project, branding: Company
   ${dfr.photos.length > 0 ? `<h2>Photos (${dfr.photos.length})</h2><div class="section-content">${dfr.photos.length} photo(s) attached. See digital copy for images.</div>` : ''}
   <div class="footer">${branding.companyName ? `${escapeHtml(branding.companyName)} &middot; ` : ''}Daily Field Report &middot; ${reportDate}</div>
 </body></html>`;
+}
+
+// RFI log
+//
+// One PDF that summarizes every RFI on a project — the document a GC hands the
+// architect at the project meeting or attaches to a closeout binder. Each RFI
+// gets a card with number, subject, status, dates, question, and (if answered)
+// the official response. The status legend at the top is what most architects
+// look at first to triage.
+//
+// We render ALL RFIs (not paginated). For typical projects this is dozens, not
+// thousands. If we ever exceed ~200 we'd want a "filter by status" prompt
+// before rendering — Print.printToFileAsync builds one giant HTML doc, and
+// massive HTML can OOM on lower-end Android.
+function formatRfiDate(iso: string): string {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+function buildRFILogHtml(rfis: RFI[], project: Project, branding: CompanyBranding): string {
+  const now = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+  const logoBlock = branding.logoUri
+    ? `<div class="logo-wrap"><img src="${escapeHtml(branding.logoUri)}" class="company-logo" alt="Logo" /></div>` : '';
+  const companyBlock = branding.companyName
+    ? `<div class="company-header">${logoBlock}<div class="company-name">${escapeHtml(branding.companyName)}</div>
+        <div class="company-info-grid">
+          ${branding.contactName ? `<div class="info-item"><span class="info-label">Contact</span><span>${escapeHtml(branding.contactName)}</span></div>` : ''}
+          ${branding.phone ? `<div class="info-item"><span class="info-label">Phone</span><span>${escapeHtml(branding.phone)}</span></div>` : ''}
+          ${branding.email ? `<div class="info-item"><span class="info-label">Email</span><span>${escapeHtml(branding.email)}</span></div>` : ''}
+          ${branding.licenseNumber ? `<div class="info-item"><span class="info-label">License</span><span>${escapeHtml(branding.licenseNumber)}</span></div>` : ''}
+        </div></div>`
+    : `<div class="company-header"><div class="company-name">RFI Log</div></div>`;
+
+  // sort: open + overdue first, then open, then answered, then closed/void; tiebreak by RFI number desc.
+  const today = new Date();
+  const sorted = [...rfis].sort((a, b) => {
+    const score = (r: RFI) => {
+      if (r.status === 'open') {
+        const due = new Date(r.dateRequired);
+        if (!Number.isNaN(due.getTime()) && due < today) return 0;
+        return 1;
+      }
+      if (r.status === 'answered') return 2;
+      if (r.status === 'closed') return 3;
+      return 4; // void
+    };
+    const da = score(a); const db = score(b);
+    if (da !== db) return da - db;
+    return b.number - a.number;
+  });
+
+  const counts = {
+    open: rfis.filter(r => r.status === 'open').length,
+    answered: rfis.filter(r => r.status === 'answered').length,
+    closed: rfis.filter(r => r.status === 'closed').length,
+    overdue: rfis.filter(r => r.status === 'open' && new Date(r.dateRequired) < today).length,
+  };
+
+  const summaryRow = `<div class="rfi-summary">
+    <div class="rfi-summary-item"><span class="num">${rfis.length}</span><span class="lbl">Total</span></div>
+    <div class="rfi-summary-item warn"><span class="num">${counts.open}</span><span class="lbl">Open</span></div>
+    <div class="rfi-summary-item alert"><span class="num">${counts.overdue}</span><span class="lbl">Overdue</span></div>
+    <div class="rfi-summary-item info"><span class="num">${counts.answered}</span><span class="lbl">Answered</span></div>
+    <div class="rfi-summary-item ok"><span class="num">${counts.closed}</span><span class="lbl">Closed</span></div>
+  </div>`;
+
+  const tableRows = sorted.map((r, i) => {
+    const isOverdue = r.status === 'open' && new Date(r.dateRequired) < today;
+    const statusLabel = r.status.charAt(0).toUpperCase() + r.status.slice(1);
+    return `<tr class="${i % 2 === 0 ? 'alt' : ''}">
+      <td style="text-align:center;font-weight:700">#${r.number}</td>
+      <td style="text-align:left;font-weight:500">${escapeHtml(r.subject)}</td>
+      <td style="text-align:left">${escapeHtml(r.assignedTo || '—')}</td>
+      <td style="text-align:center">${formatRfiDate(r.dateSubmitted)}</td>
+      <td style="text-align:center;${isOverdue ? 'color:#FF3B30;font-weight:700' : ''}">${formatRfiDate(r.dateRequired)}${isOverdue ? ' ⚠' : ''}</td>
+      <td style="text-align:center"><span class="status-pill status-${r.status}">${statusLabel}</span></td>
+    </tr>`;
+  }).join('');
+
+  const detailCards = sorted.map(r => {
+    const isOverdue = r.status === 'open' && new Date(r.dateRequired) < today;
+    return `<div class="rfi-card${isOverdue ? ' overdue' : ''}">
+      <div class="rfi-card-head">
+        <div class="rfi-card-title"><span class="rfi-num">RFI #${r.number}</span> ${escapeHtml(r.subject)}</div>
+        <span class="status-pill status-${r.status}">${r.status.charAt(0).toUpperCase() + r.status.slice(1)}</span>
+      </div>
+      <div class="rfi-meta-grid">
+        ${r.submittedBy ? `<div><span>Submitted By</span><strong>${escapeHtml(r.submittedBy)}</strong></div>` : ''}
+        ${r.assignedTo ? `<div><span>Assigned To</span><strong>${escapeHtml(r.assignedTo)}</strong></div>` : ''}
+        <div><span>Submitted</span><strong>${formatRfiDate(r.dateSubmitted)}</strong></div>
+        <div><span>Required</span><strong style="${isOverdue ? 'color:#FF3B30' : ''}">${formatRfiDate(r.dateRequired)}</strong></div>
+        ${r.dateResponded ? `<div><span>Responded</span><strong>${formatRfiDate(r.dateResponded)}</strong></div>` : ''}
+        <div><span>Priority</span><strong style="${r.priority === 'urgent' ? 'color:#FF3B30' : r.priority === 'normal' ? 'color:#1A6B3C' : 'color:#888'}">${r.priority.charAt(0).toUpperCase() + r.priority.slice(1)}</strong></div>
+        ${r.linkedDrawing ? `<div><span>Linked Drawing</span><strong>${escapeHtml(r.linkedDrawing)}</strong></div>` : ''}
+      </div>
+      <div class="rfi-section">
+        <div class="rfi-section-label">Question</div>
+        <div class="rfi-section-body">${escapeHtml(r.question).replace(/\n/g, '<br>')}</div>
+      </div>
+      ${r.response ? `<div class="rfi-section response">
+        <div class="rfi-section-label">Response</div>
+        <div class="rfi-section-body">${escapeHtml(r.response).replace(/\n/g, '<br>')}</div>
+      </div>` : ''}
+    </div>`;
+  }).join('');
+
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family:-apple-system,'Helvetica Neue',Arial,sans-serif; color:#1a1a1a; padding:36px; font-size:11.5px; line-height:1.5; }
+    .company-header { text-align:center; margin-bottom:24px; padding-bottom:18px; border-bottom:3px solid #1A6B3C; }
+    .logo-wrap { margin-bottom:10px; } .company-logo { max-height:54px; max-width:240px; object-fit:contain; }
+    .company-name { font-size:24px; font-weight:800; color:#1A6B3C; }
+    .company-info-grid { display:flex; flex-wrap:wrap; justify-content:center; gap:4px 20px; margin-top:8px; }
+    .info-item { font-size:10px; color:#555; } .info-label { font-weight:600; color:#333; margin-right:4px; }
+    .doc-header { background:#f8f9fa; border-radius:8px; padding:16px; margin-bottom:18px; border-left:4px solid #007AFF; }
+    .doc-title { font-size:18px; font-weight:700; }
+    .doc-meta { font-size:10.5px; color:#666; margin-top:4px; }
+    .rfi-summary { display:flex; gap:8px; margin-bottom:20px; }
+    .rfi-summary-item { flex:1; background:#f8f9fa; border-radius:8px; padding:10px 8px; text-align:center; border:1px solid #e8e8e8; }
+    .rfi-summary-item .num { display:block; font-size:20px; font-weight:800; color:#1a1a1a; }
+    .rfi-summary-item .lbl { display:block; font-size:9px; font-weight:600; color:#666; text-transform:uppercase; margin-top:2px; letter-spacing:0.5px; }
+    .rfi-summary-item.warn .num { color:#FF9500; } .rfi-summary-item.alert .num { color:#FF3B30; }
+    .rfi-summary-item.info .num { color:#007AFF; } .rfi-summary-item.ok .num { color:#34C759; }
+    h2 { font-size:14px; font-weight:700; color:#1A6B3C; margin:18px 0 8px; padding-bottom:5px; border-bottom:2px solid #1A6B3C20; }
+    table { width:100%; border-collapse:collapse; margin-bottom:18px; font-size:10.5px; }
+    th { background:#1A6B3C08; padding:7px 8px; text-align:center; font-weight:700; color:#555; text-transform:uppercase; font-size:9px; letter-spacing:0.5px; border-bottom:2px solid #1A6B3C20; }
+    td { padding:6px 8px; text-align:center; border-bottom:1px solid #eee; vertical-align:top; }
+    tr.alt { background:#fafbfa; }
+    .status-pill { display:inline-block; padding:2px 8px; border-radius:4px; font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:0.4px; }
+    .status-open { background:#FFF7E6; color:#FF9500; }
+    .status-answered { background:#EBF3FF; color:#007AFF; }
+    .status-closed { background:#E8FAF0; color:#34C759; }
+    .status-void { background:#f0f0f0; color:#888; }
+    .rfi-card { background:#fff; border:1px solid #e8e8e8; border-radius:8px; padding:14px; margin-bottom:12px; page-break-inside:avoid; }
+    .rfi-card.overdue { border-left:4px solid #FF3B30; }
+    .rfi-card-head { display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:10px; }
+    .rfi-card-title { font-size:14px; font-weight:700; color:#1a1a1a; flex:1; }
+    .rfi-num { color:#007AFF; margin-right:6px; }
+    .rfi-meta-grid { display:grid; grid-template-columns:repeat(3, 1fr); gap:6px 14px; padding:8px 10px; background:#fafbfa; border-radius:6px; margin-bottom:10px; }
+    .rfi-meta-grid > div { display:flex; flex-direction:column; }
+    .rfi-meta-grid span { font-size:8.5px; color:#888; font-weight:600; text-transform:uppercase; letter-spacing:0.4px; }
+    .rfi-meta-grid strong { font-size:11px; color:#1a1a1a; font-weight:600; }
+    .rfi-section { margin-top:8px; }
+    .rfi-section-label { font-size:9px; font-weight:700; color:#666; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px; }
+    .rfi-section-body { font-size:11.5px; color:#333; padding:8px 10px; background:#f8f9fa; border-radius:6px; border-left:3px solid #ccc; }
+    .rfi-section.response .rfi-section-body { background:#EBF3FF; border-left-color:#007AFF; }
+    .footer { margin-top:30px; padding-top:14px; border-top:1px solid #e5e5e5; text-align:center; font-size:9.5px; color:#999; }
+  </style></head><body>
+  ${companyBlock}
+  <div class="doc-header">
+    <div class="doc-title">RFI Log</div>
+    <div class="doc-meta">Project: ${escapeHtml(project.name)}${project.location ? ` &middot; ${escapeHtml(project.location)}` : ''}</div>
+    <div class="doc-meta">Generated: ${now}</div>
+  </div>
+  ${summaryRow}
+  ${rfis.length === 0 ? '<div style="text-align:center;padding:40px;color:#888;font-size:13px">No RFIs on this project yet.</div>' : `
+    <h2>Summary</h2>
+    <table>
+      <thead><tr>
+        <th style="text-align:center;width:8%">No.</th>
+        <th style="text-align:left">Subject</th>
+        <th style="text-align:left;width:18%">Assigned</th>
+        <th style="text-align:center;width:12%">Submitted</th>
+        <th style="text-align:center;width:12%">Required</th>
+        <th style="text-align:center;width:12%">Status</th>
+      </tr></thead>
+      <tbody>${tableRows}</tbody>
+    </table>
+    <h2>Detail</h2>
+    ${detailCards}
+  `}
+  <div class="footer">${branding.companyName ? `${escapeHtml(branding.companyName)} &middot; ` : ''}RFI Log &middot; ${escapeHtml(project.name)} &middot; ${now}</div>
+</body></html>`;
+}
+
+export async function generateRFILogPDFUri(
+  rfis: RFI[], project: Project, branding: CompanyBranding,
+): Promise<string | null> {
+  if (Platform.OS === 'web') return null;
+  try {
+    const html = buildRFILogHtml(rfis, project, branding);
+    const { uri } = await Print.printToFileAsync({ html, base64: false });
+    console.log('[PDF] RFI Log PDF URI:', uri);
+    return uri;
+  } catch (error) {
+    console.error('[PDF] Error generating RFI log PDF URI:', error);
+    return null;
+  }
+}
+
+export async function generateRFILogPDF(
+  rfis: RFI[], project: Project, branding: CompanyBranding,
+): Promise<void> {
+  console.log('[PDF] Generating RFI Log PDF, count:', rfis.length);
+  const html = buildRFILogHtml(rfis, project, branding);
+  await shareHtml(html, `${project.name} - RFI Log`);
 }
 
 export async function generateChangeOrderPDFUri(

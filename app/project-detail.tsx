@@ -24,7 +24,7 @@ import EntityActionSheet from '@/components/EntityActionSheet';
 import { generateUUID } from '@/utils/generateId';
 import AIProjectReport from '@/components/AIProjectReport';
 import AIAutoScheduleButton from '@/components/AIAutoScheduleButton';
-import { generateAndSharePDF, buildEstimateTextForEmail } from '@/utils/pdfGenerator';
+import { generateAndSharePDF, buildEstimateTextForEmail, generateRFILogPDF } from '@/utils/pdfGenerator';
 import { generateAndShareCloseoutPacket } from '@/utils/closeoutPacketGenerator';
 import { prefetchProjectPlans } from '@/utils/planPrefetch';
 import { exportProjectIcs } from '@/utils/icsGenerator';
@@ -232,6 +232,26 @@ export default function ProjectDetailScreen() {
       Alert.alert('Error', 'Failed to generate schedule PDF.');
     }
   }, [project, branding]);
+
+  // Export the project's complete RFI log as a PDF — the document a GC would
+  // hand the architect at the project meeting or attach to a closeout binder.
+  // We export ALL RFIs (open, answered, closed, void) because the architect
+  // typically wants the full audit trail. Web falls back to print-preview via
+  // shareHtml; native gets a proper file URI + share sheet.
+  const handleExportRFILog = useCallback(async () => {
+    if (!project) return;
+    if (projectRFIs.length === 0) {
+      Alert.alert('No RFIs', 'There are no RFIs to export on this project yet.');
+      return;
+    }
+    try {
+      if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      await generateRFILogPDF(projectRFIs, project, branding);
+    } catch (e) {
+      console.error('[ProjectDetail] RFI log PDF error:', e);
+      Alert.alert('Error', 'Failed to generate RFI log PDF.');
+    }
+  }, [project, projectRFIs, branding]);
 
   const handleGenerateCloseoutPacket = useCallback(async () => {
     if (!project || !id) return;
@@ -1799,15 +1819,28 @@ export default function ProjectDetailScreen() {
                   </TouchableOpacity>
                 );
               })}
-              <TouchableOpacity
-                style={styles.coAddBtn}
-                onPress={() => navigateFromTile({ pathname: '/rfi' as any, params: { projectId: id } })}
-                activeOpacity={0.7}
-                testID="add-rfi-btn"
-              >
-                <Plus size={16} color={Colors.info} />
-                <Text style={[styles.coAddBtnText, { color: Colors.info }]}>New RFI</Text>
-              </TouchableOpacity>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <TouchableOpacity
+                  style={[styles.coAddBtn, { flex: 1 }]}
+                  onPress={() => navigateFromTile({ pathname: '/rfi' as any, params: { projectId: id } })}
+                  activeOpacity={0.7}
+                  testID="add-rfi-btn"
+                >
+                  <Plus size={16} color={Colors.info} />
+                  <Text style={[styles.coAddBtnText, { color: Colors.info }]}>New RFI</Text>
+                </TouchableOpacity>
+                {projectRFIs.length > 0 && (
+                  <TouchableOpacity
+                    style={[styles.coAddBtn, { flex: 1, backgroundColor: Colors.fillSecondary ?? Colors.fillTertiary }]}
+                    onPress={handleExportRFILog}
+                    activeOpacity={0.7}
+                    testID="export-rfi-log-btn"
+                  >
+                    <Share2 size={15} color={Colors.text} />
+                    <Text style={[styles.coAddBtnText, { color: Colors.text }]}>Export Log</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
             </View>
           )}
         </View>
