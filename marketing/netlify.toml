@@ -1,0 +1,46 @@
+# Netlify build config for the marketing site at https://mageid.app.
+#
+# The marketing site is pure static HTML/CSS/JS — no build step. When this
+# site is connected to the GitHub repo, set the site's "Base directory" to
+# `marketing` in the Netlify dashboard. Netlify will then read THIS file
+# (not the root netlify.toml that drives the Expo web app at app.mageid.app)
+# and publish the contents of this folder as-is.
+
+[build]
+  # No build needed; the publish dir is the base dir.
+  command = "echo 'Static marketing site — no build step.'"
+  publish = "."
+
+# SPA-style fallback — keeps deep links like /features/financials.html working
+# even if a path is mistyped. Mirrors the existing _redirects behavior.
+[[redirects]]
+  from = "/portal/*"
+  to = "/portal/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# Cache static assets aggressively; HTML stays uncached so updates ship
+# immediately on push without users having to hard-refresh.
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/*.css"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/*.js"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/*.html"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
