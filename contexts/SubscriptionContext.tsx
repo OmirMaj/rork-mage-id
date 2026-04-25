@@ -22,12 +22,28 @@ function getRCApiKey(): string | undefined {
   // for iOS, Android, and Web — they map to distinct billing integrations
   // (StoreKit, Google Play Billing, RevenueCat Web Billing / Stripe).
   //
-  // In dev (__DEV__) we fall back to the shared test key so simulator builds
-  // and Metro hot-reload don't burn through real entitlements. In production
-  // we pick the platform-specific key and fall back to the test key only as
-  // a last resort so the app still boots without a paywall if a key is
-  // accidentally missing from the build env.
+  // Each platform has its OWN key prefix:
+  //   ios:     appl_xxx
+  //   android: goog_xxx
+  //   web:     rcb_xxx (or rcb_sb_xxx for sandbox)
+  //
+  // The web RC SDK throws "Invalid API key" if you hand it an appl_ or
+  // goog_ key — they're not interchangeable. So when WEB has no
+  // EXPO_PUBLIC_REVENUECAT_WEB_API_KEY set, we DO NOT fall back to the
+  // shared test key (which is an iOS key). Returning undefined skips
+  // configuration cleanly with a single console.log instead of spamming
+  // dozens of validation errors.
+  //
+  // For iOS/Android the test fallback IS valid — it's an iOS test key
+  // and RN-purchases on iOS accepts it; on Android the goog_ form is
+  // missing but the simulator still boots (entitlements are absent
+  // rather than mis-typed).
   if (__DEV__) {
+    if (Platform.OS === 'web') {
+      // In dev on web, only use a key that's actually a web key. Skip
+      // otherwise — better than the noisy crash loop on every reload.
+      return process.env.EXPO_PUBLIC_REVENUECAT_WEB_API_KEY;
+    }
     return process.env.EXPO_PUBLIC_REVENUECAT_TEST_API_KEY;
   }
   return Platform.select({
@@ -35,10 +51,26 @@ function getRCApiKey(): string | undefined {
       ?? process.env.EXPO_PUBLIC_REVENUECAT_TEST_API_KEY,
     android: process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY
       ?? process.env.EXPO_PUBLIC_REVENUECAT_TEST_API_KEY,
-    web: process.env.EXPO_PUBLIC_REVENUECAT_WEB_API_KEY
-      ?? process.env.EXPO_PUBLIC_REVENUECAT_TEST_API_KEY,
+    // Web: NO fallback to the iOS test key. If the web key isn't set,
+    // skip configuration entirely (return undefined). Subscription state
+    // will read from the local AsyncStorage cache + Supabase mirror, both
+    // of which already work without RC initialized.
+    web: process.env.EXPO_PUBLIC_REVENUECAT_WEB_API_KEY,
     default: process.env.EXPO_PUBLIC_REVENUECAT_TEST_API_KEY,
   });
+}
+
+/**
+ * Sanity-check a key against the platform it's about to be used on.
+ * Catches the case where someone sets the wrong env var (e.g. an iOS
+ * key in EXPO_PUBLIC_REVENUECAT_WEB_API_KEY) and would otherwise hit
+ * the same "Invalid API key" loop at runtime.
+ */
+function isKeyValidForPlatform(key: string): boolean {
+  if (Platform.OS === 'web') return key.startsWith('rcb_');
+  if (Platform.OS === 'ios') return key.startsWith('appl_');
+  if (Platform.OS === 'android') return key.startsWith('goog_');
+  return true;
 }
 
 let rcConfigured = false;
@@ -47,7 +79,20 @@ function configureRC() {
   if (rcConfigured) return;
   const apiKey = getRCApiKey();
   if (!apiKey) {
-    console.log('[RC] No RevenueCat API key found, skipping configuration');
+    console.log(`[RC] No ${Platform.OS} API key configured — RevenueCat disabled. ` +
+      `Subscription state will use the local cache + Supabase mirror only.`);
+    return;
+  }
+  // Pre-flight: bail loudly if the key prefix doesn't match the platform.
+  // Otherwise the SDK throws on every render and the console fills with
+  // "Invalid API key" — we'd rather skip with one log than crash-loop.
+  if (!isKeyValidForPlatform(apiKey)) {
+    const expected = Platform.OS === 'web' ? 'rcb_'
+      : Platform.OS === 'ios' ? 'appl_'
+      : Platform.OS === 'android' ? 'goog_'
+      : '?';
+    console.warn(`[RC] API key for ${Platform.OS} should start with "${expected}" — got "${apiKey.slice(0, 6)}…". ` +
+      `Skipping RC configuration to avoid crash loop.`);
     return;
   }
   try {
