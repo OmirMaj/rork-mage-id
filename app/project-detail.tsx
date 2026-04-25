@@ -34,7 +34,6 @@ import AIAutoScheduleButton from '@/components/AIAutoScheduleButton';
 import { generateAndSharePDF, buildEstimateTextForEmail, generateRFILogPDF } from '@/utils/pdfGenerator';
 import { generateAndShareCloseoutPacket } from '@/utils/closeoutPacketGenerator';
 import { prefetchProjectPlans } from '@/utils/planPrefetch';
-import SawCutReveal from '@/components/animations/SawCutReveal';
 import HardHatTap from '@/components/animations/HardHatTap';
 import TapeRollNumber from '@/components/animations/TapeRollNumber';
 import BlueprintReveal from '@/components/animations/BlueprintReveal';
@@ -1033,11 +1032,16 @@ export default function ProjectDetailScreen() {
                       )}
                       {collapsed ? <ChevronDown size={18} color={Colors.textMuted} /> : <ChevronUp size={18} color={Colors.textMuted} />}
                     </TouchableOpacity>
-                    <SawCutReveal open={!collapsed} bladeColor={group.color}>
+                    {/* No wrapper — conditional render only. LayoutAnimation
+                        in toggleGroup() handles the smooth open/close.
+                        SawCutReveal had a bug where it kept the body mounted
+                        at opacity 0 after collapse, leaving phantom height
+                        ("the gap that won't go away"). */}
+                    {!collapsed && (
                       <View style={styles.tileGroupBody}>
                         {groupTiles.map(renderTile)}
                       </View>
-                    </SawCutReveal>
+                    )}
                   </View>
                 );
               })}

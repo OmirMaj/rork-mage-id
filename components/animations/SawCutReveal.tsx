@@ -13,7 +13,7 @@
 // Use this anywhere you'd reach for a plain `if (expanded) <View/>`. The
 // max-height-on-mount approach means we don't need to measure children;
 // content can reflow naturally and the container animates with it.
-import React, { ReactNode, useEffect, useRef } from 'react';
+import React, { ReactNode, useEffect, useRef, useState } from 'react';
 import { Animated, Easing, StyleSheet, View, ViewStyle } from 'react-native';
 import { Colors } from '@/constants/colors';
 
@@ -44,15 +44,36 @@ export default function SawCutReveal({
 }: SawCutRevealProps) {
   // Single 0→1 progress value drives everything. open=1, closed=0.
   const progress = useRef(new Animated.Value(open ? 1 : 0)).current;
+  // mounted state — drives unmount AFTER collapse anim finishes. The
+  // previous version checked progress.__getValue() at render time, which
+  // never re-fired once React stopped re-rendering, so the view stayed
+  // mounted at opacity 0 forever — leaving phantom layout space.
+  const [mounted, setMounted] = useState<boolean>(open);
 
   useEffect(() => {
-    Animated.timing(progress, {
-      toValue: open ? 1 : 0,
-      duration,
-      // Custom ease feels like a saw catching, then sliding through wood.
-      easing: open ? Easing.out(Easing.cubic) : Easing.in(Easing.cubic),
-      useNativeDriver: false,
-    }).start();
+    if (open) {
+      // Mount immediately on open; opening animation handles the visual.
+      setMounted(true);
+      Animated.timing(progress, {
+        toValue: 1,
+        duration,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: false,
+      }).start();
+    } else {
+      // Run collapse first, THEN unmount via setMounted(false). Without
+      // this, the body would unmount instantly and we'd lose the animation.
+      Animated.timing(progress, {
+        toValue: 0,
+        duration,
+        easing: Easing.in(Easing.cubic),
+        useNativeDriver: false,
+      }).start(({ finished }) => {
+        // Only unmount if the animation actually finished — guards against
+        // race where open flipped back to true mid-collapse.
+        if (finished) setMounted(false);
+      });
+    }
   }, [open, duration, progress]);
 
   const opacity = progress;
@@ -65,16 +86,9 @@ export default function SawCutReveal({
     outputRange: [0, 0.7, 0.7, 0],
   });
 
-  // When fully closed, render nothing so taps fall through cleanly.
-  if (!open) {
-    // Render an invisible placeholder briefly during the collapse anim
-    // so the slide-out has something to animate. Once progress hits 0,
-    // React unmounts the children entirely on the next render.
-    // We approximate that by checking the float value via __getValue().
-    // (Cheap; only runs at render time.)
-    const v = (progress as Animated.Value & { __getValue?: () => number }).__getValue?.() ?? 0;
-    if (v <= 0.01) return null;
-  }
+  // Once collapse animation completes, mounted goes false and we render
+  // null — no phantom height, no orphan animated view.
+  if (!mounted) return null;
 
   return (
     <View style={[styles.wrap, style]} testID={testID}>

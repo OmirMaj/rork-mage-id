@@ -301,47 +301,77 @@ export default function SettingsScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        <Text style={styles.largeTitle}>Settings</Text>
-
-        {isAuthenticated && user && (
-          <>
-            <Text style={styles.sectionHeader}>ACCOUNT</Text>
-            <View style={styles.group}>
-              <View style={styles.row}>
-                <View style={[styles.iconWrap, { backgroundColor: Colors.primary }]}>
-                  <UserCircle size={14} color="#fff" />
-                </View>
-                <View style={{ flex: 1, gap: 2 }}>
-                  <Text style={styles.rowLabel}>{user.name || 'User'}</Text>
-                  <Text style={{ fontSize: 13, color: Colors.textSecondary }}>{user.email || 'No email'}</Text>
+        {/* Profile hero — replaces the old "Settings" title + small ACCOUNT
+            row. A bigger, branded entry point that turns the Settings page
+            from a system-list into a proper "you" surface. Avatar shows the
+            user's initials in a primary-tinted circle (no photo upload yet,
+            so initials are the canonical fallback in every premium app). */}
+        {isAuthenticated && user ? (
+          <View style={styles.profileHero}>
+            <View style={styles.profileAvatar}>
+              <Text style={styles.profileAvatarText}>
+                {(user.name || user.email || '?')
+                  .trim()
+                  .split(/\s+/)
+                  .slice(0, 2)
+                  .map(s => s[0]?.toUpperCase() ?? '')
+                  .join('') || '?'}
+              </Text>
+            </View>
+            <View style={styles.profileMeta}>
+              <Text style={styles.profileName} numberOfLines={1}>
+                {user.name || 'Welcome'}
+              </Text>
+              {settings.branding?.companyName ? (
+                <Text style={styles.profileCompany} numberOfLines={1}>
+                  {settings.branding.companyName}
+                </Text>
+              ) : null}
+              <Text style={styles.profileEmail} numberOfLines={1}>
+                {user.email || ''}
+              </Text>
+              <View style={styles.profileBadgesRow}>
+                <View style={[
+                  styles.profileTierPill,
+                  tier === 'business'
+                    ? { backgroundColor: '#FFD700' + '22', borderColor: '#FFD700' }
+                    : tier === 'pro'
+                      ? { backgroundColor: Colors.primary + '22', borderColor: Colors.primary }
+                      : { backgroundColor: Colors.fillTertiary, borderColor: Colors.borderLight },
+                ]}>
+                  <Text style={[
+                    styles.profileTierText,
+                    tier === 'business' ? { color: '#A87800' } :
+                    tier === 'pro' ? { color: Colors.primary } : { color: Colors.textSecondary },
+                  ]}>
+                    {tier === 'business' ? 'BUSINESS' : tier === 'pro' ? 'PRO' : 'FREE'}
+                  </Text>
                 </View>
               </View>
-              <View style={styles.rowSeparator} />
-              <TouchableOpacity
-                style={styles.row}
-                onPress={() => {
-                  Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
-                    { text: 'Cancel', style: 'cancel' },
-                    {
-                      text: 'Sign Out',
-                      style: 'destructive',
-                      onPress: async () => {
-                        await logout(true);
-                        router.replace('/login');
-                      },
-                    },
-                  ]);
-                }}
-                activeOpacity={0.6}
-                testID="logout-button"
-              >
-                <View style={[styles.iconWrap, { backgroundColor: '#FF3B30' }]}>
-                  <LogOut size={14} color="#fff" />
-                </View>
-                <Text style={[styles.rowLabel, { color: Colors.error }]}>Sign Out</Text>
-              </TouchableOpacity>
             </View>
-          </>
+            <TouchableOpacity
+              style={styles.profileSignOutBtn}
+              onPress={() => {
+                Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
+                  { text: 'Cancel', style: 'cancel' },
+                  {
+                    text: 'Sign Out',
+                    style: 'destructive',
+                    onPress: async () => {
+                      await logout(true);
+                      router.replace('/login');
+                    },
+                  },
+                ]);
+              }}
+              activeOpacity={0.7}
+              testID="logout-button"
+            >
+              <LogOut size={16} color={Colors.textSecondary} />
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <Text style={styles.largeTitle}>Settings</Text>
         )}
 
         <Text style={styles.sectionHeader}>AI USAGE</Text>
@@ -1520,14 +1550,93 @@ const styles = StyleSheet.create({
     paddingTop: 4,
     marginBottom: 28,
   },
-  sectionHeader: {
-    fontSize: 12,
+  // Profile hero card — sits at the top of Settings, replacing the small
+  // ACCOUNT row + plain "Settings" title. Premium feel: big avatar, bold
+  // name, company line, tier pill, subtle sign-out icon button.
+  profileHero: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 14,
+    marginHorizontal: 16,
+    marginTop: 8,
+    marginBottom: 24,
+    padding: 18,
+    backgroundColor: Colors.surface,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 14,
+    elevation: 2,
+  },
+  profileAvatar: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: Colors.primary,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+  },
+  profileAvatarText: {
+    fontSize: 20,
+    fontWeight: '800' as const,
+    color: '#FFFFFF',
+    letterSpacing: -0.5,
+  },
+  profileMeta: { flex: 1, gap: 2 },
+  profileName: {
+    fontSize: 18,
+    fontWeight: '800' as const,
+    color: Colors.text,
+    letterSpacing: -0.3,
+  },
+  profileCompany: {
+    fontSize: 13,
     fontWeight: '600' as const,
     color: Colors.textSecondary,
-    letterSpacing: 0.5,
-    paddingHorizontal: 20,
-    marginBottom: 8,
+  },
+  profileEmail: {
+    fontSize: 12,
+    color: Colors.textMuted,
+  },
+  profileBadgesRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 6,
     marginTop: 6,
+  },
+  profileTierPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  profileTierText: {
+    fontSize: 10,
+    fontWeight: '800' as const,
+    letterSpacing: 0.6,
+  },
+  profileSignOutBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Colors.fillTertiary,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+  },
+  // Tightened section header — smaller, more refined, less visual weight.
+  // Premium apps use small section labels as silent dividers, not headlines.
+  sectionHeader: {
+    fontSize: 11,
+    fontWeight: '700' as const,
+    color: Colors.textMuted,
+    letterSpacing: 0.8,
+    paddingHorizontal: 22,
+    marginBottom: 6,
+    marginTop: 14,
+    textTransform: 'uppercase' as const,
   },
   sectionSubtext: {
     fontSize: 13,
