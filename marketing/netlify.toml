@@ -7,9 +7,13 @@
 # and publish the contents of this folder as-is.
 
 [build]
-  # No build needed; the publish dir is the base dir.
-  command = "echo 'Static marketing site — no build step.'"
-  publish = "."
+  # The site is pure static HTML/CSS/JS — no build needed. But the Netlify
+  # dashboard for this project has Publish directory = "marketing/dist" baked
+  # in (and that prefix can't be removed without clearing the Base directory).
+  # So we create a dist/ mirror of the static files at build time. This keeps
+  # config-as-code working alongside the dashboard's existing settings.
+  command = "mkdir -p dist && rsync -a --exclude=dist --exclude=netlify.toml --exclude=node_modules --exclude=.git ./ dist/"
+  publish = "dist"
 
 # SPA-style fallback — keeps deep links like /features/financials.html working
 # even if a path is mistyped. Mirrors the existing _redirects behavior.
