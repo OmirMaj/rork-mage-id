@@ -12,6 +12,7 @@ import Purchases, {
 import createContextHook from '@nkzw/create-context-hook';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
+import { ensureRCWebMount } from '@/utils/rcWebMount';
 import type { SubscriptionTier } from '@/types';
 
 const SUBSCRIPTION_KEY = 'mageid_subscription_tier';
@@ -53,6 +54,10 @@ function configureRC() {
     void Purchases.setLogLevel(LOG_LEVEL.DEBUG);
     Purchases.configure({ apiKey });
     rcConfigured = true;
+    // On web, ensure the purchases-js checkout has a top-level mount target so
+    // the iframe renders above the React Native Web app shell instead of being
+    // clipped by the layout container.
+    ensureRCWebMount();
     console.log('[RC] RevenueCat configured successfully');
   } catch (err) {
     console.log('[RC] Failed to configure RevenueCat:', err);
@@ -193,6 +198,10 @@ export const [SubscriptionProvider, useSubscription] = createContextHook(() => {
   const purchaseMutation = useMutation({
     mutationFn: async (pkg: PurchasesPackage) => {
       console.log('[RC] Purchasing package:', pkg.identifier);
+      // Re-assert the web mount-point before each purchase. If a route change
+      // unmounted the host element (or another script removed it) this puts
+      // it back in place so the checkout iframe has somewhere to render.
+      ensureRCWebMount();
       const result = await Purchases.purchasePackage(pkg);
       return result;
     },
