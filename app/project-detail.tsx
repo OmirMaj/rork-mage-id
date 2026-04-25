@@ -276,6 +276,7 @@ export default function ProjectDetailScreen() {
           dailyReports,
           punchItems,
           warranties: projectWarranties,
+          photos: projectPhotos,
           photoCount: projectPhotos.length,
         });
         if (ok) {

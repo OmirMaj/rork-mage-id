@@ -2,7 +2,7 @@ import { Platform } from 'react-native';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import type {
-  Project, CompanyBranding, ChangeOrder, Invoice, DailyFieldReport, PunchItem, Warranty,
+  Project, CompanyBranding, ChangeOrder, Invoice, DailyFieldReport, PunchItem, Warranty, ProjectPhoto,
 } from '@/types';
 
 function escapeHtml(raw: string | number | undefined | null): string {
@@ -34,7 +34,48 @@ interface CloseoutPacketData {
   dailyReports: DailyFieldReport[];
   punchItems: PunchItem[];
   warranties: Warranty[];
+  /** Caller passes the full photo set; generator picks before/after pairs to embed. */
+  photos?: ProjectPhoto[];
+  /** Legacy field — if `photos` is omitted we still show a count. */
   photoCount?: number;
+}
+
+// Pick representative before/after photo pairs.
+//
+// Strategy:
+// 1. If any photos are explicitly tagged 'before' / 'after', honor that — most
+//    deliberate, least surprising.
+// 2. Otherwise fall back to chronology: earliest 3 = before, latest 3 = after.
+//    This is what 90% of supers actually want; they take photos before
+//    starting and at handoff and never bother tagging.
+//
+// We cap at 3 of each so the PDF stays a sane size — embedded JPEGs in HTML
+// blow up file size fast, and Print.printToFileAsync's webview can OOM on
+// very large image docs (especially Android low-end).
+function selectBeforeAfterPhotos(photos: ProjectPhoto[]): { before: ProjectPhoto[]; after: ProjectPhoto[] } {
+  if (!photos || photos.length === 0) return { before: [], after: [] };
+  const tagged = {
+    before: photos.filter(p => p.tag?.toLowerCase() === 'before'),
+    after: photos.filter(p => p.tag?.toLowerCase() === 'after'),
+  };
+  if (tagged.before.length > 0 || tagged.after.length > 0) {
+    return {
+      before: tagged.before.slice(0, 3),
+      after: tagged.after.slice(0, 3),
+    };
+  }
+  // Chronological fallback. Sort once, take from each end.
+  const sorted = [...photos].sort((a, b) => {
+    const ta = new Date(a.timestamp || a.createdAt).getTime();
+    const tb = new Date(b.timestamp || b.createdAt).getTime();
+    return ta - tb;
+  });
+  if (sorted.length === 1) return { before: sorted, after: [] };
+  if (sorted.length <= 3) return { before: [sorted[0]], after: [sorted[sorted.length - 1]] };
+  return {
+    before: sorted.slice(0, Math.min(3, Math.floor(sorted.length / 2))),
+    after: sorted.slice(-Math.min(3, Math.floor(sorted.length / 2))),
+  };
 }
 
 function buildCloseoutHtml(data: CloseoutPacketData): string {
@@ -179,6 +220,42 @@ function buildCloseoutHtml(data: CloseoutPacketData): string {
     </section>
   ` : '';
 
+  const beforeAfter = selectBeforeAfterPhotos(data.photos ?? []);
+  const totalPhotoCount = data.photos?.length ?? data.photoCount ?? 0;
+
+  const photoCellHtml = (p: ProjectPhoto, kind: 'before' | 'after') => {
+    const meta: string[] = [];
+    if (p.location) meta.push(escapeHtml(p.location));
+    if (p.locationLabel && !p.location) meta.push(escapeHtml(p.locationLabel));
+    if (p.timestamp) meta.push(formatDate(p.timestamp));
+    return `
+      <div class="photo-cell">
+        <div class="photo-frame">
+          <img src="${escapeHtml(p.uri)}" alt="${kind} photo" />
+          <span class="photo-tag photo-tag-${kind}">${kind === 'before' ? 'Before' : 'After'}</span>
+        </div>
+        ${meta.length > 0 ? `<div class="photo-caption">${meta.join(' &middot; ')}</div>` : ''}
+      </div>
+    `;
+  };
+
+  const photosSectionHtml = (beforeAfter.before.length > 0 || beforeAfter.after.length > 0) ? `
+    <section class="photos-section">
+      <h3>Project Documentation Photos</h3>
+      <p class="note">Before / after pairs from ${totalPhotoCount} total project photo${totalPhotoCount === 1 ? '' : 's'} on file. Photos selected ${data.photos?.some(p => p.tag?.toLowerCase() === 'before' || p.tag?.toLowerCase() === 'after') ? 'by tag' : 'chronologically'}.</p>
+      ${beforeAfter.before.length > 0 ? `
+        <div class="photo-row">
+          ${beforeAfter.before.map(p => photoCellHtml(p, 'before')).join('')}
+        </div>
+      ` : ''}
+      ${beforeAfter.after.length > 0 ? `
+        <div class="photo-row">
+          ${beforeAfter.after.map(p => photoCellHtml(p, 'after')).join('')}
+        </div>
+      ` : ''}
+    </section>
+  ` : '';
+
   const dfrCount = dailyReports.length;
   const projectInfoHtml = `
     <section>
@@ -192,7 +269,7 @@ function buildCloseoutHtml(data: CloseoutPacketData): string {
         <tr><td>Started</td><td>${formatDate(project.createdAt)}</td></tr>
         ${project.closedAt ? `<tr><td>Closed</td><td>${formatDate(project.closedAt)}</td></tr>` : ''}
         <tr><td>Daily Reports on File</td><td>${dfrCount}</td></tr>
-        ${data.photoCount != null ? `<tr><td>Photos Captured</td><td>${data.photoCount}</td></tr>` : ''}
+        ${totalPhotoCount > 0 ? `<tr><td>Photos Captured</td><td>${totalPhotoCount}</td></tr>` : ''}
       </table>
     </section>
   `;
@@ -255,6 +332,15 @@ function buildCloseoutHtml(data: CloseoutPacketData): string {
     .sign-line { border-bottom: 1px solid #1C1C1E; height: 40px; margin-bottom: 6px; }
     .sign-label { font-size: 10px; color: #6C6C70; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
     .footer { text-align: center; color: #8E8E93; font-size: 10px; margin-top: 32px; padding-top: 16px; border-top: 1px solid #E5E5EA; }
+    .photos-section { page-break-before: auto; }
+    .photo-row { display: flex; gap: 10px; margin: 12px 0; flex-wrap: wrap; }
+    .photo-cell { flex: 1 1 0; min-width: 30%; max-width: 33%; }
+    .photo-frame { position: relative; width: 100%; padding-top: 75%; background: #F2F2F7; border-radius: 6px; overflow: hidden; border: 1px solid #D1D1D6; }
+    .photo-frame img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+    .photo-tag { position: absolute; top: 6px; left: 6px; padding: 3px 7px; border-radius: 4px; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #fff; }
+    .photo-tag-before { background: #C77700; }
+    .photo-tag-after { background: #2E7D32; }
+    .photo-caption { font-size: 9.5px; color: #6C6C70; margin-top: 5px; line-height: 1.3; }
   </style>
 </head>
 <body>
@@ -265,6 +351,7 @@ function buildCloseoutHtml(data: CloseoutPacketData): string {
   ${invoicesSectionHtml}
   ${punchSectionHtml}
   ${warrantySectionHtml}
+  ${photosSectionHtml}
   ${signoffHtml}
   <div class="footer">Generated by MAGE ID · ${escapeHtml(company)} · ${formatDate(new Date().toISOString())}</div>
 </body>
