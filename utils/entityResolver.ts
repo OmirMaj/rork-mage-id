@@ -164,6 +164,40 @@ export function getEntityRoute(ref: EntityRef): EntityRoute | null {
       // Payments are listed in /payments, no per-row detail yet.
       return { pathname: '/payments', params: { paymentId: ref.id } };
 
+    case 'subcontractor':
+      return {
+        pathname: '/subs',
+        params: { subcontractorId: ref.id },
+      };
+
+    case 'commitment':
+      if (!ref.projectId) return null;
+      return {
+        pathname: '/project-detail',
+        params: { id: ref.projectId, openCommitmentId: ref.id },
+      };
+
+    case 'planSheet':
+      if (!ref.projectId) return null;
+      return {
+        pathname: '/plan-viewer',
+        params: { sheetId: ref.id, projectId: ref.projectId },
+      };
+
+    case 'commEvent':
+      if (!ref.projectId) return null;
+      return {
+        pathname: '/activity-feed',
+        params: { projectId: ref.projectId },
+      };
+
+    case 'portalMessage':
+      if (!ref.projectId) return null;
+      return {
+        pathname: '/client-portal',
+        params: { projectId: ref.projectId, messageId: ref.id },
+      };
+
     default: {
       // Exhaustiveness guard — a new EntityKind added to types/index.ts will
       // surface a TS error here.
@@ -223,6 +257,11 @@ export function resolveEntityObject(
     case 'document':
     case 'permit':
     case 'payment':
+    case 'subcontractor':
+    case 'commitment':
+    case 'planSheet':
+    case 'commEvent':
+    case 'portalMessage':
       // These live outside the core projects store. Consumers that need the
       // object can pass a richer store; we return null for the default shape.
       return null;
@@ -254,6 +293,11 @@ const KIND_LABEL: Record<EntityKind, string> = {
   document: 'Document',
   permit: 'Permit',
   equipment: 'Equipment',
+  subcontractor: 'Sub',
+  commitment: 'Contract',
+  planSheet: 'Sheet',
+  commEvent: 'Activity',
+  portalMessage: 'Message',
 };
 
 /**

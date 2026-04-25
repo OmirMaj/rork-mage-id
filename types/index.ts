@@ -1522,7 +1522,12 @@ export type EntityKind =
   | 'contact'
   | 'document'
   | 'permit'
-  | 'equipment';
+  | 'equipment'
+  | 'subcontractor'
+  | 'commitment'
+  | 'planSheet'
+  | 'commEvent'
+  | 'portalMessage';
 
 export interface EntityRef {
   kind: EntityKind;

@@ -17,7 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Search as SearchIcon, X, ChevronRight, Building2, CalendarDays, Camera,
   HelpCircle, ClipboardCheck, Receipt, Repeat, FileText, CheckSquare, Shield,
-  UserRound, Wrench, Clock,
+  UserRound, Wrench, Clock, HardHat, Briefcase, Layers, MessageSquare, Mail,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useSearch } from '@/contexts/SearchContext';
@@ -50,8 +50,13 @@ const KIND_ICON: Record<EntityKind, React.FC<{ size: number; color: string }>> =
   warranty: Shield,
   contact: UserRound,
   document: FileText,
-  permit: FileText,
+  permit: Shield,
   equipment: Wrench,
+  subcontractor: HardHat,
+  commitment: Briefcase,
+  planSheet: Layers,
+  commEvent: MessageSquare,
+  portalMessage: Mail,
 };
 
 const KIND_LABEL: Record<EntityKind, string> = {
@@ -70,12 +75,18 @@ const KIND_LABEL: Record<EntityKind, string> = {
   document: 'Documents',
   permit: 'Permits',
   equipment: 'Equipment',
+  subcontractor: 'Subcontractors',
+  commitment: 'Contracts & POs',
+  planSheet: 'Plan Sheets',
+  commEvent: 'Activity',
+  portalMessage: 'Messages',
 };
 
 const KIND_ORDER: EntityKind[] = [
   'project', 'task', 'rfi', 'submittal', 'changeOrder', 'invoice',
-  'dailyReport', 'punchItem', 'photo', 'warranty', 'equipment',
-  'contact', 'document', 'permit', 'payment',
+  'dailyReport', 'punchItem', 'photo', 'permit', 'subcontractor',
+  'commitment', 'planSheet', 'warranty', 'equipment',
+  'contact', 'commEvent', 'portalMessage', 'document', 'payment',
 ];
 
 // ---------------------------------------------------------------------------

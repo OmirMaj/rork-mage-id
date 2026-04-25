@@ -245,14 +245,14 @@ export default function HomeScreen() {
                 <Text style={styles.navTitle}>MAGE ID</Text>
                 <OfflineSyncPill />
               </View>
-              <View style={{ flexDirection: 'row', gap: 8 }}>
+              <View style={{ flexDirection: 'row', gap: 12 }}>
                 <TouchableOpacity
                   style={[styles.addButton, { backgroundColor: Colors.fillTertiary }]}
                   onPress={openSearch}
                   activeOpacity={0.7}
                   testID="universal-search-btn"
                 >
-                  <Search size={18} color={Colors.primary} strokeWidth={2} />
+                  <Search size={22} color={Colors.primary} strokeWidth={2} />
                 </TouchableOpacity>
                 {projects.length > 0 && (
                   <TouchableOpacity
@@ -261,7 +261,7 @@ export default function HomeScreen() {
                     activeOpacity={0.7}
                     testID="report-inbox-btn"
                   >
-                    <Inbox size={18} color={Colors.primary} strokeWidth={2} />
+                    <Inbox size={22} color={Colors.primary} strokeWidth={2} />
                   </TouchableOpacity>
                 )}
                 {projects.length > 0 && (
@@ -271,7 +271,7 @@ export default function HomeScreen() {
                     activeOpacity={0.7}
                     testID="cash-flow-btn"
                   >
-                    <Wallet size={18} color={Colors.primary} strokeWidth={2} />
+                    <Wallet size={22} color={Colors.primary} strokeWidth={2} />
                   </TouchableOpacity>
                 )}
                 {projects.length > 0 && (
@@ -281,7 +281,7 @@ export default function HomeScreen() {
                     activeOpacity={0.7}
                     testID="weekly-summary-btn"
                   >
-                    <BarChart3 size={18} color={Colors.primary} strokeWidth={2} />
+                    <BarChart3 size={22} color={Colors.primary} strokeWidth={2} />
                   </TouchableOpacity>
                 )}
                 <TouchableOpacity
@@ -779,9 +779,9 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase' as const,
   },
   addButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: Colors.primary,
     alignItems: 'center',
     justifyContent: 'center',

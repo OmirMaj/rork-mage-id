@@ -54,6 +54,11 @@ const CAPABILITIES: Record<EntityKind, EntityActionId[]> = {
   document:     [...UNIVERSAL, 'delete'],
   permit:       [...UNIVERSAL],
   equipment:    [...UNIVERSAL],
+  subcontractor:[...UNIVERSAL],
+  commitment:   [...UNIVERSAL],
+  planSheet:    [...UNIVERSAL],
+  commEvent:    [...UNIVERSAL],
+  portalMessage:[...UNIVERSAL],
 };
 
 const ACTION_META: Record<EntityActionId, Omit<EntityAction, 'id'>> = {

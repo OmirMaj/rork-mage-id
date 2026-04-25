@@ -19,7 +19,8 @@ import type {
   EntityRef, EntityKind,
   RFI, Submittal, Invoice, ChangeOrder,
   DailyFieldReport, PunchItem, ProjectPhoto, Contact, Warranty, Equipment,
-  ScheduleTask,
+  ScheduleTask, Permit, Subcontractor, Commitment, PlanSheet,
+  CommunicationEvent, PortalMessage,
 } from '@/types';
 
 // ---------------------------------------------------------------------------
@@ -333,6 +334,128 @@ export function useUniversalSearch(query: string): UniversalSearchResult {
       }
     }
 
+    // --- permits ---------------------------------------------------------
+    for (const p of store.permits as Permit[]) {
+      const best = bestFieldMatch(q, [
+        ['type', p.type],
+        ['permitNumber', p.permitNumber ?? ''],
+        ['jurisdiction', p.jurisdiction],
+        ['phase', p.phase ?? ''],
+        ['notes', p.notes ?? ''],
+        ['inspectionNotes', p.inspectionNotes ?? ''],
+      ]);
+      if (best) {
+        raw.push(makeResult(
+          { kind: 'permit', id: p.id, projectId: p.projectId },
+          `${p.type}${p.permitNumber ? ` · #${p.permitNumber}` : ''}`,
+          best,
+          recencyMultiplier(p.updatedAt ?? p.createdAt, now),
+          projectNameById,
+          q.length,
+        ));
+      }
+    }
+
+    // --- subcontractors --------------------------------------------------
+    for (const s of store.subcontractors as Subcontractor[]) {
+      const best = bestFieldMatch(q, [
+        ['companyName', s.companyName],
+        ['contactName', s.contactName],
+        ['trade', s.trade],
+        ['licenseNumber', s.licenseNumber],
+        ['email', s.email],
+        ['phone', s.phone],
+      ]);
+      if (best) {
+        raw.push(makeResult(
+          { kind: 'subcontractor', id: s.id },
+          `${s.companyName} · ${s.trade}`,
+          best,
+          1,
+          projectNameById,
+          q.length,
+        ));
+      }
+    }
+
+    // --- commitments (POs / subcontracts) -------------------------------
+    for (const c of store.commitments as Commitment[]) {
+      const best = bestFieldMatch(q, [
+        ['number', c.number],
+        ['type', c.type],
+        ['description', c.description],
+        ['vendorName', c.vendorName ?? ''],
+        ['phase', c.phase ?? ''],
+      ]);
+      if (best) {
+        raw.push(makeResult(
+          { kind: 'commitment', id: c.id, projectId: c.projectId },
+          `${c.type} #${c.number} · ${c.description.slice(0, 40)}`,
+          best,
+          1,
+          projectNameById,
+          q.length,
+        ));
+      }
+    }
+
+    // --- plan sheets -----------------------------------------------------
+    for (const ps of store.planSheets as PlanSheet[]) {
+      const best = bestFieldMatch(q, [
+        ['name', ps.name],
+        ['sheetNumber', ps.sheetNumber ?? ''],
+      ]);
+      if (best) {
+        raw.push(makeResult(
+          { kind: 'planSheet', id: ps.id, projectId: ps.projectId },
+          ps.sheetNumber ? `${ps.sheetNumber} · ${ps.name}` : ps.name,
+          best,
+          recencyMultiplier(ps.updatedAt, now),
+          projectNameById,
+          q.length,
+        ));
+      }
+    }
+
+    // --- communication events -------------------------------------------
+    for (const ce of store.commEvents as CommunicationEvent[]) {
+      const best = bestFieldMatch(q, [
+        ['summary', ce.summary],
+        ['detail', ce.detail ?? ''],
+        ['actor', ce.actor],
+        ['recipient', ce.recipient ?? ''],
+        ['type', ce.type],
+      ]);
+      if (best) {
+        raw.push(makeResult(
+          { kind: 'commEvent', id: ce.id, projectId: ce.projectId },
+          `${ce.type.replace(/_/g, ' ')} · ${ce.summary.slice(0, 40)}`,
+          best,
+          recencyMultiplier(ce.timestamp, now),
+          projectNameById,
+          q.length,
+        ));
+      }
+    }
+
+    // --- portal messages -------------------------------------------------
+    for (const pm of store.portalMessages as PortalMessage[]) {
+      const best = bestFieldMatch(q, [
+        ['authorName', pm.authorName],
+        ['body', pm.body],
+      ]);
+      if (best) {
+        raw.push(makeResult(
+          { kind: 'portalMessage', id: pm.id, projectId: pm.projectId },
+          `${pm.authorName}: ${pm.body.slice(0, 40)}`,
+          best,
+          recencyMultiplier(pm.createdAt, now),
+          projectNameById,
+          q.length,
+        ));
+      }
+    }
+
     // Sort global by score descending, then cap.
     raw.sort((a, b) => b.score - a.score);
     return raw.slice(0, MAX_TOTAL);
@@ -425,7 +548,8 @@ function emptyGrouped(): Record<EntityKind, SearchResult[]> {
     project: [], task: [], photo: [], rfi: [], submittal: [],
     changeOrder: [], invoice: [], payment: [], dailyReport: [],
     punchItem: [], warranty: [], contact: [], document: [],
-    permit: [], equipment: [],
+    permit: [], equipment: [], subcontractor: [], commitment: [],
+    planSheet: [], commEvent: [], portalMessage: [],
   };
 }
 
@@ -434,7 +558,8 @@ function emptyCounts(): Record<EntityKind, number> {
     project: 0, task: 0, photo: 0, rfi: 0, submittal: 0,
     changeOrder: 0, invoice: 0, payment: 0, dailyReport: 0,
     punchItem: 0, warranty: 0, contact: 0, document: 0,
-    permit: 0, equipment: 0,
+    permit: 0, equipment: 0, subcontractor: 0, commitment: 0,
+    planSheet: 0, commEvent: 0, portalMessage: 0,
   };
 }
 

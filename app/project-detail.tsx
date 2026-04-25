@@ -1,8 +1,14 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Platform, Modal,
-  TextInput, Pressable, KeyboardAvoidingView, Image,
+  TextInput, Pressable, KeyboardAvoidingView, Image, LayoutAnimation, UIManager,
 } from 'react-native';
+
+// Enable LayoutAnimation on Android (no-op on iOS — already enabled).
+// Without this, the smooth collapse/expand animation only works on iOS.
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
@@ -137,6 +143,19 @@ export default function ProjectDetailScreen() {
   const [coFilter, setCoFilter] = useState<'pending' | 'approved' | 'all'>('pending');
   const toggleGroup = useCallback((key: TileGroupKey) => {
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
+    // Schedule a layout animation BEFORE the state change so React Native
+    // animates the collapse/expand instead of jumping. Also forces the
+    // ScrollView to re-flow immediately, fixing the "huge gap that
+    // disappears when you click another collapsible" bug — the bug was
+    // RN caching the collapsed group's old height until something else
+    // triggered a layout pass.
+    if (Platform.OS !== 'web') {
+      LayoutAnimation.configureNext(LayoutAnimation.create(
+        180,
+        LayoutAnimation.Types.easeInEaseOut,
+        LayoutAnimation.Properties.opacity,
+      ));
+    }
     setCollapsedGroups(prev => {
       const next = new Set(prev);
       if (next.has(key)) next.delete(key); else next.add(key);
