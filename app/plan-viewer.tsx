@@ -31,6 +31,7 @@ import * as Haptics from 'expo-haptics';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import type { DrawingPin, DrawingPinKind } from '@/types';
+import { stampPhotoLocation } from '@/utils/photoGeoStamp';
 
 type Mode = 'pin' | 'draw' | 'measure' | 'calibrate';
 
@@ -542,9 +543,17 @@ export default function PlanViewerScreen() {
           const uri = result.assets[0].uri;
           const id = `photo-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
           const now = new Date().toISOString();
+          // Geo-stamp \u2014 self-bounded 3s timeout, never blocks the save.
+          const stamp = await stampPhotoLocation();
           addProjectPhoto({
             id, projectId: sheet.projectId, uri, timestamp: now,
             tag: 'plan', createdAt: now,
+            ...(stamp ? {
+              latitude: stamp.latitude,
+              longitude: stamp.longitude,
+              locationAccuracyMeters: stamp.accuracyMeters,
+              locationLabel: stamp.label,
+            } : null),
           });
           updateDrawingPin(selectedPin.id, { linkedPhotoId: id, kind: 'photo' });
         }}

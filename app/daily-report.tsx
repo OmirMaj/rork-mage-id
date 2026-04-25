@@ -20,6 +20,7 @@ import VoiceRecorder from '@/components/VoiceRecorder';
 import { parseDFRFromTranscript } from '@/utils/voiceDFRParser';
 import AIDailyReportGen from '@/components/AIDailyReportGen';
 import type { ManpowerEntry, DFRPhoto, DailyFieldReport, DFRWeather, IncidentReport, IncidentSeverity } from '@/types';
+import { stampPhotoLocation } from '@/utils/photoGeoStamp';
 import type { DailyReportGenResult } from '@/utils/aiService';
 
 function createId(prefix: string): string {
@@ -164,6 +165,9 @@ export default function DailyReportScreen() {
         allowsMultipleSelection: false,
       });
       if (!result.canceled && result.assets[0]) {
+        // Library photos may have been taken anywhere / any time \u2014 we don't
+        // pretend the *current* GPS reading represents where the picture was
+        // taken. Geo-stamp only on camera capture, where "now" is correct.
         const photo: DFRPhoto = {
           id: createId('photo'),
           uri: result.assets[0].uri,
@@ -192,10 +196,19 @@ export default function DailyReportScreen() {
         quality: 0.7,
       });
       if (!result.canceled && result.assets[0]) {
+        // Fire the GPS stamp in parallel \u2014 it has its own 3s timeout, so it
+        // never blocks the photo from showing up in the report.
+        const stamp = await stampPhotoLocation();
         const photo: DFRPhoto = {
           id: createId('photo'),
           uri: result.assets[0].uri,
           timestamp: new Date().toISOString(),
+          ...(stamp ? {
+            latitude: stamp.latitude,
+            longitude: stamp.longitude,
+            locationAccuracyMeters: stamp.accuracyMeters,
+            locationLabel: stamp.label,
+          } : null),
         };
         setPhotos(prev => [...prev, photo]);
         if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);

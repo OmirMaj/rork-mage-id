@@ -588,6 +588,14 @@ export interface DFRPhoto {
   id: string;
   uri: string;
   timestamp: string;
+  /** GPS latitude captured at the moment of taking the photo, if permission granted and a fix landed within ~3s. */
+  latitude?: number;
+  /** GPS longitude. */
+  longitude?: number;
+  /** OS-reported accuracy in meters; higher number = less precise. Useful for filtering "junk" fixes (>200 m). */
+  locationAccuracyMeters?: number;
+  /** Human-readable label \u2014 reverse-geocoded address when online, else "<lat>, <lng>". */
+  locationLabel?: string;
 }
 
 export type DFRStatus = 'draft' | 'sent';
@@ -859,6 +867,7 @@ export interface PunchItem {
   id: string;
   projectId: string;
   description: string;
+  /** Free-text location (e.g. "Unit 4B \u2014 master bath"). */
   location: string;
   assignedSub: string;
   assignedSubId?: string;
@@ -868,6 +877,11 @@ export interface PunchItem {
   priority: PunchItemPriority;
   status: PunchItemStatus;
   photoUri?: string;
+  /** GPS lat captured when the punch photo was taken. Optional. */
+  photoLatitude?: number;
+  photoLongitude?: number;
+  photoLocationAccuracyMeters?: number;
+  photoLocationLabel?: string;
   rejectionNote?: string;
   closedAt?: string;
   createdAt: string;
@@ -879,11 +893,20 @@ export interface ProjectPhoto {
   projectId: string;
   uri: string;
   timestamp: string;
+  /** Free-text label (e.g. "Lobby \u2014 east wall"). Distinct from the GPS-derived locationLabel below. */
   location?: string;
   tag?: string;
   linkedTaskId?: string;
   linkedTaskName?: string;
   markup?: PhotoMarkup[];
+  /** GPS latitude captured at the moment of taking the photo. Optional \u2014 may be missing if permission denied or no fix in 3s. */
+  latitude?: number;
+  /** GPS longitude. */
+  longitude?: number;
+  /** OS-reported fix accuracy in meters. */
+  locationAccuracyMeters?: number;
+  /** Reverse-geocoded address when online, else "<lat>, <lng>". */
+  locationLabel?: string;
   createdAt: string;
 }
 

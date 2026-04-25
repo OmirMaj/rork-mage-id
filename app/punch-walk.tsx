@@ -37,6 +37,7 @@ import { useProjects } from '@/contexts/ProjectContext';
 import { generateUUID } from '@/utils/generateId';
 import VoiceRecorder from '@/components/VoiceRecorder';
 import { inferTradeFromText, pickSubForTrade } from '@/utils/tradeInference';
+import { stampPhotoLocation, type PhotoGeoStamp } from '@/utils/photoGeoStamp';
 import type { PunchItem, PunchItemPriority, SubTrade, Subcontractor } from '@/types';
 import { SUB_TRADES } from '@/types';
 
@@ -101,6 +102,9 @@ function WalkInner({ projectName, projectId, subcontractors, onAdd, onDelete, on
     matchedKeyword?: string;
     priority: PunchItemPriority;
     photoUri?: string;
+    /** GPS stamp from when the photo was captured. Stored on the draft so a
+     *  subsequent edit doesn't drop it on save. */
+    photoStamp?: PhotoGeoStamp;
   }>({ description: '', location: '', trade: 'General', priority: 'medium' });
 
   // Session history — everything saved in this walk, in reverse-chron.
@@ -146,7 +150,17 @@ function WalkInner({ projectName, projectId, subcontractors, onAdd, onDelete, on
     }
     const result = await ImagePicker.launchCameraAsync({ quality: 0.7, allowsEditing: false });
     if (!result.canceled && result.assets[0]) {
-      setDraft(d => ({ ...d, photoUri: result.assets[0].uri }));
+      // Geo-stamp runs in parallel with the camera dismiss animation; its
+      // own 3s timeout means a missing GPS fix never blocks the next punch.
+      const stamp = await stampPhotoLocation();
+      setDraft(d => ({
+        ...d,
+        photoUri: result.assets[0].uri,
+        photoStamp: stamp ?? undefined,
+        // If the user hasn't typed a location yet, seed it with the geo
+        // label so the punch still has SOMETHING for the closeout report.
+        location: d.location || stamp?.label || '',
+      }));
       if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
   }, []);
@@ -189,6 +203,12 @@ function WalkInner({ projectName, projectId, subcontractors, onAdd, onDelete, on
       priority: draft.priority,
       status: 'open',
       photoUri: draft.photoUri,
+      ...(draft.photoStamp ? {
+        photoLatitude: draft.photoStamp.latitude,
+        photoLongitude: draft.photoStamp.longitude,
+        photoLocationAccuracyMeters: draft.photoStamp.accuracyMeters,
+        photoLocationLabel: draft.photoStamp.label,
+      } : null),
       createdAt: now,
       updatedAt: now,
     };
@@ -206,6 +226,7 @@ function WalkInner({ projectName, projectId, subcontractors, onAdd, onDelete, on
 
     // Reset draft but KEEP the location. The whole point of walk mode
     // is the super stays in one room and captures 5 items before moving.
+    // photoStamp is dropped \u2014 next photo gets its own fresh fix.
     setDraft({ description: '', location: draft.location, trade: 'General', priority: 'medium' });
 
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
