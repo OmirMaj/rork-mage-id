@@ -248,6 +248,35 @@ export default function InvoiceScreen() {
       const branding = settings.branding ?? { companyName: '', contactName: '', email: '', phone: '', address: '', licenseNumber: '', tagline: '' };
       const now = new Date().toISOString();
       const dueDate = getDueDate(now, paymentTerms);
+
+      // Auto-generate a Stripe payment link if the invoice doesn't have one
+      // yet. Without this, the email goes out with no Pay button — clients
+      // get an invoice they can read but not pay, and we lose the whole
+      // value prop of the integration. This runs silently in the background;
+      // if Stripe is unreachable, we just send the email without the button
+      // (graceful degradation rather than blocking the send).
+      let payLinkUrl: string | undefined = existingInvoice?.payLinkUrl;
+      if (!payLinkUrl && existingInvoice && totalDue > 0) {
+        try {
+          const res = await createPaymentLink({
+            invoiceId: existingInvoice.id,
+            invoiceNumber: existingInvoice.number,
+            projectName: project?.name ?? 'Project',
+            amountCents: Math.round(totalDue * 100),
+            customerEmail: sendRecipientEmail.trim(),
+            companyName: branding.companyName,
+          });
+          if (res.success && res.url && res.id) {
+            payLinkUrl = res.url;
+            updateInvoice(existingInvoice.id, { payLinkUrl: res.url, payLinkId: res.id });
+          } else {
+            console.warn('[Invoice] Auto-generate payment link failed:', res.error);
+          }
+        } catch (err) {
+          console.warn('[Invoice] Auto-generate payment link threw:', err);
+        }
+      }
+
       const html = buildInvoiceEmailHtml({
         companyName: branding.companyName,
         recipientName: sendRecipientName,
@@ -261,7 +290,7 @@ export default function InvoiceScreen() {
         contactPhone: branding.phone,
         // One-tap pay button in the email body. Closes the friction loop:
         // client gets invoice → taps "Pay Securely" → on Stripe in 1s.
-        payLinkUrl: existingInvoice?.payLinkUrl,
+        payLinkUrl,
       });
 
       const result = await sendEmail({
@@ -284,7 +313,7 @@ export default function InvoiceScreen() {
     }
 
     handleSave('sent', sendRecipientName, sendRecipientEmail);
-  }, [handleSave, sendRecipientName, sendRecipientEmail, settings, project, existingInvoice, nextInvoiceNumber, totalDue, paymentTerms]);
+  }, [handleSave, sendRecipientName, sendRecipientEmail, settings, project, existingInvoice, nextInvoiceNumber, totalDue, paymentTerms, updateInvoice]);
 
   const handleSendPDF = useCallback(async (options: PDFSendOptions) => {
     if (!project || !existingInvoice) return;
@@ -293,6 +322,30 @@ export default function InvoiceScreen() {
     if (options.method === 'email' && options.recipient.trim()) {
       const branding = settings.branding ?? { companyName: '', contactName: '', email: '', phone: '', address: '', licenseNumber: '', tagline: '' };
       const dueDate = existingInvoice.dueDate || getDueDate(new Date().toISOString(), existingInvoice.paymentTerms);
+
+      // Same auto-generate logic as handleConfirmSend — the PDF send path
+      // is the other entry point for "send to client", so it needs the
+      // same guarantee that a payment link will be embedded.
+      let payLinkUrl: string | undefined = existingInvoice.payLinkUrl;
+      if (!payLinkUrl && (existingInvoice.totalDue - existingInvoice.amountPaid) > 0) {
+        try {
+          const res = await createPaymentLink({
+            invoiceId: existingInvoice.id,
+            invoiceNumber: existingInvoice.number,
+            projectName: project.name,
+            amountCents: Math.round((existingInvoice.totalDue - existingInvoice.amountPaid) * 100),
+            customerEmail: options.recipient.trim(),
+            companyName: branding.companyName,
+          });
+          if (res.success && res.url && res.id) {
+            payLinkUrl = res.url;
+            updateInvoice(existingInvoice.id, { payLinkUrl: res.url, payLinkId: res.id });
+          }
+        } catch (err) {
+          console.warn('[Invoice] Auto pay-link gen failed in handleSendPDF:', err);
+        }
+      }
+
       const emailHtml = buildInvoiceEmailHtml({
         companyName: branding.companyName,
         recipientName: '',
@@ -305,7 +358,7 @@ export default function InvoiceScreen() {
         contactName: branding.contactName,
         contactEmail: branding.email,
         contactPhone: branding.phone,
-        payLinkUrl: existingInvoice.payLinkUrl,
+        payLinkUrl,
       });
 
       const pdfUri = await generateInvoicePDFUri(existingInvoice, project, branding);
@@ -359,7 +412,7 @@ export default function InvoiceScreen() {
       console.error('[Invoice] PDF share error:', e);
       Alert.alert('Error', 'Failed to generate PDF. Please try again.');
     }
-  }, [project, existingInvoice, settings]);
+  }, [project, existingInvoice, settings, updateInvoice]);
 
   const handleMarkPaid = useCallback(() => {
     const amt = parseFloat(paymentAmount) || 0;
