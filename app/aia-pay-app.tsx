@@ -20,8 +20,26 @@ import {
   computeAIATotals,
   generateAIAPayAppPDF,
 } from '@/utils/aiaBilling';
+import { useTierAccess } from '@/hooks/useTierAccess';
+import Paywall from '@/components/Paywall';
 
 export default function AIAPayAppScreen() {
+  const router = useRouter();
+  const { canAccess } = useTierAccess();
+  if (!canAccess('aia_pay_app')) {
+    return (
+      <Paywall
+        visible={true}
+        feature="AIA G702/G703 Pay Applications"
+        requiredTier="pro"
+        onClose={() => router.back()}
+      />
+    );
+  }
+  return <AIAPayAppScreenInner />;
+}
+
+function AIAPayAppScreenInner() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { invoiceId } = useLocalSearchParams<{ invoiceId: string }>();

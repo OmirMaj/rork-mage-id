@@ -33,6 +33,8 @@ import {
 import { z } from 'zod';
 import { Colors } from '@/constants/colors';
 import { mageAISmart } from '@/utils/mageAI';
+import { useTierAccess } from '@/hooks/useTierAccess';
+import Paywall from '@/components/Paywall';
 
 interface WizardAnswers {
   projectType: string;
@@ -95,6 +97,22 @@ const INITIAL: WizardAnswers = {
 };
 
 export default function EstimateWizardScreen() {
+  const router = useRouter();
+  const { canAccess } = useTierAccess();
+  if (!canAccess('ai_estimate_wizard')) {
+    return (
+      <Paywall
+        visible={true}
+        feature="AI Estimate Wizard"
+        requiredTier="pro"
+        onClose={() => router.back()}
+      />
+    );
+  }
+  return <EstimateWizardScreenInner />;
+}
+
+function EstimateWizardScreenInner() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
 

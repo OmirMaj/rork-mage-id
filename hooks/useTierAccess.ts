@@ -23,6 +23,8 @@ export type FeatureKey =
   | 'budget_health_evm'
   | 'price_alerts'
   | 'change_orders_invoicing'
+  | 'aia_pay_app'
+  | 'ai_estimate_wizard'
   | 'daily_field_reports'
   | 'schedule_scenarios'
   | 'job_costing'
@@ -60,6 +62,8 @@ const REQUIRED_TIER: Record<FeatureKey, 'free' | 'pro' | 'business'> = {
   budget_health_evm: 'pro',
   price_alerts: 'pro',
   change_orders_invoicing: 'pro',
+  aia_pay_app: 'pro',
+  ai_estimate_wizard: 'pro',
   daily_field_reports: 'pro',
   schedule_scenarios: 'pro',
   job_costing: 'pro',
