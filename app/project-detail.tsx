@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Platform, Modal,
   TextInput, Pressable, KeyboardAvoidingView,
@@ -26,6 +26,7 @@ import AIProjectReport from '@/components/AIProjectReport';
 import AIAutoScheduleButton from '@/components/AIAutoScheduleButton';
 import { generateAndSharePDF, buildEstimateTextForEmail } from '@/utils/pdfGenerator';
 import { generateAndShareCloseoutPacket } from '@/utils/closeoutPacketGenerator';
+import { prefetchProjectPlans } from '@/utils/planPrefetch';
 import { exportProjectIcs } from '@/utils/icsGenerator';
 import { formatMoney } from '@/utils/formatters';
 import { getEffectiveInvoiceStatus } from '@/utils/projectFinancials';
@@ -57,6 +58,17 @@ export default function ProjectDetailScreen() {
   const projectSubmittals = useMemo(() => getSubmittalsForProject(id ?? ''), [id, getSubmittalsForProject]);
   const projectWarranties = useMemo(() => getWarrantiesForProject(id ?? ''), [id, getWarrantiesForProject]);
   const projectPlans = useMemo(() => getPlanSheetsForProject(id ?? ''), [id, getPlanSheetsForProject]);
+
+  // Pre-cache plan PNGs the moment a project opens. The marketing site
+  // promises plans work offline; for that to be true, the bytes have to
+  // already be on disk before the user walks out of wifi range. Fire-and-
+  // forget \u2014 no spinner, no blocking.
+  useEffect(() => {
+    if (projectPlans.length > 0) prefetchProjectPlans(projectPlans);
+    // We only care about the URI list \u2014 re-prefetching when sheet metadata
+    // changes (e.g. a sheet number rename) is wasted bandwidth.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, projectPlans.map((p) => p.imageUri).join('|')]);
 
   const project = useMemo(() => getProject(id ?? ''), [id, getProject]);
   // `estimate` is nullable until the project loads (or if it has no estimate
