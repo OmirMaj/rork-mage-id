@@ -6,11 +6,14 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { Save, Plus, Link2, X, CheckCircle2, ChevronDown } from 'lucide-react-native';
+import { Save, Plus, Link2, X, CheckCircle2, ChevronDown, Share2, Send } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
+import { generateSubmittalPDF, generateSubmittalPDFUri, buildSubmittalEmailHtml } from '@/utils/pdfGenerator';
+import { sendEmail } from '@/utils/emailService';
+import { nailIt } from '@/components/animations/NailItToast';
 import type { SubmittalStatus } from '@/types';
 
 const STATUS_COLORS: Record<SubmittalStatus, string> = {
@@ -51,7 +54,7 @@ function SubmittalScreenInner() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { projectId, submittalId } = useLocalSearchParams<{ projectId: string; submittalId?: string }>();
-  const { getProject, getSubmittalsForProject, addSubmittal, updateSubmittal, addReviewCycle } = useProjects();
+  const { getProject, getSubmittalsForProject, addSubmittal, updateSubmittal, addReviewCycle, settings } = useProjects();
 
   const project = useMemo(() => getProject(projectId ?? ''), [projectId, getProject]);
   const existingSubmittals = useMemo(() => getSubmittalsForProject(projectId ?? ''), [projectId, getSubmittalsForProject]);
@@ -68,6 +71,83 @@ function SubmittalScreenInner() {
   const [newCycleStatus, setNewCycleStatus] = useState<SubmittalStatus>('pending');
   const [newCycleComments, setNewCycleComments] = useState('');
   const [showAddCycle, setShowAddCycle] = useState(false);
+  // Email-send modal state — recipient + optional message routed to the
+  // architect / GC / vendor reviewing this submittal.
+  const [showEmailSend, setShowEmailSend] = useState(false);
+  const [emailRecipient, setEmailRecipient] = useState('');
+  const [emailRecipientName, setEmailRecipientName] = useState('');
+  const [emailMessage, setEmailMessage] = useState('');
+  const [sending, setSending] = useState(false);
+
+  const handleSharePDF = useCallback(async () => {
+    if (!project || !existingSubmittal) {
+      Alert.alert('Save First', 'Please save the submittal before exporting.');
+      return;
+    }
+    const branding = settings?.branding ?? { companyName: '', contactName: '', email: '', phone: '', address: '', licenseNumber: '', tagline: '' };
+    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      await generateSubmittalPDF(existingSubmittal, project, branding);
+      nailIt(`Submittal #${existingSubmittal.number} shared`);
+    } catch (err) {
+      console.error('[Submittal] Share PDF failed:', err);
+      Alert.alert('Error', 'Could not generate the submittal PDF.');
+    }
+  }, [project, existingSubmittal, settings]);
+
+  const handleSendEmail = useCallback(async () => {
+    if (!project || !existingSubmittal) return;
+    if (!emailRecipient.trim()) {
+      Alert.alert('Email Required', 'Please enter the reviewer email.');
+      return;
+    }
+    setSending(true);
+    try {
+      const branding = settings?.branding ?? { companyName: '', contactName: '', email: '', phone: '', address: '', licenseNumber: '', tagline: '' };
+      const html = buildSubmittalEmailHtml({
+        companyName: branding.companyName,
+        recipientName: emailRecipientName.trim() || undefined,
+        projectName: project.name,
+        submittalNumber: existingSubmittal.number,
+        submittalTitle: existingSubmittal.title,
+        specSection: existingSubmittal.specSection || undefined,
+        status: existingSubmittal.currentStatus,
+        message: emailMessage.trim() || undefined,
+        contactName: branding.contactName,
+        contactEmail: branding.email,
+        contactPhone: branding.phone,
+      });
+      const result = await sendEmail({
+        to: emailRecipient.trim(),
+        subject: `${branding.companyName || 'MAGE ID'} - Submittal #${existingSubmittal.number} - ${existingSubmittal.title}`,
+        html,
+        replyTo: branding.email || undefined,
+      });
+      if (!result.success) {
+        if (result.error === 'cancelled') return;
+        Alert.alert('Could Not Send', result.error || 'Email failed.');
+        return;
+      }
+      // Auto-create a new review cycle so the submittal status reflects
+      // that it's now out for review. Reviewer = the email recipient.
+      addReviewCycle(existingSubmittal.id, {
+        reviewer: emailRecipientName.trim() || emailRecipient.trim(),
+        sentDate: new Date().toISOString(),
+        status: 'in_review',
+        comments: emailMessage.trim() || undefined,
+      });
+      setShowEmailSend(false);
+      setEmailRecipient('');
+      setEmailRecipientName('');
+      setEmailMessage('');
+      nailIt(`Submittal sent to ${emailRecipientName.trim() || emailRecipient.trim()}`);
+    } catch (err) {
+      console.error('[Submittal] Email send failed:', err);
+      Alert.alert('Error', 'Failed to send email.');
+    } finally {
+      setSending(false);
+    }
+  }, [project, existingSubmittal, settings, emailRecipient, emailRecipientName, emailMessage, addReviewCycle]);
 
   const scheduleTasks = useMemo(() => project?.schedule?.tasks ?? [], [project]);
   const linkedTask = useMemo(() => scheduleTasks.find(t => t.id === linkedTaskId), [scheduleTasks, linkedTaskId]);
@@ -269,6 +349,23 @@ function SubmittalScreenInner() {
           <Save size={18} color="#fff" />
           <Text style={styles.saveBtnText}>{existingSubmittal ? 'Update Submittal' : 'Create Submittal'}</Text>
         </TouchableOpacity>
+
+        {/* Share + Email actions only appear once the submittal exists.
+            Share opens the OS share sheet with the branded PDF; Email
+            sends an HTML email via Resend and auto-creates a new review
+            cycle so the submittal's review history reflects the routing. */}
+        {existingSubmittal && (
+          <View style={styles.exportRow}>
+            <TouchableOpacity style={styles.exportBtn} onPress={handleSharePDF} activeOpacity={0.7} testID="submittal-share-pdf">
+              <Share2 size={16} color={Colors.primary} />
+              <Text style={styles.exportBtnText}>Share PDF</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.exportBtn, styles.exportBtnPrimary]} onPress={() => setShowEmailSend(true)} activeOpacity={0.7} testID="submittal-email">
+              <Send size={16} color="#fff" />
+              <Text style={[styles.exportBtnText, { color: '#fff' }]}>Send to Reviewer</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </ScrollView>
 
       <Modal visible={showTaskPicker} transparent animationType="fade" onRequestClose={() => setShowTaskPicker(false)}>
@@ -294,6 +391,64 @@ function SubmittalScreenInner() {
             </ScrollView>
           </Pressable>
         </Pressable>
+      </Modal>
+
+      {/* Email-send modal — recipient + optional message. After send,
+          we auto-add a review cycle so the submittal's status reflects
+          that it's been routed out for review. */}
+      <Modal visible={showEmailSend} transparent animationType="slide" onRequestClose={() => setShowEmailSend(false)}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <Pressable style={styles.modalOverlay} onPress={() => setShowEmailSend(false)}>
+            <Pressable style={styles.emailModalCard} onPress={() => undefined}>
+              <View style={styles.emailModalHeader}>
+                <Text style={styles.emailModalTitle}>Send Submittal</Text>
+                <TouchableOpacity onPress={() => setShowEmailSend(false)} testID="submittal-email-close">
+                  <X size={20} color={Colors.textMuted} />
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.emailFieldLabel}>Reviewer name</Text>
+              <TextInput
+                style={styles.emailInput}
+                value={emailRecipientName}
+                onChangeText={setEmailRecipientName}
+                placeholder="e.g. Architect of Record"
+                placeholderTextColor={Colors.textMuted}
+                testID="submittal-email-name"
+              />
+              <Text style={styles.emailFieldLabel}>Reviewer email *</Text>
+              <TextInput
+                style={styles.emailInput}
+                value={emailRecipient}
+                onChangeText={setEmailRecipient}
+                placeholder="reviewer@firm.com"
+                placeholderTextColor={Colors.textMuted}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                testID="submittal-email-recipient"
+              />
+              <Text style={styles.emailFieldLabel}>Message (optional)</Text>
+              <TextInput
+                style={[styles.emailInput, { minHeight: 80, textAlignVertical: 'top' }]}
+                value={emailMessage}
+                onChangeText={setEmailMessage}
+                placeholder="Add context for the reviewer..."
+                placeholderTextColor={Colors.textMuted}
+                multiline
+                testID="submittal-email-message"
+              />
+              <TouchableOpacity
+                style={[styles.emailSendBtn, sending && { opacity: 0.5 }]}
+                onPress={handleSendEmail}
+                disabled={sending}
+                activeOpacity={0.85}
+                testID="submittal-email-send"
+              >
+                <Send size={16} color="#fff" />
+                <Text style={styles.emailSendBtnText}>{sending ? 'Sending…' : 'Send'}</Text>
+              </TouchableOpacity>
+            </Pressable>
+          </Pressable>
+        </KeyboardAvoidingView>
       </Modal>
     </KeyboardAvoidingView>
   );
@@ -466,6 +621,17 @@ const styles = StyleSheet.create({
     fontWeight: '600' as const,
     color: '#fff',
   },
+  exportRow: { flexDirection: 'row' as const, gap: 10, marginTop: 12 },
+  exportBtn: { flex: 1, flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 8, paddingVertical: 12, borderRadius: 10, borderWidth: 1, borderColor: Colors.cardBorder, backgroundColor: Colors.card },
+  exportBtnPrimary: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  exportBtnText: { fontSize: 14, fontWeight: '600' as const, color: Colors.primary },
+  emailModalCard: { backgroundColor: Colors.card, marginHorizontal: 16, padding: 20, borderRadius: 16, gap: 6, borderWidth: 1, borderColor: Colors.cardBorder },
+  emailModalHeader: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'space-between' as const, marginBottom: 8 },
+  emailModalTitle: { fontSize: 18, fontWeight: '700' as const, color: Colors.text },
+  emailFieldLabel: { fontSize: 12, fontWeight: '600' as const, color: Colors.textSecondary, marginTop: 10 },
+  emailInput: { backgroundColor: Colors.fillTertiary, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: Colors.text },
+  emailSendBtn: { marginTop: 16, flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 8, backgroundColor: Colors.primary, paddingVertical: 14, borderRadius: 12 },
+  emailSendBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' as const },
   pickerBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, backgroundColor: Colors.surface, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, borderWidth: 1, borderColor: Colors.cardBorder },
   pickerBtnText: { flex: 1, fontSize: 15, color: Colors.text },
   linkedTaskBadge: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, backgroundColor: Colors.primary + '10', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, marginTop: 6 },

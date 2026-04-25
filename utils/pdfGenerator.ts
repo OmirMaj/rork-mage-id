@@ -1,7 +1,7 @@
 import { Platform } from 'react-native';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
-import type { CompanyBranding, Project, ChangeOrder, Invoice, DailyFieldReport, ScheduleTask, RFI } from '@/types';
+import type { CompanyBranding, Project, ChangeOrder, Invoice, DailyFieldReport, ScheduleTask, RFI, Submittal } from '@/types';
 
 function escapeHtml(text: string): string {
   return text
@@ -1035,4 +1035,193 @@ export function buildEstimateTextForEmail(
   }
 
   return text;
+}
+
+/* ============================================================
+ * SUBMITTAL PDF
+ *
+ * Submittals are the formal product/material approval workflow on
+ * a construction project. The PDF shows: spec section + title at the
+ * top, who submitted/when, the required-by date, and a chronological
+ * review-cycle table (each cycle = a reviewer, status, date, comments).
+ * Looks like a transmittal slip an architect would countersign and
+ * fax back in 1995, only better.
+ * ============================================================ */
+function statusColor(status: string): string {
+  switch (status) {
+    case 'approved': return '#2E7D32';
+    case 'approved_as_noted': return '#1565C0';
+    case 'in_review': return '#1565C0';
+    case 'pending': return '#C77700';
+    case 'revise_resubmit': return '#C62828';
+    case 'rejected': return '#C62828';
+    default: return '#666';
+  }
+}
+
+function statusLabel(status: string): string {
+  return status.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
+function buildSubmittalHtml(s: Submittal, project: Project, branding: CompanyBranding): string {
+  const now = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+  const submittedDate = s.submittedDate ? new Date(s.submittedDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
+  const requiredDate = s.requiredDate ? new Date(s.requiredDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
+
+  const cycleRows = s.reviewCycles.length === 0
+    ? `<tr><td colspan="5" style="text-align:center;color:#999;padding:18px;">No review cycles yet.</td></tr>`
+    : s.reviewCycles
+        .slice()
+        .sort((a, b) => a.cycleNumber - b.cycleNumber)
+        .map(c => `
+          <tr>
+            <td style="text-align:center;font-weight:700;">#${c.cycleNumber}</td>
+            <td>${escapeHtml(c.reviewer || '—')}</td>
+            <td style="text-align:center;">${c.sentDate ? new Date(c.sentDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}</td>
+            <td style="text-align:center;">${c.returnDate ? new Date(c.returnDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '<em style="color:#999;">Pending</em>'}</td>
+            <td style="text-align:center;"><span style="display:inline-block;padding:3px 10px;border-radius:12px;background:${statusColor(c.status)}22;color:${statusColor(c.status)};font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;">${statusLabel(c.status)}</span></td>
+          </tr>
+          ${c.comments ? `<tr><td></td><td colspan="4" style="font-style:italic;color:#444;font-size:12px;background:#fafafa;padding:8px 12px;border-left:3px solid ${statusColor(c.status)};">${escapeHtml(c.comments)}</td></tr>` : ''}
+        `).join('');
+
+  return `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8" />
+<style>
+  @page { margin: 0.6in; }
+  body { font-family: -apple-system, system-ui, sans-serif; color: #1a1a1a; font-size: 13px; line-height: 1.4; margin: 0; }
+  .header { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 3px solid ${statusColor(s.currentStatus)}; padding-bottom: 12px; margin-bottom: 18px; }
+  .header h1 { margin: 0; font-size: 24px; letter-spacing: -0.5px; }
+  .header .meta { text-align: right; font-size: 11px; color: #666; line-height: 1.5; }
+  .doc-card { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 10px; padding: 14px 18px; margin-bottom: 18px; }
+  .doc-row { display: flex; justify-content: space-between; padding: 4px 0; }
+  .doc-label { color: #6b7280; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
+  .doc-value { color: #111827; font-weight: 600; font-size: 13px; }
+  .status-pill { display: inline-block; padding: 4px 12px; border-radius: 14px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; }
+  h2 { font-size: 14px; margin: 18px 0 8px; color: #111; text-transform: uppercase; letter-spacing: 0.6px; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 18px; }
+  th { background: #1a1a2e; color: #fff; padding: 8px 10px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; }
+  td { padding: 9px 10px; border-bottom: 1px solid #e5e7eb; vertical-align: top; }
+  .footer { position: fixed; bottom: 0; left: 0; right: 0; text-align: center; font-size: 10px; color: #999; padding: 8px 0; border-top: 1px solid #eee; background: #fff; }
+  .attachments { background: #fff; border: 1px dashed #d1d5db; border-radius: 8px; padding: 10px 14px; color: #666; font-size: 12px; }
+</style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <h1>Submittal #${s.number}</h1>
+      <div style="margin-top:4px;color:#666;font-size:12px;">${escapeHtml(project.name)}</div>
+    </div>
+    <div class="meta">
+      ${branding.companyName ? `<strong>${escapeHtml(branding.companyName)}</strong><br/>` : ''}
+      ${branding.licenseNumber ? `License #${escapeHtml(branding.licenseNumber)}<br/>` : ''}
+      Generated ${now}
+    </div>
+  </div>
+
+  <div class="doc-card">
+    <div class="doc-row"><span class="doc-label">Title</span><span class="doc-value">${escapeHtml(s.title)}</span></div>
+    <div class="doc-row"><span class="doc-label">Spec Section</span><span class="doc-value">${escapeHtml(s.specSection || '—')}</span></div>
+    <div class="doc-row"><span class="doc-label">Submitted By</span><span class="doc-value">${escapeHtml(s.submittedBy || '—')}</span></div>
+    <div class="doc-row"><span class="doc-label">Submitted</span><span class="doc-value">${submittedDate}</span></div>
+    <div class="doc-row"><span class="doc-label">Required By</span><span class="doc-value">${requiredDate}</span></div>
+    <div class="doc-row"><span class="doc-label">Current Status</span><span class="status-pill" style="background:${statusColor(s.currentStatus)}22;color:${statusColor(s.currentStatus)};">${statusLabel(s.currentStatus)}</span></div>
+  </div>
+
+  <h2>Review Cycles (${s.reviewCycles.length})</h2>
+  <table>
+    <thead>
+      <tr>
+        <th style="width:8%;">Cycle</th>
+        <th style="text-align:left;">Reviewer</th>
+        <th style="width:14%;">Sent</th>
+        <th style="width:14%;">Returned</th>
+        <th style="width:18%;">Status</th>
+      </tr>
+    </thead>
+    <tbody>${cycleRows}</tbody>
+  </table>
+
+  ${s.attachments && s.attachments.length > 0 ? `
+    <h2>Attachments (${s.attachments.length})</h2>
+    <div class="attachments">${s.attachments.map(a => `&bull; ${escapeHtml(a)}`).join('<br/>')}</div>
+  ` : ''}
+
+  <div class="footer">
+    ${branding.companyName ? `${escapeHtml(branding.companyName)} &middot; ` : ''}Submittal #${s.number} &middot; ${escapeHtml(project.name)} &middot; ${now}
+  </div>
+</body>
+</html>`;
+}
+
+export async function generateSubmittalPDFUri(
+  submittal: Submittal, project: Project, branding: CompanyBranding,
+): Promise<string | null> {
+  if (Platform.OS === 'web') return null;
+  try {
+    const html = buildSubmittalHtml(submittal, project, branding);
+    const { uri } = await Print.printToFileAsync({ html, base64: false });
+    console.log('[PDF] Submittal PDF URI:', uri);
+    return uri;
+  } catch (error) {
+    console.error('[PDF] Error generating submittal PDF URI:', error);
+    return null;
+  }
+}
+
+export async function generateSubmittalPDF(
+  submittal: Submittal, project: Project, branding: CompanyBranding,
+): Promise<void> {
+  console.log('[PDF] Generating Submittal PDF, id:', submittal.id);
+  const html = buildSubmittalHtml(submittal, project, branding);
+  await shareHtml(html, `${project.name} - Submittal #${submittal.number}`);
+}
+
+export function buildSubmittalEmailHtml(opts: {
+  companyName: string;
+  recipientName?: string;
+  projectName: string;
+  submittalNumber: number;
+  submittalTitle: string;
+  specSection?: string;
+  status: string;
+  message?: string;
+  contactName?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+}): string {
+  const { companyName, recipientName, projectName, submittalNumber, submittalTitle, specSection, status, message, contactName, contactEmail, contactPhone } = opts;
+  return `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background:#f4f5f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f5f7;padding:32px 16px;">
+    <tr><td align="center">
+      <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+        <tr><td style="background:#1a1a2e;padding:28px 32px;">
+          <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;">${companyName || 'MAGE ID'}</h1>
+        </td></tr>
+        <tr><td style="padding:32px;">
+          <p style="margin:0 0 8px;color:#6b7280;font-size:13px;text-transform:uppercase;letter-spacing:0.5px;">Submittal #${submittalNumber}</p>
+          <h2 style="margin:0 0 6px;color:#111827;font-size:20px;">${escapeHtml(submittalTitle)}</h2>
+          <p style="margin:0 0 24px;color:#6b7280;font-size:13px;">${escapeHtml(projectName)}${specSection ? ` &middot; Spec ${escapeHtml(specSection)}` : ''}</p>
+          ${recipientName ? `<p style="margin:0 0 16px;color:#374151;">Hi ${escapeHtml(recipientName)},</p>` : ''}
+          ${message ? `<p style="margin:0 0 20px;color:#374151;line-height:1.5;">${escapeHtml(message)}</p>` : `<p style="margin:0 0 20px;color:#374151;line-height:1.5;">Please review the attached submittal package and let us know if you have any questions or revisions required.</p>`}
+          <div style="background:#f9fafb;border-radius:8px;padding:14px 18px;margin:20px 0;">
+            <p style="margin:0;color:#6b7280;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;">Current Status</p>
+            <p style="margin:6px 0 0;color:${statusColor(status)};font-size:16px;font-weight:700;">${statusLabel(status)}</p>
+          </div>
+          <p style="margin:20px 0 0;color:#9ca3af;font-size:12px;line-height:1.5;">
+            ${contactName ? `Contact: ${escapeHtml(contactName)}` : ''}
+            ${contactEmail ? ` &middot; ${escapeHtml(contactEmail)}` : ''}
+            ${contactPhone ? ` &middot; ${escapeHtml(contactPhone)}` : ''}
+          </p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
 }

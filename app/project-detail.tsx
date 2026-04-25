@@ -818,6 +818,17 @@ export default function ProjectDetailScreen() {
         <View style={styles.quickActions}>
           <TouchableOpacity
             style={styles.quickActionBtn}
+            onPress={() => router.push({ pathname: '/weekly-snapshot' as any, params: { projectId: id } })}
+            activeOpacity={0.7}
+            testID="project-weekly-snapshot-btn"
+          >
+            <View style={[styles.quickActionIcon, { backgroundColor: Colors.primary + '15' }]}>
+              <CalendarDays size={18} color={Colors.primary} />
+            </View>
+            <Text style={styles.quickActionLabel}>This Week</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.quickActionBtn}
             onPress={() => router.push({ pathname: '/cash-flow' as any, params: { projectId: id } })}
             activeOpacity={0.7}
             testID="project-cash-flow-btn"
@@ -2979,14 +2990,17 @@ const styles = StyleSheet.create({
   quickActionIcon: { width: 32, height: 32, borderRadius: 8, alignItems: 'center' as const, justifyContent: 'center' as const },
   quickActionLabel: { fontSize: 14, fontWeight: '600' as const, color: Colors.text, flexShrink: 1 },
   sectionGrid: { paddingHorizontal: 20, marginTop: 18, gap: 8 },
-  sectionGroups: { paddingHorizontal: 20, marginTop: 18, gap: 14 },
-  tileGroup: { gap: 8 },
-  tileGroupHeader: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, paddingHorizontal: 4, paddingVertical: 8 },
-  tileGroupHeaderIcon: { width: 30, height: 30, borderRadius: 8, alignItems: 'center' as const, justifyContent: 'center' as const },
+  // Tighter spacing: collapsed groups now stack snugly so a fully-collapsed
+  // panel doesn't show a wall of empty space. The header itself supplies
+  // enough breathing room via padding; we don't need a fat outer gap too.
+  sectionGroups: { paddingHorizontal: 20, marginTop: 14, gap: 4 },
+  tileGroup: { gap: 6 },
+  tileGroupHeader: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, paddingHorizontal: 4, paddingVertical: 6, minHeight: 40 },
+  tileGroupHeaderIcon: { width: 28, height: 28, borderRadius: 8, alignItems: 'center' as const, justifyContent: 'center' as const },
   tileGroupHeaderLabel: { flex: 1, fontSize: 13, fontWeight: '700' as const, color: Colors.textSecondary, letterSpacing: 0.6, textTransform: 'uppercase' as const },
   tileGroupBadge: { backgroundColor: Colors.fillSecondary, borderRadius: 9, paddingHorizontal: 7, paddingVertical: 1, minWidth: 22, alignItems: 'center' as const },
   tileGroupBadgeText: { fontSize: 11, fontWeight: '700' as const, color: Colors.textSecondary },
-  tileGroupBody: { gap: 8 },
+  tileGroupBody: { gap: 8, marginBottom: 6 },
   sectionTile: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 12, backgroundColor: Colors.card, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, borderWidth: 1, borderColor: Colors.cardBorder, minHeight: 56 },
   sectionTileIcon: { width: 36, height: 36, borderRadius: 10, alignItems: 'center' as const, justifyContent: 'center' as const },
   sectionTileLabel: { flex: 1, fontSize: 15, fontWeight: '600' as const, color: Colors.text },

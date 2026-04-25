@@ -10,7 +10,7 @@ import * as Haptics from 'expo-haptics';
 import {
   Plus, TrendingUp, FolderOpen, Layers, X, ChevronRight, Calculator, CalendarDays,
   BarChart3, TrendingDown, Package, DollarSign, Percent, ShoppingCart, ArrowDownRight,
-  Receipt, Wallet, Search, Sparkles, ChevronDown, ChevronUp,
+  Receipt, Wallet, Search, Sparkles, ChevronDown, ChevronUp, Inbox,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
@@ -254,6 +254,16 @@ export default function HomeScreen() {
                 >
                   <Search size={18} color={Colors.primary} strokeWidth={2} />
                 </TouchableOpacity>
+                {projects.length > 0 && (
+                  <TouchableOpacity
+                    style={[styles.addButton, { backgroundColor: Colors.fillTertiary }]}
+                    onPress={() => router.push('/report-inbox' as any)}
+                    activeOpacity={0.7}
+                    testID="report-inbox-btn"
+                  >
+                    <Inbox size={18} color={Colors.primary} strokeWidth={2} />
+                  </TouchableOpacity>
+                )}
                 {projects.length > 0 && (
                   <TouchableOpacity
                     style={[styles.addButton, { backgroundColor: Colors.fillTertiary }]}

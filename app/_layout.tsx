@@ -519,6 +519,24 @@ function RootLayoutNav() {
         }}
       />
       <Stack.Screen
+        name="weekly-snapshot"
+        options={{
+          title: "This Week",
+          headerStyle: { backgroundColor: Colors.background },
+          headerTintColor: Colors.primary,
+          headerTitleStyle: { fontWeight: '700', color: Colors.text },
+        }}
+      />
+      <Stack.Screen
+        name="report-inbox"
+        options={{
+          title: "Report Inbox",
+          headerStyle: { backgroundColor: Colors.background },
+          headerTintColor: Colors.primary,
+          headerTitleStyle: { fontWeight: '700', color: Colors.text },
+        }}
+      />
+      <Stack.Screen
         name="payments"
         options={{
           title: "Payments",
