@@ -23,6 +23,8 @@ import type { PDFSendOptions } from '@/components/PDFPreSendSheet';
 import { sendEmail, buildInvoiceEmailHtml } from '@/utils/emailService';
 import { getEffectiveInvoiceStatus, getDaysPastDue } from '@/utils/projectFinancials';
 import { createPaymentLink } from '@/utils/stripe';
+import { fetchStripeConnectStatus } from '@/utils/stripeConnect';
+import { useAuth } from '@/contexts/AuthContext';
 import { nailIt } from '@/components/animations/NailItToast';
 import type { InvoiceLineItem, Invoice, PaymentTerms, PaymentMethod, InvoicePayment, RetentionRelease } from '@/types';
 
@@ -70,6 +72,7 @@ export default function InvoiceScreen() {
     getChangeOrdersForProject, contacts, invoices: allInvoices,
   } = useProjects();
   const { tier } = useSubscription();
+  const { user } = useAuth();
 
   const project = useMemo(() => getProject(projectId ?? ''), [projectId, getProject]);
   const existingInvoices = useMemo(() => getInvoicesForProject(projectId ?? ''), [projectId, getInvoicesForProject]);
@@ -258,19 +261,35 @@ export default function InvoiceScreen() {
       let payLinkUrl: string | undefined = existingInvoice?.payLinkUrl;
       if (!payLinkUrl && existingInvoice && totalDue > 0) {
         try {
-          const res = await createPaymentLink({
-            invoiceId: existingInvoice.id,
-            invoiceNumber: existingInvoice.number,
-            projectName: project?.name ?? 'Project',
-            amountCents: Math.round(totalDue * 100),
-            customerEmail: sendRecipientEmail.trim(),
-            companyName: branding.companyName,
-          });
-          if (res.success && res.url && res.id) {
-            payLinkUrl = res.url;
-            updateInvoice(existingInvoice.id, { payLinkUrl: res.url, payLinkId: res.id });
+          // Look up the GC's Stripe Connect account so the payment lands
+          // in their bank, not the platform's. If they're not connected,
+          // we skip generating a link entirely — sending an email with a
+          // platform-owned link would route money to the wrong account.
+          let stripeAccountId: string | undefined;
+          if (user?.id) {
+            const status = await fetchStripeConnectStatus(user.id);
+            if (status.success && status.chargesEnabled && status.accountId) {
+              stripeAccountId = status.accountId;
+            }
+          }
+          if (stripeAccountId) {
+            const res = await createPaymentLink({
+              invoiceId: existingInvoice.id,
+              invoiceNumber: existingInvoice.number,
+              projectName: project?.name ?? 'Project',
+              amountCents: Math.round(totalDue * 100),
+              customerEmail: sendRecipientEmail.trim(),
+              companyName: branding.companyName,
+              stripeAccountId,
+            });
+            if (res.success && res.url && res.id) {
+              payLinkUrl = res.url;
+              updateInvoice(existingInvoice.id, { payLinkUrl: res.url, payLinkId: res.id });
+            } else {
+              console.warn('[Invoice] Auto-generate payment link failed:', res.error);
+            }
           } else {
-            console.warn('[Invoice] Auto-generate payment link failed:', res.error);
+            console.log('[Invoice] Skipping payment link — Stripe Connect not set up for this user');
           }
         } catch (err) {
           console.warn('[Invoice] Auto-generate payment link threw:', err);
@@ -329,17 +348,29 @@ export default function InvoiceScreen() {
       let payLinkUrl: string | undefined = existingInvoice.payLinkUrl;
       if (!payLinkUrl && (existingInvoice.totalDue - existingInvoice.amountPaid) > 0) {
         try {
-          const res = await createPaymentLink({
-            invoiceId: existingInvoice.id,
-            invoiceNumber: existingInvoice.number,
-            projectName: project.name,
-            amountCents: Math.round((existingInvoice.totalDue - existingInvoice.amountPaid) * 100),
-            customerEmail: options.recipient.trim(),
-            companyName: branding.companyName,
-          });
-          if (res.success && res.url && res.id) {
-            payLinkUrl = res.url;
-            updateInvoice(existingInvoice.id, { payLinkUrl: res.url, payLinkId: res.id });
+          let stripeAccountId: string | undefined;
+          if (user?.id) {
+            const status = await fetchStripeConnectStatus(user.id);
+            if (status.success && status.chargesEnabled && status.accountId) {
+              stripeAccountId = status.accountId;
+            }
+          }
+          if (stripeAccountId) {
+            const res = await createPaymentLink({
+              invoiceId: existingInvoice.id,
+              invoiceNumber: existingInvoice.number,
+              projectName: project.name,
+              amountCents: Math.round((existingInvoice.totalDue - existingInvoice.amountPaid) * 100),
+              customerEmail: options.recipient.trim(),
+              companyName: branding.companyName,
+              stripeAccountId,
+            });
+            if (res.success && res.url && res.id) {
+              payLinkUrl = res.url;
+              updateInvoice(existingInvoice.id, { payLinkUrl: res.url, payLinkId: res.id });
+            }
+          } else {
+            console.log('[Invoice] PDF send: skipping payment link — Stripe Connect not set up');
           }
         } catch (err) {
           console.warn('[Invoice] Auto pay-link gen failed in handleSendPDF:', err);
@@ -457,6 +488,30 @@ export default function InvoiceScreen() {
 
     setGeneratingPayLink(true);
     try {
+      // Pre-flight: confirm the GC has connected their Stripe account.
+      // Without this, the link gets created on the platform account and
+      // money flows to the WRONG bank — exactly the bug we just fixed.
+      let stripeAccountId: string | undefined;
+      if (user?.id) {
+        const status = await fetchStripeConnectStatus(user.id);
+        if (!status.success) {
+          Alert.alert('Connection Check Failed', status.error ?? 'Could not verify your payment setup.');
+          return;
+        }
+        if (!status.chargesEnabled) {
+          Alert.alert(
+            'Set Up Payments First',
+            'You need to connect your bank to receive payments. Set it up now?',
+            [
+              { text: 'Not now', style: 'cancel' },
+              { text: 'Set up', onPress: () => router.push('/payments-setup' as any) },
+            ],
+          );
+          return;
+        }
+        stripeAccountId = status.accountId;
+      }
+
       // Prefer an email tied to the project's client contact so Stripe
       // pre-fills checkout. Fall back to the send-recipient email if one was
       // captured, otherwise leave undefined.
@@ -474,6 +529,7 @@ export default function InvoiceScreen() {
         amountCents: Math.round(balanceDue * 100),
         customerEmail: clientContact?.email,
         companyName: settings.branding?.companyName,
+        stripeAccountId,
       });
 
       if (!res.success || !res.url || !res.id) {

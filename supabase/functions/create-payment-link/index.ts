@@ -73,7 +73,22 @@ interface CreatePaymentLinkBody {
   description?: string;
   customerEmail?: string;
   companyName?: string;
+  /**
+   * The contractor's Stripe Connect Express account id (acct_xxx). When
+   * present, the Payment Link is created ON BEHALF OF that account, so
+   * money flows directly to the contractor's bank — not the platform's.
+   * Required for production use; absence falls back to platform-owned
+   * legacy mode (only useful during local Stripe testing).
+   */
+  stripeAccountId?: string;
 }
+
+/**
+ * Platform application fee, in basis points. 100 bps = 1%.
+ * Pulled from env so we can flip it without redeploying for promos
+ * or per-region adjustments. Default 100 (1%).
+ */
+const PLATFORM_FEE_BPS = parseInt(Deno.env.get("PLATFORM_FEE_BPS") ?? "100", 10);
 
 // Stripe's REST API takes application/x-www-form-urlencoded with bracketed keys
 // for nested objects. This helper walks any JS object into that form.
@@ -99,18 +114,24 @@ function toFormBody(obj: Record<string, unknown>, prefix = ""): string {
   return params.filter(Boolean).join("&");
 }
 
-async function stripeFetch(path: string, body: Record<string, unknown>): Promise<{
+async function stripeFetch(path: string, body: Record<string, unknown>, stripeAccountId?: string): Promise<{
   ok: boolean;
   status: number;
   json: Record<string, unknown>;
 }> {
+  // The Stripe-Account header makes the call act AS the connected account.
+  // Stripe routes any resources created (Price, PaymentLink, charges) into
+  // that account so the contractor — not the platform — owns them.
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${STRIPE_SECRET_KEY}`,
+    "Content-Type": "application/x-www-form-urlencoded",
+    "Stripe-Version": STRIPE_API_VERSION,
+  };
+  if (stripeAccountId) headers["Stripe-Account"] = stripeAccountId;
+
   const res = await fetch(`${STRIPE_BASE}${path}`, {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${STRIPE_SECRET_KEY}`,
-      "Content-Type": "application/x-www-form-urlencoded",
-      "Stripe-Version": STRIPE_API_VERSION,
-    },
+    headers,
     body: toFormBody(body),
   });
   const text = await res.text();
@@ -182,9 +203,10 @@ serve(async (req) => {
     ? body.description.substring(0, 250)
     : `Payment for ${body.projectName}`;
 
-  // Step 1: Create a Price with inline product_data. This is the supported
-  // shortcut that avoids having to create a separate Product first.
-  console.log("[create-payment-link] Creating price for invoice", body.invoiceId);
+  // Step 1: Create a Price with inline product_data, ON BEHALF OF the
+  // connected account if one was provided. This is the supported shortcut
+  // that avoids having to create a separate Product first.
+  console.log("[create-payment-link] Creating price for invoice", body.invoiceId, "stripeAccount:", body.stripeAccountId ?? "(platform)");
   const priceRes = await stripeFetch("/prices", {
     currency,
     unit_amount: Math.round(body.amountCents),
@@ -197,7 +219,7 @@ serve(async (req) => {
       invoice_number: String(body.invoiceNumber),
       project_name: body.projectName,
     },
-  });
+  }, body.stripeAccountId);
 
   if (!priceRes.ok) {
     const err = priceRes.json.error as { message?: string; type?: string } | undefined;
@@ -213,16 +235,20 @@ serve(async (req) => {
     return jsonResponse({ success: false, error: "Stripe returned no price id" }, 502);
   }
 
-  // Step 2: Create a Payment Link referencing that price.
-  //
-  // We attach `metadata.invoice_id` here as well so a future webhook handler
-  // (checkout.session.completed) can reconcile the payment back to our invoice
-  // without needing to look up the Price.
+  // Step 2: Create a Payment Link referencing that price, again on the
+  // connected account. The platform's fee is taken via
+  // `application_fee_amount`, which Stripe transfers to the platform
+  // account on each successful charge automatically.
   console.log("[create-payment-link] Creating payment link for price", priceId);
-  const linkRes = await stripeFetch("/payment_links", {
+
+  // Compute the platform fee in cents from PLATFORM_FEE_BPS. 1% of $1,000
+  // is $10 = 1000 cents. We round half-up so the fee never undercollects.
+  const applicationFeeAmount = body.stripeAccountId
+    ? Math.max(0, Math.round((body.amountCents * PLATFORM_FEE_BPS) / 10000))
+    : 0;
+
+  const linkParams: Record<string, unknown> = {
     line_items: [{ price: priceId, quantity: 1 }],
-    // Short message shown above the pay button — helps the client confirm they
-    // hit the right link when we email/text it to them.
     custom_text: {
       submit: { message: shortDesc },
     },
@@ -230,17 +256,18 @@ serve(async (req) => {
       invoice_id: body.invoiceId,
       invoice_number: String(body.invoiceNumber),
     },
-    // Collect billing address so the GC has a record tied to the payment.
-    // `auto` keeps Stripe's default heuristics (collect when required by
-    // payment method) which is fine for card + ACH.
     billing_address_collection: "auto",
-    // Allow promotion codes in case the GC wants to offer an early-pay
-    // discount in the future. Harmless if unused.
     allow_promotion_codes: true,
-    // After payment, show Stripe's hosted confirmation page. A future
-    // enhancement can redirect back to the portal with a thank-you state.
     after_completion: { type: "hosted_confirmation" },
-  });
+  };
+
+  // Only attach an application fee when we're actually on a connected
+  // account. Stripe rejects application_fee_amount on non-Connect calls.
+  if (body.stripeAccountId && applicationFeeAmount > 0) {
+    linkParams.application_fee_amount = applicationFeeAmount;
+  }
+
+  const linkRes = await stripeFetch("/payment_links", linkParams, body.stripeAccountId);
 
   if (!linkRes.ok) {
     const err = linkRes.json.error as { message?: string; type?: string } | undefined;

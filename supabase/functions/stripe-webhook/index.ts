@@ -63,6 +63,21 @@ interface StripeWebhookEvent {
   data: { object: unknown };
   created: number;
   livemode: boolean;
+  /**
+   * Set by Stripe Connect when the event originated on a connected
+   * account (i.e. a charge against a GC's Express account, not the
+   * platform). We use it to attribute payments to the right contractor
+   * if the invoice ever loses its metadata.
+   */
+  account?: string;
+}
+
+interface StripeAccountObject {
+  id: string;
+  object: "account";
+  charges_enabled: boolean;
+  details_submitted: boolean;
+  payouts_enabled: boolean;
 }
 
 /**
@@ -139,6 +154,40 @@ interface InvoicePaymentRecord {
   receivedAt: string;
   reference: string;
   notes?: string;
+}
+
+/**
+ * Reconciles a Stripe `account.updated` event back to our profiles
+ * table. Fires whenever the GC finishes onboarding, completes
+ * verification, links a bank, etc. Without this the app would never
+ * flip from "Pending verification" → "Connected ✓".
+ */
+async function handleAccountUpdated(
+  acct: StripeAccountObject,
+): Promise<{ ok: boolean; reason?: string }> {
+  if (!acct.id) return { ok: false, reason: "no account id" };
+  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+  const { error } = await supabase
+    .from("profiles")
+    .update({
+      stripe_charges_enabled: !!acct.charges_enabled,
+      stripe_details_submitted: !!acct.details_submitted,
+      stripe_payouts_enabled: !!acct.payouts_enabled,
+      stripe_connect_updated_at: new Date().toISOString(),
+    })
+    .eq("stripe_account_id", acct.id);
+  if (error) {
+    console.error("[stripe-webhook] profile update for account.updated failed:", error);
+    return { ok: false, reason: "db update failed" };
+  }
+  console.log(
+    "[stripe-webhook] Account",
+    acct.id,
+    "updated → charges:", acct.charges_enabled,
+    "details:", acct.details_submitted,
+    "payouts:", acct.payouts_enabled,
+  );
+  return { ok: true };
 }
 
 async function handleCheckoutCompleted(
@@ -275,6 +324,17 @@ serve(async (req) => {
     case "payment_intent.payment_failed": {
       console.log("[stripe-webhook] Payment failed:", JSON.stringify(event.data.object).slice(0, 200));
       // TODO: notify the contractor that a client tried but failed.
+      break;
+    }
+    case "account.updated": {
+      // Connect lifecycle event — the connected account's status changed
+      // (KYC completed, bank linked, etc.). Reconcile the flags into our
+      // profiles table so the Settings page reflects reality.
+      const acct = event.data.object as StripeAccountObject;
+      const result = await handleAccountUpdated(acct);
+      if (!result.ok) {
+        console.warn("[stripe-webhook] account.updated handling failed:", result.reason);
+      }
       break;
     }
     default:

@@ -27,7 +27,7 @@ import Paywall from '@/components/Paywall';
 import { HelpCircle, MessageCircle, BookOpen } from 'lucide-react-native';
 import { Linking } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { LogOut, UserCircle, Eye, EyeOff, FolderDown } from 'lucide-react-native';
+import { LogOut, UserCircle, Eye, EyeOff, FolderDown, Wallet } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { track, AnalyticsEvents } from '@/utils/analytics';
 
@@ -929,6 +929,25 @@ export default function SettingsScreen() {
         <TouchableOpacity style={styles.saveButton} onPress={handleSave} activeOpacity={0.8} testID="save-settings">
           <Text style={styles.saveButtonText}>Save Changes</Text>
         </TouchableOpacity>
+
+        <Text style={styles.sectionHeader}>PAYMENTS</Text>
+        <Text style={styles.sectionSubtext}>
+          Connect your bank to accept invoice payments in-app. Money goes to you, not us — we take a 1% platform fee per transaction.
+        </Text>
+        <View style={styles.group}>
+          <TouchableOpacity
+            style={styles.row}
+            onPress={() => router.push('/payments-setup' as any)}
+            activeOpacity={0.7}
+            testID="payments-setup-link"
+          >
+            <View style={[styles.iconWrap, { backgroundColor: Colors.success }]}>
+              <Wallet size={14} color="#fff" />
+            </View>
+            <Text style={[styles.rowLabel, { flex: 1 }]}>Set up payments</Text>
+            <ChevronRight size={16} color={Colors.textMuted} />
+          </TouchableOpacity>
+        </View>
 
         <Text style={styles.sectionHeader}>CONTACTS & EMAIL</Text>
         <View style={styles.group}>

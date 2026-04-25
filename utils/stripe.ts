@@ -27,6 +27,14 @@ export interface CreatePaymentLinkParams {
   description?: string;        // shown above the submit button on the pay page
   customerEmail?: string;      // prefills the checkout email field
   companyName?: string;        // attached to the Stripe Product metadata
+  /**
+   * Connected Express account id (acct_xxx) for the contractor receiving
+   * the money. When present, the Payment Link is created on that account
+   * and money flows to their bank — not the platform's. Required for
+   * production. The 1% platform fee is also applied automatically when
+   * this is set.
+   */
+  stripeAccountId?: string;
 }
 
 export interface CreatePaymentLinkResult {
@@ -77,6 +85,7 @@ export async function createPaymentLink(
         description: params.description,
         customerEmail: params.customerEmail,
         companyName: params.companyName,
+        stripeAccountId: params.stripeAccountId,
       },
     });
 

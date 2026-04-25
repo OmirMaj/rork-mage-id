@@ -528,6 +528,13 @@ function RootLayoutNav() {
         }}
       />
       <Stack.Screen
+        name="payments-setup"
+        options={{
+          title: "Payments",
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
         name="report-inbox"
         options={{
           title: "Report Inbox",
