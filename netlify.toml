@@ -9,7 +9,7 @@
   # Netlify's default build image does NOT ship with bun, so we install it
   # in-line before the build. The expo export command produces dist/.
   # We use bun to honor bun.lock for deterministic dependency resolution.
-  command = "curl -fsSL https://bun.sh/install | bash && export BUN_INSTALL=\"$HOME/.bun\" && export PATH=\"$BUN_INSTALL/bin:$PATH\" && bun install --frozen-lockfile && bunx expo export --platform web"
+  command = "curl -fsSL https://bun.sh/install | bash && export BUN_INSTALL=\"$HOME/.bun\" && export PATH=\"$BUN_INSTALL/bin:$PATH\" && bun install && bunx expo export --platform web"
   publish = "dist"
 
 [build.environment]
