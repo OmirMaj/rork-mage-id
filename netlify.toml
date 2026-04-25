@@ -6,16 +6,19 @@
 # breaks, pushes silently stop shipping. Config-as-code fixes that.
 
 [build]
-  # Metro produces dist/ via `expo export --platform web`.
-  command = "bunx expo export --platform web"
+  # Netlify's default build image does NOT ship with bun, so we install it
+  # in-line before the build. The expo export command produces dist/.
+  # We use bun to honor bun.lock for deterministic dependency resolution.
+  command = "curl -fsSL https://bun.sh/install | bash && export BUN_INSTALL=\"$HOME/.bun\" && export PATH=\"$BUN_INSTALL/bin:$PATH\" && bun install --frozen-lockfile && bunx expo export --platform web"
   publish = "dist"
 
 [build.environment]
   # Match the local dev setup. Netlify images ship a recent Node; we let
   # Expo CLI pick its own Metro version from the lockfile.
   NODE_VERSION = "20"
-  # Netlify defaults to npm; we use bun. Setting this keeps bun's lockfile
-  # authoritative even when Netlify tries to run `npm install` automatically.
+  # Skip Netlify's automatic `npm install` — our build command runs
+  # `bun install` instead so bun.lock stays authoritative.
+  NETLIFY_USE_PNPM = "false"
   NPM_FLAGS = "--version"
 
 # SPA fallback — Expo Router serves all routes from index.html on web. Without
