@@ -24,6 +24,7 @@ import { useEntityNavigation } from '@/hooks/useEntityNavigation';
 import { useSearch } from '@/contexts/SearchContext';
 import EntityActionSheet from '@/components/EntityActionSheet';
 import EmptyState from '@/components/EmptyState';
+import OfflineSyncPill from '@/components/OfflineSyncPill';
 import CashFlowAlerts from '@/components/CashFlowAlerts';
 import QuickFieldUpdate from '@/components/QuickFieldUpdate';
 import { generateForecast } from '@/utils/cashFlowEngine';
@@ -240,7 +241,10 @@ export default function HomeScreen() {
         ListHeaderComponent={
           <View>
             <View style={styles.navBar}>
-              <Text style={styles.navTitle}>MAGE ID</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
+                <Text style={styles.navTitle}>MAGE ID</Text>
+                <OfflineSyncPill />
+              </View>
               <View style={{ flexDirection: 'row', gap: 8 }}>
                 <TouchableOpacity
                   style={[styles.addButton, { backgroundColor: Colors.fillTertiary }]}
