@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import createContextHook from '@nkzw/create-context-hook';
-import type { Project, AppSettings, CompanyBranding, ProjectCollaborator, ChangeOrder, Invoice, DailyFieldReport, Subcontractor, PunchItem, ProjectPhoto, PriceAlert, Contact, CommunicationEvent, RFI, Submittal, SubmittalReviewCycle, Equipment, EquipmentUtilizationEntry, PDFNamingSettings, Warranty, WarrantyClaim, PortalMessage, Commitment, PrequalPacket, PlanSheet, DrawingPin, PlanCalibration, PlanMarkup } from '@/types';
+import type { Project, AppSettings, CompanyBranding, ProjectCollaborator, ChangeOrder, Invoice, DailyFieldReport, Subcontractor, PunchItem, ProjectPhoto, PriceAlert, Contact, CommunicationEvent, RFI, Submittal, SubmittalReviewCycle, Equipment, EquipmentUtilizationEntry, PDFNamingSettings, Warranty, WarrantyClaim, PortalMessage, Commitment, PrequalPacket, PlanSheet, DrawingPin, PlanCalibration, PlanMarkup, Permit } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { supabaseWrite } from '@/utils/offlineQueue';
@@ -31,6 +31,7 @@ const DRAWING_PINS_KEY = 'tertiary_drawing_pins';
 const PLAN_CALIBRATIONS_KEY = 'tertiary_plan_calibrations';
 const PLAN_SHEETS_KEY = 'tertiary_plan_sheets';
 const PLAN_MARKUPS_KEY = 'tertiary_plan_markups';
+const PERMITS_KEY = 'tertiary_permits';
 
 const DEFAULT_BRANDING: CompanyBranding = {
   companyName: '',
@@ -92,6 +93,7 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
   const [submittals, setSubmittals] = useState<Submittal[]>([]);
   const [equipment, setEquipment] = useState<Equipment[]>([]);
   const [warranties, setWarranties] = useState<Warranty[]>([]);
+  const [permits, setPermits] = useState<Permit[]>([]);
   const syncDebounceMap = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
   const canSync = !!userId && isSupabaseConfigured;
@@ -518,6 +520,19 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
   useEffect(() => { if (rfisQuery.data) setRfis(rfisQuery.data); }, [rfisQuery.data]);
   useEffect(() => { if (submittalsQuery.data) setSubmittals(submittalsQuery.data); }, [submittalsQuery.data]);
   useEffect(() => { if (equipmentQuery.data) setEquipment(equipmentQuery.data); }, [equipmentQuery.data]);
+
+  // Permits — local-only persistence for now. The marketing claim is "track
+  // permits"; we don't yet have a permits table in Supabase, so we store
+  // entirely on-device. If we later add cloud sync, mirror the rfis pattern.
+  const permitsQuery = useQuery({
+    queryKey: ['permits', userId],
+    queryFn: async () => loadLocal<Permit[]>(PERMITS_KEY, []),
+  });
+  useEffect(() => { if (permitsQuery.data) setPermits(permitsQuery.data); }, [permitsQuery.data]);
+  const savePermitsMutation = useMutation({
+    mutationFn: async (updated: Permit[]) => { await saveLocal(PERMITS_KEY, updated); return updated; },
+    onSuccess: (data) => { queryClient.setQueryData(['permits', userId], data); },
+  });
 
   const syncProjectToSupabase = useCallback((project: Project, action: 'upsert' | 'delete') => {
     if (!canSync) return;
@@ -1112,6 +1127,32 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
 
   const getRFIsForProject = useCallback((projectId: string) => rfis.filter(r => r.projectId === projectId).sort((a, b) => b.number - a.number), [rfis]);
 
+  const addPermit = useCallback((permit: Omit<Permit, 'id' | 'createdAt' | 'updatedAt'>) => {
+    const now = new Date().toISOString();
+    const newPermit: Permit = { ...permit, id: generateUUID(), createdAt: now, updatedAt: now };
+    const updated = [newPermit, ...permits];
+    setPermits(updated);
+    savePermitsMutation.mutate(updated);
+    return newPermit;
+  }, [permits, savePermitsMutation]);
+
+  const updatePermit = useCallback((id: string, updates: Partial<Permit>) => {
+    const now = new Date().toISOString();
+    const updated = permits.map(p => p.id === id ? { ...p, ...updates, updatedAt: now } : p);
+    setPermits(updated);
+    savePermitsMutation.mutate(updated);
+  }, [permits, savePermitsMutation]);
+
+  const deletePermit = useCallback((id: string) => {
+    const updated = permits.filter(p => p.id !== id);
+    setPermits(updated);
+    savePermitsMutation.mutate(updated);
+  }, [permits, savePermitsMutation]);
+
+  const getPermitsForProject = useCallback((projectId: string) =>
+    permits.filter(p => p.projectId === projectId).sort((a, b) => new Date(b.appliedDate).getTime() - new Date(a.appliedDate).getTime()),
+    [permits]);
+
   const addSubmittal = useCallback((sub: Omit<Submittal, 'id' | 'createdAt' | 'updatedAt' | 'number'>) => {
     const projectSubs = submittals.filter(s => s.projectId === sub.projectId);
     const nextNumber = projectSubs.length > 0 ? Math.max(...projectSubs.map(s => s.number)) + 1 : 1;
@@ -1568,6 +1609,7 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
     contacts, addContact, updateContact, deleteContact, getContact,
     commEvents, addCommEvent, getCommEventsForProject,
     rfis, addRFI, updateRFI, deleteRFI, getRFIsForProject,
+    permits, addPermit, updatePermit, deletePermit, getPermitsForProject,
     submittals, addSubmittal, updateSubmittal, deleteSubmittal, getSubmittalsForProject, addReviewCycle,
     equipment, addEquipment, updateEquipment, deleteEquipment, logUtilization, getEquipmentForProject, getEquipmentCostForProject,
     warranties, addWarranty, updateWarranty, deleteWarranty, getWarrantiesForProject, addWarrantyClaim,
@@ -1576,5 +1618,5 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
     drawingPins, addDrawingPin, updateDrawingPin, deleteDrawingPin, getPinsForPlan, getPinsForPhoto,
     planMarkups, addPlanMarkup, deletePlanMarkup, getMarkupsForPlan,
     planCalibrations, upsertPlanCalibration, getCalibrationForPlan,
-  }), [sortedProjects, settings, hasSeenOnboarding, completeOnboarding, projectsQuery.isLoading, settingsQuery.isLoading, onboardingQuery.isLoading, addProject, updateProject, deleteProject, getProject, updateSettings, addCollaborator, removeCollaborator, changeOrders, addChangeOrder, updateChangeOrder, getChangeOrdersForProject, addInvoice, updateInvoice, getInvoicesForProject, getTotalOutstandingBalance, invoices, commitments, addCommitment, updateCommitment, deleteCommitment, getCommitmentsForProject, prequalPackets, upsertPrequalPacket, deletePrequalPacket, getPrequalPacketForSub, getPrequalPacketByToken, addDailyReport, updateDailyReport, getDailyReportsForProject, subcontractors, addSubcontractor, updateSubcontractor, deleteSubcontractor, getSubcontractor, punchItems, addPunchItem, updatePunchItem, deletePunchItem, getPunchItemsForProject, projectPhotos, addProjectPhoto, deleteProjectPhoto, getPhotosForProject, priceAlerts, addPriceAlert, updatePriceAlert, deletePriceAlert, contacts, addContact, updateContact, deleteContact, getContact, commEvents, addCommEvent, getCommEventsForProject, rfis, addRFI, updateRFI, deleteRFI, getRFIsForProject, submittals, addSubmittal, updateSubmittal, deleteSubmittal, getSubmittalsForProject, addReviewCycle, equipment, addEquipment, updateEquipment, deleteEquipment, logUtilization, getEquipmentForProject, getEquipmentCostForProject, warranties, addWarranty, updateWarranty, deleteWarranty, getWarrantiesForProject, addWarrantyClaim, portalMessages, addPortalMessage, markPortalMessagesRead, getPortalMessagesForProject, getUnreadPortalMessageCount, getTotalUnreadPortalCountForGc, planSheets, addPlanSheet, updatePlanSheet, deletePlanSheet, getPlanSheetsForProject, getPlanSheet, drawingPins, addDrawingPin, updateDrawingPin, deleteDrawingPin, getPinsForPlan, getPinsForPhoto, planMarkups, addPlanMarkup, deletePlanMarkup, getMarkupsForPlan, planCalibrations, upsertPlanCalibration, getCalibrationForPlan]);
+  }), [sortedProjects, settings, hasSeenOnboarding, completeOnboarding, projectsQuery.isLoading, settingsQuery.isLoading, onboardingQuery.isLoading, addProject, updateProject, deleteProject, getProject, updateSettings, addCollaborator, removeCollaborator, changeOrders, addChangeOrder, updateChangeOrder, getChangeOrdersForProject, addInvoice, updateInvoice, getInvoicesForProject, getTotalOutstandingBalance, invoices, commitments, addCommitment, updateCommitment, deleteCommitment, getCommitmentsForProject, prequalPackets, upsertPrequalPacket, deletePrequalPacket, getPrequalPacketForSub, getPrequalPacketByToken, addDailyReport, updateDailyReport, getDailyReportsForProject, subcontractors, addSubcontractor, updateSubcontractor, deleteSubcontractor, getSubcontractor, punchItems, addPunchItem, updatePunchItem, deletePunchItem, getPunchItemsForProject, projectPhotos, addProjectPhoto, deleteProjectPhoto, getPhotosForProject, priceAlerts, addPriceAlert, updatePriceAlert, deletePriceAlert, contacts, addContact, updateContact, deleteContact, getContact, commEvents, addCommEvent, getCommEventsForProject, rfis, addRFI, updateRFI, deleteRFI, getRFIsForProject, permits, addPermit, updatePermit, deletePermit, getPermitsForProject, submittals, addSubmittal, updateSubmittal, deleteSubmittal, getSubmittalsForProject, addReviewCycle, equipment, addEquipment, updateEquipment, deleteEquipment, logUtilization, getEquipmentForProject, getEquipmentCostForProject, warranties, addWarranty, updateWarranty, deleteWarranty, getWarrantiesForProject, addWarrantyClaim, portalMessages, addPortalMessage, markPortalMessagesRead, getPortalMessagesForProject, getUnreadPortalMessageCount, getTotalUnreadPortalCountForGc, planSheets, addPlanSheet, updatePlanSheet, deletePlanSheet, getPlanSheetsForProject, getPlanSheet, drawingPins, addDrawingPin, updateDrawingPin, deleteDrawingPin, getPinsForPlan, getPinsForPhoto, planMarkups, addPlanMarkup, deletePlanMarkup, getMarkupsForPlan, planCalibrations, upsertPlanCalibration, getCalibrationForPlan]);
 });

@@ -1423,6 +1423,12 @@ export interface Permit {
   inspectionNotes?: string;
   fee: number;
   notes?: string;
+  /** Free-text phase tag — e.g. "Foundation", "Rough-in", "Final". Lets supers see what they're blocking and slice permits by job phase. */
+  phase?: string;
+  /** Local file URI of the attached permit scan (issued permit, plan check stamp, inspection card). Optional. */
+  attachmentUri?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export type PaymentStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'refunded';
