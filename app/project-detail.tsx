@@ -14,6 +14,7 @@ import {
   Mail, MessageSquare, X, BarChart3, ArrowDownRight, Shield, Layers,
   FileText, ShoppingCart, UserPlus, Send, Share2, Eye, PenTool, Crown, Pencil,
   Plus, Receipt, ClipboardList, Repeat, CheckSquare, Camera, Globe, Link, Copy, Wallet, Archive, Activity,
+  HardHat, FolderOpen, Hammer,
 } from 'lucide-react-native';
 import { PROJECT_TYPES, type ProjectType, type ProjectCollaborator, type EntityRef } from '@/types';
 import { Colors } from '@/constants/colors';
@@ -27,11 +28,19 @@ import AIAutoScheduleButton from '@/components/AIAutoScheduleButton';
 import { generateAndSharePDF, buildEstimateTextForEmail, generateRFILogPDF } from '@/utils/pdfGenerator';
 import { generateAndShareCloseoutPacket } from '@/utils/closeoutPacketGenerator';
 import { prefetchProjectPlans } from '@/utils/planPrefetch';
+import SawCutReveal from '@/components/animations/SawCutReveal';
+import HardHatTap from '@/components/animations/HardHatTap';
+import TapeRollNumber from '@/components/animations/TapeRollNumber';
+import BlueprintReveal from '@/components/animations/BlueprintReveal';
+import { nailIt } from '@/components/animations/NailItToast';
 import { exportProjectIcs } from '@/utils/icsGenerator';
 import { formatMoney } from '@/utils/formatters';
 import { getEffectiveInvoiceStatus } from '@/utils/projectFinancials';
 
-type SectionKey = 'linkedEstimate' | 'materials' | 'labor' | 'summary' | 'schedule' | 'notes' | 'collaborators' | 'changeOrders' | 'invoices' | 'dailyReports' | 'punchList' | 'rfis' | 'submittals' | 'budget' | 'photos' | 'clientPortal' | 'communications' | 'activity' | 'calendar' | 'plans';
+type SectionKey = 'linkedEstimate' | 'materials' | 'labor' | 'summary' | 'schedule' | 'notes' | 'collaborators' | 'changeOrders' | 'invoices' | 'dailyReports' | 'punchList' | 'rfis' | 'submittals' | 'budget' | 'photos' | 'clientPortal' | 'communications' | 'activity' | 'calendar' | 'plans' | 'permits';
+
+/** Tile group keys for the collapsible section grouping. */
+type TileGroupKey = 'field' | 'money' | 'docs' | 'people';
 type DetailModalType = 'total' | 'savings' | null;
 type EditModalType = boolean;
 
@@ -45,7 +54,7 @@ export default function ProjectDetailScreen() {
   const router = useRouter();
   const { navigateTo } = useEntityNavigation();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { getProject, deleteProject, updateProject, settings, addCollaborator, removeCollaborator, getChangeOrdersForProject, getInvoicesForProject, getDailyReportsForProject, updateChangeOrder, getPunchItemsForProject, getPhotosForProject, getCommEventsForProject, addCommEvent, getRFIsForProject, getSubmittalsForProject, getWarrantiesForProject, getPlanSheetsForProject, invoices: allInvoices, changeOrders: allChangeOrders } = useProjects();
+  const { getProject, deleteProject, updateProject, settings, addCollaborator, removeCollaborator, getChangeOrdersForProject, getInvoicesForProject, getDailyReportsForProject, updateChangeOrder, getPunchItemsForProject, getPhotosForProject, getCommEventsForProject, addCommEvent, getRFIsForProject, getSubmittalsForProject, getWarrantiesForProject, getPlanSheetsForProject, getPermitsForProject, invoices: allInvoices, changeOrders: allChangeOrders } = useProjects();
   const { tier } = useSubscription();
 
   const changeOrders = useMemo(() => getChangeOrdersForProject(id ?? ''), [id, getChangeOrdersForProject]);
@@ -58,6 +67,7 @@ export default function ProjectDetailScreen() {
   const projectSubmittals = useMemo(() => getSubmittalsForProject(id ?? ''), [id, getSubmittalsForProject]);
   const projectWarranties = useMemo(() => getWarrantiesForProject(id ?? ''), [id, getWarrantiesForProject]);
   const projectPlans = useMemo(() => getPlanSheetsForProject(id ?? ''), [id, getPlanSheetsForProject]);
+  const projectPermits = useMemo(() => getPermitsForProject(id ?? ''), [id, getPermitsForProject]);
 
   // Pre-cache plan PNGs the moment a project opens. The marketing site
   // promises plans work offline; for that to be true, the bytes have to
@@ -97,6 +107,7 @@ export default function ProjectDetailScreen() {
     activity: false,
     calendar: false,
     plans: false,
+    permits: false,
   });
   const [detailModal, setDetailModal] = useState<DetailModalType>(null);
   const [showShareModal, setShowShareModal] = useState(false);
@@ -106,6 +117,16 @@ export default function ProjectDetailScreen() {
   const [inviteRole, setInviteRole] = useState<'editor' | 'viewer'>('editor');
   const [showEditModal, setShowEditModal] = useState<EditModalType>(false);
   const [activeTile, setActiveTile] = useState<SectionKey | null>(null);
+  // Tile group collapse state — Field & Money expanded by default, Docs & People collapsed.
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<TileGroupKey>>(new Set(['docs', 'people']));
+  const toggleGroup = useCallback((key: TileGroupKey) => {
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+    setCollapsedGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  }, []);
   const [editName, setEditName] = useState('');
   const [editDescription, setEditDescription] = useState('');
   const [editLocation, setEditLocation] = useState('');
@@ -247,6 +268,7 @@ export default function ProjectDetailScreen() {
     try {
       if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       await generateRFILogPDF(projectRFIs, project, branding);
+      nailIt(`RFI log exported · ${projectRFIs.length} ${projectRFIs.length === 1 ? 'RFI' : 'RFIs'}`);
     } catch (e) {
       console.error('[ProjectDetail] RFI log PDF error:', e);
       Alert.alert('Error', 'Failed to generate RFI log PDF.');
@@ -280,7 +302,9 @@ export default function ProjectDetailScreen() {
           photoCount: projectPhotos.length,
         });
         if (ok) {
-          if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          // The hammer-strike toast both haptic-pulses and announces success
+          // without an Alert that blocks the share sheet.
+          nailIt('Closeout packet built and shared.');
         } else {
           Alert.alert('Closeout Packet', 'Could not generate the closeout packet. Please try again.');
         }
@@ -691,6 +715,8 @@ export default function ProjectDetailScreen() {
         contentContainerStyle={[{ paddingBottom: insets.bottom + 40 }, layout.isDesktop && { maxWidth: 1200, alignSelf: 'center' as const, width: '100%' as any }]}
         showsVerticalScrollIndicator={false}
       >
+        {/* The hero card unrolls like a blueprint when the project opens. */}
+        <BlueprintReveal>
         <View style={styles.heroCard}>
           <View style={styles.heroHeader}>
             <View style={styles.heroTitleBlock}>
@@ -714,7 +740,14 @@ export default function ProjectDetailScreen() {
                 testID="hero-total-tap"
               >
                 <Text style={styles.heroStatLabel}>Total Estimate</Text>
-                <Text style={styles.heroStatValue}>{formatMoney(heroTotal)}</Text>
+                {/* The estimate total rolls up like a tape measure unrolling —
+                    helps the number land instead of just appearing. */}
+                <TapeRollNumber
+                  value={heroTotal}
+                  formatter={(n) => formatMoney(Math.round(n))}
+                  style={styles.heroStatValue}
+                  duration={900}
+                />
                 <Text style={styles.heroTapHint}>{heroLabel}{estimate ? ' · Tap for breakdown' : ''}</Text>
               </TouchableOpacity>
               <View style={styles.heroStatsRow}>
@@ -764,6 +797,7 @@ export default function ProjectDetailScreen() {
             </View>
           )}
         </View>
+        </BlueprintReveal>
 
         <View style={styles.quickActions}>
           <TouchableOpacity
@@ -854,48 +888,55 @@ export default function ProjectDetailScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Section tile grid — replaces the long scroll of cards */}
-        <View style={styles.sectionGrid}>
-          {([
+        {/* Section tile groups — collapsible, organized by workflow domain.
+            Field & Money default-expanded (most-used). Documentation & People
+            default-collapsed (lower frequency). Group header shows the sum of
+            tile counts so you can spot a busy section without expanding it. */}
+        {(() => {
+          type Tile = { key: SectionKey; label: string; icon: React.ComponentType<{ size?: number; color?: string }>; color: string; count: number | null };
+          const allTiles: Tile[] = [
             ...(hasAnyEstimate ? [{ key: 'linkedEstimate' as SectionKey, label: 'Estimate Items', icon: ShoppingCart, color: Colors.primary, count: linkedEstimate?.items.length ?? estimate?.materials.length ?? 0 }] : []),
             ...(project.schedule ? [{ key: 'schedule' as SectionKey, label: 'Schedule', icon: CalendarDays, color: Colors.info, count: project.schedule.tasks.length }] : []),
-            { key: 'collaborators' as SectionKey, label: 'Team', icon: Users, color: Colors.info, count: collaborators.length + 1 },
-            { key: 'changeOrders' as SectionKey, label: 'Change Orders', icon: Repeat, color: Colors.accent, count: changeOrders.length },
-            { key: 'invoices' as SectionKey, label: 'Invoices', icon: Receipt, color: Colors.success, count: projectInvoices.length },
-            { key: 'dailyReports' as SectionKey, label: 'Daily Reports', icon: ClipboardList, color: Colors.primary, count: dailyReports.length },
-            { key: 'punchList' as SectionKey, label: 'Punch List', icon: CheckSquare, color: Colors.accent, count: punchItems.length },
-            { key: 'rfis' as SectionKey, label: 'RFIs', icon: FileText, color: Colors.info, count: projectRFIs.length },
-            { key: 'submittals' as SectionKey, label: 'Submittals', icon: FileText, color: '#5856D6', count: projectSubmittals.length },
+            { key: 'collaborators', label: 'Team', icon: Users, color: Colors.info, count: collaborators.length + 1 },
+            { key: 'changeOrders', label: 'Change Orders', icon: Repeat, color: Colors.accent, count: changeOrders.length },
+            { key: 'invoices', label: 'Invoices', icon: Receipt, color: Colors.success, count: projectInvoices.length },
+            { key: 'dailyReports', label: 'Daily Reports', icon: ClipboardList, color: Colors.primary, count: dailyReports.length },
+            { key: 'punchList', label: 'Punch List', icon: CheckSquare, color: Colors.accent, count: punchItems.length },
+            { key: 'rfis', label: 'RFIs', icon: FileText, color: Colors.info, count: projectRFIs.length },
+            { key: 'submittals', label: 'Submittals', icon: FileText, color: '#5856D6', count: projectSubmittals.length },
+            { key: 'permits', label: 'Permits', icon: Shield, color: '#FF9500', count: projectPermits.length },
             ...(hasAnyEstimate ? [{ key: 'budget' as SectionKey, label: 'Financial Health', icon: DollarSign, color: Colors.success, count: null as number | null }] : []),
-            { key: 'photos' as SectionKey, label: 'Photos', icon: Camera, color: Colors.info, count: projectPhotos.length },
-            { key: 'plans' as SectionKey, label: 'Plans', icon: Layers, color: Colors.primary, count: projectPlans.length },
-            { key: 'clientPortal' as SectionKey, label: 'Client Portal', icon: Globe, color: '#5856D6', count: null as number | null },
-            { key: 'communications' as SectionKey, label: 'Communications', icon: Mail, color: Colors.info, count: commEvents.length },
-            { key: 'activity' as SectionKey, label: 'Activity', icon: Activity, color: Colors.accent, count: null as number | null },
-            { key: 'calendar' as SectionKey, label: 'Calendar Feed', icon: CalendarDays, color: Colors.info, count: null as number | null },
-          ]).map(tile => {
+            { key: 'photos', label: 'Photos', icon: Camera, color: Colors.info, count: projectPhotos.length },
+            { key: 'plans', label: 'Plans', icon: Layers, color: Colors.primary, count: projectPlans.length },
+            { key: 'clientPortal', label: 'Client Portal', icon: Globe, color: '#5856D6', count: null as number | null },
+            { key: 'communications', label: 'Communications', icon: Mail, color: Colors.info, count: commEvents.length },
+            { key: 'activity', label: 'Activity', icon: Activity, color: Colors.accent, count: null as number | null },
+            { key: 'calendar', label: 'Calendar Feed', icon: CalendarDays, color: Colors.info, count: null as number | null },
+          ];
+
+          const groups: { key: TileGroupKey; label: string; icon: React.ComponentType<{ size?: number; color?: string }>; color: string; tileKeys: SectionKey[] }[] = [
+            { key: 'field', label: 'Field Ops', icon: HardHat, color: Colors.primary, tileKeys: ['dailyReports', 'punchList', 'photos', 'plans', 'schedule'] },
+            { key: 'money', label: 'Money', icon: DollarSign, color: Colors.success, tileKeys: ['linkedEstimate', 'changeOrders', 'invoices', 'budget'] },
+            { key: 'docs', label: 'Documentation', icon: FolderOpen, color: Colors.info, tileKeys: ['rfis', 'submittals', 'permits', 'activity', 'calendar'] },
+            { key: 'people', label: 'People & Communication', icon: Users, color: '#5856D6', tileKeys: ['collaborators', 'clientPortal', 'communications'] },
+          ];
+
+          const tileByKey = new Map<SectionKey, Tile>(allTiles.map(t => [t.key, t]));
+
+          const renderTile = (tile: Tile) => {
             const TileIcon = tile.icon;
             return (
-              <TouchableOpacity
+              <HardHatTap
                 key={tile.key}
                 style={styles.sectionTile}
+                hatColor={tile.color}
                 onPress={() => {
-                  if (Platform.OS !== 'web') void Haptics.selectionAsync();
-                  if (tile.key === 'activity') {
-                    router.push({ pathname: '/activity-feed' as any, params: { projectId: id } });
-                    return;
-                  }
-                  if (tile.key === 'calendar') {
-                    void handleExportCalendar();
-                    return;
-                  }
-                  if (tile.key === 'plans') {
-                    router.push({ pathname: '/plans' as any, params: { projectId: id } });
-                    return;
-                  }
+                  if (tile.key === 'activity') { router.push({ pathname: '/activity-feed' as any, params: { projectId: id } }); return; }
+                  if (tile.key === 'calendar') { void handleExportCalendar(); return; }
+                  if (tile.key === 'plans') { router.push({ pathname: '/plans' as any, params: { projectId: id } }); return; }
+                  if (tile.key === 'permits') { router.push({ pathname: '/permits' as any, params: { projectId: id } }); return; }
                   setActiveTile(tile.key);
                 }}
-                activeOpacity={0.7}
                 testID={`section-tile-${tile.key}`}
               >
                 <View style={[styles.sectionTileIcon, { backgroundColor: tile.color + '15' }]}>
@@ -908,10 +949,48 @@ export default function ProjectDetailScreen() {
                   </View>
                 )}
                 <ChevronRight size={16} color={Colors.textMuted} />
-              </TouchableOpacity>
+              </HardHatTap>
             );
-          })}
-        </View>
+          };
+
+          return (
+            <View style={styles.sectionGroups}>
+              {groups.map(group => {
+                const groupTiles = group.tileKeys.map(k => tileByKey.get(k)).filter((t): t is Tile => t !== undefined);
+                if (groupTiles.length === 0) return null;
+                const groupCountSum = groupTiles.reduce((acc, t) => acc + (t.count ?? 0), 0);
+                const collapsed = collapsedGroups.has(group.key);
+                const GroupIcon = group.icon;
+                return (
+                  <View key={group.key} style={styles.tileGroup}>
+                    <TouchableOpacity
+                      style={styles.tileGroupHeader}
+                      onPress={() => toggleGroup(group.key)}
+                      activeOpacity={0.7}
+                      testID={`tile-group-${group.key}`}
+                    >
+                      <View style={[styles.tileGroupHeaderIcon, { backgroundColor: group.color + '15' }]}>
+                        <GroupIcon size={18} color={group.color} />
+                      </View>
+                      <Text style={styles.tileGroupHeaderLabel}>{group.label}</Text>
+                      {groupCountSum > 0 && (
+                        <View style={styles.tileGroupBadge}>
+                          <Text style={styles.tileGroupBadgeText}>{groupCountSum}</Text>
+                        </View>
+                      )}
+                      {collapsed ? <ChevronDown size={18} color={Colors.textMuted} /> : <ChevronUp size={18} color={Colors.textMuted} />}
+                    </TouchableOpacity>
+                    <SawCutReveal open={!collapsed} bladeColor={group.color}>
+                      <View style={styles.tileGroupBody}>
+                        {groupTiles.map(renderTile)}
+                      </View>
+                    </SawCutReveal>
+                  </View>
+                );
+              })}
+            </View>
+          );
+        })()}
 
         <Modal
           visible={activeTile !== null}
@@ -2687,6 +2766,14 @@ const styles = StyleSheet.create({
   quickActionIcon: { width: 32, height: 32, borderRadius: 8, alignItems: 'center' as const, justifyContent: 'center' as const },
   quickActionLabel: { fontSize: 14, fontWeight: '600' as const, color: Colors.text, flexShrink: 1 },
   sectionGrid: { paddingHorizontal: 20, marginTop: 18, gap: 8 },
+  sectionGroups: { paddingHorizontal: 20, marginTop: 18, gap: 14 },
+  tileGroup: { gap: 8 },
+  tileGroupHeader: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, paddingHorizontal: 4, paddingVertical: 8 },
+  tileGroupHeaderIcon: { width: 30, height: 30, borderRadius: 8, alignItems: 'center' as const, justifyContent: 'center' as const },
+  tileGroupHeaderLabel: { flex: 1, fontSize: 13, fontWeight: '700' as const, color: Colors.textSecondary, letterSpacing: 0.6, textTransform: 'uppercase' as const },
+  tileGroupBadge: { backgroundColor: Colors.fillSecondary, borderRadius: 9, paddingHorizontal: 7, paddingVertical: 1, minWidth: 22, alignItems: 'center' as const },
+  tileGroupBadgeText: { fontSize: 11, fontWeight: '700' as const, color: Colors.textSecondary },
+  tileGroupBody: { gap: 8 },
   sectionTile: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 12, backgroundColor: Colors.card, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, borderWidth: 1, borderColor: Colors.cardBorder, minHeight: 56 },
   sectionTileIcon: { width: 36, height: 36, borderRadius: 10, alignItems: 'center' as const, justifyContent: 'center' as const },
   sectionTileLabel: { flex: 1, fontSize: 15, fontWeight: '600' as const, color: Colors.text },

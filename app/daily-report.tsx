@@ -22,6 +22,7 @@ import AIDailyReportGen from '@/components/AIDailyReportGen';
 import type { ManpowerEntry, DFRPhoto, DailyFieldReport, DFRWeather, IncidentReport, IncidentSeverity } from '@/types';
 import { stampPhotoLocation } from '@/utils/photoGeoStamp';
 import type { DailyReportGenResult } from '@/utils/aiService';
+import { nailIt } from '@/components/animations/NailItToast';
 
 function createId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -289,12 +290,8 @@ export default function DailyReportScreen() {
         });
       }
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert(
-        status === 'sent' ? 'Sent' : 'Saved to Project',
-        status === 'sent'
-          ? `Daily report has been sent${recipientInfo} and saved to the project.`
-          : 'Daily report has been saved to the project. You can view it in the project\'s Daily Reports section.',
-      );
+      // The hammer-strike toast confirms without blocking the back nav.
+      nailIt(status === 'sent' ? `Daily report sent${recipientInfo}` : 'Daily report saved.');
     }
     router.back();
   }, [projectId, weather, manpower, workPerformed, materialsDelivered, issuesAndDelays, photos, incident, existingReport, addDailyReport, updateDailyReport, addProjectPhoto, router]);

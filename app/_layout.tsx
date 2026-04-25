@@ -14,6 +14,7 @@ import { HireProvider } from "@/contexts/HireContext";
 import { NotificationProvider } from "@/contexts/NotificationContext";
 import { SearchProvider, useSearch } from "@/contexts/SearchContext";
 import UniversalSearch from "@/components/UniversalSearch";
+import { NailItToastHost } from "@/components/animations/NailItToast";
 import { Colors, setCustomColors } from "@/constants/colors";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -639,6 +640,7 @@ export default function RootLayout() {
                             <RootLayoutNav />
                             <UniversalSearch />
                             <SearchHotkeyListener />
+                            <NailItToastHost />
                           </SearchProvider>
                         </NotificationProvider>
                       </HireProvider>
