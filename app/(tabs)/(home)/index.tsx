@@ -4,6 +4,8 @@ import {
   Platform, Modal, TextInput, Pressable, ScrollView, Alert, KeyboardAvoidingView,
 } from 'react-native';
 import ConstructionLoader from '@/components/ConstructionLoader';
+import { SkeletonCard } from '@/components/Skeleton';
+import TapeRollNumber from '@/components/animations/TapeRollNumber';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -218,9 +220,14 @@ export default function HomeScreen() {
   const keyExtractor = useCallback((item: Project) => item.id, []);
 
   if (isLoading) {
+    // Show 3 skeleton cards instead of a centered spinner. Preserves the
+    // visual rhythm of the project list so content appears to fade in
+    // rather than punch through a loader. Premium-app feel.
     return (
-      <View style={[styles.container, styles.loaderWrap, { paddingTop: insets.top }]}>
-        <ConstructionLoader size="lg" label="Loading your projects" />
+      <View style={[styles.container, { paddingTop: insets.top + 16 }]}>
+        <SkeletonCard />
+        <SkeletonCard />
+        <SkeletonCard />
       </View>
     );
   }
@@ -304,7 +311,14 @@ export default function HomeScreen() {
                     <View style={[styles.statIconWrap, { backgroundColor: Colors.primary + '15' }]}>
                       <Layers size={16} color={Colors.primary} />
                     </View>
-                    <Text style={styles.statNumber}>{projects.length}</Text>
+                    {/* Animated count: rolls up from 0 to current on mount,
+                        re-clicks when projects change. Tiny visual win that
+                        makes the stat feel earned. */}
+                    <TapeRollNumber
+                      value={projects.length}
+                      duration={500}
+                      style={styles.statNumber}
+                    />
                     <Text style={styles.statLabel}>Projects</Text>
                   </View>
                   {totalOutstanding > 0 && (
@@ -312,7 +326,12 @@ export default function HomeScreen() {
                       <View style={[styles.statIconWrap, { backgroundColor: Colors.accent + '15' }]}>
                         <Receipt size={16} color={Colors.accent} />
                       </View>
-                      <Text style={[styles.statNumber, { color: Colors.accent }]}>{formatMoneyShort(totalOutstanding)}</Text>
+                      <TapeRollNumber
+                        value={totalOutstanding}
+                        duration={650}
+                        formatter={formatMoneyShort}
+                        style={{ ...styles.statNumber, color: Colors.accent }}
+                      />
                       <Text style={styles.statLabel}>Outstanding</Text>
                     </View>
                   )}

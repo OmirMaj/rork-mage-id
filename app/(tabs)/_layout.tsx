@@ -1,11 +1,47 @@
-import React from 'react';
-import { View, StyleSheet, Platform } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { View, StyleSheet, Platform, Animated, Easing } from 'react-native';
 import { Tabs, Slot } from 'expo-router';
 import { Home, Compass, Settings, LayoutDashboard } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import DesktopSidebar from '@/components/DesktopSidebar';
 import { useSmartInbox } from '@/hooks/useSmartInbox';
+
+/**
+ * TabIcon — wraps a tab icon with a focused-state indicator dot
+ * underneath. The dot fades + scales in when the tab becomes active,
+ * giving every tab a subtle "you are here" cue beyond just color
+ * change. Premium-app polish without any extra layout math.
+ */
+function TabIcon({
+  Icon, color, focused,
+}: { Icon: React.ComponentType<{ size: number; color: string; strokeWidth: number }>; color: string; focused: boolean }) {
+  const dot = useRef(new Animated.Value(focused ? 1 : 0)).current;
+  useEffect(() => {
+    Animated.timing(dot, {
+      toValue: focused ? 1 : 0,
+      duration: 200,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [focused, dot]);
+  return (
+    <View style={tabIconStyles.wrap}>
+      <Icon size={23} color={color} strokeWidth={focused ? 2.2 : 1.8} />
+      <Animated.View
+        style={[
+          tabIconStyles.dot,
+          { backgroundColor: color, opacity: dot, transform: [{ scale: dot }] },
+        ]}
+      />
+    </View>
+  );
+}
+
+const tabIconStyles = StyleSheet.create({
+  wrap: { alignItems: 'center' as const, justifyContent: 'center' as const, gap: 3 },
+  dot: { width: 4, height: 4, borderRadius: 2, marginTop: 2 },
+});
 
 export default function TabLayout() {
   const layout = useResponsiveLayout();
@@ -72,7 +108,7 @@ export default function TabLayout() {
         options={{
           title: 'Summary',
           tabBarIcon: ({ color, focused }) => (
-            <LayoutDashboard size={23} color={color} strokeWidth={focused ? 2.2 : 1.8} />
+            <TabIcon Icon={LayoutDashboard} color={color} focused={focused} />
           ),
         }}
       />
@@ -83,7 +119,7 @@ export default function TabLayout() {
           tabBarBadge: inboxBadge,
           tabBarBadgeStyle: { backgroundColor: '#FF3B30', color: '#FFFFFF' },
           tabBarIcon: ({ color, focused }) => (
-            <Home size={23} color={color} strokeWidth={focused ? 2.2 : 1.8} />
+            <TabIcon Icon={Home} color={color} focused={focused} />
           ),
         }}
       />
@@ -92,7 +128,7 @@ export default function TabLayout() {
         options={{
           title: 'Discover',
           tabBarIcon: ({ color, focused }) => (
-            <Compass size={23} color={color} strokeWidth={focused ? 2.2 : 1.8} />
+            <TabIcon Icon={Compass} color={color} focused={focused} />
           ),
         }}
       />
@@ -101,7 +137,7 @@ export default function TabLayout() {
         options={{
           title: 'Settings',
           tabBarIcon: ({ color, focused }) => (
-            <Settings size={23} color={color} strokeWidth={focused ? 2.2 : 1.8} />
+            <TabIcon Icon={Settings} color={color} focused={focused} />
           ),
         }}
       />

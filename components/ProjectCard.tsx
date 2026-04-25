@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Animated } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Animated, Easing } from 'react-native';
 import {
   Building2, Hammer, Plus, PenLine, Store, Trees, Home,
   LayoutGrid, Paintbrush, Droplets, Zap, Boxes, ChevronRight, MapPin,
@@ -36,9 +36,52 @@ interface ProjectCardProps {
 }
 
 function ProjectCard({ project, onPress, onLongPress }: ProjectCardProps) {
-  const scaleAnim = React.useRef(new Animated.Value(1)).current;
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  // Mount-time fade + slide so cards feel like they're being laid down
+  // instead of just appearing. Subtle (140ms, 8px) — premium without
+  // being theatrical.
+  const enterAnim = useRef(new Animated.Value(0)).current;
+  // Animated burn-bar on the bottom edge of the card. Drives a width
+  // interpolation so the bar "fills up" on first render, similar to
+  // the cash-flow ConcretePour but inline.
+  const burnAnim = useRef(new Animated.Value(0)).current;
+
   const IconComponent = getTypeIcon(project.type);
   const status = STATUS_CONFIG[project.status] ?? STATUS_CONFIG.draft;
+
+  const linkedEstimate = project.linkedEstimate;
+  const legacyEstimate = project.estimate;
+  const hasEstimate = !!(linkedEstimate && linkedEstimate.items.length > 0) || !!legacyEstimate;
+  const estimateTotal = linkedEstimate && linkedEstimate.items.length > 0
+    ? linkedEstimate.grandTotal
+    : legacyEstimate?.grandTotal ?? 0;
+
+  // Budget burn — invoiced ÷ estimate. We tap project.invoicedTotal
+  // when present, otherwise leave the bar hidden. Capped at 1.0.
+  const invoicedTotal = (project as { invoicedTotal?: number }).invoicedTotal ?? 0;
+  const burnRatio = hasEstimate && estimateTotal > 0
+    ? Math.min(1, invoicedTotal / estimateTotal)
+    : 0;
+  const showBurnBar = hasEstimate && burnRatio > 0;
+  const burnIsHigh = burnRatio >= 0.9;
+
+  useEffect(() => {
+    Animated.timing(enterAnim, {
+      toValue: 1,
+      duration: 220,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+    if (showBurnBar) {
+      Animated.timing(burnAnim, {
+        toValue: burnRatio,
+        duration: 900,
+        delay: 120,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: false,
+      }).start();
+    }
+  }, [enterAnim, burnAnim, burnRatio, showBurnBar]);
 
   const handlePressIn = () => {
     Animated.spring(scaleAnim, { toValue: 0.975, useNativeDriver: true, speed: 60, bounciness: 0 }).start();
@@ -48,15 +91,25 @@ function ProjectCard({ project, onPress, onLongPress }: ProjectCardProps) {
     Animated.spring(scaleAnim, { toValue: 1, useNativeDriver: true, speed: 40, bounciness: 0 }).start();
   };
 
-  const linkedEstimate = project.linkedEstimate;
-  const legacyEstimate = project.estimate;
-  const hasEstimate = !!(linkedEstimate && linkedEstimate.items.length > 0) || !!legacyEstimate;
-  const estimateTotal = linkedEstimate && linkedEstimate.items.length > 0
-    ? linkedEstimate.grandTotal
-    : legacyEstimate?.grandTotal ?? 0;
+  const enterTranslate = enterAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [8, 0],
+  });
+  const burnWidth = burnAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0%', '100%'],
+  });
 
   return (
-    <Animated.View style={[styles.wrapper, { transform: [{ scale: scaleAnim }] }]}>
+    <Animated.View
+      style={[
+        styles.wrapper,
+        {
+          opacity: enterAnim,
+          transform: [{ scale: scaleAnim }, { translateY: enterTranslate }],
+        },
+      ]}
+    >
       <TouchableOpacity
         onPress={onPress}
         onLongPress={onLongPress}
@@ -107,6 +160,25 @@ function ProjectCard({ project, onPress, onLongPress }: ProjectCardProps) {
             </View>
             <ChevronRight size={16} color={Colors.textMuted} strokeWidth={1.8} style={styles.chevron} />
           </View>
+
+          {/* Burn bar — slim track at the bottom edge of the card showing
+              what % of the estimate has been billed. Hidden until there's
+              an estimate AND any billing activity, so empty projects don't
+              get a useless gray sliver. Color shifts to amber at 90%+ to
+              signal you're nearing scope. */}
+          {showBurnBar && (
+            <View style={styles.burnTrack}>
+              <Animated.View
+                style={[
+                  styles.burnFill,
+                  {
+                    width: burnWidth,
+                    backgroundColor: burnIsHigh ? Colors.warning : Colors.primary,
+                  },
+                ]}
+              />
+            </View>
+          )}
         </View>
       </TouchableOpacity>
     </Animated.View>
@@ -218,5 +290,13 @@ const styles = StyleSheet.create({
   },
   chevron: {
     marginLeft: 4,
+  },
+  burnTrack: {
+    height: 3,
+    backgroundColor: Colors.fillTertiary,
+    width: '100%' as const,
+  },
+  burnFill: {
+    height: 3,
   },
 });
