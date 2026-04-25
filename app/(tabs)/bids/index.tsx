@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
-  Animated, ScrollView, RefreshControl, Platform, Modal, TextInput,
+  Animated, ScrollView, Platform, Modal, TextInput,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MapPin, Clock, DollarSign, Navigation, AlertCircle, Crosshair, ChevronDown, X, Filter, Building, Search, Heart, Bookmark, FileText, Tag, ChevronRight } from 'lucide-react-native';
@@ -11,6 +11,7 @@ import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Colors } from '@/constants/colors';
 import ConstructionLoader from '@/components/ConstructionLoader';
+import MageRefreshControl from '@/components/MageRefreshControl';
 import { supabase } from '@/lib/supabase';
 import { useUserLocation, getDistanceMiles } from '@/utils/location';
 import { US_STATES } from '@/constants/states';
@@ -578,7 +579,7 @@ export default function BidsScreen() {
           keyExtractor={item => item.id}
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => { void refetch(); }} tintColor={Colors.primary} />}
+          refreshControl={<MageRefreshControl refreshing={isRefetching} onRefresh={() => { void refetch(); }} />}
           ListHeaderComponent={
             trackedBids.length > 0 ? (
               <View style={styles.myBidsSection}>

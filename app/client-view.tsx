@@ -2,8 +2,8 @@ import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Image,
   ActivityIndicator, Dimensions, TextInput, Platform, Modal, Alert,
-  RefreshControl,
 } from 'react-native';
+import MageRefreshControl from '@/components/MageRefreshControl';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { useLocalSearchParams, Stack } from 'expo-router';
@@ -449,10 +449,9 @@ export default function ClientViewScreen() {
         contentContainerStyle={{ paddingBottom: insets.bottom + 32 }}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl
+          <MageRefreshControl
             refreshing={refreshing}
             onRefresh={refreshAll}
-            tintColor={Colors.primary}
           />
         }
       >

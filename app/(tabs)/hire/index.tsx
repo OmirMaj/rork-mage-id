@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useRef, useMemo } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
-  Animated, ScrollView, Linking, RefreshControl, Platform,
+  Animated, ScrollView, Linking, Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MapPin, DollarSign, Navigation, AlertCircle, Briefcase, Crosshair, ChevronDown } from 'lucide-react-native';
@@ -9,6 +9,7 @@ import * as Haptics from 'expo-haptics';
 import { useQuery } from '@tanstack/react-query';
 import { Colors } from '@/constants/colors';
 import ConstructionLoader from '@/components/ConstructionLoader';
+import MageRefreshControl from '@/components/MageRefreshControl';
 import { supabase } from '@/lib/supabase';
 import { useUserLocation, getDistanceMiles } from '@/utils/location';
 import { US_STATES } from '@/constants/states';
@@ -332,7 +333,7 @@ export default function HireScreen() {
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
           refreshControl={
-            <RefreshControl refreshing={isRefetching} onRefresh={() => { void refetch(); }} tintColor={Colors.primary} />
+            <MageRefreshControl refreshing={isRefetching} onRefresh={() => { void refetch(); }} />
           }
           ListEmptyComponent={
             <View style={styles.emptyContainer}>

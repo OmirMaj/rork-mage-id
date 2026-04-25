@@ -1,13 +1,14 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput,
-  Animated, RefreshControl, AppState, Alert, Platform, ScrollView,
+  Animated, AppState, Alert, Platform, ScrollView,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronRight, TrendingDown, Search, X, RefreshCw, Clock, Wifi, Bell, Pause, Play, Trash2, MapPin, ChevronDown } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { Colors } from '@/constants/colors';
+import MageRefreshControl from '@/components/MageRefreshControl';
 import { CATEGORY_META, getLivePrices, type MaterialItem } from '@/constants/materials';
 import { useProjects } from '@/contexts/ProjectContext';
 import { REGIONS, CITY_ADJUSTMENTS, getRegionForState } from '@/constants/regions';
@@ -424,7 +425,7 @@ export default function MaterialsScreen() {
         contentContainerStyle={styles.listContainer}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={() => refreshPrices(true)} tintColor={Colors.primary} />
+          <MageRefreshControl refreshing={refreshing} onRefresh={() => refreshPrices(true)} />
         }
       />
     </View>
