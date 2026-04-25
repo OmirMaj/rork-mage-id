@@ -149,6 +149,34 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     const authUser = mapSupabaseUser(data.user);
     queryClient.clear();
     console.log('[Auth] Signup successful');
+
+    // Fire-and-forget welcome email. Do NOT await — the user has just
+    // created their account and should land on the next screen
+    // immediately. If the email fails, we log and move on; Supabase's
+    // own email-confirmation flow is the source of truth for getting
+    // them into the app.
+    void (async () => {
+      try {
+        const { sendEmail, buildWelcomeEmailHtml } = await import('@/utils/emailService');
+        const html = buildWelcomeEmailHtml({
+          recipientName: name?.trim() || undefined,
+        });
+        const result = await sendEmail({
+          to: email.toLowerCase().trim(),
+          subject: 'Welcome to MAGE ID — let\'s get you building',
+          html,
+          replyTo: 'support@mageid.app',
+        });
+        if (!result.success) {
+          console.warn('[Auth] Welcome email failed to send:', result.error);
+        } else {
+          console.log('[Auth] Welcome email sent');
+        }
+      } catch (err) {
+        console.warn('[Auth] Welcome email threw:', err);
+      }
+    })();
+
     return authUser;
   }, [queryClient]);
 

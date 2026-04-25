@@ -12,9 +12,14 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import { Crown, Building2, CheckCircle2, X, Sparkles, Shield } from 'lucide-react-native';
+import { Crown, Building2, CheckCircle2, X, Sparkles, Shield, Smartphone, Apple } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useSubscription } from '@/contexts/SubscriptionContext';
+
+// App Store / Play Store deep links — used by the web paywall to bounce
+// users to mobile. App Store ID 6762229238 is from eas.json submit.production.
+const IOS_APP_URL = 'https://apps.apple.com/app/id6762229238';
+const ANDROID_APP_URL = 'https://play.google.com/store/apps/details?id=app.mageid.android';
 
 type RequiredTier = 'pro' | 'business';
 type BillingPeriod = 'monthly' | 'annual';
@@ -113,6 +118,92 @@ export default function Paywall({ visible, onClose, feature, requiredTier }: Pay
       Alert.alert('Purchase Failed', 'Could not complete the purchase. Please try again.');
     }
   }, [purchasePro, purchaseBusiness, requiredTier, period, tierLabel, onClose]);
+
+  // On web, we don't take subscription payments — we redirect users to the
+  // mobile app where Apple/Google handle billing. The user's account tier
+  // syncs via Supabase once they subscribe on iOS/Android, so when they
+  // come back to the web app it'll already show as Pro/Business.
+  // This avoids:
+  //   • Maintaining RC web billing live keys
+  //   • A second checkout flow that competes with the invoice Stripe flow
+  //   • Confusing users about which payment surface unlocks what
+  if (Platform.OS === 'web') {
+    return (
+      <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+        <View style={[styles.container, { paddingBottom: insets.bottom }]}>
+          <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+            <View style={{ width: 36 }} />
+            <Text style={styles.headerTitle}>Continue on Mobile</Text>
+            <TouchableOpacity onPress={onClose} style={styles.closeBtn} testID="paywall-modal-close-web">
+              <X size={22} color={Colors.text} />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+            <View style={[styles.heroIconWrap, { backgroundColor: tierColor + '15' }]}>
+              <Smartphone size={36} color={tierColor} />
+            </View>
+
+            <Text style={styles.featureName}>{feature}</Text>
+            <Text style={styles.requiresLine}>
+              Requires <Text style={[styles.requiresTierEm, { color: tierColor }]}>{tierLabel}</Text>
+            </Text>
+
+            <Text style={styles.webExplain}>
+              Subscriptions are managed in the MAGE ID mobile app. Once you upgrade
+              there, your account will unlock {tierLabel} features everywhere —
+              including back here on the web.
+            </Text>
+
+            <View style={styles.benefitsBox}>
+              {benefits.map((b, idx) => (
+                <View key={idx} style={styles.benefitRow}>
+                  <CheckCircle2 size={16} color={tierColor} />
+                  <Text style={styles.benefitText}>{b}</Text>
+                </View>
+              ))}
+            </View>
+
+            <TouchableOpacity
+              style={[styles.upgradeBtn, { backgroundColor: '#0B0D10' }]}
+              activeOpacity={0.85}
+              onPress={() => {
+                if (typeof window !== 'undefined') window.open(IOS_APP_URL, '_blank');
+              }}
+              testID="paywall-open-app-store"
+            >
+              <Apple size={18} color="#fff" />
+              <Text style={styles.upgradeBtnText}>Open in App Store</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.upgradeBtn, { backgroundColor: '#0B0D10', marginTop: 10 }]}
+              activeOpacity={0.85}
+              onPress={() => {
+                if (typeof window !== 'undefined') window.open(ANDROID_APP_URL, '_blank');
+              }}
+              testID="paywall-open-play-store"
+            >
+              <Smartphone size={18} color="#fff" />
+              <Text style={styles.upgradeBtnText}>Open in Google Play</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity onPress={onClose} style={styles.notNowBtn} testID="paywall-not-now-web">
+              <Text style={styles.notNowText}>Maybe later</Text>
+            </TouchableOpacity>
+
+            <View style={styles.trustRow}>
+              <Shield size={13} color={Colors.textSecondary} />
+              <Text style={styles.trustText}>
+                Sign in on the mobile app with the same email and your subscription
+                will sync to this account automatically.
+              </Text>
+            </View>
+          </ScrollView>
+        </View>
+      </Modal>
+    );
+  }
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
@@ -334,4 +425,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   trustText: { fontSize: 12, color: Colors.textSecondary, textAlign: 'center' },
+  webExplain: { fontSize: 14, color: Colors.textSecondary, textAlign: 'center' as const, lineHeight: 20, marginHorizontal: 16, marginBottom: 18 },
 });

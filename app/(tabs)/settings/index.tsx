@@ -16,9 +16,10 @@ import {
 import { Colors, setCustomColors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { isOwner } from '@/utils/owner';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { getAIUsageStats } from '@/utils/aiRateLimiter';
-import { Sparkles, Hash } from 'lucide-react-native';
+import { Sparkles, Hash, Database } from 'lucide-react-native';
 import { THEME_PRESETS } from '@/types';
 import type { PDFNamingSettings } from '@/types';
 import SignaturePad from '@/components/SignaturePad';
@@ -1013,6 +1014,29 @@ export default function SettingsScreen() {
             <ChevronRight size={16} color={Colors.textMuted} />
           </TouchableOpacity>
         </View>
+
+        {isOwner(user?.email) && (
+          <>
+            <Text style={styles.sectionHeader}>DEVELOPER (OWNER ONLY)</Text>
+            <Text style={styles.sectionSubtext}>
+              Visible to platform owner only. Demo data seeder for App Store screenshots.
+            </Text>
+            <View style={styles.group}>
+              <TouchableOpacity
+                style={styles.row}
+                onPress={() => router.push('/dev-seeder' as any)}
+                activeOpacity={0.7}
+                testID="dev-seeder-link"
+              >
+                <View style={[styles.iconWrap, { backgroundColor: Colors.warning }]}>
+                  <Database size={14} color="#fff" />
+                </View>
+                <Text style={[styles.rowLabel, { flex: 1 }]}>Demo data seeder</Text>
+                <ChevronRight size={16} color={Colors.textMuted} />
+              </TouchableOpacity>
+            </View>
+          </>
+        )}
 
         <Text style={styles.sectionHeader}>SUPPLIER MARKETPLACE</Text>
         <Text style={styles.sectionSubtext}>

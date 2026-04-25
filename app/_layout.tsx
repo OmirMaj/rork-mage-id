@@ -535,6 +535,13 @@ function RootLayoutNav() {
         }}
       />
       <Stack.Screen
+        name="dev-seeder"
+        options={{
+          title: "Demo Seeder",
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
         name="report-inbox"
         options={{
           title: "Report Inbox",

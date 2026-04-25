@@ -2,6 +2,7 @@ import * as MailComposer from 'expo-mail-composer';
 import * as FileSystem from 'expo-file-system/legacy';
 import { Platform } from 'react-native';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { wrapEmailHtml, emailButton } from '@/utils/emailLayout';
 
 export interface SendEmailParams {
   to: string;
@@ -208,6 +209,98 @@ export async function sendEmail(params: SendEmailWithAttachmentsParams): Promise
 }
 
 
+
+/**
+ * Welcome email — sent the moment a user signs up. Job:
+ *   1. Confirm their account is created.
+ *   2. Quickly explain what MAGE ID does (5 features, scannable list).
+ *   3. Push them to install the mobile app for the full experience.
+ *   4. Offer a clear "where to get help" line so they don't bounce on
+ *      the first hurdle.
+ *
+ * Designed to land in their inbox within seconds of signup so the
+ * first-touch impression is "this thing is alive and looks legit."
+ */
+export function buildWelcomeEmailHtml(opts: {
+  recipientName?: string;
+  iosAppUrl?: string;
+  androidAppUrl?: string;
+  webAppUrl?: string;
+  supportEmail?: string;
+}): string {
+  const {
+    recipientName,
+    iosAppUrl = 'https://apps.apple.com/app/id6762229238',
+    androidAppUrl = 'https://play.google.com/store/apps/details?id=app.mageid.android',
+    webAppUrl = 'https://app.mageid.app',
+    supportEmail = 'support@mageid.app',
+  } = opts;
+
+  const features = [
+    { icon: '🏗', title: 'Estimates that calculate themselves', body: 'Live material pricing, regional cost adjustments, bulk-discount math, AI-generated quick estimates from a photo or a few prompts.' },
+    { icon: '📋', title: 'Daily field reports in 60 seconds', body: 'Voice-record what happened on site, AI parses it into weather + manpower + work performed + materials + issues. Photos auto-geotag.' },
+    { icon: '💰', title: 'Get paid in-app', body: 'One-tap "Pay" button on every invoice. Money lands in your bank in 1–2 business days. No more chasing checks.' },
+    { icon: '📐', title: 'Plans, RFIs, change orders, submittals', body: 'Full document workflow on your phone. Pin notes/photos to plan markups. Auto-export RFI logs and closeout packets to PDF.' },
+    { icon: '📊', title: 'Cash flow forecaster', body: 'See exactly when you\'ll be in the red weeks before it happens. Never get blindsided by a slow A/R again.' },
+  ];
+
+  const featuresHtml = features.map(f => `
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 14px;">
+      <tr>
+        <td valign="top" style="padding-right:14px;font-size:22px;line-height:1;">${f.icon}</td>
+        <td valign="top">
+          <p style="margin:0 0 4px;font-size:15px;font-weight:700;color:#111827;letter-spacing:-0.2px;">${f.title}</p>
+          <p style="margin:0;font-size:13px;color:#4B5563;line-height:1.5;">${f.body}</p>
+        </td>
+      </tr>
+    </table>
+  `).join('');
+
+  const bodyHtml = `
+    <p style="margin:0 0 18px;color:#374151;font-size:15px;line-height:1.6;">
+      Welcome to MAGE ID — the operating system for general contractors. Your account is live.
+      Here's what you can do right now:
+    </p>
+
+    <div style="margin:24px 0 8px;">
+      ${featuresHtml}
+    </div>
+
+    <p style="margin:24px 0 0;color:#374151;font-size:14px;line-height:1.55;">
+      <strong>Get the full experience on mobile.</strong> The app is where you'll spend most of your
+      day — voice reports on the jobsite, photos with GPS, in-app payments — all of it works
+      offline and syncs the moment you're back on signal.
+    </p>
+
+    ${emailButton('Open in App Store', iosAppUrl)}
+
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 0;">
+      <tr>
+        <td align="center" style="font-size:12px;color:#6b7280;">
+          On Android? <a href="${androidAppUrl}" style="color:#FF6A1A;text-decoration:none;font-weight:600;">Get it on Google Play</a>
+          &nbsp;·&nbsp;
+          <a href="${webAppUrl}" style="color:#FF6A1A;text-decoration:none;font-weight:600;">Use the web version</a>
+        </td>
+      </tr>
+    </table>
+
+    <hr style="border:none;border-top:1px solid #EEE;margin:32px 0 20px;" />
+
+    <p style="margin:0;color:#6b7280;font-size:13px;line-height:1.55;">
+      Stuck on anything? Just reply to this email or write
+      <a href="mailto:${supportEmail}" style="color:#FF6A1A;text-decoration:none;font-weight:600;">${supportEmail}</a>
+      — a real person reads every message.
+    </p>
+  `;
+
+  return wrapEmailHtml({
+    companyName: 'MAGE ID',
+    recipientName,
+    eyebrow: 'WELCOME',
+    title: recipientName ? `Welcome to MAGE ID, ${recipientName}` : 'Welcome to MAGE ID',
+    bodyHtml,
+  });
+}
 
 export function buildInvoiceEmailHtml(opts: {
   companyName: string;
