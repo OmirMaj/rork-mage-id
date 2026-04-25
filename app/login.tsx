@@ -172,14 +172,32 @@ export default function LoginScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={[styles.topSection, { paddingTop: insets.top + 40 }]}>
-        <View style={styles.logoContainer}>
-          <View style={styles.logoCircle}>
-            <HardHat size={36} color="#FFFFFF" strokeWidth={1.8} />
+      <View style={[styles.topSection, { paddingTop: insets.top + 36 }]}>
+        {/* Decorative amber glow + concrete grid lines, mirroring the
+            marketing site's "industrial concrete × tech" aesthetic. */}
+        <View pointerEvents="none" style={styles.heroGlow} />
+        <View pointerEvents="none" style={styles.heroGridH1} />
+        <View pointerEvents="none" style={styles.heroGridH2} />
+        <View pointerEvents="none" style={styles.heroGridV1} />
+        <View pointerEvents="none" style={styles.heroGridV2} />
+
+        <View style={styles.brandRow}>
+          <View style={styles.logoChip}>
+            <HardHat size={16} color="#FF6A1A" strokeWidth={2} />
           </View>
+          <Text style={styles.brandWordmark}>MAGE ID</Text>
         </View>
-        <Text style={styles.brandName}>MAGE ID</Text>
-        <Text style={styles.brandTagline}>Welcome back</Text>
+
+        <Text style={styles.heroEyebrow}>WELCOME BACK</Text>
+        <Text style={styles.heroLine}>
+          Build it. <Text style={styles.heroLineAccent}>Bill it.</Text>
+        </Text>
+        <Text style={styles.heroLine}>
+          Track every dollar.
+        </Text>
+        <Text style={styles.heroSub}>
+          The operating system for general contractors.
+        </Text>
       </View>
 
       <KeyboardAvoidingView
@@ -399,37 +417,110 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
+  // Premium dark hero — matches the marketing site at https://mageid.app
+  // Palette: --ink #0B0D10 + --amber #FF6A1A + --cream #F4EFE6.
+  // Decorative grid + glow give the "industrial concrete × tech" feel
+  // without an image asset.
   topSection: {
-    backgroundColor: Colors.primary,
+    backgroundColor: '#0B0D10',
+    paddingHorizontal: 28,
     paddingBottom: 40,
-    alignItems: 'center',
-    borderBottomLeftRadius: 32,
-    borderBottomRightRadius: 32,
+    alignItems: 'flex-start' as const,
+    overflow: 'hidden' as const,
   },
-  logoContainer: {
-    marginBottom: 16,
+  heroGlow: {
+    position: 'absolute' as const,
+    top: -100,
+    right: -100,
+    width: 320,
+    height: 320,
+    borderRadius: 160,
+    backgroundColor: 'rgba(255,106,26,0.18)',
   },
-  logoCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 22,
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    alignItems: 'center',
-    justifyContent: 'center',
+  heroGridH1: {
+    position: 'absolute' as const,
+    left: 0,
+    right: 0,
+    top: '38%' as const,
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+  },
+  heroGridH2: {
+    position: 'absolute' as const,
+    left: 0,
+    right: 0,
+    top: '70%' as const,
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+  },
+  heroGridV1: {
+    position: 'absolute' as const,
+    top: 0,
+    bottom: 0,
+    left: '32%' as const,
+    width: 1,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+  },
+  heroGridV2: {
+    position: 'absolute' as const,
+    top: 0,
+    bottom: 0,
+    left: '68%' as const,
+    width: 1,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+  },
+  brandRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 8,
+    marginBottom: 32,
+    zIndex: 1,
+  },
+  logoChip: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255,106,26,0.12)',
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.25)',
+    borderColor: 'rgba(255,106,26,0.24)',
   },
-  brandName: {
-    fontSize: 30,
+  brandWordmark: {
+    fontSize: 13,
     fontWeight: '800' as const,
-    color: '#FFFFFF',
-    letterSpacing: -0.5,
+    color: '#F4EFE6',
+    letterSpacing: 2,
   },
-  brandTagline: {
-    fontSize: 16,
+  heroEyebrow: {
+    fontSize: 11,
+    fontWeight: '700' as const,
+    color: '#FF6A1A',
+    letterSpacing: 2.5,
+    marginBottom: 12,
+    zIndex: 1,
+  },
+  heroLine: {
+    fontSize: 36,
+    fontWeight: '700' as const,
+    color: '#F4EFE6',
+    letterSpacing: -1,
+    lineHeight: 42,
+    fontStyle: Platform.OS === 'ios' ? 'normal' : 'normal',
+    zIndex: 1,
+  },
+  heroLineAccent: {
+    color: '#FF6A1A',
+    fontStyle: 'italic' as const,
+    fontWeight: '700' as const,
+  },
+  heroSub: {
+    fontSize: 13,
     fontWeight: '500' as const,
-    color: 'rgba(255,255,255,0.7)',
-    marginTop: 4,
+    color: '#9AA3AD',
+    letterSpacing: 0.2,
+    marginTop: 14,
+    zIndex: 1,
   },
   formWrapper: {
     flex: 1,
@@ -495,11 +586,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.primary,
+    backgroundColor: '#0B0D10',
     borderRadius: 14,
     paddingVertical: 16,
     gap: 8,
     marginTop: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    elevation: 3,
   },
   loginButtonDisabled: {
     opacity: 0.7,
@@ -586,8 +682,8 @@ const styles = StyleSheet.create({
   },
   signupLink: {
     fontSize: 15,
-    fontWeight: '600' as const,
-    color: Colors.primary,
+    fontWeight: '700' as const,
+    color: '#0B0D10',
   },
   forgotButton: {
     flexDirection: 'row' as const,
@@ -599,7 +695,7 @@ const styles = StyleSheet.create({
   },
   forgotText: {
     fontSize: 14,
-    fontWeight: '500' as const,
-    color: Colors.primary,
+    fontWeight: '600' as const,
+    color: '#FF6A1A',
   },
 });
