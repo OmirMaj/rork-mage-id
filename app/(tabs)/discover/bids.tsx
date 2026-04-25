@@ -11,6 +11,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Colors } from '@/constants/colors';
 import ConstructionLoader from '@/components/ConstructionLoader';
 import MageRefreshControl from '@/components/MageRefreshControl';
+import { SkeletonRow } from '@/components/Skeleton';
 import { supabase } from '@/lib/supabase';
 import { useUserLocation, getDistanceMiles } from '@/utils/location';
 import { US_STATES } from '@/constants/states';
@@ -444,8 +445,10 @@ export default function CachedBidsScreen() {
           </TouchableOpacity>
         </View>
       ) : loading ? (
-        <View style={styles.loadingContainer}>
-          <ConstructionLoader size="lg" label="Loading bids..." />
+        <View>
+          {/* Skeleton rows replace the centered loader — preserves the
+              list rhythm so content fades in rather than punches through. */}
+          {[0, 1, 2, 3, 4, 5].map(i => <SkeletonRow key={i} />)}
         </View>
       ) : (
         <FlatList

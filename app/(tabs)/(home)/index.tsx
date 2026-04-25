@@ -12,7 +12,7 @@ import * as Haptics from 'expo-haptics';
 import {
   Plus, TrendingUp, FolderOpen, Layers, X, ChevronRight, Calculator, CalendarDays,
   BarChart3, TrendingDown, Package, DollarSign, Percent, ShoppingCart, ArrowDownRight,
-  Receipt, Wallet, Search, Sparkles, ChevronDown, ChevronUp, Inbox,
+  Receipt, Wallet, Search, Sparkles, ChevronDown, ChevronUp, Inbox, HardHat,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
@@ -415,11 +415,13 @@ export default function HomeScreen() {
         }
         ListEmptyComponent={
           <EmptyState
-            icon={<FolderOpen size={36} color={Colors.textMuted} />}
-            title="No Projects Yet"
-            message="Create your first construction project to get started with estimates and scheduling."
-            actionLabel="Create Project"
+            icon={<HardHat size={40} color={Colors.primary} strokeWidth={1.6} />}
+            title="Build something"
+            message="Your first project is one tap away. Add it to start tracking estimates, daily reports, invoices — every job, every detail."
+            actionLabel="Create your first project"
             onAction={() => setShowCreateModal(true)}
+            secondaryLabel="Browse public bids instead"
+            onSecondaryAction={() => router.push('/(tabs)/discover/bids' as any)}
           />
         }
         showsVerticalScrollIndicator={false}

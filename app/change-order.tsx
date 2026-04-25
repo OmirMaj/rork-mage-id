@@ -16,6 +16,7 @@ import { getLivePrices, getRegionMultiplier, CATEGORY_META, type MaterialItem } 
 import { sendEmail, buildChangeOrderEmailHtml } from '@/utils/emailService';
 import AIChangeOrderImpact from '@/components/AIChangeOrderImpact';
 import { nailIt } from '@/components/animations/NailItToast';
+import TapeRollNumber from '@/components/animations/TapeRollNumber';
 import type { ChangeOrderLineItem, ChangeOrder } from '@/types';
 
 function createId(prefix: string): string {
@@ -368,7 +369,12 @@ export default function ChangeOrderScreen() {
             <View style={styles.dividerThick} />
             <View style={styles.totalRow}>
               <Text style={styles.grandLabel}>New Contract Total</Text>
-              <Text style={styles.grandValue}>{formatCurrency(newContractTotal)}</Text>
+              <TapeRollNumber
+                value={newContractTotal}
+                formatter={formatCurrency}
+                duration={550}
+                style={styles.grandValue}
+              />
             </View>
           </View>
 

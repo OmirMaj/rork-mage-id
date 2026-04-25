@@ -26,6 +26,7 @@ import { createPaymentLink } from '@/utils/stripe';
 import { fetchStripeConnectStatus } from '@/utils/stripeConnect';
 import { useAuth } from '@/contexts/AuthContext';
 import { nailIt } from '@/components/animations/NailItToast';
+import TapeRollNumber from '@/components/animations/TapeRollNumber';
 import type { InvoiceLineItem, Invoice, PaymentTerms, PaymentMethod, InvoicePayment, RetentionRelease } from '@/types';
 
 function createId(prefix: string): string {
@@ -788,7 +789,12 @@ export default function InvoiceScreen() {
             <View style={styles.dividerThick} />
             <View style={styles.totalRow}>
               <Text style={styles.grandLabel}>Contract Total</Text>
-              <Text style={styles.grandValue}>{formatCurrency(totalDue)}</Text>
+              <TapeRollNumber
+                value={totalDue}
+                formatter={formatCurrency}
+                duration={550}
+                style={styles.grandValue}
+              />
             </View>
             {retentionPctValue > 0 && (
               <>
@@ -805,7 +811,12 @@ export default function InvoiceScreen() {
                 )}
                 <View style={styles.totalRow}>
                   <Text style={styles.grandLabel}>Net Payable Now</Text>
-                  <Text style={styles.grandValue}>{formatCurrency(netPayable)}</Text>
+                  <TapeRollNumber
+                    value={netPayable}
+                    formatter={formatCurrency}
+                    duration={550}
+                    style={styles.grandValue}
+                  />
                 </View>
               </>
             )}

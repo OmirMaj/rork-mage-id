@@ -11,6 +11,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Colors } from '@/constants/colors';
 import ConstructionLoader from '@/components/ConstructionLoader';
 import MageRefreshControl from '@/components/MageRefreshControl';
+import { SkeletonRow } from '@/components/Skeleton';
 import { supabase } from '@/lib/supabase';
 import { useUserLocation, getDistanceMiles } from '@/utils/location';
 
@@ -258,8 +259,8 @@ export default function CachedHireScreen() {
       </View>
 
       {loading ? (
-        <View style={styles.loadingContainer}>
-          <ConstructionLoader size="lg" label="Finding jobs near you..." />
+        <View>
+          {[0, 1, 2, 3, 4].map(i => <SkeletonRow key={i} />)}
         </View>
       ) : (
         <FlatList

@@ -12,6 +12,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Colors } from '@/constants/colors';
 import ConstructionLoader from '@/components/ConstructionLoader';
 import MageRefreshControl from '@/components/MageRefreshControl';
+import { SkeletonRow } from '@/components/Skeleton';
 import { supabase } from '@/lib/supabase';
 import { useUserLocation, getDistanceMiles } from '@/utils/location';
 import { US_STATES } from '@/constants/states';
@@ -569,8 +570,8 @@ export default function BidsScreen() {
           </TouchableOpacity>
         </View>
       ) : loading ? (
-        <View style={styles.loadingContainer}>
-          <ConstructionLoader size="lg" label="Loading bids..." />
+        <View>
+          {[0, 1, 2, 3, 4, 5].map(i => <SkeletonRow key={i} />)}
         </View>
       ) : (
         <FlatList

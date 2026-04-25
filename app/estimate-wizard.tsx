@@ -35,6 +35,7 @@ import { Colors } from '@/constants/colors';
 import { mageAISmart } from '@/utils/mageAI';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
+import TapeRollNumber from '@/components/animations/TapeRollNumber';
 
 interface WizardAnswers {
   projectType: string;
@@ -238,7 +239,13 @@ Use current regional pricing where possible. Round reasonably. Keep it under 15 
           <View style={styles.resultHero}>
             <CheckCircle2 size={28} color={Colors.success} />
             <Text style={styles.resultHeroTitle}>Estimate Ready</Text>
-            <Text style={styles.resultTotal}>${result.total.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
+            <TapeRollNumber
+              value={result.total}
+              prefix="$"
+              decimals={0}
+              duration={1100}
+              style={styles.resultTotal}
+            />
             <Text style={styles.resultSubtitle}>{answers.projectType} · {answers.sizeSqft} sqft · {answers.location}</Text>
           </View>
 
