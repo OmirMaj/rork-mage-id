@@ -39,7 +39,6 @@ import {
   startStripeConnectOnboarding, fetchStripeConnectStatus, type ConnectStatus,
 } from '@/utils/stripeConnect';
 import { nailIt } from '@/components/animations/NailItToast';
-import * as Linking_ from 'expo-linking';
 
 export default function PaymentsSetupScreen() {
   const insets = useSafeAreaInsets();
@@ -80,11 +79,15 @@ export default function PaymentsSetupScreen() {
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setStarting(true);
     try {
-      // Deep link back to this very screen so the in-app browser
-      // closes cleanly and we can re-poll status. expo-linking handles
-      // both dev (exp://) and built (mageid://) schemes.
-      const returnUrl = Linking_.createURL('/payments-setup', { queryParams: { return: '1' } });
-      const refreshUrl = Linking_.createURL('/payments-setup', { queryParams: { refresh: '1' } });
+      // Stripe's account_links API requires HTTPS URLs and rejects custom
+      // schemes (mageid://, exp://). We point it at the web build of the
+      // app at app.mageid.app/payments-setup which renders the same React
+      // component. After the redirect lands there, the user is still
+      // inside the in-app browser (SafariViewController / Chrome Custom
+      // Tabs); they close it and our openBrowserAsync call returns,
+      // triggering the post-flight status re-poll below.
+      const returnUrl = 'https://app.mageid.app/payments-setup?return=1';
+      const refreshUrl = 'https://app.mageid.app/payments-setup?refresh=1';
 
       const res = await startStripeConnectOnboarding({
         userId: user.id,
