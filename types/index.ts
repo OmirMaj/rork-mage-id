@@ -1527,7 +1527,11 @@ export type EntityKind =
   | 'commitment'
   | 'planSheet'
   | 'commEvent'
-  | 'portalMessage';
+  | 'portalMessage'
+  | 'drawingPin'
+  | 'planMarkup'
+  | 'prequalPacket'
+  | 'priceAlert';
 
 export interface EntityRef {
   kind: EntityKind;

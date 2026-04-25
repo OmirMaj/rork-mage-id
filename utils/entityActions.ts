@@ -59,6 +59,10 @@ const CAPABILITIES: Record<EntityKind, EntityActionId[]> = {
   planSheet:    [...UNIVERSAL],
   commEvent:    [...UNIVERSAL],
   portalMessage:[...UNIVERSAL],
+  drawingPin:   [...UNIVERSAL, 'delete'],
+  planMarkup:   [...UNIVERSAL, 'delete'],
+  prequalPacket:[...UNIVERSAL],
+  priceAlert:   [...UNIVERSAL, 'delete'],
 };
 
 const ACTION_META: Record<EntityActionId, Omit<EntityAction, 'id'>> = {

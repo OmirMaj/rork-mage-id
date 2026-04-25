@@ -198,6 +198,36 @@ export function getEntityRoute(ref: EntityRef): EntityRoute | null {
         params: { projectId: ref.projectId, messageId: ref.id },
       };
 
+    case 'drawingPin':
+      // Pins live on a plan sheet — open the plan viewer focused on the pin.
+      if (!ref.projectId) return null;
+      return {
+        pathname: '/plan-viewer',
+        params: { pinId: ref.id, projectId: ref.projectId },
+      };
+
+    case 'planMarkup':
+      // Markups also live on a plan sheet.
+      if (!ref.projectId) return null;
+      return {
+        pathname: '/plan-viewer',
+        params: { markupId: ref.id, projectId: ref.projectId },
+      };
+
+    case 'prequalPacket':
+      // Prequal lives in the sub-management surface.
+      return {
+        pathname: '/prequal-manager',
+        params: { packetId: ref.id },
+      };
+
+    case 'priceAlert':
+      // Price alerts live in materials/price-alerts surface.
+      return {
+        pathname: '/price-alerts',
+        params: { alertId: ref.id },
+      };
+
     default: {
       // Exhaustiveness guard — a new EntityKind added to types/index.ts will
       // surface a TS error here.
@@ -262,6 +292,10 @@ export function resolveEntityObject(
     case 'planSheet':
     case 'commEvent':
     case 'portalMessage':
+    case 'drawingPin':
+    case 'planMarkup':
+    case 'prequalPacket':
+    case 'priceAlert':
       // These live outside the core projects store. Consumers that need the
       // object can pass a richer store; we return null for the default shape.
       return null;
@@ -298,6 +332,10 @@ const KIND_LABEL: Record<EntityKind, string> = {
   planSheet: 'Sheet',
   commEvent: 'Activity',
   portalMessage: 'Message',
+  drawingPin: 'Pin',
+  planMarkup: 'Markup',
+  prequalPacket: 'Prequal',
+  priceAlert: 'Price Alert',
 };
 
 /**

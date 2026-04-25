@@ -18,6 +18,7 @@ import {
   Search as SearchIcon, X, ChevronRight, Building2, CalendarDays, Camera,
   HelpCircle, ClipboardCheck, Receipt, Repeat, FileText, CheckSquare, Shield,
   UserRound, Wrench, Clock, HardHat, Briefcase, Layers, MessageSquare, Mail,
+  MapPin, PenTool, ClipboardList, Bell,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useSearch } from '@/contexts/SearchContext';
@@ -57,6 +58,10 @@ const KIND_ICON: Record<EntityKind, React.FC<{ size: number; color: string }>> =
   planSheet: Layers,
   commEvent: MessageSquare,
   portalMessage: Mail,
+  drawingPin: MapPin,
+  planMarkup: PenTool,
+  prequalPacket: ClipboardList,
+  priceAlert: Bell,
 };
 
 const KIND_LABEL: Record<EntityKind, string> = {
@@ -80,12 +85,17 @@ const KIND_LABEL: Record<EntityKind, string> = {
   planSheet: 'Plan Sheets',
   commEvent: 'Activity',
   portalMessage: 'Messages',
+  drawingPin: 'Drawing Pins',
+  planMarkup: 'Plan Markups',
+  prequalPacket: 'Prequal Packets',
+  priceAlert: 'Price Alerts',
 };
 
 const KIND_ORDER: EntityKind[] = [
   'project', 'task', 'rfi', 'submittal', 'changeOrder', 'invoice',
   'dailyReport', 'punchItem', 'photo', 'permit', 'subcontractor',
-  'commitment', 'planSheet', 'warranty', 'equipment',
+  'commitment', 'planSheet', 'drawingPin', 'planMarkup',
+  'warranty', 'equipment', 'prequalPacket', 'priceAlert',
   'contact', 'commEvent', 'portalMessage', 'document', 'payment',
 ];
 

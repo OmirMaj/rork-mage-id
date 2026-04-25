@@ -20,7 +20,8 @@ import type {
   RFI, Submittal, Invoice, ChangeOrder,
   DailyFieldReport, PunchItem, ProjectPhoto, Contact, Warranty, Equipment,
   ScheduleTask, Permit, Subcontractor, Commitment, PlanSheet,
-  CommunicationEvent, PortalMessage,
+  CommunicationEvent, PortalMessage, DrawingPin, PlanMarkup,
+  PrequalPacket, PriceAlert,
 } from '@/types';
 
 // ---------------------------------------------------------------------------
@@ -456,6 +457,84 @@ export function useUniversalSearch(query: string): UniversalSearchResult {
       }
     }
 
+    // --- drawing pins ---------------------------------------------------
+    for (const pin of store.drawingPins as DrawingPin[]) {
+      const best = bestFieldMatch(q, [
+        ['label', pin.label ?? ''],
+        ['kind', pin.kind],
+      ]);
+      if (best) {
+        raw.push(makeResult(
+          { kind: 'drawingPin', id: pin.id, projectId: pin.projectId },
+          pin.label ? `${pin.kind} pin · ${pin.label}` : `${pin.kind} pin`,
+          best,
+          recencyMultiplier(pin.updatedAt, now),
+          projectNameById,
+          q.length,
+        ));
+      }
+    }
+
+    // --- plan markups ---------------------------------------------------
+    for (const mk of store.planMarkups as PlanMarkup[]) {
+      const best = bestFieldMatch(q, [
+        ['text', mk.text ?? ''],
+        ['type', mk.type],
+      ]);
+      if (best) {
+        raw.push(makeResult(
+          { kind: 'planMarkup', id: mk.id, projectId: mk.projectId },
+          mk.text ? `${mk.type} · ${mk.text.slice(0, 40)}` : `${mk.type} markup`,
+          best,
+          recencyMultiplier(mk.createdAt, now),
+          projectNameById,
+          q.length,
+        ));
+      }
+    }
+
+    // --- prequal packets ------------------------------------------------
+    // Packets are stored per-sub, not per-project. We resolve the sub's
+    // company name so the result is recognizable in the search modal.
+    const subById = new Map<string, Subcontractor>();
+    for (const s of store.subcontractors as Subcontractor[]) subById.set(s.id, s);
+    for (const pq of store.prequalPackets as PrequalPacket[]) {
+      const sub = subById.get(pq.subcontractorId);
+      const best = bestFieldMatch(q, [
+        ['status', pq.status],
+        ['subcontractor', sub?.companyName ?? ''],
+      ]);
+      if (best) {
+        raw.push(makeResult(
+          { kind: 'prequalPacket', id: pq.id, projectId: pq.projectId },
+          `Prequal · ${sub?.companyName ?? 'Unknown sub'} · ${pq.status}`,
+          best,
+          1,
+          projectNameById,
+          q.length,
+        ));
+      }
+    }
+
+    // --- price alerts ---------------------------------------------------
+    for (const pa of store.priceAlerts as PriceAlert[]) {
+      const best = bestFieldMatch(q, [
+        ['materialName', pa.materialName],
+        ['direction', pa.direction],
+      ]);
+      if (best) {
+        const arrow = pa.direction === 'below' ? '↓' : '↑';
+        raw.push(makeResult(
+          { kind: 'priceAlert', id: pa.id },
+          `Alert ${arrow} ${pa.materialName} @ $${pa.targetPrice}`,
+          best,
+          recencyMultiplier(pa.createdAt, now),
+          projectNameById,
+          q.length,
+        ));
+      }
+    }
+
     // Sort global by score descending, then cap.
     raw.sort((a, b) => b.score - a.score);
     return raw.slice(0, MAX_TOTAL);
@@ -550,6 +629,7 @@ function emptyGrouped(): Record<EntityKind, SearchResult[]> {
     punchItem: [], warranty: [], contact: [], document: [],
     permit: [], equipment: [], subcontractor: [], commitment: [],
     planSheet: [], commEvent: [], portalMessage: [],
+    drawingPin: [], planMarkup: [], prequalPacket: [], priceAlert: [],
   };
 }
 
@@ -560,6 +640,7 @@ function emptyCounts(): Record<EntityKind, number> {
     punchItem: 0, warranty: 0, contact: 0, document: 0,
     permit: 0, equipment: 0, subcontractor: 0, commitment: 0,
     planSheet: 0, commEvent: 0, portalMessage: 0,
+    drawingPin: 0, planMarkup: 0, prequalPacket: 0, priceAlert: 0,
   };
 }
 
