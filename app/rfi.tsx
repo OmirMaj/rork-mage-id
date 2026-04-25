@@ -9,12 +9,30 @@ import * as Haptics from 'expo-haptics';
 import { Save, ChevronDown, Link2, X, CheckCircle2 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
+import { useTierAccess } from '@/hooks/useTierAccess';
+import Paywall from '@/components/Paywall';
 import type { RFIStatus, RFIPriority } from '@/types';
 
 const PRIORITY_OPTIONS: RFIPriority[] = ['low', 'normal', 'urgent'];
 const STATUS_OPTIONS: RFIStatus[] = ['open', 'answered', 'closed', 'void'];
 
 export default function RFIScreen() {
+  const router = useRouter();
+  const { canAccess } = useTierAccess();
+  if (!canAccess('rfis_submittals')) {
+    return (
+      <Paywall
+        visible={true}
+        feature="RFIs & Submittals"
+        requiredTier="business"
+        onClose={() => router.back()}
+      />
+    );
+  }
+  return <RFIScreenInner />;
+}
+
+function RFIScreenInner() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { projectId, rfiId } = useLocalSearchParams<{ projectId: string; rfiId?: string }>();

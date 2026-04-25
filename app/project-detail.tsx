@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Platform, Modal,
-  TextInput, Pressable, KeyboardAvoidingView,
+  TextInput, Pressable, KeyboardAvoidingView, Image,
 } from 'react-native';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -34,6 +34,7 @@ import TapeRollNumber from '@/components/animations/TapeRollNumber';
 import BlueprintReveal from '@/components/animations/BlueprintReveal';
 import ConcretePour from '@/components/animations/ConcretePour';
 import { nailIt } from '@/components/animations/NailItToast';
+import FilterChipRow, { type FilterChip } from '@/components/FilterChipRow';
 import { exportProjectIcs } from '@/utils/icsGenerator';
 import { formatMoney } from '@/utils/formatters';
 import { getEffectiveInvoiceStatus } from '@/utils/projectFinancials';
@@ -120,6 +121,20 @@ export default function ProjectDetailScreen() {
   const [activeTile, setActiveTile] = useState<SectionKey | null>(null);
   // Tile group collapse state — Field & Money expanded by default, Docs & People collapsed.
   const [collapsedGroups, setCollapsedGroups] = useState<Set<TileGroupKey>>(new Set(['docs', 'people']));
+  // Photos filter — 'all' or a normalized tag. The chip row defaults to 'all'
+  // and we derive the chip set from photos at render-time so new tags appear
+  // automatically without code changes.
+  const [photoFilter, setPhotoFilter] = useState<string>('all');
+  // Photo lightbox — shows the full-size image when a thumb is tapped.
+  const [lightboxPhoto, setLightboxPhoto] = useState<string | null>(null);
+  // RFI status filter — defaults to 'open' so the user lands on the work
+  // that needs their attention, not a wall of closed RFIs.
+  const [rfiFilter, setRfiFilter] = useState<'open' | 'answered' | 'closed' | 'all'>('open');
+  // Invoice status filter — defaults to 'unpaid' (anything not fully paid)
+  // because that's the AR pile every contractor cares about.
+  const [invoiceFilter, setInvoiceFilter] = useState<'unpaid' | 'paid' | 'all'>('unpaid');
+  // Change order status filter — defaults to 'pending' (submitted, awaiting approval).
+  const [coFilter, setCoFilter] = useState<'pending' | 'approved' | 'all'>('pending');
   const toggleGroup = useCallback((key: TileGroupKey) => {
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
     setCollapsedGroups(prev => {
@@ -1513,7 +1528,31 @@ export default function ProjectDetailScreen() {
               {changeOrders.length === 0 && (
                 <Text style={styles.coEmptyText}>No change orders yet.</Text>
               )}
-              {changeOrders.map(co => (
+              {changeOrders.length > 0 && (() => {
+                const counts = {
+                  pending: changeOrders.filter(c => c.status === 'under_review' || c.status === 'draft' || c.status === 'revised').length,
+                  approved: changeOrders.filter(c => c.status === 'approved').length,
+                };
+                const chips: FilterChip<'pending' | 'approved' | 'all'>[] = [
+                  { value: 'pending', label: 'Pending', count: counts.pending, color: Colors.warning },
+                  { value: 'approved', label: 'Approved', count: counts.approved, color: Colors.success },
+                  { value: 'all', label: 'All', count: changeOrders.length },
+                ];
+                return (
+                  <FilterChipRow
+                    chips={chips}
+                    value={coFilter}
+                    onChange={setCoFilter}
+                    noPadding
+                    testID="co-status-filter"
+                  />
+                );
+              })()}
+              {(coFilter === 'all' ? changeOrders : changeOrders.filter(c => {
+                if (coFilter === 'pending') return c.status === 'under_review' || c.status === 'draft' || c.status === 'revised';
+                if (coFilter === 'approved') return c.status === 'approved';
+                return true;
+              })).map(co => (
                 <TouchableOpacity
                   key={co.id}
                   style={styles.coRow}
@@ -1622,7 +1661,31 @@ export default function ProjectDetailScreen() {
               {projectInvoices.length === 0 && (
                 <Text style={styles.coEmptyText}>No invoices yet.</Text>
               )}
-              {projectInvoices.map(inv => {
+              {projectInvoices.length > 0 && (() => {
+                const counts = {
+                  unpaid: projectInvoices.filter(i => i.amountPaid < i.totalDue).length,
+                  paid: projectInvoices.filter(i => i.amountPaid >= i.totalDue).length,
+                };
+                const chips: FilterChip<'unpaid' | 'paid' | 'all'>[] = [
+                  { value: 'unpaid', label: 'Unpaid', count: counts.unpaid, color: Colors.warning },
+                  { value: 'paid', label: 'Paid', count: counts.paid, color: Colors.success },
+                  { value: 'all', label: 'All', count: projectInvoices.length },
+                ];
+                return (
+                  <FilterChipRow
+                    chips={chips}
+                    value={invoiceFilter}
+                    onChange={setInvoiceFilter}
+                    noPadding
+                    testID="invoice-status-filter"
+                  />
+                );
+              })()}
+              {(invoiceFilter === 'all' ? projectInvoices : projectInvoices.filter(i => {
+                if (invoiceFilter === 'unpaid') return i.amountPaid < i.totalDue;
+                if (invoiceFilter === 'paid') return i.amountPaid >= i.totalDue;
+                return true;
+              })).map(inv => {
                 const _balance = inv.totalDue - inv.amountPaid;
                 const displayStatus = getEffectiveInvoiceStatus(inv);
                 return (
@@ -1865,7 +1928,34 @@ export default function ProjectDetailScreen() {
               {projectRFIs.length === 0 && (
                 <Text style={styles.coEmptyText}>No RFIs yet.</Text>
               )}
-              {projectRFIs.slice(0, 5).map(rfi => {
+              {projectRFIs.length > 0 && (() => {
+                const counts = {
+                  open: projectRFIs.filter(r => r.status === 'open').length,
+                  answered: projectRFIs.filter(r => r.status === 'answered').length,
+                  closed: projectRFIs.filter(r => r.status === 'closed' || r.status === 'void').length,
+                };
+                const chips: FilterChip<'open' | 'answered' | 'closed' | 'all'>[] = [
+                  { value: 'open', label: 'Open', count: counts.open, color: Colors.warning },
+                  { value: 'answered', label: 'Answered', count: counts.answered, color: Colors.info },
+                  { value: 'closed', label: 'Closed', count: counts.closed, color: Colors.success },
+                  { value: 'all', label: 'All', count: projectRFIs.length },
+                ];
+                return (
+                  <FilterChipRow
+                    chips={chips}
+                    value={rfiFilter}
+                    onChange={setRfiFilter}
+                    noPadding
+                    testID="rfi-status-filter"
+                  />
+                );
+              })()}
+              {(rfiFilter === 'all' ? projectRFIs : projectRFIs.filter(r => {
+                if (rfiFilter === 'open') return r.status === 'open';
+                if (rfiFilter === 'answered') return r.status === 'answered';
+                if (rfiFilter === 'closed') return r.status === 'closed' || r.status === 'void';
+                return true;
+              })).slice(0, 5).map(rfi => {
                 const isOverdue = rfi.status === 'open' && new Date(rfi.dateRequired) < new Date();
                 return (
                   <TouchableOpacity
@@ -2074,19 +2164,62 @@ export default function ProjectDetailScreen() {
               {projectPhotos.length === 0 && (
                 <Text style={styles.coEmptyText}>No photos yet. Photos from daily reports will appear here.</Text>
               )}
-              {projectPhotos.length > 0 && (
-                <View style={styles.photoGrid}>
-                  {projectPhotos.slice(0, 6).map(photo => (
-                    <View key={photo.id} style={styles.photoThumb}>
-                      <Camera size={20} color={Colors.textMuted} />
-                      <Text style={styles.photoThumbDate}>{new Date(photo.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</Text>
+              {projectPhotos.length > 0 && (() => {
+                // Build tag filter chips from the actual data — every distinct
+                // tag becomes a chip, plus an "All" at the front. New tags
+                // appear automatically without code changes.
+                const tagCounts = projectPhotos.reduce<Record<string, number>>((acc, p) => {
+                  const t = (p.tag ?? 'Untagged').trim() || 'Untagged';
+                  acc[t] = (acc[t] ?? 0) + 1;
+                  return acc;
+                }, {});
+                const chips: FilterChip<string>[] = [
+                  { value: 'all', label: 'All', count: projectPhotos.length },
+                  ...Object.entries(tagCounts)
+                    .sort((a, b) => b[1] - a[1])
+                    .map(([tag, count]) => ({ value: tag, label: tag, count })),
+                ];
+                const filtered = photoFilter === 'all'
+                  ? projectPhotos
+                  : projectPhotos.filter(p => (p.tag ?? 'Untagged').trim() === photoFilter || ((p.tag ?? '').trim() === '' && photoFilter === 'Untagged'));
+                // Show 12 thumbs at this density; user can hit the gallery
+                // for the full set (route TBD — for now we show the count).
+                const visible = filtered.slice(0, 12);
+                return (
+                  <>
+                    <FilterChipRow
+                      chips={chips}
+                      value={photoFilter}
+                      onChange={setPhotoFilter}
+                      noPadding
+                      testID="photos-tag-filter"
+                    />
+                    <View style={styles.photoGrid}>
+                      {visible.map(photo => (
+                        <TouchableOpacity
+                          key={photo.id}
+                          style={styles.photoThumb}
+                          activeOpacity={0.85}
+                          onPress={() => setLightboxPhoto(photo.uri)}
+                          testID={`photo-thumb-${photo.id}`}
+                        >
+                          {photo.uri ? (
+                            <Image source={{ uri: photo.uri }} style={styles.photoThumbImage} resizeMode="cover" />
+                          ) : (
+                            <Camera size={20} color={Colors.textMuted} />
+                          )}
+                          <View style={styles.photoThumbDateOverlay}>
+                            <Text style={styles.photoThumbDate}>{new Date(photo.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</Text>
+                          </View>
+                        </TouchableOpacity>
+                      ))}
                     </View>
-                  ))}
-                </View>
-              )}
-              {projectPhotos.length > 6 && (
-                <Text style={styles.punchMoreText}>+{projectPhotos.length - 6} more photos</Text>
-              )}
+                    {filtered.length > 12 && (
+                      <Text style={styles.punchMoreText}>+{filtered.length - 12} more in this filter</Text>
+                    )}
+                  </>
+                );
+              })()}
             </View>
           )}
         </View>
@@ -2584,6 +2717,30 @@ export default function ProjectDetailScreen() {
         entityRef={actionSheetRef}
         onClose={() => setActionSheetRef(null)}
       />
+
+      {/* Photo lightbox — full-screen image viewer when a thumb is tapped.
+          Tap anywhere or the close button to dismiss. Built-in modal so
+          we don't need a separate gallery screen for the common case. */}
+      <Modal
+        visible={lightboxPhoto !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setLightboxPhoto(null)}
+      >
+        <Pressable style={styles.lightboxOverlay} onPress={() => setLightboxPhoto(null)}>
+          {lightboxPhoto && (
+            <Image source={{ uri: lightboxPhoto }} style={styles.lightboxImage} resizeMode="contain" />
+          )}
+          <TouchableOpacity
+            style={styles.lightboxClose}
+            onPress={() => setLightboxPhoto(null)}
+            activeOpacity={0.7}
+            testID="photo-lightbox-close"
+          >
+            <X size={20} color="#FFFFFF" />
+          </TouchableOpacity>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -2743,9 +2900,14 @@ const styles = StyleSheet.create({
   punchProgressFill: { height: 6, backgroundColor: Colors.primary, borderRadius: 3 },
   punchDot: { width: 8, height: 8, borderRadius: 4, marginTop: 6 },
   punchMoreText: { fontSize: 12, color: Colors.textMuted, fontStyle: 'italic' as const, paddingVertical: 4 },
-  photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  photoThumb: { width: 72, height: 72, borderRadius: 10, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center', gap: 4 },
-  photoThumbDate: { fontSize: 9, color: Colors.textMuted, fontWeight: '600' as const },
+  photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
+  photoThumb: { width: 72, height: 72, borderRadius: 10, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center', gap: 4, overflow: 'hidden' as const, position: 'relative' as const },
+  photoThumbImage: { width: '100%', height: '100%' },
+  photoThumbDate: { fontSize: 9, color: '#FFFFFF', fontWeight: '700' as const },
+  photoThumbDateOverlay: { position: 'absolute' as const, bottom: 4, left: 4, right: 4, backgroundColor: 'rgba(0,0,0,0.55)', paddingVertical: 1, paddingHorizontal: 4, borderRadius: 5, alignItems: 'center' as const },
+  lightboxOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.92)', alignItems: 'center' as const, justifyContent: 'center' as const, padding: 16 },
+  lightboxImage: { width: '100%', height: '80%' },
+  lightboxClose: { position: 'absolute' as const, top: 50, right: 20, padding: 12, backgroundColor: 'rgba(255,255,255,0.18)', borderRadius: 24 },
   portalInfo: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 8 },
   portalTitle: { fontSize: 15, fontWeight: '700' as const, color: Colors.text, marginBottom: 2 },
   portalDesc: { fontSize: 13, color: Colors.textSecondary, lineHeight: 18 },

@@ -221,11 +221,14 @@ export function buildInvoiceEmailHtml(opts: {
   contactName?: string;
   contactEmail?: string;
   contactPhone?: string;
+  /** Stripe Payment Link URL — when present, a "Pay Securely" CTA button is
+      rendered so the client can pay in one tap from the email itself. */
+  payLinkUrl?: string;
 }): string {
   const {
     companyName, recipientName, projectName, invoiceNumber,
     totalDue, dueDate, paymentTerms, message,
-    contactName, contactEmail, contactPhone,
+    contactName, contactEmail, contactPhone, payLinkUrl,
   } = opts;
 
   return `
@@ -262,6 +265,20 @@ export function buildInvoiceEmailHtml(opts: {
               </table>
             </td></tr>
           </table>
+          ${payLinkUrl ? `
+          <table width="100%" cellpadding="0" cellspacing="0" style="margin:24px 0;">
+            <tr><td align="center">
+              <a href="${payLinkUrl}" target="_blank" style="display:inline-block;background:#10b981;color:#ffffff;text-decoration:none;font-weight:700;font-size:16px;padding:16px 36px;border-radius:10px;box-shadow:0 4px 12px rgba(16,185,129,0.25);">
+                Pay Securely — $${totalDue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </a>
+            </td></tr>
+            <tr><td align="center" style="padding-top:10px;">
+              <p style="margin:0;color:#9ca3af;font-size:11px;">
+                Powered by Stripe · Secure card &amp; bank payment
+              </p>
+            </td></tr>
+          </table>
+          ` : ''}
           <p style="margin:20px 0 0;color:#9ca3af;font-size:12px;line-height:1.5;">
             This invoice was generated using MAGE ID.
             ${contactName ? `<br/>Contact: ${contactName}` : ''}

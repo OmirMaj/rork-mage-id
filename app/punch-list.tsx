@@ -12,6 +12,8 @@ import {
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
+import { useTierAccess } from '@/hooks/useTierAccess';
+import Paywall from '@/components/Paywall';
 import type { PunchItem, PunchItemStatus, PunchItemPriority } from '@/types';
 
 function createId(prefix: string): string {
@@ -32,6 +34,22 @@ const PRIORITY_CONFIG: Record<PunchItemPriority, { label: string; color: string 
 };
 
 export default function PunchListScreen() {
+  const router = useRouter();
+  const { canAccess } = useTierAccess();
+  if (!canAccess('punch_list_closeout')) {
+    return (
+      <Paywall
+        visible={true}
+        feature="Punch List & Closeout"
+        requiredTier="business"
+        onClose={() => router.back()}
+      />
+    );
+  }
+  return <PunchListScreenInner />;
+}
+
+function PunchListScreenInner() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { projectId } = useLocalSearchParams<{ projectId: string }>();

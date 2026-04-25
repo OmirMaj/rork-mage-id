@@ -9,6 +9,8 @@ import * as Haptics from 'expo-haptics';
 import { Save, Plus, Link2, X, CheckCircle2, ChevronDown } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
+import { useTierAccess } from '@/hooks/useTierAccess';
+import Paywall from '@/components/Paywall';
 import type { SubmittalStatus } from '@/types';
 
 const STATUS_COLORS: Record<SubmittalStatus, string> = {
@@ -30,6 +32,22 @@ const STATUS_LABELS: Record<SubmittalStatus, string> = {
 };
 
 export default function SubmittalScreen() {
+  const router = useRouter();
+  const { canAccess } = useTierAccess();
+  if (!canAccess('rfis_submittals')) {
+    return (
+      <Paywall
+        visible={true}
+        feature="RFIs & Submittals"
+        requiredTier="business"
+        onClose={() => router.back()}
+      />
+    );
+  }
+  return <SubmittalScreenInner />;
+}
+
+function SubmittalScreenInner() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { projectId, submittalId } = useLocalSearchParams<{ projectId: string; submittalId?: string }>();

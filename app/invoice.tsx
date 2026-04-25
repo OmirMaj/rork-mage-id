@@ -259,6 +259,9 @@ export default function InvoiceScreen() {
         contactName: branding.contactName,
         contactEmail: branding.email,
         contactPhone: branding.phone,
+        // One-tap pay button in the email body. Closes the friction loop:
+        // client gets invoice → taps "Pay Securely" → on Stripe in 1s.
+        payLinkUrl: existingInvoice?.payLinkUrl,
       });
 
       const result = await sendEmail({
@@ -302,6 +305,7 @@ export default function InvoiceScreen() {
         contactName: branding.contactName,
         contactEmail: branding.email,
         contactPhone: branding.phone,
+        payLinkUrl: existingInvoice.payLinkUrl,
       });
 
       const pdfUri = await generateInvoicePDFUri(existingInvoice, project, branding);

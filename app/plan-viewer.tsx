@@ -30,6 +30,8 @@ import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
+import { useTierAccess } from '@/hooks/useTierAccess';
+import Paywall from '@/components/Paywall';
 import type { DrawingPin, DrawingPinKind } from '@/types';
 import { stampPhotoLocation } from '@/utils/photoGeoStamp';
 
@@ -47,6 +49,22 @@ const PIN_COLORS: Record<DrawingPinKind, string> = {
 };
 
 export default function PlanViewerScreen() {
+  const router = useRouter();
+  const { canAccess } = useTierAccess();
+  if (!canAccess('plan_viewer')) {
+    return (
+      <Paywall
+        visible={true}
+        feature="Plan Viewer"
+        requiredTier="business"
+        onClose={() => router.back()}
+      />
+    );
+  }
+  return <PlanViewerScreenInner />;
+}
+
+function PlanViewerScreenInner() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const params = useLocalSearchParams<{ sheetId?: string }>();

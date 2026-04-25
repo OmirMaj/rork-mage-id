@@ -178,6 +178,25 @@ export default function Paywall({ visible, onClose, feature, requiredTier }: Pay
               <>
                 <Text style={styles.priceBig}>{pricing.monthlyEquivalent}/mo</Text>
                 <Text style={styles.priceSub}>billed {pricing.annualPrice} annually</Text>
+                {(() => {
+                  // Compute the dollar value of annual savings vs paying
+                  // monthly, when we have live pricing. Skipped on the
+                  // fallback strings ("$X.XX/mo") which can't be parsed.
+                  const monthlyCents = parseFloat(pricing.monthlyPrice.replace(/[^0-9.]/g, '')) * 100;
+                  const annualCents = parseFloat(pricing.annualPrice.replace(/[^0-9.]/g, '')) * 100;
+                  if (!Number.isFinite(monthlyCents) || !Number.isFinite(annualCents) || monthlyCents <= 0 || annualCents <= 0) return null;
+                  const yearAtMonthlyCents = monthlyCents * 12;
+                  const savingsCents = yearAtMonthlyCents - annualCents;
+                  if (savingsCents <= 0) return null;
+                  const savings = `$${(savingsCents / 100).toFixed(0)}`;
+                  return (
+                    <View style={styles.savingsRow}>
+                      <Text style={styles.savingsRowText}>
+                        Save <Text style={styles.savingsRowAmount}>{savings}</Text> vs. monthly
+                      </Text>
+                    </View>
+                  );
+                })()}
               </>
             )}
           </View>
@@ -294,6 +313,9 @@ const styles = StyleSheet.create({
   priceBox: { alignItems: 'center', marginBottom: 20 },
   priceBig: { fontSize: 34, fontWeight: '800' as const, color: Colors.text, letterSpacing: -0.8 },
   priceSub: { fontSize: 13, color: Colors.textSecondary, marginTop: 2 },
+  savingsRow: { marginTop: 10, backgroundColor: Colors.successLight, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 5 },
+  savingsRowText: { fontSize: 12, fontWeight: '600' as const, color: Colors.success },
+  savingsRowAmount: { fontWeight: '800' as const, color: Colors.success },
   upgradeBtn: {
     width: '100%',
     flexDirection: 'row',
