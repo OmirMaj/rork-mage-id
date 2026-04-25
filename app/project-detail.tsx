@@ -32,6 +32,7 @@ import SawCutReveal from '@/components/animations/SawCutReveal';
 import HardHatTap from '@/components/animations/HardHatTap';
 import TapeRollNumber from '@/components/animations/TapeRollNumber';
 import BlueprintReveal from '@/components/animations/BlueprintReveal';
+import ConcretePour from '@/components/animations/ConcretePour';
 import { nailIt } from '@/components/animations/NailItToast';
 import { exportProjectIcs } from '@/utils/icsGenerator';
 import { formatMoney } from '@/utils/formatters';
@@ -885,6 +886,13 @@ export default function ProjectDetailScreen() {
               <Archive size={18} color={Colors.warning} />
             </View>
             <Text style={styles.quickActionLabel}>{generatingCloseout ? 'Building…' : 'Closeout'}</Text>
+            {/* Concrete-pour progress bar appears under the button while
+                generation is in flight. Indeterminate-ish — we don't have
+                a real % from the PDF generator, so we show a slow ramp to
+                ~85% and finish on success. */}
+            {generatingCloseout && (
+              <ConcretePour value={0.85} height={3} fillColor={Colors.warning} duration={2400} hideShine={false} style={{ marginTop: 6, width: '100%' }} />
+            )}
           </TouchableOpacity>
         </View>
 

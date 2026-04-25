@@ -15,6 +15,7 @@ import ContactPickerModal from '@/components/ContactPickerModal';
 import { getLivePrices, getRegionMultiplier, CATEGORY_META, type MaterialItem } from '@/constants/materials';
 import { sendEmail, buildChangeOrderEmailHtml } from '@/utils/emailService';
 import AIChangeOrderImpact from '@/components/AIChangeOrderImpact';
+import { nailIt } from '@/components/animations/NailItToast';
 import type { ChangeOrderLineItem, ChangeOrder } from '@/types';
 
 function createId(prefix: string): string {
@@ -257,12 +258,7 @@ export default function ChangeOrderScreen() {
       };
       addChangeOrder(co);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert(
-        status === 'submitted' ? 'Submitted' : 'Saved to Project',
-        status === 'submitted'
-          ? `Change Order #${nextCoNumber} has been submitted for approval${recipientInfo} and saved to the project.`
-          : `Change Order #${nextCoNumber} has been saved to the project. You can view it in the project's Change Orders section.`,
-      );
+      nailIt(status === 'submitted' ? `CO #${nextCoNumber} submitted${recipientInfo}` : `CO #${nextCoNumber} saved`);
     }
 
     router.back();

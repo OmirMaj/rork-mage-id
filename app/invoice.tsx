@@ -23,6 +23,7 @@ import type { PDFSendOptions } from '@/components/PDFPreSendSheet';
 import { sendEmail, buildInvoiceEmailHtml } from '@/utils/emailService';
 import { getEffectiveInvoiceStatus, getDaysPastDue } from '@/utils/projectFinancials';
 import { createPaymentLink } from '@/utils/stripe';
+import { nailIt } from '@/components/animations/NailItToast';
 import type { InvoiceLineItem, Invoice, PaymentTerms, PaymentMethod, InvoicePayment, RetentionRelease } from '@/types';
 
 function createId(prefix: string): string {
@@ -226,12 +227,8 @@ export default function InvoiceScreen() {
       };
       addInvoice(inv);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert(
-        status === 'sent' ? 'Sent' : 'Saved to Project',
-        status === 'sent'
-          ? `Invoice #${nextInvoiceNumber} has been sent${recipientInfo} and saved to the project.`
-          : `Invoice #${nextInvoiceNumber} has been saved to the project. You can view it in the project's Invoices section.`,
-      );
+      // Hammer-strike toast — non-blocking, lets the back nav fire immediately.
+      nailIt(status === 'sent' ? `Invoice #${nextInvoiceNumber} sent${recipientInfo}` : `Invoice #${nextInvoiceNumber} saved`);
     }
     router.back();
   }, [projectId, lineItems, paymentTerms, notes, subtotal, taxRate, taxAmount, totalDue, isProgressType, pctValue, retentionPctValue, retentionAmount, existingInvoice, nextInvoiceNumber, addInvoice, updateInvoice, router]);
