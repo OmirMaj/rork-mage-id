@@ -143,18 +143,18 @@ export default function ProjectDetailScreen() {
   const [coFilter, setCoFilter] = useState<'pending' | 'approved' | 'all'>('pending');
   const toggleGroup = useCallback((key: TileGroupKey) => {
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
-    // Schedule a layout animation BEFORE the state change so React Native
-    // animates the collapse/expand instead of jumping. Also forces the
-    // ScrollView to re-flow immediately, fixing the "huge gap that
-    // disappears when you click another collapsible" bug — the bug was
-    // RN caching the collapsed group's old height until something else
-    // triggered a layout pass.
+    // Animate the collapse/expand. Using scaleXY (not opacity) so the
+    // body view's HEIGHT actually shrinks during collapse — fixes the
+    // "huge gap that only disappears after clicking another collapsible"
+    // bug, which was caused by opacity-only animation leaving the
+    // collapsed body's phantom layout space behind for one frame.
     if (Platform.OS !== 'web') {
-      LayoutAnimation.configureNext(LayoutAnimation.create(
-        180,
-        LayoutAnimation.Types.easeInEaseOut,
-        LayoutAnimation.Properties.opacity,
-      ));
+      LayoutAnimation.configureNext({
+        duration: 220,
+        create: { type: 'easeInEaseOut', property: 'scaleXY' },
+        update: { type: 'easeInEaseOut' },
+        delete: { type: 'easeInEaseOut', property: 'scaleXY' },
+      });
     }
     setCollapsedGroups(prev => {
       const next = new Set(prev);
@@ -3009,17 +3009,17 @@ const styles = StyleSheet.create({
   quickActionIcon: { width: 32, height: 32, borderRadius: 8, alignItems: 'center' as const, justifyContent: 'center' as const },
   quickActionLabel: { fontSize: 14, fontWeight: '600' as const, color: Colors.text, flexShrink: 1 },
   sectionGrid: { paddingHorizontal: 20, marginTop: 18, gap: 8 },
-  // Tighter spacing: collapsed groups now stack snugly so a fully-collapsed
-  // panel doesn't show a wall of empty space. The header itself supplies
-  // enough breathing room via padding; we don't need a fat outer gap too.
-  sectionGroups: { paddingHorizontal: 20, marginTop: 14, gap: 4 },
+  // Tight, predictable spacing: collapsed groups stack snugly. The body
+  // has no marginBottom — separation between groups comes ONLY from
+  // sectionGroups.gap, so collapsing a group never leaves phantom space.
+  sectionGroups: { paddingHorizontal: 20, marginTop: 14, gap: 6 },
   tileGroup: { gap: 6 },
   tileGroupHeader: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, paddingHorizontal: 4, paddingVertical: 6, minHeight: 40 },
   tileGroupHeaderIcon: { width: 28, height: 28, borderRadius: 8, alignItems: 'center' as const, justifyContent: 'center' as const },
   tileGroupHeaderLabel: { flex: 1, fontSize: 13, fontWeight: '700' as const, color: Colors.textSecondary, letterSpacing: 0.6, textTransform: 'uppercase' as const },
   tileGroupBadge: { backgroundColor: Colors.fillSecondary, borderRadius: 9, paddingHorizontal: 7, paddingVertical: 1, minWidth: 22, alignItems: 'center' as const },
   tileGroupBadgeText: { fontSize: 11, fontWeight: '700' as const, color: Colors.textSecondary },
-  tileGroupBody: { gap: 8, marginBottom: 6 },
+  tileGroupBody: { gap: 8 },
   sectionTile: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 12, backgroundColor: Colors.card, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, borderWidth: 1, borderColor: Colors.cardBorder, minHeight: 56 },
   sectionTileIcon: { width: 36, height: 36, borderRadius: 10, alignItems: 'center' as const, justifyContent: 'center' as const },
   sectionTileLabel: { flex: 1, fontSize: 15, fontWeight: '600' as const, color: Colors.text },

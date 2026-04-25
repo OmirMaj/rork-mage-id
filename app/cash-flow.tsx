@@ -16,6 +16,8 @@ import ConstructionLoader from '@/components/ConstructionLoader';
 import { useProjects } from '@/contexts/ProjectContext';
 import CashFlowChart from '@/components/CashFlowChart';
 import CashFlowSetup from '@/components/CashFlowSetup';
+import TapeRollNumber from '@/components/animations/TapeRollNumber';
+import ConcretePour from '@/components/animations/ConcretePour';
 import {
   generateForecast, calculateSummary, formatCurrency, formatCurrencyShort,
   getEffectiveStartingBalance,
@@ -219,6 +221,19 @@ function CashFlowScreenInner() {
   }, [cashFlowData, effectiveStartingBalance, relevantInvoices, relevantChangeOrders, forecastWeeks]);
 
   const summary = useMemo<CashFlowSummary>(() => calculateSummary(forecast), [forecast]);
+
+  // Derive a one-glance health status from the forecast. Used by the hero
+  // pill so a contractor can see "Healthy / Watch / Danger" without having
+  // to scan numbers. Three buckets:
+  //   • Danger   — balance goes negative at any point in the horizon
+  //   • Watch    — net profit < 0 over horizon, but balance stays positive
+  //   • Healthy  — net profit >= 0 and balance stays positive
+  const healthStatus = useMemo(() => {
+    if (forecast.length === 0) return { kind: 'neutral' as const, label: 'Setup', color: Colors.textSecondary, bg: 'rgba(255,255,255,0.18)' };
+    if (summary.lowestBalance < 0) return { kind: 'danger' as const, label: 'Danger', color: '#FFE0E0', bg: 'rgba(255,90,90,0.35)' };
+    if (summary.netProfit < 0) return { kind: 'watch' as const, label: 'Watch', color: '#FFEBC2', bg: 'rgba(255,180,60,0.35)' };
+    return { kind: 'healthy' as const, label: 'Healthy', color: '#D6FFE3', bg: 'rgba(80,220,140,0.35)' };
+  }, [forecast.length, summary.lowestBalance, summary.netProfit]);
 
   // Aggregate "Total Pending" across every source of expected money that hasn't landed:
   //   - unpaid invoice balances (totalDue - amountPaid)
@@ -449,23 +464,60 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.heroCard}>
+          {/* Decorative gradient layers — three semi-transparent circles
+              positioned to give the hero a rich, premium gradient feel
+              without depending on a linear-gradient native module. */}
+          <View pointerEvents="none" style={styles.heroGlowA} />
+          <View pointerEvents="none" style={styles.heroGlowB} />
+
           <View style={styles.heroRow}>
             <View style={styles.heroLeft}>
-              <Text style={styles.heroLabel}>
-                Current Balance
-                {effectiveStartingBalance !== (cashFlowData?.startingBalance ?? 0) ? ' (auto-updated)' : ''}
-              </Text>
+              <View style={styles.heroLabelRow}>
+                <Wallet size={12} color="rgba(255,255,255,0.85)" />
+                <Text style={styles.heroLabel}>
+                  Current Balance
+                  {effectiveStartingBalance !== (cashFlowData?.startingBalance ?? 0) ? ' · auto' : ''}
+                </Text>
+              </View>
               <TouchableOpacity
                 onPress={() => {
                   setEditBalanceValue(cashFlowData?.startingBalance?.toString() ?? '0');
                   setShowEditBalance(true);
                 }}
-                activeOpacity={0.7}
+                activeOpacity={0.75}
+                testID="hero-balance-tap"
               >
-                <Text style={styles.heroAmount}>
-                  {formatCurrency(effectiveStartingBalance)}
-                </Text>
+                {/* Animated number ticker — counts from prior value to
+                    current on mount and on changes. Big, premium feel. */}
+                <TapeRollNumber
+                  value={effectiveStartingBalance}
+                  prefix="$"
+                  decimals={0}
+                  duration={650}
+                  style={styles.heroAmount}
+                />
               </TouchableOpacity>
+              {/* Status pill + projected end-of-horizon delta */}
+              <View style={styles.heroSubRow}>
+                <View style={[styles.heroStatusPill, { backgroundColor: healthStatus.bg }]}>
+                  {healthStatus.kind === 'healthy' && <CheckCircle size={11} color={healthStatus.color} />}
+                  {healthStatus.kind === 'watch' && <AlertTriangle size={11} color={healthStatus.color} />}
+                  {healthStatus.kind === 'danger' && <AlertTriangle size={11} color={healthStatus.color} />}
+                  <Text style={[styles.heroStatusText, { color: healthStatus.color }]}>{healthStatus.label}</Text>
+                </View>
+                {forecast.length > 0 && (
+                  <View style={styles.heroDelta}>
+                    {summary.netProfit >= 0 ? (
+                      <TrendingUp size={11} color="#D6FFE3" />
+                    ) : (
+                      <TrendingDown size={11} color="#FFE0E0" />
+                    )}
+                    <Text style={[styles.heroDeltaText, { color: summary.netProfit >= 0 ? '#D6FFE3' : '#FFE0E0' }]}>
+                      {summary.netProfit >= 0 ? '+' : ''}{formatCurrencyShort(summary.netProfit)} · {forecastWeeks}w
+                    </Text>
+                  </View>
+                )}
+              </View>
             </View>
             <TouchableOpacity
               style={styles.editBalanceBtn}
@@ -473,10 +525,9 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
                 setEditBalanceValue(cashFlowData?.startingBalance?.toString() ?? '0');
                 setShowEditBalance(true);
               }}
-              activeOpacity={0.7}
+              activeOpacity={0.75}
             >
-              <Edit3 size={14} color={Colors.primary} />
-              <Text style={styles.editBalanceBtnText}>Edit</Text>
+              <Edit3 size={14} color="#FFFFFF" />
             </TouchableOpacity>
           </View>
 
@@ -627,21 +678,51 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>SUMMARY ({forecastWeeks} WEEKS)</Text>
           <View style={styles.summaryGrid}>
-            <View style={styles.summaryItem}>
+            <View style={[styles.summaryItem, { borderLeftColor: Colors.success, borderLeftWidth: 3 }]}>
+              <View style={styles.summaryIconWrap}>
+                <View style={[styles.summaryIcon, { backgroundColor: Colors.success + '15' }]}>
+                  <TrendingUp size={14} color={Colors.success} />
+                </View>
+              </View>
               <Text style={styles.summaryItemLabel}>Total Income</Text>
               <Text style={[styles.summaryItemValue, { color: Colors.success }]}>{formatCurrencyShort(summary.totalIncome)}</Text>
             </View>
-            <View style={styles.summaryItem}>
+            <View style={[styles.summaryItem, { borderLeftColor: Colors.error, borderLeftWidth: 3 }]}>
+              <View style={styles.summaryIconWrap}>
+                <View style={[styles.summaryIcon, { backgroundColor: Colors.error + '15' }]}>
+                  <TrendingDown size={14} color={Colors.error} />
+                </View>
+              </View>
               <Text style={styles.summaryItemLabel}>Total Expenses</Text>
               <Text style={[styles.summaryItemValue, { color: Colors.error }]}>{formatCurrencyShort(summary.totalExpenses)}</Text>
             </View>
-            <View style={styles.summaryItem}>
+            <View style={[styles.summaryItem, { borderLeftColor: summary.netProfit >= 0 ? Colors.success : Colors.error, borderLeftWidth: 3 }]}>
+              <View style={styles.summaryIconWrap}>
+                <View style={[styles.summaryIcon, { backgroundColor: (summary.netProfit >= 0 ? Colors.success : Colors.error) + '15' }]}>
+                  <DollarSign size={14} color={summary.netProfit >= 0 ? Colors.success : Colors.error} />
+                </View>
+              </View>
               <Text style={styles.summaryItemLabel}>Net Profit</Text>
               <Text style={[styles.summaryItemValue, { color: summary.netProfit >= 0 ? Colors.success : Colors.error }]}>
                 {formatCurrencyShort(summary.netProfit)}
               </Text>
+              {/* Tiny progress bar showing income coverage of expenses */}
+              {summary.totalIncome > 0 && (
+                <ConcretePour
+                  value={Math.min(1, summary.totalIncome / Math.max(summary.totalExpenses, 1))}
+                  height={3}
+                  fillColor={summary.netProfit >= 0 ? Colors.success : Colors.error}
+                  duration={1200}
+                  style={{ marginTop: 6 }}
+                />
+              )}
             </View>
-            <View style={styles.summaryItem}>
+            <View style={[styles.summaryItem, { borderLeftColor: summary.lowestBalance < 0 ? Colors.error : Colors.info, borderLeftWidth: 3 }]}>
+              <View style={styles.summaryIconWrap}>
+                <View style={[styles.summaryIcon, { backgroundColor: (summary.lowestBalance < 0 ? Colors.error : Colors.info) + '15' }]}>
+                  <Wallet size={14} color={summary.lowestBalance < 0 ? Colors.error : Colors.info} />
+                </View>
+              </View>
               <Text style={styles.summaryItemLabel}>Lowest Balance</Text>
               <Text style={[styles.summaryItemValue, { color: summary.lowestBalance < 0 ? Colors.error : Colors.text }]}>
                 {formatCurrencyShort(summary.lowestBalance)}
@@ -966,12 +1047,34 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   center: { alignItems: 'center', justifyContent: 'center' },
-  heroCard: { marginHorizontal: 16, marginTop: 16, backgroundColor: Colors.primary, borderRadius: 20, padding: 20, gap: 16 },
-  heroRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  heroLeft: { gap: 4 },
-  heroLabel: { fontSize: 13, fontWeight: '600' as const, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' as const, letterSpacing: 0.5 },
-  heroAmount: { fontSize: 32, fontWeight: '800' as const, color: '#FFFFFF', letterSpacing: -1 },
-  editBalanceBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
+  heroCard: {
+    marginHorizontal: 16,
+    marginTop: 16,
+    backgroundColor: Colors.primary,
+    borderRadius: 24,
+    padding: 22,
+    gap: 18,
+    overflow: 'hidden' as const,
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 18,
+    elevation: 6,
+  },
+  // Soft gradient orbs to give the hero depth without a gradient lib.
+  heroGlowA: { position: 'absolute' as const, top: -60, right: -60, width: 220, height: 220, borderRadius: 110, backgroundColor: 'rgba(255,255,255,0.12)' },
+  heroGlowB: { position: 'absolute' as const, bottom: -80, left: -40, width: 220, height: 220, borderRadius: 110, backgroundColor: 'rgba(0,0,0,0.10)' },
+  heroRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', zIndex: 1 },
+  heroLeft: { gap: 6, flex: 1 },
+  heroLabelRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6 },
+  heroLabel: { fontSize: 11, fontWeight: '700' as const, color: 'rgba(255,255,255,0.85)', textTransform: 'uppercase' as const, letterSpacing: 1 },
+  heroAmount: { fontSize: 38, fontWeight: '800' as const, color: '#FFFFFF', letterSpacing: -1.2 },
+  heroSubRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, marginTop: 4 },
+  heroStatusPill: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
+  heroStatusText: { fontSize: 11, fontWeight: '700' as const, letterSpacing: 0.3 },
+  heroDelta: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.15)' },
+  heroDeltaText: { fontSize: 11, fontWeight: '700' as const, letterSpacing: 0.2 },
+  editBalanceBtn: { width: 32, height: 32, borderRadius: 16, alignItems: 'center' as const, justifyContent: 'center' as const, backgroundColor: 'rgba(255,255,255,0.2)' },
   editBalanceBtnText: { fontSize: 13, fontWeight: '600' as const, color: '#FFFFFF' },
   forecastSelector: { flexDirection: 'row', flexWrap: 'wrap' as const, gap: 6 },
   forecastChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.15)' },
@@ -1008,17 +1111,19 @@ const styles = StyleSheet.create({
   emptyListText: { fontSize: 13, color: Colors.textMuted, textAlign: 'center', paddingVertical: 12 },
   addItemBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, marginTop: 4 },
   addItemText: { fontSize: 14, fontWeight: '600' as const, color: Colors.primary },
-  dangerCard: { backgroundColor: Colors.errorLight, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: Colors.error + '30', gap: 10 },
+  dangerCard: { backgroundColor: Colors.errorLight, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: Colors.error + '40', gap: 10, shadowColor: Colors.error, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.12, shadowRadius: 12, elevation: 2 },
   dangerHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  dangerTitle: { fontSize: 15, fontWeight: '700' as const, color: Colors.error },
-  dangerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingLeft: 26 },
-  dangerDate: { fontSize: 13, color: Colors.textSecondary },
-  dangerBalance: { fontSize: 14, fontWeight: '700' as const, color: Colors.error },
+  dangerTitle: { fontSize: 15, fontWeight: '800' as const, color: Colors.error, letterSpacing: 0.2 },
+  dangerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingLeft: 26, paddingVertical: 4, borderTopWidth: 1, borderTopColor: Colors.error + '15' },
+  dangerDate: { fontSize: 13, color: Colors.textSecondary, fontWeight: '500' as const },
+  dangerBalance: { fontSize: 14, fontWeight: '800' as const, color: Colors.error, letterSpacing: -0.3 },
   summaryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  summaryItem: { flex: 1, minWidth: '45%' as any, backgroundColor: Colors.surface, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: Colors.cardBorder, gap: 4 },
-  summaryItemLabel: { fontSize: 12, color: Colors.textMuted, fontWeight: '500' as const },
-  summaryItemValue: { fontSize: 18, fontWeight: '800' as const, color: Colors.text },
-  summaryItemSub: { fontSize: 11, color: Colors.textMuted },
+  summaryItem: { flex: 1, minWidth: '45%' as any, backgroundColor: Colors.surface, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: Colors.cardBorder, gap: 6 },
+  summaryIconWrap: { flexDirection: 'row' as const, justifyContent: 'flex-end' as const, marginBottom: -8 },
+  summaryIcon: { width: 28, height: 28, borderRadius: 8, alignItems: 'center' as const, justifyContent: 'center' as const },
+  summaryItemLabel: { fontSize: 11, color: Colors.textMuted, fontWeight: '600' as const, letterSpacing: 0.3, textTransform: 'uppercase' as const },
+  summaryItemValue: { fontSize: 22, fontWeight: '800' as const, color: Colors.text, letterSpacing: -0.5 },
+  summaryItemSub: { fontSize: 11, color: Colors.textMuted, fontWeight: '500' as const },
   weekDetailCard: { backgroundColor: Colors.surface, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: Colors.cardBorder },
   weekDetailRow: { flexDirection: 'row', gap: 8 },
   weekDetailItem: { flex: 1, alignItems: 'center', backgroundColor: Colors.surfaceAlt, borderRadius: 10, padding: 10, gap: 4 },
