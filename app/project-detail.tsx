@@ -1776,30 +1776,68 @@ export default function ProjectDetailScreen() {
               {dailyReports.length === 0 && (
                 <Text style={styles.coEmptyText}>No daily reports yet.</Text>
               )}
-              {dailyReports.map(dr => (
-                <TouchableOpacity
-                  key={dr.id}
-                  style={styles.coRow}
-                  onPress={() => navigateFromTile({ pathname: '/daily-report' as any, params: { projectId: id, reportId: dr.id } })}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.coInfo}>
-                    <Text style={styles.coNumber}>{new Date(dr.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</Text>
-                    <Text style={styles.coDesc} numberOfLines={1}>
-                      {dr.weather.conditions || 'No weather'} · {dr.manpower.reduce((s, m) => s + m.headcount, 0)} workers · {dr.photos.length} photos
-                    </Text>
+              {dailyReports.length > 0 && (() => {
+                // Group DFRs by ISO week. Week label is "Week of Mon Apr 7"
+                // — same as how site superintendents talk about the calendar.
+                // Newest week first; within a week, newest day first. Keeps
+                // the most-recent entries on top without forcing the user to
+                // scroll to find what they wrote yesterday.
+                const buckets = new Map<string, { label: string; weekStart: number; reports: typeof dailyReports }>();
+                for (const dr of dailyReports) {
+                  const d = new Date(dr.date);
+                  // Find Monday of that week (locale-agnostic: shift back by
+                  // dayOfWeek - 1, treating Sunday=0 as 7 so Sun belongs to
+                  // the prior week's Monday).
+                  const day = d.getDay() === 0 ? 7 : d.getDay();
+                  const monday = new Date(d);
+                  monday.setDate(d.getDate() - (day - 1));
+                  monday.setHours(0, 0, 0, 0);
+                  const key = monday.toISOString().slice(0, 10);
+                  const label = `Week of ${monday.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+                  if (!buckets.has(key)) {
+                    buckets.set(key, { label, weekStart: monday.getTime(), reports: [] });
+                  }
+                  buckets.get(key)!.reports.push(dr);
+                }
+                const orderedWeeks = Array.from(buckets.values()).sort((a, b) => b.weekStart - a.weekStart);
+                return orderedWeeks.map(week => (
+                  <View key={week.weekStart} style={styles.dfrWeekBucket}>
+                    <View style={styles.dfrWeekHeader}>
+                      <Text style={styles.dfrWeekLabel}>{week.label}</Text>
+                      <View style={styles.dfrWeekBadge}>
+                        <Text style={styles.dfrWeekBadgeText}>{week.reports.length}</Text>
+                      </View>
+                    </View>
+                    {week.reports
+                      .slice()
+                      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                      .map(dr => (
+                      <TouchableOpacity
+                        key={dr.id}
+                        style={styles.coRow}
+                        onPress={() => navigateFromTile({ pathname: '/daily-report' as any, params: { projectId: id, reportId: dr.id } })}
+                        activeOpacity={0.7}
+                      >
+                        <View style={styles.coInfo}>
+                          <Text style={styles.coNumber}>{new Date(dr.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</Text>
+                          <Text style={styles.coDesc} numberOfLines={1}>
+                            {dr.weather.conditions || 'No weather'} · {dr.manpower.reduce((s, m) => s + m.headcount, 0)} workers · {dr.photos.length} photos
+                          </Text>
+                        </View>
+                        <View style={[styles.coBadge, {
+                          backgroundColor: dr.status === 'sent' ? Colors.successLight : Colors.primary + '15'
+                        }]}>
+                          <Text style={[styles.coBadgeText, {
+                            color: dr.status === 'sent' ? Colors.success : Colors.primary
+                          }]}>
+                            {dr.status === 'sent' ? 'Sent' : 'Saved'}
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
+                    ))}
                   </View>
-                  <View style={[styles.coBadge, {
-                    backgroundColor: dr.status === 'sent' ? Colors.successLight : Colors.primary + '15'
-                  }]}>
-                    <Text style={[styles.coBadgeText, {
-                      color: dr.status === 'sent' ? Colors.success : Colors.primary
-                    }]}>
-                      {dr.status === 'sent' ? 'Sent' : 'Saved'}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-              ))}
+                ));
+              })()}
               <TouchableOpacity
                 style={styles.coAddBtn}
                 onPress={() => navigateFromTile({ pathname: '/daily-report' as any, params: { projectId: id } })}
@@ -2900,6 +2938,11 @@ const styles = StyleSheet.create({
   punchProgressFill: { height: 6, backgroundColor: Colors.primary, borderRadius: 3 },
   punchDot: { width: 8, height: 8, borderRadius: 4, marginTop: 6 },
   punchMoreText: { fontSize: 12, color: Colors.textMuted, fontStyle: 'italic' as const, paddingVertical: 4 },
+  dfrWeekBucket: { marginBottom: 8 },
+  dfrWeekHeader: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, paddingHorizontal: 4, paddingVertical: 6 },
+  dfrWeekLabel: { flex: 1, fontSize: 11, fontWeight: '700' as const, color: Colors.textSecondary, letterSpacing: 0.6, textTransform: 'uppercase' as const },
+  dfrWeekBadge: { backgroundColor: Colors.fillSecondary, borderRadius: 8, paddingHorizontal: 7, paddingVertical: 1, minWidth: 20, alignItems: 'center' as const },
+  dfrWeekBadgeText: { fontSize: 10, fontWeight: '700' as const, color: Colors.textSecondary },
   photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
   photoThumb: { width: 72, height: 72, borderRadius: 10, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center', gap: 4, overflow: 'hidden' as const, position: 'relative' as const },
   photoThumbImage: { width: '100%', height: '100%' },
