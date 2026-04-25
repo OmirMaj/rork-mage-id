@@ -2,13 +2,16 @@
 //
 // MAGE treats drawings as IMAGES, not native PDFs. The reason is pragmatic:
 // every cross-platform PDF renderer in RN has its own brittle native deps
-// and weird edge cases on Android/web. An image pipeline (export PDF page to
-// PNG/JPG upstream, pinch-zoom + markup here) is 90% of what field crews
-// actually need, works identically on iOS/Android/web, and ships today.
+// and weird edge cases on Android/web. An image pipeline (PDF → PNG via the
+// `convert-pdf-to-images` Supabase edge function, pinch-zoom + markup here)
+// works identically on iOS / Android / web, ships today, and lets us render
+// 200-page hospital plan sets without melting phones.
 //
-// Each PlanSheet is one sheet — for a multi-page PDF, upload once per page.
-// The sheet list is the landing surface; tapping a card opens plan-viewer
-// where you drop pins, annotate, link photos, and link punch items.
+// Two import paths:
+//   • "Import PDF"   — picks a multi-page PDF, uploads it, converts each
+//                       page to a plan sheet automatically (one tap = N sheets).
+//   • "Import image" — picks a single PNG/JPG (existing flow). Useful for
+//                       photos of paper drawings or markup screenshots.
 
 import React, { useCallback, useState } from 'react';
 import {
@@ -18,13 +21,20 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
+// expo-document-picker provides the native PDF picker. Pinned in package.json
+// at ~14.0.7 (matches Expo SDK 54). Run `bun install` after pulling this for
+// the first time so the native module is linked.
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore — types resolve after `bun install`
+import * as DocumentPicker from 'expo-document-picker';
 import {
   ChevronLeft, Plus, MapPin, Trash2, Image as ImageIcon,
-  ChevronRight, AlertTriangle, FileImage, X, Check,
+  ChevronRight, AlertTriangle, FileImage, X, Check, FileText,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
+import { uploadAndRenderPdf } from '@/utils/pdfRenderClient';
 import type { PlanSheet } from '@/types';
 
 export default function PlansScreen() {
@@ -39,6 +49,8 @@ export default function PlansScreen() {
   } = useProjects();
 
   const [importing, setImporting] = useState<boolean>(false);
+  const [pdfImporting, setPdfImporting] = useState<boolean>(false);
+  const [pdfStatus, setPdfStatus] = useState<string>('');
   const [newSheet, setNewSheet] = useState<{ uri: string; name: string; sheetNumber: string; width?: number; height?: number } | null>(null);
 
   const project = projectId ? getProject(projectId) : null;
@@ -71,6 +83,63 @@ export default function PlansScreen() {
       setImporting(false);
     }
   }, [sheets.length]);
+
+  const handleImportPdf = useCallback(async () => {
+    if (!projectId) return;
+    try {
+      const picked = await DocumentPicker.getDocumentAsync({
+        type: 'application/pdf',
+        copyToCacheDirectory: true,
+        multiple: false,
+      });
+      if (picked.canceled || !picked.assets?.[0]) return;
+      const asset = picked.assets[0];
+
+      // Sanity cap on the client too — the edge function caps at 50 pages
+      // server-side, but stopping a 500 MB upload before it leaves the device
+      // saves the user a long progress bar that ends in failure.
+      if (asset.size && asset.size > 500 * 1024 * 1024) {
+        Alert.alert('PDF too large', 'Plan PDFs must be under 500 MB. Try splitting it by discipline.');
+        return;
+      }
+
+      setPdfImporting(true);
+      setPdfStatus('Uploading PDF\u2026');
+
+      const pages = await uploadAndRenderPdf({
+        fileUri: asset.uri,
+        fileName: asset.name,
+        projectId,
+      });
+
+      setPdfStatus(`Saving ${pages.length} sheet${pages.length === 1 ? '' : 's'}\u2026`);
+
+      const baseName = asset.name?.replace(/\.[^/.]+$/, '') ?? 'Plan set';
+      pages.forEach((p) => {
+        addPlanSheet({
+          projectId,
+          name: pages.length === 1 ? baseName : `${baseName} \u2014 Page ${p.pageNumber}`,
+          sheetNumber: undefined,
+          imageUri: p.publicUrl,
+          width: p.width,
+          height: p.height,
+          pageNumber: p.pageNumber,
+        });
+      });
+
+      setPdfStatus('');
+      Alert.alert(
+        'PDF imported',
+        `${pages.length} sheet${pages.length === 1 ? '' : 's'} added. Open one to start dropping pins.`,
+      );
+    } catch (err) {
+      const msg = (err as Error).message || 'Could not import that PDF.';
+      Alert.alert('Import failed', msg);
+    } finally {
+      setPdfImporting(false);
+      setPdfStatus('');
+    }
+  }, [projectId, addPlanSheet]);
 
   const confirmImport = useCallback(() => {
     if (!newSheet || !newSheet.name.trim() || !projectId) {
@@ -118,24 +187,41 @@ export default function PlansScreen() {
           <Text style={styles.headerEyebrow}>{project.name}</Text>
           <Text style={styles.headerTitle}>Plans</Text>
         </View>
-        <TouchableOpacity onPress={handleImport} style={styles.primaryBtn} disabled={importing}>
+        <TouchableOpacity onPress={handleImportPdf} style={styles.ghostBtn} disabled={pdfImporting || importing}>
+          {pdfImporting ? <ActivityIndicator size="small" color={Colors.text} /> : <FileText size={15} color={Colors.text} />}
+          <Text style={styles.ghostBtnText}>{pdfImporting ? 'Working' : 'PDF'}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={handleImport} style={styles.primaryBtn} disabled={importing || pdfImporting}>
           {importing ? <ActivityIndicator size="small" color={Colors.textOnPrimary} /> : <Plus size={16} color={Colors.textOnPrimary} />}
-          <Text style={styles.primaryBtnText}>{importing ? 'Opening' : 'Import'}</Text>
+          <Text style={styles.primaryBtnText}>{importing ? 'Opening' : 'Image'}</Text>
         </TouchableOpacity>
       </View>
+
+      {pdfImporting && pdfStatus ? (
+        <View style={styles.statusBar}>
+          <ActivityIndicator size="small" color={Colors.primary} />
+          <Text style={styles.statusBarText}>{pdfStatus}</Text>
+        </View>
+      ) : null}
 
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
         {sheets.length === 0 ? (
           <View style={styles.emptyCard}>
             <FileImage size={28} color={Colors.textMuted} />
             <Text style={styles.emptyTitle}>No plan sheets yet</Text>
-            <Text style={styles.emptyText}>Import an image of a drawing sheet (PNG or JPG) to start dropping pins and marking up issues on the plan.</Text>
-            <TouchableOpacity onPress={handleImport} style={[styles.primaryBtn, { marginTop: 14 }]} disabled={importing}>
-              {importing ? <ActivityIndicator size="small" color={Colors.textOnPrimary} /> : <Plus size={16} color={Colors.textOnPrimary} />}
-              <Text style={styles.primaryBtnText}>Import first sheet</Text>
-            </TouchableOpacity>
+            <Text style={styles.emptyText}>Import a multi-page PDF and we'll convert each sheet automatically, or pick a single image (PNG/JPG).</Text>
+            <View style={styles.emptyBtnRow}>
+              <TouchableOpacity onPress={handleImportPdf} style={[styles.primaryBtn]} disabled={pdfImporting || importing}>
+                {pdfImporting ? <ActivityIndicator size="small" color={Colors.textOnPrimary} /> : <FileText size={16} color={Colors.textOnPrimary} />}
+                <Text style={styles.primaryBtnText}>{pdfImporting ? 'Working' : 'Import PDF'}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleImport} style={[styles.ghostBtn]} disabled={importing || pdfImporting}>
+                {importing ? <ActivityIndicator size="small" color={Colors.text} /> : <ImageIcon size={15} color={Colors.text} />}
+                <Text style={styles.ghostBtnText}>{importing ? 'Opening' : 'Import image'}</Text>
+              </TouchableOpacity>
+            </View>
             <Text style={styles.helperText}>
-              Tip: export your PDF drawings to images first. Any PDF-to-PNG tool works; one image per sheet.
+              PDFs are rendered server-side at 144 DPI \u2014 high enough to read sheet titles on a phone, light enough to scroll without lag. Up to 50 pages per upload.
             </Text>
           </View>
         ) : (
@@ -300,6 +386,21 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 10,
   },
   primaryBtnText: { color: Colors.textOnPrimary, fontSize: 13, fontWeight: '700' },
+
+  ghostBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: Colors.surfaceAlt, paddingHorizontal: 12, paddingVertical: 9, borderRadius: 10,
+    borderColor: Colors.borderLight, borderWidth: 1,
+  },
+  ghostBtnText: { color: Colors.text, fontSize: 13, fontWeight: '600' },
+
+  emptyBtnRow: { flexDirection: 'row', gap: 8, marginTop: 14 },
+  statusBar: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingHorizontal: 14, paddingVertical: 9,
+    backgroundColor: Colors.surfaceAlt, borderBottomColor: Colors.borderLight, borderBottomWidth: 1,
+  },
+  statusBarText: { color: Colors.text, fontSize: 12, fontWeight: '600' },
 
   sheetCard: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
