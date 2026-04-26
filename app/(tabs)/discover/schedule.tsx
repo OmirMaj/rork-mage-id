@@ -8,7 +8,7 @@ import { useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
   Sparkles, CalendarDays, ChevronRight, FileText, X,
-  CheckCircle2, Clock,
+  CheckCircle2, Clock, Plus, Folder, FolderPlus,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
@@ -32,6 +32,11 @@ export default function DiscoverScheduleTool() {
   const [showProjectPicker, setShowProjectPicker] = useState(false);
   const [pendingAction, setPendingAction] = useState<'ai' | 'template' | null>(null);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
+  // Action-sheet state for the "tap a template" flow. Replaces the
+  // 3-button Alert.alert which silently no-ops on React Native Web.
+  // When set, we render a custom Modal asking "New Project" vs
+  // "Existing Project" vs "Cancel".
+  const [templateActionFor, setTemplateActionFor] = useState<ScheduleTemplate | null>(null);
 
   const projectsWithSchedules = projects.filter(p => p.schedule && p.schedule.tasks.length > 0);
 
@@ -273,6 +278,34 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
     );
   }, [addProject, updateProject, router]);
 
+  /**
+   * Create a brand-new project with an EMPTY schedule (no tasks). The
+   * user fills it in from scratch on the schedule editor screen. Useful
+   * when none of the templates fit and the AI generator's output is
+   * over-engineered for a small job.
+   */
+  const handleStartFromScratch = useCallback(() => {
+    const now = new Date().toISOString();
+    const newProject: Project = {
+      id: createId('project'),
+      name: 'New Schedule',
+      type: 'renovation',
+      location: 'United States',
+      squareFootage: 0,
+      quality: 'standard',
+      description: 'Schedule built from scratch',
+      createdAt: now,
+      updatedAt: now,
+      estimate: null,
+      status: 'draft',
+    };
+    const schedule = buildScheduleFromTasks('New Schedule', newProject.id, []);
+    newProject.schedule = { ...schedule, projectId: newProject.id, updatedAt: now };
+    addProject(newProject);
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    router.replace('/(tabs)/schedule' as any);
+  }, [addProject, router]);
+
   const handleProjectSelected = useCallback((project: Project) => {
     setShowProjectPicker(false);
     if (pendingAction === 'ai') {
@@ -365,33 +398,36 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
             <View style={s.dividerLine} />
           </View>
 
-          <Text style={s.sectionTitle}>Start from Template</Text>
+          <Text style={s.sectionTitle}>Start from Scratch</Text>
+          <TouchableOpacity
+            style={s.scratchCard}
+            onPress={handleStartFromScratch}
+            activeOpacity={0.7}
+            testID="discover-schedule-scratch"
+          >
+            <View style={[s.templateIconWrap, { backgroundColor: Colors.warning + '15' }]}>
+              <Plus size={22} color={Colors.warning} strokeWidth={2.2} />
+            </View>
+            <View style={s.templateInfo}>
+              <Text style={s.templateName}>Blank schedule</Text>
+              <Text style={s.templateMeta}>Build it your way — start with no tasks and add them one by one.</Text>
+            </View>
+            <ChevronRight size={18} color={Colors.textMuted} />
+          </TouchableOpacity>
+
+          <Text style={[s.sectionTitle, { marginTop: 24 }]}>Start from Template</Text>
           {SCHEDULE_TEMPLATES.map(template => (
             <TouchableOpacity
               key={template.id}
               style={s.templateCard}
               onPress={() => {
-                Alert.alert(
-                  template.name,
-                  `${template.tasks.length} tasks. Create as new project or add to existing?`,
-                  [
-                    { text: 'Cancel', style: 'cancel' },
-                    {
-                      text: 'New Project',
-                      onPress: () => handleTemplateSelect(template, null),
-                    },
-                    ...(projects.length > 0 ? [{
-                      text: 'Existing Project',
-                      onPress: () => {
-                        setPendingAction('template');
-                        setSelectedTemplateId(template.id);
-                        setShowProjectPicker(true);
-                      },
-                    }] : []),
-                  ]
-                );
+                // Web-safe: Alert.alert with 3+ buttons no-ops on React
+                // Native Web. Show a custom in-app Modal action sheet
+                // instead — works identically on iOS / Android / web.
+                setTemplateActionFor(template);
               }}
               activeOpacity={0.7}
+              testID={`schedule-template-${template.id}`}
             >
               <View style={s.templateIconWrap}>
                 <FileText size={20} color={Colors.primary} />
@@ -465,6 +501,87 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                 </TouchableOpacity>
               ))}
             </ScrollView>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Template action sheet — replaces the broken Alert.alert. Renders
+          when a user taps a template card. Three actions:
+            • New Project — create a fresh project with this template
+            • Existing Project — pick an existing project to merge into
+              (only shown if there ARE existing projects)
+            • Cancel
+          Works identically on iOS / Android / web. */}
+      <Modal
+        visible={templateActionFor !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setTemplateActionFor(null)}
+      >
+        <Pressable style={s.modalOverlay} onPress={() => setTemplateActionFor(null)}>
+          <Pressable style={s.actionSheet} onPress={() => undefined}>
+            <View style={s.actionSheetHandle} />
+            <Text style={s.actionSheetTitle}>{templateActionFor?.name ?? ''}</Text>
+            <Text style={s.actionSheetSub}>
+              {templateActionFor
+                ? `${templateActionFor.tasks.length} tasks · ${templateActionFor.tasks.filter(t => t.isMilestone).length} milestones`
+                : ''}
+            </Text>
+
+            <TouchableOpacity
+              style={s.actionRow}
+              onPress={() => {
+                const t = templateActionFor;
+                setTemplateActionFor(null);
+                if (t) handleTemplateSelect(t, null);
+              }}
+              activeOpacity={0.7}
+              testID="template-action-new"
+            >
+              <View style={[s.actionIcon, { backgroundColor: Colors.primary + '15' }]}>
+                <FolderPlus size={20} color={Colors.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={s.actionTitle}>Create as new project</Text>
+                <Text style={s.actionSub}>Spin up a fresh project named after this template</Text>
+              </View>
+              <ChevronRight size={18} color={Colors.textMuted} />
+            </TouchableOpacity>
+
+            {projects.length > 0 && (
+              <TouchableOpacity
+                style={s.actionRow}
+                onPress={() => {
+                  const t = templateActionFor;
+                  setTemplateActionFor(null);
+                  if (t) {
+                    setPendingAction('template');
+                    setSelectedTemplateId(t.id);
+                    setShowProjectPicker(true);
+                  }
+                }}
+                activeOpacity={0.7}
+                testID="template-action-existing"
+              >
+                <View style={[s.actionIcon, { backgroundColor: Colors.success + '15' }]}>
+                  <Folder size={20} color={Colors.success} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.actionTitle}>Add to existing project</Text>
+                  <Text style={s.actionSub}>Pick a project — schedule will replace its current one</Text>
+                </View>
+                <ChevronRight size={18} color={Colors.textMuted} />
+              </TouchableOpacity>
+            )}
+
+            <TouchableOpacity
+              style={s.actionCancel}
+              onPress={() => setTemplateActionFor(null)}
+              activeOpacity={0.7}
+              testID="template-action-cancel"
+            >
+              <Text style={s.actionCancelText}>Cancel</Text>
+            </TouchableOpacity>
           </Pressable>
         </Pressable>
       </Modal>
@@ -557,6 +674,65 @@ const s = StyleSheet.create({
     paddingHorizontal: 20,
     marginBottom: 10,
   },
+  scratchCard: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    marginHorizontal: 16,
+    marginBottom: 8,
+    backgroundColor: Colors.surface,
+    borderRadius: 14,
+    padding: 14,
+    gap: 12,
+    borderWidth: 1.5,
+    borderColor: Colors.warning + '40',
+    borderStyle: 'dashed' as const,
+  },
+  // Action sheet that replaces the broken Alert.alert template picker.
+  actionSheet: {
+    backgroundColor: Colors.surface,
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+    padding: 16,
+    paddingBottom: 28,
+    width: '100%' as const,
+    maxWidth: 480,
+    alignSelf: 'flex-end' as const,
+  },
+  actionSheetHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: Colors.borderLight,
+    alignSelf: 'center' as const,
+    marginBottom: 12,
+  },
+  actionSheetTitle: { fontSize: 19, fontWeight: '800' as const, color: Colors.text, marginBottom: 4, paddingHorizontal: 6, letterSpacing: -0.3 },
+  actionSheetSub: { fontSize: 13, color: Colors.textSecondary, marginBottom: 18, paddingHorizontal: 6 },
+  actionRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 6,
+    borderRadius: 12,
+  },
+  actionIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+  },
+  actionTitle: { fontSize: 15, fontWeight: '700' as const, color: Colors.text, marginBottom: 2 },
+  actionSub: { fontSize: 12, color: Colors.textSecondary },
+  actionCancel: {
+    marginTop: 8,
+    paddingVertical: 14,
+    alignItems: 'center' as const,
+    borderRadius: 12,
+    backgroundColor: Colors.fillTertiary,
+  },
+  actionCancelText: { fontSize: 15, fontWeight: '700' as const, color: Colors.textSecondary },
   templateCard: {
     flexDirection: 'row',
     alignItems: 'center',
