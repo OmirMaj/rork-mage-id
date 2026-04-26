@@ -13,18 +13,16 @@ import type {
   SavedAIAPayApp,
 } from '@/types';
 
-// v3 adds:
-// - clientCanSetBudget toggle so the portal can show a "Set your target
-//   budget" card when no contract value exists yet.
-// - submitBudget object with the Supabase REST endpoint + anon key + a
-//   mailto fallback so the portal can post a proposal back to the GC.
-// - project.targetBudget — surfaced when no estimate has been built yet.
+// v4 adds:
+// - portalApi (supabaseUrl + supabaseAnonKey + portalId + inviteId) shared
+//   across all client→GC writes (budget, messages, CO approvals).
+// - messages: recent thread loaded into the portal hero.
+// - coApprovalEnabled flag — toggle 1-tap approval on COs.
 //
-// v2 added: invoice.lineItems summary, contractAmount/amountPaid per invoice,
-// aiaPayApps section (for the new portal "Pay Applications" experience),
-// project.heroPhotoUrl + project.startDate / targetDate for the redesigned
-// hero card.
-export const PORTAL_SNAPSHOT_VERSION = 3;
+// v3 added: clientCanSetBudget toggle, submitBudget config, project.targetBudget.
+// v2 added: invoice.lineItems summary, aiaPayApps section, hero photo +
+// schedule anchors.
+export const PORTAL_SNAPSHOT_VERSION = 4;
 
 export interface PortalSnapshot {
   v: number;
@@ -49,6 +47,29 @@ export interface PortalSnapshot {
     contactEmail?: string;     // GC email — used as `mailto:` recipient
     contactName?: string;      // displayed in the portal CTA
   };
+  // Generic config for any client→GC POST surface (messages, CO approvals).
+  // Same API surface as submitBudget; bundled together so the portal can
+  // call any endpoint with one config.
+  portalApi?: {
+    portalId: string;
+    inviteId?: string;
+    supabaseUrl?: string;
+    supabaseAnonKey?: string;
+    contactEmail?: string;
+    contactName?: string;
+  };
+  // Whether the client can 1-tap approve/decline change orders from the
+  // portal. When false the CO list is read-only.
+  coApprovalEnabled?: boolean;
+  // Recent message thread between GC and client (most recent last). Static
+  // portal reloads to fetch new messages; for now we don't poll.
+  messages?: Array<{
+    id: string;
+    authorType: 'client' | 'gc';
+    authorName?: string;
+    body: string;
+    createdAt: string;
+  }>;
   company: {
     name: string;
     primaryColor?: string;
@@ -164,6 +185,14 @@ interface BuildOpts {
   rfis?: RFI[];
   aiaPayApps?: SavedAIAPayApp[];
   invite?: ClientPortalInvite;
+  // Optional message thread (most recent first; we'll trim to ~20).
+  messages?: Array<{
+    id: string;
+    authorType: 'client' | 'gc';
+    authorName?: string;
+    body: string;
+    createdAt: string;
+  }>;
   // Optional Supabase + GC contact info baked into the snapshot so the
   // static portal can post a budget proposal back to the GC. These are
   // safe to include (anon key is public, RLS gates access).
@@ -175,16 +204,17 @@ interface BuildOpts {
   maxDailyReports?: number; // default 10
   maxAIAPayApps?: number;   // default 6 (most recent first)
   maxInvoiceLines?: number; // default 10 lines per invoice
+  maxMessages?: number;     // default 20
 }
 
 export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
   const {
     project, portal, settings, invoices = [], changeOrders = [],
     dailyReports = [], punchItems = [], photos = [], rfis = [],
-    aiaPayApps = [], invite,
+    aiaPayApps = [], invite, messages = [],
     supabaseUrl, supabaseAnonKey, contactEmail, contactName,
     maxPhotos = 24, maxDailyReports = 10, maxAIAPayApps = 6,
-    maxInvoiceLines = 10,
+    maxInvoiceLines = 10, maxMessages = 20,
   } = opts;
 
   const sections: PortalSnapshot['sections'] = {};
@@ -434,6 +464,25 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
       }
     : undefined;
 
+  // Trim to most recent N — chronological order (oldest first) so the
+  // portal renders the thread bottom-anchored.
+  const trimmedMessages = [...messages]
+    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+    .slice(-maxMessages);
+
+  // Generic API config (Supabase URL + anon key + portal/invite ids).
+  // Reused across messages, CO approvals, and budget proposals.
+  const apiConfig = (supabaseUrl && supabaseAnonKey) ? {
+    portalId: portal.portalId,
+    inviteId: invite?.id,
+    supabaseUrl,
+    supabaseAnonKey,
+    contactEmail: contactEmail ?? settings?.branding?.email,
+    contactName: contactName
+      ?? settings?.branding?.contactName
+      ?? settings?.branding?.companyName,
+  } : undefined;
+
   return {
     v: PORTAL_SNAPSHOT_VERSION,
     snapshotAt: new Date().toISOString(),
@@ -442,16 +491,10 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
     welcomeMessage: portal.welcomeMessage,
     clientName: invite?.name,
     clientCanSetBudget,
-    submitBudget: clientCanSetBudget ? {
-      portalId: portal.portalId,
-      inviteId: invite?.id,
-      supabaseUrl,
-      supabaseAnonKey,
-      contactEmail: contactEmail ?? settings?.branding?.email,
-      contactName: contactName
-        ?? settings?.branding?.contactName
-        ?? settings?.branding?.companyName,
-    } : undefined,
+    submitBudget: clientCanSetBudget ? apiConfig : undefined,
+    portalApi: apiConfig,
+    coApprovalEnabled: !!portal.coApprovalEnabled,
+    messages: trimmedMessages,
     company: {
       name: settings?.branding?.companyName ?? 'MAGE ID',
       primaryColor: settings?.themeColors?.primary,

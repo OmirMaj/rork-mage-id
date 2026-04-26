@@ -21,6 +21,7 @@ import {
   buildPortalSnapshot, buildPortalUrl, estimateSnapshotSizeKb,
 } from '@/utils/portalSnapshot';
 import { usePortalBudgetProposals } from '@/hooks/usePortalBudgetProposals';
+import { usePortalThread } from '@/hooks/usePortalThread';
 import { formatMoney } from '@/utils/formatters';
 
 const PORTAL_BASE_URL = 'https://mageid.app/portal';
@@ -111,6 +112,9 @@ const DEFAULT_PORTAL: ClientPortalSettings = {
   // Off by default — only relevant for the small fraction of projects
   // where the GC is collecting an early budget input from the owner.
   clientCanSetBudget: false,
+  // Off by default; turn on per project to invite owners to approve COs
+  // from the portal.
+  coApprovalEnabled: false,
 };
 
 export default function ClientPortalSetupScreen() {
@@ -129,6 +133,7 @@ export default function ClientPortalSetupScreen() {
 
   const project = useMemo(() => getProject(id ?? ''), [id, getProject]);
   const proposalQ = usePortalBudgetProposals(id);
+  const threadQ = usePortalThread(id);
 
   const [portal, setPortal] = useState<ClientPortalSettings>(() => {
     if (project?.clientPortal?.enabled) {
@@ -166,6 +171,13 @@ export default function ClientPortalSetupScreen() {
       photos: getPhotosForProject(project.id),
       rfis: getRFIsForProject(project.id),
       aiaPayApps: getAIAPayAppsForProject(project.id),
+      messages: threadQ.messages.map(m => ({
+        id: m.id,
+        authorType: m.authorType,
+        authorName: m.authorName,
+        body: m.body,
+        createdAt: m.createdAt,
+      })),
       supabaseUrl: SUPABASE_URL,
       supabaseAnonKey: SUPABASE_ANON_KEY,
       contactEmail: settings?.branding?.email,
@@ -176,7 +188,7 @@ export default function ClientPortalSetupScreen() {
     getInvoicesForProject, getChangeOrdersForProject,
     getDailyReportsForProject, getPunchItemsForProject,
     getPhotosForProject, getRFIsForProject,
-    getAIAPayAppsForProject,
+    getAIAPayAppsForProject, threadQ.messages,
   ]);
 
   const portalLink = useMemo(() => {
@@ -568,6 +580,65 @@ export default function ClientPortalSetupScreen() {
           </View>
         </View>
 
+        {/* Change-order approvals + messaging */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Approvals & messaging</Text>
+          <Text style={styles.sectionSubtitle}>
+            Let the client tap Approve / Decline on change orders, and send messages directly from the portal — they land here.
+          </Text>
+          <View style={styles.togglesCard}>
+            <View style={[styles.toggleRow, threadQ.coApprovals.length > 0 && styles.toggleRowBorder]}>
+              <View style={styles.toggleLeft}>
+                <CheckCircle2 size={18} color={Colors.primary} />
+                <View style={styles.toggleLabels}>
+                  <Text style={styles.toggleLabel}>1-tap CO approval</Text>
+                  <Text style={styles.toggleDesc}>Owner can sign off on change orders directly from the portal</Text>
+                </View>
+              </View>
+              <Switch
+                value={!!portal.coApprovalEnabled}
+                onValueChange={val => handleToggle('coApprovalEnabled', val)}
+                trackColor={{ false: Colors.border, true: Colors.primary }}
+                thumbColor="#FFF"
+              />
+            </View>
+            {threadQ.coApprovals.slice(0, 5).map((a, idx) => (
+              <View key={a.id} style={[styles.coApprovalRow, idx < 4 && styles.toggleRowBorder]}>
+                <View style={[styles.budgetStatusBadge, a.decision === 'declined' && { backgroundColor: '#FBEAE7' }]}>
+                  {a.decision === 'approved'
+                    ? <Check size={14} color="#1E8E4A" />
+                    : <X size={14} color="#C0392B" />}
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.coApprovalLabel}>
+                    CO {a.changeOrderId.slice(0, 8)} · {a.decision === 'approved' ? 'Approved' : 'Declined'}
+                  </Text>
+                  <Text style={styles.coApprovalMeta}>
+                    {a.signerName ? a.signerName : 'Client'} · {new Date(a.createdAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                  </Text>
+                  {a.note && <Text style={styles.coApprovalNote} numberOfLines={2}>{a.note}</Text>}
+                </View>
+              </View>
+            ))}
+          </View>
+          {threadQ.unreadFromClient.length > 0 && (
+            <View style={styles.messagesPreview}>
+              <View style={styles.messagesPreviewHeader}>
+                <MessageSquare size={14} color={Colors.primary} />
+                <Text style={styles.messagesPreviewLabel}>
+                  {threadQ.unreadFromClient.length} new message{threadQ.unreadFromClient.length === 1 ? '' : 's'} from your client
+                </Text>
+              </View>
+              {threadQ.unreadFromClient.slice(-3).map(m => (
+                <View key={m.id} style={styles.messageBubble}>
+                  <Text style={styles.messageAuthor}>{m.authorName || 'Client'}</Text>
+                  <Text style={styles.messageBody}>{m.body}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+
         {/* Permissions */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>What Clients Can See</Text>
@@ -797,6 +868,28 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,
     alignItems: 'center', justifyContent: 'center',
   },
+  coApprovalRow: {
+    flexDirection: 'row', gap: 12, alignItems: 'flex-start',
+    paddingHorizontal: 14, paddingVertical: 12,
+    backgroundColor: '#F4FAF6',
+  },
+  coApprovalLabel: { fontSize: 13, fontWeight: '700', color: Colors.text },
+  coApprovalMeta: { fontSize: 11, color: Colors.textMuted, marginTop: 2 },
+  coApprovalNote: { fontSize: 12, color: Colors.text, marginTop: 4, fontStyle: 'italic' },
+  messagesPreview: {
+    marginTop: 10, padding: 12, borderRadius: 12,
+    backgroundColor: Colors.primary + '08',
+    borderWidth: 1, borderColor: Colors.primary + '20',
+  },
+  messagesPreviewHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
+  messagesPreviewLabel: { fontSize: 12, fontWeight: '700', color: Colors.primary },
+  messageBubble: {
+    backgroundColor: Colors.card, borderRadius: 10, padding: 10,
+    borderWidth: 1, borderColor: Colors.border,
+    marginBottom: 6,
+  },
+  messageAuthor: { fontSize: 11, fontWeight: '700', color: Colors.textMuted, marginBottom: 2, textTransform: 'uppercase', letterSpacing: 0.4 },
+  messageBody: { fontSize: 13, color: Colors.text, lineHeight: 18 },
 
   inviteForm: { gap: 8 },
   input: {

@@ -1120,6 +1120,10 @@ export interface ClientPortalSettings {
   // are persisted via the portal_budget_proposals table; the GC sees
   // them in the portal-setup screen and can Accept → sets project.targetBudget.
   clientCanSetBudget?: boolean;
+  // Allows the client to 1-tap approve / decline change orders from the
+  // portal. Approval rows land in change_order_approvals; the GC sees
+  // pending approvals in-app and can sync them to the CO record.
+  coApprovalEnabled?: boolean;
 }
 
 // Budget proposal a client submits from the portal. Persisted via the
@@ -1137,6 +1141,22 @@ export interface PortalBudgetProposal {
   status: 'pending' | 'accepted' | 'declined';
   createdAt: string;
   respondedAt?: string | null;
+}
+
+// CO approval submitted from the client portal. Persisted via
+// change_order_approvals; the GC sees pending approvals in-app and can
+// sync them onto the underlying ChangeOrder record.
+export interface ClientCOApproval {
+  id: string;
+  portalId: string;
+  projectId?: string;
+  inviteId?: string | null;
+  changeOrderId: string;
+  decision: 'approved' | 'declined';
+  signerName?: string | null;
+  signerEmail?: string | null;
+  note?: string | null;
+  createdAt: string;
 }
 
 // ─── Sub portal ────────────────────────────────────────────────────────

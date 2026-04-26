@@ -367,6 +367,109 @@
   .pill-amber   { background: var(--amber-tint);   color: var(--amber-dark); }
   .pill-muted   { background: var(--bone-2);       color: var(--text-2); }
 
+  /* ───────── CO approval (portal) ───────── */
+  .co-row .row-main { padding-right: 8px; }
+  .co-cta {
+    display: flex; gap: 8px; margin-top: 10px; align-items: center;
+  }
+  .co-approve-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 14px;
+    background: var(--amber); color: #fff; border: none;
+    border-radius: 10px; font-size: 13px; font-weight: 700;
+    cursor: pointer; font-family: inherit;
+    box-shadow: var(--shadow-amber);
+    transition: background 0.15s, transform 0.1s;
+  }
+  .co-approve-btn:hover { background: var(--amber-dark); }
+  .co-approve-btn:active { transform: translateY(1px); }
+  .co-decline-btn {
+    padding: 8px 14px;
+    background: var(--surface); color: var(--text-2);
+    border: 1px solid var(--bone);
+    border-radius: 10px; font-size: 13px; font-weight: 700;
+    cursor: pointer; font-family: inherit;
+    transition: background 0.15s, color 0.15s;
+  }
+  .co-decline-btn:hover { background: var(--bone-2); color: var(--text); }
+  .co-decided {
+    display: inline-flex; align-items: center; gap: 6px;
+    margin-top: 10px;
+    padding: 8px 12px; border-radius: 10px;
+    font-size: 12px; font-weight: 700;
+  }
+  .co-decided.good {
+    background: var(--success-tint); color: var(--success);
+  }
+  .co-decided.bad {
+    background: var(--error-tint); color: var(--error);
+  }
+
+  /* ───────── Messages ───────── */
+  .msg-thread {
+    display: flex; flex-direction: column; gap: 10px;
+    padding: 4px 0 16px;
+    max-height: 460px; overflow-y: auto;
+  }
+  .msg {
+    max-width: 88%;
+    padding: 12px 14px;
+    border-radius: 16px;
+    font-size: 14px; line-height: 1.45;
+  }
+  .msg.from-gc {
+    align-self: flex-start;
+    background: var(--cream-2);
+    border: 1px solid var(--bone-2);
+    border-bottom-left-radius: 6px;
+  }
+  .msg.from-client {
+    align-self: flex-end;
+    background: var(--ink); color: #fff;
+    border-bottom-right-radius: 6px;
+  }
+  .msg.from-client.local {
+    background: var(--amber);
+  }
+  .msg-author {
+    font-size: 10px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.6px;
+    opacity: 0.75; margin-bottom: 4px;
+  }
+  .msg-time {
+    font-size: 10px; opacity: 0.7; margin-top: 4px;
+  }
+  .msg-compose {
+    display: flex; gap: 8px; align-items: flex-end;
+    border-top: 1px solid var(--bone-2);
+    padding-top: 14px; margin-top: 6px;
+  }
+  .msg-input {
+    flex: 1;
+    background: var(--cream-2);
+    border: 1px solid var(--bone);
+    border-radius: 14px;
+    padding: 10px 14px;
+    font-family: inherit; font-size: 14px;
+    color: var(--text);
+    resize: none; outline: none;
+    min-height: 42px; max-height: 120px;
+    transition: border-color 0.15s;
+  }
+  .msg-input:focus { border-color: var(--amber); background: #fff; }
+  .msg-send-btn {
+    background: var(--amber); color: #fff;
+    border: none; padding: 10px 16px;
+    border-radius: 12px;
+    font-family: inherit; font-weight: 700; font-size: 13px;
+    cursor: pointer; box-shadow: var(--shadow-amber);
+    display: inline-flex; align-items: center; gap: 6px;
+    white-space: nowrap;
+    transition: background 0.15s;
+  }
+  .msg-send-btn:hover { background: var(--amber-dark); }
+  .msg-send-btn:disabled { opacity: 0.5; cursor: wait; }
+
   /* ───────── Schedule task ───────── */
   .task-row { padding: 18px 0; }
   .task-progress {
@@ -1394,25 +1497,53 @@
     }).join('');
   }
 
-  function renderChangeOrders(cos) {
+  function renderChangeOrders(cos, coApprovalEnabled) {
     if (!cos || !cos.length) return emptyState('No change orders shared.');
     return cos.map(function (c) {
       var amt = c.changeAmount || 0;
       var sign = amt >= 0 ? '+' : '−';
-      var amtClass = amt >= 0 ? '' : '';
+      var stat = String(c.status || '').toLowerCase();
+      var canDecide = coApprovalEnabled && (stat === 'pending' || stat === 'submitted' || stat === 'review');
+      var locallyDecided = loadCODecision(c.id);
+      var ctaHtml = '';
+      if (locallyDecided) {
+        var goodLook = locallyDecided.decision === 'approved';
+        ctaHtml = (
+          '<div class="co-decided ' + (goodLook ? 'good' : 'bad') + '">' +
+            (goodLook ? icn(ICONS.check, 14) : icn(ICONS.alert, 14)) +
+            '<span>' + (goodLook ? 'Approved' : 'Declined') + ' ' + esc(timeAgo(locallyDecided.at)) + '</span>' +
+          '</div>'
+        );
+      } else if (canDecide) {
+        ctaHtml = (
+          '<div class="co-cta">' +
+            '<button class="co-decline-btn" data-co-decline="'+esc(c.id)+'">Decline</button>' +
+            '<button class="co-approve-btn" data-co-approve="'+esc(c.id)+'">' +
+              icn(ICONS.check, 13) + '<span>Approve</span>' +
+            '</button>' +
+          '</div>'
+        );
+      }
       return (
-        '<div class="row">' +
+        '<div class="row co-row">' +
           '<div class="row-main">' +
             '<div class="row-title">CO #'+esc(c.number)+' — '+esc(c.description || '')+'</div>' +
-            '<div class="row-meta">'+fmtDate(c.dateSubmitted)+'</div>' +
+            '<div class="row-meta">'+fmtDate(c.dateSubmitted)+' · '+sign+fmtMoney(Math.abs(amt))+'</div>' +
+            ctaHtml +
           '</div>' +
-          '<div style="text-align:right">' +
-            '<div class="row-value num '+amtClass+'">'+sign+fmtMoney(Math.abs(amt))+'</div>' +
-            '<span class="pill '+statusPillClass(c.status)+'" style="margin-top:4px">'+esc(statusLabel(c.status))+'</span>' +
-          '</div>' +
+          '<span class="pill '+statusPillClass(c.status)+'">'+esc(statusLabel(c.status))+'</span>' +
         '</div>'
       );
     }).join('');
+  }
+
+  function localCOKey(coId) { return 'mage_portal_co_' + coId; }
+  function loadCODecision(coId) {
+    try { return JSON.parse(localStorage.getItem(localCOKey(coId)) || 'null'); }
+    catch (e) { return null; }
+  }
+  function saveCODecision(coId, payload) {
+    try { localStorage.setItem(localCOKey(coId), JSON.stringify(payload)); } catch(e) {}
   }
 
   function renderPhotos(photos) {
@@ -1871,6 +2002,100 @@
     });
   }
 
+  // ───────── Messages ─────────
+  // Renders the thread + a compose box. Messages send via Supabase REST,
+  // and we keep a local mirror so the new message shows immediately.
+  function renderMessagesSection(data) {
+    var thread = (data.messages || []).slice();
+    var locallySent = loadLocalMessages(data);
+    locallySent.forEach(function (m) { thread.push(m); });
+
+    var threadHtml = thread.length
+      ? thread.map(function (m) {
+          var who = m.authorType === 'client' ? 'You' : (m.authorName || 'Contractor');
+          var localCls = m.local ? ' local' : '';
+          return (
+            '<div class="msg from-' + m.authorType + localCls + '">' +
+              '<div class="msg-author">' + esc(who) + '</div>' +
+              '<div class="msg-body">' + esc(m.body).replace(/\n/g, '<br/>') + '</div>' +
+              '<div class="msg-time">' + esc(timeAgo(m.createdAt)) + '</div>' +
+            '</div>'
+          );
+        }).join('')
+      : '<div class="empty-section">No messages yet — say hi to your contractor.</div>';
+
+    return (
+      '<div id="msg-thread" class="msg-thread">' + threadHtml + '</div>' +
+      '<div class="msg-compose">' +
+        '<textarea id="msg-input" class="msg-input" placeholder="Write a message…" rows="1"></textarea>' +
+        '<button id="msg-send" class="msg-send-btn">' +
+          icn(ICONS.arrowRight, 14) +
+          '<span>Send</span>' +
+        '</button>' +
+      '</div>'
+    );
+  }
+
+  function localMessagesKey(portalId) { return 'mage_portal_msgs_' + portalId; }
+  function loadLocalMessages(data) {
+    if (!data.portalApi) return [];
+    try {
+      var raw = localStorage.getItem(localMessagesKey(data.portalApi.portalId));
+      if (!raw) return [];
+      return JSON.parse(raw);
+    } catch (e) { return []; }
+  }
+  function saveLocalMessages(portalId, list) {
+    try { localStorage.setItem(localMessagesKey(portalId), JSON.stringify(list)); }
+    catch(e) {}
+  }
+
+  async function postPortalMessage(api, body, clientName) {
+    if (!api || !api.supabaseUrl || !api.supabaseAnonKey) throw new Error('No API config');
+    var url = api.supabaseUrl.replace(/\/+$/, '') + '/rest/v1/portal_messages';
+    var resp = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': api.supabaseAnonKey,
+        'Authorization': 'Bearer ' + api.supabaseAnonKey,
+        'Prefer': 'return=minimal',
+      },
+      body: JSON.stringify({
+        portal_id: api.portalId,
+        invite_id: api.inviteId || null,
+        author_type: 'client',
+        author_name: clientName || null,
+        body: body,
+      }),
+    });
+    if (!resp.ok) {
+      var text = '';
+      try { text = await resp.text(); } catch(e) {}
+      throw new Error('Supabase ' + resp.status + ': ' + text);
+    }
+  }
+
+  async function postCOApproval(api, payload) {
+    if (!api || !api.supabaseUrl || !api.supabaseAnonKey) throw new Error('No API config');
+    var url = api.supabaseUrl.replace(/\/+$/, '') + '/rest/v1/change_order_approvals';
+    var resp = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': api.supabaseAnonKey,
+        'Authorization': 'Bearer ' + api.supabaseAnonKey,
+        'Prefer': 'return=minimal',
+      },
+      body: JSON.stringify(payload),
+    });
+    if (!resp.ok) {
+      var text = '';
+      try { text = await resp.text(); } catch(e) {}
+      throw new Error('Supabase ' + resp.status + ': ' + text);
+    }
+  }
+
   // ───────── Stats bar ─────────
   function renderStats(budget, invoices, aia) {
     var grid = document.getElementById('stats-grid');
@@ -2034,7 +2259,7 @@
       addSection('schedule', 'calendar', 'Schedule', 'Live progress against the construction schedule', sections.schedule.tasks.length, renderSchedule(sections.schedule.tasks));
     }
     if (sections.changeOrders && sections.changeOrders.length) {
-      addSection('changeOrders', 'diff', 'Change Orders', 'Approved and pending changes to the original contract', sections.changeOrders.length, renderChangeOrders(sections.changeOrders));
+      addSection('changeOrders', 'diff', 'Change Orders', data.coApprovalEnabled ? 'Tap Approve / Decline to authorize a change order' : 'Approved and pending changes to the original contract', sections.changeOrders.length, renderChangeOrders(sections.changeOrders, !!data.coApprovalEnabled));
     }
     if (sections.photos && sections.photos.length) {
       addSection('photos', 'image', 'Site Photos', 'Tap any photo to view full screen', sections.photos.length, renderPhotos(sections.photos));
@@ -2050,6 +2275,12 @@
     }
     if (sections.documents && sections.documents.length) {
       addSection('documents', 'file', 'Documents', null, sections.documents.length, renderDocuments(sections.documents));
+    }
+    // Messages section is always shown when the portalApi is configured
+    // (so the client can always reach the GC even if there's no thread yet).
+    if (data.portalApi) {
+      var messageCount = (data.messages || []).length;
+      addSection('messages', 'inbox', 'Messages', 'Talk directly with your contractor — replies show up in their app instantly', messageCount || null, renderMessagesSection(data));
     }
 
     if (!sectionHtml) {
@@ -2100,6 +2331,133 @@
         if (a) renderAIADrawer(a, companyName);
       });
     });
+
+    // CO approve / decline buttons
+    if (data.coApprovalEnabled && data.portalApi) {
+      var co = (sections.changeOrders || []);
+      var coById = {};
+      co.forEach(function (c) { coById[c.id] = c; });
+
+      function handleCODecision(coId, decision) {
+        var c = coById[coId];
+        if (!c) return;
+        var verb = decision === 'approved' ? 'Approve' : 'Decline';
+        var verbing = decision === 'approved' ? 'Approving' : 'Declining';
+        if (!confirm(verb + ' CO #' + c.number + ' — ' + (c.description || '') + '?\n\nAmount: ' + (c.changeAmount >= 0 ? '+' : '-') + fmtMoney(Math.abs(c.changeAmount || 0)))) return;
+        var signerName = data.clientName || prompt('Your name (for the record):') || 'Client';
+
+        var btnSelector = '[data-co-' + (decision === 'approved' ? 'approve' : 'decline') + '="' + coId + '"]';
+        var btn = document.querySelector(btnSelector);
+        if (btn) { btn.disabled = true; btn.textContent = verbing + '…'; }
+
+        var payload = {
+          portal_id: data.portalApi.portalId,
+          invite_id: data.portalApi.inviteId || null,
+          change_order_id: coId,
+          decision: decision,
+          signer_name: signerName,
+          user_agent: navigator.userAgent.slice(0, 200),
+        };
+
+        postCOApproval(data.portalApi, payload).then(function () {
+          saveCODecision(coId, { decision: decision, at: new Date().toISOString() });
+          var sectionEl = document.getElementById('sec-changeOrders');
+          if (sectionEl) {
+            var body = sectionEl.querySelector('.section-body');
+            if (body) body.innerHTML = renderChangeOrders(co, true);
+            bindCOHandlers();
+          }
+        }).catch(function (err) {
+          console.warn('CO approval failed', err);
+          if (btn) { btn.disabled = false; btn.textContent = verb; }
+          alert("Couldn't reach the server. Please try again or message your contractor.");
+        });
+      }
+
+      function bindCOHandlers() {
+        document.querySelectorAll('[data-co-approve]').forEach(function (b) {
+          b.addEventListener('click', function () { handleCODecision(b.getAttribute('data-co-approve'), 'approved'); });
+        });
+        document.querySelectorAll('[data-co-decline]').forEach(function (b) {
+          b.addEventListener('click', function () { handleCODecision(b.getAttribute('data-co-decline'), 'declined'); });
+        });
+      }
+      bindCOHandlers();
+    }
+
+    // Messages compose / send
+    if (data.portalApi) {
+      var msgInput = document.getElementById('msg-input');
+      var msgSend = document.getElementById('msg-send');
+      var msgThread = document.getElementById('msg-thread');
+      var clientName = data.clientName || '';
+
+      function autoGrow() {
+        if (!msgInput) return;
+        msgInput.style.height = 'auto';
+        msgInput.style.height = Math.min(120, msgInput.scrollHeight) + 'px';
+      }
+      function appendLocalMessage(body) {
+        var msg = {
+          id: 'tmp-' + Date.now(),
+          authorType: 'client',
+          authorName: clientName || null,
+          body: body,
+          createdAt: new Date().toISOString(),
+          local: true,
+        };
+        var existing = loadLocalMessages(data);
+        existing.push(msg);
+        saveLocalMessages(data.portalApi.portalId, existing);
+        var bubble = document.createElement('div');
+        bubble.className = 'msg from-client local';
+        bubble.innerHTML = (
+          '<div class="msg-author">You</div>' +
+          '<div class="msg-body">' + esc(body).replace(/\n/g, '<br/>') + '</div>' +
+          '<div class="msg-time">just now</div>'
+        );
+        var emptyEl = msgThread.querySelector('.empty-section');
+        if (emptyEl) emptyEl.remove();
+        msgThread.appendChild(bubble);
+        msgThread.scrollTop = msgThread.scrollHeight;
+      }
+
+      if (msgInput && msgSend && msgThread) {
+        // Auto-scroll to bottom on first render
+        msgThread.scrollTop = msgThread.scrollHeight;
+        msgInput.addEventListener('input', autoGrow);
+        msgInput.addEventListener('keydown', function (e) {
+          if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            msgSend.click();
+          }
+        });
+        msgSend.addEventListener('click', async function () {
+          var body = (msgInput.value || '').trim();
+          if (!body) return;
+          msgSend.disabled = true;
+          var prevText = msgSend.textContent;
+          msgSend.innerHTML = 'Sending…';
+          var ok = false;
+          try {
+            await postPortalMessage(data.portalApi, body, clientName);
+            ok = true;
+          } catch (e) {
+            console.warn('msg send failed', e);
+          }
+          msgSend.disabled = false;
+          msgSend.innerHTML = '<svg class="icn" width="14" height="14" viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg><span>Send</span>';
+
+          if (ok) {
+            appendLocalMessage(body);
+            msgInput.value = '';
+            autoGrow();
+          } else {
+            alert("Couldn't reach the server. Try again in a moment, or email " + (data.portalApi.contactEmail || 'your contractor') + ' directly.');
+          }
+        });
+      }
+    }
 
     // Lightbox for photos
     var photoData = (sections.photos || []);
