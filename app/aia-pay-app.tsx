@@ -1,13 +1,14 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, Platform,
-  ActivityIndicator,
+  ActivityIndicator, Modal,
 } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import {
   ChevronLeft, FileText, Download, Info, Percent, Printer, TrendingUp, Check, Save,
+  ShieldAlert,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import ConstructionLoader from '@/components/ConstructionLoader';
@@ -59,6 +60,32 @@ function AIAPayAppScreenInner() {
   const [app, setApp] = useState<AIAPayApplication | null>(null);
   const [generating, setGenerating] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
+  const [showFirstUseDisclaimer, setShowFirstUseDisclaimer] = useState(false);
+  const [showPreExportConfirm, setShowPreExportConfirm] = useState(false);
+
+  // First-time user notice — explains AIA trademark + GC responsibility.
+  // Once dismissed, never shown again on this device. Stored in AsyncStorage.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+        const seen = await AsyncStorage.getItem('mage_aia_disclaimer_v1');
+        if (!cancelled && !seen) setShowFirstUseDisclaimer(true);
+      } catch { /* ok */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const dismissFirstUseDisclaimer = useCallback(async () => {
+    setShowFirstUseDisclaimer(false);
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+      await AsyncStorage.setItem('mage_aia_disclaimer_v1', new Date().toISOString());
+    } catch { /* ok */ }
+  }, []);
 
   useEffect(() => {
     if (!invoice || !project || !settings?.branding) return;
@@ -157,7 +184,16 @@ function AIAPayAppScreenInner() {
     setTimeout(() => setSavedFlash(false), 2200);
   }, [buildSavedRecord, addAIAPayApp]);
 
+  // Tap "Generate PDF" → show pre-export confirmation first (liability
+  // reducer). Once user confirms they reviewed the totals, we actually
+  // generate.
+  const requestGenerate = useCallback(() => {
+    if (!app || !settings?.branding) return;
+    setShowPreExportConfirm(true);
+  }, [app, settings?.branding]);
+
   const handleGenerate = useCallback(async () => {
+    setShowPreExportConfirm(false);
     if (!app || !settings?.branding) return;
     setGenerating(true);
     try {
@@ -424,7 +460,7 @@ function AIAPayAppScreenInner() {
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.generateBtn, { flex: 1 }]}
-            onPress={handleGenerate}
+            onPress={requestGenerate}
             disabled={generating}
             activeOpacity={0.85}
           >
@@ -441,6 +477,73 @@ function AIAPayAppScreenInner() {
           Saved pay applications appear in your client portal so owners and architects can review and download.
         </Text>
       </View>
+
+      {/* First-use AIA disclaimer — shown once per device, then never again. */}
+      <Modal
+        visible={showFirstUseDisclaimer}
+        transparent
+        animationType="fade"
+        onRequestClose={dismissFirstUseDisclaimer}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalIconWrap}>
+              <ShieldAlert size={26} color="#C26A00" />
+            </View>
+            <Text style={styles.modalTitle}>Heads up — quick legal note</Text>
+            <Text style={styles.modalBody}>
+              MAGE ID generates draft pay applications styled after AIA G702 / G703.{' '}
+              <Text style={styles.modalBodyEmph}>
+                AIA® and &quot;AIA Document G702/G703&quot; are registered trademarks of The American Institute of Architects, which is not affiliated with MAGE ID.
+              </Text>
+              {'\n\n'}
+              Some lenders or architects only accept the official AIA Contract Documents. Verify all amounts, retainage, and certification language with the parties involved before submission.
+              {'\n\n'}
+              <Text style={styles.modalBodyEmph}>
+                You are solely responsible for the accuracy of every figure on the document you submit.
+              </Text>
+            </Text>
+            <TouchableOpacity style={styles.modalCta} onPress={dismissFirstUseDisclaimer}>
+              <Text style={styles.modalCtaText}>I understand</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Pre-export confirmation — shown every time before generating. */}
+      <Modal
+        visible={showPreExportConfirm}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowPreExportConfirm(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalIconWrap}>
+              <ShieldAlert size={24} color="#C26A00" />
+            </View>
+            <Text style={styles.modalTitle}>Ready to certify?</Text>
+            <Text style={styles.modalBody}>
+              Have you reviewed every line item, total, and retainage value on this pay application?
+              {'\n\n'}
+              <Text style={styles.modalBodyEmph}>
+                Once submitted, you certify these figures are accurate. The contractor named on this document is solely responsible for what&apos;s on it.
+              </Text>
+            </Text>
+            <View style={styles.modalCtaRow}>
+              <TouchableOpacity
+                style={styles.modalCtaSecondary}
+                onPress={() => setShowPreExportConfirm(false)}
+              >
+                <Text style={styles.modalCtaSecondaryText}>Let me re-check</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.modalCta} onPress={handleGenerate}>
+                <Text style={styles.modalCtaText}>I&apos;ve reviewed it · Generate</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </>
   );
 }
@@ -584,4 +687,45 @@ const styles = StyleSheet.create({
     fontSize: 11, color: Colors.textMuted, textAlign: 'center',
     marginTop: 8, lineHeight: 15,
   },
+
+  modalBackdrop: {
+    flex: 1, backgroundColor: 'rgba(11,13,16,0.55)',
+    alignItems: 'center', justifyContent: 'center',
+    padding: 24,
+  },
+  modalCard: {
+    backgroundColor: Colors.background,
+    borderRadius: 20,
+    padding: 24,
+    maxWidth: 440, width: '100%',
+    borderWidth: 1, borderColor: Colors.border,
+  },
+  modalIconWrap: {
+    width: 48, height: 48, borderRadius: 14,
+    backgroundColor: '#FFF4E0',
+    alignItems: 'center', justifyContent: 'center',
+    marginBottom: 14,
+  },
+  modalTitle: { fontSize: 20, fontWeight: '800', color: Colors.text, marginBottom: 12, letterSpacing: -0.3 },
+  modalBody: { fontSize: 14, color: Colors.text, lineHeight: 20 },
+  modalBodyEmph: { fontWeight: '700', color: Colors.text },
+  modalCta: {
+    backgroundColor: Colors.text,
+    paddingVertical: 13, paddingHorizontal: 18,
+    borderRadius: 12,
+    alignItems: 'center', justifyContent: 'center',
+    marginTop: 16,
+    flex: 1,
+  },
+  modalCtaText: { color: '#FFF', fontSize: 14, fontWeight: '700' },
+  modalCtaRow: { flexDirection: 'row', gap: 10, marginTop: 16 },
+  modalCtaSecondary: {
+    backgroundColor: Colors.card,
+    paddingVertical: 13, paddingHorizontal: 18,
+    borderRadius: 12,
+    borderWidth: 1, borderColor: Colors.border,
+    alignItems: 'center', justifyContent: 'center',
+    flex: 1,
+  },
+  modalCtaSecondaryText: { color: Colors.text, fontSize: 14, fontWeight: '700' },
 });

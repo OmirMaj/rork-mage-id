@@ -534,7 +534,7 @@ function buildChangeOrderHtml(co: ChangeOrder, project: Project, branding: Compa
     branding,
     bodyHtml:
       D.pdfHeader(branding) + titleHtml + statusBadge + reasonHtml + tableHtml + totalsBlock + sigBlock +
-      D.pdfFooter(branding, `Change order #${co.number}`),
+      D.pdfFooter(branding, `Change order #${co.number}`, D.PDF_DISCLAIMERS.changeOrder),
   });
 }
 
@@ -611,7 +611,8 @@ function buildInvoiceHtml(inv: Invoice, project: Project, branding: CompanyBrand
   return D.pdfShell({
     title: `Invoice #${inv.number} — ${project.name}`,
     branding,
-    bodyHtml: headerHtml + titleHtml + tableHtml + totalsBlock + notesHtml + D.pdfFooter(branding, `Invoice #${inv.number}`),
+    bodyHtml: headerHtml + titleHtml + tableHtml + totalsBlock + notesHtml +
+      D.pdfFooter(branding, `Invoice #${inv.number}`, D.PDF_DISCLAIMERS.invoice),
   });
 }
 
@@ -689,7 +690,7 @@ function buildDFRHtml(dfr: DailyFieldReport, project: Project, branding: Company
     branding,
     bodyHtml:
       headerHtml + titleHtml + weatherStats + manpowerHtml + workHtml + materialsHtml + issuesHtml + photosHtml +
-      D.pdfFooter(branding, `Daily field report · ${reportDate}`),
+      D.pdfFooter(branding, `Daily field report · ${reportDate}`, D.PDF_DISCLAIMERS.dfr),
   });
 }
 
