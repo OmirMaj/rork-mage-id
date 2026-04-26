@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import type { PortalMessage, ClientCOApproval } from '@/types';
 
@@ -140,6 +140,27 @@ export function usePortalThread(projectId: string | undefined) {
       sendMessageMutation.mutate(args),
     [sendMessageMutation],
   );
+
+  // Realtime subscription — invalidates the cached queries the moment
+  // a portal message or CO approval lands for this project. Falls back
+  // to the 45s poll if the channel can't connect.
+  useEffect(() => {
+    if (!enabled || !projectId) return;
+    const channel = supabase
+      .channel(`portal-thread-${projectId}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'portal_messages', filter: `project_id=eq.${projectId}` },
+        () => { void queryClient.invalidateQueries({ queryKey: ['portalMessages', projectId] }); },
+      )
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'change_order_approvals', filter: `project_id=eq.${projectId}` },
+        () => { void queryClient.invalidateQueries({ queryKey: ['portalCoApprovals', projectId] }); },
+      )
+      .subscribe();
+    return () => { void supabase.removeChannel(channel); };
+  }, [enabled, projectId, queryClient]);
 
   return {
     messages: messagesQ.data ?? [],

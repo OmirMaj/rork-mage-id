@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import type { PortalBudgetProposal } from '@/types';
 
@@ -85,6 +85,19 @@ export function usePortalBudgetProposals(projectId: string | undefined) {
     (id: string) => respondMutation.mutate({ id, status: 'declined' }),
     [respondMutation],
   );
+
+  useEffect(() => {
+    if (!projectId || !isSupabaseConfigured) return;
+    const channel = supabase
+      .channel(`portal-budget-${projectId}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'portal_budget_proposals', filter: `project_id=eq.${projectId}` },
+        () => { void queryClient.invalidateQueries({ queryKey: ['portalBudgetProposals', projectId] }); },
+      )
+      .subscribe();
+    return () => { void supabase.removeChannel(channel); };
+  }, [projectId, queryClient]);
 
   return {
     proposals: query.data ?? [],

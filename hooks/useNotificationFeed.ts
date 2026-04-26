@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -109,6 +109,20 @@ export function useNotificationFeed() {
     const ids = (query.data ?? []).filter(i => !i.readAt).map(i => i.id);
     markReadMutation.mutate(ids);
   }, [query.data, markReadMutation]);
+
+  // Realtime: bell badge updates the moment a new outbox row lands.
+  useEffect(() => {
+    if (!enabled || !user?.id) return;
+    const channel = supabase
+      .channel(`notif-feed-${user.id}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'notification_outbox', filter: `recipient_user_id=eq.${user.id}` },
+        () => { void queryClient.invalidateQueries({ queryKey: ['notificationFeed', user.id] }); },
+      )
+      .subscribe();
+    return () => { void supabase.removeChannel(channel); };
+  }, [enabled, user?.id, queryClient]);
 
   const items = query.data ?? [];
   const unreadCount = useMemo(() => items.filter(i => !i.readAt).length, [items]);

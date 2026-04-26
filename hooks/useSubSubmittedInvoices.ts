@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import type { SubSubmittedInvoice, SubSubmittedInvoiceLine } from '@/types';
 
@@ -115,6 +115,25 @@ export function useSubSubmittedInvoices(opts: { projectId?: string; subPortalId?
     (id: string) => reviewMutation.mutate({ id, status: 'paid' }),
     [reviewMutation],
   );
+
+  useEffect(() => {
+    if (!enabled) return;
+    const filter = subPortalId
+      ? `sub_portal_id=eq.${subPortalId}`
+      : projectId
+        ? `project_id=eq.${projectId}`
+        : null;
+    if (!filter) return;
+    const channel = supabase
+      .channel(`sub-invoices-${subPortalId ?? projectId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'sub_submitted_invoices', filter },
+        () => { void queryClient.invalidateQueries({ queryKey }); },
+      )
+      .subscribe();
+    return () => { void supabase.removeChannel(channel); };
+  }, [enabled, projectId, subPortalId, queryClient, queryKey]);
 
   const all = query.data ?? [];
   return {
