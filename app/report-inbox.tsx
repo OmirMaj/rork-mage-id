@@ -20,6 +20,7 @@ import { ChevronLeft, FileText, ClipboardList, Receipt, Repeat, ChevronRight, Al
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import FilterChipRow, { type FilterChip } from '@/components/FilterChipRow';
+import EmptyState from '@/components/EmptyState';
 import { formatMoney } from '@/utils/formatters';
 
 type ReportKind = 'all' | 'dfr' | 'rfi' | 'submittal' | 'invoice' | 'changeOrder';
@@ -292,13 +293,13 @@ export default function ReportInboxScreen() {
       </View>
 
       {filtered.length === 0 ? (
-        <ScrollView contentContainerStyle={styles.emptyWrap}>
-          <ArrowDownRight size={32} color={Colors.textMuted} />
-          <Text style={styles.emptyTitle}>Nothing in this slice</Text>
-          <Text style={styles.emptySub}>
-            Try a different filter combo, or jump back to a project to create something new.
-          </Text>
-        </ScrollView>
+        <EmptyState
+          icon={<ArrowDownRight size={32} color={Colors.primary} />}
+          title="Nothing in this slice"
+          message="Try a different filter combo above — or jump back to a project to create a new invoice, change order, or daily report."
+          actionLabel="Back to projects"
+          onAction={() => router.replace('/(tabs)/(home)' as never)}
+        />
       ) : (
         <FlatList
           data={filtered}

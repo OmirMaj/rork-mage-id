@@ -14,6 +14,7 @@ import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
+import EmptyState from '@/components/EmptyState';
 import type { PunchItem, PunchItemStatus, PunchItemPriority } from '@/types';
 
 function createId(prefix: string): string {
@@ -272,10 +273,16 @@ function PunchListScreenInner() {
         })}
 
         {filteredItems.length === 0 && (
-          <View style={styles.emptyState}>
-            <CheckCircle size={40} color={Colors.textMuted} />
-            <Text style={styles.emptyTitle}>{filterStatus !== 'all' ? 'No items with this status' : 'No Punch Items'}</Text>
-            <Text style={styles.emptyDesc}>Tap + to add items that need to be resolved.</Text>
+          <View style={{ minHeight: 360 }}>
+            <EmptyState
+              icon={<CheckCircle size={36} color={Colors.primary} />}
+              title={filterStatus !== 'all' ? 'Nothing matches that filter' : 'No punch items yet'}
+              message={filterStatus !== 'all'
+                ? `No items currently sit in "${filterStatus.replace(/_/g, ' ')}". Switch filters above to see the rest.`
+                : 'Walk the project, snap photos of anything that needs touch-up, and add the items here. They\'ll roll into your closeout packet automatically.'}
+              actionLabel={filterStatus === 'all' ? 'Add first punch item' : undefined}
+              onAction={filterStatus === 'all' ? () => { resetForm(); setShowForm(true); } : undefined}
+            />
           </View>
         )}
 

@@ -14,6 +14,7 @@ import { useProjects } from '@/contexts/ProjectContext';
 import { useActivityFeed, type ActivityAction, type ActivityItem } from '@/hooks/useActivityFeed';
 import { useEntityNavigation } from '@/hooks/useEntityNavigation';
 import EntityActionSheet from '@/components/EntityActionSheet';
+import EmptyState from '@/components/EmptyState';
 import type { EntityRef } from '@/types';
 
 export default function ActivityFeedScreen() {
@@ -60,15 +61,13 @@ export default function ActivityFeedScreen() {
       </View>
 
       {items.length === 0 ? (
-        <View style={styles.emptyWrap}>
-          <View style={styles.emptyIcon}>
-            <Activity size={28} color={Colors.textMuted} />
-          </View>
-          <Text style={styles.emptyTitle}>No activity yet</Text>
-          <Text style={styles.emptyBody}>
-            Change orders, RFIs, daily reports, invoices, and photos will show up here the moment they&apos;re created.
-          </Text>
-        </View>
+        <EmptyState
+          icon={<Activity size={32} color={Colors.primary} />}
+          title="No activity yet"
+          message="Every change order, RFI, daily report, invoice, and photo lands here the moment it's created — your project's heartbeat in one timeline."
+          actionLabel="Back to projects"
+          onAction={() => router.replace('/(tabs)/(home)' as never)}
+        />
       ) : (
         <FlatList
           data={items}

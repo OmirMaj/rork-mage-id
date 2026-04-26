@@ -15,6 +15,7 @@ import { PROVIDER_INFO } from '@/mocks/payments';
 import type { Payment, PaymentStatus, PaymentProvider, Invoice, Project, Contact } from '@/types';
 import { formatMoney } from '@/utils/formatters';
 import { useProjects } from '@/contexts/ProjectContext';
+import EmptyState from '@/components/EmptyState';
 
 // Stripe's posted rate — good enough for a rough "net after fees" column on the
 // payments dashboard. We never charge this ourselves; Stripe takes it out of
@@ -322,9 +323,12 @@ export default function PaymentsScreen() {
 
         <View style={styles.listSection}>
           {filtered.length === 0 ? (
-            <View style={styles.emptyState}>
-              <CreditCard size={32} color={Colors.textMuted} />
-              <Text style={styles.emptyTitle}>No payments found</Text>
+            <View style={{ minHeight: 320 }}>
+              <EmptyState
+                icon={<CreditCard size={32} color={Colors.primary} />}
+                title="No payments yet"
+                message="Once a client pays an invoice — by ACH, card, or check you log manually — payments land here with full history and provider info."
+              />
             </View>
           ) : (
             filtered.map(payment => (

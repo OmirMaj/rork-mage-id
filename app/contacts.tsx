@@ -13,6 +13,7 @@ import {
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useEntityNavigation } from '@/hooks/useEntityNavigation';
+import EmptyState from '@/components/EmptyState';
 import type { Contact, ContactRole } from '@/types';
 
 function createId(prefix: string): string {
@@ -281,14 +282,16 @@ export default function ContactsScreen() {
         contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 20 }]}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
-          <View style={styles.emptyState}>
-            <User size={40} color={Colors.textMuted} />
-            <Text style={styles.emptyTitle}>
-              {query || filterRole !== 'all' ? 'No contacts found' : 'No contacts yet'}
-            </Text>
-            <Text style={styles.emptyDesc}>
-              {query || filterRole !== 'all' ? 'Try a different search or filter' : 'Tap + to add your first contact'}
-            </Text>
+          <View style={{ minHeight: 360 }}>
+            <EmptyState
+              icon={<User size={36} color={Colors.primary} />}
+              title={query || filterRole !== 'all' ? 'No contacts match' : 'No contacts yet'}
+              message={query || filterRole !== 'all'
+                ? 'Try a different search term or clear the role filter to see everyone.'
+                : 'Add your owners, architects, engineers, inspectors, and lenders here. Every RFI, daily report, and invoice can pull from this list automatically.'}
+              actionLabel={!query && filterRole === 'all' ? 'Add first contact' : undefined}
+              onAction={!query && filterRole === 'all' ? openAddModal : undefined}
+            />
           </View>
         }
       />
