@@ -26,6 +26,7 @@ import { useEntityNavigation } from '@/hooks/useEntityNavigation';
 import { useSearch } from '@/contexts/SearchContext';
 import EntityActionSheet from '@/components/EntityActionSheet';
 import { useNotificationFeed } from '@/hooks/useNotificationFeed';
+import UniversalMicButton from '@/components/UniversalMicButton';
 import EmptyState from '@/components/EmptyState';
 import OfflineSyncPill from '@/components/OfflineSyncPill';
 import CashFlowAlerts from '@/components/CashFlowAlerts';
@@ -808,6 +809,8 @@ export default function HomeScreen() {
         entityRef={actionSheetRef}
         onClose={() => setActionSheetRef(null)}
       />
+
+      {projects.length > 0 && <UniversalMicButton />}
     </View>
   );
 }

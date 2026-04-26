@@ -28,6 +28,7 @@ import { useProjects } from '@/contexts/ProjectContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { useEntityNavigation } from '@/hooks/useEntityNavigation';
 import EntityActionSheet from '@/components/EntityActionSheet';
+import UniversalMicButton from '@/components/UniversalMicButton';
 import { generateUUID } from '@/utils/generateId';
 import AIProjectReport from '@/components/AIProjectReport';
 import AIAutoScheduleButton from '@/components/AIAutoScheduleButton';
@@ -2813,6 +2814,8 @@ export default function ProjectDetailScreen() {
           </TouchableOpacity>
         </Pressable>
       </Modal>
+
+      {project ? <UniversalMicButton projectId={project.id} /> : null}
     </View>
   );
 }
