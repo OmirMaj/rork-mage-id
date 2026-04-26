@@ -414,6 +414,14 @@ function RootLayoutNav() {
         }}
       />
       <Stack.Screen
+        name="notifications-settings"
+        options={{
+          title: "Notifications",
+          headerStyle: { backgroundColor: Colors.background },
+          headerTintColor: Colors.primary,
+        }}
+      />
+      <Stack.Screen
         name="plans"
         options={{ headerShown: false }}
       />

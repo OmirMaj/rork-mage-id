@@ -49,6 +49,29 @@ export const [NotificationProvider, useNotifications] = createContextHook(() => 
       const conversationId = data?.conversationId as string | undefined;
       const bidId = data?.bidId as string | undefined;
       const changeOrderId = data?.changeOrderId as string | undefined;
+      // New: portal-driven events from the notify edge function. The
+      // dispatcher sends `kind` to disambiguate; route to the right
+      // surface so a tap from the lock screen lands the GC exactly
+      // where they need to act.
+      const kind = data?.kind as string | undefined;
+      const projectId = data?.projectId as string | undefined;
+
+      if (kind === 'portal_message' && projectId) {
+        router.push(`/client-portal-setup?id=${projectId}`);
+        return;
+      }
+      if (kind === 'budget_proposal' && projectId) {
+        router.push(`/client-portal-setup?id=${projectId}`);
+        return;
+      }
+      if (kind === 'co_approval' && projectId) {
+        router.push(`/client-portal-setup?id=${projectId}`);
+        return;
+      }
+      if (kind === 'sub_invoice') {
+        router.push('/sub-portals');
+        return;
+      }
 
       if (conversationId) {
         router.push(`/messages?id=${conversationId}`);

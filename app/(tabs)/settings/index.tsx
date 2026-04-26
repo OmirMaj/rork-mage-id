@@ -10,7 +10,7 @@ import * as ImagePicker from 'expo-image-picker';
 import {
   MapPin, Ruler, Percent, ShieldCheck, Info, Trash2, ChevronRight,
   Building2, User, Phone, Mail, FileText, Award, Type, Camera,
-  PenTool, X, Image as ImageIcon, Store, Package, Truck, ScanFace,
+  PenTool, X, Image as ImageIcon, Store, Package, Truck, ScanFace, Bell,
   Crown, Star, Zap, Check,
 } from 'lucide-react-native';
 import { Colors, setCustomColors } from '@/constants/colors';
@@ -957,6 +957,25 @@ export default function SettingsScreen() {
           </>
         )}
 
+        <Text style={styles.sectionHeader}>NOTIFICATIONS</Text>
+        <View style={styles.group}>
+          <TouchableOpacity
+            style={styles.row}
+            onPress={() => router.push('/notifications-settings' as any)}
+            activeOpacity={0.6}
+          >
+            <View style={[styles.iconWrap, { backgroundColor: '#FF6A1A' }]}>
+              <Bell size={14} color="#fff" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.rowLabel}>Push & email preferences</Text>
+              <Text style={styles.rowSubtext}>
+                Pick which portal events ping your phone vs. email
+              </Text>
+            </View>
+          </TouchableOpacity>
+        </View>
+
         <TouchableOpacity style={styles.saveButton} onPress={handleSave} activeOpacity={0.8} testID="save-settings">
           <Text style={styles.saveButtonText}>Save Changes</Text>
         </TouchableOpacity>
@@ -1701,6 +1720,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '400' as const,
     color: Colors.text,
+  },
+  rowSubtext: {
+    fontSize: 12,
+    color: Colors.textMuted,
+    marginTop: 2,
   },
   rowRight: {
     flexDirection: 'row',
