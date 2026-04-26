@@ -13,6 +13,7 @@ import createContextHook from '@nkzw/create-context-hook';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { ensureRCWebMount } from '@/utils/rcWebMount';
+import { isOwner } from '@/utils/owner';
 import type { SubscriptionTier } from '@/types';
 
 const SUBSCRIPTION_KEY = 'mageid_subscription_tier';
@@ -202,15 +203,31 @@ export const [SubscriptionProvider, useSubscription] = createContextHook(() => {
       resolved = localTierQuery.data;
     }
 
+    // Master account override — emails in OWNER_EMAILS (utils/owner.ts)
+    // resolve to Business tier regardless of what RevenueCat or Supabase
+    // think. Lets the platform owner test/demo every paywalled feature
+    // without burning real subscriptions or maintaining a sandbox account.
+    // Logged loudly so it's obvious in the console when this is active.
+    if (isOwner(user?.email)) {
+      if (resolved !== 'business') {
+        console.log('[Subscription] Master account override:', user?.email, '— forcing tier to business');
+      }
+      resolved = 'business';
+    }
+
     setTier(resolved);
     void AsyncStorage.setItem(SUBSCRIPTION_KEY, resolved);
-  }, [customerInfoQuery.data, localTierQuery.data, supabaseTierQuery.data, userId]);
+  }, [customerInfoQuery.data, localTierQuery.data, supabaseTierQuery.data, userId, user?.email]);
 
   useEffect(() => {
     if (!rcConfigured) return;
     const listener = (info: CustomerInfo) => {
       console.log('[RC] Customer info updated via listener');
-      const newTier = tierFromCustomerInfo(info);
+      let newTier = tierFromCustomerInfo(info);
+      // Honor the master-account override here too — without this, an
+      // RC entitlement push (e.g. trial expired) would knock the owner
+      // back down to Free until the next mount.
+      if (isOwner(user?.email)) newTier = 'business';
       setTier(newTier);
       void AsyncStorage.setItem(SUBSCRIPTION_KEY, newTier);
       queryClient.setQueryData(['rc-customer-info'], info);
@@ -222,7 +239,7 @@ export const [SubscriptionProvider, useSubscription] = createContextHook(() => {
     return () => {
       Purchases.removeCustomerInfoUpdateListener(listener);
     };
-  }, [queryClient, userId]);
+  }, [queryClient, userId, user?.email]);
 
   const offeringsQuery = useQuery<PurchasesOfferings | null>({
     queryKey: ['rc-offerings'],
