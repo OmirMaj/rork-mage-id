@@ -2815,7 +2815,10 @@ export default function ProjectDetailScreen() {
         </Pressable>
       </Modal>
 
-      {project ? <UniversalMicButton projectId={project.id} /> : null}
+      {/* Always-rendered FAB; UniversalMicButton hides itself internally
+          when there's no project to scope to. Keeps the parent hook tree
+          stable across project-loading transitions. */}
+      <UniversalMicButton projectId={project?.id} />
     </View>
   );
 }
