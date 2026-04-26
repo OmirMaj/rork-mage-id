@@ -426,6 +426,10 @@ function RootLayoutNav() {
         options={{ headerShown: false }}
       />
       <Stack.Screen
+        name="drawing-analyzer"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
         name="plans"
         options={{ headerShown: false }}
       />

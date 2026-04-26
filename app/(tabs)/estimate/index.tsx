@@ -28,7 +28,7 @@ import {
   getPopularCustomMaterials, aiResultToSavedMaterial, addRecentMaterial,
   getRecentMaterials, type SavedMaterial, type RecentMaterial,
 } from '@/utils/materialDatabase';
-import { Sparkles, Wifi, PlusCircle, History, Star } from 'lucide-react-native';
+import { Sparkles, Wifi, PlusCircle, History, Star, FileUp } from 'lucide-react-native';
 import { generateAndSharePDF, generateEstimatePDFUri } from '@/utils/pdfGenerator';
 import * as Sharing from 'expo-sharing';
 import PDFPreSendSheet from '@/components/PDFPreSendSheet';
@@ -1211,6 +1211,15 @@ export default function EstimateScreen() {
             </View>
           </View>
           <View style={styles.headerActions}>
+            <TouchableOpacity
+              style={styles.aiEstimateBtn}
+              onPress={() => router.push('/drawing-analyzer' as never)}
+              activeOpacity={0.8}
+              testID="drawing-analyzer-btn"
+            >
+              <FileUp size={13} color={Colors.textOnPrimary} />
+              <Text style={styles.aiEstimateBtnText}>Plans</Text>
+            </TouchableOpacity>
             <TouchableOpacity
               style={styles.aiEstimateBtn}
               onPress={() => setShowAIQuickEstimate(true)}
