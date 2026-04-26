@@ -13,11 +13,18 @@ import type {
   SavedAIAPayApp,
 } from '@/types';
 
+// v3 adds:
+// - clientCanSetBudget toggle so the portal can show a "Set your target
+//   budget" card when no contract value exists yet.
+// - submitBudget object with the Supabase REST endpoint + anon key + a
+//   mailto fallback so the portal can post a proposal back to the GC.
+// - project.targetBudget — surfaced when no estimate has been built yet.
+//
 // v2 added: invoice.lineItems summary, contractAmount/amountPaid per invoice,
 // aiaPayApps section (for the new portal "Pay Applications" experience),
 // project.heroPhotoUrl + project.startDate / targetDate for the redesigned
 // hero card.
-export const PORTAL_SNAPSHOT_VERSION = 2;
+export const PORTAL_SNAPSHOT_VERSION = 3;
 
 export interface PortalSnapshot {
   v: number;
@@ -26,6 +33,22 @@ export interface PortalSnapshot {
   passcode?: string;
   welcomeMessage?: string;
   clientName?: string;
+  // Whether the portal should show the "Set your target budget" card.
+  // Independent of `sections.budget` — that's the read-only snapshot of
+  // committed numbers; this is a one-way write affordance for the client.
+  clientCanSetBudget?: boolean;
+  // Endpoint metadata so the static portal can POST a budget proposal
+  // back to the GC. Both the Supabase route and the mailto fallback are
+  // wired in; if Supabase POST fails for any reason the portal falls
+  // back to opening the user's email client.
+  submitBudget?: {
+    portalId: string;
+    inviteId?: string;
+    supabaseUrl?: string;
+    supabaseAnonKey?: string;
+    contactEmail?: string;     // GC email — used as `mailto:` recipient
+    contactName?: string;      // displayed in the portal CTA
+  };
   company: {
     name: string;
     primaryColor?: string;
@@ -45,6 +68,9 @@ export interface PortalSnapshot {
     // show "Started Mar 14 · Targeting Aug 22".
     startDate?: string;
     targetDate?: string;
+    // v3: an agreed-on contract value when no estimate exists yet. Falls
+    // through to the budget stat so clients see a number they can react to.
+    targetBudget?: { amount: number; setBy: 'client' | 'gc'; note?: string };
   };
   sections: {
     schedule?: { tasks: Array<{
@@ -138,6 +164,13 @@ interface BuildOpts {
   rfis?: RFI[];
   aiaPayApps?: SavedAIAPayApp[];
   invite?: ClientPortalInvite;
+  // Optional Supabase + GC contact info baked into the snapshot so the
+  // static portal can post a budget proposal back to the GC. These are
+  // safe to include (anon key is public, RLS gates access).
+  supabaseUrl?: string;
+  supabaseAnonKey?: string;
+  contactEmail?: string;
+  contactName?: string;
   maxPhotos?: number;       // cap to keep URL manageable (default 24)
   maxDailyReports?: number; // default 10
   maxAIAPayApps?: number;   // default 6 (most recent first)
@@ -149,6 +182,7 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
     project, portal, settings, invoices = [], changeOrders = [],
     dailyReports = [], punchItems = [], photos = [], rfis = [],
     aiaPayApps = [], invite,
+    supabaseUrl, supabaseAnonKey, contactEmail, contactName,
     maxPhotos = 24, maxDailyReports = 10, maxAIAPayApps = 6,
     maxInvoiceLines = 10,
   } = opts;
@@ -171,9 +205,15 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
     };
   }
 
-  // Budget summary — derived from project estimate + approved COs + invoices
+  // Budget summary — derived from project estimate + approved COs + invoices.
+  // When no estimate exists yet but a targetBudget is set (typically from an
+  // accepted client proposal), use that as the contract value baseline so
+  // the portal still has a number to display.
   if (portal.showBudgetSummary) {
-    const baseContract = project.estimate?.grandTotal ?? 0;
+    const baseContract =
+      project.estimate?.grandTotal
+      ?? project.targetBudget?.amount
+      ?? 0;
     const coTotal = changeOrders
       .filter(c => c.status === 'approved')
       .reduce((sum, c) => sum + (c.changeAmount ?? 0), 0);
@@ -375,6 +415,25 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
     }
   }
 
+  // Show the "set your budget" card only when (a) the GC has opted in
+  // AND (b) there's no contract value to react to yet (no estimate, no
+  // accepted target budget). If a targetBudget is already set the client
+  // sees that number in the stats — they don't need to propose another.
+  const noContractYet =
+    !project.estimate?.grandTotal && !project.targetBudget?.amount;
+  const clientCanSetBudget = !!portal.clientCanSetBudget && noContractYet;
+
+  // Snapshot the targetBudget so the portal can show the number even when
+  // no full estimate exists. Setting it via a client proposal always
+  // populates this field (after the GC accepts).
+  const projectTargetBudget = project.targetBudget
+    ? {
+        amount: project.targetBudget.amount,
+        setBy: project.targetBudget.setBy,
+        note: project.targetBudget.note,
+      }
+    : undefined;
+
   return {
     v: PORTAL_SNAPSHOT_VERSION,
     snapshotAt: new Date().toISOString(),
@@ -382,6 +441,17 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
     passcode: portal.requirePasscode ? portal.passcode : undefined,
     welcomeMessage: portal.welcomeMessage,
     clientName: invite?.name,
+    clientCanSetBudget,
+    submitBudget: clientCanSetBudget ? {
+      portalId: portal.portalId,
+      inviteId: invite?.id,
+      supabaseUrl,
+      supabaseAnonKey,
+      contactEmail: contactEmail ?? settings?.branding?.email,
+      contactName: contactName
+        ?? settings?.branding?.contactName
+        ?? settings?.branding?.companyName,
+    } : undefined,
     company: {
       name: settings?.branding?.companyName ?? 'MAGE ID',
       primaryColor: settings?.themeColors?.primary,
@@ -395,6 +465,7 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
       heroPhotoUrl,
       startDate,
       targetDate,
+      targetBudget: projectTargetBudget,
     },
     sections,
   };

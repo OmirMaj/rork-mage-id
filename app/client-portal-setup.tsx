@@ -10,7 +10,7 @@ import {
   Globe, Copy, Send, Trash2, Eye, EyeOff, CheckCircle2,
   CalendarDays, DollarSign, Image, FileText, ClipboardList,
   MessageSquare, BarChart3, Users, ChevronLeft, Plus, Link, Clock, Lock,
-  Mail, RefreshCw, Sparkles,
+  Mail, RefreshCw, Sparkles, Check, X, HandCoins,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
@@ -20,9 +20,15 @@ import { sendEmailNative } from '@/utils/emailService';
 import {
   buildPortalSnapshot, buildPortalUrl, estimateSnapshotSizeKb,
 } from '@/utils/portalSnapshot';
+import { usePortalBudgetProposals } from '@/hooks/usePortalBudgetProposals';
+import { formatMoney } from '@/utils/formatters';
 
 const PORTAL_BASE_URL = 'https://mageid.app/portal';
 const DEEP_LINK_SCHEME = 'rork-app://client-view';
+// Supabase URL + anon key are public — fine to bake into the static portal
+// page so it can POST a budget proposal back to the GC. RLS gates access.
+const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://nteoqhcswappxxjlpvap.supabase.co';
+const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im50ZW9xaGNzd2FwcHh4amxwdmFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzMTU0MDMsImV4cCI6MjA4OTg5MTQwM30.xpz7yWhignppH-3dYD-EV4AvB4cugr7-881GKdOFado';
 
 interface PermissionToggle {
   key: keyof ClientPortalSettings;
@@ -102,6 +108,9 @@ const DEFAULT_PORTAL: ClientPortalSettings = {
   showDocuments: false,
   welcomeMessage: '',
   invites: [],
+  // Off by default — only relevant for the small fraction of projects
+  // where the GC is collecting an early budget input from the owner.
+  clientCanSetBudget: false,
 };
 
 export default function ClientPortalSetupScreen() {
@@ -119,6 +128,7 @@ export default function ClientPortalSetupScreen() {
   const unreadFromClient = id ? getUnreadPortalMessageCount(id, 'gc') : 0;
 
   const project = useMemo(() => getProject(id ?? ''), [id, getProject]);
+  const proposalQ = usePortalBudgetProposals(id);
 
   const [portal, setPortal] = useState<ClientPortalSettings>(() => {
     if (project?.clientPortal?.enabled) {
@@ -156,6 +166,10 @@ export default function ClientPortalSetupScreen() {
       photos: getPhotosForProject(project.id),
       rfis: getRFIsForProject(project.id),
       aiaPayApps: getAIAPayAppsForProject(project.id),
+      supabaseUrl: SUPABASE_URL,
+      supabaseAnonKey: SUPABASE_ANON_KEY,
+      contactEmail: settings?.branding?.email,
+      contactName: settings?.branding?.contactName ?? settings?.branding?.companyName,
     });
   }, [
     project, portal, settings,
@@ -204,6 +218,32 @@ export default function ClientPortalSetupScreen() {
     setPortal(p => ({ ...p, [key]: value }));
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
   }, []);
+
+  // Accept a client's budget proposal: marks it accepted in Supabase AND
+  // writes the amount to project.targetBudget so the portal stat picks it up.
+  // Declining just flips the row status; the GC can still set a budget by
+  // building an estimate (the natural path).
+  const handleAcceptProposal = useCallback((proposalId: string) => {
+    const p = proposalQ.proposals.find(x => x.id === proposalId);
+    if (!p || !id || !project) return;
+    proposalQ.accept(proposalId);
+    updateProject(id, {
+      targetBudget: {
+        amount: p.amount,
+        setAt: new Date().toISOString(),
+        setBy: 'client',
+        clientName: p.proposerName ?? undefined,
+        note: p.note ?? undefined,
+        proposalId: p.id,
+      },
+    });
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  }, [proposalQ, id, project, updateProject]);
+
+  const handleDeclineProposal = useCallback((proposalId: string) => {
+    proposalQ.decline(proposalId);
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+  }, [proposalQ]);
 
   const handleSave = useCallback(async () => {
     if (!id) return;
@@ -447,6 +487,87 @@ export default function ClientPortalSetupScreen() {
           />
         </View>
 
+        {/* Client Budget Input */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Client Budget Input</Text>
+          <Text style={styles.sectionSubtitle}>
+            Let the owner propose a starting budget directly from the portal — useful
+            when you don&apos;t have an estimate yet and want to anchor the conversation.
+          </Text>
+          <View style={[styles.togglesCard, { padding: 0 }]}>
+            <View style={[styles.toggleRow, (project?.targetBudget || proposalQ.pending.length > 0) && styles.toggleRowBorder]}>
+              <View style={styles.toggleLeft}>
+                <HandCoins size={18} color="#FF6A1A" />
+                <View style={styles.toggleLabels}>
+                  <Text style={styles.toggleLabel}>Allow client to suggest budget</Text>
+                  <Text style={styles.toggleDesc}>Shows a &quot;Set your target budget&quot; card on the portal</Text>
+                </View>
+              </View>
+              <Switch
+                value={!!portal.clientCanSetBudget}
+                onValueChange={val => handleToggle('clientCanSetBudget', val)}
+                trackColor={{ false: Colors.border, true: Colors.primary }}
+                thumbColor="#FFF"
+              />
+            </View>
+
+            {/* Currently accepted budget */}
+            {project?.targetBudget && (
+              <View style={[styles.budgetStatus, proposalQ.pending.length > 0 && { borderBottomWidth: 1, borderBottomColor: Colors.border }]}>
+                <View style={styles.budgetStatusBadge}>
+                  <Check size={14} color="#1E8E4A" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.budgetStatusLabel}>
+                    Target budget {project.targetBudget.setBy === 'client' ? 'from client' : 'set by you'}
+                  </Text>
+                  <Text style={styles.budgetStatusValue}>{formatMoney(project.targetBudget.amount)}</Text>
+                  {project.targetBudget.clientName && (
+                    <Text style={styles.budgetStatusMeta}>Proposed by {project.targetBudget.clientName}</Text>
+                  )}
+                </View>
+              </View>
+            )}
+
+            {/* Pending proposals */}
+            {proposalQ.pending.map((p, idx) => (
+              <View
+                key={p.id}
+                style={[
+                  styles.proposalRow,
+                  idx < proposalQ.pending.length - 1 && styles.toggleRowBorder,
+                ]}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.proposalAmount}>{formatMoney(p.amount)}</Text>
+                  <Text style={styles.proposalMeta}>
+                    {p.proposerName ? `${p.proposerName} · ` : ''}
+                    {new Date(p.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                  </Text>
+                  {p.note && <Text style={styles.proposalNote} numberOfLines={2}>{p.note}</Text>}
+                </View>
+                <View style={styles.proposalCtas}>
+                  <TouchableOpacity
+                    style={[styles.proposalBtn, styles.proposalBtnAccept]}
+                    onPress={() => handleAcceptProposal(p.id)}
+                    disabled={proposalQ.isResponding}
+                  >
+                    <Check size={14} color="#FFF" />
+                    <Text style={styles.proposalBtnText}>Accept</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.proposalBtnDecline}
+                    onPress={() => handleDeclineProposal(p.id)}
+                    disabled={proposalQ.isResponding}
+                  >
+                    <X size={14} color={Colors.textMuted} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ))}
+          </View>
+        </View>
+
         {/* Permissions */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>What Clients Can See</Text>
@@ -639,6 +760,43 @@ const styles = StyleSheet.create({
   toggleLabels: { flex: 1 },
   toggleLabel: { fontSize: 14, fontWeight: '600', color: Colors.text },
   toggleDesc: { fontSize: 12, color: Colors.textMuted, marginTop: 1 },
+
+  budgetStatus: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 12,
+    paddingHorizontal: 14, paddingVertical: 14,
+    backgroundColor: '#E8F5ED',
+  },
+  budgetStatusBadge: {
+    width: 26, height: 26, borderRadius: 13,
+    backgroundColor: '#D1ECDB',
+    alignItems: 'center', justifyContent: 'center',
+    marginTop: 1,
+  },
+  budgetStatusLabel: { fontSize: 11, fontWeight: '700', color: '#1E8E4A', letterSpacing: 0.4, textTransform: 'uppercase' },
+  budgetStatusValue: { fontSize: 22, fontWeight: '800', color: Colors.text, marginTop: 2 },
+  budgetStatusMeta: { fontSize: 12, color: Colors.textMuted, marginTop: 2 },
+
+  proposalRow: {
+    paddingHorizontal: 14, paddingVertical: 14,
+    flexDirection: 'row', gap: 12, alignItems: 'flex-start',
+    backgroundColor: '#FFF7EE',
+  },
+  proposalAmount: { fontSize: 18, fontWeight: '800', color: Colors.text },
+  proposalMeta: { fontSize: 12, color: Colors.textMuted, marginTop: 2 },
+  proposalNote: { fontSize: 13, color: Colors.text, marginTop: 6, lineHeight: 18 },
+  proposalCtas: { flexDirection: 'row', gap: 6, alignItems: 'center' },
+  proposalBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 12, paddingVertical: 8,
+    borderRadius: 8,
+  },
+  proposalBtnAccept: { backgroundColor: Colors.primary },
+  proposalBtnText: { fontSize: 13, fontWeight: '700', color: '#FFF' },
+  proposalBtnDecline: {
+    width: 32, height: 32, borderRadius: 8,
+    backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,
+    alignItems: 'center', justifyContent: 'center',
+  },
 
   inviteForm: { gap: 8 },
   input: {

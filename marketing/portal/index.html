@@ -767,6 +767,151 @@
   .sov-table tr:last-child td { border-bottom: none; }
   .sov-desc { white-space: nowrap; max-width: 140px; overflow: hidden; text-overflow: ellipsis; }
 
+  /* ───────── Budget proposal banner ───────── */
+  .budget-banner {
+    background: var(--ink); color: #fff;
+    border-radius: var(--radius-xl);
+    padding: 28px;
+    margin-bottom: 20px;
+    box-shadow: var(--shadow-lg);
+    position: relative; overflow: hidden;
+  }
+  .budget-banner::before {
+    content: ''; position: absolute; inset: 0;
+    background:
+      radial-gradient(600px 320px at 95% -20%, rgba(255,106,26,0.30), transparent 60%),
+      radial-gradient(400px 240px at -10% 120%, rgba(255,106,26,0.15), transparent 60%);
+    pointer-events: none;
+  }
+  .budget-banner-inner { position: relative; z-index: 1; }
+  .budget-eyebrow {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 11px; font-weight: 700; letter-spacing: 1.6px;
+    color: var(--amber); text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+  .budget-eyebrow::before {
+    content: ''; width: 24px; height: 2px;
+    background: var(--amber); border-radius: 1px;
+  }
+  .budget-banner h2 {
+    font-family: 'Fraunces', serif;
+    font-size: clamp(22px, 3vw, 30px);
+    font-weight: 700; line-height: 1.18;
+    letter-spacing: -0.02em;
+    margin-bottom: 10px;
+    max-width: 22ch;
+  }
+  .budget-banner p {
+    color: rgba(255,255,255,0.72);
+    font-size: 14.5px; line-height: 1.5;
+    max-width: 60ch;
+    margin-bottom: 22px;
+  }
+  .budget-form {
+    display: grid; gap: 12px;
+    grid-template-columns: 1fr auto;
+    align-items: stretch;
+    max-width: 520px;
+  }
+  .budget-input-wrap {
+    position: relative; display: flex; align-items: center;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.16);
+    border-radius: var(--radius-md);
+    padding: 0 16px 0 14px;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .budget-input-wrap:focus-within {
+    border-color: var(--amber);
+    background: rgba(255,255,255,0.10);
+  }
+  .budget-input-prefix {
+    color: var(--amber); font-family: 'Fraunces', serif;
+    font-size: 22px; font-weight: 700;
+    margin-right: 6px;
+  }
+  .budget-input {
+    flex: 1; min-width: 0;
+    background: transparent; border: none; outline: none;
+    color: #fff; font-family: 'Fraunces', serif;
+    font-size: 22px; font-weight: 700;
+    padding: 16px 0;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+  }
+  .budget-input::placeholder { color: rgba(255,255,255,0.32); }
+  .budget-submit-btn {
+    background: var(--amber); color: #fff;
+    border: none; padding: 0 22px;
+    border-radius: var(--radius-md);
+    font-family: inherit; font-weight: 700; font-size: 14px;
+    cursor: pointer;
+    display: inline-flex; align-items: center; gap: 8px;
+    transition: background 0.15s, transform 0.1s;
+    box-shadow: var(--shadow-amber);
+    white-space: nowrap;
+  }
+  .budget-submit-btn:hover { background: var(--amber-dark); }
+  .budget-submit-btn:active { transform: translateY(1px); }
+  .budget-submit-btn:disabled { opacity: 0.6; cursor: wait; }
+  .budget-note {
+    margin-top: 12px;
+    background: transparent; border: 1px solid rgba(255,255,255,0.16);
+    color: #fff; font-family: inherit;
+    border-radius: var(--radius-md);
+    padding: 12px 14px;
+    font-size: 13px; line-height: 1.5;
+    width: 100%; max-width: 520px;
+    resize: vertical; min-height: 64px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .budget-note:focus { border-color: var(--amber); background: rgba(255,255,255,0.06); }
+  .budget-note::placeholder { color: rgba(255,255,255,0.32); }
+  .budget-fineprint {
+    margin-top: 12px;
+    font-size: 12px; color: rgba(255,255,255,0.55);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .budget-fineprint .icn { width: 12px; height: 12px; }
+  .budget-status {
+    display: none; margin-top: 14px;
+    padding: 12px 14px;
+    border-radius: var(--radius-md);
+    font-size: 13px; font-weight: 600;
+    line-height: 1.45;
+  }
+  .budget-status.show { display: block; }
+  .budget-status.error {
+    background: rgba(255,106,26,0.12);
+    border: 1px solid rgba(255,106,26,0.30);
+    color: #FFD7B8;
+  }
+  .budget-success {
+    display: flex; gap: 14px; align-items: center;
+    padding: 18px 20px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.16);
+    border-radius: var(--radius-lg);
+    margin-top: 14px;
+  }
+  .budget-success-check {
+    width: 40px; height: 40px; border-radius: 50%;
+    background: var(--amber); color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .budget-success-text { flex: 1; min-width: 0; }
+  .budget-success-text strong { display: block; font-size: 15px; margin-bottom: 2px; }
+  .budget-success-text span { font-size: 13px; color: rgba(255,255,255,0.65); }
+
+  @media (max-width: 540px) {
+    .budget-banner { padding: 24px 20px; }
+    .budget-form { grid-template-columns: 1fr; }
+    .budget-submit-btn { padding: 14px; justify-content: center; }
+  }
+
   /* ───────── Empty state ───────── */
   .empty-section {
     text-align: center;
@@ -967,6 +1112,7 @@
     </nav>
 
     <main class="container">
+      <div id="budget-banner" class="budget-banner" style="display:none"></div>
       <div id="sections"></div>
 
       <footer class="portal-footer">
@@ -1535,6 +1681,196 @@
     if (btn) btn.addEventListener('click', function () { window.print(); });
   }
 
+  // ───────── Client budget proposal ─────────
+  // Shown when the GC has enabled the toggle AND no contract value exists yet.
+  // Submits to public.portal_budget_proposals via Supabase REST. Falls back
+  // to a mailto: pre-filled with the proposal when the API call fails or
+  // Supabase isn't configured. Persists submission state in localStorage so
+  // the form turns into a "thanks, we sent it" card on reload.
+  function localBudgetKey(portalId) {
+    return 'mage_portal_budget_' + portalId;
+  }
+  function loadLocalBudget(portalId) {
+    try { return JSON.parse(localStorage.getItem(localBudgetKey(portalId)) || 'null'); }
+    catch (e) { return null; }
+  }
+  function saveLocalBudget(portalId, payload) {
+    try { localStorage.setItem(localBudgetKey(portalId), JSON.stringify(payload)); } catch (e) {}
+  }
+
+  async function postBudgetProposal(cfg, body) {
+    if (!cfg.supabaseUrl || !cfg.supabaseAnonKey) {
+      throw new Error('No Supabase config in snapshot');
+    }
+    var url = cfg.supabaseUrl.replace(/\/+$/, '') + '/rest/v1/portal_budget_proposals';
+    var resp = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': cfg.supabaseAnonKey,
+        'Authorization': 'Bearer ' + cfg.supabaseAnonKey,
+        'Prefer': 'return=minimal',
+      },
+      body: JSON.stringify(body),
+    });
+    if (!resp.ok) {
+      var text = '';
+      try { text = await resp.text(); } catch(e) {}
+      throw new Error('Supabase ' + resp.status + ': ' + text);
+    }
+  }
+
+  function buildMailtoFallback(cfg, amount, note, projectName) {
+    var to = cfg.contactEmail || 'support@mageid.app';
+    var subject = 'Budget proposal — ' + (projectName || 'project');
+    var bodyLines = [
+      'I\'d like to propose a target budget for the project:',
+      '',
+      '$' + Number(amount).toLocaleString(undefined, { maximumFractionDigits: 0 }),
+      '',
+    ];
+    if (note) {
+      bodyLines.push('Note:');
+      bodyLines.push(note);
+      bodyLines.push('');
+    }
+    bodyLines.push('Sent from the MAGE ID client portal.');
+    var body = bodyLines.join('\n');
+    return 'mailto:' + encodeURIComponent(to) +
+      '?subject=' + encodeURIComponent(subject) +
+      '&body=' + encodeURIComponent(body);
+  }
+
+  function renderBudgetBanner(data) {
+    var banner = document.getElementById('budget-banner');
+    if (!banner) return;
+    if (!data.clientCanSetBudget || !data.submitBudget) {
+      banner.style.display = 'none';
+      return;
+    }
+    var cfg = data.submitBudget;
+    var portalId = cfg.portalId;
+    var clientName = data.clientName || '';
+    var projectName = (data.project && data.project.name) || 'this project';
+    var contactName = cfg.contactName || (data.company && data.company.name) || 'your contractor';
+
+    var existing = loadLocalBudget(portalId);
+    if (existing && existing.amount) {
+      // Already submitted — show the thank-you state with the submitted amount.
+      banner.innerHTML = (
+        '<div class="budget-banner-inner">' +
+          '<div class="budget-eyebrow">Budget submitted</div>' +
+          '<h2>Thanks — we\'ve let ' + esc(contactName) + ' know.</h2>' +
+          '<p>You proposed <strong style="color:#fff">' + fmtMoney(existing.amount) + '</strong> as a target budget for ' + esc(projectName) + '. Your contractor will reach out with next steps.</p>' +
+          '<div class="budget-success">' +
+            '<div class="budget-success-check">' + icn(ICONS.check, 18) + '</div>' +
+            '<div class="budget-success-text">' +
+              '<strong>Sent ' + esc(timeAgo(existing.submittedAt)) + '</strong>' +
+              '<span>If you need to revise, message ' + esc(contactName) + ' directly.</span>' +
+            '</div>' +
+          '</div>' +
+        '</div>'
+      );
+      banner.style.display = 'block';
+      return;
+    }
+
+    // Greeting personalized with client name when present
+    var greeting = clientName
+      ? 'Hi ' + clientName.split(' ')[0] + ' — what\'s your <em style="font-style:italic;color:var(--amber)">target budget</em> for ' + esc(projectName) + '?'
+      : 'What\'s your <em style="font-style:italic;color:var(--amber)">target budget</em> for ' + esc(projectName) + '?';
+
+    banner.innerHTML = (
+      '<div class="budget-banner-inner">' +
+        '<div class="budget-eyebrow">A quick ask from your contractor</div>' +
+        '<h2>' + greeting + '</h2>' +
+        '<p>' + esc(contactName) + ' is putting together your numbers and would love to start with the ballpark you have in mind. Even a rough range helps anchor the conversation.</p>' +
+        '<div class="budget-form">' +
+          '<div class="budget-input-wrap">' +
+            '<span class="budget-input-prefix">$</span>' +
+            '<input id="budget-amount" class="budget-input num" type="text" inputmode="decimal" placeholder="850,000" autocomplete="off" />' +
+          '</div>' +
+          '<button id="budget-submit" class="budget-submit-btn">' +
+            icn(ICONS.arrowRight, 16) +
+            '<span>Send to ' + esc(contactName.split(' ')[0] || 'contractor') + '</span>' +
+          '</button>' +
+        '</div>' +
+        '<textarea id="budget-note" class="budget-note" placeholder="Optional note — what\'s included, what flexibility you have, etc."></textarea>' +
+        '<div class="budget-status" id="budget-status"></div>' +
+        '<div class="budget-fineprint">' +
+          icn(ICONS.lock, 12) +
+          'Only ' + esc(contactName) + ' sees this — it\'s not posted publicly.' +
+        '</div>' +
+      '</div>'
+    );
+    banner.style.display = 'block';
+
+    var input = document.getElementById('budget-amount');
+    var noteEl = document.getElementById('budget-note');
+    var btn = document.getElementById('budget-submit');
+    var statusEl = document.getElementById('budget-status');
+
+    // Live thousands-formatting on the amount input
+    input.addEventListener('input', function () {
+      var raw = input.value.replace(/[^0-9.]/g, '');
+      if (!raw) { input.value = ''; return; }
+      var parts = raw.split('.');
+      var intPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+      input.value = parts.length > 1 ? intPart + '.' + parts[1].slice(0, 2) : intPart;
+    });
+
+    function showError(msg) {
+      statusEl.textContent = msg;
+      statusEl.classList.remove('show');
+      void statusEl.offsetWidth;
+      statusEl.classList.add('show', 'error');
+    }
+
+    btn.addEventListener('click', async function () {
+      var amount = parseFloat(input.value.replace(/[^0-9.]/g, ''));
+      if (!amount || amount <= 0) {
+        input.focus();
+        showError('Enter a number greater than zero.');
+        return;
+      }
+      if (amount >= 1e9) {
+        showError('Please enter a realistic budget.');
+        return;
+      }
+      var note = noteEl.value.trim();
+      btn.disabled = true;
+      btn.innerHTML = '<span>Sending…</span>';
+
+      var payload = {
+        portal_id: portalId,
+        invite_id: cfg.inviteId || null,
+        amount: amount,
+        note: note || null,
+        proposer_name: clientName || null,
+      };
+      var ok = false;
+      try {
+        await postBudgetProposal(cfg, payload);
+        ok = true;
+      } catch (e) {
+        console.warn('budget POST failed, falling back to mailto', e);
+      }
+
+      if (ok) {
+        saveLocalBudget(portalId, { amount: amount, note: note, submittedAt: new Date().toISOString() });
+        renderBudgetBanner(data);  // re-render → success state
+        return;
+      }
+
+      // Fallback — open the email client. We still mark it as submitted
+      // locally so the form turns into the success state.
+      var href = buildMailtoFallback(cfg, amount, note, projectName);
+      saveLocalBudget(portalId, { amount: amount, note: note, submittedAt: new Date().toISOString(), via: 'mailto' });
+      renderBudgetBanner(data);
+      setTimeout(function () { window.location.href = href; }, 60);
+    });
+  }
+
   // ───────── Stats bar ─────────
   function renderStats(budget, invoices, aia) {
     var grid = document.getElementById('stats-grid');
@@ -1674,6 +2010,10 @@
       var sb = document.querySelector('.stats-bar');
       if (sb) sb.style.display = 'none';
     }
+
+    // Client budget proposal card (only renders when GC has enabled it +
+    // there's no contract value yet).
+    renderBudgetBanner(data);
 
     // Build sections
     var navItems = [];

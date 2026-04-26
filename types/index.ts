@@ -99,6 +99,23 @@ export interface Project {
   clientPortal?: ClientPortalSettings;
   closedAt?: string;
   photoCount?: number;
+  // Set when a project has a target / agreed contract value but no full
+  // estimate yet — typically the result of a client budget proposal
+  // accepted by the GC. The portal's "Contract Value" stat falls back to
+  // this when project.estimate?.grandTotal is null.
+  targetBudget?: ProjectTargetBudget;
+}
+
+export interface ProjectTargetBudget {
+  amount: number;
+  setAt: string;        // ISO timestamp
+  setBy: 'client' | 'gc';
+  clientName?: string;  // when setBy === 'client', who proposed it
+  note?: string;
+  // The id of the portal_budget_proposal row this came from, when
+  // imported from a client proposal. Lets us reconcile if the client
+  // resubmits a different number.
+  proposalId?: string;
 }
 
 export interface MaterialCategory {
@@ -1097,6 +1114,29 @@ export interface ClientPortalSettings {
   showDocuments: boolean;
   welcomeMessage?: string;
   invites?: ClientPortalInvite[];
+  // When enabled and the project has no contract value yet, the portal
+  // shows a "Set your target budget" card so the owner can propose a
+  // starting number before the GC has finished an estimate. Proposals
+  // are persisted via the portal_budget_proposals table; the GC sees
+  // them in the portal-setup screen and can Accept → sets project.targetBudget.
+  clientCanSetBudget?: boolean;
+}
+
+// Budget proposal a client submits from the portal. Persisted via the
+// portal_budget_proposals table; the GC reviews + accepts/declines from
+// the client-portal setup screen.
+export interface PortalBudgetProposal {
+  id: string;
+  portalId: string;
+  projectId?: string;          // resolved server-side from portal_id when possible
+  inviteId?: string | null;
+  amount: number;
+  note?: string | null;
+  proposerName?: string | null;
+  proposerEmail?: string | null;
+  status: 'pending' | 'accepted' | 'declined';
+  createdAt: string;
+  respondedAt?: string | null;
 }
 
 export interface PortalMessage {
