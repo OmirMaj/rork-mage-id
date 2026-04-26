@@ -12,7 +12,7 @@ import * as Haptics from 'expo-haptics';
 import {
   Plus, TrendingUp, FolderOpen, Layers, X, ChevronRight, Calculator, CalendarDays,
   BarChart3, TrendingDown, Package, DollarSign, Percent, ShoppingCart, ArrowDownRight,
-  Receipt, Wallet, Search, Sparkles, ChevronDown, ChevronUp, Inbox, HardHat,
+  Receipt, Wallet, Search, Sparkles, ChevronDown, ChevronUp, Inbox, HardHat, Bell,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
@@ -25,6 +25,7 @@ import { useSubscription } from '@/contexts/SubscriptionContext';
 import { useEntityNavigation } from '@/hooks/useEntityNavigation';
 import { useSearch } from '@/contexts/SearchContext';
 import EntityActionSheet from '@/components/EntityActionSheet';
+import { useNotificationFeed } from '@/hooks/useNotificationFeed';
 import EmptyState from '@/components/EmptyState';
 import OfflineSyncPill from '@/components/OfflineSyncPill';
 import CashFlowAlerts from '@/components/CashFlowAlerts';
@@ -39,6 +40,7 @@ import { formatMoney, formatMoneyShort } from '@/utils/formatters';
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const notifFeed = useNotificationFeed();
   const { navigateTo } = useEntityNavigation();
   const { openSearch } = useSearch();
   const { projects, isLoading, addProject, getTotalOutstandingBalance, invoices } = useProjects();
@@ -272,6 +274,21 @@ export default function HomeScreen() {
                     <Inbox size={22} color={Colors.primary} strokeWidth={2} />
                   </TouchableOpacity>
                 )}
+                <TouchableOpacity
+                  style={[styles.addButton, { backgroundColor: Colors.fillTertiary }]}
+                  onPress={() => router.push('/notifications-inbox' as any)}
+                  activeOpacity={0.7}
+                  testID="notifications-inbox-btn"
+                >
+                  <Bell size={22} color={Colors.primary} strokeWidth={2} />
+                  {notifFeed.unreadCount > 0 && (
+                    <View style={styles.notifBadge}>
+                      <Text style={styles.notifBadgeText}>
+                        {notifFeed.unreadCount > 9 ? '9+' : String(notifFeed.unreadCount)}
+                      </Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
                 {projects.length > 0 && (
                   <TouchableOpacity
                     style={[styles.addButton, { backgroundColor: Colors.fillTertiary }]}
@@ -812,6 +829,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  notifBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: '#FF3B30',
+    paddingHorizontal: 5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: Colors.background,
+  },
+  notifBadgeText: { color: '#fff', fontSize: 10, fontWeight: '800' as const, letterSpacing: -0.2 },
   largeTitle: {
     fontSize: 34,
     fontWeight: '700' as const,

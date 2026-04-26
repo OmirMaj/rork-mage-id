@@ -422,6 +422,10 @@ function RootLayoutNav() {
         }}
       />
       <Stack.Screen
+        name="notifications-inbox"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
         name="plans"
         options={{ headerShown: false }}
       />

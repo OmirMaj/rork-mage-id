@@ -10,6 +10,7 @@ import {
   registerForPushNotifications,
   addNotificationResponseListener,
 } from '@/utils/notifications';
+import { usePortalApprovalReconciler } from '@/hooks/usePortalApprovalReconciler';
 
 export const [NotificationProvider, useNotifications] = createContextHook(() => {
   const router = useRouter();
@@ -18,6 +19,10 @@ export const [NotificationProvider, useNotifications] = createContextHook(() => 
   const [pushToken, setPushToken] = useState<string | null>(null);
   const [badgeCount, setBadgeCount] = useState(0);
   const responseListenerRef = useRef<Notifications.EventSubscription | null>(null);
+
+  // Watch for portal CO approvals and fold them onto the underlying
+  // ChangeOrder records. Runs on a 90s poll while the GC is signed in.
+  usePortalApprovalReconciler();
 
   useEffect(() => {
     if (!isAuthenticated || !user) return;

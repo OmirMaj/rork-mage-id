@@ -385,6 +385,68 @@ async function dispatch(req: NotifyRequest): Promise<unknown> {
       });
       break;
     }
+    case 'sub_invoice_reviewed': {
+      // Sub-bound notification when the GC takes action on their invoice.
+      const num = (payload.invoice_number as string) || '';
+      const amount = payload.amount as number | string;
+      const newStatus = (payload.status as string) || 'updated';
+      const submitter = (payload.submitted_by_name as string) || 'sub';
+      const submitterEmail = (payload.submitted_by_email as string) || null;
+      const notesFromGc = (payload.notes_from_gc as string) || '';
+      const company = gc.company_name || gc.contact_name || 'Your contractor';
+      if (!submitterEmail) {
+        // Sub didn't leave an email — nothing to do.
+        await sbInsert('notification_outbox', {
+          event_type: event,
+          source_table: source_table ?? null,
+          source_id: source_id ?? null,
+          recipient_kind: 'sub',
+          recipient_user_id: null,
+          recipient_email: null,
+          push_status: null,
+          email_status: 'skipped_no_email',
+          payload,
+        }).catch(() => {});
+        break;
+      }
+      const verb =
+        newStatus === 'approved' ? 'approved'
+        : newStatus === 'paid' ? 'marked as paid'
+        : 'updated';
+      const subject =
+        newStatus === 'paid'
+          ? `Invoice #${num} paid · ${fmtMoney(amount)}`
+          : `Invoice #${num} ${verb} · ${fmtMoney(amount)}`;
+      const eyebrow = newStatus === 'paid' ? 'Invoice paid' : (newStatus === 'approved' ? 'Invoice approved' : (newStatus === 'rejected' ? 'Invoice update' : 'Invoice update'));
+      const title = newStatus === 'paid'
+        ? `${esc(company)} just paid invoice #${esc(num)}`
+        : newStatus === 'approved'
+          ? `${esc(company)} approved invoice #${esc(num)}`
+          : newStatus === 'rejected'
+            ? `${esc(company)} sent back invoice #${esc(num)}`
+            : `${esc(company)} updated invoice #${esc(num)}`;
+      const bodyHtml = `<p style="margin:0 0 6px"><strong>Amount:</strong> ${esc(fmtMoney(amount))}</p><p style="margin:0 0 14px"><strong>Project:</strong> ${esc(projectName)}</p>${notesFromGc ? `<blockquote style="margin:0 0 14px;padding:14px 16px;background:#F4EFE6;border-left:3px solid #FF6A1A;border-radius:6px;font-style:italic;">${esc(notesFromGc)}</blockquote>` : ''}<p style="margin:0">${newStatus === 'paid' ? 'Payment is on its way — check your bank for the deposit.' : newStatus === 'approved' ? 'You\'ll get another note once payment is on its way.' : newStatus === 'rejected' ? 'Reach out for clarification or revise and resubmit through your portal.' : ''}</p>`;
+      const r = await sendEmail({
+        to: submitterEmail,
+        subject,
+        html: wrapHtml({ eyebrow, title, bodyHtml }),
+        replyTo: gc.email ?? undefined,
+      });
+      await sbInsert('notification_outbox', {
+        event_type: event,
+        source_table: source_table ?? null,
+        source_id: source_id ?? null,
+        recipient_kind: 'sub',
+        recipient_user_id: null,
+        recipient_email: submitterEmail,
+        push_status: null,
+        email_status: r.ok ? 'sent' : 'failed',
+        email_response: r.resp,
+        payload,
+        delivered_at: r.ok ? new Date().toISOString() : null,
+      }).catch(() => {});
+      break;
+    }
     default:
       return { ok: false, reason: 'unknown_event', event };
   }
