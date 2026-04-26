@@ -468,139 +468,151 @@ export async function generateAndSharePDF(
 }
 
 function buildChangeOrderHtml(co: ChangeOrder, project: Project, branding: CompanyBranding): string {
-  const now = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-  const logoBlock = branding.logoUri
-    ? `<div class="logo-wrap"><img src="${escapeHtml(branding.logoUri)}" class="company-logo" alt="Logo" /></div>` : '';
-  const companyBlock = branding.companyName
-    ? `<div class="company-header">${logoBlock}<div class="company-name">${escapeHtml(branding.companyName)}</div>
-        <div class="company-info-grid">
-          ${branding.contactName ? `<div class="info-item"><span class="info-label">Contact</span><span>${escapeHtml(branding.contactName)}</span></div>` : ''}
-          ${branding.phone ? `<div class="info-item"><span class="info-label">Phone</span><span>${escapeHtml(branding.phone)}</span></div>` : ''}
-          ${branding.email ? `<div class="info-item"><span class="info-label">Email</span><span>${escapeHtml(branding.email)}</span></div>` : ''}
-          ${branding.licenseNumber ? `<div class="info-item"><span class="info-label">License</span><span>${escapeHtml(branding.licenseNumber)}</span></div>` : ''}
-        </div></div>`
-    : `<div class="company-header"><div class="company-name">Change Order</div></div>`;
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const D = require('@/utils/pdfDesign') as typeof import('@/utils/pdfDesign');
+  const now = D.fmtDate(co.date || new Date().toISOString());
+  const pillKind: 'success' | 'warning' | 'error' | 'muted' =
+    co.status === 'approved' ? 'success'
+    : co.status === 'rejected' ? 'error'
+    : co.status === 'draft' || co.status === 'void' ? 'muted'
+    : 'warning';
 
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
-    * { margin:0; padding:0; box-sizing:border-box; }
-    body { font-family:-apple-system,'Helvetica Neue',Arial,sans-serif; color:#1a1a1a; padding:40px; font-size:12px; line-height:1.5; }
-    .company-header { text-align:center; margin-bottom:32px; padding-bottom:24px; border-bottom:3px solid #1A6B3C; }
-    .logo-wrap { margin-bottom:12px; } .company-logo { max-height:60px; max-width:240px; object-fit:contain; }
-    .company-name { font-size:28px; font-weight:800; color:#1A6B3C; }
-    .company-info-grid { display:flex; flex-wrap:wrap; justify-content:center; gap:4px 20px; margin-top:10px; }
-    .info-item { font-size:11px; color:#555; } .info-label { font-weight:600; color:#333; margin-right:4px; }
-    .co-header { background:#f8f9fa; border-radius:8px; padding:18px; margin-bottom:24px; border-left:4px solid #FF9500; }
-    .co-title { font-size:20px; font-weight:700; color:#1a1a1a; } .co-meta { font-size:11px; color:#666; margin-top:4px; }
-    .status-badge { display:inline-block; padding:4px 12px; border-radius:6px; font-size:11px; font-weight:700; text-transform:uppercase; }
-    .status-draft { background:#f0f0f0; color:#666; } .status-sent { background:#EBF3FF; color:#007AFF; }
-    .status-approved { background:#E8FAF0; color:#34C759; } .status-rejected { background:#FFF0EF; color:#FF3B30; }
-    table { width:100%; border-collapse:collapse; margin-bottom:20px; font-size:11px; }
-    th { background:#1A6B3C08; padding:8px 10px; text-align:center; font-weight:600; color:#555; text-transform:uppercase; font-size:9px; letter-spacing:0.5px; border-bottom:2px solid #1A6B3C20; }
-    td { padding:7px 10px; text-align:center; border-bottom:1px solid #eee; }
-    tr.alt { background:#fafbfa; }
-    .summary-box { background:#f8f9fa; border-radius:8px; padding:16px; border:1px solid #e8e8e8; }
-    .summary-row { display:flex; justify-content:space-between; padding:5px 0; font-size:13px; }
-    .summary-row.total { font-size:18px; font-weight:800; color:#1A6B3C; padding:10px 0 0; }
-    .summary-divider { height:2px; background:#1A6B3C; margin:8px 0; }
-    .footer { margin-top:40px; padding-top:16px; border-top:1px solid #e5e5e5; text-align:center; font-size:10px; color:#999; }
-  </style></head><body>
-  ${companyBlock}
-  <div class="co-header">
-    <div class="co-title">Change Order #${co.number}</div>
-    <div class="co-meta">Project: ${escapeHtml(project.name)} &middot; Date: ${now} &middot; <span class="status-badge status-${co.status}">${co.status}</span></div>
-    ${co.description ? `<p style="margin-top:8px;font-size:12px;color:#333">${escapeHtml(co.description)}</p>` : ''}
-    ${co.reason ? `<p style="margin-top:4px;font-size:11px;color:#666">Reason: ${escapeHtml(co.reason)}</p>` : ''}
-  </div>
-  <h2 style="font-size:16px;font-weight:700;color:#1A6B3C;margin:20px 0 12px;border-bottom:2px solid #1A6B3C20;padding-bottom:6px;">Line Items</h2>
-  <table><thead><tr>
-    <th style="text-align:left;width:35%">Item</th><th>Qty</th><th>Unit</th><th>Unit Price</th><th style="text-align:right">Total</th>
-  </tr></thead><tbody>
-    ${co.lineItems.map((item, i) => `<tr class="${i % 2 === 0 ? 'alt' : ''}"><td style="text-align:left;font-weight:500">${escapeHtml(item.name)}${item.isNew ? ' <span style="color:#FF9500;font-size:9px">[NEW]</span>' : ''}</td><td>${item.quantity}</td><td>${escapeHtml(item.unit)}</td><td>${formatCurrency(item.unitPrice)}</td><td style="text-align:right;font-weight:600">${formatCurrency(item.total)}</td></tr>`).join('')}
-  </tbody></table>
-  <div class="summary-box">
-    <div class="summary-row"><span>Original Contract Value</span><span>${formatCurrency(co.originalContractValue)}</span></div>
-    <div class="summary-row" style="color:${co.changeAmount >= 0 ? '#FF9500' : '#34C759'}"><span>This Change Order</span><span>${co.changeAmount >= 0 ? '+' : ''}${formatCurrency(co.changeAmount)}</span></div>
-    <div class="summary-divider"></div>
-    <div class="summary-row total"><span>New Contract Total</span><span>${formatCurrency(co.newContractTotal)}</span></div>
-  </div>
-  <div style="margin-top:40px;padding-top:20px;border-top:1px solid #e5e5e5">
-    <div style="font-size:11px;font-weight:600;color:#888;text-transform:uppercase;margin-bottom:20px">Client Approval</div>
-    <div style="display:flex;gap:40px">
-      <div><div style="width:200px;height:1px;background:#333;margin-bottom:8px;margin-top:30px"></div><div style="font-size:11px;color:#888">Client Signature</div></div>
-      <div><div style="width:120px;height:1px;background:#333;margin-bottom:8px;margin-top:30px"></div><div style="font-size:11px;color:#888">Date</div></div>
+  const titleHtml = D.pdfTitle({
+    eyebrow: `Change order #${co.number}`,
+    title: project.name,
+    subtitle: co.description || undefined,
+    meta: [
+      { label: 'Date', value: now },
+      { label: 'Status', value: D.escHtml(co.status.replace(/_/g, ' ')) },
+      ...(co.scheduleImpactDays ? [{ label: 'Schedule impact', value: `${co.scheduleImpactDays} day${co.scheduleImpactDays === 1 ? '' : 's'}` }] : []),
+    ],
+  });
+  const statusBadge = `<div style="margin-bottom:18px">${D.pdfPill(co.status.replace(/_/g, ' '), pillKind)}</div>`;
+  const reasonHtml = co.reason
+    ? `<div style="background:${D.PDF_PALETTE.cream2};border:1px solid ${D.PDF_PALETTE.bone2};border-radius:12px;padding:14px 18px;margin-bottom:20px"><div style="font-size:9px;font-weight:700;color:${D.PDF_PALETTE.textMuted};letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">Reason</div><div style="font-size:13px;color:${D.PDF_PALETTE.text};line-height:1.55">${D.escHtml(co.reason)}</div></div>`
+    : '';
+
+  const lineRows = co.lineItems.map(li => [
+    `<div style="font-weight:600">${D.escHtml(li.name)}${li.isNew ? ` <span style="color:${D.PDF_PALETTE.amber};font-size:9px;font-weight:700;letter-spacing:0.5px;margin-left:4px">[NEW]</span>` : ''}</div>${li.description ? `<div style="font-size:10px;color:${D.PDF_PALETTE.textMuted};margin-top:2px">${D.escHtml(li.description)}</div>` : ''}`,
+    `<span class="num">${li.quantity}</span>`,
+    D.escHtml(li.unit),
+    `<span class="num">${D.fmtMoney(li.unitPrice, { decimals: 2 })}</span>`,
+    `<span class="num" style="font-weight:700">${D.fmtMoney(li.total, { decimals: 2 })}</span>`,
+  ]);
+  const tableHtml = D.pdfSectionHeader('Line items') + D.pdfTable(
+    [
+      { header: 'Item', align: 'left', width: '38%' },
+      { header: 'Qty', align: 'right' },
+      { header: 'Unit', align: 'left' },
+      { header: 'Unit Price', align: 'right' },
+      { header: 'Total', align: 'right' },
+    ],
+    lineRows,
+  );
+
+  const sign = co.changeAmount >= 0 ? '+' : '−';
+  const totalsBlock = `<div class="no-break" style="background:${D.PDF_PALETTE.cream2};border:1px solid ${D.PDF_PALETTE.bone2};border-radius:14px;padding:18px 20px;margin-top:18px">
+    <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12px"><span style="color:${D.PDF_PALETTE.text2}">Original contract value</span><span class="num">${D.fmtMoney(co.originalContractValue, { decimals: 2 })}</span></div>
+    <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;color:${co.changeAmount >= 0 ? D.PDF_PALETTE.amberDark : D.PDF_PALETTE.success};font-weight:600"><span>This change order</span><span class="num">${sign}${D.fmtMoney(Math.abs(co.changeAmount), { decimals: 2 })}</span></div>
+    <div style="height:1.5px;background:${D.PDF_PALETTE.ink};margin:8px 0"></div>
+    <div style="display:flex;justify-content:space-between;align-items:baseline;padding:6px 0">
+      <span style="font-family:'Fraunces',Georgia,serif;font-size:16px;font-weight:700">New contract total</span>
+      <span class="num" style="font-family:'Fraunces',Georgia,serif;font-size:22px;font-weight:700;color:${D.PDF_PALETTE.amber};letter-spacing:-0.012em">${D.fmtMoney(co.newContractTotal, { decimals: 2 })}</span>
     </div>
-  </div>
-  <div class="footer">${branding.companyName ? `${escapeHtml(branding.companyName)} &middot; ` : ''}Change Order #${co.number} &middot; ${now}</div>
-</body></html>`;
+  </div>`;
+
+  const sigBlock = `<div class="no-break" style="margin-top:36px;padding-top:24px;border-top:1px solid ${D.PDF_PALETTE.bone}">
+    <div style="font-size:9px;font-weight:700;color:${D.PDF_PALETTE.textMuted};letter-spacing:1px;text-transform:uppercase;margin-bottom:24px">Client approval</div>
+    <table style="width:100%"><tr>
+      <td style="width:65%;padding-right:24px"><div style="border-bottom:1px solid ${D.PDF_PALETTE.text};height:36px"></div><div style="font-size:10px;color:${D.PDF_PALETTE.textMuted};margin-top:6px">Client signature</div></td>
+      <td><div style="border-bottom:1px solid ${D.PDF_PALETTE.text};height:36px"></div><div style="font-size:10px;color:${D.PDF_PALETTE.textMuted};margin-top:6px">Date</div></td>
+    </tr></table>
+  </div>`;
+
+  return D.pdfShell({
+    title: `Change order #${co.number} — ${project.name}`,
+    branding,
+    bodyHtml:
+      D.pdfHeader(branding) + titleHtml + statusBadge + reasonHtml + tableHtml + totalsBlock + sigBlock +
+      D.pdfFooter(branding, `Change order #${co.number}`),
+  });
 }
 
 function buildInvoiceHtml(inv: Invoice, project: Project, branding: CompanyBranding): string {
-  const now = new Date(inv.issueDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-  const dueDate = new Date(inv.dueDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-  const logoBlock = branding.logoUri
-    ? `<div class="logo-wrap"><img src="${escapeHtml(branding.logoUri)}" class="company-logo" alt="Logo" /></div>` : '';
-  const companyBlock = branding.companyName
-    ? `<div class="company-header">${logoBlock}<div class="company-name">${escapeHtml(branding.companyName)}</div>
-        ${branding.tagline ? `<div style="font-size:13px;color:#666;margin-top:4px;font-style:italic">${escapeHtml(branding.tagline)}</div>` : ''}
-        <div class="company-info-grid">
-          ${branding.contactName ? `<div class="info-item"><span class="info-label">Contact</span><span>${escapeHtml(branding.contactName)}</span></div>` : ''}
-          ${branding.phone ? `<div class="info-item"><span class="info-label">Phone</span><span>${escapeHtml(branding.phone)}</span></div>` : ''}
-          ${branding.email ? `<div class="info-item"><span class="info-label">Email</span><span>${escapeHtml(branding.email)}</span></div>` : ''}
-          ${branding.address ? `<div class="info-item"><span class="info-label">Address</span><span>${escapeHtml(branding.address)}</span></div>` : ''}
-          ${branding.licenseNumber ? `<div class="info-item"><span class="info-label">License</span><span>${escapeHtml(branding.licenseNumber)}</span></div>` : ''}
-        </div></div>`
-    : `<div class="company-header"><div class="company-name">Invoice</div></div>`;
+  // Refreshed to the ink+amber+cream design system shared with every
+  // other PDF MAGE ID generates. See utils/pdfDesign.ts for the helpers.
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const D = require('@/utils/pdfDesign') as typeof import('@/utils/pdfDesign');
+  const termsLabel = inv.paymentTerms.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
+  const balance = Math.max(0, inv.totalDue - inv.amountPaid);
 
-  const termsLabel = inv.paymentTerms.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  const headerHtml = D.pdfHeader(branding);
+  const titleHtml = D.pdfTitle({
+    eyebrow: inv.type === 'progress' ? `Progress invoice #${inv.number}` : `Invoice #${inv.number}`,
+    title: project.name,
+    subtitle: inv.type === 'progress' && inv.progressPercent
+      ? `${inv.progressPercent}% of contract value`
+      : undefined,
+    meta: [
+      { label: 'Issued', value: D.fmtDate(inv.issueDate) },
+      { label: 'Due', value: D.fmtDate(inv.dueDate) },
+      { label: 'Terms', value: termsLabel },
+    ],
+  });
 
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
-    * { margin:0; padding:0; box-sizing:border-box; }
-    body { font-family:-apple-system,'Helvetica Neue',Arial,sans-serif; color:#1a1a1a; padding:40px; font-size:12px; line-height:1.5; }
-    .company-header { text-align:center; margin-bottom:32px; padding-bottom:24px; border-bottom:3px solid #1A6B3C; }
-    .logo-wrap { margin-bottom:12px; } .company-logo { max-height:60px; max-width:240px; object-fit:contain; }
-    .company-name { font-size:28px; font-weight:800; color:#1A6B3C; }
-    .company-info-grid { display:flex; flex-wrap:wrap; justify-content:center; gap:4px 20px; margin-top:10px; }
-    .info-item { font-size:11px; color:#555; } .info-label { font-weight:600; color:#333; margin-right:4px; }
-    .inv-header { background:linear-gradient(135deg,#f8f9fa,#eef2f0); border-radius:8px; padding:18px; margin-bottom:24px; border-left:4px solid #1A6B3C; display:flex; justify-content:space-between; }
-    .inv-title { font-size:20px; font-weight:700; } .inv-meta { font-size:11px; color:#666; margin-top:4px; }
-    table { width:100%; border-collapse:collapse; margin-bottom:20px; font-size:11px; }
-    th { background:#1A6B3C08; padding:8px 10px; text-align:center; font-weight:600; color:#555; text-transform:uppercase; font-size:9px; letter-spacing:0.5px; border-bottom:2px solid #1A6B3C20; }
-    td { padding:7px 10px; text-align:center; border-bottom:1px solid #eee; }
-    tr.alt { background:#fafbfa; }
-    .summary-box { background:#f8f9fa; border-radius:8px; padding:16px; border:1px solid #e8e8e8; }
-    .summary-row { display:flex; justify-content:space-between; padding:5px 0; font-size:13px; }
-    .summary-row.total { font-size:18px; font-weight:800; color:#1A6B3C; padding:10px 0 0; }
-    .summary-divider { height:2px; background:#1A6B3C; margin:8px 0; }
-    .footer { margin-top:40px; padding-top:16px; border-top:1px solid #e5e5e5; text-align:center; font-size:10px; color:#999; }
-  </style></head><body>
-  ${companyBlock}
-  <div class="inv-header">
-    <div>
-      <div class="inv-title">${inv.type === 'progress' ? 'Progress Bill' : 'Invoice'} #${inv.number}</div>
-      <div class="inv-meta">Project: ${escapeHtml(project.name)}</div>
-      ${inv.type === 'progress' && inv.progressPercent ? `<div class="inv-meta">Progress: ${inv.progressPercent}% of contract</div>` : ''}
+  const lineRows = inv.lineItems.map(li => [
+    `<div style="font-weight:600">${D.escHtml(li.name)}</div>${li.description ? `<div style="font-size:10px;color:${D.PDF_PALETTE.textMuted};margin-top:2px">${D.escHtml(li.description)}</div>` : ''}`,
+    `<span class="num">${li.quantity}</span>`,
+    D.escHtml(li.unit),
+    `<span class="num">${D.fmtMoney(li.unitPrice, { decimals: 2 })}</span>`,
+    `<span class="num" style="font-weight:700">${D.fmtMoney(li.total, { decimals: 2 })}</span>`,
+  ]);
+  const tableHtml = D.pdfTable(
+    [
+      { header: 'Item', align: 'left', width: '38%' },
+      { header: 'Qty', align: 'right' },
+      { header: 'Unit', align: 'left' },
+      { header: 'Unit Price', align: 'right' },
+      { header: 'Total', align: 'right' },
+    ],
+    lineRows,
+  );
+
+  const totalsRows = [
+    `<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12px"><span style="color:${D.PDF_PALETTE.text2}">Subtotal</span><span class="num">${D.fmtMoney(inv.subtotal, { decimals: 2 })}</span></div>`,
+    `<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12px"><span style="color:${D.PDF_PALETTE.text2}">Tax (${inv.taxRate}%)</span><span class="num">${D.fmtMoney(inv.taxAmount, { decimals: 2 })}</span></div>`,
+    inv.retentionAmount && inv.retentionAmount > 0
+      ? `<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12px"><span style="color:${D.PDF_PALETTE.text2}">Retainage${inv.retentionPercent ? ` (${inv.retentionPercent}%)` : ''}</span><span class="num">−${D.fmtMoney(inv.retentionAmount, { decimals: 2 })}</span></div>`
+      : '',
+  ].filter(Boolean).join('');
+  const totalsBlock = `<div style="background:${D.PDF_PALETTE.cream2};border:1px solid ${D.PDF_PALETTE.bone2};border-radius:14px;padding:18px 20px;margin-top:18px">
+    ${totalsRows}
+    <div style="height:1.5px;background:${D.PDF_PALETTE.ink};margin:8px 0"></div>
+    <div style="display:flex;justify-content:space-between;align-items:baseline;padding:6px 0">
+      <span style="font-family:'Fraunces',Georgia,serif;font-size:16px;font-weight:700">Total Due</span>
+      <span class="num" style="font-family:'Fraunces',Georgia,serif;font-size:24px;font-weight:700;color:${D.PDF_PALETTE.amber};letter-spacing:-0.012em">${D.fmtMoney(inv.totalDue, { decimals: 2 })}</span>
     </div>
-    <div style="text-align:right">
-      <div class="inv-meta">Issue Date: ${now}</div>
-      <div class="inv-meta">Due Date: ${dueDate}</div>
-      <div class="inv-meta">Terms: ${termsLabel}</div>
-    </div>
-  </div>
-  <table><thead><tr>
-    <th style="text-align:left;width:35%">Item</th><th>Qty</th><th>Unit</th><th>Unit Price</th><th style="text-align:right">Total</th>
-  </tr></thead><tbody>
-    ${inv.lineItems.map((item, i) => `<tr class="${i % 2 === 0 ? 'alt' : ''}"><td style="text-align:left;font-weight:500">${escapeHtml(item.name)}</td><td>${item.quantity}</td><td>${escapeHtml(item.unit)}</td><td>${formatCurrency(item.unitPrice)}</td><td style="text-align:right;font-weight:600">${formatCurrency(item.total)}</td></tr>`).join('')}
-  </tbody></table>
-  <div class="summary-box">
-    <div class="summary-row"><span>Subtotal</span><span>${formatCurrency(inv.subtotal)}</span></div>
-    <div class="summary-row"><span>Tax (${inv.taxRate}%)</span><span>${formatCurrency(inv.taxAmount)}</span></div>
-    <div class="summary-divider"></div>
-    <div class="summary-row total"><span>Total Due</span><span>${formatCurrency(inv.totalDue)}</span></div>
-    ${inv.amountPaid > 0 ? `<div class="summary-row" style="color:#34C759"><span>Amount Paid</span><span>-${formatCurrency(inv.amountPaid)}</span></div><div class="summary-row" style="font-weight:700;font-size:14px"><span>Balance Due</span><span>${formatCurrency(inv.totalDue - inv.amountPaid)}</span></div>` : ''}
-  </div>
-  ${inv.notes ? `<div style="margin-top:20px;padding:14px;background:#f8f9fa;border-radius:8px;border:1px solid #e8e8e8"><div style="font-size:10px;font-weight:600;color:#888;text-transform:uppercase;margin-bottom:6px">Notes</div><p style="font-size:12px;color:#555">${escapeHtml(inv.notes)}</p></div>` : ''}
-  <div class="footer">${branding.companyName ? `${escapeHtml(branding.companyName)} &middot; ` : ''}Invoice #${inv.number} &middot; ${now}</div>
-</body></html>`;
+    ${inv.amountPaid > 0 ? `
+      <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12px;color:${D.PDF_PALETTE.success}"><span>Paid to date</span><span class="num">−${D.fmtMoney(inv.amountPaid, { decimals: 2 })}</span></div>
+      <div style="display:flex;justify-content:space-between;align-items:baseline;padding:8px 0 0;border-top:1px solid ${D.PDF_PALETTE.bone2};margin-top:6px">
+        <span style="font-family:'Fraunces',Georgia,serif;font-size:14px;font-weight:700">${balance > 0 ? 'Balance due' : 'Paid in full'}</span>
+        <span class="num" style="font-family:'Fraunces',Georgia,serif;font-size:18px;font-weight:700;color:${balance > 0 ? D.PDF_PALETTE.amberDark : D.PDF_PALETTE.success}">${D.fmtMoney(balance, { decimals: 2 })}</span>
+      </div>
+    ` : ''}
+  </div>`;
+
+  const notesHtml = inv.notes
+    ? `<div style="margin-top:18px;padding:14px 16px;background:${D.PDF_PALETTE.cream2};border-radius:12px;border:1px solid ${D.PDF_PALETTE.bone2}">
+        <div style="font-size:9px;font-weight:700;color:${D.PDF_PALETTE.textMuted};letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">Notes</div>
+        <div style="font-size:12px;color:${D.PDF_PALETTE.text2};line-height:1.55;white-space:pre-wrap">${D.escHtml(inv.notes)}</div>
+      </div>`
+    : '';
+
+  return D.pdfShell({
+    title: `Invoice #${inv.number} — ${project.name}`,
+    branding,
+    bodyHtml: headerHtml + titleHtml + tableHtml + totalsBlock + notesHtml + D.pdfFooter(branding, `Invoice #${inv.number}`),
+  });
 }
 
 function buildDFRHtml(dfr: DailyFieldReport, project: Project, branding: CompanyBranding): string {
@@ -611,50 +623,74 @@ function buildDFRHtml(dfr: DailyFieldReport, project: Project, branding: Company
     ? `<div class="company-header">${logoBlock}<div class="company-name">${escapeHtml(branding.companyName)}</div></div>`
     : `<div class="company-header"><div class="company-name">Daily Field Report</div></div>`;
 
+  // Refreshed to the ink+amber+cream design system. Same data, premium look.
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const D = require('@/utils/pdfDesign') as typeof import('@/utils/pdfDesign');
   const totalWorkers = dfr.manpower.reduce((s, m) => s + m.headcount, 0);
   const totalHours = dfr.manpower.reduce((s, m) => s + (m.headcount * m.hoursWorked), 0);
 
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
-    * { margin:0; padding:0; box-sizing:border-box; }
-    body { font-family:-apple-system,'Helvetica Neue',Arial,sans-serif; color:#1a1a1a; padding:40px; font-size:12px; line-height:1.5; }
-    .company-header { text-align:center; margin-bottom:24px; padding-bottom:20px; border-bottom:3px solid #1A6B3C; }
-    .logo-wrap { margin-bottom:12px; } .company-logo { max-height:60px; max-width:240px; object-fit:contain; }
-    .company-name { font-size:24px; font-weight:800; color:#1A6B3C; }
-    .dfr-header { background:#f8f9fa; border-radius:8px; padding:18px; margin-bottom:24px; border-left:4px solid #1A6B3C; }
-    .dfr-title { font-size:18px; font-weight:700; } .dfr-meta { font-size:11px; color:#666; margin-top:4px; }
-    h2 { font-size:14px; font-weight:700; color:#1A6B3C; margin:20px 0 10px; padding-bottom:6px; border-bottom:2px solid #1A6B3C20; }
-    table { width:100%; border-collapse:collapse; margin-bottom:16px; font-size:11px; }
-    th { background:#1A6B3C08; padding:6px 10px; text-align:center; font-weight:600; color:#555; text-transform:uppercase; font-size:9px; border-bottom:2px solid #1A6B3C20; }
-    td { padding:6px 10px; text-align:center; border-bottom:1px solid #eee; }
-    tr.alt { background:#fafbfa; }
-    .section-content { background:#f8f9fa; border-radius:6px; padding:12px; margin-bottom:12px; font-size:12px; color:#333; }
-    .weather-grid { display:flex; gap:12px; margin-bottom:16px; }
-    .weather-item { flex:1; background:#f8f9fa; border-radius:6px; padding:10px; text-align:center; }
-    .weather-label { font-size:9px; font-weight:600; color:#888; text-transform:uppercase; }
-    .weather-value { font-size:14px; font-weight:600; color:#333; margin-top:4px; }
-    .footer { margin-top:40px; padding-top:16px; border-top:1px solid #e5e5e5; text-align:center; font-size:10px; color:#999; }
-  </style></head><body>
-  ${companyBlock}
-  <div class="dfr-header">
-    <div class="dfr-title">Daily Field Report</div>
-    <div class="dfr-meta">Project: ${escapeHtml(project.name)} &middot; ${reportDate}</div>
-    <div class="dfr-meta">Location: ${escapeHtml(project.location)}</div>
-  </div>
-  <h2>Weather</h2>
-  <div class="weather-grid">
-    <div class="weather-item"><div class="weather-label">Temperature</div><div class="weather-value">${escapeHtml(dfr.weather.temperature || 'N/A')}</div></div>
-    <div class="weather-item"><div class="weather-label">Conditions</div><div class="weather-value">${escapeHtml(dfr.weather.conditions || 'N/A')}</div></div>
-    <div class="weather-item"><div class="weather-label">Wind</div><div class="weather-value">${escapeHtml(dfr.weather.wind || 'N/A')}</div></div>
-  </div>
-  <h2>Manpower (${totalWorkers} workers &middot; ${totalHours} man-hours)</h2>
-  ${dfr.manpower.length > 0 ? `<table><thead><tr><th style="text-align:left">Trade</th><th>Company</th><th>Headcount</th><th>Hours</th><th>Man-Hours</th></tr></thead><tbody>${dfr.manpower.map((m, i) => `<tr class="${i % 2 === 0 ? 'alt' : ''}"><td style="text-align:left;font-weight:500">${escapeHtml(m.trade)}</td><td>${escapeHtml(m.company || '-')}</td><td>${m.headcount}</td><td>${m.hoursWorked}</td><td>${m.headcount * m.hoursWorked}</td></tr>`).join('')}</tbody></table>` : '<div class="section-content">No manpower entries.</div>'}
-  <h2>Work Performed</h2>
-  <div class="section-content">${dfr.workPerformed ? escapeHtml(dfr.workPerformed).replace(/\n/g, '<br>') : 'No notes.'}</div>
-  ${dfr.materialsDelivered.length > 0 ? `<h2>Materials Delivered</h2><div class="section-content"><ul>${dfr.materialsDelivered.map(m => `<li>${escapeHtml(m)}</li>`).join('')}</ul></div>` : ''}
-  ${dfr.issuesAndDelays ? `<h2>Issues &amp; Delays</h2><div class="section-content" style="border-left:3px solid #FF3B30;background:#FFF0EF">${escapeHtml(dfr.issuesAndDelays).replace(/\n/g, '<br>')}</div>` : ''}
-  ${dfr.photos.length > 0 ? `<h2>Photos (${dfr.photos.length})</h2><div class="section-content">${dfr.photos.length} photo(s) attached. See digital copy for images.</div>` : ''}
-  <div class="footer">${branding.companyName ? `${escapeHtml(branding.companyName)} &middot; ` : ''}Daily Field Report &middot; ${reportDate}</div>
-</body></html>`;
+  const headerHtml = D.pdfHeader(branding);
+  const titleHtml = D.pdfTitle({
+    eyebrow: 'Daily field report',
+    title: project.name,
+    subtitle: reportDate,
+    meta: [
+      { label: 'Location', value: project.location || '—' },
+      { label: 'Crew', value: `${totalWorkers} on site` },
+      { label: 'Man-hours', value: `${totalHours} hrs` },
+    ],
+  });
+
+  const weatherStats = D.pdfStatGrid([
+    { label: 'Temperature', value: dfr.weather.temperature || '—' },
+    { label: 'Conditions', value: dfr.weather.conditions || '—' },
+    { label: 'Wind', value: dfr.weather.wind || '—' },
+  ]);
+
+  const manpowerHtml = dfr.manpower.length > 0
+    ? D.pdfSectionHeader('Manpower') + D.pdfTable(
+        [
+          { header: 'Trade', align: 'left', width: '30%' },
+          { header: 'Company', align: 'left' },
+          { header: 'Headcount', align: 'right' },
+          { header: 'Hours', align: 'right' },
+          { header: 'Man-Hours', align: 'right' },
+        ],
+        dfr.manpower.map(m => [
+          `<span style="font-weight:600">${D.escHtml(m.trade)}</span>`,
+          D.escHtml(m.company || '—'),
+          `<span class="num">${m.headcount}</span>`,
+          `<span class="num">${m.hoursWorked}</span>`,
+          `<span class="num" style="font-weight:700">${m.headcount * m.hoursWorked}</span>`,
+        ]),
+      )
+    : '';
+
+  const blockStyle = `background:${D.PDF_PALETTE.cream2};border:1px solid ${D.PDF_PALETTE.bone2};border-radius:12px;padding:14px 18px;margin-bottom:14px;font-size:13px;color:${D.PDF_PALETTE.text2};line-height:1.55;white-space:pre-wrap`;
+  const issueStyle = `background:${D.PDF_PALETTE.errorTint};border:1px solid #f5c8bf;border-left:4px solid ${D.PDF_PALETTE.error};border-radius:12px;padding:14px 18px;margin-bottom:14px;font-size:13px;color:${D.PDF_PALETTE.text};line-height:1.55;white-space:pre-wrap`;
+
+  const workHtml = D.pdfSectionHeader('Work performed') +
+    `<div style="${blockStyle}">${dfr.workPerformed ? D.escHtml(dfr.workPerformed) : 'No narrative recorded.'}</div>`;
+  const materialsHtml = dfr.materialsDelivered.length > 0
+    ? D.pdfSectionHeader('Materials delivered') +
+      `<div style="${blockStyle}">${dfr.materialsDelivered.map(m => `&middot; ${D.escHtml(m)}`).join('<br/>')}</div>`
+    : '';
+  const issuesHtml = dfr.issuesAndDelays
+    ? D.pdfSectionHeader('Issues & delays') +
+      `<div style="${issueStyle}">${D.escHtml(dfr.issuesAndDelays)}</div>`
+    : '';
+  const photosHtml = dfr.photos.length > 0
+    ? D.pdfSectionHeader('Photos') +
+      `<div style="${blockStyle}">${dfr.photos.length} photo${dfr.photos.length === 1 ? '' : 's'} attached — see digital copy for full resolution.</div>`
+    : '';
+
+  return D.pdfShell({
+    title: `Daily field report — ${project.name} — ${reportDate}`,
+    branding,
+    bodyHtml:
+      headerHtml + titleHtml + weatherStats + manpowerHtml + workHtml + materialsHtml + issuesHtml + photosHtml +
+      D.pdfFooter(branding, `Daily field report · ${reportDate}`),
+  });
 }
 
 // RFI log
