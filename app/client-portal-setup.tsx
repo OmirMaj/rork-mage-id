@@ -114,6 +114,7 @@ export default function ClientPortalSetupScreen() {
     getInvoicesForProject, getChangeOrdersForProject,
     getDailyReportsForProject, getPunchItemsForProject,
     getPhotosForProject, getRFIsForProject,
+    getAIAPayAppsForProject,
   } = useProjects();
   const unreadFromClient = id ? getUnreadPortalMessageCount(id, 'gc') : 0;
 
@@ -154,12 +155,14 @@ export default function ClientPortalSetupScreen() {
       punchItems: getPunchItemsForProject(project.id),
       photos: getPhotosForProject(project.id),
       rfis: getRFIsForProject(project.id),
+      aiaPayApps: getAIAPayAppsForProject(project.id),
     });
   }, [
     project, portal, settings,
     getInvoicesForProject, getChangeOrdersForProject,
     getDailyReportsForProject, getPunchItemsForProject,
     getPhotosForProject, getRFIsForProject,
+    getAIAPayAppsForProject,
   ]);
 
   const portalLink = useMemo(() => {

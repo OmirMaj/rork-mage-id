@@ -569,6 +569,66 @@ export interface Invoice {
   updatedAt: string;
 }
 
+// AIA G702/G703 progress pay application saved against a project. The portal
+// surfaces these as a dedicated "Pay Applications" section so the client (and
+// architect/lender) can review the cover summary and download a printable PDF
+// without ever needing to come back to email. Stored locally under the key
+// `tertiary_aia_pay_apps`; mirrored into the portal snapshot as a compact
+// summary that the static portal page can render and print.
+export interface SavedAIAPayAppLine {
+  id: string;
+  itemNo: string;
+  description: string;
+  scheduledValue: number;
+  fromPreviousApp: number;
+  thisPeriod: number;
+  materialsPresentlyStored: number;
+  retainagePercent: number;
+}
+
+export interface SavedAIAPayApp {
+  id: string;
+  projectId: string;
+  invoiceId?: string;
+
+  applicationNumber: number;
+  applicationDate: string;
+  periodTo: string;
+  contractDate?: string;
+
+  ownerName: string;
+  contractorName: string;
+  architectName?: string;
+  projectName: string;
+  projectLocation?: string;
+  contractForDescription?: string;
+
+  originalContractSum: number;
+  netChangeByCO: number;
+  contractSumToDate: number;
+
+  retainagePercent: number;
+  lessPreviousCertificates: number;
+
+  lines: SavedAIAPayAppLine[];
+  notes?: string;
+
+  // Snapshot of computed totals at save time so the portal can render without
+  // re-running the math (and so historical apps stay correct even if SOV
+  // logic later changes).
+  totals: {
+    totalScheduledValue: number;
+    totalCompletedAndStored: number;
+    totalRetainage: number;
+    totalEarnedLessRetainage: number;
+    currentPaymentDue: number;
+    balanceToFinish: number;
+    percentComplete: number;
+  };
+
+  savedAt: string;
+}
+
 export interface ManpowerEntry {
   id: string;
   trade: string;

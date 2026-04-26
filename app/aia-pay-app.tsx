@@ -7,7 +7,7 @@ import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import {
-  ChevronLeft, FileText, Download, Info, Percent, Printer, TrendingUp,
+  ChevronLeft, FileText, Download, Info, Percent, Printer, TrendingUp, Check, Save,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import ConstructionLoader from '@/components/ConstructionLoader';
@@ -22,6 +22,8 @@ import {
 } from '@/utils/aiaBilling';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
+import { generateUUID } from '@/utils/generateId';
+import type { SavedAIAPayApp } from '@/types';
 
 export default function AIAPayAppScreen() {
   const router = useRouter();
@@ -45,6 +47,7 @@ function AIAPayAppScreenInner() {
   const { invoiceId } = useLocalSearchParams<{ invoiceId: string }>();
   const {
     invoices, getProject, getChangeOrdersForProject, settings,
+    addAIAPayApp, getAIAPayAppsForProject,
   } = useProjects();
 
   const invoice = useMemo(() => invoices.find(i => i.id === invoiceId), [invoices, invoiceId]);
@@ -55,6 +58,7 @@ function AIAPayAppScreenInner() {
 
   const [app, setApp] = useState<AIAPayApplication | null>(null);
   const [generating, setGenerating] = useState(false);
+  const [savedFlash, setSavedFlash] = useState(false);
 
   useEffect(() => {
     if (!invoice || !project || !settings?.branding) return;
@@ -94,18 +98,81 @@ function AIAPayAppScreenInner() {
     } : prev);
   }, []);
 
+  // Build a portable SavedAIAPayApp record from the in-memory app + computed
+  // totals. Used both for the explicit "Save to Project" tap and as a
+  // side-effect of generating the PDF (so the portal always has the latest
+  // billing once the GC has gone through the trouble of producing it).
+  const buildSavedRecord = useCallback((): SavedAIAPayApp | null => {
+    if (!app || !project || !totals) return null;
+    const existing = getAIAPayAppsForProject(project.id).find(a => a.applicationNumber === app.applicationNumber);
+    return {
+      id: existing?.id ?? generateUUID(),
+      projectId: project.id,
+      invoiceId: invoice?.id,
+      applicationNumber: app.applicationNumber,
+      applicationDate: app.applicationDate,
+      periodTo: app.periodTo,
+      contractDate: app.contractDate,
+      ownerName: app.ownerName,
+      contractorName: app.contractorName,
+      architectName: app.architectName,
+      projectName: app.projectName,
+      projectLocation: app.projectLocation,
+      contractForDescription: app.contractForDescription,
+      originalContractSum: app.originalContractSum,
+      netChangeByCO: app.netChangeByCO,
+      contractSumToDate: app.contractSumToDate,
+      retainagePercent: app.retainagePercent,
+      lessPreviousCertificates: app.lessPreviousCertificates,
+      lines: app.lines.map(l => ({
+        id: l.id,
+        itemNo: l.itemNo,
+        description: l.description,
+        scheduledValue: l.scheduledValue,
+        fromPreviousApp: l.fromPreviousApp,
+        thisPeriod: l.thisPeriod,
+        materialsPresentlyStored: l.materialsPresentlyStored,
+        retainagePercent: l.retainagePercent,
+      })),
+      notes: app.notes,
+      totals: {
+        totalScheduledValue: totals.totalScheduledValue,
+        totalCompletedAndStored: totals.totalCompletedAndStored,
+        totalRetainage: totals.totalRetainage,
+        totalEarnedLessRetainage: totals.totalEarnedLessRetainage,
+        currentPaymentDue: totals.currentPaymentDue,
+        balanceToFinish: totals.balanceToFinish,
+        percentComplete: totals.percentComplete,
+      },
+      savedAt: new Date().toISOString(),
+    };
+  }, [app, project, totals, invoice?.id, getAIAPayAppsForProject]);
+
+  const handleSave = useCallback(() => {
+    const rec = buildSavedRecord();
+    if (!rec) return;
+    addAIAPayApp(rec);
+    setSavedFlash(true);
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setTimeout(() => setSavedFlash(false), 2200);
+  }, [buildSavedRecord, addAIAPayApp]);
+
   const handleGenerate = useCallback(async () => {
     if (!app || !settings?.branding) return;
     setGenerating(true);
     try {
       await generateAIAPayAppPDF(app, settings.branding);
+      // Persist the same record so the client portal can show this billing
+      // alongside the printed PDF the GC just shared.
+      const rec = buildSavedRecord();
+      if (rec) addAIAPayApp(rec);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err) {
       Alert.alert('Error', 'Could not generate the pay application PDF.');
     } finally {
       setGenerating(false);
     }
-  }, [app, settings?.branding]);
+  }, [app, settings?.branding, buildSavedRecord, addAIAPayApp]);
 
   if (!invoice || !project) {
     return (
@@ -341,20 +408,38 @@ function AIAPayAppScreenInner() {
       </ScrollView>
 
       <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]}>
-        <TouchableOpacity
-          style={styles.generateBtn}
-          onPress={handleGenerate}
-          disabled={generating}
-          activeOpacity={0.85}
-        >
-          {generating
-            ? <ActivityIndicator size="small" color="#FFF" />
-            : <Printer size={18} color="#FFF" />
-          }
-          <Text style={styles.generateBtnText}>
-            {generating ? 'Generating…' : 'Generate G702/G703 PDF'}
-          </Text>
-        </TouchableOpacity>
+        <View style={styles.bottomBarRow}>
+          <TouchableOpacity
+            style={[styles.saveBtn, savedFlash && styles.saveBtnDone]}
+            onPress={handleSave}
+            activeOpacity={0.85}
+          >
+            {savedFlash
+              ? <Check size={18} color={Colors.primary} />
+              : <Save size={18} color={Colors.primary} />
+            }
+            <Text style={styles.saveBtnText}>
+              {savedFlash ? 'Saved to project' : 'Save to project'}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.generateBtn, { flex: 1 }]}
+            onPress={handleGenerate}
+            disabled={generating}
+            activeOpacity={0.85}
+          >
+            {generating
+              ? <ActivityIndicator size="small" color="#FFF" />
+              : <Printer size={18} color="#FFF" />
+            }
+            <Text style={styles.generateBtnText}>
+              {generating ? 'Generating…' : 'Generate PDF'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+        <Text style={styles.bottomBarHint}>
+          Saved pay applications appear in your client portal so owners and architects can review and download.
+        </Text>
       </View>
     </>
   );
@@ -486,4 +571,17 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
   },
   generateBtnText: { fontSize: 15, fontWeight: '700', color: '#FFF' },
+  bottomBarRow: { flexDirection: 'row', gap: 10, alignItems: 'stretch' },
+  saveBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 6, paddingHorizontal: 14, paddingVertical: 14, borderRadius: 12,
+    backgroundColor: Colors.primary + '12',
+    borderWidth: 1, borderColor: Colors.primary + '40',
+  },
+  saveBtnDone: { backgroundColor: Colors.primary + '20', borderColor: Colors.primary },
+  saveBtnText: { fontSize: 13, fontWeight: '700', color: Colors.primary },
+  bottomBarHint: {
+    fontSize: 11, color: Colors.textMuted, textAlign: 'center',
+    marginTop: 8, lineHeight: 15,
+  },
 });

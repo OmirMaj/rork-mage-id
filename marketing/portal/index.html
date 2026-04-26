@@ -3,482 +3,928 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<meta name="theme-color" content="#1A6B3C" />
+<meta name="theme-color" content="#0B0D10" />
 <meta name="robots" content="noindex" />
 <title>Project Portal — MAGE ID</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%231A6B3C'/%3E%3Ctext x='50' y='64' font-family='system-ui,-apple-system,sans-serif' font-size='48' font-weight='800' text-anchor='middle' fill='white'%3EM%3C/text%3E%3C/svg%3E" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,700;0,9..144,800;1,9..144,500;1,9..144,800&display=swap" rel="stylesheet" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230B0D10'/%3E%3Ctext x='50' y='66' font-family='Inter,system-ui' font-size='52' font-weight='900' text-anchor='middle' fill='%23FF6A1A'%3EM%3C/text%3E%3C/svg%3E" />
 <style>
   :root {
-    --brand: #1A6B3C;
-    --brand-dark: #145a31;
-    --brand-light: #f0f6f2;
-    --bg: #f7faf8;
-    --surface: #ffffff;
-    --border: #e5e9e6;
-    --border-light: #f0f2f0;
-    --text: #1a1a1a;
-    --text-secondary: #555;
-    --text-muted: #888;
-    --success: #34C759;
-    --warning: #FF9500;
-    --error: #FF3B30;
-    --info: #007AFF;
-    --shadow: 0 2px 8px rgba(0,0,0,0.04);
-    --shadow-lg: 0 10px 40px rgba(26,107,60,0.12), 0 2px 8px rgba(0,0,0,0.04);
+    --ink: #0B0D10;
+    --ink-2: #1A1D22;
+    --ink-3: #2A2E35;
+    --amber: #FF6A1A;
+    --amber-dark: #E5570F;
+    --amber-tint: #FFF1E6;
+    --cream: #F4EFE6;
+    --cream-2: #FAF7F0;
+    --surface: #FFFFFF;
+    --bone: #E8DFCD;
+    --bone-2: #F1EAD9;
+    --text: #0B0D10;
+    --text-2: #4A5159;
+    --text-muted: #8B9099;
+    --success: #1E8E4A;
+    --success-tint: #E8F5ED;
+    --warning: #C26A00;
+    --warning-tint: #FFF4E0;
+    --error: #C0392B;
+    --error-tint: #FBEAE7;
+    --info: #1F5FA0;
+    --info-tint: #E7F0FA;
+    --shadow-sm: 0 1px 2px rgba(11,13,16,0.04), 0 1px 3px rgba(11,13,16,0.06);
+    --shadow-md: 0 4px 12px rgba(11,13,16,0.06), 0 2px 4px rgba(11,13,16,0.04);
+    --shadow-lg: 0 24px 48px -16px rgba(11,13,16,0.18), 0 8px 16px -8px rgba(11,13,16,0.08);
+    --shadow-amber: 0 8px 24px -6px rgba(255,106,26,0.4);
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+    --radius-xl: 24px;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-  html { scroll-behavior: smooth; }
+  html { scroll-behavior: smooth; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
   body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
-    background: var(--bg);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--cream);
     color: var(--text);
-    line-height: 1.5;
+    line-height: 1.55;
     font-size: 15px;
     min-height: 100vh;
-    padding-bottom: 40px;
+    font-feature-settings: 'cv11', 'ss01', 'ss03';
   }
-  .container {
-    max-width: 780px;
-    margin: 0 auto;
-    padding: 0 16px;
-  }
+  .num { font-variant-numeric: tabular-nums; }
 
-  /* Gate (passcode) */
+  /* ───────── Gate (passcode) ───────── */
   .gate-wrap {
-    min-height: 100vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 24px;
+    min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    padding: 24px; background: var(--cream);
   }
   .gate {
-    background: var(--surface);
-    max-width: 380px;
-    width: 100%;
-    border-radius: 20px;
-    padding: 36px 28px;
+    background: var(--surface); max-width: 420px; width: 100%;
+    border-radius: var(--radius-xl); padding: 40px 32px;
     box-shadow: var(--shadow-lg);
     text-align: center;
+    border: 1px solid var(--bone-2);
   }
   .gate-logo {
-    width: 64px; height: 64px;
-    border-radius: 18px;
-    background: var(--brand);
-    color: #fff;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 28px;
-    font-weight: 800;
-    margin-bottom: 20px;
-    box-shadow: 0 4px 16px rgba(26,107,60,0.25);
+    width: 60px; height: 60px; border-radius: 16px; background: var(--ink); color: var(--amber);
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 28px; font-weight: 900; margin-bottom: 22px;
+    box-shadow: var(--shadow-md);
   }
-  .gate h1 { font-size: 22px; margin-bottom: 8px; }
-  .gate p { color: var(--text-secondary); font-size: 14px; margin-bottom: 24px; }
+  .gate h1 {
+    font-family: 'Fraunces', serif; font-size: 26px; font-weight: 700;
+    margin-bottom: 10px; letter-spacing: -0.02em;
+  }
+  .gate p { color: var(--text-2); font-size: 14px; margin-bottom: 26px; line-height: 1.5; }
   .gate input {
-    width: 100%;
-    padding: 14px 16px;
-    font-size: 20px;
-    text-align: center;
-    letter-spacing: 8px;
-    font-weight: 600;
-    border: 2px solid var(--border);
-    border-radius: 12px;
-    background: var(--bg);
-    outline: none;
-    transition: border-color 0.15s;
+    width: 100%; padding: 16px; font-size: 24px; text-align: center; letter-spacing: 10px;
+    font-weight: 700; border: 2px solid var(--bone); border-radius: var(--radius-md);
+    background: var(--cream-2); outline: none; transition: border-color 0.15s, background 0.15s;
+    font-family: 'Inter', sans-serif;
   }
-  .gate input:focus { border-color: var(--brand); }
+  .gate input:focus { border-color: var(--amber); background: #fff; }
   .gate button {
-    width: 100%;
-    margin-top: 14px;
-    padding: 14px;
-    background: var(--brand);
-    color: #fff;
-    border: none;
-    border-radius: 12px;
-    font-size: 15px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background 0.15s;
+    width: 100%; margin-top: 14px; padding: 15px;
+    background: var(--ink); color: #fff; border: none;
+    border-radius: var(--radius-md); font-size: 15px; font-weight: 700;
+    cursor: pointer; transition: transform 0.1s, background 0.15s;
+    font-family: inherit;
   }
-  .gate button:hover { background: var(--brand-dark); }
-  .gate .err { color: var(--error); font-size: 13px; margin-top: 12px; min-height: 18px; }
+  .gate button:hover { background: var(--ink-2); }
+  .gate button:active { transform: translateY(1px); }
+  .gate .err { color: var(--error); font-size: 13px; margin-top: 12px; min-height: 18px; font-weight: 500; }
 
-  /* Hero */
+  /* ───────── Hero ───────── */
   .hero {
-    background: linear-gradient(135deg, var(--brand) 0%, var(--brand-dark) 100%);
-    color: #fff;
-    padding: 32px 16px 40px;
-    margin-bottom: -28px;
+    position: relative; overflow: hidden;
+    background: var(--ink); color: #fff;
+    padding: 28px 20px 80px;
+  }
+  .hero::before {
+    content: ''; position: absolute; inset: 0;
+    background:
+      radial-gradient(900px 500px at 92% -10%, rgba(255,106,26,0.20), transparent 60%),
+      radial-gradient(600px 400px at -5% 110%, rgba(255,106,26,0.10), transparent 60%);
+    pointer-events: none;
+  }
+  .hero-photo-bg {
+    position: absolute; inset: 0;
+    background-size: cover; background-position: center;
+    opacity: 0.18; filter: grayscale(0.4) contrast(1.1);
+    mix-blend-mode: screen;
   }
   .hero-inner {
-    max-width: 780px;
-    margin: 0 auto;
+    position: relative; z-index: 1;
+    max-width: 1080px; margin: 0 auto;
   }
   .brand-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: 20px;
-    opacity: 0.9;
-    font-size: 13px;
-    font-weight: 500;
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 32px;
   }
   .brand-mark {
-    width: 28px; height: 28px;
-    border-radius: 8px;
-    background: rgba(255,255,255,0.2);
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: 800;
-    font-size: 14px;
+    width: 36px; height: 36px; border-radius: 10px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.12);
+    display: inline-flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 16px; color: var(--amber);
+    backdrop-filter: blur(8px);
+  }
+  .brand-name {
+    font-size: 14px; font-weight: 600;
+    letter-spacing: 0.2px; color: rgba(255,255,255,0.85);
+  }
+  .hero-eyebrow {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 11px; font-weight: 700; letter-spacing: 1.6px;
+    color: var(--amber); text-transform: uppercase;
+    margin-bottom: 14px;
+  }
+  .hero-eyebrow::before {
+    content: ''; width: 28px; height: 2px;
+    background: var(--amber); border-radius: 1px;
   }
   .hero h1 {
-    font-size: 26px;
-    font-weight: 700;
-    margin-bottom: 6px;
-    line-height: 1.25;
+    font-family: 'Fraunces', serif;
+    font-weight: 700; line-height: 1.04;
+    letter-spacing: -0.025em;
+    font-size: clamp(32px, 5.4vw, 56px);
+    margin-bottom: 14px;
+    max-width: 14ch;
+  }
+  .hero h1 em {
+    font-style: italic; font-weight: 700;
+    color: var(--amber);
   }
   .hero-meta {
-    font-size: 14px;
-    opacity: 0.85;
+    display: flex; flex-wrap: wrap; gap: 8px 16px;
+    color: rgba(255,255,255,0.78); font-size: 14px;
+    font-weight: 500;
+    margin-bottom: 24px;
+  }
+  .hero-meta-item {
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .hero-meta-dot {
+    width: 4px; height: 4px; border-radius: 50%; background: rgba(255,255,255,0.35);
   }
   .hero-welcome {
-    background: rgba(255,255,255,0.1);
-    backdrop-filter: blur(10px);
-    border-radius: 12px;
-    padding: 14px 16px;
-    margin-top: 18px;
-    font-size: 14px;
-    line-height: 1.5;
-    border: 1px solid rgba(255,255,255,0.15);
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: var(--radius-md);
+    padding: 18px 20px; max-width: 720px;
+    color: rgba(255,255,255,0.92);
+    line-height: 1.6;
+    font-size: 14.5px;
   }
+  .hero-welcome strong { color: var(--amber); font-weight: 700; }
 
-  /* Progress summary card */
-  .progress-card {
+  /* ───────── Stats bar (sits on top of hero) ───────── */
+  .stats-bar {
+    max-width: 1080px; margin: -52px auto 0;
+    padding: 0 20px; position: relative; z-index: 2;
+  }
+  .stats-grid {
+    display: grid; gap: 12px;
+    grid-template-columns: repeat(4, 1fr);
     background: var(--surface);
-    border-radius: 16px;
-    padding: 20px;
+    border-radius: var(--radius-xl);
+    padding: 6px;
     box-shadow: var(--shadow-lg);
-    margin-top: 12px;
-    display: grid;
-    grid-template-columns: auto 1fr;
-    gap: 20px;
-    align-items: center;
+    border: 1px solid var(--bone-2);
   }
-  .ring {
+  .stat-card {
+    padding: 18px 16px;
+    border-radius: 18px;
+    transition: background 0.2s ease;
     position: relative;
-    width: 80px;
-    height: 80px;
   }
-  .ring svg { transform: rotate(-90deg); }
-  .ring-bg { stroke: var(--border-light); }
-  .ring-fg { stroke: var(--brand); transition: stroke-dashoffset 0.5s ease; }
-  .ring-label {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: 700;
-    font-size: 18px;
-    color: var(--brand);
-  }
-  .progress-stats {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
+  .stat-card:not(:last-child)::after {
+    content: ''; position: absolute; right: 0; top: 18%; bottom: 18%;
+    width: 1px; background: var(--bone);
   }
   .stat-label {
-    font-size: 11px;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-bottom: 2px;
+    font-size: 11px; color: var(--text-muted); font-weight: 700;
+    text-transform: uppercase; letter-spacing: 1.2px;
+    margin-bottom: 6px;
   }
   .stat-value {
-    font-size: 16px;
-    font-weight: 700;
-    color: var(--text);
+    font-family: 'Fraunces', serif;
+    font-size: clamp(22px, 2.4vw, 28px);
+    font-weight: 700; letter-spacing: -0.02em;
+    line-height: 1.1; color: var(--text);
+    font-variant-numeric: tabular-nums;
+  }
+  .stat-value.amber { color: var(--amber); }
+  .stat-sub {
+    font-size: 12px; color: var(--text-muted); margin-top: 4px; font-weight: 500;
+  }
+  .stat-progress {
+    height: 4px; background: var(--bone-2); border-radius: 2px; margin-top: 10px;
+    overflow: hidden;
+  }
+  .stat-progress-fill {
+    height: 100%; background: var(--amber); border-radius: 2px;
+    transition: width 1s cubic-bezier(0.16, 1, 0.3, 1);
   }
 
-  /* Section */
-  section {
+  @media (max-width: 720px) {
+    .hero { padding: 22px 16px 84px; }
+    .stats-grid { grid-template-columns: repeat(2, 1fr); }
+    .stat-card:nth-child(2)::after { display: none; }
+    .stat-card:nth-child(3)::before {
+      content: ''; position: absolute; left: 6%; right: 6%; top: 0;
+      height: 1px; background: var(--bone);
+    }
+  }
+  @media (max-width: 480px) {
+    .stats-grid { grid-template-columns: 1fr 1fr; padding: 4px; }
+    .hero h1 { font-size: 32px; }
+    .stat-card { padding: 14px 12px; }
+  }
+
+  /* ───────── Tab nav ───────── */
+  .nav-wrap {
+    position: sticky; top: 0; z-index: 20;
+    background: rgba(244,239,230,0.85);
+    backdrop-filter: saturate(180%) blur(14px);
+    -webkit-backdrop-filter: saturate(180%) blur(14px);
+    border-bottom: 1px solid var(--bone);
+    margin-top: 32px;
+  }
+  .nav {
+    max-width: 1080px; margin: 0 auto;
+    display: flex; gap: 4px; padding: 10px 20px;
+    overflow-x: auto; scrollbar-width: none;
+  }
+  .nav::-webkit-scrollbar { display: none; }
+  .nav-link {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 8px 14px; border-radius: 10px;
+    font-size: 13px; font-weight: 600;
+    color: var(--text-2); cursor: pointer;
+    white-space: nowrap; text-decoration: none;
+    transition: background 0.15s, color 0.15s;
+    border: 1px solid transparent;
+  }
+  .nav-link:hover { background: var(--bone-2); color: var(--text); }
+  .nav-link.active {
+    background: var(--ink); color: #fff;
+    box-shadow: var(--shadow-md);
+  }
+  .nav-link .nav-count {
+    font-size: 11px; padding: 1px 6px; border-radius: 6px;
+    background: var(--bone); color: var(--text-2); font-weight: 700;
+  }
+  .nav-link.active .nav-count { background: rgba(255,255,255,0.16); color: rgba(255,255,255,0.85); }
+  .nav-link .icn { width: 14px; height: 14px; }
+
+  /* ───────── Container & sections ───────── */
+  .container {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 32px 20px 60px;
+  }
+  .section {
     background: var(--surface);
-    border-radius: 14px;
-    box-shadow: var(--shadow);
-    margin-top: 14px;
-    overflow: hidden;
-    border: 1px solid var(--border-light);
+    border-radius: var(--radius-xl);
+    padding: 28px;
+    box-shadow: var(--shadow-md);
+    border: 1px solid var(--bone-2);
+    margin-bottom: 20px;
+    scroll-margin-top: 80px;
   }
   .section-head {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 16px 18px;
-    cursor: pointer;
-    user-select: none;
-    transition: background 0.15s;
+    display: flex; align-items: center; gap: 14px;
+    margin-bottom: 22px;
+    padding-bottom: 18px;
+    border-bottom: 1px solid var(--bone-2);
   }
-  .section-head:hover { background: var(--brand-light); }
   .section-icon {
-    width: 32px; height: 32px;
-    border-radius: 8px;
-    background: var(--brand-light);
-    color: var(--brand);
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    width: 44px; height: 44px;
+    border-radius: 12px;
+    background: var(--ink); color: var(--amber);
+    display: flex; align-items: center; justify-content: center;
     flex-shrink: 0;
+    box-shadow: var(--shadow-sm);
   }
+  .section-icon .icn { width: 22px; height: 22px; }
+  .section-title-block { flex: 1; min-width: 0; }
   .section-title {
-    flex: 1;
-    font-weight: 600;
-    font-size: 15px;
+    font-family: 'Fraunces', serif;
+    font-size: 22px; font-weight: 700;
+    letter-spacing: -0.018em; line-height: 1.2;
+    color: var(--text);
+  }
+  .section-subtitle {
+    font-size: 13px; color: var(--text-muted);
+    margin-top: 4px;
+    font-weight: 500;
   }
   .section-count {
-    background: var(--brand-light);
-    color: var(--brand);
-    font-size: 12px;
-    font-weight: 700;
-    padding: 2px 10px;
-    border-radius: 10px;
+    background: var(--bone-2); color: var(--text-2);
+    font-size: 12px; font-weight: 700;
+    padding: 4px 12px; border-radius: 999px;
+    flex-shrink: 0;
+    font-variant-numeric: tabular-nums;
   }
-  .section-chevron {
-    color: var(--text-muted);
-    transition: transform 0.2s;
-  }
-  section.open .section-chevron { transform: rotate(180deg); }
-  .section-body {
-    padding: 0 18px 18px;
-    display: none;
-  }
-  section.open .section-body { display: block; }
 
-  /* Generic rows */
+  /* ───────── Generic rows ───────── */
   .row {
-    display: flex;
-    gap: 12px;
-    padding: 12px 0;
-    border-bottom: 1px solid var(--border-light);
-    align-items: center;
+    display: flex; gap: 14px; align-items: center;
+    padding: 16px 0;
+    border-bottom: 1px solid var(--bone-2);
   }
   .row:last-child { border-bottom: none; }
   .row-main { flex: 1; min-width: 0; }
   .row-title {
-    font-weight: 600;
-    font-size: 14px;
-    margin-bottom: 2px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    font-size: 15px; font-weight: 600; color: var(--text);
+    margin-bottom: 3px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
   .row-meta {
-    font-size: 12px;
-    color: var(--text-muted);
+    font-size: 13px; color: var(--text-muted);
+    font-weight: 500;
   }
   .row-value {
-    font-weight: 700;
-    font-size: 14px;
-    color: var(--brand);
+    font-size: 15px; font-weight: 700; color: var(--text);
+    font-variant-numeric: tabular-nums;
   }
 
-  /* Status pills */
+  /* ───────── Pills ───────── */
   .pill {
     display: inline-block;
-    font-size: 11px;
-    font-weight: 600;
-    padding: 3px 8px;
-    border-radius: 10px;
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
+    font-size: 11px; font-weight: 700;
+    padding: 4px 10px; border-radius: 999px;
+    text-transform: uppercase; letter-spacing: 0.6px;
   }
-  .pill-success { background: rgba(52,199,89,0.12); color: #2E7D32; }
-  .pill-warning { background: rgba(255,149,0,0.12); color: #E65100; }
-  .pill-error { background: rgba(255,59,48,0.12); color: #D32F2F; }
-  .pill-info { background: rgba(0,122,255,0.12); color: #0050B3; }
-  .pill-muted { background: var(--border-light); color: var(--text-muted); }
+  .pill-success { background: var(--success-tint); color: var(--success); }
+  .pill-warning { background: var(--warning-tint); color: var(--warning); }
+  .pill-error   { background: var(--error-tint);   color: var(--error); }
+  .pill-info    { background: var(--info-tint);    color: var(--info); }
+  .pill-amber   { background: var(--amber-tint);   color: var(--amber-dark); }
+  .pill-muted   { background: var(--bone-2);       color: var(--text-2); }
 
-  /* Pay Now button (shown on invoice rows when a Stripe pay link is attached) */
-  .pay-now-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    margin-top: 8px;
-    padding: 8px 14px;
-    background: var(--brand);
-    color: #fff;
-    border-radius: 10px;
-    font-size: 13px;
-    font-weight: 700;
-    text-decoration: none;
-    transition: background 0.15s ease;
-  }
-  .pay-now-btn:hover { background: var(--brand-dark); }
-  .pay-now-btn:active { transform: translateY(1px); }
-  .pay-now-btn .amt { font-weight: 800; }
-  .invoice-row-body { display: flex; flex-direction: column; gap: 2px; }
-
-  /* Schedule task */
+  /* ───────── Schedule task ───────── */
+  .task-row { padding: 18px 0; }
   .task-progress {
-    height: 6px;
-    background: var(--border-light);
-    border-radius: 3px;
-    overflow: hidden;
-    margin-top: 6px;
+    height: 6px; background: var(--bone-2); border-radius: 3px;
+    overflow: hidden; margin-top: 8px;
   }
   .task-progress-fill {
-    height: 100%;
-    background: var(--brand);
-    border-radius: 3px;
-    transition: width 0.3s;
+    height: 100%; border-radius: 3px;
+    background: linear-gradient(90deg, var(--amber-dark), var(--amber));
+    transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .task-progress-fill.done {
+    background: linear-gradient(90deg, var(--success), #34C759);
+  }
+  .task-row .row-title {
+    display: flex; align-items: center; gap: 8px;
+  }
+  .task-row .row-title .pill { white-space: nowrap; }
+
+  /* ───────── Invoice card ───────── */
+  .invoice-card {
+    display: grid; gap: 14px;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    padding: 18px 20px; margin-bottom: 12px;
+    background: var(--cream-2);
+    border: 1px solid var(--bone-2);
+    border-radius: var(--radius-lg);
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s, background 0.15s;
+    position: relative;
+  }
+  .invoice-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+    border-color: var(--bone);
+    background: #fff;
+  }
+  .invoice-card:active { transform: translateY(0); }
+  .invoice-card.unpaid::before {
+    content: ''; position: absolute; left: -1px; top: 12%; bottom: 12%;
+    width: 4px; border-radius: 0 4px 4px 0;
+    background: var(--amber);
+  }
+  .invoice-card.paid::before {
+    content: ''; position: absolute; left: -1px; top: 12%; bottom: 12%;
+    width: 4px; border-radius: 0 4px 4px 0;
+    background: var(--success);
+  }
+  .invoice-num {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 13px; color: var(--text-muted); font-weight: 600;
+    margin-bottom: 6px;
+  }
+  .invoice-num strong { color: var(--text); font-weight: 700; }
+  .invoice-amount {
+    font-family: 'Fraunces', serif;
+    font-size: 26px; font-weight: 700; line-height: 1.1;
+    letter-spacing: -0.02em;
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+    margin-bottom: 6px;
+  }
+  .invoice-meta {
+    font-size: 13px; color: var(--text-muted);
+    display: flex; gap: 12px; flex-wrap: wrap;
+  }
+  .invoice-meta-dot {
+    color: var(--text-muted); opacity: 0.6;
+  }
+  .invoice-cta {
+    display: flex; flex-direction: column; align-items: flex-end; gap: 8px;
+  }
+  .invoice-pay-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 10px 16px; background: var(--amber);
+    color: #fff; border: none; border-radius: 10px;
+    font-size: 13px; font-weight: 700; cursor: pointer;
+    text-decoration: none; white-space: nowrap;
+    transition: background 0.15s ease, transform 0.1s;
+    box-shadow: var(--shadow-amber);
+    font-family: inherit;
+  }
+  .invoice-pay-btn:hover { background: var(--amber-dark); }
+  .invoice-pay-btn:active { transform: translateY(1px); }
+  .invoice-pay-btn .icn { width: 14px; height: 14px; stroke-width: 2.4; }
+  .invoice-detail-hint {
+    font-size: 11px; color: var(--text-muted);
+    font-weight: 600; letter-spacing: 0.4px;
+    text-transform: uppercase;
+    display: flex; align-items: center; gap: 4px;
+  }
+  .invoice-detail-hint .icn { width: 12px; height: 12px; }
+  @media (max-width: 540px) {
+    .invoice-card { grid-template-columns: 1fr; }
+    .invoice-cta { align-items: flex-start; }
   }
 
-  /* Photos grid */
+  /* ───────── AIA pay app card ───────── */
+  .aia-card {
+    padding: 22px;
+    background: linear-gradient(180deg, var(--cream-2) 0%, var(--surface) 100%);
+    border: 1px solid var(--bone-2);
+    border-radius: var(--radius-lg);
+    margin-bottom: 14px;
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s;
+    display: grid; gap: 18px;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+  }
+  .aia-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+    border-color: var(--amber);
+  }
+  .aia-num-block {
+    display: inline-flex; flex-direction: column; gap: 2px;
+    padding: 10px 14px;
+    background: var(--ink); color: #fff;
+    border-radius: 12px;
+    font-family: 'Fraunces', serif;
+    margin-bottom: 12px;
+  }
+  .aia-num-eyebrow {
+    font-family: 'Inter', sans-serif;
+    font-size: 9px; font-weight: 700;
+    letter-spacing: 1.6px; text-transform: uppercase;
+    color: var(--amber);
+  }
+  .aia-num-value { font-size: 17px; font-weight: 800; letter-spacing: -0.015em; }
+  .aia-period { font-size: 13px; color: var(--text-muted); margin-bottom: 14px; font-weight: 500; }
+  .aia-stat-row {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
+  }
+  .aia-stat-label {
+    font-size: 10px; font-weight: 700; color: var(--text-muted);
+    text-transform: uppercase; letter-spacing: 1px;
+    margin-bottom: 3px;
+  }
+  .aia-stat-value {
+    font-family: 'Fraunces', serif;
+    font-size: 17px; font-weight: 700; letter-spacing: -0.012em;
+    color: var(--text); font-variant-numeric: tabular-nums;
+  }
+  .aia-stat-value.amber { color: var(--amber); }
+  .aia-progress-ring {
+    flex-shrink: 0;
+    width: 88px; height: 88px; position: relative;
+  }
+  .aia-progress-ring svg { transform: rotate(-90deg); }
+  .aia-progress-ring .ring-bg { stroke: var(--bone-2); }
+  .aia-progress-ring .ring-fg {
+    stroke: var(--amber);
+    transition: stroke-dashoffset 1s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .aia-progress-label {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    flex-direction: column; gap: 1px;
+  }
+  .aia-progress-pct {
+    font-family: 'Fraunces', serif;
+    font-size: 22px; font-weight: 700; line-height: 1;
+    letter-spacing: -0.02em; color: var(--text);
+    font-variant-numeric: tabular-nums;
+  }
+  .aia-progress-tag {
+    font-size: 9px; font-weight: 700; color: var(--text-muted);
+    text-transform: uppercase; letter-spacing: 1.2px;
+  }
+
+  @media (max-width: 540px) {
+    .aia-card { grid-template-columns: 1fr; }
+    .aia-progress-ring { margin: 0 auto; }
+    .aia-stat-row { grid-template-columns: 1fr 1fr; }
+    .aia-stat-row > div:nth-child(3) { grid-column: 1 / -1; }
+  }
+
+  /* ───────── Photos ───────── */
   .photo-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 8px;
-    padding-top: 4px;
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;
   }
-  @media (min-width: 480px) {
-    .photo-grid { grid-template-columns: repeat(4, 1fr); }
-  }
+  @media (min-width: 480px) { .photo-grid { grid-template-columns: repeat(3, 1fr); gap: 12px; } }
+  @media (min-width: 720px) { .photo-grid { grid-template-columns: repeat(4, 1fr); } }
   .photo {
     aspect-ratio: 1;
-    border-radius: 8px;
+    border-radius: var(--radius-md);
     overflow: hidden;
-    background: var(--border-light);
+    background: var(--bone-2);
     cursor: pointer;
     position: relative;
+    box-shadow: var(--shadow-sm);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .photo:hover {
+    transform: scale(1.02);
+    box-shadow: var(--shadow-md);
   }
   .photo img {
     width: 100%; height: 100%;
     object-fit: cover;
     display: block;
+    transition: transform 0.4s ease;
   }
+  .photo:hover img { transform: scale(1.05); }
   .photo-caption {
-    position: absolute;
-    inset: auto 0 0 0;
-    padding: 4px 6px;
-    background: linear-gradient(to top, rgba(0,0,0,0.7), transparent);
-    color: #fff;
-    font-size: 10px;
-    line-height: 1.2;
-    text-overflow: ellipsis;
-    overflow: hidden;
-    white-space: nowrap;
+    position: absolute; left: 0; right: 0; bottom: 0;
+    padding: 10px 12px 8px;
+    background: linear-gradient(to top, rgba(11,13,16,0.85), transparent);
+    color: #fff; font-size: 11px; font-weight: 600;
+    line-height: 1.3;
+    text-overflow: ellipsis; overflow: hidden; white-space: nowrap;
+    letter-spacing: 0.1px;
   }
 
-  /* Lightbox */
+  /* ───────── Lightbox ───────── */
   .lightbox {
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.92);
+    position: fixed; inset: 0;
+    background: rgba(11,13,16,0.96);
+    backdrop-filter: blur(8px);
     display: none;
-    align-items: center;
-    justify-content: center;
-    z-index: 100;
-    padding: 20px;
+    align-items: center; justify-content: center;
+    z-index: 100; padding: 24px;
     cursor: pointer;
+    animation: fadeIn 0.2s ease;
   }
   .lightbox.open { display: flex; }
-  .lightbox img {
-    max-width: 100%;
-    max-height: 100%;
-    object-fit: contain;
-    border-radius: 8px;
-  }
+  .lightbox img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: var(--radius-md); }
   .lightbox-close {
-    position: absolute;
-    top: 20px; right: 20px;
-    width: 36px; height: 36px;
-    border-radius: 18px;
-    background: rgba(255,255,255,0.15);
-    color: #fff;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 22px;
-    border: none;
-    cursor: pointer;
+    position: absolute; top: 20px; right: 20px;
+    width: 42px; height: 42px; border-radius: 50%;
+    background: rgba(255,255,255,0.10); color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; border: 1px solid rgba(255,255,255,0.16);
+    cursor: pointer; backdrop-filter: blur(8px);
   }
 
-  /* Empty state */
-  .empty {
-    text-align: center;
-    padding: 40px 20px;
-    color: var(--text-muted);
+  /* ───────── Drawer (invoice / AIA detail) ───────── */
+  .drawer-backdrop {
+    position: fixed; inset: 0;
+    background: rgba(11,13,16,0.55);
+    backdrop-filter: blur(4px);
+    display: none; z-index: 110;
+    animation: fadeIn 0.2s ease;
+  }
+  .drawer-backdrop.open { display: block; }
+  .drawer {
+    position: fixed; top: 0; right: 0; bottom: 0;
+    width: 100%; max-width: 560px;
+    background: var(--cream); z-index: 120;
+    transform: translateX(105%);
+    transition: transform 0.32s cubic-bezier(0.32, 0.72, 0, 1);
+    display: flex; flex-direction: column;
+    box-shadow: -24px 0 60px rgba(11,13,16,0.18);
+  }
+  .drawer.open { transform: translateX(0); }
+  .drawer-header {
+    padding: 22px 28px;
+    background: var(--ink); color: #fff;
+    display: flex; align-items: center; gap: 14px;
+    flex-shrink: 0;
+  }
+  .drawer-header-titles { flex: 1; min-width: 0; }
+  .drawer-header-eyebrow {
+    font-size: 10px; font-weight: 700; letter-spacing: 1.6px;
+    color: var(--amber); text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+  .drawer-header h2 {
+    font-family: 'Fraunces', serif;
+    font-size: 22px; font-weight: 700;
+    letter-spacing: -0.018em; line-height: 1.15;
+  }
+  .drawer-close {
+    width: 40px; height: 40px; flex-shrink: 0;
+    border-radius: 10px;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.12);
+    color: #fff; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.15s;
+  }
+  .drawer-close:hover { background: rgba(255,255,255,0.14); }
+  .drawer-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px 28px 20px;
+  }
+  .drawer-footer {
+    padding: 16px 28px 24px;
+    border-top: 1px solid var(--bone);
+    background: var(--cream-2);
+    display: flex; gap: 10px;
+    flex-shrink: 0;
+  }
+  .drawer-btn {
+    flex: 1; padding: 14px;
+    border-radius: var(--radius-md);
+    font-size: 14px; font-weight: 700;
+    cursor: pointer; border: none; font-family: inherit;
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    transition: background 0.15s, transform 0.1s;
+    text-decoration: none;
+  }
+  .drawer-btn-primary {
+    background: var(--amber); color: #fff;
+    box-shadow: var(--shadow-amber);
+  }
+  .drawer-btn-primary:hover { background: var(--amber-dark); }
+  .drawer-btn-primary:active { transform: translateY(1px); }
+  .drawer-btn-secondary {
+    background: var(--ink); color: #fff;
+  }
+  .drawer-btn-secondary:hover { background: var(--ink-2); }
+  .drawer-btn-ghost {
+    background: var(--surface); color: var(--text);
+    border: 1px solid var(--bone);
+  }
+  .drawer-btn-ghost:hover { background: var(--bone-2); }
+
+  /* Drawer content blocks */
+  .detail-block {
+    background: var(--surface);
+    border: 1px solid var(--bone-2);
+    border-radius: var(--radius-lg);
+    padding: 18px 20px;
+    margin-bottom: 14px;
+  }
+  .detail-row {
+    display: flex; justify-content: space-between; gap: 12px;
+    padding: 8px 0;
     font-size: 14px;
   }
-  .empty-small {
-    padding: 20px 0;
-    text-align: center;
-    color: var(--text-muted);
-    font-size: 13px;
+  .detail-row + .detail-row { border-top: 1px solid var(--bone-2); }
+  .detail-row-label { color: var(--text-2); font-weight: 500; }
+  .detail-row-value { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .detail-row.total {
+    margin-top: 4px; padding-top: 14px;
+    border-top: 1.5px solid var(--ink) !important;
+  }
+  .detail-row.total .detail-row-label {
+    font-family: 'Fraunces', serif;
+    font-size: 16px; font-weight: 700;
+    color: var(--text);
+  }
+  .detail-row.total .detail-row-value {
+    font-family: 'Fraunces', serif;
+    font-size: 22px; font-weight: 700;
+    color: var(--amber);
+    letter-spacing: -0.015em;
+  }
+  .detail-line-item {
+    padding: 12px 0;
+    border-top: 1px solid var(--bone-2);
+  }
+  .detail-line-item:first-child { border-top: none; padding-top: 4px; }
+  .detail-line-item-name {
+    font-size: 14px; font-weight: 600; color: var(--text);
+    margin-bottom: 4px;
+  }
+  .detail-line-item-meta {
+    display: flex; justify-content: space-between; gap: 10px;
+    font-size: 12.5px; color: var(--text-muted);
+    font-weight: 500;
+  }
+  .detail-line-item-total {
+    font-variant-numeric: tabular-nums;
+    font-weight: 700; color: var(--text);
+  }
+  .detail-block-title {
+    font-family: 'Fraunces', serif;
+    font-size: 15px; font-weight: 700;
+    color: var(--text); margin-bottom: 12px;
+    letter-spacing: -0.01em;
+  }
+  .detail-block-eyebrow {
+    font-size: 10px; font-weight: 700; letter-spacing: 1.4px;
+    color: var(--amber-dark); text-transform: uppercase;
+    margin-bottom: 6px;
   }
 
-  /* Error / fallback */
+  /* AIA SOV table */
+  .sov-table {
+    width: 100%; font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    border-collapse: collapse;
+  }
+  .sov-table th, .sov-table td {
+    text-align: right; padding: 8px 6px;
+    border-bottom: 1px solid var(--bone-2);
+  }
+  .sov-table th:first-child, .sov-table td:first-child { text-align: left; }
+  .sov-table th {
+    font-size: 10px; color: var(--text-muted); font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.6px;
+  }
+  .sov-table tr:last-child td { border-bottom: none; }
+  .sov-desc { white-space: nowrap; max-width: 140px; overflow: hidden; text-overflow: ellipsis; }
+
+  /* ───────── Empty state ───────── */
+  .empty-section {
+    text-align: center;
+    padding: 36px 16px;
+    color: var(--text-muted);
+    font-size: 14px;
+    background: var(--cream-2);
+    border-radius: var(--radius-md);
+    border: 1px dashed var(--bone);
+  }
+  .empty-section svg {
+    width: 32px; height: 32px;
+    color: var(--bone);
+    margin-bottom: 8px;
+    stroke-width: 1.6;
+  }
+
+  /* ───────── Daily report card ───────── */
+  .dfr-card {
+    padding: 16px 18px; margin-bottom: 12px;
+    background: var(--cream-2);
+    border: 1px solid var(--bone-2);
+    border-radius: var(--radius-lg);
+  }
+  .dfr-head {
+    display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
+    margin-bottom: 10px;
+  }
+  .dfr-date {
+    font-family: 'Fraunces', serif;
+    font-size: 17px; font-weight: 700;
+    color: var(--text); letter-spacing: -0.015em;
+  }
+  .dfr-weather {
+    font-size: 12px; color: var(--text-2); font-weight: 600;
+    padding: 3px 10px; background: var(--surface);
+    border: 1px solid var(--bone); border-radius: 999px;
+  }
+  .dfr-stat {
+    display: inline-flex; gap: 5px; font-size: 13px; color: var(--text-2);
+    font-weight: 500;
+  }
+  .dfr-stat strong { color: var(--text); font-weight: 700; }
+  .dfr-stats { display: flex; gap: 14px; margin-bottom: 10px; flex-wrap: wrap; }
+  .dfr-work {
+    font-size: 14px; color: var(--text-2); line-height: 1.55;
+    white-space: pre-wrap;
+    padding: 12px 14px;
+    background: var(--surface); border-radius: var(--radius-md);
+    border: 1px solid var(--bone-2);
+  }
+
+  /* ───────── Footer ───────── */
+  .portal-footer {
+    text-align: center;
+    padding: 32px 16px 28px;
+    color: var(--text-muted);
+    font-size: 13px;
+    border-top: 1px solid var(--bone);
+    margin-top: 12px;
+  }
+  .portal-footer-row {
+    display: inline-flex; align-items: center; gap: 8px;
+    margin-bottom: 8px;
+    font-weight: 600;
+  }
+  .portal-footer .footer-mark {
+    width: 22px; height: 22px; border-radius: 6px;
+    background: var(--ink); color: var(--amber);
+    display: inline-flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 11px;
+  }
+  .portal-footer a { color: var(--text); text-decoration: none; font-weight: 600; }
+  .portal-footer a:hover { color: var(--amber-dark); }
+
+  /* ───────── Print styles for AIA ───────── */
+  @media print {
+    body { background: #fff; }
+    .nav-wrap, .hero, .stats-bar, .portal-footer, #sections, .drawer-backdrop, .drawer-header, .drawer-footer, .drawer-close { display: none !important; }
+    .drawer {
+      position: static; transform: none !important; max-width: none; width: 100%;
+      box-shadow: none; background: #fff;
+    }
+    .drawer-body { overflow: visible !important; padding: 0 !important; }
+    .detail-block { border: none; padding: 12px 0; margin: 0; }
+    .sov-table th, .sov-table td { font-size: 10px; padding: 6px 4px; }
+  }
+
+  /* ───────── Fallback ───────── */
   .fallback {
-    min-height: 100vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 24px;
+    min-height: 100vh; display: flex;
+    align-items: center; justify-content: center;
+    padding: 24px; background: var(--cream);
   }
   .fallback-card {
     background: var(--surface);
-    max-width: 440px;
-    padding: 36px 28px;
-    border-radius: 20px;
+    max-width: 460px;
+    padding: 44px 32px;
+    border-radius: var(--radius-xl);
     text-align: center;
     box-shadow: var(--shadow-lg);
+    border: 1px solid var(--bone-2);
   }
-  .fallback-card h1 { font-size: 22px; margin-bottom: 10px; }
-  .fallback-card p { color: var(--text-secondary); font-size: 14px; margin-bottom: 20px; }
+  .fallback-card h1 {
+    font-family: 'Fraunces', serif;
+    font-size: 26px; font-weight: 700;
+    margin-bottom: 12px; letter-spacing: -0.02em;
+  }
+  .fallback-card p {
+    color: var(--text-2);
+    font-size: 14.5px; margin-bottom: 24px;
+    line-height: 1.55;
+  }
   .cta {
     display: block;
-    background: var(--brand);
-    color: #fff;
-    text-decoration: none;
-    font-weight: 600;
-    padding: 14px 20px;
-    border-radius: 12px;
-    font-size: 15px;
-    margin-bottom: 10px;
+    background: var(--ink); color: #fff;
+    text-decoration: none; font-weight: 700;
+    padding: 15px 20px; border-radius: var(--radius-md);
+    font-size: 15px; margin-bottom: 10px;
+    transition: background 0.15s;
   }
+  .cta:hover { background: var(--ink-2); }
   .cta.secondary {
-    background: #fff;
-    color: var(--brand);
-    border: 1.5px solid var(--brand);
+    background: var(--surface); color: var(--text);
+    border: 1.5px solid var(--bone);
   }
+  .cta.secondary:hover { background: var(--bone-2); }
 
-  /* Footer */
-  .portal-footer {
-    text-align: center;
-    padding: 30px 16px 10px;
-    color: var(--text-muted);
-    font-size: 12px;
+  /* ───────── Animations ───────── */
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes slideUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  .section { animation: slideUp 0.4s ease both; }
+  .section:nth-child(1) { animation-delay: 0.05s; }
+  .section:nth-child(2) { animation-delay: 0.10s; }
+  .section:nth-child(3) { animation-delay: 0.15s; }
+  .section:nth-child(4) { animation-delay: 0.20s; }
+  .section:nth-child(5) { animation-delay: 0.25s; }
+
+  /* ───────── Icons ───────── */
+  .icn {
+    width: 16px; height: 16px;
+    stroke-width: 2; fill: none;
+    stroke: currentColor;
+    stroke-linecap: round; stroke-linejoin: round;
+    flex-shrink: 0;
   }
-  .portal-footer a { color: var(--brand); text-decoration: none; }
-
-  /* Icons (inline SVG helpers) */
-  .icn { width: 16px; height: 16px; stroke-width: 2; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; }
-  .icn-lg { width: 18px; height: 18px; }
 </style>
 </head>
 <body>
 
-  <!-- Passcode gate (shown if portal.requirePasscode) -->
+  <!-- Passcode gate -->
   <div id="gate" class="gate-wrap" style="display:none">
     <div class="gate">
       <div class="gate-logo">M</div>
       <h1>Enter passcode</h1>
-      <p>This project portal is protected. Please enter the 4-digit code your contractor shared with you.</p>
+      <p>This portal is private. Enter the 4-digit code your contractor shared with you.</p>
       <input id="gate-input" type="tel" maxlength="4" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="••••" />
-      <button id="gate-submit">Unlock</button>
+      <button id="gate-submit">Unlock portal</button>
       <div class="err" id="gate-err"></div>
     </div>
   </div>
@@ -486,79 +932,114 @@
   <!-- Fallback (no data in URL) -->
   <div id="fallback" class="fallback" style="display:none">
     <div class="fallback-card">
-      <div class="gate-logo" style="margin-bottom:16px">M</div>
+      <div class="gate-logo" style="margin-bottom:18px">M</div>
       <h1>Portal link expired</h1>
-      <p>This portal link doesn't contain any project data. Ask your contractor for a fresh link — they can share one directly from the MAGE ID app.</p>
+      <p>This link doesn't include any project data — it may have been truncated. Ask your contractor for a fresh portal link from the MAGE ID app.</p>
       <a class="cta" href="mailto:support@mageid.app?subject=Portal%20Help">Contact support</a>
       <a class="cta secondary" href="/">Visit mageid.app</a>
     </div>
   </div>
 
-  <!-- Main portal (rendered after data + gate pass) -->
+  <!-- Main portal -->
   <div id="portal" style="display:none">
-    <div class="hero">
+    <header class="hero">
+      <div class="hero-photo-bg" id="hero-photo-bg" style="display:none"></div>
       <div class="hero-inner">
         <div class="brand-row">
           <div class="brand-mark" id="brand-mark">M</div>
-          <span id="brand-name">MAGE ID</span>
+          <span class="brand-name" id="brand-name">MAGE ID</span>
         </div>
+        <div class="hero-eyebrow" id="hero-eyebrow">Project portal</div>
         <h1 id="project-name">Project</h1>
         <div class="hero-meta" id="project-meta"></div>
         <div class="hero-welcome" id="welcome" style="display:none"></div>
       </div>
+    </header>
+
+    <div class="stats-bar">
+      <div class="stats-grid" id="stats-grid">
+        <!-- populated by JS -->
+      </div>
     </div>
 
-    <div class="container">
-      <div class="progress-card" id="progress-card" style="display:none">
-        <div class="ring">
-          <svg width="80" height="80" viewBox="0 0 80 80">
-            <circle cx="40" cy="40" r="34" stroke-width="6" class="ring-bg" fill="none"/>
-            <circle id="ring-fg" cx="40" cy="40" r="34" stroke-width="6" class="ring-fg" fill="none"
-              stroke-dasharray="213.6" stroke-dashoffset="213.6" stroke-linecap="round"/>
-          </svg>
-          <div class="ring-label" id="ring-label">0%</div>
-        </div>
-        <div class="progress-stats" id="progress-stats"></div>
-      </div>
+    <nav class="nav-wrap">
+      <div class="nav" id="nav"></div>
+    </nav>
 
+    <main class="container">
       <div id="sections"></div>
 
-      <div class="portal-footer">
-        <div>Powered by <a href="/">MAGE ID</a> · <a href="mailto:support@mageid.app">Contact support</a></div>
-        <div style="margin-top:6px">Snapshot taken <span id="snapshot-time">just now</span></div>
-      </div>
-    </div>
+      <footer class="portal-footer">
+        <div class="portal-footer-row">
+          <span class="footer-mark">M</span>
+          Powered by <a href="https://mageid.app">MAGE ID</a>
+        </div>
+        <div>Snapshot taken <span id="snapshot-time">just now</span> · <a href="mailto:support@mageid.app">Contact support</a></div>
+      </footer>
+    </main>
   </div>
 
   <!-- Lightbox -->
   <div class="lightbox" id="lightbox">
-    <button class="lightbox-close" id="lightbox-close" aria-label="Close">✕</button>
+    <button class="lightbox-close" id="lightbox-close" aria-label="Close">×</button>
     <img id="lightbox-img" alt="" />
   </div>
+
+  <!-- Drawer (used for invoice + AIA detail) -->
+  <div class="drawer-backdrop" id="drawer-backdrop"></div>
+  <aside class="drawer" id="drawer" aria-hidden="true">
+    <header class="drawer-header">
+      <div class="drawer-header-titles">
+        <div class="drawer-header-eyebrow" id="drawer-eyebrow">Detail</div>
+        <h2 id="drawer-title">—</h2>
+      </div>
+      <button class="drawer-close" id="drawer-close" aria-label="Close">
+        <svg class="icn" width="18" height="18" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </header>
+    <div class="drawer-body" id="drawer-body"></div>
+    <footer class="drawer-footer" id="drawer-footer"></footer>
+  </aside>
 
 <script>
 (function () {
   'use strict';
 
-  // -------- Icon helper --------
-  function icn(svgInner, size) {
+  // ───────── Icons (inline SVG strokes) ─────────
+  function icn(d, size) {
     var s = size || 16;
-    return '<svg class="icn" width="'+s+'" height="'+s+'" viewBox="0 0 24 24">'+svgInner+'</svg>';
+    return '<svg class="icn" width="'+s+'" height="'+s+'" viewBox="0 0 24 24">'+d+'</svg>';
   }
   var ICONS = {
-    calendar:   '<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>',
-    dollar:     '<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
-    file:       '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>',
-    image:      '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>',
-    clipboard:  '<path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/>',
-    check:      '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>',
-    chevron:    '<polyline points="6 9 12 15 18 9"/>',
-    alert:      '<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
-    help:       '<circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
-    diff:       '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
+    layout:    '<rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/>',
+    calendar:  '<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>',
+    dollar:    '<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
+    file:      '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>',
+    fileText:  '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/>',
+    image:     '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>',
+    clipboard: '<path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/>',
+    check:     '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>',
+    chevron:   '<polyline points="6 9 12 15 18 9"/>',
+    chevronR:  '<polyline points="9 18 15 12 9 6"/>',
+    alert:     '<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
+    help:      '<circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
+    diff:      '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
+    creditCard:'<rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/>',
+    mapPin:    '<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>',
+    home:      '<path d="M3 9.5L12 2l9 7.5"/><path d="M5 8v12a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1v-6h2v6a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1V8"/>',
+    print:     '<polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>',
+    shield:    '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
+    award:     '<circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/>',
+    inbox:     '<polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>',
+    trending:  '<polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/>',
+    arrowRight:'<line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>',
+    download:  '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>',
+    tool:      '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>',
+    external:  '<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>',
+    lock:      '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
   };
 
-  // -------- URL fragment decoder --------
+  // ───────── URL fragment decoder ─────────
   function decodeHashPayload() {
     try {
       var h = window.location.hash || '';
@@ -566,7 +1047,6 @@
       var m = h.match(/[#&]d=([^&]+)/);
       if (!m) return null;
       var b64 = decodeURIComponent(m[1]).replace(/-/g, '+').replace(/_/g, '/');
-      // pad to multiple of 4
       while (b64.length % 4) b64 += '=';
       var json = decodeURIComponent(escape(atob(b64)));
       return JSON.parse(json);
@@ -576,10 +1056,13 @@
     }
   }
 
-  // -------- Helpers --------
-  function fmtMoney(n) {
+  // ───────── Helpers ─────────
+  function fmtMoney(n, opts) {
     if (n == null || isNaN(n)) return '—';
-    return '$' + Number(n).toLocaleString(undefined, { maximumFractionDigits: 0 });
+    var dec = opts && opts.dec ? opts.dec : 0;
+    return '$' + Number(n).toLocaleString(undefined, {
+      minimumFractionDigits: dec, maximumFractionDigits: dec,
+    });
   }
   function fmtDate(iso) {
     if (!iso) return '—';
@@ -592,6 +1075,10 @@
     var d = new Date(iso);
     if (isNaN(d)) return iso;
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  }
+  function fmtPercent(n, dec) {
+    if (n == null || isNaN(n)) return '—';
+    return Number(n).toFixed(dec != null ? dec : 0) + '%';
   }
   function esc(s) {
     if (s == null) return '';
@@ -614,25 +1101,38 @@
   function statusPillClass(s) {
     var x = String(s || '').toLowerCase();
     if (['paid','approved','completed','closed','answered','done','complete'].indexOf(x) > -1) return 'pill-success';
-    if (['pending','submitted','open','in_progress','draft','review','ready_for_review'].indexOf(x) > -1) return 'pill-warning';
+    if (['pending','submitted','open','in_progress','review','ready_for_review','partially_paid','sent'].indexOf(x) > -1) return 'pill-warning';
     if (['overdue','rejected','void'].indexOf(x) > -1) return 'pill-error';
-    return 'pill-muted';
+    if (['draft'].indexOf(x) > -1) return 'pill-muted';
+    return 'pill-info';
   }
   function statusLabel(s) {
     if (!s) return '';
     return String(s).replace(/_/g, ' ').replace(/\b\w/g, function (c) { return c.toUpperCase(); });
   }
+  function termLabel(t) {
+    if (!t) return '—';
+    var map = { net_15: 'Net 15', net_30: 'Net 30', net_45: 'Net 45', due_on_receipt: 'Due on receipt' };
+    return map[t] || statusLabel(t);
+  }
 
-  // -------- Section rendering --------
-  function mkSection(id, icon, title, count, body) {
+  // ───────── Section renderers ─────────
+  function emptyState(label) {
+    return '<div class="empty-section">'+icn(ICONS.inbox, 32)+'<div style="margin-top:6px">'+esc(label)+'</div></div>';
+  }
+
+  function mkSection(id, iconKey, title, subtitle, count, body) {
     var countHtml = (count != null) ? '<span class="section-count">'+count+'</span>' : '';
+    var subHtml = subtitle ? '<div class="section-subtitle">'+esc(subtitle)+'</div>' : '';
     return (
-      '<section id="sec-'+id+'">' +
-        '<div class="section-head" data-toggle="'+id+'">' +
-          '<div class="section-icon">'+icn(icon,18)+'</div>' +
-          '<span class="section-title">'+esc(title)+'</span>' +
+      '<section class="section" id="sec-'+id+'">' +
+        '<div class="section-head">' +
+          '<div class="section-icon">'+icn(ICONS[iconKey] || ICONS.file, 22)+'</div>' +
+          '<div class="section-title-block">' +
+            '<div class="section-title">'+esc(title)+'</div>' +
+            subHtml +
+          '</div>' +
           countHtml +
-          '<span class="section-chevron">'+icn(ICONS.chevron,16)+'</span>' +
         '</div>' +
         '<div class="section-body">'+body+'</div>' +
       '</section>'
@@ -640,76 +1140,137 @@
   }
 
   function renderSchedule(tasks) {
-    if (!tasks || !tasks.length) return '<div class="empty-small">No tasks shared yet.</div>';
-    return tasks.map(function (t) {
+    if (!tasks || !tasks.length) return emptyState('No schedule shared yet.');
+    return tasks.slice(0, 50).map(function (t) {
+      var done = t.progress >= 100 || ['completed','done','complete','closed'].indexOf(String(t.status||'').toLowerCase()) > -1;
+      var pill = t.isCriticalPath
+        ? '<span class="pill pill-error">Critical</span>'
+        : t.isMilestone
+          ? '<span class="pill pill-amber">Milestone</span>'
+          : '<span class="pill '+statusPillClass(t.status)+'">'+esc(statusLabel(t.status))+'</span>';
       return (
-        '<div class="row">' +
+        '<div class="row task-row">' +
           '<div class="row-main">' +
-            '<div class="row-title">'+esc(t.title)+'</div>' +
-            '<div class="row-meta">'+esc(t.phase || '')+(t.durationDays ? ' · '+t.durationDays+'d' : '')+'</div>' +
-            '<div class="task-progress"><div class="task-progress-fill" style="width:'+(t.progress||0)+'%"></div></div>' +
+            '<div class="row-title">'+esc(t.title)+pill+'</div>' +
+            '<div class="row-meta">'+esc(t.phase || '—')+(t.durationDays ? ' · '+t.durationDays+' day' + (t.durationDays === 1 ? '' : 's') : '')+'</div>' +
+            '<div class="task-progress"><div class="task-progress-fill '+(done ? 'done' : '')+'" style="width:'+(t.progress||0)+'%"></div></div>' +
           '</div>' +
-          '<span class="pill '+statusPillClass(t.status)+'">'+esc(statusLabel(t.status))+'</span>' +
+          '<div class="row-value num">'+esc(t.progress != null ? t.progress + '%' : '—')+'</div>' +
         '</div>'
       );
     }).join('');
   }
 
-  function renderBudget(b) {
-    if (!b) return '<div class="empty-small">Budget not shared.</div>';
-    var rows = [
-      { label: 'Contract Value', value: fmtMoney(b.contractValue) },
-      { label: 'Paid to Date', value: fmtMoney(b.paidToDate) },
-      { label: 'Outstanding', value: fmtMoney(b.outstanding) },
-      { label: 'Progress', value: (b.pctComplete != null ? b.pctComplete + '%' : '—') },
-    ];
-    return rows.map(function (r) {
-      return '<div class="row"><div class="row-main"><div class="row-title">'+esc(r.label)+'</div></div><div class="row-value">'+esc(r.value)+'</div></div>';
+  function renderInvoices(invs) {
+    if (!invs || !invs.length) return emptyState('No invoices shared yet.');
+    return invs.map(function (i) {
+      var balance = (typeof i.balance === 'number') ? i.balance : i.total;
+      var isPaid = String(i.status || '').toLowerCase() === 'paid' || balance <= 0;
+      var canPay = i.payLinkUrl && !isPaid && balance > 0;
+      var amountDisplay = isPaid ? fmtMoney(i.total) : fmtMoney(balance);
+      var amountLabel = isPaid ? 'Paid' : 'Balance due';
+      var payHtml = canPay
+        ? '<button class="invoice-pay-btn" data-pay="'+esc(i.payLinkUrl)+'">' +
+            icn(ICONS.creditCard, 14) +
+            '<span>Pay '+fmtMoney(balance)+'</span>' +
+          '</button>'
+        : '';
+      var detailHtml = '<span class="invoice-detail-hint">View details ' + icn(ICONS.chevronR, 12) + '</span>';
+      return (
+        '<div class="invoice-card '+(isPaid ? 'paid' : 'unpaid')+'" data-invoice="'+esc(i.id)+'">' +
+          '<div class="row-main">' +
+            '<div class="invoice-num">' +
+              '<strong>Invoice #'+esc(i.number)+'</strong>' +
+              '<span class="pill '+statusPillClass(i.status)+'">'+esc(statusLabel(i.status))+'</span>' +
+            '</div>' +
+            '<div class="invoice-amount num">'+amountDisplay+'</div>' +
+            '<div class="invoice-meta">' +
+              '<span>'+amountLabel+'</span>' +
+              '<span class="invoice-meta-dot">·</span>' +
+              '<span>Due '+fmtDate(i.dueDate)+'</span>' +
+              (i.issueDate ? '<span class="invoice-meta-dot">·</span><span>Issued '+fmtDate(i.issueDate)+'</span>' : '') +
+            '</div>' +
+          '</div>' +
+          '<div class="invoice-cta">' +
+            (payHtml || detailHtml) +
+            (payHtml ? detailHtml : '') +
+          '</div>' +
+        '</div>'
+      );
     }).join('');
   }
 
-  function renderInvoices(invs) {
-    if (!invs || !invs.length) return '<div class="empty-small">No invoices shared.</div>';
-    return invs.map(function (i) {
-      var balance = (typeof i.balance === 'number') ? i.balance : i.total;
-      var showPayNow = i.payLinkUrl && i.status !== 'paid' && balance > 0;
-      var payNowBtn = showPayNow
-        ? '<a class="pay-now-btn" href="'+esc(i.payLinkUrl)+'" target="_blank" rel="noopener">Pay <span class="amt">'+fmtMoney(balance)+'</span> now</a>'
-        : '';
+  function renderAIA(apps) {
+    if (!apps || !apps.length) return emptyState('No pay applications shared yet.');
+    return apps.map(function (a) {
+      var pct = Math.max(0, Math.min(100, a.percentComplete || 0));
+      var circ = 2 * Math.PI * 36;
+      var off = circ * (1 - pct / 100);
       return (
-        '<div class="row">' +
+        '<div class="aia-card" data-aia="'+esc(a.id)+'">' +
           '<div class="row-main">' +
-            '<div class="invoice-row-body">' +
-              '<div class="row-title">Invoice #'+esc(i.number)+'</div>' +
-              '<div class="row-meta">Due '+fmtDate(i.dueDate)+' · '+fmtMoney(i.total)+'</div>' +
-              payNowBtn +
+            '<div class="aia-num-block">' +
+              '<span class="aia-num-eyebrow">G702 / G703 · App</span>' +
+              '<span class="aia-num-value">#'+esc(a.applicationNumber)+'</span>' +
+            '</div>' +
+            '<div class="aia-period">'+
+              (a.periodTo ? 'Period ending ' + fmtDate(a.periodTo) : 'Pay application') +
+              (a.architectName ? ' · '+esc(a.architectName) : '') +
+            '</div>' +
+            '<div class="aia-stat-row">' +
+              '<div>' +
+                '<div class="aia-stat-label">Earned to date</div>' +
+                '<div class="aia-stat-value num">'+fmtMoney(a.totalEarnedLessRetainage)+'</div>' +
+              '</div>' +
+              '<div>' +
+                '<div class="aia-stat-label">Retainage</div>' +
+                '<div class="aia-stat-value num">'+fmtMoney(a.totalRetainage)+'</div>' +
+              '</div>' +
+              '<div>' +
+                '<div class="aia-stat-label">Due this period</div>' +
+                '<div class="aia-stat-value amber num">'+fmtMoney(a.currentPaymentDue)+'</div>' +
+              '</div>' +
             '</div>' +
           '</div>' +
-          '<span class="pill '+statusPillClass(i.status)+'">'+esc(statusLabel(i.status))+'</span>' +
+          '<div class="aia-progress-ring">' +
+            '<svg width="88" height="88" viewBox="0 0 88 88">' +
+              '<circle cx="44" cy="44" r="36" stroke-width="6" class="ring-bg" fill="none"/>' +
+              '<circle cx="44" cy="44" r="36" stroke-width="6" class="ring-fg" fill="none"' +
+                ' stroke-dasharray="'+circ+'" stroke-dashoffset="'+off+'" stroke-linecap="round"/>' +
+            '</svg>' +
+            '<div class="aia-progress-label">' +
+              '<div class="aia-progress-pct">'+Math.round(pct)+'%</div>' +
+              '<div class="aia-progress-tag">Billed</div>' +
+            '</div>' +
+          '</div>' +
         '</div>'
       );
     }).join('');
   }
 
   function renderChangeOrders(cos) {
-    if (!cos || !cos.length) return '<div class="empty-small">No change orders shared.</div>';
+    if (!cos || !cos.length) return emptyState('No change orders shared.');
     return cos.map(function (c) {
       var amt = c.changeAmount || 0;
-      var sign = amt >= 0 ? '+' : '-';
+      var sign = amt >= 0 ? '+' : '−';
+      var amtClass = amt >= 0 ? '' : '';
       return (
         '<div class="row">' +
           '<div class="row-main">' +
             '<div class="row-title">CO #'+esc(c.number)+' — '+esc(c.description || '')+'</div>' +
-            '<div class="row-meta">'+fmtDate(c.dateSubmitted)+' · '+sign+fmtMoney(Math.abs(amt))+'</div>' +
+            '<div class="row-meta">'+fmtDate(c.dateSubmitted)+'</div>' +
           '</div>' +
-          '<span class="pill '+statusPillClass(c.status)+'">'+esc(statusLabel(c.status))+'</span>' +
+          '<div style="text-align:right">' +
+            '<div class="row-value num '+amtClass+'">'+sign+fmtMoney(Math.abs(amt))+'</div>' +
+            '<span class="pill '+statusPillClass(c.status)+'" style="margin-top:4px">'+esc(statusLabel(c.status))+'</span>' +
+          '</div>' +
         '</div>'
       );
     }).join('');
   }
 
   function renderPhotos(photos) {
-    if (!photos || !photos.length) return '<div class="empty-small">No photos shared yet.</div>';
+    if (!photos || !photos.length) return emptyState('No photos shared yet.');
     var grid = photos.map(function (p, idx) {
       var cap = p.caption ? '<div class="photo-caption">'+esc(p.caption)+'</div>' : '';
       return '<div class="photo" data-photo="'+idx+'"><img loading="lazy" src="'+esc(p.url)+'" alt="'+esc(p.caption||'')+'"/>'+cap+'</div>';
@@ -718,28 +1279,35 @@
   }
 
   function renderDailyReports(drs) {
-    if (!drs || !drs.length) return '<div class="empty-small">No daily reports shared.</div>';
+    if (!drs || !drs.length) return emptyState('No daily reports shared.');
     return drs.map(function (d) {
       return (
-        '<div class="row">' +
-          '<div class="row-main">' +
-            '<div class="row-title">'+fmtDate(d.date)+(d.weather ? ' · '+esc(d.weather) : '')+'</div>' +
-            '<div class="row-meta">'+(d.totalManpower ? d.totalManpower+' workers · ' : '')+(d.totalManHours ? d.totalManHours+' hrs' : '')+'</div>' +
-            (d.workPerformed ? '<div class="row-meta" style="margin-top:4px;white-space:pre-wrap">'+esc(d.workPerformed)+'</div>' : '') +
+        '<div class="dfr-card">' +
+          '<div class="dfr-head">' +
+            '<div class="dfr-date">'+fmtDate(d.date)+'</div>' +
+            (d.weather ? '<div class="dfr-weather">'+esc(d.weather)+'</div>' : '') +
           '</div>' +
+          '<div class="dfr-stats">' +
+            (d.totalManpower ? '<div class="dfr-stat">👷 <strong>'+d.totalManpower+'</strong> on site</div>' : '') +
+            (d.totalManHours ? '<div class="dfr-stat">⏱ <strong>'+d.totalManHours+'</strong> hours</div>' : '') +
+          '</div>' +
+          (d.workPerformed
+            ? '<div class="dfr-work">'+esc(d.workPerformed)+'</div>'
+            : '<div class="row-meta" style="font-style:italic">No work narrative recorded.</div>'
+          ) +
         '</div>'
       );
     }).join('');
   }
 
   function renderPunchList(items) {
-    if (!items || !items.length) return '<div class="empty-small">No punch list items shared.</div>';
+    if (!items || !items.length) return emptyState('No punch list items shared.');
     return items.map(function (p) {
       return (
         '<div class="row">' +
           '<div class="row-main">' +
             '<div class="row-title">'+esc(p.title)+'</div>' +
-            '<div class="row-meta">'+(p.location ? esc(p.location)+' · ' : '')+(p.priority ? 'Priority: '+esc(p.priority) : '')+'</div>' +
+            '<div class="row-meta">'+(p.location ? esc(p.location) : '')+(p.priority ? (p.location ? ' · ' : '') + 'Priority: '+esc(p.priority) : '')+'</div>' +
           '</div>' +
           '<span class="pill '+statusPillClass(p.status)+'">'+esc(statusLabel(p.status))+'</span>' +
         '</div>'
@@ -748,7 +1316,7 @@
   }
 
   function renderRFIs(rfis) {
-    if (!rfis || !rfis.length) return '<div class="empty-small">No RFIs shared.</div>';
+    if (!rfis || !rfis.length) return emptyState('No RFIs shared.');
     return rfis.map(function (r) {
       return (
         '<div class="row">' +
@@ -763,7 +1331,7 @@
   }
 
   function renderDocuments(docs) {
-    if (!docs || !docs.length) return '<div class="empty-small">No documents shared.</div>';
+    if (!docs || !docs.length) return emptyState('No documents shared.');
     return docs.map(function (d) {
       return (
         '<div class="row">' +
@@ -776,84 +1344,420 @@
     }).join('');
   }
 
-  // -------- Wire up --------
-  function showFallback() {
-    document.getElementById('fallback').style.display = 'flex';
+  // ───────── Drawer (invoice / AIA detail) ─────────
+  var drawerEl = document.getElementById('drawer');
+  var drawerBackdrop = document.getElementById('drawer-backdrop');
+  var drawerTitle = document.getElementById('drawer-title');
+  var drawerEyebrow = document.getElementById('drawer-eyebrow');
+  var drawerBody = document.getElementById('drawer-body');
+  var drawerFooter = document.getElementById('drawer-footer');
+
+  function openDrawer(eyebrow, title, bodyHtml, footerHtml) {
+    drawerEyebrow.textContent = eyebrow;
+    drawerTitle.textContent = title;
+    drawerBody.innerHTML = bodyHtml;
+    drawerFooter.innerHTML = footerHtml || '';
+    drawerEl.classList.add('open');
+    drawerBackdrop.classList.add('open');
+    drawerEl.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+  }
+  function closeDrawer() {
+    drawerEl.classList.remove('open');
+    drawerBackdrop.classList.remove('open');
+    drawerEl.setAttribute('aria-hidden', 'true');
+    document.body.style.overflow = '';
+  }
+  drawerBackdrop.addEventListener('click', closeDrawer);
+  document.getElementById('drawer-close').addEventListener('click', closeDrawer);
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') closeDrawer();
+  });
+
+  function renderInvoiceDrawer(inv) {
+    var balance = (typeof inv.balance === 'number') ? inv.balance : inv.total;
+    var isPaid = String(inv.status || '').toLowerCase() === 'paid' || balance <= 0;
+    var lineItemsHtml = (inv.lineItems && inv.lineItems.length)
+      ? inv.lineItems.map(function (li) {
+          var qtyUnit = (li.quantity ? li.quantity : '') + ' ' + (li.unit || '');
+          qtyUnit = qtyUnit.trim();
+          return (
+            '<div class="detail-line-item">' +
+              '<div class="detail-line-item-name">'+esc(li.name || 'Item')+'</div>' +
+              (li.description ? '<div class="row-meta" style="margin-bottom:6px">'+esc(li.description)+'</div>' : '') +
+              '<div class="detail-line-item-meta">' +
+                '<span>'+esc(qtyUnit || '—')+(li.unitPrice ? ' @ '+fmtMoney(li.unitPrice, {dec:2}) : '')+'</span>' +
+                '<span class="detail-line-item-total num">'+fmtMoney(li.total, {dec:2})+'</span>' +
+              '</div>' +
+            '</div>'
+          );
+        }).join('')
+      : '<div class="row-meta" style="padding:6px 0">No line items shared.</div>';
+
+    var totalsRows = '';
+    if (typeof inv.subtotal === 'number') {
+      totalsRows += '<div class="detail-row"><span class="detail-row-label">Subtotal</span><span class="detail-row-value num">'+fmtMoney(inv.subtotal, {dec:2})+'</span></div>';
+    }
+    if (typeof inv.taxAmount === 'number' && inv.taxAmount > 0) {
+      totalsRows += '<div class="detail-row"><span class="detail-row-label">Tax</span><span class="detail-row-value num">'+fmtMoney(inv.taxAmount, {dec:2})+'</span></div>';
+    }
+    if (typeof inv.retentionAmount === 'number' && inv.retentionAmount > 0) {
+      totalsRows += '<div class="detail-row"><span class="detail-row-label">Retainage'+(inv.retentionPercent ? ' ('+inv.retentionPercent+'%)' : '')+'</span><span class="detail-row-value num">−'+fmtMoney(inv.retentionAmount, {dec:2})+'</span></div>';
+    }
+    totalsRows += '<div class="detail-row"><span class="detail-row-label">Total Due</span><span class="detail-row-value num">'+fmtMoney(inv.total, {dec:2})+'</span></div>';
+    if (typeof inv.amountPaid === 'number' && inv.amountPaid > 0) {
+      totalsRows += '<div class="detail-row"><span class="detail-row-label">Paid</span><span class="detail-row-value num" style="color:var(--success)">−'+fmtMoney(inv.amountPaid, {dec:2})+'</span></div>';
+    }
+    totalsRows += '<div class="detail-row total"><span class="detail-row-label">'+(isPaid ? 'Paid in full' : 'Balance due')+'</span><span class="detail-row-value num">'+fmtMoney(isPaid ? 0 : balance, {dec:2})+'</span></div>';
+
+    var summaryRows = '';
+    summaryRows += '<div class="detail-row"><span class="detail-row-label">Invoice number</span><span class="detail-row-value">#'+esc(inv.number)+'</span></div>';
+    summaryRows += '<div class="detail-row"><span class="detail-row-label">Status</span><span class="detail-row-value"><span class="pill '+statusPillClass(inv.status)+'">'+esc(statusLabel(inv.status))+'</span></span></div>';
+    if (inv.issueDate) summaryRows += '<div class="detail-row"><span class="detail-row-label">Issued</span><span class="detail-row-value">'+fmtDate(inv.issueDate)+'</span></div>';
+    summaryRows += '<div class="detail-row"><span class="detail-row-label">Due</span><span class="detail-row-value">'+fmtDate(inv.dueDate)+'</span></div>';
+    if (inv.paymentTerms) summaryRows += '<div class="detail-row"><span class="detail-row-label">Terms</span><span class="detail-row-value">'+esc(termLabel(inv.paymentTerms))+'</span></div>';
+
+    var notesHtml = inv.notes
+      ? '<div class="detail-block">' +
+          '<div class="detail-block-eyebrow">Notes</div>' +
+          '<div style="font-size:14px;color:var(--text-2);line-height:1.55;white-space:pre-wrap">'+esc(inv.notes)+'</div>' +
+        '</div>'
+      : '';
+
+    var bodyHtml =
+      '<div class="detail-block">' +
+        '<div class="detail-block-eyebrow">Summary</div>' +
+        summaryRows +
+      '</div>' +
+      '<div class="detail-block">' +
+        '<div class="detail-block-title">Line items</div>' +
+        lineItemsHtml +
+      '</div>' +
+      '<div class="detail-block">' +
+        totalsRows +
+      '</div>' +
+      notesHtml +
+      '<div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-muted);padding:12px 4px;font-weight:500">' +
+        icn(ICONS.shield, 14) + 'Payments are processed securely by Stripe — your card details never touch this page.' +
+      '</div>';
+
+    var canPay = inv.payLinkUrl && !isPaid && balance > 0;
+    var footerHtml = canPay
+      ? '<a class="drawer-btn drawer-btn-primary" href="'+esc(inv.payLinkUrl)+'" target="_blank" rel="noopener">' +
+          icn(ICONS.creditCard, 16) + ' Pay '+fmtMoney(balance)+' now' +
+        '</a>'
+      : isPaid
+        ? '<button class="drawer-btn drawer-btn-ghost" disabled style="opacity:0.7;cursor:default">' +
+            icn(ICONS.check, 16) + ' Paid in full' +
+          '</button>'
+        : '<button class="drawer-btn drawer-btn-ghost" id="contact-gc">' +
+            icn(ICONS.inbox, 16) + ' Contact contractor' +
+          '</button>';
+
+    openDrawer('Invoice', '#' + inv.number, bodyHtml, footerHtml);
   }
 
+  function renderAIADrawer(a, brandName) {
+    var sumRows = '';
+    sumRows += '<div class="detail-row"><span class="detail-row-label">Application #</span><span class="detail-row-value">'+esc(a.applicationNumber)+'</span></div>';
+    if (a.applicationDate) sumRows += '<div class="detail-row"><span class="detail-row-label">Application date</span><span class="detail-row-value">'+fmtDate(a.applicationDate)+'</span></div>';
+    if (a.periodTo) sumRows += '<div class="detail-row"><span class="detail-row-label">Period ending</span><span class="detail-row-value">'+fmtDate(a.periodTo)+'</span></div>';
+    if (a.ownerName) sumRows += '<div class="detail-row"><span class="detail-row-label">Owner</span><span class="detail-row-value">'+esc(a.ownerName)+'</span></div>';
+    if (a.architectName) sumRows += '<div class="detail-row"><span class="detail-row-label">Architect</span><span class="detail-row-value">'+esc(a.architectName)+'</span></div>';
+    sumRows += '<div class="detail-row"><span class="detail-row-label">Contractor</span><span class="detail-row-value">'+esc(a.contractorName || brandName || '—')+'</span></div>';
+
+    var coverRows = '';
+    coverRows += '<div class="detail-row"><span class="detail-row-label">Contract sum to date</span><span class="detail-row-value num">'+fmtMoney(a.contractSumToDate, {dec:2})+'</span></div>';
+    coverRows += '<div class="detail-row"><span class="detail-row-label">Total completed & stored</span><span class="detail-row-value num">'+fmtMoney(a.totalCompletedAndStored, {dec:2})+'</span></div>';
+    coverRows += '<div class="detail-row"><span class="detail-row-label">Retainage ('+a.retainagePercent+'%)</span><span class="detail-row-value num">−'+fmtMoney(a.totalRetainage, {dec:2})+'</span></div>';
+    coverRows += '<div class="detail-row"><span class="detail-row-label">Total earned less retainage</span><span class="detail-row-value num">'+fmtMoney(a.totalEarnedLessRetainage, {dec:2})+'</span></div>';
+    if (a.lessPreviousCertificates) {
+      coverRows += '<div class="detail-row"><span class="detail-row-label">Less previous certificates</span><span class="detail-row-value num">−'+fmtMoney(a.lessPreviousCertificates, {dec:2})+'</span></div>';
+    }
+    coverRows += '<div class="detail-row total"><span class="detail-row-label">Current payment due</span><span class="detail-row-value num">'+fmtMoney(a.currentPaymentDue, {dec:2})+'</span></div>';
+    coverRows += '<div class="detail-row"><span class="detail-row-label">Balance to finish</span><span class="detail-row-value num">'+fmtMoney(a.balanceToFinish, {dec:2})+'</span></div>';
+
+    var sovRows = '';
+    if (a.lines && a.lines.length) {
+      sovRows = (
+        '<table class="sov-table">' +
+          '<thead><tr>' +
+            '<th>Item</th>' +
+            '<th>Scheduled</th>' +
+            '<th>Prev</th>' +
+            '<th>This Pd.</th>' +
+            '<th>Stored</th>' +
+            '<th>Total</th>' +
+          '</tr></thead>' +
+          '<tbody>' +
+            a.lines.map(function (l) {
+              var total = (l.fromPreviousApp || 0) + (l.thisPeriod || 0) + (l.materialsPresentlyStored || 0);
+              return (
+                '<tr>' +
+                  '<td><strong>'+esc(l.itemNo)+'</strong> '+'<span class="sov-desc" title="'+esc(l.description)+'">'+esc(l.description)+'</span></td>' +
+                  '<td>'+fmtMoney(l.scheduledValue)+'</td>' +
+                  '<td>'+fmtMoney(l.fromPreviousApp)+'</td>' +
+                  '<td>'+fmtMoney(l.thisPeriod)+'</td>' +
+                  '<td>'+fmtMoney(l.materialsPresentlyStored)+'</td>' +
+                  '<td><strong>'+fmtMoney(total)+'</strong></td>' +
+                '</tr>'
+              );
+            }).join('') +
+          '</tbody>' +
+        '</table>'
+      );
+    } else {
+      sovRows = '<div class="row-meta" style="padding:8px 0">No schedule of values shared.</div>';
+    }
+
+    var bodyHtml =
+      '<div class="detail-block">' +
+        '<div class="detail-block-eyebrow">Application details</div>' +
+        sumRows +
+      '</div>' +
+      '<div class="detail-block">' +
+        '<div class="detail-block-eyebrow">G702 cover summary</div>' +
+        coverRows +
+      '</div>' +
+      '<div class="detail-block">' +
+        '<div class="detail-block-title">G703 schedule of values</div>' +
+        sovRows +
+      '</div>';
+
+    var footerHtml =
+      '<button class="drawer-btn drawer-btn-secondary" id="aia-print">' +
+        icn(ICONS.print, 16) + ' Print / save PDF' +
+      '</button>';
+
+    openDrawer('AIA G702 / G703 · App #' + a.applicationNumber, 'Period ending ' + fmtDate(a.periodTo), bodyHtml, footerHtml);
+
+    var btn = document.getElementById('aia-print');
+    if (btn) btn.addEventListener('click', function () { window.print(); });
+  }
+
+  // ───────── Stats bar ─────────
+  function renderStats(budget, invoices, aia) {
+    var grid = document.getElementById('stats-grid');
+    if (!grid) return;
+    var stats = [];
+
+    if (budget) {
+      stats.push({ label: 'Contract value', value: fmtMoney(budget.contractValue), sub: '' });
+      stats.push({ label: 'Paid to date', value: fmtMoney(budget.paidToDate), sub: '', amber: false });
+      stats.push({ label: 'Outstanding', value: fmtMoney(budget.outstanding), sub: '', amber: budget.outstanding > 0 });
+      stats.push({ label: 'Project complete', value: (budget.pctComplete != null ? budget.pctComplete + '%' : '—'), sub: '', progress: budget.pctComplete });
+    } else {
+      // Fallback summary if budget not shared but invoices/AIA are.
+      var totalInv = (invoices || []).reduce(function (s, i) { return s + (i.total || 0); }, 0);
+      var paidInv = (invoices || []).reduce(function (s, i) { return s + ((i.amountPaid != null ? i.amountPaid : (i.status === 'paid' ? i.total : 0))); }, 0);
+      var bal = Math.max(0, totalInv - paidInv);
+      stats.push({ label: 'Invoiced', value: fmtMoney(totalInv) });
+      stats.push({ label: 'Paid', value: fmtMoney(paidInv) });
+      stats.push({ label: 'Balance', value: fmtMoney(bal), amber: bal > 0 });
+      stats.push({ label: 'Pay applications', value: String((aia || []).length) });
+    }
+
+    grid.innerHTML = stats.map(function (s) {
+      var prog = (s.progress != null)
+        ? '<div class="stat-progress"><div class="stat-progress-fill" style="width:0"></div></div>'
+        : (s.sub ? '<div class="stat-sub">'+esc(s.sub)+'</div>' : '');
+      return (
+        '<div class="stat-card">' +
+          '<div class="stat-label">'+esc(s.label)+'</div>' +
+          '<div class="stat-value '+(s.amber ? 'amber' : '')+' num">'+esc(s.value)+'</div>' +
+          prog +
+        '</div>'
+      );
+    }).join('');
+
+    // Animate progress bars after a tick so the transition kicks in.
+    if (budget && budget.pctComplete != null) {
+      setTimeout(function () {
+        var fills = grid.querySelectorAll('.stat-progress-fill');
+        fills.forEach(function (f) { f.style.width = budget.pctComplete + '%'; });
+      }, 80);
+    }
+  }
+
+  // ───────── Nav ─────────
+  function renderNav(items) {
+    var navEl = document.getElementById('nav');
+    if (!navEl) return;
+    navEl.innerHTML = items.map(function (it) {
+      return (
+        '<a class="nav-link" href="#sec-'+it.id+'" data-target="sec-'+it.id+'">' +
+          icn(ICONS[it.icon] || ICONS.file, 14) +
+          '<span>'+esc(it.title)+'</span>' +
+          (it.count != null ? '<span class="nav-count">'+it.count+'</span>' : '') +
+        '</a>'
+      );
+    }).join('');
+
+    // Active state via IntersectionObserver
+    var links = navEl.querySelectorAll('.nav-link');
+    var sections = items.map(function (it) { return document.getElementById('sec-'+it.id); }).filter(Boolean);
+    if (!sections.length) return;
+    var obs = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (e.isIntersecting) {
+          var id = e.target.id;
+          links.forEach(function (l) { l.classList.toggle('active', l.dataset.target === id); });
+        }
+      });
+    }, { rootMargin: '-72px 0px -55% 0px', threshold: 0 });
+    sections.forEach(function (s) { obs.observe(s); });
+    // Default: first section active
+    if (links[0]) links[0].classList.add('active');
+  }
+
+  // ───────── Render orchestrator ─────────
   function render(data) {
+    var sections = data.sections || {};
+    var company = data.company || {};
+    var project = data.project || {};
+
     // Brand
-    var companyName = (data.company && data.company.name) || 'MAGE ID';
+    var companyName = company.name || 'MAGE ID';
     document.getElementById('brand-name').textContent = companyName;
     document.getElementById('brand-mark').textContent = (companyName.charAt(0) || 'M').toUpperCase();
 
-    // Project hero
-    var project = data.project || {};
-    document.getElementById('project-name').textContent = project.name || 'Project';
-    var metaParts = [];
-    if (project.type) metaParts.push(project.type);
-    if (project.address) metaParts.push(project.address);
-    if (project.status) metaParts.push(statusLabel(project.status));
-    document.getElementById('project-meta').textContent = metaParts.join(' · ');
+    // Hero
+    var heroEl = document.getElementById('project-name');
+    var rawName = project.name || 'Project portal';
+    // Add an italic emphasis on the trailing word for a premium typographic feel
+    var parts = rawName.trim().split(/\s+/);
+    if (parts.length >= 2) {
+      var last = parts.pop();
+      heroEl.innerHTML = esc(parts.join(' ')) + ' <em>' + esc(last) + '</em>';
+    } else {
+      heroEl.textContent = rawName;
+    }
 
+    var greeting = data.clientName ? 'Hello, ' + data.clientName : 'Project portal';
+    document.getElementById('hero-eyebrow').textContent = greeting;
+
+    // Hero meta
+    var meta = document.getElementById('project-meta');
+    var metaItems = [];
+    if (project.address) metaItems.push({ icon: 'mapPin', text: project.address });
+    if (project.type) metaItems.push({ icon: 'home', text: statusLabel(project.type) });
+    if (project.startDate && project.targetDate) {
+      metaItems.push({ icon: 'calendar', text: fmtDateShort(project.startDate) + ' → ' + fmtDateShort(project.targetDate) });
+    } else if (project.startDate) {
+      metaItems.push({ icon: 'calendar', text: 'Started ' + fmtDate(project.startDate) });
+    }
+    if (project.status) metaItems.push({ icon: 'tool', text: statusLabel(project.status) });
+
+    meta.innerHTML = metaItems.map(function (m, i) {
+      return '<span class="hero-meta-item">' + icn(ICONS[m.icon] || ICONS.file, 14) + esc(m.text) + '</span>' +
+        (i < metaItems.length - 1 ? '<span class="hero-meta-dot"></span>' : '');
+    }).join('');
+
+    // Hero photo background
+    if (project.heroPhotoUrl) {
+      var bg = document.getElementById('hero-photo-bg');
+      bg.style.backgroundImage = 'url(' + project.heroPhotoUrl + ')';
+      bg.style.display = 'block';
+    }
+
+    // Welcome message
     if (data.welcomeMessage) {
       var w = document.getElementById('welcome');
-      w.textContent = data.welcomeMessage;
+      w.innerHTML = '<strong>A note from your contractor</strong> — ' + esc(data.welcomeMessage);
       w.style.display = 'block';
     }
 
-    // Progress card
-    var sections = data.sections || {};
-    var budget = sections.budget;
-    if (budget) {
-      var card = document.getElementById('progress-card');
-      card.style.display = 'grid';
-      var pct = Number(budget.pctComplete || 0);
-      var circumference = 2 * Math.PI * 34;
-      var offset = circumference * (1 - pct / 100);
-      document.getElementById('ring-fg').style.strokeDasharray = circumference;
-      document.getElementById('ring-fg').style.strokeDashoffset = offset;
-      document.getElementById('ring-label').textContent = pct + '%';
-      var stats = [
-        { label: 'Contract', value: fmtMoney(budget.contractValue) },
-        { label: 'Paid', value: fmtMoney(budget.paidToDate) },
-        { label: 'Outstanding', value: fmtMoney(budget.outstanding) },
-        { label: 'Next Milestone', value: budget.nextMilestone || '—' },
-      ];
-      document.getElementById('progress-stats').innerHTML = stats.map(function (s) {
-        return '<div><div class="stat-label">'+esc(s.label)+'</div><div class="stat-value">'+esc(s.value)+'</div></div>';
-      }).join('');
+    // Stats bar — uses budget if shared; else falls back to invoice totals
+    if (sections.budget || sections.invoices || sections.aiaPayApps) {
+      renderStats(sections.budget, sections.invoices, sections.aiaPayApps);
+    } else {
+      var sb = document.querySelector('.stats-bar');
+      if (sb) sb.style.display = 'none';
     }
 
-    // Sections (rendered only if present — GC toggles control what's in the payload)
+    // Build sections
+    var navItems = [];
     var sectionHtml = '';
-    if (sections.schedule)       sectionHtml += mkSection('schedule',     ICONS.calendar,  'Schedule',       (sections.schedule.tasks || []).length,        renderSchedule(sections.schedule.tasks));
-    if (sections.budget)         sectionHtml += mkSection('budget',       ICONS.dollar,    'Budget Summary', null,                                           renderBudget(sections.budget));
-    if (sections.invoices)       sectionHtml += mkSection('invoices',     ICONS.file,      'Invoices',       sections.invoices.length,                        renderInvoices(sections.invoices));
-    if (sections.changeOrders)   sectionHtml += mkSection('changeOrders', ICONS.diff,      'Change Orders',  sections.changeOrders.length,                    renderChangeOrders(sections.changeOrders));
-    if (sections.photos)         sectionHtml += mkSection('photos',       ICONS.image,     'Photos',         sections.photos.length,                          renderPhotos(sections.photos));
-    if (sections.dailyReports)   sectionHtml += mkSection('dailyReports', ICONS.clipboard, 'Daily Reports',  sections.dailyReports.length,                    renderDailyReports(sections.dailyReports));
-    if (sections.punchList)      sectionHtml += mkSection('punchList',    ICONS.check,     'Punch List',     sections.punchList.length,                       renderPunchList(sections.punchList));
-    if (sections.rfis)           sectionHtml += mkSection('rfis',         ICONS.help,      'RFIs',           sections.rfis.length,                            renderRFIs(sections.rfis));
-    if (sections.documents)      sectionHtml += mkSection('documents',    ICONS.file,      'Documents',      sections.documents.length,                       renderDocuments(sections.documents));
-    if (!sectionHtml) {
-      sectionHtml = '<div class="empty" style="background:var(--surface);border-radius:14px;margin-top:14px">Your contractor hasn\'t shared any details yet. Check back soon — or reach out if you need an update.</div>';
-    }
-    document.getElementById('sections').innerHTML = sectionHtml;
 
-    // Expand first section by default
-    var firstSection = document.querySelector('#sections section');
-    if (firstSection) firstSection.classList.add('open');
+    function addSection(id, iconKey, title, subtitle, count, body) {
+      navItems.push({ id: id, icon: iconKey, title: title, count: count });
+      sectionHtml += mkSection(id, iconKey, title, subtitle, count, body);
+    }
+
+    if (sections.invoices && sections.invoices.length) {
+      addSection('invoices', 'dollar', 'Invoices', 'Click any invoice to view line items and pay online', sections.invoices.length, renderInvoices(sections.invoices));
+    }
+    if (sections.aiaPayApps && sections.aiaPayApps.length) {
+      addSection('paymentApps', 'fileText', 'Pay Applications', 'AIA G702 / G703 progress billings — printable for lender submittal', sections.aiaPayApps.length, renderAIA(sections.aiaPayApps));
+    }
+    if (sections.schedule && sections.schedule.tasks && sections.schedule.tasks.length) {
+      addSection('schedule', 'calendar', 'Schedule', 'Live progress against the construction schedule', sections.schedule.tasks.length, renderSchedule(sections.schedule.tasks));
+    }
+    if (sections.changeOrders && sections.changeOrders.length) {
+      addSection('changeOrders', 'diff', 'Change Orders', 'Approved and pending changes to the original contract', sections.changeOrders.length, renderChangeOrders(sections.changeOrders));
+    }
+    if (sections.photos && sections.photos.length) {
+      addSection('photos', 'image', 'Site Photos', 'Tap any photo to view full screen', sections.photos.length, renderPhotos(sections.photos));
+    }
+    if (sections.dailyReports && sections.dailyReports.length) {
+      addSection('dailyReports', 'clipboard', 'Daily Field Reports', 'Daily site narrative — weather, manpower and work performed', sections.dailyReports.length, renderDailyReports(sections.dailyReports));
+    }
+    if (sections.punchList && sections.punchList.length) {
+      addSection('punchList', 'check', 'Punch List', 'Open items remaining before close-out', sections.punchList.length, renderPunchList(sections.punchList));
+    }
+    if (sections.rfis && sections.rfis.length) {
+      addSection('rfis', 'help', 'Requests for Information', null, sections.rfis.length, renderRFIs(sections.rfis));
+    }
+    if (sections.documents && sections.documents.length) {
+      addSection('documents', 'file', 'Documents', null, sections.documents.length, renderDocuments(sections.documents));
+    }
+
+    if (!sectionHtml) {
+      sectionHtml = (
+        '<div class="section">' +
+          '<div class="empty-section">' +
+            icn(ICONS.inbox, 32) +
+            '<div style="margin-top:6px">Your contractor hasn\'t shared any project details yet.<br/>Check back soon — or reach out for an update.</div>' +
+          '</div>' +
+        '</div>'
+      );
+    }
+
+    document.getElementById('sections').innerHTML = sectionHtml;
+    renderNav(navItems);
 
     // Snapshot time
     if (data.snapshotAt) {
       document.getElementById('snapshot-time').textContent = timeAgo(data.snapshotAt);
     }
 
-    // Bind toggles
-    document.querySelectorAll('.section-head').forEach(function (el) {
+    // Wire invoice card clicks → drawer
+    var invoicesById = {};
+    (sections.invoices || []).forEach(function (i) { invoicesById[i.id] = i; });
+    document.querySelectorAll('[data-invoice]').forEach(function (el) {
+      el.addEventListener('click', function (e) {
+        // Don't open drawer if Pay Now button was clicked directly
+        if (e.target.closest('[data-pay]')) return;
+        var inv = invoicesById[el.getAttribute('data-invoice')];
+        if (inv) renderInvoiceDrawer(inv);
+      });
+    });
+    // Pay Now buttons (stop propagation so the card doesn't open the drawer)
+    document.querySelectorAll('[data-pay]').forEach(function (btn) {
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var url = btn.getAttribute('data-pay');
+        if (url) window.open(url, '_blank', 'noopener');
+      });
+    });
+
+    // AIA card clicks
+    var aiaById = {};
+    (sections.aiaPayApps || []).forEach(function (a) { aiaById[a.id] = a; });
+    document.querySelectorAll('[data-aia]').forEach(function (el) {
       el.addEventListener('click', function () {
-        el.parentElement.classList.toggle('open');
+        var a = aiaById[el.getAttribute('data-aia')];
+        if (a) renderAIADrawer(a, companyName);
       });
     });
 
@@ -875,12 +1779,15 @@
     document.getElementById('portal').style.display = 'block';
   }
 
+  // ───────── Passcode gate ─────────
   function runGate(data, onPass) {
-    // If no passcode required, go straight through.
     if (!data.requirePasscode || !data.passcode) {
       onPass();
       return;
     }
+    var key = 'portal_unlocked_' + (data.project && data.project.id || 'x');
+    if (sessionStorage.getItem(key) === '1') { onPass(); return; }
+
     var gate = document.getElementById('gate');
     gate.style.display = 'flex';
     var input = document.getElementById('gate-input');
@@ -889,7 +1796,7 @@
     input.focus();
     function attempt() {
       if (String(input.value).trim() === String(data.passcode).trim()) {
-        sessionStorage.setItem('portal_unlocked_'+(data.project && data.project.id || 'x'), '1');
+        sessionStorage.setItem(key, '1');
         gate.style.display = 'none';
         onPass();
       } else {
@@ -900,15 +1807,12 @@
     }
     btn.addEventListener('click', attempt);
     input.addEventListener('keydown', function (e) { if (e.key === 'Enter') attempt(); });
-
-    // Skip gate if already unlocked this session
-    if (sessionStorage.getItem('portal_unlocked_'+(data.project && data.project.id || 'x')) === '1') {
-      gate.style.display = 'none';
-      onPass();
-    }
   }
 
-  // -------- Boot --------
+  // ───────── Boot ─────────
+  function showFallback() {
+    document.getElementById('fallback').style.display = 'flex';
+  }
   var data = decodeHashPayload();
   if (!data) { showFallback(); return; }
   runGate(data, function () { render(data); });

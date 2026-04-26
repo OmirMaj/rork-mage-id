@@ -10,9 +10,14 @@
 import type {
   Project, AppSettings, ClientPortalSettings, Invoice, ChangeOrder,
   DailyFieldReport, PunchItem, ProjectPhoto, RFI, ClientPortalInvite,
+  SavedAIAPayApp,
 } from '@/types';
 
-export const PORTAL_SNAPSHOT_VERSION = 1;
+// v2 added: invoice.lineItems summary, contractAmount/amountPaid per invoice,
+// aiaPayApps section (for the new portal "Pay Applications" experience),
+// project.heroPhotoUrl + project.startDate / targetDate for the redesigned
+// hero card.
+export const PORTAL_SNAPSHOT_VERSION = 2;
 
 export interface PortalSnapshot {
   v: number;
@@ -31,6 +36,15 @@ export interface PortalSnapshot {
     type?: string;
     address?: string;
     status?: string;
+    // v2: a hero image URL chosen automatically from the most recent project
+    // photo. Lets the portal show the project visually instead of a flat
+    // gradient.
+    heroPhotoUrl?: string;
+    // v2: optional schedule anchors. If we have a schedule we surface the
+    // first task's start date and the last task's end date so the portal can
+    // show "Started Mar 14 · Targeting Aug 22".
+    startDate?: string;
+    targetDate?: string;
   };
   sections: {
     schedule?: { tasks: Array<{
@@ -50,6 +64,45 @@ export interface PortalSnapshot {
       // If the GC has generated a Stripe payment link for this invoice, the
       // portal surfaces a one-tap "Pay Now" button that opens it.
       payLinkUrl?: string;
+      // v2 — populated when the snapshot is built to drive the invoice detail
+      // drawer in the portal. Capped to a reasonable size (10 line items per
+      // invoice; longer invoices are summarized).
+      amountPaid?: number;
+      issueDate?: string;
+      lineItems?: Array<{
+        name: string; description?: string;
+        quantity: number; unit: string; unitPrice: number; total: number;
+      }>;
+      retentionPercent?: number;
+      retentionAmount?: number;
+      taxAmount?: number;
+      subtotal?: number;
+      paymentTerms?: string;
+      notes?: string;
+    }>;
+    aiaPayApps?: Array<{
+      id: string;
+      applicationNumber: number;
+      applicationDate?: string;
+      periodTo?: string;
+      ownerName?: string;
+      architectName?: string;
+      contractorName?: string;
+      contractSumToDate: number;
+      retainagePercent: number;
+      lessPreviousCertificates: number;
+      currentPaymentDue: number;
+      totalCompletedAndStored: number;
+      totalRetainage: number;
+      totalEarnedLessRetainage: number;
+      balanceToFinish: number;
+      percentComplete: number;
+      lines: Array<{
+        itemNo: string; description: string;
+        scheduledValue: number; fromPreviousApp: number;
+        thisPeriod: number; materialsPresentlyStored: number;
+        retainagePercent: number;
+      }>;
     }>;
     changeOrders?: Array<{
       id: string; number: number | string; description: string;
@@ -83,16 +136,21 @@ interface BuildOpts {
   punchItems?: PunchItem[];
   photos?: ProjectPhoto[];
   rfis?: RFI[];
+  aiaPayApps?: SavedAIAPayApp[];
   invite?: ClientPortalInvite;
   maxPhotos?: number;       // cap to keep URL manageable (default 24)
   maxDailyReports?: number; // default 10
+  maxAIAPayApps?: number;   // default 6 (most recent first)
+  maxInvoiceLines?: number; // default 10 lines per invoice
 }
 
 export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
   const {
     project, portal, settings, invoices = [], changeOrders = [],
-    dailyReports = [], punchItems = [], photos = [], rfis = [], invite,
-    maxPhotos = 24, maxDailyReports = 10,
+    dailyReports = [], punchItems = [], photos = [], rfis = [],
+    aiaPayApps = [], invite,
+    maxPhotos = 24, maxDailyReports = 10, maxAIAPayApps = 6,
+    maxInvoiceLines = 10,
   } = opts;
 
   const sections: PortalSnapshot['sections'] = {};
@@ -136,11 +194,21 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
     };
   }
 
-  // Invoices
+  // Invoices — v2 includes line items + payment terms so the portal can show
+  // a real invoice detail drawer (clickable rows, "Pay Now" CTA, breakdown).
   if (portal.showInvoices && invoices.length) {
     sections.invoices = invoices.map(i => {
       const total = i.totalDue ?? 0;
-      const balance = Math.max(0, total - (i.amountPaid ?? 0));
+      const amountPaid = i.amountPaid ?? 0;
+      const balance = Math.max(0, total - amountPaid);
+      const lineItems = (i.lineItems ?? []).slice(0, maxInvoiceLines).map(li => ({
+        name: li.name ?? '',
+        description: li.description || undefined,
+        quantity: li.quantity ?? 0,
+        unit: li.unit ?? '',
+        unitPrice: li.unitPrice ?? 0,
+        total: li.total ?? 0,
+      }));
       return {
         id: i.id,
         number: i.number,
@@ -150,8 +218,51 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
         dateSubmitted: i.issueDate,
         balance,
         payLinkUrl: i.payLinkUrl,
+        amountPaid,
+        issueDate: i.issueDate,
+        lineItems,
+        retentionPercent: i.retentionPercent,
+        retentionAmount: i.retentionAmount,
+        taxAmount: i.taxAmount,
+        subtotal: i.subtotal,
+        paymentTerms: i.paymentTerms,
+        notes: i.notes || undefined,
       };
     });
+  }
+
+  // AIA G702/G703 pay applications — surfaced as a dedicated portal section
+  // so the client/architect/lender can pull a printable PDF from the portal
+  // without bouncing back through email.
+  if (portal.showInvoices && aiaPayApps.length) {
+    const sorted = [...aiaPayApps].sort((a, b) => b.applicationNumber - a.applicationNumber);
+    sections.aiaPayApps = sorted.slice(0, maxAIAPayApps).map(a => ({
+      id: a.id,
+      applicationNumber: a.applicationNumber,
+      applicationDate: a.applicationDate,
+      periodTo: a.periodTo,
+      ownerName: a.ownerName || undefined,
+      architectName: a.architectName || undefined,
+      contractorName: a.contractorName || undefined,
+      contractSumToDate: a.contractSumToDate,
+      retainagePercent: a.retainagePercent,
+      lessPreviousCertificates: a.lessPreviousCertificates,
+      currentPaymentDue: a.totals.currentPaymentDue,
+      totalCompletedAndStored: a.totals.totalCompletedAndStored,
+      totalRetainage: a.totals.totalRetainage,
+      totalEarnedLessRetainage: a.totals.totalEarnedLessRetainage,
+      balanceToFinish: a.totals.balanceToFinish,
+      percentComplete: a.totals.percentComplete,
+      lines: a.lines.map(l => ({
+        itemNo: l.itemNo,
+        description: l.description,
+        scheduledValue: l.scheduledValue,
+        fromPreviousApp: l.fromPreviousApp,
+        thisPeriod: l.thisPeriod,
+        materialsPresentlyStored: l.materialsPresentlyStored,
+        retainagePercent: l.retainagePercent,
+      })),
+    }));
   }
 
   // Change Orders
@@ -237,6 +348,33 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
     sections.documents = [];
   }
 
+  // v2 hero meta — pick a hero photo (newest project photo we'll already
+  // surface in the portal's photos section) and derive start / target dates
+  // from the schedule if present.
+  let heroPhotoUrl: string | undefined;
+  if (portal.showPhotos && photos.length) {
+    const sorted = [...photos].sort((a, b) => {
+      const ta = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+      const tb = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+      return tb - ta;
+    });
+    heroPhotoUrl = sorted.find(p => !!p.uri)?.uri;
+  }
+
+  let startDate: string | undefined;
+  let targetDate: string | undefined;
+  const sched = project.schedule;
+  if (sched?.startDate) {
+    startDate = sched.startDate;
+    if (sched.totalDurationDays != null && sched.totalDurationDays > 0) {
+      const start = new Date(sched.startDate);
+      if (!isNaN(start.getTime())) {
+        const end = new Date(start.getTime() + sched.totalDurationDays * 86400000);
+        targetDate = end.toISOString().slice(0, 10);
+      }
+    }
+  }
+
   return {
     v: PORTAL_SNAPSHOT_VERSION,
     snapshotAt: new Date().toISOString(),
@@ -254,6 +392,9 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
       type: project.type,
       address: project.location,
       status: project.status,
+      heroPhotoUrl,
+      startDate,
+      targetDate,
     },
     sections,
   };
