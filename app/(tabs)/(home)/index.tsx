@@ -810,7 +810,10 @@ export default function HomeScreen() {
         onClose={() => setActionSheetRef(null)}
       />
 
-      {projects.length > 0 && <UniversalMicButton />}
+      {/* Always-rendered FAB — internally hides itself if there are no
+          projects to scope an action to. Keeping it unconditional avoids
+          parent hook-tree churn on data load. */}
+      <UniversalMicButton />
     </View>
   );
 }

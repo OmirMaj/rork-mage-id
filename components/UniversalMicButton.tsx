@@ -33,6 +33,9 @@ interface Props {
 type Step = 'idle' | 'recording' | 'parsing' | 'reviewing' | 'creating';
 
 export default function UniversalMicButton({ projectId, variant = 'fab' }: Props) {
+  // Hook order is fixed regardless of project availability, so the same
+  // hooks run every render even before the user has a project. The FAB
+  // visually no-ops when there's nothing to scope to.
   const router = useRouter();
   const ctx = useProjects();
   const { isProOrAbove } = useSubscription();
@@ -43,18 +46,21 @@ export default function UniversalMicButton({ projectId, variant = 'fab' }: Props
   const [error, setError] = useState<string | null>(null);
   const [pickedProjectId, setPickedProjectId] = useState<string | undefined>(projectId);
 
+  const projectsList = ctx?.projects ?? [];
+
   const activeProjects = useMemo(() => {
-    return ctx.projects.filter(p => p.status === 'in_progress' || p.status === 'estimated' || p.status === 'draft');
-  }, [ctx.projects]);
+    return projectsList.filter(p => p.status === 'in_progress' || p.status === 'estimated' || p.status === 'draft');
+  }, [projectsList]);
 
   const project: Project | undefined = useMemo(() => {
     const id = pickedProjectId ?? projectId;
-    if (id) return ctx.projects.find(p => p.id === id);
+    if (id) return projectsList.find(p => p.id === id);
     if (activeProjects.length === 1) return activeProjects[0];
+    if (activeProjects.length === 0) return undefined;
     // Most-recently-updated active project as the default.
     return [...activeProjects].sort((a, b) =>
       new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0];
-  }, [ctx.projects, projectId, pickedProjectId, activeProjects]);
+  }, [projectsList, projectId, pickedProjectId, activeProjects]);
 
   const reset = useCallback(() => {
     setStep('idle');
@@ -219,9 +225,13 @@ export default function UniversalMicButton({ projectId, variant = 'fab' }: Props
     : parsed?.kind === 'note' ? 'Field note'
     : 'Not sure yet';
 
+  // Hide self when there's nothing to scope to. Done in render (not via an
+  // earlier return) so all hooks above run unconditionally on every render.
+  const shouldRender = projectsList.length > 0;
+
   return (
     <>
-      {variant === 'fab' ? (
+      {shouldRender && variant === 'fab' && (
         <TouchableOpacity
           style={styles.fab}
           onPress={handleOpen}
@@ -231,7 +241,8 @@ export default function UniversalMicButton({ projectId, variant = 'fab' }: Props
         >
           <Mic size={22} color="#FFF" />
         </TouchableOpacity>
-      ) : (
+      )}
+      {shouldRender && variant === 'inline' && (
         <TouchableOpacity
           style={styles.inlineBtn}
           onPress={handleOpen}
