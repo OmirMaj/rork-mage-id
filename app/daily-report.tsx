@@ -19,6 +19,7 @@ import { sendEmail, buildDailyReportEmailHtml } from '@/utils/emailService';
 import VoiceRecorder from '@/components/VoiceRecorder';
 import { parseDFRFromTranscript } from '@/utils/voiceDFRParser';
 import AIDailyReportGen from '@/components/AIDailyReportGen';
+import AIDFRFromPhotos from '@/components/AIDFRFromPhotos';
 import type { ManpowerEntry, DFRPhoto, DailyFieldReport, DFRWeather, IncidentReport, IncidentSeverity } from '@/types';
 import { stampPhotoLocation } from '@/utils/photoGeoStamp';
 import type { DailyReportGenResult } from '@/utils/aiService';
@@ -34,6 +35,7 @@ export default function DailyReportScreen() {
   const { projectId, reportId } = useLocalSearchParams<{ projectId: string; reportId?: string }>();
   const {
     getProject, getDailyReportsForProject, addDailyReport, updateDailyReport, contacts, settings, addProjectPhoto,
+    getPhotosForProject,
   } = useProjects();
   const { isProOrAbove } = useSubscription();
   const [voiceLoading, setVoiceLoading] = useState(false);
@@ -41,6 +43,16 @@ export default function DailyReportScreen() {
 
   const project = useMemo(() => getProject(projectId ?? ''), [projectId, getProject]);
   const existingReports = useMemo(() => getDailyReportsForProject(projectId ?? ''), [projectId, getDailyReportsForProject]);
+
+  // Photos taken on the same calendar day this DFR is for (or today if new).
+  // These feed both the voice parser (as additional context) and the
+  // dedicated "Generate from photos" component.
+  const todaysProjectPhotos = useMemo(() => {
+    const all = getPhotosForProject(projectId ?? '');
+    const ref = existingReports.find(r => r.id === reportId)?.date ?? new Date().toISOString();
+    const refDay = new Date(ref).toDateString();
+    return all.filter(p => p.timestamp && new Date(p.timestamp).toDateString() === refDay);
+  }, [projectId, reportId, existingReports, getPhotosForProject]);
   const existingReport = useMemo(() => reportId ? existingReports.find(r => r.id === reportId) : null, [reportId, existingReports]);
 
   const [weather, setWeather] = useState<DFRWeather>(
@@ -383,7 +395,7 @@ export default function DailyReportScreen() {
               onTranscriptReady={async (transcript) => {
                 setVoiceLoading(true);
                 try {
-                  const parsed = await parseDFRFromTranscript(transcript, projectId ?? '');
+                  const parsed = await parseDFRFromTranscript(transcript, projectId ?? '', todaysProjectPhotos);
                   if (parsed.weather && !weather.temperature) setWeather(parsed.weather);
                   if (parsed.manpower && manpower.length === 0) setManpower(parsed.manpower);
                   if (parsed.workPerformed && !workPerformed) setWorkPerformed(parsed.workPerformed);
@@ -413,6 +425,26 @@ export default function DailyReportScreen() {
               <Text style={{ flex: 1, fontSize: 13, color: Colors.info }}>Report auto-filled from voice. Please review before saving.</Text>
               <X size={14} color={Colors.info} />
             </TouchableOpacity>
+          )}
+
+          {!existingReport && todaysProjectPhotos.length > 0 && (
+            <View style={{ paddingHorizontal: 16, marginBottom: 8 }}>
+              <AIDFRFromPhotos
+                projectName={project.name}
+                weatherStr={[weather.conditions, weather.temperature].filter(Boolean).join(' · ') || 'Clear'}
+                photos={todaysProjectPhotos}
+                isLocked={!isProOrAbove}
+                onLockedPress={() => router.push('/paywall' as any)}
+                onGenerated={(parsed) => {
+                  if (parsed.weather && !weather.temperature) setWeather({ ...parsed.weather, isManual: false });
+                  if (parsed.manpower && manpower.length === 0) setManpower(parsed.manpower);
+                  if (parsed.workPerformed && !workPerformed) setWorkPerformed(parsed.workPerformed);
+                  if (parsed.materialsDelivered && materialsDelivered.length === 0) setMaterialsDelivered(parsed.materialsDelivered);
+                  if (parsed.issuesAndDelays && !issuesAndDelays) setIssuesAndDelays(parsed.issuesAndDelays);
+                  setShowVoiceBanner(true);
+                }}
+              />
+            </View>
           )}
 
           {!existingReport && project.schedule && project.schedule.tasks.length > 0 && (

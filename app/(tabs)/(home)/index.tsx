@@ -28,6 +28,7 @@ import EntityActionSheet from '@/components/EntityActionSheet';
 import EmptyState from '@/components/EmptyState';
 import OfflineSyncPill from '@/components/OfflineSyncPill';
 import CashFlowAlerts from '@/components/CashFlowAlerts';
+import CashFlowGlance from '@/components/CashFlowGlance';
 import QuickFieldUpdate from '@/components/QuickFieldUpdate';
 import { generateForecast } from '@/utils/cashFlowEngine';
 import type { CashFlowWeek } from '@/utils/cashFlowEngine';
@@ -400,6 +401,10 @@ export default function HomeScreen() {
                   />
                 )}
               </View>
+            )}
+
+            {projects.length > 0 && (
+              <CashFlowGlance forecast={cashFlowForecast} weeks={4} />
             )}
 
             {projects.length > 0 && (
