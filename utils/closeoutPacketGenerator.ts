@@ -296,51 +296,53 @@ function buildCloseoutHtml(data: CloseoutPacketData): string {
 <head>
   <meta charset="utf-8" />
   <title>Closeout Packet — ${escapeHtml(project.name)}</title>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;700;800&display=swap" rel="stylesheet" />
   <style>
     @page { size: letter; margin: 0.75in; }
-    body { font-family: -apple-system, 'SF Pro Text', Arial, sans-serif; color: #1C1C1E; font-size: 12px; line-height: 1.5; }
-    .cover { text-align: center; padding: 60px 0 40px 0; border-bottom: 2px solid #1C1C1E; margin-bottom: 32px; }
-    .cover h1 { font-size: 22px; letter-spacing: -0.5px; margin: 0 0 4px 0; color: #6C6C70; font-weight: 600; text-transform: uppercase; }
-    .cover h2 { font-size: 34px; margin: 0 0 8px 0; letter-spacing: -1px; }
-    .cover .sub { color: #6C6C70; margin: 0 0 28px 0; font-size: 14px; }
+    body { font-family: -apple-system, 'SF Pro Text', Arial, sans-serif; color: #0B0D10; font-size: 12px; line-height: 1.55; background: #FFFFFF; }
+    .cover { text-align: center; padding: 56px 0 40px 0; border-bottom: 1px solid #E8DFCD; margin-bottom: 32px; }
+    .cover h1 { font-family: 'Fraunces', Georgia, serif; font-size: 14px; letter-spacing: 1.6px; margin: 0 0 12px 0; color: #FF6A1A; font-weight: 700; text-transform: uppercase; }
+    .cover h1::before { content: ''; display: inline-block; width: 28px; height: 2px; background: #FF6A1A; vertical-align: middle; margin-right: 10px; }
+    .cover h2 { font-family: 'Fraunces', Georgia, serif; font-size: 38px; margin: 0 0 8px 0; letter-spacing: -0.022em; line-height: 1.1; color: #0B0D10; font-weight: 700; }
+    .cover .sub { color: #4A5159; margin: 0 0 28px 0; font-size: 14px; }
     .cover-meta { display: flex; justify-content: center; flex-wrap: wrap; gap: 22px 32px; }
     .cover-meta > div { text-align: left; min-width: 140px; }
-    .cover-meta .label { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: 0.6px; color: #8E8E93; font-weight: 600; }
-    .cover-meta .value { font-size: 13px; font-weight: 600; color: #1C1C1E; }
+    .cover-meta .label { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: #8B9099; font-weight: 700; }
+    .cover-meta .value { font-size: 13px; font-weight: 700; color: #0B0D10; margin-top: 2px; }
     section { margin-bottom: 28px; page-break-inside: avoid; }
-    section h3 { font-size: 16px; margin: 0 0 12px 0; color: #1C1C1E; border-bottom: 1px solid #D1D1D6; padding-bottom: 6px; }
-    section h4 { font-size: 13px; margin: 14px 0 8px 0; color: #3A3A3C; }
-    .note { color: #6C6C70; font-size: 11px; margin: 4px 0 10px 0; }
-    .ok-note { color: #30A14E; font-size: 13px; font-weight: 600; }
+    section h3 { font-family: 'Fraunces', Georgia, serif; font-size: 18px; margin: 0 0 12px 0; color: #0B0D10; border-bottom: 1px solid #F1EAD9; padding-bottom: 8px; font-weight: 700; letter-spacing: -0.01em; }
+    section h4 { font-size: 13px; margin: 14px 0 8px 0; color: #4A5159; font-weight: 700; }
+    .note { color: #8B9099; font-size: 11px; margin: 4px 0 10px 0; }
+    .ok-note { color: #1E8E4A; font-size: 13px; font-weight: 600; }
     table { width: 100%; border-collapse: collapse; margin-top: 4px; }
-    table th, table td { padding: 7px 8px; text-align: left; font-size: 11px; border-bottom: 1px solid #E5E5EA; }
-    table th { background: #F2F2F7; font-weight: 700; font-size: 10px; text-transform: uppercase; letter-spacing: 0.4px; color: #6C6C70; }
+    table th, table td { padding: 9px 10px; text-align: left; font-size: 11.5px; border-bottom: 1px solid #F1EAD9; }
+    table th { background: #FAF7F0; font-weight: 700; font-size: 10px; text-transform: uppercase; letter-spacing: 0.6px; color: #8B9099; border-bottom: 2px solid #E8DFCD; }
     table .num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 500; }
-    table.summary tr.total td { font-weight: 800; font-size: 13px; border-top: 2px solid #1C1C1E; padding-top: 10px; }
-    table.info td:first-child { width: 40%; color: #6C6C70; font-weight: 500; }
-    .num.warn { color: #C77700; }
-    .num.ok { color: #2E7D32; }
-    .pill { display: inline-block; padding: 2px 7px; border-radius: 4px; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; background: #F2F2F7; color: #3A3A3C; }
-    .pill-paid { background: #E6F4EA; color: #2E7D32; }
-    .pill-sent { background: #E3F2FD; color: #1565C0; }
-    .pill-overdue { background: #FDE7E9; color: #C62828; }
-    .status-closed { color: #2E7D32; }
-    .status-completed { color: #2E7D32; }
-    .signoff { margin-top: 36px; border-top: 2px solid #1C1C1E; padding-top: 24px; }
+    table.summary tr.total td { font-family: 'Fraunces', Georgia, serif; font-weight: 700; font-size: 16px; border-top: 1.5px solid #0B0D10; padding-top: 14px; color: #FF6A1A; letter-spacing: -0.012em; }
+    table.info td:first-child { width: 40%; color: #4A5159; font-weight: 500; }
+    .num.warn { color: #C26A00; }
+    .num.ok { color: #1E8E4A; }
+    .pill { display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; background: #F1EAD9; color: #4A5159; }
+    .pill-paid { background: #E8F5ED; color: #1E8E4A; }
+    .pill-sent { background: #FFF1E6; color: #E5570F; }
+    .pill-overdue { background: #FBEAE7; color: #C0392B; }
+    .signoff { margin-top: 36px; border-top: 1.5px solid #0B0D10; padding-top: 24px; }
     .sign-grid { display: flex; gap: 32px; margin: 28px 0 12px 0; }
     .sign-box { flex: 1; }
-    .sign-line { border-bottom: 1px solid #1C1C1E; height: 40px; margin-bottom: 6px; }
-    .sign-label { font-size: 10px; color: #6C6C70; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
-    .footer { text-align: center; color: #8E8E93; font-size: 10px; margin-top: 32px; padding-top: 16px; border-top: 1px solid #E5E5EA; }
+    .sign-line { border-bottom: 1px solid #0B0D10; height: 44px; margin-bottom: 6px; }
+    .sign-label { font-size: 10px; color: #8B9099; text-transform: uppercase; letter-spacing: 1px; font-weight: 700; }
+    .disclaimer { margin-top: 24px; padding: 14px 16px; border-radius: 12px; border: 1px solid #F1EAD9; background: #FAF7F0; font-size: 9.5px; color: #4A5159; line-height: 1.55; font-style: italic; }
+    .disclaimer-title { font-style: normal; font-weight: 700; color: #0B0D10; margin-bottom: 4px; font-size: 9.5px; letter-spacing: 0.4px; text-transform: uppercase; }
+    .footer { text-align: center; color: #8B9099; font-size: 10px; margin-top: 24px; padding-top: 16px; border-top: 1px solid #E8DFCD; }
     .photos-section { page-break-before: auto; }
     .photo-row { display: flex; gap: 10px; margin: 12px 0; flex-wrap: wrap; }
     .photo-cell { flex: 1 1 0; min-width: 30%; max-width: 33%; }
-    .photo-frame { position: relative; width: 100%; padding-top: 75%; background: #F2F2F7; border-radius: 6px; overflow: hidden; border: 1px solid #D1D1D6; }
+    .photo-frame { position: relative; width: 100%; padding-top: 75%; background: #FAF7F0; border-radius: 8px; overflow: hidden; border: 1px solid #E8DFCD; }
     .photo-frame img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-    .photo-tag { position: absolute; top: 6px; left: 6px; padding: 3px 7px; border-radius: 4px; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #fff; }
-    .photo-tag-before { background: #C77700; }
-    .photo-tag-after { background: #2E7D32; }
-    .photo-caption { font-size: 9.5px; color: #6C6C70; margin-top: 5px; line-height: 1.3; }
+    .photo-tag { position: absolute; top: 6px; left: 6px; padding: 3px 8px; border-radius: 999px; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: #fff; }
+    .photo-tag-before { background: #C26A00; }
+    .photo-tag-after { background: #1E8E4A; }
+    .photo-caption { font-size: 10px; color: #8B9099; margin-top: 6px; line-height: 1.4; }
   </style>
 </head>
 <body>
@@ -353,7 +355,11 @@ function buildCloseoutHtml(data: CloseoutPacketData): string {
   ${warrantySectionHtml}
   ${photosSectionHtml}
   ${signoffHtml}
-  <div class="footer">Generated by MAGE ID · ${escapeHtml(company)} · ${formatDate(new Date().toISOString())}</div>
+  <div class="disclaimer">
+    <div class="disclaimer-title">Important — please read</div>
+    This handoff packet is provided for the owner&apos;s reference. Warranty terms, product specifications, and maintenance schedules originate with the manufacturer or installer named for each item. The contractor disclaims any warranty beyond what is stated in the original construction contract or in the items themselves. Verify all amounts and dates against your own records before relying on them.
+  </div>
+  <div class="footer">${escapeHtml(company)} &middot; Built with <span style="color:#0B0D10;font-weight:700">MAGE ID</span> &middot; mageid.app &middot; ${formatDate(new Date().toISOString())}</div>
 </body>
 </html>`;
 }

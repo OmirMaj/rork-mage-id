@@ -43,7 +43,28 @@ export default function HomeScreen() {
   const notifFeed = useNotificationFeed();
   const { navigateTo } = useEntityNavigation();
   const { openSearch } = useSearch();
-  const { projects, isLoading, addProject, getTotalOutstandingBalance, invoices } = useProjects();
+  const projectCtx = useProjects();
+  const { projects, isLoading, addProject, getTotalOutstandingBalance, invoices } = projectCtx;
+
+  const handleSeedDemo = useCallback(async () => {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { seedDemoProject } = require('@/utils/demoSeed');
+      const { projectId } = await seedDemoProject({
+        addProject: projectCtx.addProject,
+        addInvoice: projectCtx.addInvoice,
+        addDailyReport: projectCtx.addDailyReport,
+        addPunchItem: projectCtx.addPunchItem,
+        addProjectPhoto: projectCtx.addProjectPhoto,
+        addRFI: projectCtx.addRFI,
+        addChangeOrder: projectCtx.addChangeOrder,
+      });
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      router.push({ pathname: '/project-detail' as never, params: { id: projectId } } as never);
+    } catch (e) {
+      console.warn('[seedDemo] failed', e);
+    }
+  }, [projectCtx, router]);
   const { tier } = useSubscription();
 
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -439,11 +460,11 @@ export default function HomeScreen() {
           <EmptyState
             icon={<HardHat size={40} color={Colors.primary} strokeWidth={1.6} />}
             title="Build something"
-            message="Your first project is one tap away. Add it to start tracking estimates, daily reports, invoices — every job, every detail."
+            message="Your first project is one tap away. Add it to start tracking estimates, daily reports, invoices — every job, every detail. Want to see what a populated MAGE ID looks like first? Tap below to load a sample project."
             actionLabel="Create your first project"
             onAction={() => setShowCreateModal(true)}
-            secondaryLabel="Browse public bids instead"
-            onSecondaryAction={() => router.push('/(tabs)/discover/bids' as any)}
+            secondaryLabel="Try a sample project"
+            onSecondaryAction={handleSeedDemo}
           />
         }
         showsVerticalScrollIndicator={false}
