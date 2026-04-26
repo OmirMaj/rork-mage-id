@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, TouchableOpacity, Modal, ActivityIndicator,
   Platform, Alert,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import {
@@ -39,6 +40,7 @@ export default function UniversalMicButton({ projectId, variant = 'fab' }: Props
   const router = useRouter();
   const ctx = useProjects();
   const { isProOrAbove } = useSubscription();
+  const insets = useSafeAreaInsets();
 
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<Step>('idle');
@@ -233,13 +235,15 @@ export default function UniversalMicButton({ projectId, variant = 'fab' }: Props
     <>
       {shouldRender && variant === 'fab' && (
         <TouchableOpacity
-          style={styles.fab}
+          // Stack ABOVE the AICopilot FAB which sits at insets.bottom + 70
+          // with size 52. Add gap so the two don't touch.
+          style={[styles.fab, { bottom: insets.bottom + 70 + 52 + 12 }]}
           onPress={handleOpen}
           activeOpacity={0.85}
           accessibilityLabel="Voice action"
           testID="universal-mic-fab"
         >
-          <Mic size={22} color="#FFF" />
+          <Mic size={20} color="#FFF" />
         </TouchableOpacity>
       )}
       {shouldRender && variant === 'inline' && (
@@ -418,14 +422,17 @@ function PreviewField({ label, value, multi, small }: { label: string; value: st
 
 const styles = StyleSheet.create({
   fab: {
-    position: 'absolute', right: 18, bottom: 96,
-    width: 52, height: 52, borderRadius: 26,
-    backgroundColor: Colors.primary,
+    position: 'absolute', right: 20,
+    width: 46, height: 46, borderRadius: 23,
+    // Ink/black to clearly differentiate from the amber AICopilot below.
+    backgroundColor: Colors.text,
     alignItems: 'center', justifyContent: 'center',
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.36, shadowRadius: 12, elevation: 6,
-    zIndex: 50,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.30, shadowRadius: 10, elevation: 6,
+    zIndex: 999,
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
   },
   inlineBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,

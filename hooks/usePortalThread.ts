@@ -142,23 +142,27 @@ export function usePortalThread(projectId: string | undefined) {
   );
 
   // Realtime subscription — invalidates the cached queries the moment
-  // a portal message or CO approval lands for this project. Falls back
-  // to the 45s poll if the channel can't connect.
+  // a portal message or CO approval lands. Listeners registered BEFORE
+  // .subscribe(); existing-channel guard prevents the strict-mode
+  // double-subscribe warning.
   useEffect(() => {
     if (!enabled || !projectId) return;
-    const channel = supabase
-      .channel(`portal-thread-${projectId}`)
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'portal_messages', filter: `project_id=eq.${projectId}` },
-        () => { void queryClient.invalidateQueries({ queryKey: ['portalMessages', projectId] }); },
-      )
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'change_order_approvals', filter: `project_id=eq.${projectId}` },
-        () => { void queryClient.invalidateQueries({ queryKey: ['portalCoApprovals', projectId] }); },
-      )
-      .subscribe();
+    const channelName = `portal-thread-${projectId}`;
+    const existing = supabase.getChannels().find(c => c.topic === `realtime:${channelName}`);
+    if (existing) return;
+
+    const channel = supabase.channel(channelName);
+    channel.on(
+      'postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'portal_messages', filter: `project_id=eq.${projectId}` },
+      () => { void queryClient.invalidateQueries({ queryKey: ['portalMessages', projectId] }); },
+    );
+    channel.on(
+      'postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'change_order_approvals', filter: `project_id=eq.${projectId}` },
+      () => { void queryClient.invalidateQueries({ queryKey: ['portalCoApprovals', projectId] }); },
+    );
+    channel.subscribe();
     return () => { void supabase.removeChannel(channel); };
   }, [enabled, projectId, queryClient]);
 

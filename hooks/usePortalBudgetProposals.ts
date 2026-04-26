@@ -88,14 +88,17 @@ export function usePortalBudgetProposals(projectId: string | undefined) {
 
   useEffect(() => {
     if (!projectId || !isSupabaseConfigured) return;
-    const channel = supabase
-      .channel(`portal-budget-${projectId}`)
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'portal_budget_proposals', filter: `project_id=eq.${projectId}` },
-        () => { void queryClient.invalidateQueries({ queryKey: ['portalBudgetProposals', projectId] }); },
-      )
-      .subscribe();
+    const channelName = `portal-budget-${projectId}`;
+    const existing = supabase.getChannels().find(c => c.topic === `realtime:${channelName}`);
+    if (existing) return;
+
+    const channel = supabase.channel(channelName);
+    channel.on(
+      'postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'portal_budget_proposals', filter: `project_id=eq.${projectId}` },
+      () => { void queryClient.invalidateQueries({ queryKey: ['portalBudgetProposals', projectId] }); },
+    );
+    channel.subscribe();
     return () => { void supabase.removeChannel(channel); };
   }, [projectId, queryClient]);
 

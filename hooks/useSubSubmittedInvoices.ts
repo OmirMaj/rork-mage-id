@@ -124,14 +124,17 @@ export function useSubSubmittedInvoices(opts: { projectId?: string; subPortalId?
         ? `project_id=eq.${projectId}`
         : null;
     if (!filter) return;
-    const channel = supabase
-      .channel(`sub-invoices-${subPortalId ?? projectId}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'sub_submitted_invoices', filter },
-        () => { void queryClient.invalidateQueries({ queryKey }); },
-      )
-      .subscribe();
+    const channelName = `sub-invoices-${subPortalId ?? projectId}`;
+    const existing = supabase.getChannels().find(c => c.topic === `realtime:${channelName}`);
+    if (existing) return;
+
+    const channel = supabase.channel(channelName);
+    channel.on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'sub_submitted_invoices', filter },
+      () => { void queryClient.invalidateQueries({ queryKey }); },
+    );
+    channel.subscribe();
     return () => { void supabase.removeChannel(channel); };
   }, [enabled, projectId, subPortalId, queryClient, queryKey]);
 

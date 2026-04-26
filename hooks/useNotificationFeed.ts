@@ -111,16 +111,23 @@ export function useNotificationFeed() {
   }, [query.data, markReadMutation]);
 
   // Realtime: bell badge updates the moment a new outbox row lands.
+  // Pattern: register the .on() listener BEFORE .subscribe() so Supabase
+  // doesn't warn about "callback added after subscribe". We also guard
+  // against the React strict-mode double-mount by checking for the
+  // existing channel before creating a new one.
   useEffect(() => {
     if (!enabled || !user?.id) return;
-    const channel = supabase
-      .channel(`notif-feed-${user.id}`)
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'notification_outbox', filter: `recipient_user_id=eq.${user.id}` },
-        () => { void queryClient.invalidateQueries({ queryKey: ['notificationFeed', user.id] }); },
-      )
-      .subscribe();
+    const channelName = `notif-feed-${user.id}`;
+    const existing = supabase.getChannels().find(c => c.topic === `realtime:${channelName}`);
+    if (existing) return; // already subscribed in another mount
+
+    const channel = supabase.channel(channelName);
+    channel.on(
+      'postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'notification_outbox', filter: `recipient_user_id=eq.${user.id}` },
+      () => { void queryClient.invalidateQueries({ queryKey: ['notificationFeed', user.id] }); },
+    );
+    channel.subscribe();
     return () => { void supabase.removeChannel(channel); };
   }, [enabled, user?.id, queryClient]);
 
