@@ -406,6 +406,14 @@ function RootLayoutNav() {
         options={{ headerShown: false }}
       />
       <Stack.Screen
+        name="public-profile-setup"
+        options={{
+          title: "Public Profile",
+          headerStyle: { backgroundColor: Colors.background },
+          headerTintColor: Colors.primary,
+        }}
+      />
+      <Stack.Screen
         name="plans"
         options={{ headerShown: false }}
       />

@@ -104,6 +104,9 @@ export interface Project {
   // accepted by the GC. The portal's "Contract Value" stat falls back to
   // this when project.estimate?.grandTotal is null.
   targetBudget?: ProjectTargetBudget;
+  // Public portfolio settings — when enabled, surfaced at
+  // mageid.app/builders/<companySlug>/<projectSlug>.
+  publicProfile?: PublicProfileSettings;
 }
 
 export interface ProjectTargetBudget {
@@ -1096,6 +1099,40 @@ export interface ClientPortalInvite {
   invitedAt: string;
   accessedAt?: string;
   status: 'pending' | 'viewed';
+}
+
+// Per-project public portfolio config. When enabled, a static page at
+// `mageid.app/builders/<companySlug>/<projectSlug>` becomes accessible
+// for showcasing the finished work — free portfolio for the GC, lightweight
+// marketing for MAGE ID.
+export interface PublicProfileSettings {
+  enabled: boolean;
+  // Slug is auto-generated from the project name, but the GC can override.
+  slug?: string;
+  // Public-friendly project description (different from internal `description`).
+  publicHeadline?: string;
+  publicBody?: string;
+  // The GC can hand-pick which photos appear (and their order). When empty,
+  // newest project photos are auto-included up to a cap.
+  selectedPhotoIds?: string[];
+  // Optional client testimonial — only shown if both fields are present.
+  testimonialQuote?: string;
+  testimonialAuthor?: string;
+  // Hides specific stats from the public page (default: nothing hidden).
+  hideStats?: ('value' | 'duration' | 'sqft')[];
+  publishedAt?: string;
+}
+
+// Company-level public profile settings — drives the
+// `mageid.app/builders/<slug>` index page that lists all of a GC's
+// published projects. Stored on AppSettings.branding.
+export interface PublicCompanySettings {
+  enabled: boolean;
+  slug?: string;
+  tagline?: string;
+  about?: string;
+  yearFounded?: number;
+  servingArea?: string;
 }
 
 export interface ClientPortalSettings {
