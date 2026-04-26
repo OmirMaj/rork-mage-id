@@ -1139,6 +1139,64 @@ export interface PortalBudgetProposal {
   respondedAt?: string | null;
 }
 
+// ─── Sub portal ────────────────────────────────────────────────────────
+// Mirror of the client portal but pointed at a single subcontractor on a
+// single project. The sub clicks a link, sees their commitment + scope
+// + payment status, and can submit an invoice without making an account.
+
+export interface SubPortalLink {
+  id: string;                      // portal_id used in the share URL
+  projectId: string;
+  subcontractorId: string;
+  passcode?: string;
+  requirePasscode?: boolean;
+  enabled: boolean;
+  welcomeMessage?: string;
+  createdAt: string;
+  updatedAt: string;
+  // Last time the GC built / refreshed a share link for this sub.
+  lastSharedAt?: string;
+  // Optional commitment(s) to scope the portal to. If empty the portal
+  // shows all commitments tied to this sub on this project.
+  commitmentIds?: string[];
+}
+
+// Sub-submitted invoice — distinct from `Invoice` (which is GC-to-owner).
+// The sub submits via the static portal page; the GC reviews and
+// approves / rejects in-app, then can route the approved amount through
+// the existing payments / commitments system.
+export type SubSubmittedInvoiceStatus =
+  | 'submitted'   // freshly submitted, awaiting GC review
+  | 'approved'    // GC has accepted; ready to pay
+  | 'rejected'    // GC has rejected (with notes)
+  | 'paid';       // GC has marked as paid
+
+export interface SubSubmittedInvoiceLine {
+  description: string;
+  amount: number;
+}
+
+export interface SubSubmittedInvoice {
+  id: string;
+  subPortalId: string;
+  projectId?: string;
+  subcontractorId?: string;
+  commitmentId?: string;
+  invoiceNumber: string;
+  amount: number;
+  retentionAmount?: number;
+  description?: string;
+  lineItems?: SubSubmittedInvoiceLine[];
+  status: SubSubmittedInvoiceStatus;
+  submittedByName?: string;
+  submittedByEmail?: string;
+  notesFromSub?: string;
+  notesFromGc?: string;
+  createdAt: string;
+  reviewedAt?: string;
+  paidAt?: string;
+}
+
 export interface PortalMessage {
   id: string;
   projectId: string;

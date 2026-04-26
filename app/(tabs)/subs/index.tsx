@@ -9,6 +9,7 @@ import * as Haptics from 'expo-haptics';
 import {
   Plus, Search, X, Phone, Mail, MapPin, Shield, FileText,
   AlertTriangle, CheckCircle, Clock, Trash2, Users, ShieldCheck, ChevronRight,
+  HardHat,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
@@ -249,6 +250,24 @@ export default function SubsScreen() {
                   {prequalSummary.total === 0
                     ? 'Invite subs to complete prequalification via magic link'
                     : `${prequalSummary.approved} approved · ${prequalSummary.pending} pending${prequalSummary.issues > 0 ? ` · ${prequalSummary.issues} issue${prequalSummary.issues === 1 ? '' : 's'}` : ''}`}
+                </Text>
+              </View>
+              <ChevronRight size={16} color={Colors.textMuted} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.prequalBanner}
+              onPress={() => router.push('/sub-portals' as never)}
+              activeOpacity={0.8}
+              testID="open-sub-portals"
+            >
+              <View style={styles.prequalIcon}>
+                <HardHat size={18} color={Colors.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.prequalTitle}>Sub portals</Text>
+                <Text style={styles.prequalSub}>
+                  Self-serve link per sub — they review scope, submit invoices, see payment status
                 </Text>
               </View>
               <ChevronRight size={16} color={Colors.textMuted} />

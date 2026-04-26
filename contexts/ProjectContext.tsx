@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import createContextHook from '@nkzw/create-context-hook';
-import type { Project, AppSettings, CompanyBranding, ProjectCollaborator, ChangeOrder, Invoice, DailyFieldReport, Subcontractor, PunchItem, ProjectPhoto, PriceAlert, Contact, CommunicationEvent, RFI, Submittal, SubmittalReviewCycle, Equipment, EquipmentUtilizationEntry, PDFNamingSettings, Warranty, WarrantyClaim, PortalMessage, Commitment, PrequalPacket, PlanSheet, DrawingPin, PlanCalibration, PlanMarkup, Permit, SavedAIAPayApp } from '@/types';
+import type { Project, AppSettings, CompanyBranding, ProjectCollaborator, ChangeOrder, Invoice, DailyFieldReport, Subcontractor, PunchItem, ProjectPhoto, PriceAlert, Contact, CommunicationEvent, RFI, Submittal, SubmittalReviewCycle, Equipment, EquipmentUtilizationEntry, PDFNamingSettings, Warranty, WarrantyClaim, PortalMessage, Commitment, PrequalPacket, PlanSheet, DrawingPin, PlanCalibration, PlanMarkup, Permit, SavedAIAPayApp, SubPortalLink } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { supabaseWrite } from '@/utils/offlineQueue';
@@ -33,6 +33,7 @@ const PLAN_SHEETS_KEY = 'tertiary_plan_sheets';
 const PLAN_MARKUPS_KEY = 'tertiary_plan_markups';
 const PERMITS_KEY = 'tertiary_permits';
 const AIA_PAY_APPS_KEY = 'tertiary_aia_pay_apps';
+const SUB_PORTAL_LINKS_KEY = 'tertiary_sub_portal_links';
 
 const DEFAULT_BRANDING: CompanyBranding = {
   companyName: '',
@@ -96,6 +97,7 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
   const [warranties, setWarranties] = useState<Warranty[]>([]);
   const [permits, setPermits] = useState<Permit[]>([]);
   const [aiaPayApps, setAiaPayApps] = useState<SavedAIAPayApp[]>([]);
+  const [subPortalLinks, setSubPortalLinks] = useState<SubPortalLink[]>([]);
   const syncDebounceMap = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
   const canSync = !!userId && isSupabaseConfigured;
@@ -549,6 +551,44 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
   const saveAiaPayAppsMutation = useMutation({
     mutationFn: async (updated: SavedAIAPayApp[]) => { await saveLocal(AIA_PAY_APPS_KEY, updated); return updated; },
     onSuccess: (data) => { queryClient.setQueryData(['aiaPayApps', userId], data); },
+  });
+
+  // Sub portal links — pull from Supabase if logged in, otherwise local.
+  // Mirrors the (project, sub) pair so the share URL can be derived without
+  // exposing GC data via the URL hash.
+  const subPortalLinksQuery = useQuery({
+    queryKey: ['subPortalLinks', userId],
+    queryFn: async (): Promise<SubPortalLink[]> => {
+      if (canSync) {
+        try {
+          const { data, error } = await supabase
+            .from('sub_portal_links').select('*');
+          if (!error && data) {
+            const mapped = (data as Record<string, unknown>[]).map(r => ({
+              id: r.id as string,
+              projectId: r.project_id as string,
+              subcontractorId: r.subcontractor_id as string,
+              passcode: r.passcode as string | undefined,
+              requirePasscode: !!r.require_passcode,
+              enabled: !!r.enabled,
+              welcomeMessage: r.welcome_message as string | undefined,
+              commitmentIds: r.commitment_ids as string[] | undefined,
+              createdAt: r.created_at as string,
+              updatedAt: r.updated_at as string,
+              lastSharedAt: r.last_shared_at as string | undefined,
+            }));
+            await saveLocal(SUB_PORTAL_LINKS_KEY, mapped);
+            return mapped;
+          }
+        } catch { /* fallback */ }
+      }
+      return loadLocal<SubPortalLink[]>(SUB_PORTAL_LINKS_KEY, []);
+    },
+  });
+  useEffect(() => { if (subPortalLinksQuery.data) setSubPortalLinks(subPortalLinksQuery.data); }, [subPortalLinksQuery.data]);
+  const saveSubPortalLinksMutation = useMutation({
+    mutationFn: async (updated: SubPortalLink[]) => { await saveLocal(SUB_PORTAL_LINKS_KEY, updated); return updated; },
+    onSuccess: (data) => { queryClient.setQueryData(['subPortalLinks', userId], data); },
   });
 
   const syncProjectToSupabase = useCallback((project: Project, action: 'upsert' | 'delete') => {
@@ -1193,6 +1233,48 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
     aiaPayApps.filter(a => a.projectId === projectId).sort((a, b) => b.applicationNumber - a.applicationNumber),
     [aiaPayApps]);
 
+  // Sub portal links. Each (project, sub) pair gets one link. upsert keeps
+  // a stable id so the share URL doesn't change when the GC tweaks settings.
+  const upsertSubPortalLink = useCallback((link: SubPortalLink) => {
+    const filtered = subPortalLinks.filter(l => l.id !== link.id);
+    const updated = [link, ...filtered];
+    setSubPortalLinks(updated);
+    saveSubPortalLinksMutation.mutate(updated);
+    if (canSync && userId) {
+      void supabaseWrite('sub_portal_links', 'insert', {
+        id: link.id,
+        user_id: userId,
+        project_id: link.projectId,
+        subcontractor_id: link.subcontractorId,
+        passcode: link.passcode ?? null,
+        require_passcode: !!link.requirePasscode,
+        enabled: link.enabled,
+        welcome_message: link.welcomeMessage ?? null,
+        commitment_ids: link.commitmentIds ?? null,
+        created_at: link.createdAt,
+        updated_at: link.updatedAt,
+        last_shared_at: link.lastSharedAt ?? null,
+      });
+    }
+    return link;
+  }, [subPortalLinks, saveSubPortalLinksMutation, canSync, userId]);
+
+  const deleteSubPortalLink = useCallback((id: string) => {
+    const updated = subPortalLinks.filter(l => l.id !== id);
+    setSubPortalLinks(updated);
+    saveSubPortalLinksMutation.mutate(updated);
+    if (canSync) void supabaseWrite('sub_portal_links', 'delete', { id });
+  }, [subPortalLinks, saveSubPortalLinksMutation, canSync]);
+
+  const getSubPortalLinkFor = useCallback((projectId: string, subcontractorId: string) =>
+    subPortalLinks.find(l => l.projectId === projectId && l.subcontractorId === subcontractorId),
+    [subPortalLinks]);
+
+  const getSubPortalLinksForProject = useCallback((projectId: string) =>
+    subPortalLinks.filter(l => l.projectId === projectId).sort((a, b) =>
+      new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()),
+    [subPortalLinks]);
+
   const addSubmittal = useCallback((sub: Omit<Submittal, 'id' | 'createdAt' | 'updatedAt' | 'number'>) => {
     const projectSubs = submittals.filter(s => s.projectId === sub.projectId);
     const nextNumber = projectSubs.length > 0 ? Math.max(...projectSubs.map(s => s.number)) + 1 : 1;
@@ -1651,6 +1733,7 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
     rfis, addRFI, updateRFI, deleteRFI, getRFIsForProject,
     permits, addPermit, updatePermit, deletePermit, getPermitsForProject,
     aiaPayApps, addAIAPayApp, deleteAIAPayApp, getAIAPayAppsForProject,
+    subPortalLinks, upsertSubPortalLink, deleteSubPortalLink, getSubPortalLinkFor, getSubPortalLinksForProject,
     submittals, addSubmittal, updateSubmittal, deleteSubmittal, getSubmittalsForProject, addReviewCycle,
     equipment, addEquipment, updateEquipment, deleteEquipment, logUtilization, getEquipmentForProject, getEquipmentCostForProject,
     warranties, addWarranty, updateWarranty, deleteWarranty, getWarrantiesForProject, addWarrantyClaim,
@@ -1659,5 +1742,5 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
     drawingPins, addDrawingPin, updateDrawingPin, deleteDrawingPin, getPinsForPlan, getPinsForPhoto,
     planMarkups, addPlanMarkup, deletePlanMarkup, getMarkupsForPlan,
     planCalibrations, upsertPlanCalibration, getCalibrationForPlan,
-  }), [sortedProjects, settings, hasSeenOnboarding, completeOnboarding, projectsQuery.isLoading, settingsQuery.isLoading, onboardingQuery.isLoading, addProject, updateProject, deleteProject, getProject, updateSettings, addCollaborator, removeCollaborator, changeOrders, addChangeOrder, updateChangeOrder, getChangeOrdersForProject, addInvoice, updateInvoice, getInvoicesForProject, getTotalOutstandingBalance, invoices, commitments, addCommitment, updateCommitment, deleteCommitment, getCommitmentsForProject, prequalPackets, upsertPrequalPacket, deletePrequalPacket, getPrequalPacketForSub, getPrequalPacketByToken, dailyReports, addDailyReport, updateDailyReport, getDailyReportsForProject, subcontractors, addSubcontractor, updateSubcontractor, deleteSubcontractor, getSubcontractor, punchItems, addPunchItem, updatePunchItem, deletePunchItem, getPunchItemsForProject, projectPhotos, addProjectPhoto, deleteProjectPhoto, getPhotosForProject, priceAlerts, addPriceAlert, updatePriceAlert, deletePriceAlert, contacts, addContact, updateContact, deleteContact, getContact, commEvents, addCommEvent, getCommEventsForProject, rfis, addRFI, updateRFI, deleteRFI, getRFIsForProject, permits, addPermit, updatePermit, deletePermit, getPermitsForProject, aiaPayApps, addAIAPayApp, deleteAIAPayApp, getAIAPayAppsForProject, submittals, addSubmittal, updateSubmittal, deleteSubmittal, getSubmittalsForProject, addReviewCycle, equipment, addEquipment, updateEquipment, deleteEquipment, logUtilization, getEquipmentForProject, getEquipmentCostForProject, warranties, addWarranty, updateWarranty, deleteWarranty, getWarrantiesForProject, addWarrantyClaim, portalMessages, addPortalMessage, markPortalMessagesRead, getPortalMessagesForProject, getUnreadPortalMessageCount, getTotalUnreadPortalCountForGc, planSheets, addPlanSheet, updatePlanSheet, deletePlanSheet, getPlanSheetsForProject, getPlanSheet, drawingPins, addDrawingPin, updateDrawingPin, deleteDrawingPin, getPinsForPlan, getPinsForPhoto, planMarkups, addPlanMarkup, deletePlanMarkup, getMarkupsForPlan, planCalibrations, upsertPlanCalibration, getCalibrationForPlan]);
+  }), [sortedProjects, settings, hasSeenOnboarding, completeOnboarding, projectsQuery.isLoading, settingsQuery.isLoading, onboardingQuery.isLoading, addProject, updateProject, deleteProject, getProject, updateSettings, addCollaborator, removeCollaborator, changeOrders, addChangeOrder, updateChangeOrder, getChangeOrdersForProject, addInvoice, updateInvoice, getInvoicesForProject, getTotalOutstandingBalance, invoices, commitments, addCommitment, updateCommitment, deleteCommitment, getCommitmentsForProject, prequalPackets, upsertPrequalPacket, deletePrequalPacket, getPrequalPacketForSub, getPrequalPacketByToken, dailyReports, addDailyReport, updateDailyReport, getDailyReportsForProject, subcontractors, addSubcontractor, updateSubcontractor, deleteSubcontractor, getSubcontractor, punchItems, addPunchItem, updatePunchItem, deletePunchItem, getPunchItemsForProject, projectPhotos, addProjectPhoto, deleteProjectPhoto, getPhotosForProject, priceAlerts, addPriceAlert, updatePriceAlert, deletePriceAlert, contacts, addContact, updateContact, deleteContact, getContact, commEvents, addCommEvent, getCommEventsForProject, rfis, addRFI, updateRFI, deleteRFI, getRFIsForProject, permits, addPermit, updatePermit, deletePermit, getPermitsForProject, aiaPayApps, addAIAPayApp, deleteAIAPayApp, getAIAPayAppsForProject, subPortalLinks, upsertSubPortalLink, deleteSubPortalLink, getSubPortalLinkFor, getSubPortalLinksForProject, submittals, addSubmittal, updateSubmittal, deleteSubmittal, getSubmittalsForProject, addReviewCycle, equipment, addEquipment, updateEquipment, deleteEquipment, logUtilization, getEquipmentForProject, getEquipmentCostForProject, warranties, addWarranty, updateWarranty, deleteWarranty, getWarrantiesForProject, addWarrantyClaim, portalMessages, addPortalMessage, markPortalMessagesRead, getPortalMessagesForProject, getUnreadPortalMessageCount, getTotalUnreadPortalCountForGc, planSheets, addPlanSheet, updatePlanSheet, deletePlanSheet, getPlanSheetsForProject, getPlanSheet, drawingPins, addDrawingPin, updateDrawingPin, deleteDrawingPin, getPinsForPlan, getPinsForPhoto, planMarkups, addPlanMarkup, deletePlanMarkup, getMarkupsForPlan, planCalibrations, upsertPlanCalibration, getCalibrationForPlan]);
 });

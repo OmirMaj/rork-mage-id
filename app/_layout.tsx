@@ -394,6 +394,18 @@ function RootLayoutNav() {
         options={{ headerShown: false }}
       />
       <Stack.Screen
+        name="sub-portal-setup"
+        options={{
+          title: "Sub Portal",
+          headerStyle: { backgroundColor: Colors.background },
+          headerTintColor: Colors.primary,
+        }}
+      />
+      <Stack.Screen
+        name="sub-portals"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
         name="plans"
         options={{ headerShown: false }}
       />
