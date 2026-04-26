@@ -21,19 +21,24 @@ export default function CashFlowGlance({ forecast, weeks = 4 }: Props) {
   const router = useRouter();
   const { width } = useWindowDimensions();
 
-  if (!forecast || forecast.length === 0) return null;
-
-  const slice = forecast.slice(0, weeks);
-  if (slice.length < 2) return null;
-
+  // CRITICAL: every hook call lives ABOVE the early returns, otherwise
+  // React sees different hook counts between renders ("rendered more
+  // hooks than during the previous render").
+  const slice = useMemo(
+    () => (forecast ?? []).slice(0, weeks),
+    [forecast, weeks],
+  );
   const totals = useMemo(() => {
     return slice.reduce((acc, w) => ({
       income: acc.income + w.totalIncome,
       expense: acc.expense + w.totalExpenses,
     }), { income: 0, expense: 0 });
   }, [slice]);
-  const net = totals.income - totals.expense;
 
+  if (!forecast || forecast.length === 0) return null;
+  if (slice.length < 2) return null;
+
+  const net = totals.income - totals.expense;
   const balances = slice.map(w => w.runningBalance);
   const minBal = Math.min(...balances);
   const maxBal = Math.max(...balances);
