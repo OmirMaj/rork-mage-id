@@ -102,102 +102,48 @@ serve(async (req) => {
   }
 
   try {
-    // 1. Verify the homeowner owns the bid + the bid is open + this response
-    //    belongs to the bid.
-    const bids = await rest<{ id: string; user_id: string; status: string; title: string; address_line: string | null; latitude: number | null; longitude: number | null; city: string | null; state: string | null; scope_description: string | null; photo_urls: unknown; drawing_urls: unknown; budget_max: number | null; desired_start: string | null; awarded_response_id: string | null }[]>(
-      `/public_bids?id=eq.${encodeURIComponent(body.bidId)}&select=id,user_id,status,title,address_line,latitude,longitude,city,state,scope_description,photo_urls,drawing_urls,budget_max,desired_start,awarded_response_id`
-    );
-    const bid = bids[0];
-    if (!bid) return jsonResponse({ success: false, error: "RFP not found" }, 404);
-    if (bid.user_id !== homeownerId) return jsonResponse({ success: false, error: "Not your RFP" }, 403);
-    if (bid.awarded_response_id) {
-      return jsonResponse({ success: false, error: "RFP already awarded" }, 409);
-    }
-
-    const responses = await rest<{ id: string; bid_id: string; user_id: string; company_name: string | null; bid_amount: number | null; estimate_summary: string | null; proposer_email: string | null; proposer_phone: string | null }[]>(
-      `/bid_responses?id=eq.${encodeURIComponent(body.responseId)}&select=id,bid_id,user_id,company_name,bid_amount,estimate_summary,proposer_email,proposer_phone`
-    );
-    const winner = responses[0];
-    if (!winner) return jsonResponse({ success: false, error: "Response not found" }, 404);
-    if (winner.bid_id !== body.bidId) return jsonResponse({ success: false, error: "Response doesn't belong to this RFP" }, 400);
-
-    // 2. Create the project in the awarded contractor's account. We use a
-    //    deterministic UUID from the response id so retries are idempotent.
-    const portalId = crypto.randomUUID();
-    const projectId = crypto.randomUUID();
-
-    const photoUrls   = Array.isArray(bid.photo_urls)   ? bid.photo_urls   : [];
-    const drawingUrls = Array.isArray(bid.drawing_urls) ? bid.drawing_urls : [];
-
-    const clientPortal = {
-      enabled: true,
-      portalId,
-      requirePasscode: false,   // homeowner already authenticated themselves to award; no passcode needed
-      welcomeMessage: `Welcome! This portal is for the project we just awarded.`,
-      coApprovalEnabled: true,
-      sections: {
-        schedule: true, budget: true, invoices: true,
-        changeOrders: true, photos: true, dailyReports: true,
-        rfis: true, documents: true,
+    // Atomic via the public.award_rfp(p_homeowner_id, p_bid_id, p_response_id)
+    // Postgres function. All 4 writes (project create, winner update, others
+    // declined, bid closed) happen in a single transaction — partial state
+    // can't leak through a network blip mid-flight. The RPC also enforces
+    // ownership + already-awarded checks server-side, identical to what the
+    // edge function used to do via separate REST calls.
+    const rpcRes = await fetch(`${SUPABASE_URL}/rest/v1/rpc/award_rfp`, {
+      method: "POST",
+      headers: {
+        apikey: SERVICE_ROLE_KEY,
+        Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+        "Content-Type": "application/json",
       },
-      invites: [{
-        id: crypto.randomUUID(),
-        name: '',
-        email: '',
-        status: 'pending',
-        createdAt: new Date().toISOString(),
-      }],
+      body: JSON.stringify({
+        p_homeowner_id: homeownerId,
+        p_bid_id: body.bidId,
+        p_response_id: body.responseId,
+      }),
+    });
+
+    if (!rpcRes.ok) {
+      const text = await rpcRes.text().catch(() => "");
+      // Map Postgres-raised exceptions to user-facing HTTP statuses.
+      if (/Not your RFP/i.test(text))             return jsonResponse({ success: false, error: "Not your RFP" }, 403);
+      if (/RFP not found/i.test(text))            return jsonResponse({ success: false, error: "RFP not found" }, 404);
+      if (/Response not found/i.test(text))       return jsonResponse({ success: false, error: "Response not found" }, 404);
+      if (/already awarded/i.test(text))          return jsonResponse({ success: false, error: "RFP already awarded" }, 409);
+      if (/does not belong/i.test(text))          return jsonResponse({ success: false, error: "Response doesn't belong to this RFP" }, 400);
+      return jsonResponse({ success: false, error: `Award failed: ${text.slice(0, 240)}` }, 500);
+    }
+    const result = (await rpcRes.json()) as {
+      success: boolean;
+      projectId: string;
+      portalId: string;
+      winnerUserId: string;
+      winnerEmail: string | null;
+      projectName: string;
     };
 
-    await rest(`/projects`, {
-      method: "POST",
-      body: JSON.stringify({
-        id: projectId,
-        user_id: winner.user_id,
-        name: bid.title,
-        type: 'awarded_rfp',
-        location: [bid.city, bid.state].filter(Boolean).join(', '),
-        square_footage: 0,
-        quality: 'standard',
-        description: bid.scope_description ?? '',
-        status: 'in_progress',
-        client_portal: clientPortal,
-      }),
-    });
-
-    // 3. Update the winning response. RLS allows homeowner UPDATE (the
-    //    br_homeowner_update_status policy) — but service-role bypass is
-    //    cleaner so we don't fight RLS twice.
-    await rest(`/bid_responses?id=eq.${encodeURIComponent(winner.id)}`, {
-      method: "PATCH",
-      body: JSON.stringify({
-        status: 'awarded',
-        awarded_project_id: projectId,
-        responded_at: new Date().toISOString(),
-      }),
-    });
-
-    // 4. Decline every other response on this bid that isn't already declined/withdrawn.
-    await rest(`/bid_responses?bid_id=eq.${encodeURIComponent(body.bidId)}&id=not.eq.${encodeURIComponent(winner.id)}&status=in.(submitted,shortlisted)`, {
-      method: "PATCH",
-      body: JSON.stringify({
-        status: 'declined',
-        responded_at: new Date().toISOString(),
-      }),
-    });
-
-    // 5. Close the bid + record the award.
-    await rest(`/public_bids?id=eq.${encodeURIComponent(body.bidId)}`, {
-      method: "PATCH",
-      body: JSON.stringify({
-        status: 'closed',
-        awarded_response_id: winner.id,
-        awarded_at: new Date().toISOString(),
-      }),
-    });
-
-    // 6. Best-effort: kick the notify dispatcher so the contractor gets a
-    //    push + email. Failures here don't block the award.
+    // Best-effort: kick the notify dispatcher so the awarded contractor
+    // gets a push + email. Failures here don't roll back the award —
+    // they're advisory.
     void fetch(`${SUPABASE_URL}/functions/v1/notify`, {
       method: "POST",
       headers: {
@@ -207,18 +153,18 @@ serve(async (req) => {
       body: JSON.stringify({
         event: 'rfp_awarded',
         source_table: 'bid_responses',
-        source_id: winner.id,
+        source_id: body.responseId,
         payload: {
-          contractor_user_id: winner.user_id,
-          contractor_email: winner.proposer_email,
-          project_id: projectId,
-          project_name: bid.title,
+          contractor_user_id: result.winnerUserId,
+          contractor_email: result.winnerEmail,
+          project_id: result.projectId,
+          project_name: result.projectName,
           homeowner_id: homeownerId,
         },
       }),
     }).catch(() => { /* ignore */ });
 
-    return jsonResponse({ success: true, projectId, portalId });
+    return jsonResponse({ success: true, projectId: result.projectId, portalId: result.portalId });
   } catch (e) {
     console.error('[award-rfp] failed', e);
     return jsonResponse({ success: false, error: String((e as Error).message ?? e) }, 500);
