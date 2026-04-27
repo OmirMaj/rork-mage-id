@@ -565,6 +565,17 @@ export const weeklySummarySchema = z.object({
     primaryRisk: z.string().default(''),
     recommendation: z.string().default(''),
   })).default([]),
+  // Issues breakdown — the GC's main reason for opening Full Analysis.
+  // Each row is one concrete problem with a cause, downstream impact,
+  // and a specific fix. Sorted by severity in the UI.
+  criticalIssues: z.array(z.object({
+    projectName: z.string().default(''),
+    severity:    z.enum(['critical', 'high', 'medium', 'low']).catch('medium').default('medium'),
+    issue:       z.string().default(''),  // what's wrong (1 sentence)
+    cause:       z.string().default(''),  // root cause / why it's happening
+    impact:      z.string().default(''),  // what it's blocking / financial or schedule effect
+    fix:         z.string().default(''),  // concrete next step the GC should take
+  })).default([]),
   overallRecommendation: z.string().default(''),
 });
 
@@ -602,7 +613,13 @@ export async function generateWeeklySummary(projects: Project[]): Promise<Weekly
     const totalProgress = tasks.length > 0
       ? Math.round(tasks.reduce((s, t) => s + t.progress, 0) / tasks.length)
       : 0;
-    const done = tasks.filter(t => t.status === 'done').length;
+    const done       = tasks.filter(t => t.status === 'done').length;
+    const inProgress = tasks.filter(t => t.status === 'in_progress').length;
+    const onHold     = tasks.filter(t => t.status === 'on_hold').length;
+    // A heuristic "stalled" signal — task is in progress but 0% progress
+    // and no crew assigned. Often indicates a real-world block.
+    const stalled = tasks.filter(t => t.status === 'in_progress' && t.progress === 0 && (t.crewSize ?? 0) === 0).length;
+    const criticalPathStalled = tasks.filter(t => t.isCriticalPath && (t.status === 'on_hold' || (t.status === 'in_progress' && t.progress < 10))).map(t => t.title).slice(0, 5);
     const est = p.linkedEstimate ?? p.estimate;
     return {
       name: p.name,
@@ -610,29 +627,55 @@ export async function generateWeeklySummary(projects: Project[]): Promise<Weekly
       status: p.status,
       totalTasks: tasks.length,
       completedTasks: done,
+      inProgressTasks: inProgress,
+      onHoldTasks: onHold,
+      stalledTasks: stalled,
+      criticalPathStalled,
       overallProgress: totalProgress,
       healthScore: schedule?.healthScore ?? 0,
       totalValue: est && 'grandTotal' in est ? est.grandTotal : 0,
       riskItems: schedule?.riskItems?.map(r => r.title) ?? [],
+      criticalPathLength: tasks.filter(t => t.isCriticalPath).length,
     };
   });
 
   const aiResult = await mageAI({
-    prompt: `You are a construction portfolio manager writing a weekly executive summary. Analyze these projects and generate a professional report.
+    prompt: `You are a senior construction project manager doing a deep diagnostic on a GC's portfolio. The GC just clicked "Full Analysis" because they want to know WHAT IS WRONG with each project, WHY it's happening, and WHAT TO DO about it.
 
 PROJECTS:
 ${JSON.stringify(projectData, null, 2)}
 
 CURRENT DATE: ${new Date().toLocaleDateString()}
 
-Generate a comprehensive weekly executive summary. For each project, assess status, highlight key accomplishments, identify primary risks, and give recommendations. Provide an overall portfolio recommendation.`,
+Your job has two parts.
+
+PART 1 — Per-project status snapshots (existing format): name, status, progress trend, key accomplishment, primary risk, one recommendation. Keep it terse.
+
+PART 2 — CRITICAL ISSUES BREAKDOWN. THIS IS THE MAIN VALUE. Identify every concrete problem you can spot in the data: blocked tasks, overdue critical-path items, low health scores, missing risk mitigation, schedule slippage, scope concerns, cash-flow signals from tasks-vs-budget mismatches. For EACH issue produce four short fields:
+
+  • issue   — what's wrong, in one sentence the GC can read in 2 seconds.
+  • cause   — the ROOT CAUSE. Don't restate the issue. Trace upstream:
+              "Drywall is delayed because rough-in inspection failed,
+              which itself was caused by an electrical change order that
+              wasn't sequenced." Be specific to THIS project's data.
+  • impact  — the downstream effect: schedule days lost, $ exposure,
+              other tasks blocked, contract risk, client-facing risk.
+              Quantify when the data lets you.
+  • fix     — ONE concrete action the GC should take TOMORROW. Not
+              generic advice. Name a person to call, an item to order,
+              a meeting to schedule, a decision to make.
+
+Sort by severity: critical (will hit contract/payment), high (blocks 3+ tasks or 1+ wk delay), medium (slows progress), low (worth noting). Aim for 3-8 issues across the portfolio. If a project is genuinely fine, don't fabricate issues for it — say so in the recommendation instead.
+
+Return ONLY JSON matching the schema. Be specific with project names so the GC knows which project each issue is about.`,
     schema: weeklySummarySchema,
-    tier: 'fast',
+    tier: 'smart',
+    maxTokens: 4500,
   });
   if (!aiResult.success) {
     throw new Error(aiResult.error || 'Weekly summary unavailable');
   }
-  console.log('[AI Weekly] Summary generated');
+  console.log('[AI Weekly] Summary generated, issues:', (aiResult.data as WeeklySummaryResult).criticalIssues?.length ?? 0);
   return aiResult.data;
 }
 
