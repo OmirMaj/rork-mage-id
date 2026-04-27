@@ -28,7 +28,11 @@ export interface PortalSnapshot {
   v: number;
   snapshotAt: string;
   requirePasscode?: boolean;
-  passcode?: string;
+  // NOTE: passcode is intentionally NOT serialized into the snapshot.
+  // It used to live here, but base64 in the URL fragment is trivially
+  // decodable by anyone with the link, defeating the gate. Validation now
+  // runs server-side via the validate-portal-passcode edge function — the
+  // static portal POSTs { portalId, passcode } and unlocks on 200.
   welcomeMessage?: string;
   clientName?: string;
   // Whether the portal should show the "Set your target budget" card.
@@ -487,7 +491,7 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
     v: PORTAL_SNAPSHOT_VERSION,
     snapshotAt: new Date().toISOString(),
     requirePasscode: portal.requirePasscode,
-    passcode: portal.requirePasscode ? portal.passcode : undefined,
+    // passcode intentionally omitted — validated server-side, never bundled.
     welcomeMessage: portal.welcomeMessage,
     clientName: invite?.name,
     clientCanSetBudget,

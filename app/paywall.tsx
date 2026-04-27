@@ -1,7 +1,7 @@
 import React, { useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Platform,
-  ActivityIndicator,
+  ActivityIndicator, Linking,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, Stack } from 'expo-router';
@@ -103,6 +103,13 @@ export default function PaywallScreen() {
       Alert.alert('Restore Failed', 'Could not restore purchases. Please try again.');
     }
   }, [restorePurchases]);
+
+  const openLegal = useCallback((kind: 'privacy' | 'terms') => {
+    const url = kind === 'privacy'
+      ? 'https://mageid.com/privacy'
+      : 'https://mageid.com/terms';
+    void Linking.openURL(url);
+  }, []);
 
   return (
     <View style={[styles.container, { paddingBottom: insets.bottom }]}>
@@ -238,9 +245,22 @@ export default function PaywallScreen() {
           </View>
         )}
 
-        <TouchableOpacity onPress={handleRestore} style={styles.restoreBtn} disabled={isFallbackPricing} testID="restore-purchases">
-          <Text style={[styles.restoreText, isFallbackPricing && { color: Colors.textMuted }]}>Restore Purchases</Text>
-        </TouchableOpacity>
+        <View style={styles.legalRow}>
+          <TouchableOpacity onPress={() => openLegal('privacy')}>
+            <Text style={styles.legalLink}>Privacy</Text>
+          </TouchableOpacity>
+          <Text style={styles.legalDot}>·</Text>
+          <TouchableOpacity onPress={handleRestore} disabled={isFallbackPricing} testID="restore-purchases">
+            <Text style={[styles.legalLink, isFallbackPricing && { color: Colors.textMuted }]}>Restore</Text>
+          </TouchableOpacity>
+          <Text style={styles.legalDot}>·</Text>
+          <TouchableOpacity onPress={() => openLegal('terms')}>
+            <Text style={styles.legalLink}>Terms</Text>
+          </TouchableOpacity>
+        </View>
+        <Text style={styles.legalFinePrint}>
+          Subscriptions auto-renew until canceled. Manage or cancel in your {Platform.OS === 'ios' ? 'App Store account' : Platform.OS === 'android' ? 'Google Play account' : 'platform account'} settings at least 24 hours before the renewal date. Payment is charged to your {Platform.OS === 'ios' ? 'Apple ID' : Platform.OS === 'android' ? 'Google account' : 'platform account'} on confirmation of purchase.
+        </Text>
 
         {packagesStillLoading && (
           <View style={styles.loadingOverlay}>
@@ -424,14 +444,29 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.textSecondary,
   },
-  restoreBtn: {
-    alignSelf: 'center',
+  legalRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
     paddingVertical: 12,
   },
-  restoreText: {
-    fontSize: 14,
+  legalLink: {
+    fontSize: 13,
     color: Colors.primary,
-    fontWeight: '500' as const,
+    fontWeight: '600' as const,
+  },
+  legalDot: {
+    fontSize: 13,
+    color: Colors.textMuted,
+  },
+  legalFinePrint: {
+    fontSize: 11,
+    color: Colors.textMuted,
+    textAlign: 'center' as const,
+    lineHeight: 16,
+    paddingHorizontal: 24,
+    marginTop: 4,
   },
   loadingOverlay: {
     flexDirection: 'row',

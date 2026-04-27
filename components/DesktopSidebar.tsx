@@ -4,10 +4,11 @@ import { useRouter, usePathname } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Home, Compass, Wrench, Settings, BarChart3, CalendarDays,
-  Hammer, FileText, Building2, Search, HardHat, Gavel, LayoutDashboard,
+  Hammer, FileText, Building2, Search, HardHat, Gavel, LayoutDashboard, Lock,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useSearch } from '@/contexts/SearchContext';
+import { useTierAccess, type FeatureKey } from '@/hooks/useTierAccess';
 
 interface NavItem {
   key: string;
@@ -15,14 +16,18 @@ interface NavItem {
   icon: typeof Home;
   route: string;
   section: string;
+  // Optional feature gate — when set, sidebar shows a small lock badge if
+  // the user's tier doesn't unlock it. Tap still routes (Paywall renders
+  // on the destination screen) so the upgrade flow stays one tap away.
+  requires?: FeatureKey;
 }
 
 const NAV_ITEMS: NavItem[] = [
   { key: 'summary', label: 'Summary', icon: LayoutDashboard, route: '/(tabs)/summary', section: 'PROJECT' },
   { key: 'home', label: 'Projects', icon: Home, route: '/(tabs)/(home)', section: 'PROJECT' },
   { key: 'estimate', label: 'Estimate', icon: BarChart3, route: '/(tabs)/discover/estimate', section: 'PROJECT' },
-  { key: 'schedule', label: 'Schedule', icon: CalendarDays, route: '/(tabs)/discover/schedule', section: 'PROJECT' },
-  { key: 'equipment', label: 'Equipment', icon: Hammer, route: '/(tabs)/equipment', section: 'FIELD' },
+  { key: 'schedule', label: 'Schedule', icon: CalendarDays, route: '/(tabs)/discover/schedule', section: 'PROJECT', requires: 'schedule_gantt_pdf' },
+  { key: 'equipment', label: 'Equipment', icon: Hammer, route: '/(tabs)/equipment', section: 'FIELD', requires: 'equipment_rental' },
   { key: 'bids', label: 'Bids', icon: FileText, route: '/(tabs)/bids', section: 'FIELD' },
   { key: 'companies', label: 'Companies', icon: Building2, route: '/(tabs)/companies', section: 'NETWORK' },
   { key: 'discover', label: 'Discover', icon: Search, route: '/(tabs)/discover', section: 'NETWORK' },
@@ -57,6 +62,7 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
   const { openSearch } = useSearch();
+  const { canAccess } = useTierAccess();
   const [hoveredKey, setHoveredKey] = useState<string | null>(null);
 
   const handleNav = useCallback((route: string) => {
@@ -112,6 +118,7 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
               const active = isActiveRoute(pathname, item.key);
               const hovered = hoveredKey === item.key;
               const Icon = item.icon;
+              const locked = !!item.requires && !canAccess(item.requires);
 
               return (
                 <TouchableOpacity
@@ -142,6 +149,11 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
                   ]}>
                     {item.label}
                   </Text>
+                  {locked && (
+                    <View style={styles.lockBadge}>
+                      <Lock size={10} color="rgba(255,255,255,0.55)" strokeWidth={2.2} />
+                    </View>
+                  )}
                 </TouchableOpacity>
               );
             })}
@@ -285,5 +297,14 @@ const styles = StyleSheet.create({
     fontSize: 9,
     color: 'rgba(255,255,255,0.15)',
     marginTop: 2,
+  },
+  lockBadge: {
+    marginLeft: 'auto' as const,
+    width: 18,
+    height: 18,
+    borderRadius: 6,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
   },
 });

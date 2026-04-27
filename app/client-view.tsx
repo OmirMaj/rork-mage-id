@@ -289,7 +289,7 @@ export default function ClientViewScreen() {
     setSubmittingApproval(false);
   }, []);
 
-  const submitApproval = useCallback(() => {
+  const submitApproval = useCallback(async () => {
     if (!approvalCO || !project) return;
     if (!approverName.trim()) {
       Alert.alert('Name Required', 'Please enter your name as it appears on the contract.');
@@ -351,6 +351,34 @@ export default function ClientViewScreen() {
 
     const nextStatus = approvalMode === 'approve' ? 'approved' : 'rejected';
 
+    // Persist the approval to change_order_approvals so the GC actually
+    // sees it. RLS allows anon INSERT when portal_id matches a real
+    // project's client_portal->>'portalId'. If the insert fails (offline,
+    // misconfigured, missing tables), we still update the local view —
+    // the visitor at least gets immediate feedback — but flag it so they
+    // know to follow up.
+    let serverPersisted = false;
+    if (isSupabaseConfigured && portal?.portalId) {
+      try {
+        const { error: insertError } = await supabase
+          .from('change_order_approvals')
+          .insert({
+            portal_id: portal.portalId,
+            project_id: project.id,
+            invite_id: typeof inviteId === 'string' ? inviteId : null,
+            change_order_id: approvalCO.id,
+            decision: approvalMode === 'approve' ? 'approved' : 'declined',
+            signer_name: approverName.trim(),
+            signer_email: null,
+            note: approvalMode === 'reject' ? rejectionReason.trim() : null,
+          });
+        if (insertError) throw insertError;
+        serverPersisted = true;
+      } catch (err) {
+        console.log('[client-view] CO approval insert failed:', err);
+      }
+    }
+
     updateChangeOrder(approvalCO.id, {
       status: nextStatus,
       approvers: nextApprovers,
@@ -362,12 +390,15 @@ export default function ClientViewScreen() {
     }
 
     const verb = approvalMode === 'approve' ? 'approved' : 'rejected';
+    const tail = serverPersisted
+      ? 'The contractor has been notified.'
+      : 'We saved your response locally. If you don\'t hear back within a day, please contact the contractor directly.';
     Alert.alert(
       approvalMode === 'approve' ? 'Approved' : 'Rejected',
-      `Change Order #${approvalCO.number} has been ${verb}. The contractor has been notified.`,
+      `Change Order #${approvalCO.number} has been ${verb}. ${tail}`,
       [{ text: 'OK', onPress: closeApprovalFlow }]
     );
-  }, [approvalCO, project, approverName, signaturePaths, approvalMode, rejectionReason, updateChangeOrder, closeApprovalFlow]);
+  }, [approvalCO, project, portal, inviteId, approverName, signaturePaths, approvalMode, rejectionReason, updateChangeOrder, closeApprovalFlow]);
 
   // Budget metrics
   const contractValue = project?.estimate?.grandTotal ?? 0;

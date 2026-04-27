@@ -80,7 +80,27 @@ export const [CompaniesProvider, useCompanies] = createContextHook(() => {
     const updated = companies.map(c => c.id === id ? { ...c, ...changes } : c);
     setCompanies(updated);
     saveMutation.mutate(updated);
-  }, [companies, saveMutation]);
+    if (canSync) {
+      // Map only the fields that exist as table columns. Keys not in the
+      // changes payload are simply omitted from the update.
+      const payload: Record<string, unknown> = { id };
+      if (changes.companyName !== undefined)      payload.company_name        = changes.companyName;
+      if (changes.city !== undefined)              payload.city                = changes.city;
+      if (changes.state !== undefined)             payload.state               = changes.state;
+      if (changes.primaryCategory !== undefined)   payload.primary_category    = changes.primaryCategory;
+      if (changes.bondCapacity !== undefined)      payload.bond_capacity       = changes.bondCapacity;
+      if (changes.completedProjects !== undefined) payload.completed_projects  = changes.completedProjects;
+      if (changes.rating !== undefined)            payload.rating              = changes.rating;
+      if (changes.contactEmail !== undefined)      payload.contact_email       = changes.contactEmail;
+      if (changes.phone !== undefined)             payload.phone               = changes.phone;
+      if (changes.description !== undefined)       payload.description         = changes.description;
+      if (changes.certifications !== undefined)    payload.certifications      = changes.certifications;
+      if (changes.website !== undefined)           payload.website             = changes.website;
+      if (changes.yearEstablished !== undefined)   payload.year_established    = changes.yearEstablished;
+      if (changes.employeeCount !== undefined)     payload.employee_count      = changes.employeeCount;
+      void supabaseWrite('companies', 'update', payload);
+    }
+  }, [companies, saveMutation, canSync]);
 
   return useMemo(() => ({
     companies, addCompany, updateCompany, isLoading: companiesQuery.isLoading,

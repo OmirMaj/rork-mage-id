@@ -14,6 +14,8 @@ import {
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
+import { useTierAccess } from '@/hooks/useTierAccess';
+import Paywall from '@/components/Paywall';
 import AIInvoicePredictor from '@/components/AIInvoicePredictor';
 import ContactPickerModal from '@/components/ContactPickerModal';
 import { generateInvoicePDF, generateInvoicePDFUri } from '@/utils/pdfGenerator';
@@ -63,6 +65,22 @@ function getDueDate(issueDate: string, terms: PaymentTerms): string {
 }
 
 export default function InvoiceScreen() {
+  const router = useRouter();
+  const { canAccess } = useTierAccess();
+  if (!canAccess('change_orders_invoicing')) {
+    return (
+      <Paywall
+        visible={true}
+        feature="Invoicing"
+        requiredTier="pro"
+        onClose={() => router.back()}
+      />
+    );
+  }
+  return <InvoiceInner />;
+}
+
+function InvoiceInner() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { projectId, invoiceId, type: invoiceType } = useLocalSearchParams<{

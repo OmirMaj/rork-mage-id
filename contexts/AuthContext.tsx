@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Platform, Alert } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQueryClient } from '@tanstack/react-query';
 import createContextHook from '@nkzw/create-context-hook';
 import { supabase } from '@/lib/supabase';
@@ -215,6 +216,14 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     if (clearCredentials) {
       await clearStoredCredentials();
       setHasStoredCredentials(false);
+    }
+
+    // Drop the offline queue — otherwise queued mutations from the previous
+    // user can flush under whoever signs in next. Multi-tenant data leak.
+    try {
+      await AsyncStorage.removeItem('mageid_offline_queue');
+    } catch (err) {
+      console.log('[Auth] Failed to clear offline queue:', err);
     }
 
     setSession(null);

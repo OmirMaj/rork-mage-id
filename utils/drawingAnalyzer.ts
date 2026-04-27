@@ -53,10 +53,10 @@ export interface DrawingAnalysisResult {
   confidenceExplanation: string;
 }
 
-// Available models. Free / Pro subscribers get Flash, Business get Pro.
-// Flash is faster and more willing to produce a directional estimate even
-// from imperfect inputs. Pro is slower, more expensive, and more
-// conservative — it'll refuse to fabricate when drawings are unreadable.
+// Pro Estimator is gated to Business tier — head-to-head testing showed
+// Pro catching $500K+ of scope Flash missed on a 15-sheet roof set. That
+// accuracy delta is the upgrade hook for Business. Pro-tier subscribers
+// get Standard (Flash); Business unlocks Pro Estimator.
 export type AnalyzerModel = 'gemini-2.5-flash' | 'gemini-2.5-pro';
 
 export const MODEL_DISPLAY: Record<AnalyzerModel, { label: string; tagline: string; tier: 'pro' | 'business' }> = {
@@ -67,7 +67,7 @@ export const MODEL_DISPLAY: Record<AnalyzerModel, { label: string; tagline: stri
   },
   'gemini-2.5-pro': {
     label: 'Pro Estimator',
-    tagline: 'Deeper reasoning · more conservative on incomplete plans',
+    tagline: 'Deeper reasoning · catches scope Standard misses',
     tier: 'business',
   },
 };

@@ -39,6 +39,20 @@ export async function addToOfflineQueue(mutation: Omit<OfflineMutation, 'id' | '
   }
 }
 
+// Auth/permission errors are terminal — the queue can't recover by retrying,
+// and a stuck 401 from a stale session would otherwise loop forever.
+function isTerminalError(message: string): boolean {
+  const m = message.toLowerCase();
+  return (
+    m.includes('jwt') ||
+    m.includes('unauthorized') ||
+    m.includes('permission denied') ||
+    m.includes('row-level security') ||
+    m.includes('violates') ||
+    m.includes('not authenticated')
+  );
+}
+
 export async function processOfflineQueue(): Promise<{ processed: number; failed: number }> {
   if (!isSupabaseConfigured) return { processed: 0, failed: 0 };
 
@@ -57,7 +71,9 @@ export async function processOfflineQueue(): Promise<{ processed: number; failed
       let error: { message: string } | null = null;
 
       if (mutation.operation === 'insert') {
-        const result = await supabase.from(mutation.table).upsert(mutation.data);
+        // Plain insert — upsert here would silently overwrite a colliding
+        // row that some other client already created, masking conflicts.
+        const result = await supabase.from(mutation.table).insert(mutation.data);
         error = result.error;
       } else if (mutation.operation === 'update') {
         const { id, ...rest } = mutation.data;
@@ -75,19 +91,24 @@ export async function processOfflineQueue(): Promise<{ processed: number; failed
       processed++;
       console.log('[OfflineQueue] Processed:', mutation.table, mutation.operation);
     } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (isTerminalError(msg)) {
+        console.warn('[OfflineQueue] Terminal error, discarding mutation:', mutation.table, mutation.operation, msg);
+        failed++;
+        continue;
+      }
       mutation.retryCount++;
       if (mutation.retryCount >= MAX_RETRIES) {
         console.warn('[OfflineQueue] Discarding mutation after max retries:', mutation.table, mutation.operation, err);
         failed++;
       } else {
         remaining.push(mutation);
-        failed++;
       }
     }
   }
 
   await AsyncStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(remaining));
-  console.log('[OfflineQueue] Done. Processed:', processed, 'Remaining:', remaining.length);
+  console.log('[OfflineQueue] Done. Processed:', processed, 'Failed:', failed, 'Remaining:', remaining.length);
   return { processed, failed };
 }
 

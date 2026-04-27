@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect } from 'react';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { supabaseWrite } from '@/utils/offlineQueue';
 import type { SubSubmittedInvoice, SubSubmittedInvoiceLine } from '@/types';
 
 // Fetches sub-submitted invoices for a project (or for a single sub portal
@@ -80,22 +81,21 @@ export function useSubSubmittedInvoices(opts: { projectId?: string; subPortalId?
   });
 
   const reviewMutation = useMutation({
+    // Route through supabaseWrite so a flaky network during approval/reject
+    // doesn't drop the GC's decision. The queue replays it on reconnect.
     mutationFn: async (args: {
       id: string;
       status: 'approved' | 'rejected' | 'paid';
       notesFromGc?: string;
     }) => {
       const patch: Record<string, unknown> = {
+        id: args.id,
         status: args.status,
       };
       if (args.notesFromGc != null) patch.notes_from_gc = args.notesFromGc;
       if (args.status === 'paid') patch.paid_at = new Date().toISOString();
       else patch.reviewed_at = new Date().toISOString();
-      const { error } = await supabase
-        .from('sub_submitted_invoices')
-        .update(patch)
-        .eq('id', args.id);
-      if (error) throw error;
+      await supabaseWrite('sub_submitted_invoices', 'update', patch);
       return args;
     },
     onSuccess: () => {

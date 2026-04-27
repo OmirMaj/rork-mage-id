@@ -9,7 +9,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as Haptics from 'expo-haptics';
 import {
   ChevronLeft, FileUp, Sparkles, ShieldAlert, Eye, AlertTriangle, CheckCircle2,
-  HelpCircle, FileText, RefreshCw, ChevronRight,
+  HelpCircle, FileText, RefreshCw, ChevronRight, Crown, Zap,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
@@ -19,7 +19,6 @@ import { uploadAndRenderPdf, type RenderedPlanPage } from '@/utils/pdfRenderClie
 import { analyzeDrawings, type DrawingAnalysisResult, type AnalyzerModel, MODEL_DISPLAY } from '@/utils/drawingAnalyzer';
 import { formatMoney } from '@/utils/formatters';
 import { useSubscription } from '@/contexts/SubscriptionContext';
-import { Crown, Zap } from 'lucide-react-native';
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
 
 type Step = 'idle' | 'uploading' | 'analyzing' | 'review';
@@ -54,10 +53,9 @@ function DrawingAnalyzerInner() {
   const [modelUsed, setModelUsed] = useState<AnalyzerModel | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pickedProjectId, setPickedProjectId] = useState<string | undefined>(paramProjectId);
-  // Business-tier subscribers default to Pro Estimator. Pro-tier defaults
-  // to Standard but they CAN'T toggle up — that's the upgrade hook.
-  // Business tier sees a toggle so power users can switch back to Flash
-  // for speed when the drawings are clean and they just want quick numbers.
+  // Business tier defaults to Pro Estimator. Pro tier defaults to Standard
+  // and CAN'T toggle up — that gap is the upgrade hook, surfaced as a
+  // teaser card after the result lands.
   const [pickedModel, setPickedModel] = useState<AnalyzerModel>(
     isBusinessTier ? 'gemini-2.5-pro' : 'gemini-2.5-flash',
   );
@@ -255,7 +253,7 @@ function DrawingAnalyzerInner() {
               <Text style={styles.uploadCtaText}>Pick a PDF</Text>
             </View>
             <Text style={styles.uploadHint}>
-              Each page is converted to an image and sent to Gemini. Drawings are stored in your project's plans bucket.
+              Each page is converted to an image and sent to Gemini. Drawings are stored in your project&apos;s plans bucket.
             </Text>
           </TouchableOpacity>
         )}
@@ -293,6 +291,8 @@ function DrawingAnalyzerInner() {
             modelUsed={modelUsed}
             onReset={handleReset}
             onUse={handleUseAsEstimate}
+            showProTeaser={!isBusinessTier && modelUsed === 'gemini-2.5-flash'}
+            onUpgrade={() => router.push('/paywall' as never)}
           />
         )}
       </ScrollView>
@@ -337,12 +337,14 @@ function ModelOption({ modelKey, active, disabled, onPress }: {
   );
 }
 
-function ResultView({ result, pages, modelUsed, onReset, onUse }: {
+function ResultView({ result, pages, modelUsed, onReset, onUse, showProTeaser, onUpgrade }: {
   result: DrawingAnalysisResult;
   pages: RenderedPlanPage[];
   modelUsed: AnalyzerModel | null;
   onReset: () => void;
   onUse: () => void;
+  showProTeaser: boolean;
+  onUpgrade: () => void;
 }) {
   const modelMeta = modelUsed ? MODEL_DISPLAY[modelUsed] : null;
   const lineItemsByCategory = useMemo(() => {
@@ -401,6 +403,40 @@ function ResultView({ result, pages, modelUsed, onReset, onUse }: {
           </View>
         </View>
       </View>
+
+      {/* Pro Estimator upgrade teaser — only shown when Pro tier ran Standard */}
+      {showProTeaser && (
+        <TouchableOpacity style={styles.teaserCard} onPress={onUpgrade} activeOpacity={0.85}>
+          <View style={styles.teaserHead}>
+            <View style={styles.teaserIcon}>
+              <Crown size={16} color={Colors.warning} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.teaserEyebrow}>Business tier · Pro Estimator</Text>
+              <Text style={styles.teaserTitle}>Want sharper numbers on this set?</Text>
+            </View>
+            <ChevronRight size={16} color={Colors.textMuted} />
+          </View>
+          <Text style={styles.teaserBody}>
+            Pro Estimator routinely catches scope Standard misses on incomplete drawings — electrical rough-ins, structural metals, site work, permits. It also escalates ambiguous areas to critical-severity concerns so you don&apos;t ship a bid without an RFI.
+          </Text>
+          <View style={styles.teaserStatRow}>
+            <View style={styles.teaserStat}>
+              <Text style={styles.teaserStatValue}>15-30%</Text>
+              <Text style={styles.teaserStatLabel}>more scope captured on rough drawings</Text>
+            </View>
+            <View style={styles.teaserStatDivider} />
+            <View style={styles.teaserStat}>
+              <Text style={styles.teaserStatValue}>2x</Text>
+              <Text style={styles.teaserStatLabel}>output budget — no truncation on dense sets</Text>
+            </View>
+          </View>
+          <View style={styles.teaserCta}>
+            <Text style={styles.teaserCtaText}>Upgrade to Business</Text>
+            <ChevronRight size={14} color="#FFF" />
+          </View>
+        </TouchableOpacity>
+      )}
 
       {/* What the AI looked at */}
       <SectionHeader icon={<Eye size={16} color={Colors.primary} />} title="What the AI looked at" />
@@ -793,4 +829,36 @@ const styles = StyleSheet.create({
     paddingVertical: 13, borderRadius: 11, backgroundColor: Colors.primary,
   },
   ctaPrimaryText: { fontSize: 13, fontWeight: '700', color: '#FFF' },
+
+  teaserCard: {
+    backgroundColor: Colors.warning + '0D',
+    borderRadius: 16, padding: 16,
+    borderWidth: 1.5, borderColor: Colors.warning + '40',
+    marginBottom: 22,
+    gap: 12,
+  },
+  teaserHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  teaserIcon: {
+    width: 36, height: 36, borderRadius: 10,
+    backgroundColor: Colors.warning + '20',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  teaserEyebrow: { fontSize: 10, fontWeight: '800', color: Colors.warning, letterSpacing: 0.8, textTransform: 'uppercase' },
+  teaserTitle: { fontSize: 16, fontWeight: '800', color: Colors.text, marginTop: 2, letterSpacing: -0.2 },
+  teaserBody: { fontSize: 13, color: Colors.text, lineHeight: 19 },
+  teaserStatRow: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingVertical: 12, paddingHorizontal: 8, borderRadius: 10,
+    backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.warning + '25',
+  },
+  teaserStat: { flex: 1, alignItems: 'center', gap: 2 },
+  teaserStatValue: { fontSize: 18, fontWeight: '800', color: Colors.text, letterSpacing: -0.4 },
+  teaserStatLabel: { fontSize: 10, color: Colors.textMuted, textAlign: 'center', lineHeight: 14, paddingHorizontal: 4 },
+  teaserStatDivider: { width: 1, alignSelf: 'stretch', backgroundColor: Colors.warning + '25' },
+  teaserCta: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    paddingVertical: 12, borderRadius: 11,
+    backgroundColor: Colors.text,
+  },
+  teaserCtaText: { fontSize: 13, fontWeight: '800', color: '#FFF', letterSpacing: 0.2 },
 });

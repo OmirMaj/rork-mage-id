@@ -2478,11 +2478,13 @@
   }
 
   // ───────── Passcode gate ─────────
+  // Validation now runs server-side via the validate-portal-passcode edge
+  // function. The passcode used to be embedded in the URL hash (data.passcode),
+  // which was trivially decodable. We keep a local-check fallback ONLY for
+  // legacy URLs already in the wild that still carry the field — new URLs
+  // bundle no passcode and force the server round-trip.
   function runGate(data, onPass) {
-    if (!data.requirePasscode || !data.passcode) {
-      onPass();
-      return;
-    }
+    if (!data.requirePasscode) { onPass(); return; }
     var key = 'portal_unlocked_' + (data.project && data.project.id || 'x');
     if (sessionStorage.getItem(key) === '1') { onPass(); return; }
 
@@ -2492,17 +2494,59 @@
     var btn = document.getElementById('gate-submit');
     var err = document.getElementById('gate-err');
     input.focus();
-    function attempt() {
-      if (String(input.value).trim() === String(data.passcode).trim()) {
-        sessionStorage.setItem(key, '1');
-        gate.style.display = 'none';
-        onPass();
-      } else {
-        err.textContent = 'Incorrect passcode — please try again.';
-        input.value = '';
-        input.focus();
-      }
+
+    function unlock() {
+      sessionStorage.setItem(key, '1');
+      gate.style.display = 'none';
+      onPass();
     }
+    function fail(msg) {
+      err.textContent = msg || 'Incorrect passcode — please try again.';
+      input.value = '';
+      input.focus();
+      btn.disabled = false;
+      btn.style.opacity = '';
+    }
+
+    function attempt() {
+      var entered = String(input.value).trim();
+      if (!entered) return;
+
+      // Legacy URL: passcode still in the snapshot. Local check.
+      if (data.passcode) {
+        if (entered === String(data.passcode).trim()) unlock();
+        else fail();
+        return;
+      }
+
+      // New path: validate via edge function. Requires portalApi config
+      // (supabase URL + anon key + portal id).
+      var api = data.portalApi;
+      if (!api || !api.supabaseUrl || !api.supabaseAnonKey || !api.portalId) {
+        fail('Portal is misconfigured — please contact the contractor.');
+        return;
+      }
+
+      btn.disabled = true;
+      btn.style.opacity = '0.6';
+      var url = api.supabaseUrl.replace(/\/+$/, '') + '/functions/v1/validate-portal-passcode';
+      fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': api.supabaseAnonKey,
+          'Authorization': 'Bearer ' + api.supabaseAnonKey,
+        },
+        body: JSON.stringify({ portalId: api.portalId, passcode: entered }),
+      }).then(function (r) {
+        if (r.ok) { unlock(); return; }
+        if (r.status === 401) { fail(); return; }
+        fail('Could not verify right now — please try again in a moment.');
+      }).catch(function () {
+        fail('Network error — check your connection and try again.');
+      });
+    }
+
     btn.addEventListener('click', attempt);
     input.addEventListener('keydown', function (e) { if (e.key === 'Enter') attempt(); });
   }

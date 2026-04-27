@@ -11,6 +11,8 @@ import {
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
+import { useTierAccess } from '@/hooks/useTierAccess';
+import Paywall from '@/components/Paywall';
 import ContactPickerModal from '@/components/ContactPickerModal';
 import { getLivePrices, getRegionMultiplier, CATEGORY_META, type MaterialItem } from '@/constants/materials';
 import { sendEmail, buildChangeOrderEmailHtml } from '@/utils/emailService';
@@ -24,6 +26,22 @@ function createId(prefix: string): string {
 }
 
 export default function ChangeOrderScreen() {
+  const router = useRouter();
+  const { canAccess } = useTierAccess();
+  if (!canAccess('change_orders_invoicing')) {
+    return (
+      <Paywall
+        visible={true}
+        feature="Change Orders"
+        requiredTier="pro"
+        onClose={() => router.back()}
+      />
+    );
+  }
+  return <ChangeOrderInner />;
+}
+
+function ChangeOrderInner() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { projectId, coId } = useLocalSearchParams<{ projectId: string; coId?: string }>();

@@ -13,6 +13,7 @@ import { Colors } from '@/constants/colors';
 import { PROJECT_TYPES, type ProjectType, type QualityTier } from '@/types';
 import { generateQuickEstimate, type AIQuickEstimateResult } from '@/utils/aiService';
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
+import { useSubscription } from '@/contexts/SubscriptionContext';
 import type { MaterialItem } from '@/constants/materials';
 import { LABOR_RATES, type LaborRate } from '@/constants/laborRates';
 import { ASSEMBLIES, type AssemblyItem } from '@/constants/assemblies';
@@ -74,6 +75,7 @@ const QUICK_PROMPTS = [
 export default React.memo(function AIQuickEstimate({
   visible, onClose, onApplyEstimate, existingMaterials, globalMarkup, location, calculateAssemblyCost,
 }: Props) {
+  const { tier } = useSubscription();
   const [step, setStep] = useState<'input' | 'loading' | 'result'>('input');
   const [description, setDescription] = useState('');
   const [projectType, setProjectType] = useState<ProjectType>('renovation');
@@ -139,7 +141,10 @@ export default React.memo(function AIQuickEstimate({
       return;
     }
 
-    const limit = await checkAILimit('free', 'smart');
+    // Quick Estimate is a 'fast' AI feature available on every tier — Free
+    // gets 10/day, Pro 75, Business 200. Was hardcoded to ('free','smart')
+    // which capped every user at the smart-tier 3/day limit.
+    const limit = await checkAILimit(tier, 'fast');
     if (!limit.allowed) {
       Alert.alert('AI Limit Reached', limit.message ?? 'Rate limit reached.');
       return;
@@ -157,7 +162,7 @@ export default React.memo(function AIQuickEstimate({
         quality,
         location,
       );
-      await recordAIUsage('smart');
+      await recordAIUsage('fast');
       setResult(data);
       setStep('result');
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -168,7 +173,7 @@ export default React.memo(function AIQuickEstimate({
       setStep('input');
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     }
-  }, [description, projectType, sqft, quality, location]);
+  }, [description, projectType, sqft, quality, location, tier]);
 
   const matchMaterial = useCallback((aiMat: { name: string; category: string; unit: string; unitPrice: number; supplier: string }) => {
     const nameLower = aiMat.name.toLowerCase();

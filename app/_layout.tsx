@@ -430,6 +430,30 @@ function RootLayoutNav() {
         options={{ headerShown: false }}
       />
       <Stack.Screen
+        name="post-rfp"
+        options={{ headerShown: false, presentation: 'modal' }}
+      />
+      <Stack.Screen
+        name="my-rfps"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="rfp-detail"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="submit-bid-response"
+        options={{ headerShown: false, presentation: 'modal' }}
+      />
+      <Stack.Screen
+        name="rfp-responses-review"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="nearby-rfps"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
         name="plans"
         options={{ headerShown: false }}
       />
