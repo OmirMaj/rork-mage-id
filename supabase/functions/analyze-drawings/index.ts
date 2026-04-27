@@ -30,10 +30,15 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 
 const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY") || "";
-// Gemini 2.5 Flash for vision — fast + cheap + handles multi-image inputs.
-// (2.0 Flash was deprecated for new accounts.)
-const GEMINI_MODEL = "gemini-2.5-flash";
-const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+// Default to Gemini 2.5 Flash — fast + cheap. The client can opt into
+// gemini-2.5-pro for higher-tier subscriptions (better at reading dense
+// drawings + reasoning about quantity takeoffs).
+type ModelKey = 'gemini-2.5-flash' | 'gemini-2.5-pro';
+const ALLOWED_MODELS: ModelKey[] = ['gemini-2.5-flash', 'gemini-2.5-pro'];
+const DEFAULT_MODEL: ModelKey = 'gemini-2.5-flash';
+function geminiEndpoint(model: ModelKey): string {
+  return `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+}
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -56,6 +61,12 @@ interface AnalyzeRequest {
   location?: string;
   quality?: 'standard' | 'premium' | 'luxury';
   notes?: string;
+  /**
+   * Which Gemini model to use. The client picks based on the user's
+   * subscription tier — Pro tier = flash, Business = pro.
+   * Allowed values are validated; anything else falls back to flash.
+   */
+  model?: ModelKey;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────
@@ -169,13 +180,22 @@ CRITICAL RULES:
 
 // ─── Gemini call ──────────────────────────────────────────────────────
 
-async function callGemini(req: AnalyzeRequest): Promise<unknown> {
+async function callGemini(req: AnalyzeRequest): Promise<{ data: unknown; modelUsed: ModelKey }> {
   if (!GEMINI_API_KEY) throw new Error('GEMINI_API_KEY not configured on the server.');
   if (!req.pageUrls || req.pageUrls.length === 0) throw new Error('No page URLs provided.');
   if (req.pageUrls.length > 16) throw new Error('Maximum 16 pages per request — split larger sets.');
 
+  // Validate the requested model; fall back to default if unrecognized.
+  const requested = req.model ?? DEFAULT_MODEL;
+  const modelUsed: ModelKey = ALLOWED_MODELS.includes(requested) ? requested : DEFAULT_MODEL;
+
   // Fetch all pages in parallel and base64-encode for inline transmission.
   const imageParts = await Promise.all(req.pageUrls.map(urlToInlineImagePart));
+
+  // Both tiers get enough headroom for a full estimate — Flash was
+  // hitting the 8K cap and truncating mid-JSON. Pro gets a bit more
+  // since it tends to write more verbose reasoning per line item.
+  const maxOutputTokens = modelUsed === 'gemini-2.5-pro' ? 32768 : 16384;
 
   const body = {
     contents: [{
@@ -185,15 +205,13 @@ async function callGemini(req: AnalyzeRequest): Promise<unknown> {
       ],
     }],
     generationConfig: {
-      // Force JSON mode — Gemini will produce a valid JSON document.
       responseMimeType: 'application/json',
-      // Slightly conservative — we want repeatable estimates, not creative ones.
       temperature: 0.2,
-      maxOutputTokens: 8192,
+      maxOutputTokens,
     },
   };
 
-  const r = await fetch(`${GEMINI_ENDPOINT}?key=${encodeURIComponent(GEMINI_API_KEY)}`, {
+  const r = await fetch(`${geminiEndpoint(modelUsed)}?key=${encodeURIComponent(GEMINI_API_KEY)}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -209,10 +227,9 @@ async function callGemini(req: AnalyzeRequest): Promise<unknown> {
   const raw = json?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
   if (!raw) throw new Error('Gemini returned no text.');
   try {
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    return { data: parsed, modelUsed };
   } catch (e) {
-    // If parsing fails, return the raw text in an error wrapper so the
-    // client can show something useful instead of a silent "AI failed."
     throw new Error(`Could not parse AI response as JSON: ${(e as Error).message}\nRaw: ${raw.slice(0, 400)}`);
   }
 }
@@ -228,8 +245,8 @@ serve(async (req) => {
     if (!body || !Array.isArray(body.pageUrls)) {
       return jsonResponse({ success: false, error: 'Missing pageUrls' }, 400);
     }
-    const data = await callGemini(body);
-    return jsonResponse({ success: true, data });
+    const { data, modelUsed } = await callGemini(body);
+    return jsonResponse({ success: true, data, modelUsed });
   } catch (e) {
     console.error('[analyze-drawings] failed', e);
     return jsonResponse({ success: false, error: String((e as Error).message ?? e) }, 500);

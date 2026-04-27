@@ -16,8 +16,11 @@ import { useProjects } from '@/contexts/ProjectContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import { uploadAndRenderPdf, type RenderedPlanPage } from '@/utils/pdfRenderClient';
-import { analyzeDrawings, type DrawingAnalysisResult } from '@/utils/drawingAnalyzer';
+import { analyzeDrawings, type DrawingAnalysisResult, type AnalyzerModel, MODEL_DISPLAY } from '@/utils/drawingAnalyzer';
 import { formatMoney } from '@/utils/formatters';
+import { useSubscription } from '@/contexts/SubscriptionContext';
+import { Crown, Zap } from 'lucide-react-native';
+import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
 
 type Step = 'idle' | 'uploading' | 'analyzing' | 'review';
 
@@ -41,14 +44,23 @@ function DrawingAnalyzerInner() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { projectId: paramProjectId } = useLocalSearchParams<{ projectId?: string }>();
-  const { projects, getProject, settings } = useProjects();
+  const { projects, getProject } = useProjects();
+  const { isBusinessTier, tier } = useSubscription();
 
   const [step, setStep] = useState<Step>('idle');
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
   const [pages, setPages] = useState<RenderedPlanPage[]>([]);
   const [result, setResult] = useState<DrawingAnalysisResult | null>(null);
+  const [modelUsed, setModelUsed] = useState<AnalyzerModel | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pickedProjectId, setPickedProjectId] = useState<string | undefined>(paramProjectId);
+  // Business-tier subscribers default to Pro Estimator. Pro-tier defaults
+  // to Standard but they CAN'T toggle up — that's the upgrade hook.
+  // Business tier sees a toggle so power users can switch back to Flash
+  // for speed when the drawings are clean and they just want quick numbers.
+  const [pickedModel, setPickedModel] = useState<AnalyzerModel>(
+    isBusinessTier ? 'gemini-2.5-pro' : 'gemini-2.5-flash',
+  );
 
   const project = useMemo(() =>
     pickedProjectId ? getProject(pickedProjectId) : undefined,
@@ -57,6 +69,17 @@ function DrawingAnalyzerInner() {
 
   const handlePick = useCallback(async () => {
     setError(null);
+
+    // Pre-flight rate-limit check. Pro Estimator counts as 'smart' (more
+    // expensive), Standard counts as 'fast'. The limiter caps daily use
+    // per the subscription tier.
+    const requestTier: 'fast' | 'smart' = pickedModel === 'gemini-2.5-pro' ? 'smart' : 'fast';
+    const limit = await checkAILimit(tier, requestTier);
+    if (!limit.allowed) {
+      setError(limit.message ?? 'Daily AI limit reached.');
+      return;
+    }
+
     try {
       const picked = await DocumentPicker.getDocumentAsync({
         type: 'application/pdf',
@@ -80,25 +103,30 @@ function DrawingAnalyzerInner() {
       });
       setPages(rendered);
 
-      // Hand off to the analyzer with project context if available.
+      // Hand off to the analyzer with project context + chosen model.
       setStep('analyzing');
-      const analysis = await analyzeDrawings({
+      const { result: analysis, modelUsed: usedModel } = await analyzeDrawings({
         pageUrls: rendered.map(p => p.publicUrl),
         projectName: project?.name,
         projectType: project?.type,
         squareFootage: project?.squareFootage,
         location: project?.location,
         quality: (project?.quality as 'standard' | 'premium' | 'luxury' | undefined) ?? undefined,
+        model: pickedModel,
       });
       setResult(analysis);
+      setModelUsed(usedModel);
       setStep('review');
+      // Debit the rate limit ONLY after a successful run so failures
+      // don't burn the user's daily quota.
+      void recordAIUsage(usedModel === 'gemini-2.5-pro' ? 'smart' : 'fast');
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e) {
       console.warn('[DrawingAnalyzer] failed', e);
       setError(String((e as Error).message ?? e));
       setStep('idle');
     }
-  }, [pickedProjectId, project]);
+  }, [pickedProjectId, project, pickedModel, tier]);
 
   const handleReset = useCallback(() => {
     setStep('idle');
@@ -149,6 +177,40 @@ function DrawingAnalyzerInner() {
         contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 80 }}
         showsVerticalScrollIndicator={false}
       >
+        {/* Model picker — Business tier picks; Pro tier sees an upgrade hint. */}
+        {step === 'idle' && (
+          <View style={styles.card}>
+            <Text style={styles.cardLabel}>Estimator depth</Text>
+            <Text style={styles.cardHelper}>
+              Standard returns a directional estimate fast — even from rough drawings. Pro Estimator reasons more carefully and stays conservative when plans are incomplete.
+            </Text>
+            <View style={styles.modelRow}>
+              <ModelOption
+                modelKey="gemini-2.5-flash"
+                active={pickedModel === 'gemini-2.5-flash'}
+                disabled={false}
+                onPress={() => setPickedModel('gemini-2.5-flash')}
+              />
+              <ModelOption
+                modelKey="gemini-2.5-pro"
+                active={pickedModel === 'gemini-2.5-pro'}
+                disabled={!isBusinessTier}
+                onPress={() => isBusinessTier
+                  ? setPickedModel('gemini-2.5-pro')
+                  : router.push('/paywall' as never)}
+              />
+            </View>
+            {!isBusinessTier && (
+              <View style={styles.upsell}>
+                <Crown size={12} color={Colors.warning} />
+                <Text style={styles.upsellText}>
+                  Pro Estimator is included with the Business tier — deeper reasoning, larger output budget, more conservative on incomplete drawings.
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
+
         {/* Project picker (optional context) */}
         {step === 'idle' && (
           <View style={styles.card}>
@@ -228,6 +290,7 @@ function DrawingAnalyzerInner() {
           <ResultView
             result={result}
             pages={pages}
+            modelUsed={modelUsed}
             onReset={handleReset}
             onUse={handleUseAsEstimate}
           />
@@ -237,12 +300,51 @@ function DrawingAnalyzerInner() {
   );
 }
 
-function ResultView({ result, pages, onReset, onUse }: {
+function ModelOption({ modelKey, active, disabled, onPress }: {
+  modelKey: AnalyzerModel; active: boolean; disabled: boolean; onPress: () => void;
+}) {
+  const meta = MODEL_DISPLAY[modelKey];
+  const Icon = modelKey === 'gemini-2.5-pro' ? Crown : Zap;
+  return (
+    <TouchableOpacity
+      style={[
+        styles.modelOption,
+        active && styles.modelOptionActive,
+        disabled && styles.modelOptionDisabled,
+      ]}
+      onPress={onPress}
+      activeOpacity={0.85}
+    >
+      <View style={styles.modelOptionHead}>
+        <Icon size={14} color={active ? Colors.primary : disabled ? Colors.textMuted : Colors.text} />
+        <Text style={[
+          styles.modelOptionLabel,
+          active && { color: Colors.primary },
+          disabled && { color: Colors.textMuted },
+        ]}>
+          {meta.label}
+        </Text>
+        {modelKey === 'gemini-2.5-pro' && (
+          <View style={[styles.tierTag, disabled ? styles.tierTagLocked : styles.tierTagBusiness]}>
+            <Text style={styles.tierTagText}>{disabled ? 'Business' : 'Active'}</Text>
+          </View>
+        )}
+      </View>
+      <Text style={[styles.modelOptionTagline, disabled && { color: Colors.textMuted }]}>
+        {meta.tagline}
+      </Text>
+    </TouchableOpacity>
+  );
+}
+
+function ResultView({ result, pages, modelUsed, onReset, onUse }: {
   result: DrawingAnalysisResult;
   pages: RenderedPlanPage[];
+  modelUsed: AnalyzerModel | null;
   onReset: () => void;
   onUse: () => void;
 }) {
+  const modelMeta = modelUsed ? MODEL_DISPLAY[modelUsed] : null;
   const lineItemsByCategory = useMemo(() => {
     const map = new Map<string, typeof result.lineItems>();
     for (const li of result.lineItems) {
@@ -269,6 +371,14 @@ function ResultView({ result, pages, onReset, onUse }: {
               {result.confidenceOverall.toUpperCase()} confidence
             </Text>
           </View>
+          {modelMeta && (
+            <View style={styles.modelBadge}>
+              {modelUsed === 'gemini-2.5-pro'
+                ? <Crown size={10} color={Colors.primary} />
+                : <Zap size={10} color={Colors.textMuted} />}
+              <Text style={styles.modelBadgeText}>{modelMeta.label}</Text>
+            </View>
+          )}
           <TouchableOpacity onPress={onReset} hitSlop={6}>
             <RefreshCw size={16} color={Colors.textMuted} />
           </TouchableOpacity>
@@ -497,6 +607,40 @@ const styles = StyleSheet.create({
   },
   cardLabel: { fontSize: 11, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.6 },
   cardHelper: { fontSize: 12, color: Colors.textMuted, marginTop: 4, marginBottom: 10, lineHeight: 17 },
+
+  modelRow: { flexDirection: 'row', gap: 8 },
+  modelOption: {
+    flex: 1, padding: 12, borderRadius: 12,
+    backgroundColor: Colors.background,
+    borderWidth: 1.5, borderColor: Colors.border,
+    gap: 4,
+  },
+  modelOptionActive: {
+    borderColor: Colors.primary, backgroundColor: Colors.primary + '08',
+  },
+  modelOptionDisabled: { opacity: 0.6 },
+  modelOptionHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  modelOptionLabel: { flex: 1, fontSize: 13, fontWeight: '700', color: Colors.text },
+  modelOptionTagline: { fontSize: 11, color: Colors.textMuted, lineHeight: 15 },
+  tierTag: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 999 },
+  tierTagBusiness: { backgroundColor: Colors.primary + '20' },
+  tierTagLocked: { backgroundColor: Colors.warning + '20' },
+  tierTagText: { fontSize: 9, fontWeight: '800', color: Colors.text, letterSpacing: 0.4 },
+
+  upsell: {
+    marginTop: 8, padding: 10, borderRadius: 10,
+    backgroundColor: Colors.warning + '0D',
+    borderWidth: 1, borderColor: Colors.warning + '30',
+    flexDirection: 'row', gap: 6, alignItems: 'flex-start',
+  },
+  upsellText: { flex: 1, fontSize: 11, color: Colors.text, lineHeight: 16, fontStyle: 'italic' },
+
+  modelBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999,
+    backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border,
+  },
+  modelBadgeText: { fontSize: 10, fontWeight: '700', color: Colors.text, letterSpacing: 0.3 },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   chip: {
     paddingHorizontal: 10, paddingVertical: 7, borderRadius: 9,

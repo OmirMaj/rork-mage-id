@@ -53,6 +53,25 @@ export interface DrawingAnalysisResult {
   confidenceExplanation: string;
 }
 
+// Available models. Free / Pro subscribers get Flash, Business get Pro.
+// Flash is faster and more willing to produce a directional estimate even
+// from imperfect inputs. Pro is slower, more expensive, and more
+// conservative — it'll refuse to fabricate when drawings are unreadable.
+export type AnalyzerModel = 'gemini-2.5-flash' | 'gemini-2.5-pro';
+
+export const MODEL_DISPLAY: Record<AnalyzerModel, { label: string; tagline: string; tier: 'pro' | 'business' }> = {
+  'gemini-2.5-flash': {
+    label: 'Standard',
+    tagline: 'Fast read · directional estimate even from rough drawings',
+    tier: 'pro',
+  },
+  'gemini-2.5-pro': {
+    label: 'Pro Estimator',
+    tagline: 'Deeper reasoning · more conservative on incomplete plans',
+    tier: 'business',
+  },
+};
+
 interface AnalyzeOpts {
   pageUrls: string[];
   projectName?: string;
@@ -61,15 +80,22 @@ interface AnalyzeOpts {
   location?: string;
   quality?: 'standard' | 'premium' | 'luxury';
   notes?: string;
+  model?: AnalyzerModel;
 }
 
-export async function analyzeDrawings(opts: AnalyzeOpts): Promise<DrawingAnalysisResult> {
+export interface AnalyzeResponse {
+  result: DrawingAnalysisResult;
+  modelUsed: AnalyzerModel;
+}
+
+export async function analyzeDrawings(opts: AnalyzeOpts): Promise<AnalyzeResponse> {
   if (!opts.pageUrls || opts.pageUrls.length === 0) {
     throw new Error('No drawing pages to analyze.');
   }
   const { data, error } = await supabase.functions.invoke<{
     success: boolean;
     data?: DrawingAnalysisResult;
+    modelUsed?: AnalyzerModel;
     error?: string;
   }>('analyze-drawings', {
     body: opts,
@@ -78,5 +104,8 @@ export async function analyzeDrawings(opts: AnalyzeOpts): Promise<DrawingAnalysi
   if (!data?.success || !data.data) {
     throw new Error(data?.error ?? 'Analyzer returned an empty result.');
   }
-  return data.data;
+  return {
+    result: data.data,
+    modelUsed: data.modelUsed ?? 'gemini-2.5-flash',
+  };
 }
