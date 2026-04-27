@@ -1,4 +1,4 @@
-import React, { useMemo, useCallback } from 'react';
+import React, { useMemo, useCallback, useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform,
 } from 'react-native';
@@ -13,6 +13,10 @@ import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import ConstructionLoader from '@/components/ConstructionLoader';
 import EmptyState from '@/components/EmptyState';
+import CashFlowGlance from '@/components/CashFlowGlance';
+import CashFlowAlerts from '@/components/CashFlowAlerts';
+import { generateForecast, type CashFlowWeek } from '@/utils/cashFlowEngine';
+import { loadCashFlowData, isSetupComplete } from '@/utils/cashFlowStorage';
 import { formatMoney, formatMoneyShort } from '@/utils/formatters';
 import type { Project } from '@/types';
 
@@ -156,6 +160,34 @@ export default function SummaryScreen() {
     );
   }, [stats]);
 
+  // Cash flow forecast — moved here from the home tab so Your Projects
+  // stays focused on the project list, and Summary becomes the financial
+  // bird's-eye view it was always meant to be.
+  const [cashFlowForecast, setCashFlowForecast] = useState<CashFlowWeek[] | null>(null);
+  useEffect(() => {
+    const loadForecast = async () => {
+      try {
+        const setupDone = await isSetupComplete();
+        if (!setupDone) return;
+        const data = await loadCashFlowData();
+        if (data.startingBalance > 0 || data.expenses.length > 0) {
+          const forecast = generateForecast(
+            data.startingBalance,
+            data.expenses,
+            [],
+            data.expectedPayments,
+            12,
+            data.defaultPaymentTerms,
+          );
+          setCashFlowForecast(forecast);
+        }
+      } catch (err) {
+        console.log('[Summary] Cash flow forecast load failed:', err);
+      }
+    };
+    void loadForecast();
+  }, [projects]);
+
   const openProject = useCallback((projectId: string) => {
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push({ pathname: '/project-detail', params: { id: projectId } } as any);
@@ -199,6 +231,14 @@ export default function SummaryScreen() {
           <PortfolioStat label="Open Punch" value={`${portfolio.punch}`} tint={Colors.info} />
           <PortfolioStat label="At Risk" value={`${portfolio.risks}`} tint={portfolio.risks > 0 ? Colors.error : Colors.success} />
         </View>
+
+        {projects.length > 0 && (
+          <CashFlowGlance forecast={cashFlowForecast} weeks={4} />
+        )}
+
+        {projects.length > 0 && (
+          <CashFlowAlerts forecast={cashFlowForecast} invoices={[]} />
+        )}
 
         {stats.length === 0 ? (
           <View style={styles.emptyCard}>

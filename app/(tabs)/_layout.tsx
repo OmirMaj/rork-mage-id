@@ -56,6 +56,7 @@ export default function TabLayout() {
         <DesktopSidebar width={layout.sidebarWidth} />
         <View style={styles.desktopContent}>
           <Tabs
+            initialRouteName="summary"
             screenOptions={{
               headerShown: false,
               tabBarStyle: { display: 'none' },
@@ -84,6 +85,7 @@ export default function TabLayout() {
 
   return (
     <Tabs
+      initialRouteName="summary"
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: Colors.primary,

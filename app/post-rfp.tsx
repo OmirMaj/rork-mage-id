@@ -273,8 +273,8 @@ export default function PostRfpScreen() {
           <ChevronLeft size={26} color={Colors.primary} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={styles.eyebrow}>Post a project</Text>
-          <Text style={styles.title}>Find a contractor — get bids in days</Text>
+          <Text style={styles.eyebrow}>Post a Project</Text>
+          <Text style={styles.title}>Find a Contractor. Get Bids in Days.</Text>
         </View>
       </View>
 

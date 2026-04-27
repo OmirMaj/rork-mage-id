@@ -12,7 +12,7 @@ import * as Haptics from 'expo-haptics';
 import {
   Plus, TrendingUp, FolderOpen, Layers, X, ChevronRight, Calculator, CalendarDays,
   BarChart3, TrendingDown, Package, DollarSign, Percent, ShoppingCart, ArrowDownRight,
-  Receipt, Wallet, Search, Sparkles, ChevronDown, ChevronUp, Inbox, HardHat, Bell, Compass,
+  Receipt, Wallet, Search, Sparkles, ChevronDown, ChevronUp, Inbox, HardHat, Bell,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
@@ -29,12 +29,7 @@ import { useNotificationFeed } from '@/hooks/useNotificationFeed';
 import UniversalMicButton from '@/components/UniversalMicButton';
 import EmptyState from '@/components/EmptyState';
 import OfflineSyncPill from '@/components/OfflineSyncPill';
-import CashFlowAlerts from '@/components/CashFlowAlerts';
-import CashFlowGlance from '@/components/CashFlowGlance';
 import QuickFieldUpdate from '@/components/QuickFieldUpdate';
-import { generateForecast } from '@/utils/cashFlowEngine';
-import type { CashFlowWeek } from '@/utils/cashFlowEngine';
-import { loadCashFlowData, isSetupComplete } from '@/utils/cashFlowStorage';
 import { PROJECT_TYPES, type Project, type ProjectType, type EntityRef } from '@/types';
 import { formatMoney, formatMoneyShort } from '@/utils/formatters';
 
@@ -82,31 +77,6 @@ export default function HomeScreen() {
   const [showSavingsDetail, setShowSavingsDetail] = useState(false);
   const [showWeeklySummary, setShowWeeklySummary] = useState(false);
   const [showAIBriefing, setShowAIBriefing] = useState(false);
-  const [cashFlowForecast, setCashFlowForecast] = useState<CashFlowWeek[] | null>(null);
-
-  useEffect(() => {
-    const loadForecast = async () => {
-      try {
-        const setupDone = await isSetupComplete();
-        if (!setupDone) return;
-        const data = await loadCashFlowData();
-        if (data.startingBalance > 0 || data.expenses.length > 0) {
-          const forecast = generateForecast(
-            data.startingBalance,
-            data.expenses,
-            [],
-            data.expectedPayments,
-            12,
-            data.defaultPaymentTerms
-          );
-          setCashFlowForecast(forecast);
-        }
-      } catch (err) {
-        console.log('[Home] Cash flow forecast load failed:', err);
-      }
-    };
-    void loadForecast();
-  }, [projects]);
 
   const totalEstimated = projects.reduce((sum, p) => {
     const linked = p.linkedEstimate;
@@ -411,34 +381,6 @@ export default function HomeScreen() {
               </View>
             )}
 
-            {/* Marketplace CTA — homeowners post projects, contractors browse nearby. */}
-            <View style={styles.marketplaceRow}>
-              <TouchableOpacity
-                style={styles.marketplaceCard}
-                onPress={() => router.push('/post-rfp' as any)}
-                activeOpacity={0.85}
-                testID="home-post-rfp"
-              >
-                <View style={[styles.marketplaceIcon, { backgroundColor: Colors.warning + '15' }]}>
-                  <HardHat size={18} color={Colors.warning} />
-                </View>
-                <Text style={styles.marketplaceTitle}>Post a project</Text>
-                <Text style={styles.marketplaceSub}>Get bids from nearby contractors</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.marketplaceCard}
-                onPress={() => router.push('/nearby-rfps' as any)}
-                activeOpacity={0.85}
-                testID="home-nearby-rfps"
-              >
-                <View style={[styles.marketplaceIcon, { backgroundColor: Colors.primary + '15' }]}>
-                  <Compass size={18} color={Colors.primary} />
-                </View>
-                <Text style={styles.marketplaceTitle}>Browse projects</Text>
-                <Text style={styles.marketplaceSub}>Find work near you</Text>
-              </TouchableOpacity>
-            </View>
-
             {projects.length > 0 && <SmartInbox />}
 
             {projects.length > 0 && (
@@ -470,13 +412,8 @@ export default function HomeScreen() {
               </View>
             )}
 
-            {projects.length > 0 && (
-              <CashFlowGlance forecast={cashFlowForecast} weeks={4} />
-            )}
-
-            {projects.length > 0 && (
-              <CashFlowAlerts forecast={cashFlowForecast} invoices={[]} />
-            )}
+            {/* CashFlowGlance + CashFlowAlerts moved to the Summary tab.
+                Your Projects is for the project list itself. */}
 
             {projects.length > 0 && <QuickFieldUpdate />}
 
@@ -958,41 +895,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.6,
     paddingHorizontal: 20,
     marginBottom: 10,
-  },
-  marketplaceRow: {
-    flexDirection: 'row' as const,
-    gap: 10,
-    paddingHorizontal: 16,
-    marginTop: 4,
-    marginBottom: 14,
-  },
-  marketplaceCard: {
-    flex: 1,
-    backgroundColor: Colors.surface,
-    borderRadius: 14,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: Colors.borderLight,
-    gap: 4,
-  },
-  marketplaceIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 9,
-    alignItems: 'center' as const,
-    justifyContent: 'center' as const,
-    marginBottom: 6,
-  },
-  marketplaceTitle: {
-    fontSize: 13,
-    fontWeight: '700' as const,
-    color: Colors.text,
-    letterSpacing: -0.1,
-  },
-  marketplaceSub: {
-    fontSize: 11,
-    color: Colors.textSecondary,
-    lineHeight: 15,
   },
   aiBriefingWrap: {
     marginHorizontal: 16,
