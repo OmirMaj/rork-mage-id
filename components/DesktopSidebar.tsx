@@ -27,8 +27,9 @@ const NAV_ITEMS: NavItem[] = [
   { key: 'home', label: 'Projects', icon: Home, route: '/(tabs)/(home)', section: 'PROJECT' },
   { key: 'estimate', label: 'Estimate', icon: BarChart3, route: '/(tabs)/discover/estimate', section: 'PROJECT' },
   { key: 'schedule', label: 'Schedule', icon: CalendarDays, route: '/(tabs)/discover/schedule', section: 'PROJECT', requires: 'schedule_gantt_pdf' },
+  { key: 'mage-id-bids', label: 'MAGE ID Bids', icon: Hammer, route: '/(tabs)/mage-id-bids', section: 'MARKETPLACE' },
+  { key: 'bids', label: 'Public Bids', icon: FileText, route: '/(tabs)/bids', section: 'MARKETPLACE' },
   { key: 'equipment', label: 'Equipment', icon: Hammer, route: '/(tabs)/equipment', section: 'FIELD', requires: 'equipment_rental' },
-  { key: 'bids', label: 'Bids', icon: FileText, route: '/(tabs)/bids', section: 'FIELD' },
   { key: 'companies', label: 'Companies', icon: Building2, route: '/(tabs)/companies', section: 'NETWORK' },
   { key: 'discover', label: 'Discover', icon: Search, route: '/(tabs)/discover', section: 'NETWORK' },
   { key: 'hire', label: 'Hire', icon: HardHat, route: '/(tabs)/hire', section: 'NETWORK' },
@@ -36,7 +37,7 @@ const NAV_ITEMS: NavItem[] = [
   { key: 'settings', label: 'Settings', icon: Settings, route: '/(tabs)/settings', section: 'ACCOUNT' },
 ];
 
-const SECTIONS = ['PROJECT', 'FIELD', 'NETWORK', 'ACCOUNT'];
+const SECTIONS = ['PROJECT', 'MARKETPLACE', 'FIELD', 'NETWORK', 'ACCOUNT'];
 
 function isActiveRoute(pathname: string, navKey: string): boolean {
   if (navKey === 'summary') return pathname.includes('summary');
@@ -44,7 +45,10 @@ function isActiveRoute(pathname: string, navKey: string): boolean {
   if (navKey === 'estimate') return pathname.includes('estimate');
   if (navKey === 'schedule') return pathname.includes('schedule');
   if (navKey === 'equipment') return pathname.includes('equipment');
-  if (navKey === 'bids') return pathname.includes('bids');
+  if (navKey === 'mage-id-bids') return pathname.includes('mage-id-bids');
+  // Plain "bids" is the scraped public-bids tab; make sure the mage-id
+  // route doesn't trigger this so both items don't both light up.
+  if (navKey === 'bids') return pathname.includes('bids') && !pathname.includes('mage-id-bids');
   if (navKey === 'construction-ai') return pathname.includes('construction-ai');
   if (navKey === 'companies') return pathname.includes('companies');
   if (navKey === 'discover') return pathname.includes('discover');

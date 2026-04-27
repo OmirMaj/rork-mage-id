@@ -385,6 +385,27 @@ export default function BidsScreen() {
           </View>
         </View>
 
+        {/* Cross-link to the homeowner-RFP marketplace. Public Bids = scraped
+            government RFPs; MAGE ID Bids = direct homeowner posts. Two
+            different surfaces, both ways to find work. */}
+        <TouchableOpacity
+          style={styles.privateXref}
+          onPress={() => router.push('/(tabs)/mage-id-bids' as any)}
+          activeOpacity={0.85}
+          testID="bids-xref-mageid"
+        >
+          <View style={styles.privateXrefIcon}>
+            <Text style={{ fontSize: 16 }}>🔨</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.privateXrefTitle}>Looking for private work?</Text>
+            <Text style={styles.privateXrefBody}>
+              Browse <Text style={{ fontWeight: '800' }}>MAGE ID Bids</Text> — homeowner-posted projects nearby
+            </Text>
+          </View>
+          <ChevronRight size={14} color={Colors.primary} />
+        </TouchableOpacity>
+
         <View style={[styles.searchBar]}>
           <Search size={16} color={Colors.textMuted} />
           <TextInput
@@ -650,6 +671,20 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 28, fontWeight: '800' as const, color: Colors.text, letterSpacing: -0.5 },
   countPill: { backgroundColor: Colors.primary + '15', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
   countPillText: { fontSize: 13, fontWeight: '700' as const, color: Colors.primary },
+  privateXref: {
+    flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10,
+    paddingHorizontal: 12, paddingVertical: 10, borderRadius: 12,
+    backgroundColor: Colors.primary + '0D',
+    borderWidth: 1, borderColor: Colors.primary + '30',
+    marginBottom: 10,
+  },
+  privateXrefIcon: {
+    width: 32, height: 32, borderRadius: 9,
+    backgroundColor: Colors.surface,
+    alignItems: 'center' as const, justifyContent: 'center' as const,
+  },
+  privateXrefTitle: { fontSize: 13, fontWeight: '800' as const, color: Colors.text },
+  privateXrefBody:  { fontSize: 11, color: Colors.textSecondary, marginTop: 1 },
   searchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.fillTertiary, borderRadius: 12, paddingHorizontal: 12, height: 40, gap: 8, marginBottom: 8 },
   searchInput: { flex: 1, fontSize: 14, color: Colors.text },
   filterRow: { flexDirection: 'row', gap: 12, marginBottom: 4 },

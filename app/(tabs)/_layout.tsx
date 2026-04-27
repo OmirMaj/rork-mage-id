@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { View, StyleSheet, Platform, Animated, Easing } from 'react-native';
 import { Tabs, Slot } from 'expo-router';
-import { Home, Compass, Settings, LayoutDashboard } from 'lucide-react-native';
+import { Home, Compass, Settings, LayoutDashboard, Hammer } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import DesktopSidebar from '@/components/DesktopSidebar';
@@ -63,6 +63,7 @@ export default function TabLayout() {
           >
             <Tabs.Screen name="summary" options={{ title: 'Summary' }} />
             <Tabs.Screen name="(home)" options={{ title: 'Your Projects' }} />
+            <Tabs.Screen name="mage-id-bids" options={{ title: 'MAGE ID Bids' }} />
             <Tabs.Screen name="discover" options={{ title: 'Discover' }} />
             <Tabs.Screen name="settings" options={{ title: 'Settings' }} />
             <Tabs.Screen name="construction-ai" options={{ href: null }} />
@@ -120,6 +121,15 @@ export default function TabLayout() {
           tabBarBadgeStyle: { backgroundColor: '#FF3B30', color: '#FFFFFF' },
           tabBarIcon: ({ color, focused }) => (
             <TabIcon Icon={Home} color={color} focused={focused} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="mage-id-bids"
+        options={{
+          title: 'MAGE Bids',
+          tabBarIcon: ({ color, focused }) => (
+            <TabIcon Icon={Hammer} color={color} focused={focused} />
           ),
         }}
       />
