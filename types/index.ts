@@ -1462,6 +1462,43 @@ export interface PublicBid {
   applyUrl?: string;
   sourceUrl?: string;
   sourceName?: string;
+  // Homeowner-RFP extension. When true, this row was posted by a homeowner
+  // looking for a contractor (vs scraped public/agency bids). The fields
+  // below are populated only on those rows.
+  isHomeownerRfp?: boolean;
+  addressLine?: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  photoUrls?: string[];
+  drawingUrls?: string[];
+  scopeDescription?: string;
+  budgetMin?: number;
+  budgetMax?: number;
+  desiredStart?: string;
+  addressVerified?: boolean;
+  awardedResponseId?: string;
+  awardedAt?: string;
+}
+
+// A contractor's submission against a homeowner-posted RFP.
+export interface HomeownerBidResponse {
+  id: string;
+  bidId: string;
+  proposerUserId: string;
+  proposerCompanyId?: string;
+  proposerName: string;
+  proposerEmail?: string;
+  proposerPhone?: string;
+  estimateAmount: number;
+  estimateSummary?: string;
+  estimateBreakdown?: { label: string; amount: number }[];
+  attachedPdfUrl?: string;
+  message?: string;
+  viewSiteRequested: boolean;
+  status: 'submitted' | 'shortlisted' | 'awarded' | 'declined' | 'withdrawn';
+  submittedAt: string;
+  respondedAt?: string;
+  awardedProjectId?: string;
 }
 
 export interface CompanyProfile {

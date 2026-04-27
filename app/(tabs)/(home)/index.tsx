@@ -12,7 +12,7 @@ import * as Haptics from 'expo-haptics';
 import {
   Plus, TrendingUp, FolderOpen, Layers, X, ChevronRight, Calculator, CalendarDays,
   BarChart3, TrendingDown, Package, DollarSign, Percent, ShoppingCart, ArrowDownRight,
-  Receipt, Wallet, Search, Sparkles, ChevronDown, ChevronUp, Inbox, HardHat, Bell,
+  Receipt, Wallet, Search, Sparkles, ChevronDown, ChevronUp, Inbox, HardHat, Bell, Compass,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
@@ -410,6 +410,34 @@ export default function HomeScreen() {
                 </View>
               </View>
             )}
+
+            {/* Marketplace CTA — homeowners post projects, contractors browse nearby. */}
+            <View style={styles.marketplaceRow}>
+              <TouchableOpacity
+                style={styles.marketplaceCard}
+                onPress={() => router.push('/post-rfp' as any)}
+                activeOpacity={0.85}
+                testID="home-post-rfp"
+              >
+                <View style={[styles.marketplaceIcon, { backgroundColor: Colors.warning + '15' }]}>
+                  <HardHat size={18} color={Colors.warning} />
+                </View>
+                <Text style={styles.marketplaceTitle}>Post a project</Text>
+                <Text style={styles.marketplaceSub}>Get bids from nearby contractors</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.marketplaceCard}
+                onPress={() => router.push('/nearby-rfps' as any)}
+                activeOpacity={0.85}
+                testID="home-nearby-rfps"
+              >
+                <View style={[styles.marketplaceIcon, { backgroundColor: Colors.primary + '15' }]}>
+                  <Compass size={18} color={Colors.primary} />
+                </View>
+                <Text style={styles.marketplaceTitle}>Browse projects</Text>
+                <Text style={styles.marketplaceSub}>Find work near you</Text>
+              </TouchableOpacity>
+            </View>
 
             {projects.length > 0 && <SmartInbox />}
 
@@ -930,6 +958,41 @@ const styles = StyleSheet.create({
     letterSpacing: 0.6,
     paddingHorizontal: 20,
     marginBottom: 10,
+  },
+  marketplaceRow: {
+    flexDirection: 'row' as const,
+    gap: 10,
+    paddingHorizontal: 16,
+    marginTop: 4,
+    marginBottom: 14,
+  },
+  marketplaceCard: {
+    flex: 1,
+    backgroundColor: Colors.surface,
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+    gap: 4,
+  },
+  marketplaceIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 9,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    marginBottom: 6,
+  },
+  marketplaceTitle: {
+    fontSize: 13,
+    fontWeight: '700' as const,
+    color: Colors.text,
+    letterSpacing: -0.1,
+  },
+  marketplaceSub: {
+    fontSize: 11,
+    color: Colors.textSecondary,
+    lineHeight: 15,
   },
   aiBriefingWrap: {
     marginHorizontal: 16,

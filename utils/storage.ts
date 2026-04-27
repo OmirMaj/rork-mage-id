@@ -111,6 +111,39 @@ export async function uploadProfileImage(
   }
 }
 
+// Upload a homeowner-RFP attachment (photo or drawing PDF) to the
+// public rfp-attachments bucket. Returns the public URL — the bucket is
+// public-read so contractors browsing the listing can fetch directly.
+// Path convention is <userId>/<rfpId>/<timestamp>_<filename> which the
+// RLS policy on storage.objects expects (folder[1] must equal auth.uid()).
+export async function uploadRfpAttachment(
+  userId: string,
+  rfpId: string,
+  fileUri: string,
+  fileName: string,
+  contentType: string,
+): Promise<string | null> {
+  if (!isSupabaseConfigured) return null;
+  try {
+    const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const path = `${userId}/${rfpId}/${Date.now()}_${safeName}`;
+    const response = await fetch(fileUri);
+    const blob = await response.blob();
+    const { error } = await supabase.storage
+      .from('rfp-attachments')
+      .upload(path, blob, { contentType, upsert: false });
+    if (error) {
+      console.log('[Storage] RFP attachment upload error:', error.message);
+      return null;
+    }
+    const { data } = supabase.storage.from('rfp-attachments').getPublicUrl(path);
+    return data.publicUrl ?? null;
+  } catch (err) {
+    console.log('[Storage] RFP attachment upload failed:', err);
+    return null;
+  }
+}
+
 export async function deleteStorageFile(
   bucket: string,
   path: string,

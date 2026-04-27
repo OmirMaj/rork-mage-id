@@ -20,6 +20,8 @@
 //     'sub_invoice_submitted'      — sub → GC
 //     'sub_invoice_reviewed'       — GC → sub (optional, future)
 //     'gc_message'                 — GC → client (optional, future)
+//     'nearby_rfp_posted'          — system → contractor (marketplace fan-out)
+//     'rfp_awarded'                — homeowner → contractor (winner notice)
 //   source_table, source_id        — for outbox dedup + back-reference
 //   payload                        — the row that triggered the event,
 //                                    plus anything the trigger wants to
@@ -222,7 +224,12 @@ async function dispatch(req: NotifyRequest): Promise<unknown> {
 
   // Find the GC owner. Direct projects.user_id when we already know the
   // project, else look up via gc_for_portal / gc_for_sub_portal.
-  let gcUserId: string | null = (payload.gc_user_id as string) ?? null;
+  // Marketplace events (nearby_rfp_posted, rfp_awarded) target a
+  // contractor directly via contractor_user_id — same shape as gc_user_id
+  // since contractors ARE GCs in our schema.
+  let gcUserId: string | null = (payload.gc_user_id as string)
+    ?? (payload.contractor_user_id as string)
+    ?? null;
   let projectId: string | null = (payload.project_id as string) ?? null;
 
   if (!gcUserId && portalId) {
@@ -445,6 +452,68 @@ async function dispatch(req: NotifyRequest): Promise<unknown> {
         payload,
         delivered_at: r.ok ? new Date().toISOString() : null,
       }).catch(() => {});
+      break;
+    }
+    case 'nearby_rfp_posted': {
+      // System fan-out: a homeowner posted an RFP whose location matches
+      // this contractor's service area. Push + email them.
+      const rfpId = (payload.rfp_id as string) ?? '';
+      const title = (payload.title as string) || 'A new project';
+      const city = (payload.city as string) || '';
+      const state = (payload.state as string) || '';
+      const scope = (payload.scope_excerpt as string) || '';
+      const budgetMin = payload.budget_min as number | null;
+      const budgetMax = payload.budget_max as number | null;
+      const cityState = [city, state].filter(Boolean).join(', ');
+      const budgetLine = (budgetMin || budgetMax)
+        ? `${budgetMin ? fmtMoney(budgetMin) : '?'} – ${budgetMax ? fmtMoney(budgetMax) : '?'}`
+        : 'Budget not specified';
+      const detailUrl = `https://app.mageid.app/rfp-detail?bidId=${encodeURIComponent(rfpId)}`;
+      await dispatchOne('gc', {
+        prefKey: 'nearby_rfp_posted',
+        title: `New project nearby · ${cityState || 'your area'}`,
+        body: `${title}${scope ? ' — ' + scope.slice(0, 100) : ''}`,
+        pushData: { rfpId, kind: 'nearby_rfp_posted' },
+        pushToken: gc.push_token,
+        email: gc.email,
+        emailSubject: `New ${cityState ? cityState + ' ' : ''}project — ${title}`,
+        emailHtml: wrapHtml({
+          eyebrow: 'New project nearby',
+          title: esc(title),
+          bodyHtml: `
+            <p style="margin:0 0 6px"><strong>Location:</strong> ${esc(cityState || 'Pending')}</p>
+            <p style="margin:0 0 14px"><strong>Budget:</strong> ${esc(budgetLine)}</p>
+            ${scope ? `<blockquote style="margin:0 0 14px;padding:14px 16px;background:#F4EFE6;border-left:3px solid #FF6A1A;border-radius:6px;font-style:italic;">${esc(scope)}</blockquote>` : ''}
+            <p style="margin:0">Open the project to see drawings, photos, and the full scope. Submit your estimate before the bid deadline.</p>`,
+          cta: { label: 'View project', href: detailUrl },
+        }),
+      });
+      break;
+    }
+    case 'rfp_awarded': {
+      // Homeowner awarded the RFP to this contractor. The award-rfp edge
+      // function has already created the project + client portal in their
+      // account; this is just the notification that it happened.
+      const projectName = (payload.project_name as string) || 'a project';
+      const newProjectId = (payload.project_id as string) || '';
+      await dispatchOne('gc', {
+        prefKey: 'rfp_awarded',
+        title: `🎉 You won the bid · ${projectName}`,
+        body: `The homeowner picked you. Project is set up in your MAGE ID — open to see drawings, scope, and start the kickoff message.`,
+        pushData: { projectId: newProjectId, kind: 'rfp_awarded' },
+        pushToken: gc.push_token,
+        email: gc.email,
+        emailSubject: `You were awarded ${projectName}`,
+        emailHtml: wrapHtml({
+          eyebrow: 'Bid awarded',
+          title: `You won the bid for ${esc(projectName)}`,
+          bodyHtml: `
+            <p style="margin:0 0 14px">The homeowner just awarded the project to you. Your MAGE ID account already has a new project loaded with the drawings, photos, scope, and budget they shared — plus a live client portal between you and them.</p>
+            <p style="margin:0 0 14px"><strong>Next step:</strong> open the project, review what they posted, and send a kickoff message through the portal so they know you're on it.</p>
+            <p style="margin:0;color:#8B9099;font-size:13px">Other bidders were politely declined automatically — you don't need to do anything on that side.</p>`,
+          cta: { label: 'Open the project', href: 'https://app.mageid.app' },
+        }),
+      });
       break;
     }
     default:
