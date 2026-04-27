@@ -255,6 +255,41 @@ nav.links a.active, .links a.active { color: var(--amber); }
   margin: 0;
 }
 
+/* Hero savings strip — used on /features/financials.html and
+   /features/vs-competitors.html. Three big numbers, lockup centered
+   under the hero copy. */
+.hero-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+  margin-top: 36px;
+  max-width: 880px;
+}
+.hero-stat {
+  padding: 22px 18px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+}
+.hero-stat-value {
+  font-family: 'Fraunces', Georgia, serif;
+  font-size: clamp(2rem, 3.6vw, 2.6rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--amber, #FF6A1A);
+  line-height: 1;
+  margin-bottom: 8px;
+}
+.hero-stat-label {
+  font-size: 0.85rem;
+  color: var(--fog);
+  line-height: 1.45;
+}
+@media (max-width: 720px) {
+  .hero-stats { grid-template-columns: 1fr; gap: 12px; }
+  .hero-stat { padding: 16px; }
+}
+
 /* =============================================================
    SECTIONS
    ============================================================= */

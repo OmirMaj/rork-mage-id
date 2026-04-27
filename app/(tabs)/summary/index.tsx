@@ -7,7 +7,7 @@ import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
   ClipboardList, DollarSign, AlertTriangle, CheckCircle2, ChevronRight,
-  Receipt, Wrench, Calendar, TrendingUp, FolderOpen,
+  Receipt, Wrench, Calendar, TrendingUp, FolderOpen, FileDown,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
@@ -240,6 +240,28 @@ export default function SummaryScreen() {
           <CashFlowAlerts forecast={cashFlowForecast} invoices={[]} />
         )}
 
+        {/* Reports CTA — opens the WIP / Profit / A/R Aging hub. The
+            three reports a banker, owner, or CFO will ask for first. */}
+        {projects.length > 0 && (
+          <TouchableOpacity
+            style={styles.reportsCard}
+            onPress={() => router.push('/reports' as any)}
+            activeOpacity={0.85}
+            testID="summary-reports-cta"
+          >
+            <View style={styles.reportsIcon}>
+              <FileDown size={18} color={Colors.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.reportsTitle}>Bank-ready reports</Text>
+              <Text style={styles.reportsBody}>
+                WIP · Profit by project · A/R aging · PDF + CSV export
+              </Text>
+            </View>
+            <ChevronRight size={16} color={Colors.textMuted} />
+          </TouchableOpacity>
+        )}
+
         {stats.length === 0 ? (
           <View style={styles.emptyCard}>
             <CheckCircle2 size={32} color={Colors.success} />
@@ -386,4 +408,17 @@ const styles = StyleSheet.create({
   emptyCard: { marginHorizontal: 16, padding: 24, alignItems: 'center' as const, gap: 10, backgroundColor: Colors.surface, borderRadius: 18, borderWidth: 1, borderColor: Colors.cardBorder },
   emptyTitle: { fontSize: 17, fontWeight: '700' as const, color: Colors.text },
   emptyDesc: { fontSize: 13, color: Colors.textMuted, textAlign: 'center' as const, lineHeight: 18 },
+  reportsCard: {
+    flexDirection: 'row' as const, alignItems: 'center' as const, gap: 12,
+    marginHorizontal: 16, marginBottom: 12,
+    padding: 14, borderRadius: 14,
+    backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.cardBorder,
+  },
+  reportsIcon: {
+    width: 38, height: 38, borderRadius: 11,
+    backgroundColor: Colors.primary + '15',
+    alignItems: 'center' as const, justifyContent: 'center' as const,
+  },
+  reportsTitle: { fontSize: 14, fontWeight: '800' as const, color: Colors.text, letterSpacing: -0.2 },
+  reportsBody:  { fontSize: 12, color: Colors.textSecondary, marginTop: 2, lineHeight: 16 },
 });

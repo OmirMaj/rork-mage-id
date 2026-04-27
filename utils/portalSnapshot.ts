@@ -65,6 +65,32 @@ export interface PortalSnapshot {
   // Whether the client can 1-tap approve/decline change orders from the
   // portal. When false the CO list is read-only.
   coApprovalEnabled?: boolean;
+  // Open-book / GMP cost transparency. When set, the portal renders a
+  // dedicated "Open Book" section showing real budget vs committed vs
+  // actual cost — a thing enterprise PM software can't really do for
+  // residential GCs. Only emitted when the GC has set
+  // project.contractMode to 'open_book' or 'gmp'.
+  openBook?: {
+    mode: 'gmp' | 'open_book';
+    budget: number;          // total budget across all phases
+    committed: number;       // signed commitments + POs
+    actual: number;          // dollars actually paid out
+    estimatedFinalCost: number;
+    contractValue: number;   // revised contract (with approved COs)
+    gmpCap?: number;         // when mode='gmp'
+    feePercent?: number;
+    feeAmount?: number;
+    // Per-phase breakdown so the client can see WHERE the money goes.
+    phases: Array<{
+      name: string;
+      budget: number;
+      committed: number;
+      actual: number;
+      projectedFinal: number;
+      variance: number;       // negative = over budget
+    }>;
+    asOf: string;             // ISO timestamp
+  };
   // Recent message thread between GC and client (most recent last). Static
   // portal reloads to fetch new messages; for now we don't poll.
   messages?: Array<{
@@ -209,6 +235,10 @@ interface BuildOpts {
   maxAIAPayApps?: number;   // default 6 (most recent first)
   maxInvoiceLines?: number; // default 10 lines per invoice
   maxMessages?: number;     // default 20
+  // Optional commitments — required to compute the open-book / GMP
+  // breakdown. When absent, the open-book section is omitted from the
+  // snapshot even if project.contractMode is set.
+  commitments?: import('@/types').Commitment[];
 }
 
 export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
@@ -487,6 +517,49 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
       ?? settings?.branding?.companyName,
   } : undefined;
 
+  // Open-book / GMP breakdown. Only when the GC has explicitly opted the
+  // project into transparent contract mode AND we have commitments to
+  // compute against — otherwise we omit the section to avoid leaking a
+  // half-built financial picture.
+  const openBook: PortalSnapshot['openBook'] = (() => {
+    const mode = project.contractMode;
+    if (mode !== 'gmp' && mode !== 'open_book') return undefined;
+    const commitments = opts.commitments;
+    if (!commitments) return undefined;
+    try {
+      // Lazy import — pure function, no side effects.
+      const { computeJobCost } = require('./jobCostEngine') as typeof import('./jobCostEngine');
+      const job = computeJobCost({ project, commitments, invoices, changeOrders });
+      const approvedCOs = changeOrders
+        .filter(co => co.projectId === project.id && co.status === 'approved')
+        .reduce((s, co) => s + co.changeAmount, 0);
+      const contractValue = (project.linkedEstimate?.grandTotal ?? project.estimate?.grandTotal ?? 0) + approvedCOs;
+      return {
+        mode,
+        budget: job.budget,
+        committed: job.committed,
+        actual: job.actual,
+        estimatedFinalCost: job.projectedFinal,
+        contractValue,
+        gmpCap: project.gmpCap,
+        feePercent: project.contractorFeePercent,
+        feeAmount: project.contractorFeeAmount,
+        phases: job.byPhase.map(p => ({
+          name: p.phase,
+          budget: p.budget,
+          committed: p.committed,
+          actual: p.actual,
+          projectedFinal: p.projectedFinal,
+          variance: p.variance,
+        })),
+        asOf: job.asOf,
+      };
+    } catch (err) {
+      console.warn('[portalSnapshot] open-book compute failed', err);
+      return undefined;
+    }
+  })();
+
   return {
     v: PORTAL_SNAPSHOT_VERSION,
     snapshotAt: new Date().toISOString(),
@@ -498,6 +571,7 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
     submitBudget: clientCanSetBudget ? apiConfig : undefined,
     portalApi: apiConfig,
     coApprovalEnabled: !!portal.coApprovalEnabled,
+    openBook,
     messages: trimmedMessages,
     company: {
       name: settings?.branding?.companyName ?? 'MAGE ID',

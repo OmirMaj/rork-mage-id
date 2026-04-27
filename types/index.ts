@@ -107,6 +107,23 @@ export interface Project {
   // Public portfolio settings — when enabled, surfaced at
   // mageid.app/builders/<companySlug>/<projectSlug>.
   publicProfile?: PublicProfileSettings;
+  // Contract delivery / billing model. Drives how the client portal
+  // displays cost transparency (open-book + GMP show real cost vs
+  // budget; fixed and cost-plus only show what's been billed).
+  //   fixed     — lump-sum contract; client sees billed only.
+  //   cost_plus — billed = cost + agreed fee.
+  //   gmp       — Guaranteed Maximum Price; client sees real cost up
+  //               to the GMP cap. Savings under GMP often shared.
+  //   open_book — full transparency. Client sees every commitment +
+  //               actual cost vs budget in the portal.
+  contractMode?: 'fixed' | 'cost_plus' | 'gmp' | 'open_book';
+  // For GMP — the agreed cap. The portal surfaces overruns past this.
+  gmpCap?: number;
+  // For cost-plus / GMP / open_book — the GC's fee on top of cost. Either a
+  // percentage of cost (most common) or a flat dollar amount. Both are
+  // shown to the client when the portal is in transparent mode.
+  contractorFeePercent?: number;
+  contractorFeeAmount?: number;
 }
 
 export interface ProjectTargetBudget {

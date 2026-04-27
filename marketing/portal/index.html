@@ -489,6 +489,47 @@
   }
   .task-row .row-title .pill { white-space: nowrap; }
 
+  /* ───────── Open Book / GMP ───────── */
+  .open-book { padding: 4px 0 8px; }
+  .ob-summary {
+    background: #FFFFFF;
+    border: 1px solid var(--bone, #E8DFCD);
+    border-radius: 14px;
+    padding: 16px 18px;
+    margin-bottom: 16px;
+  }
+  .ob-row {
+    display: flex; justify-content: space-between; align-items: baseline;
+    padding: 8px 0;
+    font-size: 13px;
+    border-bottom: 1px solid #F1EAD9;
+  }
+  .ob-row:last-child { border-bottom: 0; }
+  .ob-row span { color: #4A5159; }
+  .ob-row strong { color: #0B0D10; font-weight: 700; font-feature-settings: "tnum"; }
+  .ob-row-total { padding-top: 12px; margin-top: 4px; border-top: 2px solid #0B0D10; border-bottom: 0; }
+  .ob-row-total span { font-weight: 700; color: #0B0D10; }
+  .ob-row-total strong { font-size: 16px; }
+  .ob-phases-head {
+    font-size: 11px; font-weight: 800; letter-spacing: 1.2px;
+    color: #8B9099; text-transform: uppercase;
+    margin: 8px 4px 10px;
+  }
+  .ob-phase {
+    background: #FFFFFF;
+    border: 1px solid var(--bone, #E8DFCD);
+    border-radius: 12px;
+    padding: 12px 14px;
+    margin-bottom: 8px;
+  }
+  .ob-phase-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
+  .ob-phase-name { font-size: 13px; font-weight: 700; color: #0B0D10; }
+  .ob-phase-amount { font-size: 13px; font-weight: 700; color: #0B0D10; font-feature-settings: "tnum"; }
+  .ob-bar { height: 6px; background: #F1EAD9; border-radius: 3px; overflow: hidden; margin-bottom: 6px; }
+  .ob-bar-fill { height: 100%; transition: width 240ms ease; }
+  .ob-phase-meta { font-size: 11px; color: #8B9099; }
+  .ob-disclaimer { font-size: 11px; color: #8B9099; font-style: italic; margin-top: 12px; line-height: 1.5; }
+
   /* ───────── Invoice card ───────── */
   .invoice-card {
     display: grid; gap: 14px;
@@ -1410,6 +1451,60 @@
     }).join('');
   }
 
+  // Open Book / GMP — clients see the full cost picture: budget vs.
+  // committed vs. actual, per phase. Procore can't ship this for the
+  // residential GC; it's our category-defining differentiator.
+  function renderOpenBook(ob) {
+    if (!ob) return '';
+    var profit = ob.contractValue - ob.estimatedFinalCost;
+    var profitColor = profit >= 0 ? '#1E8E4A' : '#C0392B';
+    var capRow = '';
+    if (ob.mode === 'gmp' && typeof ob.gmpCap === 'number' && ob.gmpCap > 0) {
+      var capDelta = ob.gmpCap - ob.estimatedFinalCost;
+      var capDeltaColor = capDelta >= 0 ? '#1E8E4A' : '#C0392B';
+      capRow = '<div class="ob-row"><span>GMP cap</span><strong>' + fmtMoney(ob.gmpCap) + '</strong></div>'
+             + '<div class="ob-row"><span>Projected vs. cap</span><strong style="color:' + capDeltaColor + '">' + (capDelta >= 0 ? '+' : '') + fmtMoney(capDelta) + '</strong></div>';
+    }
+    var feeRow = '';
+    if (typeof ob.feePercent === 'number' && ob.feePercent > 0) {
+      feeRow = '<div class="ob-row"><span>Contractor fee</span><strong>' + ob.feePercent.toFixed(1) + '%</strong></div>';
+    } else if (typeof ob.feeAmount === 'number' && ob.feeAmount > 0) {
+      feeRow = '<div class="ob-row"><span>Contractor fee</span><strong>' + fmtMoney(ob.feeAmount) + '</strong></div>';
+    }
+    var rowsHtml = (ob.phases || []).map(function (p) {
+      var pct = p.budget > 0 ? Math.min(110, Math.round((p.actual / p.budget) * 100)) : 0;
+      var barColor = p.variance > 0 ? '#C0392B' : pct >= 95 ? '#C26A00' : '#1E8E4A';
+      return '' +
+        '<div class="ob-phase">' +
+          '<div class="ob-phase-head">' +
+            '<div class="ob-phase-name">' + escapeHtml(p.name) + '</div>' +
+            '<div class="ob-phase-amount">' + fmtMoney(p.actual) + ' <span style="color:#8B9099;font-weight:500">/ ' + fmtMoney(p.budget) + '</span></div>' +
+          '</div>' +
+          '<div class="ob-bar"><div class="ob-bar-fill" style="width:' + Math.min(100, pct) + '%;background:' + barColor + '"></div></div>' +
+          '<div class="ob-phase-meta">' +
+            'Committed ' + fmtMoney(p.committed) +
+            ' · Projected ' + fmtMoney(p.projectedFinal) +
+            (p.variance !== 0 ? ' · <span style="color:' + (p.variance > 0 ? '#C0392B' : '#1E8E4A') + ';font-weight:600">' + (p.variance > 0 ? '+' : '') + fmtMoney(p.variance) + '</span>' : '') +
+          '</div>' +
+        '</div>';
+    }).join('');
+    return '' +
+      '<div class="open-book">' +
+        '<div class="ob-summary">' +
+          '<div class="ob-row"><span>Contract value</span><strong>' + fmtMoney(ob.contractValue) + '</strong></div>' +
+          '<div class="ob-row"><span>Total budget</span><strong>' + fmtMoney(ob.budget) + '</strong></div>' +
+          '<div class="ob-row"><span>Committed to date</span><strong>' + fmtMoney(ob.committed) + '</strong></div>' +
+          '<div class="ob-row"><span>Actual paid out</span><strong>' + fmtMoney(ob.actual) + '</strong></div>' +
+          '<div class="ob-row"><span>Estimated final cost</span><strong>' + fmtMoney(ob.estimatedFinalCost) + '</strong></div>' +
+          capRow +
+          feeRow +
+          '<div class="ob-row ob-row-total"><span>Projected ' + (profit >= 0 ? 'savings to share' : 'over budget') + '</span><strong style="color:' + profitColor + '">' + fmtMoney(Math.abs(profit)) + '</strong></div>' +
+        '</div>' +
+        (rowsHtml ? '<div class="ob-phases-head">By phase</div>' + rowsHtml : '') +
+        '<div class="ob-disclaimer">Updated ' + new Date(ob.asOf).toLocaleDateString() + '. ' + (ob.mode === 'gmp' ? 'Cost above the GMP cap is borne by the contractor; savings under cap are subject to your contract.' : 'Every commitment + paid invoice is shown — no markup hidden.') + '</div>' +
+      '</div>';
+  }
+
   function renderInvoices(invs) {
     if (!invs || !invs.length) return emptyState('No invoices shared yet.');
     return invs.map(function (i) {
@@ -2247,6 +2342,18 @@
     function addSection(id, iconKey, title, subtitle, count, body) {
       navItems.push({ id: id, icon: iconKey, title: title, count: count });
       sectionHtml += mkSection(id, iconKey, title, subtitle, count, body);
+    }
+
+    // Open book / GMP — full cost transparency. Only renders when the GC
+    // has explicitly chosen open_book or gmp contract mode and we got
+    // commitment data. Otherwise the section stays hidden so a fixed-price
+    // contract doesn't accidentally leak its real cost basis.
+    if (data.openBook) {
+      var subtitle = data.openBook.mode === 'gmp'
+        ? 'Real cost vs. GMP cap. We share every dollar with you — by design.'
+        : 'Open book. Every dollar tracked from budget through commitment to pay-out.';
+      addSection('openbook', 'dollar', data.openBook.mode === 'gmp' ? 'Open Book — GMP' : 'Open Book',
+        subtitle, null, renderOpenBook(data.openBook));
     }
 
     if (sections.invoices && sections.invoices.length) {
