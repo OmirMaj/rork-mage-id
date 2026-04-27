@@ -21,14 +21,14 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  ActivityIndicator, Alert, Platform, KeyboardAvoidingView, Share,
+  ActivityIndicator, Alert, Platform, KeyboardAvoidingView,
 } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import {
   ChevronLeft, ChevronRight, Sparkles, Building2, Home, Wrench,
-  DollarSign, CheckCircle2, Share2, RotateCcw,
+  DollarSign, CheckCircle2, FileDown, RotateCcw,
 } from 'lucide-react-native';
 import { z } from 'zod';
 import { Colors } from '@/constants/colors';
@@ -36,6 +36,10 @@ import { mageAISmart } from '@/utils/mageAI';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import TapeRollNumber from '@/components/animations/TapeRollNumber';
+import EstimateLoadingOverlay from '@/components/EstimateLoadingOverlay';
+import { useProjects } from '@/contexts/ProjectContext';
+import { shareQuickEstimatePDF } from '@/utils/pdfGenerator';
+import type { CompanyBranding } from '@/types';
 
 interface WizardAnswers {
   projectType: string;
@@ -116,10 +120,12 @@ export default function EstimateWizardScreen() {
 function EstimateWizardScreenInner() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { settings } = useProjects();
 
   const [step, setStep] = useState<number>(0);
   const [answers, setAnswers] = useState<WizardAnswers>(INITIAL);
   const [loading, setLoading] = useState(false);
+  const [sharingPdf, setSharingPdf] = useState(false);
   const [result, setResult] = useState<EstimateResult | null>(null);
 
   const TOTAL_STEPS = 8;
@@ -199,29 +205,28 @@ Use current regional pricing where possible. Round reasonably. Keep it under 15 
 
   const share = useCallback(async () => {
     if (!result) return;
-    const lines = [
-      `MAGE ID Quick Estimate — ${answers.projectType}`,
-      `${answers.sizeSqft} sqft, ${answers.location}`,
-      '',
-      result.summary,
-      '',
-      ...result.lineItems.map(
-        (li) => `${li.category} · ${li.description}: ${li.quantity} ${li.unit} × $${li.unitCost.toFixed(2)} = $${li.total.toFixed(2)}`,
-      ),
-      '',
-      `Subtotal: $${result.subtotal.toFixed(2)}`,
-      `Contingency: $${result.contingency.toFixed(2)}`,
-      `Permits: $${result.permits.toFixed(2)}`,
-      `Total: $${result.total.toFixed(2)}`,
-      '',
-      ...(result.notes.length ? ['Notes:', ...result.notes.map((n) => `- ${n}`)] : []),
-    ].join('\n');
+    setSharingPdf(true);
     try {
-      await Share.share({ message: lines, title: 'MAGE ID Quick Estimate' });
+      // Build a CompanyBranding payload from the user's settings; fall back
+      // to "MAGE ID" defaults so the PDF still renders if they haven't
+      // filled in their branding yet.
+      const branding: CompanyBranding = {
+        companyName:   settings?.branding?.companyName ?? 'MAGE ID',
+        contactName:   settings?.branding?.contactName ?? '',
+        phone:         settings?.branding?.phone ?? '',
+        email:         settings?.branding?.email ?? '',
+        address:       settings?.branding?.address ?? '',
+        licenseNumber: settings?.branding?.licenseNumber ?? '',
+        tagline:       settings?.branding?.tagline ?? '',
+        logoUri:       settings?.branding?.logoUri,
+      };
+      await shareQuickEstimatePDF(result, answers, branding);
     } catch (err) {
-      Alert.alert('Share failed', err instanceof Error ? err.message : 'Could not open share sheet.');
+      Alert.alert('Share failed', err instanceof Error ? err.message : 'Could not generate PDF.');
+    } finally {
+      setSharingPdf(false);
     }
-  }, [result, answers]);
+  }, [result, answers, settings]);
 
   const reset = useCallback(() => {
     setAnswers(INITIAL);
@@ -286,14 +291,34 @@ Use current regional pricing where possible. Round reasonably. Keep it under 15 
             AI-generated starting point. Review with actual supplier and sub quotes before committing.
           </Text>
 
-          <View style={styles.actionRow}>
-            <TouchableOpacity style={styles.secondaryBtn} onPress={reset} activeOpacity={0.8} testID="wizard-reset">
-              <RotateCcw size={16} color={Colors.text} />
-              <Text style={styles.secondaryText}>New Estimate</Text>
+          <View style={styles.resultActions}>
+            <TouchableOpacity
+              style={styles.resultPrimaryBtn}
+              onPress={share}
+              activeOpacity={0.85}
+              disabled={sharingPdf}
+              testID="wizard-share"
+            >
+              {sharingPdf ? (
+                <ActivityIndicator size="small" color="#FFF" />
+              ) : (
+                <>
+                  <FileDown size={18} color="#FFF" />
+                  <Text style={styles.resultPrimaryText}>
+                    {Platform.OS === 'web' ? 'Open PDF preview' : 'Download &amp; share PDF'}
+                  </Text>
+                </>
+              )}
             </TouchableOpacity>
-            <TouchableOpacity style={styles.primaryBtn} onPress={share} activeOpacity={0.85} testID="wizard-share">
-              <Share2 size={16} color="#FFF" />
-              <Text style={styles.primaryText}>Share</Text>
+            <TouchableOpacity
+              style={styles.resultSecondaryBtn}
+              onPress={reset}
+              activeOpacity={0.8}
+              disabled={sharingPdf}
+              testID="wizard-reset"
+            >
+              <RotateCcw size={16} color={Colors.text} />
+              <Text style={styles.resultSecondaryText}>Start a new estimate</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -523,6 +548,12 @@ Use current regional pricing where possible. Round reasonably. Keep it under 15 
           )}
         </View>
       </KeyboardAvoidingView>
+
+      <EstimateLoadingOverlay
+        visible={loading}
+        title="Generating estimate…"
+        subtitle="Pulling materials, labor, and 2025 pricing for your project."
+      />
     </View>
   );
 }
@@ -646,5 +677,50 @@ const styles = StyleSheet.create({
   },
   actionRow: {
     flexDirection: 'row' as const, gap: 12, marginTop: 20,
+  },
+  // Result-screen action stack — buttons stack vertically and span full
+  // width so the two-button layout doesn't look cramped when only Share
+  // and New Estimate are present.
+  resultActions: {
+    marginTop: 24,
+    gap: 12,
+    alignItems: 'stretch' as const,
+  },
+  resultPrimaryBtn: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    gap: 10,
+    backgroundColor: Colors.primary,
+    borderRadius: 14,
+    paddingVertical: 18,
+    paddingHorizontal: 20,
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.28,
+    shadowRadius: 14,
+    elevation: 4,
+  },
+  resultPrimaryText: {
+    fontSize: 16,
+    fontWeight: '800' as const,
+    color: '#FFF',
+    letterSpacing: 0.2,
+  },
+  resultSecondaryBtn: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    gap: 8,
+    backgroundColor: Colors.surface,
+    borderRadius: 14,
+    paddingVertical: 16,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+  },
+  resultSecondaryText: {
+    fontSize: 14,
+    fontWeight: '700' as const,
+    color: Colors.text,
   },
 });

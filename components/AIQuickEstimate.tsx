@@ -14,6 +14,7 @@ import { PROJECT_TYPES, type ProjectType, type QualityTier } from '@/types';
 import { generateQuickEstimate, type AIQuickEstimateResult } from '@/utils/aiService';
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
 import { useSubscription } from '@/contexts/SubscriptionContext';
+import EstimateLoadingOverlay from '@/components/EstimateLoadingOverlay';
 import type { MaterialItem } from '@/constants/materials';
 import { LABOR_RATES, type LaborRate } from '@/constants/laborRates';
 import { ASSEMBLIES, type AssemblyItem } from '@/constants/assemblies';
@@ -669,9 +670,15 @@ export default React.memo(function AIQuickEstimate({
         </View>
 
         {step === 'input' && renderInput()}
-        {step === 'loading' && renderLoading()}
+        {step === 'loading' && renderInput() /* keep input mounted underneath; overlay covers it */}
         {step === 'result' && renderResult()}
       </KeyboardAvoidingView>
+
+      <EstimateLoadingOverlay
+        visible={step === 'loading'}
+        title="Generating estimate…"
+        subtitle="Pulling materials, labor, and 2025 pricing for your project."
+      />
     </Modal>
   );
 });

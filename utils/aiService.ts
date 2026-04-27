@@ -1019,7 +1019,17 @@ ${tasks.filter(t => t.status === 'in_progress').slice(0, 15).map(t => `- ${t.tit
 
 Generate a professional project status report suitable for sharing with clients.`,
     schema: projectReportSchema,
+    schemaHint: {
+      executiveSummary: '2-3 sentence project overview',
+      scheduleStatus: 'Are we on track? Why or why not? 2-3 sentences.',
+      budgetStatus: 'Money in, money out, where it stands. 2-3 sentences.',
+      keyAccomplishments: ['concrete item completed', 'another accomplishment'],
+      issuesAndRisks: ['issue or risk worth flagging', 'another risk'],
+      nextMilestones: ['next major deadline + what it means', 'second milestone'],
+      recommendations: ['concrete next-step recommendation', 'another action'],
+    },
     tier: 'fast',
+    maxTokens: 2200,
   });
   if (!aiResult.success) {
     throw new Error(aiResult.error || 'Project report generation unavailable');

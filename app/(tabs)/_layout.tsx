@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { View, StyleSheet, Platform, Animated, Easing } from 'react-native';
 import { Tabs, Slot } from 'expo-router';
-import { Home, Compass, Settings, LayoutDashboard, Hammer } from 'lucide-react-native';
+import { Home, Compass, Settings, LayoutDashboard } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import DesktopSidebar from '@/components/DesktopSidebar';
@@ -63,9 +63,9 @@ export default function TabLayout() {
           >
             <Tabs.Screen name="summary" options={{ title: 'Summary' }} />
             <Tabs.Screen name="(home)" options={{ title: 'Your Projects' }} />
-            <Tabs.Screen name="mage-id-bids" options={{ title: 'MAGE ID Bids' }} />
             <Tabs.Screen name="discover" options={{ title: 'Discover' }} />
             <Tabs.Screen name="settings" options={{ title: 'Settings' }} />
+            <Tabs.Screen name="mage-id-bids" options={{ title: 'MAGE ID Bids' }} />
             <Tabs.Screen name="construction-ai" options={{ href: null }} />
             <Tabs.Screen name="bids" options={{ href: null }} />
             <Tabs.Screen name="companies" options={{ href: null }} />
@@ -125,15 +125,6 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="mage-id-bids"
-        options={{
-          title: 'MAGE Bids',
-          tabBarIcon: ({ color, focused }) => (
-            <TabIcon Icon={Hammer} color={color} focused={focused} />
-          ),
-        }}
-      />
-      <Tabs.Screen
         name="discover"
         options={{
           title: 'Discover',
@@ -160,6 +151,7 @@ export default function TabLayout() {
       <Tabs.Screen name="marketplace" options={{ href: null }} />
       <Tabs.Screen name="subs" options={{ href: null }} />
       <Tabs.Screen name="equipment" options={{ href: null }} />
+      <Tabs.Screen name="mage-id-bids" options={{ href: null }} />
       <Tabs.Screen name="construction-ai" options={{ href: null }} />
     </Tabs>
   );

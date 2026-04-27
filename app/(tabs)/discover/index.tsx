@@ -305,6 +305,23 @@ export default function DiscoverScreen() {
         />
 
         <View style={[styles.sectionHeaderRow, { marginTop: 24 }]}>
+          <View style={[styles.sectionAccent, { backgroundColor: Colors.primary }]} />
+          <View>
+            <Text style={styles.sectionLabel}>MAGE ID MARKETPLACE</Text>
+            <Text style={styles.sectionHint}>Homeowners post projects, contractors bid, you pick a winner</Text>
+          </View>
+        </View>
+
+        <NavigationCard
+          icon={Sparkles}
+          iconColor={Colors.primary}
+          iconBg={Colors.primary + '15'}
+          title="MAGE ID Bids"
+          subtitle="Browse nearby private projects · post your own"
+          onPress={() => navigateTo('/(tabs)/mage-id-bids')}
+        />
+
+        <View style={[styles.sectionHeaderRow, { marginTop: 24 }]}>
           <View style={[styles.sectionAccent, { backgroundColor: '#1565C0' }]} />
           <View>
             <Text style={styles.sectionLabel}>ONLINE JOBS & BIDS</Text>

@@ -64,7 +64,14 @@ export async function mageAI(params: MageAIParams): Promise<MageAIResult> {
       payload.schemaHint = schemaHint;
       payload.jsonMode = true;
     } else if (schema) {
-      // No schemaHint provided — still enable JSON mode so Gemini returns parseable JSON
+      // No schemaHint provided — derive an example shape from the Zod schema so
+      // Gemini knows what to return. Without this, every callsite that only
+      // passes `schema` got an unstructured response that Zod then defaulted
+      // to empty strings/arrays — the "modal opens with nothing" bug.
+      const derived = deriveHintFromZod(schema);
+      if (derived) {
+        payload.schemaHint = derived;
+      }
       payload.jsonMode = true;
     }
 
@@ -188,4 +195,72 @@ export async function mageAIFast(prompt: string, schema?: any, cacheKey?: string
 
 export async function mageAISmart(prompt: string, schema?: any, cacheKey?: string) {
   return mageAI({ prompt, schema, tier: "smart", maxTokens: 2000, cacheKey });
+}
+
+// Walk a Zod schema and produce a plain-JS example shape Gemini can read.
+// Best-effort — unknown types fall back to null. We return null for the
+// whole thing if introspection fails, so the caller falls back to no hint
+// rather than crashing.
+function deriveHintFromZod(schema: any, depth = 0): unknown {
+  if (!schema || depth > 5) return null;
+  // Zod 4 exposes the internal def under _def with `typeName` or `type`.
+  const def = schema._def;
+  if (!def) return null;
+  const t = def.typeName ?? def.type;
+
+  // Unwrap optional / nullable / default / pipe / readonly so we look at the inner type.
+  if (t === 'ZodOptional' || t === 'optional' ||
+      t === 'ZodNullable' || t === 'nullable' ||
+      t === 'ZodReadonly' || t === 'readonly') {
+    return deriveHintFromZod(def.innerType ?? def.type, depth + 1);
+  }
+  if (t === 'ZodDefault' || t === 'default') {
+    // If the schema has a default, use that — it's already a valid example.
+    if (typeof def.defaultValue === 'function') {
+      try { return def.defaultValue(); } catch { /* ignore */ }
+    } else if (def.defaultValue !== undefined) {
+      return def.defaultValue;
+    }
+    return deriveHintFromZod(def.innerType, depth + 1);
+  }
+  if (t === 'ZodPipe' || t === 'pipe') return deriveHintFromZod(def.in ?? def.left, depth + 1);
+
+  // Primitives.
+  if (t === 'ZodString'  || t === 'string')  return '';
+  if (t === 'ZodNumber'  || t === 'number')  return 0;
+  if (t === 'ZodBoolean' || t === 'boolean') return false;
+  if (t === 'ZodLiteral' || t === 'literal') return def.value ?? null;
+  if (t === 'ZodEnum'    || t === 'enum') {
+    // Zod 4 stores entries as record; v3 as array.
+    if (Array.isArray(def.values)) return def.values[0] ?? '';
+    if (def.entries) {
+      const first = Object.values(def.entries)[0];
+      return first ?? '';
+    }
+    return '';
+  }
+  if (t === 'ZodArray' || t === 'array') {
+    const inner = deriveHintFromZod(def.element ?? def.type, depth + 1);
+    return inner == null ? [] : [inner];
+  }
+  if (t === 'ZodObject' || t === 'object') {
+    const out: Record<string, unknown> = {};
+    const shape = typeof def.shape === 'function' ? def.shape() : def.shape;
+    if (!shape) return {};
+    for (const k of Object.keys(shape)) {
+      out[k] = deriveHintFromZod(shape[k], depth + 1);
+    }
+    return out;
+  }
+  if (t === 'ZodUnion' || t === 'union') {
+    const options = def.options;
+    if (Array.isArray(options) && options.length > 0) return deriveHintFromZod(options[0], depth + 1);
+    return null;
+  }
+  if (t === 'ZodRecord' || t === 'record') return {};
+  if (t === 'ZodTuple'  || t === 'tuple') {
+    const items = def.items ?? [];
+    return items.map((item: any) => deriveHintFromZod(item, depth + 1));
+  }
+  return null;
 }

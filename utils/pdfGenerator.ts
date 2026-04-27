@@ -2,6 +2,178 @@ import { Platform } from 'react-native';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import type { CompanyBranding, Project, ChangeOrder, Invoice, DailyFieldReport, ScheduleTask, RFI, Submittal } from '@/types';
+import { pdfShell, pdfHeader, pdfTitle, pdfFooter, pdfTable, escHtml, fmtMoney, fmtDate, PDF_PALETTE } from './pdfDesign';
+
+// Quick Estimate Wizard result shape — kept here as a local type so we
+// don't fight the wizard's local Zod inferred type.
+export interface QuickEstimateResultForPdf {
+  summary: string;
+  lineItems: { category: string; description: string; quantity: number; unit: string; unitCost: number; total: number }[];
+  subtotal: number;
+  contingency: number;
+  permits: number;
+  total: number;
+  notes: string[];
+}
+
+export interface QuickEstimateAnswersForPdf {
+  projectType: string;
+  sizeSqft: string;
+  location: string;
+  quality: 'budget' | 'standard' | 'high_end';
+  scope: string;
+  timelineWeeks: string;
+  specialRequirements: string;
+  targetBudget: string;
+}
+
+function buildQuickEstimateHtml(
+  result: QuickEstimateResultForPdf,
+  answers: QuickEstimateAnswersForPdf,
+  branding: CompanyBranding,
+): string {
+  const qualityLabel = answers.quality === 'high_end' ? 'High-End' : answers.quality === 'budget' ? 'Budget' : 'Standard';
+  const sizeNum = Number(answers.sizeSqft) || 0;
+  const costPerSqft = sizeNum > 0 ? result.total / sizeNum : 0;
+
+  // Group line items by category for a cleaner table.
+  const grouped = new Map<string, typeof result.lineItems>();
+  for (const li of result.lineItems) {
+    const cat = li.category || 'Other';
+    const arr = grouped.get(cat) ?? [];
+    arr.push(li);
+    grouped.set(cat, arr);
+  }
+  const categories = Array.from(grouped.keys()).sort();
+
+  const lineItemSections = categories.map(cat => {
+    const items = grouped.get(cat)!;
+    const subtotal = items.reduce((s, li) => s + li.total, 0);
+    const rows = items.map(li => [
+      escHtml(li.description),
+      `<span class="num">${escHtml(li.quantity)} ${escHtml(li.unit)}</span>`,
+      `<span class="num">${fmtMoney(li.unitCost, { decimals: 2 })}</span>`,
+      `<span class="num">${fmtMoney(li.total)}</span>`,
+    ]);
+    return `
+      <div class="no-break" style="margin-bottom:18px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;border-bottom:2px solid ${PDF_PALETTE.ink};padding-bottom:6px;margin-bottom:6px">
+          <div style="font-family:'Fraunces',Georgia,serif;font-size:15px;font-weight:700;color:${PDF_PALETTE.ink}">${escHtml(cat)}</div>
+          <div class="num" style="font-size:12px;font-weight:700;color:${PDF_PALETTE.ink}">${fmtMoney(subtotal)}</div>
+        </div>
+        ${pdfTable(
+          [
+            { header: 'Item', width: '52%' },
+            { header: 'Qty', align: 'right', width: '14%' },
+            { header: 'Unit cost', align: 'right', width: '17%' },
+            { header: 'Total', align: 'right', width: '17%' },
+          ],
+          rows,
+        )}
+      </div>`;
+  }).join('');
+
+  const totalsBlock = `
+    <div class="no-break" style="margin-top:8px;padding:18px 20px;border-radius:14px;background:${PDF_PALETTE.cream2};border:1px solid ${PDF_PALETTE.bone}">
+      <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12.5px"><span style="color:${PDF_PALETTE.text2}">Subtotal</span><span class="num" style="font-weight:600">${fmtMoney(result.subtotal)}</span></div>
+      <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12.5px"><span style="color:${PDF_PALETTE.text2}">Contingency</span><span class="num" style="font-weight:600">${fmtMoney(result.contingency)}</span></div>
+      <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12.5px"><span style="color:${PDF_PALETTE.text2}">Permits &amp; fees</span><span class="num" style="font-weight:600">${fmtMoney(result.permits)}</span></div>
+      <div style="height:1px;background:${PDF_PALETTE.bone};margin:10px 0"></div>
+      <div style="display:flex;justify-content:space-between;align-items:baseline">
+        <div>
+          <div style="font-size:11px;font-weight:700;letter-spacing:1px;color:${PDF_PALETTE.textMuted};text-transform:uppercase">Estimated total</div>
+          ${costPerSqft > 0 ? `<div style="font-size:11px;color:${PDF_PALETTE.textMuted};margin-top:2px">${fmtMoney(costPerSqft, { decimals: 0 })} / sqft</div>` : ''}
+        </div>
+        <div class="num" style="font-family:'Fraunces',Georgia,serif;font-size:30px;font-weight:800;color:${PDF_PALETTE.amber};letter-spacing:-0.5px">${fmtMoney(result.total)}</div>
+      </div>
+    </div>`;
+
+  const notesBlock = result.notes.length === 0 ? '' : `
+    <div class="no-break" style="margin-top:18px;padding:14px 16px;border-radius:10px;background:${PDF_PALETTE.amberTint};border:1px solid ${PDF_PALETTE.amber}40">
+      <div style="font-size:10px;font-weight:800;letter-spacing:1px;color:${PDF_PALETTE.amber};text-transform:uppercase;margin-bottom:8px">Notes</div>
+      ${result.notes.map(n => `<div style="font-size:12px;color:${PDF_PALETTE.text};margin-bottom:4px;line-height:1.55">• ${escHtml(n)}</div>`).join('')}
+    </div>`;
+
+  const summaryBlock = !result.summary ? '' : `
+    <div style="font-size:13px;color:${PDF_PALETTE.text2};line-height:1.6;margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid ${PDF_PALETTE.bone}">
+      ${escHtml(result.summary)}
+    </div>`;
+
+  const meta = [
+    answers.projectType ? { label: 'Project type', value: answers.projectType } : null,
+    sizeNum > 0 ? { label: 'Size', value: `${sizeNum.toLocaleString()} sqft` } : null,
+    answers.location ? { label: 'Location', value: answers.location } : null,
+    { label: 'Quality', value: qualityLabel },
+    answers.timelineWeeks ? { label: 'Timeline', value: `${answers.timelineWeeks} wks` } : null,
+    { label: 'Generated', value: fmtDate(new Date().toISOString()) },
+  ].filter(Boolean) as Array<{ label: string; value: string }>;
+
+  const disclaimer = 'AI-assisted starting estimate. Verify quantities, regional pricing, and sub bids against this baseline before issuing a contract or quote.';
+
+  const bodyHtml = `
+    ${pdfHeader(branding)}
+    ${pdfTitle({
+      eyebrow: 'Quick Estimate',
+      title: answers.projectType || 'Construction estimate',
+      subtitle: answers.scope ? answers.scope.slice(0, 180) : undefined,
+      meta,
+    })}
+    ${summaryBlock}
+    ${lineItemSections || `<div style="padding:20px;text-align:center;color:${PDF_PALETTE.textMuted};font-style:italic">No line items returned by the AI.</div>`}
+    ${totalsBlock}
+    ${notesBlock}
+    ${pdfFooter(branding, undefined, disclaimer)}
+  `;
+
+  return pdfShell({
+    bodyHtml,
+    branding,
+    title: `Quick Estimate — ${answers.projectType || 'Construction'}`,
+  });
+}
+
+export async function generateQuickEstimatePDFUri(
+  result: QuickEstimateResultForPdf,
+  answers: QuickEstimateAnswersForPdf,
+  branding: CompanyBranding,
+): Promise<string | null> {
+  if (Platform.OS === 'web') return null;
+  try {
+    const html = buildQuickEstimateHtml(result, answers, branding);
+    const { uri } = await Print.printToFileAsync({ html, base64: false });
+    return uri;
+  } catch (err) {
+    console.error('[PDF] Quick estimate PDF failed:', err);
+    return null;
+  }
+}
+
+export async function shareQuickEstimatePDF(
+  result: QuickEstimateResultForPdf,
+  answers: QuickEstimateAnswersForPdf,
+  branding: CompanyBranding,
+): Promise<void> {
+  const html = buildQuickEstimateHtml(result, answers, branding);
+  const title = `Quick Estimate — ${answers.projectType || 'Construction'}`;
+
+  if (Platform.OS === 'web') {
+    const newWindow = window.open('', '_blank');
+    if (newWindow) {
+      newWindow.document.write(html);
+      newWindow.document.close();
+      newWindow.print();
+    }
+    return;
+  }
+
+  const { uri } = await Print.printToFileAsync({ html, base64: false });
+  const canShare = await Sharing.isAvailableAsync();
+  if (canShare) {
+    await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: title, UTI: 'com.adobe.pdf' });
+  } else {
+    await Print.printAsync({ uri });
+  }
+}
 
 function escapeHtml(text: string): string {
   return text
