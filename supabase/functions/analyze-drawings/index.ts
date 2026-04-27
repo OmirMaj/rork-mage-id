@@ -30,8 +30,9 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 
 const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY") || "";
-// Use Gemini 2.0 Flash for vision — fast + cheap + handles ~16 images.
-const GEMINI_MODEL = "gemini-2.0-flash";
+// Gemini 2.5 Flash for vision — fast + cheap + handles multi-image inputs.
+// (2.0 Flash was deprecated for new accounts.)
+const GEMINI_MODEL = "gemini-2.5-flash";
 const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
 const CORS_HEADERS = {
@@ -63,14 +64,25 @@ async function urlToInlineImagePart(url: string): Promise<{ inlineData: { mimeTy
   // Gemini's REST API takes either inlineData (base64) or fileData (URI).
   // We use inlineData because the rendered PNGs live in our public-read
   // bucket — fetching once + base64-encoding is reliable across regions.
-  const r = await fetch(url);
+  // Send a real User-Agent because some image hosts (Wikimedia, etc.)
+  // block fetches with a default Deno UA as anti-hotlinking.
+  const r = await fetch(url, {
+    headers: {
+      'User-Agent': 'MAGE-ID/1.0 (drawing-analyzer; +https://mageid.app)',
+      'Accept': 'image/png,image/jpeg,image/*;q=0.8,*/*;q=0.5',
+    },
+  });
   if (!r.ok) throw new Error(`Could not fetch ${url} (${r.status})`);
+  const contentType = r.headers.get('content-type') ?? 'image/png';
+  // Lock to the actually-detected mime so JPEGs from non-Supabase sources
+  // don't get mislabeled as png and rejected by Gemini's vision pipeline.
+  const mimeType = contentType.startsWith('image/') ? contentType.split(';')[0] : 'image/png';
   const buf = new Uint8Array(await r.arrayBuffer());
   // Base64-encode without blowing the stack on big images.
   let binary = '';
   for (let i = 0; i < buf.length; i++) binary += String.fromCharCode(buf[i]);
   const data = btoa(binary);
-  return { inlineData: { mimeType: 'image/png', data } };
+  return { inlineData: { mimeType, data } };
 }
 
 function buildPrompt(req: AnalyzeRequest): string {
