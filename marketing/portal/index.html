@@ -1082,6 +1082,33 @@
   .sov-table tr:last-child td { border-bottom: none; }
   .sov-desc { white-space: nowrap; max-width: 140px; overflow: hidden; text-overflow: ellipsis; }
 
+  /* ───────── Latest update from contractor ───────── */
+  .latest-update {
+    background: linear-gradient(135deg, rgba(255,106,26,0.06) 0%, rgba(255,106,26,0.02) 100%);
+    border: 1px solid rgba(255,106,26,0.18);
+    border-radius: var(--radius-xl);
+    padding: 22px 26px;
+    margin-bottom: 18px;
+    box-shadow: 0 1px 3px rgba(11,13,16,0.04);
+  }
+  .lu-eyebrow {
+    font-size: 10px; font-weight: 800; letter-spacing: 1.2px;
+    text-transform: uppercase; color: #C26A00;
+    margin-bottom: 6px;
+  }
+  .lu-date {
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 22px; font-weight: 700; color: #0B0D10;
+    letter-spacing: -0.5px; margin-bottom: 12px;
+  }
+  .lu-body {
+    font-size: 15px; line-height: 1.65; color: #2D2A24;
+  }
+  @media (max-width: 600px) {
+    .latest-update { padding: 18px 20px; }
+    .lu-date { font-size: 19px; }
+  }
+
   /* ───────── Budget proposal banner ───────── */
   .budget-banner {
     background: var(--ink); color: #fff;
@@ -1427,6 +1454,7 @@
     </nav>
 
     <main class="container">
+      <div id="latest-update" class="latest-update" style="display:none"></div>
       <div id="budget-banner" class="budget-banner" style="display:none"></div>
       <div id="sections"></div>
 
@@ -2859,6 +2887,24 @@
     } else {
       var sb = document.querySelector('.stats-bar');
       if (sb) sb.style.display = 'none';
+    }
+
+    // Latest homeowner update — shown above everything else when the GC
+    // has published a daily summary. The hero of the portal day-to-day.
+    var luEl = document.getElementById('latest-update');
+    if (luEl) {
+      if (data.latestUpdate && data.latestUpdate.summary) {
+        var lu = data.latestUpdate;
+        var company = (data.company && data.company.name) ? data.company.name : 'your contractor';
+        luEl.innerHTML = '' +
+          '<div class="lu-eyebrow">Latest update from ' + escapeHtml(company) + '</div>' +
+          '<div class="lu-date">' + escapeHtml(lu.dateLabel) + '</div>' +
+          '<div class="lu-body">' + escapeHtml(lu.summary).replace(/\n+/g, '<br/>') + '</div>';
+        luEl.style.display = 'block';
+      } else {
+        luEl.style.display = 'none';
+        luEl.innerHTML = '';
+      }
     }
 
     // Client budget proposal card (only renders when GC has enabled it +

@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import {
   ChevronLeft, MessageSquare, HandCoins, CheckCircle2, Inbox, Bell,
+  PenTool, ShoppingCart, HelpCircle, Hammer,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useAuth } from '@/contexts/AuthContext';
@@ -18,38 +19,91 @@ import { supabase } from '@/lib/supabase';
 // object keyed by category × channel.
 
 interface CategoryDef {
-  key: 'portal_message' | 'budget_proposal' | 'co_approval' | 'sub_invoice';
+  key:
+    | 'portal_message' | 'budget_proposal' | 'co_approval' | 'sub_invoice'
+    | 'contract_signed' | 'selection_chosen'
+    | 'bid_question_asked' | 'rfp_awarded' | 'nearby_rfp_posted';
   label: string;
   description: string;
   icon: React.ReactNode;
+  /** Group label for the section header. */
+  group: 'client' | 'sub' | 'marketplace';
 }
 
 const CATEGORIES: CategoryDef[] = [
+  // ─── Client → GC ───
   {
     key: 'portal_message',
     label: 'Client messages',
     description: 'Your client sends a message from the portal.',
     icon: <MessageSquare size={18} color="#007AFF" />,
+    group: 'client',
+  },
+  {
+    key: 'contract_signed',
+    label: 'Contract signed',
+    description: 'Your client counter-signs the construction agreement.',
+    icon: <PenTool size={18} color="#1E8E4A" />,
+    group: 'client',
+  },
+  {
+    key: 'selection_chosen',
+    label: 'Selection picked',
+    description: 'Your client picks a tile, fixture, or other allowance option.',
+    icon: <ShoppingCart size={18} color="#FF6A1A" />,
+    group: 'client',
   },
   {
     key: 'budget_proposal',
     label: 'Budget proposals',
     description: 'Your client proposes a target budget from the portal.',
     icon: <HandCoins size={18} color="#FF6A1A" />,
+    group: 'client',
   },
   {
     key: 'co_approval',
     label: 'CO approvals',
     description: 'Your client approves or declines a change order.',
     icon: <CheckCircle2 size={18} color="#34C759" />,
+    group: 'client',
   },
+  // ─── Sub → GC ───
   {
     key: 'sub_invoice',
     label: 'Sub invoices',
     description: 'A subcontractor submits an invoice through their portal.',
     icon: <Inbox size={18} color="#AF52DE" />,
+    group: 'sub',
+  },
+  // ─── Marketplace ───
+  {
+    key: 'nearby_rfp_posted',
+    label: 'New nearby RFPs',
+    description: 'A homeowner posts a project in your service area.',
+    icon: <Hammer size={18} color="#5856D6" />,
+    group: 'marketplace',
+  },
+  {
+    key: 'bid_question_asked',
+    label: 'Pre-bid questions',
+    description: 'A contractor asks a question on an RFP you posted.',
+    icon: <HelpCircle size={18} color="#5856D6" />,
+    group: 'marketplace',
+  },
+  {
+    key: 'rfp_awarded',
+    label: 'RFP awarded to you',
+    description: 'A homeowner picks your bid for their project.',
+    icon: <CheckCircle2 size={18} color="#1E8E4A" />,
+    group: 'marketplace',
   },
 ];
+
+const GROUP_LABELS: Record<CategoryDef['group'], { title: string; subtitle: string }> = {
+  client:      { title: 'Client → You',         subtitle: 'When the homeowner does something on the portal.' },
+  sub:         { title: 'Subcontractor → You',  subtitle: 'When a sub does something through their portal link.' },
+  marketplace: { title: 'Marketplace',          subtitle: 'New RFPs nearby, awards, and pre-bid Q&A.' },
+};
 
 type Prefs = Record<string, { push?: boolean; email?: boolean }>;
 
@@ -149,46 +203,57 @@ export default function NotificationsSettingsScreen() {
             <ActivityIndicator size="small" color={Colors.primary} />
           </View>
         ) : (
-          <View style={styles.section}>
-            <View style={styles.tableHead}>
-              <Text style={styles.tableHeadLabel}>Category</Text>
-              <Text style={styles.tableHeadCol}>Push</Text>
-              <Text style={styles.tableHeadCol}>Email</Text>
-            </View>
-            <View style={styles.card}>
-              {CATEGORIES.map((c, idx) => (
-                <View
-                  key={c.key}
-                  style={[styles.row, idx < CATEGORIES.length - 1 && styles.rowDivider]}
-                >
-                  <View style={styles.rowLeft}>
-                    {c.icon}
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.rowLabel}>{c.label}</Text>
-                      <Text style={styles.rowDesc}>{c.description}</Text>
-                    </View>
-                  </View>
-                  <View style={styles.toggle}>
-                    <Switch
-                      value={isOn(c.key, 'push')}
-                      onValueChange={v => toggle(c.key, 'push', v)}
-                      trackColor={{ false: Colors.border, true: Colors.primary }}
-                      thumbColor="#FFF"
-                    />
-                  </View>
-                  <View style={styles.toggle}>
-                    <Switch
-                      value={isOn(c.key, 'email')}
-                      onValueChange={v => toggle(c.key, 'email', v)}
-                      trackColor={{ false: Colors.border, true: Colors.primary }}
-                      thumbColor="#FFF"
-                    />
-                  </View>
+          (['client', 'sub', 'marketplace'] as CategoryDef['group'][]).map(group => {
+            const groupCats = CATEGORIES.filter(c => c.group === group);
+            if (groupCats.length === 0) return null;
+            const meta = GROUP_LABELS[group];
+            return (
+              <View key={group} style={styles.section}>
+                <View style={styles.groupHeader}>
+                  <Text style={styles.groupTitle}>{meta.title}</Text>
+                  <Text style={styles.groupSubtitle}>{meta.subtitle}</Text>
                 </View>
-              ))}
-            </View>
-            {saving && <Text style={styles.savingHint}>Saving…</Text>}
-          </View>
+                <View style={styles.tableHead}>
+                  <Text style={styles.tableHeadLabel}>Category</Text>
+                  <Text style={styles.tableHeadCol}>Push</Text>
+                  <Text style={styles.tableHeadCol}>Email</Text>
+                </View>
+                <View style={styles.card}>
+                  {groupCats.map((c, idx) => (
+                    <View
+                      key={c.key}
+                      style={[styles.row, idx < groupCats.length - 1 && styles.rowDivider]}
+                    >
+                      <View style={styles.rowLeft}>
+                        {c.icon}
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.rowLabel}>{c.label}</Text>
+                          <Text style={styles.rowDesc}>{c.description}</Text>
+                        </View>
+                      </View>
+                      <View style={styles.toggle}>
+                        <Switch
+                          value={isOn(c.key, 'push')}
+                          onValueChange={v => toggle(c.key, 'push', v)}
+                          trackColor={{ false: Colors.border, true: Colors.primary }}
+                          thumbColor="#FFF"
+                        />
+                      </View>
+                      <View style={styles.toggle}>
+                        <Switch
+                          value={isOn(c.key, 'email')}
+                          onValueChange={v => toggle(c.key, 'email', v)}
+                          trackColor={{ false: Colors.border, true: Colors.primary }}
+                          thumbColor="#FFF"
+                        />
+                      </View>
+                    </View>
+                  ))}
+                </View>
+                {saving && group === 'client' && <Text style={styles.savingHint}>Saving…</Text>}
+              </View>
+            );
+          })
         )}
 
         <View style={styles.section}>
@@ -225,6 +290,9 @@ const styles = StyleSheet.create({
   loadingWrap: { padding: 32, alignItems: 'center' },
 
   section: { marginHorizontal: 16, marginBottom: 22 },
+  groupHeader: { marginBottom: 10, paddingHorizontal: 4 },
+  groupTitle: { fontSize: 15, fontWeight: '800', color: Colors.text, letterSpacing: -0.2 },
+  groupSubtitle: { fontSize: 12, color: Colors.textMuted, marginTop: 2, lineHeight: 17 },
   tableHead: {
     flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingBottom: 8,
   },

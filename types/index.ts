@@ -124,6 +124,13 @@ export interface Project {
   // shown to the client when the portal is in transparent mode.
   contractorFeePercent?: number;
   contractorFeeAmount?: number;
+  /**
+   * Manual closeout-day checks. Keys are stable string IDs ('walkthrough',
+   * 'keys', etc.); values are the ISO timestamp at which the GC marked the
+   * box as done. Computed checks (selections / punch / waivers / binder)
+   * are NOT stored here — they read from their source tables live.
+   */
+  handoverChecklist?: Record<string, string>;
 }
 
 // ─── Project Contract ───────────────────────────────────────────────
@@ -880,6 +887,16 @@ export interface DailyFieldReport {
   status: DFRStatus;
   incident?: IncidentReport;
   safetyToolboxTalk?: SafetyToolboxTalk;
+  /**
+   * Homeowner-friendly summary, AI-generated from the technical fields
+   * above. The GC reviews + edits, then taps "Publish to portal" which
+   * flips `homeownerSummaryPublished` to true. The portal snapshot picks
+   * up the latest published summary and shows it as the "Latest update"
+   * panel at the top of the homeowner's portal.
+   */
+  homeownerSummary?: string;
+  homeownerSummaryGeneratedAt?: string;
+  homeownerSummaryPublished?: boolean;
   createdAt: string;
   updatedAt: string;
 }

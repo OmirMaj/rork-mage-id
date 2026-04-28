@@ -20,7 +20,7 @@ import {
   Mail, MessageSquare, X, BarChart3, ArrowDownRight, Shield, Layers,
   FileText, ShoppingCart, UserPlus, Send, Share2, Eye, PenTool, Crown, Pencil,
   Plus, Receipt, ClipboardList, Repeat, CheckSquare, Camera, Globe, Link, Copy, Wallet, Archive, Activity,
-  HardHat, FolderOpen, Hammer, ScrollText, BookOpen,
+  HardHat, FolderOpen, Hammer, ScrollText, BookOpen, Footprints,
 } from 'lucide-react-native';
 import { PROJECT_TYPES, type ProjectType, type ProjectCollaborator, type EntityRef, type ProjectPhoto, type PhotoMarkup } from '@/types';
 import Svg, { Path as SvgPath, Circle as SvgCircle, Line as SvgLine, Polygon as SvgPolygon, Text as SvgTextEl } from 'react-native-svg';
@@ -46,7 +46,7 @@ import { exportProjectIcs } from '@/utils/icsGenerator';
 import { formatMoney } from '@/utils/formatters';
 import { getEffectiveInvoiceStatus } from '@/utils/projectFinancials';
 
-type SectionKey = 'linkedEstimate' | 'materials' | 'labor' | 'summary' | 'schedule' | 'notes' | 'collaborators' | 'changeOrders' | 'invoices' | 'dailyReports' | 'punchList' | 'rfis' | 'submittals' | 'budget' | 'photos' | 'clientPortal' | 'communications' | 'activity' | 'calendar' | 'plans' | 'permits' | 'contract' | 'selections' | 'lienWaivers' | 'closeoutBinder';
+type SectionKey = 'linkedEstimate' | 'materials' | 'labor' | 'summary' | 'schedule' | 'notes' | 'collaborators' | 'changeOrders' | 'invoices' | 'dailyReports' | 'punchList' | 'rfis' | 'submittals' | 'budget' | 'photos' | 'clientPortal' | 'communications' | 'activity' | 'calendar' | 'plans' | 'permits' | 'contract' | 'selections' | 'lienWaivers' | 'closeoutBinder' | 'handover';
 
 /** Tile group keys for the collapsible section grouping. */
 type TileGroupKey = 'field' | 'money' | 'docs' | 'people';
@@ -121,6 +121,7 @@ export default function ProjectDetailScreen() {
     selections: false,
     lienWaivers: false,
     closeoutBinder: false,
+    handover: false,
   });
   const [detailModal, setDetailModal] = useState<DetailModalType>(null);
   const [showShareModal, setShowShareModal] = useState(false);
@@ -960,6 +961,7 @@ export default function ProjectDetailScreen() {
             { key: 'selections', label: 'Selections', icon: ShoppingCart, color: Colors.accent, count: null as number | null },
             { key: 'lienWaivers', label: 'Lien Waivers', icon: ScrollText, color: '#5856D6', count: null as number | null },
             { key: 'closeoutBinder', label: 'Closeout Binder', icon: BookOpen, color: Colors.accent, count: null as number | null },
+            { key: 'handover', label: 'Handover Checklist', icon: Footprints, color: '#1E8E4A', count: null as number | null },
             { key: 'changeOrders', label: 'Change Orders', icon: Repeat, color: Colors.accent, count: changeOrders.length },
             { key: 'invoices', label: 'Invoices', icon: Receipt, color: Colors.success, count: projectInvoices.length },
             { key: 'dailyReports', label: 'Daily Reports', icon: ClipboardList, color: Colors.primary, count: dailyReports.length },
@@ -978,7 +980,7 @@ export default function ProjectDetailScreen() {
 
           const groups: { key: TileGroupKey; label: string; icon: React.ComponentType<{ size?: number; color?: string }>; color: string; tileKeys: SectionKey[] }[] = [
             { key: 'field', label: 'Field Ops', icon: HardHat, color: Colors.primary, tileKeys: ['dailyReports', 'punchList', 'photos', 'plans', 'schedule'] },
-            { key: 'money', label: 'Money', icon: DollarSign, color: Colors.success, tileKeys: ['contract', 'selections', 'linkedEstimate', 'changeOrders', 'invoices', 'lienWaivers', 'closeoutBinder', 'budget'] },
+            { key: 'money', label: 'Money', icon: DollarSign, color: Colors.success, tileKeys: ['contract', 'selections', 'linkedEstimate', 'changeOrders', 'invoices', 'lienWaivers', 'closeoutBinder', 'handover', 'budget'] },
             { key: 'docs', label: 'Documentation', icon: FolderOpen, color: Colors.info, tileKeys: ['rfis', 'submittals', 'permits', 'activity', 'calendar'] },
             { key: 'people', label: 'People & Communication', icon: Users, color: '#5856D6', tileKeys: ['collaborators', 'clientPortal', 'communications'] },
           ];
@@ -1001,6 +1003,7 @@ export default function ProjectDetailScreen() {
                   if (tile.key === 'selections') { router.push({ pathname: '/selections' as any, params: { projectId: id } }); return; }
                   if (tile.key === 'lienWaivers') { router.push({ pathname: '/lien-waivers' as any, params: { projectId: id } }); return; }
                   if (tile.key === 'closeoutBinder') { router.push({ pathname: '/closeout-binder' as any, params: { projectId: id } }); return; }
+                  if (tile.key === 'handover') { router.push({ pathname: '/handover' as any, params: { projectId: id } }); return; }
                   setActiveTile(tile.key);
                 }}
                 testID={`section-tile-${tile.key}`}

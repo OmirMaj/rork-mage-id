@@ -2,7 +2,7 @@ import { mageAI } from '@/utils/mageAI';
 import { z } from 'zod';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { checkAILimit, recordAIUsage, type SubscriptionTierKey, type RequestTier } from '@/utils/aiRateLimiter';
-import type { Project, ProjectSchedule, ScheduleTask, ChangeOrder, Invoice, Subcontractor, Equipment } from '@/types';
+import type { Project, ProjectSchedule, ScheduleTask, ChangeOrder, Invoice, Subcontractor, Equipment, DailyFieldReport } from '@/types';
 
 const AI_CACHE_PREFIX = 'mageid_ai_cache_';
 const COPILOT_HISTORY_PREFIX = 'mageid_copilot_';
@@ -319,6 +319,78 @@ Generate a professional daily report. Be specific based on the task data.`,
     throw new Error(aiResult.error || 'Daily report generation unavailable');
   }
   console.log('[AI DFR] Report generated');
+  return aiResult.data;
+}
+
+// ─── Homeowner-facing daily summary ─────────────────────────────────
+//
+// Most GCs hate writing "what happened today" emails to the homeowner,
+// and most homeowners hate reading the technical daily report. This
+// generator takes the technical inputs (manpower, work performed,
+// issues) and produces a 2-3 sentence homeowner-friendly narrative
+// the GC can edit + publish to the portal as the "Latest update"
+// panel. No jargon, no acronyms, no construction speak.
+
+export const homeownerSummarySchema = z.object({
+  // The narrative — 2-4 sentences, conversational, no jargon.
+  summary: z.string().default(''),
+  // 0-3 short bullet points the homeowner can scan first. Each ≤ 60
+  // chars. Optional — for slow days the AI may return [].
+  highlights: z.array(z.string()).default([]),
+  // 0-1 single sentence "looking ahead to tomorrow." Optional.
+  lookingAhead: z.string().default(''),
+});
+
+export type HomeownerSummaryResult = z.infer<typeof homeownerSummarySchema>;
+
+export async function generateHomeownerSummary(
+  dfr: DailyFieldReport,
+  ctx: { projectName: string; companyName: string; ownerFirstName?: string },
+): Promise<HomeownerSummaryResult> {
+  console.log('[AI Homeowner] Generating digest...');
+  const totalManpower = (dfr.manpower ?? []).reduce((s, m) => s + (m.headcount ?? 0), 0);
+  const trades = Array.from(new Set((dfr.manpower ?? []).map(m => m.trade).filter(Boolean)));
+  const weatherLine = dfr.weather
+    ? `${dfr.weather.conditions ?? ''} ${dfr.weather.temperature ?? ''}`.trim()
+    : '';
+  const dateLabel = (() => {
+    try { return new Date(dfr.date).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' }); }
+    catch { return dfr.date; }
+  })();
+
+  const prompt = `You are writing a 2-4 sentence update for a homeowner about their construction project. The homeowner is ${ctx.ownerFirstName || 'the client'} — they don't speak construction. Translate trade jargon into plain English. Be warm but not saccharine. Sign off implicit.
+
+PROJECT: ${ctx.projectName}
+DATE: ${dateLabel}
+WEATHER ON SITE: ${weatherLine || 'Not noted'}
+CREW: ${totalManpower} workers${trades.length ? ` (${trades.join(', ')})` : ''}
+
+WORK PERFORMED (technical):
+${dfr.workPerformed?.trim() || '(no notes)'}
+
+MATERIALS DELIVERED:
+${(dfr.materialsDelivered ?? []).join(', ') || '(none)'}
+
+ISSUES & DELAYS:
+${dfr.issuesAndDelays?.trim() || '(none)'}
+
+Write:
+- summary: 2-4 sentences. Plain English. NO trade jargon (translate "rough-in" → "wiring inside the walls", "subfloor" → "the layer of wood under the finished floor", etc.). Address the homeowner directly. If the day was quiet (low manpower, no work), say so honestly — "lighter day on site" — don't manufacture progress.
+- highlights: 0-3 bullets, each ≤ 60 chars, plain English. Pick the single most important thing they'd want to know. If nothing notable, return [].
+- lookingAhead: 0-1 sentence about tomorrow if you can infer it. Otherwise empty string.
+
+Tone: a contractor texting their client a friendly progress note. Not a corporate press release.`;
+
+  const aiResult = await mageAI({
+    prompt,
+    schema: homeownerSummarySchema,
+    tier: 'fast',
+    maxTokens: 600,
+  });
+  if (!aiResult.success) {
+    throw new Error(aiResult.error || 'Homeowner summary generation unavailable');
+  }
+  console.log('[AI Homeowner] Summary generated');
   return aiResult.data;
 }
 

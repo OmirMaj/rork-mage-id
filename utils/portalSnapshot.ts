@@ -13,7 +13,13 @@ import type {
   SavedAIAPayApp,
 } from '@/types';
 
-// v5 adds (Wave 3):
+// v6 adds (Wave 4):
+// - latestUpdate: the most-recently-published homeowner summary (AI-
+//   generated from the daily report). Shows up in the portal as the
+//   "Latest update" panel above everything else — the homeowner's
+//   single-glance "what happened on my project today" surface.
+//
+// v5 added (Wave 3):
 // - closeout binder block: notes, finishes (chosen selections), warranty
 //   roster, maintenance schedule, trade contacts, emergency contact info.
 //   Renders only when GC has finalized or sent the binder.
@@ -30,7 +36,7 @@ import type {
 // v3 added: clientCanSetBudget toggle, submitBudget config, project.targetBudget.
 // v2 added: invoice.lineItems summary, aiaPayApps section, hero photo +
 // schedule anchors.
-export const PORTAL_SNAPSHOT_VERSION = 5;
+export const PORTAL_SNAPSHOT_VERSION = 6;
 
 export interface PortalSnapshot {
   v: number;
@@ -84,6 +90,15 @@ export interface PortalSnapshot {
     contractValue: number;
     title: string;
     needsSignature: boolean;   // true when GC has signed but homeowner hasn't
+  };
+  // The most-recently-published homeowner summary. Pulled from the
+  // newest daily report whose `homeownerSummaryPublished === true` —
+  // the GC has reviewed the AI draft and explicitly pushed it out.
+  // Renders at the top of the portal as the "Latest update" hero.
+  latestUpdate?: {
+    dateLabel: string;        // "Friday, April 26"
+    summary: string;          // 2-4 sentence narrative
+    publishedAt: string;      // ISO timestamp of the parent DFR's updatedAt
   };
   // Closeout binder — only emitted when the GC has finalized or sent the
   // binder. The portal renders a printable view with all the long-tail
@@ -668,6 +683,25 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
     portalApi: apiConfig,
     coApprovalEnabled: !!portal.coApprovalEnabled,
     openBook,
+    // Latest published homeowner update — newest published summary
+    // wins. Independent of `showDailyReports`: even GCs who don't show
+    // the technical report still want to ship a friendly daily update.
+    latestUpdate: (() => {
+      const published = (dailyReports ?? [])
+        .filter(d => d.homeownerSummaryPublished && d.homeownerSummary && d.homeownerSummary.trim())
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      const top = published[0];
+      if (!top) return undefined;
+      const dateLabel = (() => {
+        try { return new Date(top.date).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' }); }
+        catch { return top.date; }
+      })();
+      return {
+        dateLabel,
+        summary: top.homeownerSummary!,
+        publishedAt: top.updatedAt,
+      };
+    })(),
     // Closeout binder — only emit when GC has finalized or sent it.
     // Inlined into the snapshot so the homeowner can pull the binder
     // from the portal years after handover (e.g., for a warranty claim

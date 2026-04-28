@@ -10,6 +10,7 @@ import * as ImagePicker from 'expo-image-picker';
 import {
   Plus, Trash2, X, Send, Cloud, Wind, Thermometer, Camera, Users,
   HardHat, Package, AlertTriangle, Image as ImageIcon, BookUser, User,
+  Sparkles, Home as HomeIcon, RefreshCw,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
@@ -23,6 +24,7 @@ import AIDFRFromPhotos from '@/components/AIDFRFromPhotos';
 import type { ManpowerEntry, DFRPhoto, DailyFieldReport, DFRWeather, IncidentReport, IncidentSeverity } from '@/types';
 import { stampPhotoLocation } from '@/utils/photoGeoStamp';
 import type { DailyReportGenResult } from '@/utils/aiService';
+import { generateHomeownerSummary } from '@/utils/aiService';
 import { nailIt } from '@/components/animations/NailItToast';
 
 function createId(prefix: string): string {
@@ -65,6 +67,14 @@ export default function DailyReportScreen() {
   );
   const [newMaterial, setNewMaterial] = useState('');
   const [issuesAndDelays, setIssuesAndDelays] = useState(existingReport?.issuesAndDelays ?? '');
+  // Homeowner-friendly summary — AI-generated from the technical fields,
+  // GC reviews / edits, then publishes to the portal as the "Latest update".
+  const [homeownerSummary, setHomeownerSummary] = useState<string>(existingReport?.homeownerSummary ?? '');
+  const [hsHighlights, setHsHighlights] = useState<string[]>([]);
+  const [hsLookingAhead, setHsLookingAhead] = useState<string>('');
+  const [hsPublished, setHsPublished] = useState<boolean>(existingReport?.homeownerSummaryPublished ?? false);
+  const [hsGenerating, setHsGenerating] = useState<boolean>(false);
+  const [hsGeneratedAt, setHsGeneratedAt] = useState<string | undefined>(existingReport?.homeownerSummaryGeneratedAt);
   const [photos, setPhotos] = useState<DFRPhoto[]>(existingReport?.photos ?? []);
   const [incident, setIncident] = useState<IncidentReport>(existingReport?.incident ?? {
     hasIncident: false,
@@ -235,6 +245,50 @@ export default function DailyReportScreen() {
     setPhotos(prev => prev.filter(p => p.id !== id));
   }, []);
 
+  // ─── Homeowner summary generation ───
+  const handleGenerateHomeownerSummary = useCallback(async () => {
+    if (!project) return;
+    if (!workPerformed.trim() && !manpower.length && !issuesAndDelays.trim()) {
+      Alert.alert(
+        'Not enough to summarize yet',
+        'Fill in at least the work performed, crew, or any issues — then I can write a homeowner-friendly version.',
+      );
+      return;
+    }
+    setHsGenerating(true);
+    try {
+      const ownerName = project.clientPortal?.invites?.[0]?.name?.split(' ')[0];
+      const result = await generateHomeownerSummary({
+        id: existingReport?.id ?? 'draft',
+        projectId: project.id,
+        date: existingReport?.date ?? new Date().toISOString(),
+        weather, manpower,
+        workPerformed,
+        materialsDelivered,
+        issuesAndDelays,
+        photos,
+        status: 'draft',
+        createdAt: existingReport?.createdAt ?? new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }, {
+        projectName: project.name,
+        companyName: settings?.branding?.companyName ?? 'Your contractor',
+        ownerFirstName: ownerName,
+      });
+      setHomeownerSummary(result.summary);
+      setHsHighlights(result.highlights ?? []);
+      setHsLookingAhead(result.lookingAhead ?? '');
+      setHsGeneratedAt(new Date().toISOString());
+      // Generating overrides any prior published flag — GC must re-review.
+      setHsPublished(false);
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    } catch (e) {
+      Alert.alert('Could not generate', e instanceof Error ? e.message : 'Try again in a moment.');
+    } finally {
+      setHsGenerating(false);
+    }
+  }, [project, workPerformed, manpower, materialsDelivered, issuesAndDelays, photos, weather, existingReport, settings]);
+
   const totalManpower = useMemo(() => {
     return manpower.reduce((sum, m) => sum + m.headcount, 0);
   }, [manpower]);
@@ -270,6 +324,9 @@ export default function DailyReportScreen() {
         photos,
         status,
         incident: incidentPayload,
+        homeownerSummary: homeownerSummary.trim() || undefined,
+        homeownerSummaryGeneratedAt: hsGeneratedAt,
+        homeownerSummaryPublished: hsPublished,
       });
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert('Updated', `Daily report has been ${status === 'sent' ? `sent${recipientInfo}` : 'saved to project'}.`);
@@ -286,6 +343,9 @@ export default function DailyReportScreen() {
         photos,
         status,
         incident: incidentPayload,
+        homeownerSummary: homeownerSummary.trim() || undefined,
+        homeownerSummaryGeneratedAt: hsGeneratedAt,
+        homeownerSummaryPublished: hsPublished,
         createdAt: now,
         updatedAt: now,
       };
@@ -306,7 +366,7 @@ export default function DailyReportScreen() {
       nailIt(status === 'sent' ? `Daily report sent${recipientInfo}` : 'Daily report saved.');
     }
     router.back();
-  }, [projectId, weather, manpower, workPerformed, materialsDelivered, issuesAndDelays, photos, incident, existingReport, addDailyReport, updateDailyReport, addProjectPhoto, router]);
+  }, [projectId, weather, manpower, workPerformed, materialsDelivered, issuesAndDelays, photos, incident, existingReport, homeownerSummary, hsGeneratedAt, hsPublished, addDailyReport, updateDailyReport, addProjectPhoto, router]);
 
   const handleSendPress = useCallback(() => {
     setShowSendRecipient(true);
@@ -669,6 +729,98 @@ export default function DailyReportScreen() {
             )}
           </View>
 
+          {/* Homeowner-friendly summary — AI generates from technical fields,
+              GC reviews + edits, then publishes to the portal as the daily
+              "Latest update" panel. The toggle for what shows in portal is
+              the published flag (independent of the technical DFR being sent
+              by email). */}
+          <View style={styles.sectionCard}>
+            <View style={styles.sectionHeader}>
+              <HomeIcon size={18} color={Colors.primary} />
+              <Text style={styles.sectionTitle}>Homeowner update</Text>
+              {hsPublished && (
+                <View style={hsStyles.publishedPill}>
+                  <Text style={hsStyles.publishedPillText}>PUBLISHED</Text>
+                </View>
+              )}
+            </View>
+            <Text style={hsStyles.helperText}>
+              A short, jargon-free summary of today for the homeowner&apos;s portal. AI writes a draft from your notes above — review, edit, then publish.
+            </Text>
+
+            {!isLocked && (
+              <TouchableOpacity
+                style={[hsStyles.aiBtn, hsGenerating && hsStyles.aiBtnDisabled]}
+                onPress={handleGenerateHomeownerSummary}
+                disabled={hsGenerating}
+                testID="hs-generate"
+              >
+                {hsGenerating ? (
+                  <>
+                    <RefreshCw size={14} color={Colors.primary} />
+                    <Text style={hsStyles.aiBtnText}>Writing the homeowner version…</Text>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles size={14} color={Colors.primary} />
+                    <Text style={hsStyles.aiBtnText}>{homeownerSummary ? 'Re-generate from notes' : 'Generate from today\'s notes'}</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            )}
+
+            {!isLocked ? (
+              <TextInput
+                style={[styles.textArea, { marginTop: 10 }]}
+                value={homeownerSummary}
+                onChangeText={(v) => {
+                  setHomeownerSummary(v);
+                  if (hsPublished) setHsPublished(false);  // edit invalidates the published copy
+                }}
+                placeholder='AI draft will appear here. Or write your own — "Hi Sarah, big day on site today…"'
+                placeholderTextColor={Colors.textMuted}
+                multiline
+                textAlignVertical="top"
+                editable={!hsGenerating}
+              />
+            ) : (
+              <Text style={styles.readOnlyText}>{homeownerSummary || 'No homeowner summary.'}</Text>
+            )}
+
+            {hsHighlights.length > 0 && (
+              <View style={hsStyles.highlightsBlock}>
+                <Text style={hsStyles.highlightsLabel}>Suggested bullet points</Text>
+                {hsHighlights.map((h, i) => (
+                  <View key={i} style={hsStyles.highlightRow}>
+                    <View style={hsStyles.highlightDot} />
+                    <Text style={hsStyles.highlightText}>{h}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {hsLookingAhead && (
+              <Text style={hsStyles.lookingAhead}>
+                Looking ahead: {hsLookingAhead}
+              </Text>
+            )}
+
+            {!isLocked && homeownerSummary.trim().length > 0 && (
+              <TouchableOpacity
+                style={[hsStyles.publishBtn, hsPublished && hsStyles.publishBtnPublished]}
+                onPress={() => {
+                  setHsPublished(p => !p);
+                  if (Platform.OS !== 'web') void Haptics.selectionAsync().catch(() => {});
+                }}
+                testID="hs-publish-toggle"
+              >
+                <Text style={[hsStyles.publishBtnText, hsPublished && hsStyles.publishBtnTextPublished]}>
+                  {hsPublished ? '✓ Showing in portal' : 'Publish to portal'}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
           <View style={styles.sectionCard}>
             <View style={styles.sectionHeader}>
               <HardHat size={18} color={Colors.error} />
@@ -989,6 +1141,36 @@ export default function DailyReportScreen() {
     </View>
   );
 }
+
+const hsStyles = StyleSheet.create({
+  helperText: { fontSize: 12, color: Colors.textMuted, marginBottom: 10, lineHeight: 17 },
+  publishedPill: {
+    backgroundColor: 'rgba(30,142,74,0.12)', paddingHorizontal: 8, paddingVertical: 3,
+    borderRadius: 999, marginLeft: 'auto',
+  },
+  publishedPillText: { fontSize: 9, fontWeight: '800', color: '#1E8E4A', letterSpacing: 0.6 },
+  aiBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    paddingHorizontal: 12, paddingVertical: 11, borderRadius: 11,
+    backgroundColor: Colors.primary + '0F', borderWidth: 1, borderColor: Colors.primary + '40',
+  },
+  aiBtnDisabled: { opacity: 0.7 },
+  aiBtnText: { fontSize: 13, fontWeight: '700', color: Colors.primary },
+  highlightsBlock: { marginTop: 10, gap: 4 },
+  highlightsLabel: { fontSize: 10, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 4 },
+  highlightRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingVertical: 2 },
+  highlightDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: Colors.primary, marginTop: 7 },
+  highlightText: { flex: 1, fontSize: 13, color: Colors.text, lineHeight: 19 },
+  lookingAhead: { fontSize: 12, color: Colors.textMuted, marginTop: 8, fontStyle: 'italic' },
+  publishBtn: {
+    marginTop: 12, paddingVertical: 11, borderRadius: 11,
+    backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border,
+    alignItems: 'center',
+  },
+  publishBtnPublished: { backgroundColor: 'rgba(30,142,74,0.10)', borderColor: '#1E8E4A' },
+  publishBtnText: { fontSize: 13, fontWeight: '700', color: Colors.text },
+  publishBtnTextPublished: { color: '#1E8E4A' },
+});
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },

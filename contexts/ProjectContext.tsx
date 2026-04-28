@@ -253,6 +253,9 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
               workPerformed: (r.work_performed as string) ?? '', materialsDelivered: (r.materials_delivered as string[]) ?? [],
               issuesAndDelays: (r.issues_and_delays as string) ?? '', photos: (r.photos as DailyFieldReport['photos']) ?? [],
               status: (r.status as DailyFieldReport['status']) ?? 'draft',
+              homeownerSummary: (r.homeowner_summary as string | null) ?? undefined,
+              homeownerSummaryGeneratedAt: (r.homeowner_summary_generated_at as string | null) ?? undefined,
+              homeownerSummaryPublished: !!r.homeowner_summary_published,
               createdAt: r.created_at as string, updatedAt: r.updated_at as string,
             })) as DailyFieldReport[];
             await saveLocal(DAILY_REPORTS_KEY, mapped);
@@ -918,7 +921,11 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
         id: report.id, user_id: userId, project_id: report.projectId, date: report.date,
         weather: report.weather, manpower: report.manpower, work_performed: report.workPerformed,
         materials_delivered: report.materialsDelivered, issues_and_delays: report.issuesAndDelays,
-        photos: report.photos, status: report.status, created_at: report.createdAt, updated_at: report.updatedAt,
+        photos: report.photos, status: report.status,
+        homeowner_summary: report.homeownerSummary ?? null,
+        homeowner_summary_generated_at: report.homeownerSummaryGeneratedAt ?? null,
+        homeowner_summary_published: report.homeownerSummaryPublished ?? false,
+        created_at: report.createdAt, updated_at: report.updatedAt,
       });
     }
   }, [dailyReports, saveDailyReportsMutation, canSync, userId]);
@@ -935,6 +942,9 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
           id, weather: dr.weather, manpower: dr.manpower, work_performed: dr.workPerformed,
           materials_delivered: dr.materialsDelivered, issues_and_delays: dr.issuesAndDelays,
           photos: dr.photos, status: dr.status, updated_at: now,
+          homeowner_summary: dr.homeownerSummary ?? null,
+          homeowner_summary_generated_at: dr.homeownerSummaryGeneratedAt ?? null,
+          homeowner_summary_published: dr.homeownerSummaryPublished ?? false,
         });
       }
     }
