@@ -26,7 +26,13 @@ import { useProjects } from '@/contexts/ProjectContext';
 import { isOwner } from '@/utils/owner';
 import { generateUUID } from '@/utils/generateId';
 import { nailIt } from '@/components/animations/NailItToast';
-import type { Project, Invoice, DailyFieldReport, PunchItem, ProjectPhoto, ChangeOrder } from '@/types';
+import type { Project, Invoice, DailyFieldReport, PunchItem, ProjectPhoto, ChangeOrder, PhotoMarkup } from '@/types';
+// Wave 1-5 engines — seeded so screenshots show every feature loaded
+// with realistic-looking data instead of empty states.
+import { saveContract } from '@/utils/contractEngine';
+import { saveSelectionCategory, saveCuratedOptions, chooseSelectionOption, fetchSelectionsForProject } from '@/utils/selectionsEngine';
+import { saveLienWaiver } from '@/utils/lienWaiverEngine';
+import { saveCloseoutBinder, DEFAULT_MAINTENANCE } from '@/utils/closeoutBinderEngine';
 
 export default function DevSeederScreen() {
   const insets = useSafeAreaInsets();
@@ -88,6 +94,45 @@ export default function DevSeederScreen() {
           materials: [],
         },
         status: 'in_progress',
+        // Open-book contract mode so the portal shows the real cost
+        // breakdown — useful for the "Open Book / GMP" screenshot.
+        contractMode: 'open_book',
+        // Pre-populated client portal: homeowner invited, all sections
+        // toggled on, language set to Spanish so screenshots can show
+        // the multi-language portal in action.
+        clientPortal: {
+          enabled: true,
+          portalId: `portal-${projectId.slice(0, 8)}-demo`,
+          showSchedule: true,
+          showBudgetSummary: true,
+          showInvoices: true,
+          showChangeOrders: true,
+          showPhotos: true,
+          showDailyReports: true,
+          showPunchList: true,
+          showRFIs: true,
+          showDocuments: false,
+          welcomeMessage: 'Welcome! This is your live project portal. Let me know if anything looks off.',
+          coApprovalEnabled: true,
+          clientCanSetBudget: false,
+          homeownerLanguage: 'en',
+          invites: [
+            {
+              id: generateUUID(),
+              email: 'lhenderson@example.com',
+              name: 'Linda Henderson',
+              createdAt: isoDaysAgo(40),
+              viewedAt: isoDaysAgo(2),
+            },
+          ],
+        },
+        // Manual handover-day checks so the Handover Checklist
+        // screenshot shows mixed status (computed + manual).
+        handoverChecklist: {
+          // walkthrough not yet done; keys not yet transferred. The
+          // computed checks (selections / punch / binder / etc.) will
+          // come back live from the underlying records.
+        },
       } as unknown as Project;
       addProject(project);
 
@@ -137,9 +182,23 @@ export default function DevSeederScreen() {
         { weather: 'Cloudy, 55°F', conditions: 'Cloudy', work: 'Painting prep on 2F bedrooms. Cabinet delivery pushed to next week per supplier.', issues: 'Cabinet delay flagged with owner — schedule impact 5 days.' },
         { weather: 'Sunny, 68°F', conditions: 'Clear', work: 'Floor refinish coat 1 — living + dining rooms. Started finish trim around new windows.', issues: '' },
       ];
+      // Homeowner-friendly summaries paired with each technical DFR.
+      // The most recent one is published to the portal so the "Latest
+      // update" hero panel + the daily-report homeowner section both
+      // have something to render in screenshots.
+      const homeownerSummaries = [
+        'We finished knocking down the last big wall in the back of the house and the dumpster guys came and hauled the old stuff away. Started building the new kitchen island today — by the end of the week the rough shape will be there.',
+        'Today the electricians ran new wiring through the upstairs and the plumber started the rough work for your primary bath. We did find some really old wiring in the back corner that we\'ll need to discuss — nothing urgent, but I\'ll send a separate note.',
+        'Rainy day so we kept everything indoors. The drywall was delivered and stacked in the basement, and the insulation crew finished the second-floor walls and ceiling. Should be a warm house this winter.',
+        'Sunny day and we made good progress outside — patched the rear stucco, finished the chimney rebuild, and the new windows on the east side started going in. Looking really nice from the curb already.',
+        'Quieter day on site. HVAC ducts are going in upstairs and we started taping drywall in the primary bedroom and closets. Tomorrow we\'ll be loud — flooring crew arrives.',
+      ];
       dfrTopics.forEach((d, i) => {
         const date = isoDaysAgo(i * 2 + 1);
         const tempStr = d.weather.match(/([0-9]+)°/);
+        // Publish the most recent (i=0) summary so the portal's
+        // "Latest update" panel renders. Older summaries stay drafts.
+        const isMostRecent = i === 0;
         addDailyReport({
           id: generateUUID(),
           projectId,
@@ -157,6 +216,12 @@ export default function DevSeederScreen() {
           status: i < 2 ? 'sent' : 'draft',
           recipientEmail: '',
           recipientName: '',
+          // Wave 4: pre-seeded homeowner summary + publish flag on
+          // the most recent so the portal's "Latest update" panel
+          // has content immediately.
+          homeownerSummary: homeownerSummaries[i] ?? undefined,
+          homeownerSummaryGeneratedAt: homeownerSummaries[i] ? date : undefined,
+          homeownerSummaryPublished: isMostRecent,
           createdAt: date,
           updatedAt: date,
         } as DailyFieldReport);
@@ -220,6 +285,13 @@ export default function DevSeederScreen() {
       // grid renders something visible.
       const photoTags = ['before', 'progress', 'progress', 'progress', 'progress', 'after', 'after', 'before'];
       const photoLocations = ['Kitchen — west wall', 'Primary bath rough-in', 'Living room subfloor', 'Stairwell framing', 'East elevation', 'Kitchen island', 'Dining room finish', 'Mechanical room'];
+      // One photo gets sample markup so the photo annotator + the
+      // photo-with-markup screenshot have something realistic to show.
+      const sampleMarkup: PhotoMarkup[] = [
+        { id: generateUUID(), type: 'arrow',  color: 'red',    points: [{ x: 0.18, y: 0.38 }, { x: 0.42, y: 0.55 }] },
+        { id: generateUUID(), type: 'circle', color: 'yellow', points: [{ x: 0.55, y: 0.30 }, { x: 0.78, y: 0.55 }] },
+        { id: generateUUID(), type: 'text',   color: 'red',    points: [{ x: 0.18, y: 0.30 }], text: 'Hairline crack' },
+      ];
       photoTags.forEach((tag, i) => {
         addProjectPhoto({
           id: generateUUID(),
@@ -228,6 +300,9 @@ export default function DevSeederScreen() {
           timestamp: isoDaysAgo(30 - i * 3),
           location: photoLocations[i],
           tag,
+          // Mark up photo #2 (the primary bath rough-in) so screenshots
+          // of the gallery + lightbox can show the badge + overlay.
+          markup: i === 1 ? sampleMarkup : undefined,
           latitude: 40.6712 + (Math.random() - 0.5) * 0.001,
           longitude: -73.9876 + (Math.random() - 0.5) * 0.001,
         } as ProjectPhoto);
@@ -253,6 +328,188 @@ export default function DevSeederScreen() {
         createdAt: isoDaysAgo(15),
         updatedAt: isoNow,
       } as unknown as ChangeOrder);
+
+      // ─── Wave 1-5 features ─────────────────────────────────────────
+      // Seed every premium feature so screenshots and demos don't have
+      // to start from scratch. All async — wrapped in Promise.allSettled
+      // so a failure in one doesn't block the rest.
+
+      // 8. Project Contract — fully signed by both parties so the
+      //    "Contract" tile shows the SIGNED status pill, and so the
+      //    contract preview screenshot has signatures on both sides.
+      const contractPromise = saveContract({
+        projectId,
+        version: 1,
+        title: 'Cooper-Henderson Renovation Agreement',
+        contractValue: 511_863,
+        scopeText:
+          'Full-gut renovation of three-story brownstone. New mechanicals, custom millwork, designer kitchen, four bathrooms.',
+        termsText: 'Standard residential contract terms. Payment per milestone schedule below. Either party may terminate for material breach with 30 days notice.',
+        warrantyText: 'Twelve-month workmanship warranty from date of substantial completion. Manufacturer warranties pass through to homeowner where applicable.',
+        startDate: isoDaysAgo(45),
+        durationDays: 165,
+        paymentSchedule: [
+          { id: generateUUID(), label: 'Deposit', trigger: 'on_signing', amount: 76_780, percent: 15, status: 'paid', paidAt: isoDaysAgo(38) },
+          { id: generateUUID(), label: 'Foundation pour complete', trigger: 'on_milestone', amount: 76_780, percent: 15, status: 'paid', paidAt: isoDaysAgo(28) },
+          { id: generateUUID(), label: 'Framing complete', trigger: 'on_milestone', amount: 102_372, percent: 20, status: 'invoiced', invoicedAt: isoDaysAgo(14) },
+          { id: generateUUID(), label: 'Mechanicals + drywall complete', trigger: 'on_milestone', amount: 102_372, percent: 20, status: 'pending' },
+          { id: generateUUID(), label: 'Substantial completion', trigger: 'on_milestone', amount: 102_372, percent: 20, status: 'pending' },
+          { id: generateUUID(), label: 'Final + punch list', trigger: 'on_final', amount: 51_187, percent: 10, status: 'pending' },
+        ],
+        // Allowances — these will auto-create matching SelectionCategory
+        // rows when the contract is "sent," but here we seed them
+        // explicitly below for screenshot purposes.
+        allowances: [
+          { id: generateUUID(), category: 'Kitchen Tile', amount: 8_500, description: 'Backsplash + island surround' },
+          { id: generateUUID(), category: 'Bathroom Tile', amount: 12_000, description: 'Primary + 2 hall baths' },
+          { id: generateUUID(), category: 'Lighting Fixtures', amount: 6_500, description: 'Whole house, owner-selected' },
+          { id: generateUUID(), category: 'Plumbing Fixtures', amount: 9_800, description: 'Faucets, sinks, toilets' },
+          { id: generateUUID(), category: 'Hardwood Flooring', amount: 14_200, description: 'Living + dining + bedrooms' },
+        ],
+        gcSignature: { name: 'Marcus Henderson', role: 'gc', signedAt: isoDaysAgo(40) },
+        homeownerSignature: { name: 'Linda Henderson', role: 'homeowner', signedAt: isoDaysAgo(38) },
+        signedAt: isoDaysAgo(38),
+        status: 'signed',
+      });
+
+      // 9. Selection Categories — five, with chosen options spanning
+      //    budget / on-target / premium tiers. ONE category is over
+      //    allowance to demonstrate the "Draft Change Order" CTA.
+      const selSeeds = [
+        {
+          name: 'Kitchen Tile', budget: 8500, brief: 'Modern, light, easy to clean',
+          options: [
+            { product: 'White subway 3x6', brand: 'American Olean', total: 6_400, isChosen: false },
+            { product: 'Calacatta 12x24 porcelain', brand: 'Ann Sacks', total: 8_300, isChosen: true },  // on-target chosen
+            { product: 'Hand-cut Moroccan zellige', brand: 'Cle Tile', total: 14_900, isChosen: false },
+          ],
+        },
+        {
+          name: 'Bathroom Tile', budget: 12000, brief: 'Spa feel, marble or marble-look',
+          options: [
+            { product: 'Carrara honed 12x24', brand: 'Daltile', total: 9_200, isChosen: false },
+            { product: 'Statuario polished hex', brand: 'Ann Sacks', total: 11_800, isChosen: false },
+            { product: 'Calacatta gold herringbone', brand: 'Walker Zanger', total: 16_400, isChosen: true }, // OVER allowance — triggers CO CTA
+          ],
+        },
+        {
+          name: 'Lighting Fixtures', budget: 6500, brief: 'Warm, dimmable, mid-century',
+          options: [
+            { product: 'Schoolhouse + Rejuvenation mix', brand: 'Schoolhouse', total: 4_800, isChosen: true },  // budget chosen
+            { product: 'Hudson Valley brass family', brand: 'Hudson Valley', total: 6_700, isChosen: false },
+            { product: 'Apparatus + Roll & Hill', brand: 'Apparatus', total: 11_400, isChosen: false },
+          ],
+        },
+        {
+          name: 'Plumbing Fixtures', budget: 9800, brief: 'Polished nickel, classic',
+          options: [
+            { product: 'Kohler Artifacts complete', brand: 'Kohler', total: 8_400, isChosen: false },
+            { product: 'Waterworks Henry collection', brand: 'Waterworks', total: 9_700, isChosen: true },  // on-target
+            { product: 'Lefroy Brooks heritage', brand: 'Lefroy Brooks', total: 14_200, isChosen: false },
+          ],
+        },
+        {
+          name: 'Hardwood Flooring', budget: 14200, brief: 'White oak, wide plank, matte finish',
+          options: [
+            { product: '4-inch white oak Natural', brand: 'Carlisle', total: 11_800, isChosen: false },
+            { product: '7-inch white oak Pickled', brand: 'Carlisle', total: 13_900, isChosen: false },
+            { product: '8-inch rift+quartered Custom', brand: 'Carlisle', total: 17_600, isChosen: false },  // none chosen — pending pick
+          ],
+        },
+      ];
+
+      const selectionsPromise = (async () => {
+        // 1) Save each category + its options.
+        for (const s of selSeeds) {
+          const cat = await saveSelectionCategory({
+            projectId,
+            category: s.name,
+            budget: s.budget,
+            styleBrief: s.brief,
+          });
+          if (!cat) continue;
+          const options = s.options.map(o => ({
+            categoryId: cat.id,
+            productName: o.product,
+            brand: o.brand,
+            description: '',
+            unitPrice: o.total,
+            unit: 'lump',
+            quantity: 1,
+            total: o.total,
+            highlights: [],
+            isChosen: false,
+          }));
+          await saveCuratedOptions(cat.id, options);
+        }
+        // 2) Re-fetch so we know the persisted option ids, then mark
+        //    each chosen one in a second pass.
+        const fresh = await fetchSelectionsForProject(projectId);
+        for (const seed of selSeeds) {
+          const liveCat = fresh.find(c => c.category === seed.name);
+          if (!liveCat) continue;
+          const seedChosenIdx = seed.options.findIndex(o => o.isChosen);
+          if (seedChosenIdx < 0) continue;
+          const targetProduct = seed.options[seedChosenIdx].product;
+          const liveOpt = (liveCat.options ?? []).find(o => o.productName === targetProduct);
+          if (liveOpt) {
+            await chooseSelectionOption(liveCat.id, liveOpt.id, 'homeowner');
+          }
+        }
+      })();
+
+      // 10. Lien Waivers — four in different statuses to populate the
+      //     full lien-waivers screen.
+      const waiverSeeds = [
+        { type: 'unconditional_partial' as const, sub: 'Volt Bros Electric',  email: 'shop@voltbros.com',     amount: 18_400, throughDays: 8,  status: 'received' as const, gotSignedAt: isoDaysAgo(6) },
+        { type: 'conditional_partial' as const,   sub: 'Park Slope Plumbing', email: 'office@psplumbing.com', amount: 22_800, throughDays: 14, status: 'signed' as const,   gotSignedAt: isoDaysAgo(12) },
+        { type: 'conditional_partial' as const,   sub: 'Brooks Painting',     email: 'mike@brookspaint.com',  amount: 8_900,  throughDays: 5,  status: 'requested' as const, gotSignedAt: undefined },
+        { type: 'unconditional_final' as const,   sub: 'Romano Engineering',  email: 'mr@romanoengineering.com', amount: 4_500, throughDays: 30, status: 'received' as const, gotSignedAt: isoDaysAgo(28) },
+      ];
+      const waiversPromise = (async () => {
+        for (const w of waiverSeeds) {
+          await saveLienWaiver({
+            projectId,
+            waiverType: w.type,
+            subName: w.sub,
+            subEmail: w.email,
+            paidAmount: w.amount,
+            throughDate: isoDaysAgo(w.throughDays).slice(0, 10),
+            status: w.status,
+            signedAt: w.gotSignedAt,
+            subSignature: w.gotSignedAt
+              ? { name: w.sub.split(' ')[0] + ' rep', role: 'gc' as const, signedAt: w.gotSignedAt }
+              : undefined,
+            notes: '',
+          });
+        }
+      })();
+
+      // 11. Closeout Binder — finalized + delivered, with custom note.
+      //     Status='sent' so the binder shows up in the homeowner's
+      //     portal and the project-detail tile shows DELIVERED.
+      //     Also so the Handover Checklist's "binder delivered" item
+      //     auto-ticks.
+      const binderPromise = saveCloseoutBinder({
+        projectId,
+        status: 'sent',
+        finalizedAt: isoDaysAgo(3),
+        sentAt: isoDaysAgo(2),
+        notes:
+          'Linda + Marcus — thanks for trusting us with the brownstone. Everything you need to maintain the place is in here. Call any time, especially in the first year while warranties are live.\n\n— The Henderson Build team',
+        maintenanceSchedule: [
+          ...DEFAULT_MAINTENANCE,
+          { id: generateUUID(), task: 'Marble countertop reseal', frequency: 'Annual', notes: 'Use pH-neutral stone sealer. Test with water bead.' },
+          { id: generateUUID(), task: 'Hardwood floor inspection', frequency: 'Annual', notes: 'Look for separation in heating season. Re-coat every 5-7 years.' },
+        ],
+      });
+
+      // Fire all the wave 1-5 seeders in parallel; wait but tolerate
+      // partial failures so a single broken table doesn't blank the
+      // whole demo.
+      await Promise.allSettled([
+        contractPromise, selectionsPromise, waiversPromise, binderPromise,
+      ]);
 
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       nailIt('Demo project loaded');
@@ -309,10 +566,21 @@ export default function DevSeederScreen() {
           </View>
           <Text style={styles.cardTitle}>Load demo project</Text>
           <Text style={styles.cardSub}>
-            Creates "The Henderson Residence" — a 3,200 sf brownstone renovation with realistic
-            estimates, 5 invoices (mixed paid/partial/sent), 8 daily field reports across 2 weeks,
-            4 RFIs, 6 punch items, 8 photos with GPS, and 1 approved change order. Perfect for
-            App Store screenshots and demos.
+            Creates &ldquo;The Henderson Residence&rdquo; — a 3,200 sf brownstone renovation with everything populated:
+          </Text>
+          <View style={styles.bulletList}>
+            <Text style={styles.bullet}>• Estimate ($511K) + 5 invoices (mixed paid/partial/sent)</Text>
+            <Text style={styles.bullet}>• 8 daily field reports + AI homeowner summary published</Text>
+            <Text style={styles.bullet}>• 4 RFIs · 6 punch items · 1 approved change order</Text>
+            <Text style={styles.bullet}>• 8 site photos · 1 with markup overlay</Text>
+            <Text style={styles.bullet}>• Signed contract · 6 payment milestones · 5 allowances</Text>
+            <Text style={styles.bullet}>• 5 selection categories with chosen options (1 over allowance)</Text>
+            <Text style={styles.bullet}>• 4 lien waivers (received / signed / requested)</Text>
+            <Text style={styles.bullet}>• Closeout binder DELIVERED · custom note · maintenance schedule</Text>
+            <Text style={styles.bullet}>• Open-book / GMP mode · client portal pre-configured</Text>
+          </View>
+          <Text style={styles.cardSubFine}>
+            Every screen will have something realistic to render. Drop into project-detail and the Money tile group lights up with status badges. Perfect for App Store screenshots.
           </Text>
           <TouchableOpacity
             style={[styles.cta, seeding && { opacity: 0.6 }]}
@@ -396,6 +664,9 @@ const styles = StyleSheet.create({
   },
   cardTitle: { fontSize: 20, fontWeight: '800' as const, color: Colors.text, letterSpacing: -0.4 },
   cardSub: { fontSize: 14, color: Colors.textSecondary, lineHeight: 20 },
+  cardSubFine: { fontSize: 12, color: Colors.textMuted, lineHeight: 17, marginTop: 6, fontStyle: 'italic' as const },
+  bulletList: { gap: 4, marginTop: 8, marginBottom: 8 },
+  bullet: { fontSize: 12, color: Colors.text, lineHeight: 17 },
   cta: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
