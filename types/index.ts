@@ -126,6 +126,122 @@ export interface Project {
   contractorFeeAmount?: number;
 }
 
+// ─── Project Contract ───────────────────────────────────────────────
+// The formal scope-of-work + payment-schedule agreement between the GC
+// and the homeowner, signed inside the app. Replaces the "passcode link
+// + portal snapshot" handoff with an actual binding document.
+
+export type ContractStatus = 'draft' | 'sent' | 'signed' | 'void';
+
+export interface PaymentMilestone {
+  id: string;
+  label: string;                // e.g. "Deposit", "Foundation pour", "Substantial completion"
+  trigger:
+    | 'on_signing'
+    | 'on_date'
+    | 'on_milestone'
+    | 'on_invoice'
+    | 'on_final';
+  triggerDate?: string;          // when trigger='on_date'
+  triggerMilestone?: string;     // free-text reference for trigger='on_milestone'
+  amount?: number;               // fixed dollar amount
+  percent?: number;              // alternative — % of contract value
+  status: 'pending' | 'invoiced' | 'paid' | 'skipped';
+  invoiceId?: string;
+  invoicedAt?: string;
+  paidAt?: string;
+}
+
+export interface ContractAllowance {
+  id: string;
+  category: string;              // e.g. "Kitchen fixtures", "Flooring"
+  amount: number;                // budget the homeowner can spend within scope
+  description?: string;
+}
+
+export interface ContractSignature {
+  name: string;                  // typed legal name
+  role: 'gc' | 'homeowner';
+  signedAt: string;              // ISO
+  signaturePaths?: string[];     // SVG paths from SignaturePad
+  ipAddress?: string;            // best-effort capture for legal record
+}
+
+export interface ProjectContract {
+  id: string;
+  projectId: string;
+  userId: string;                // GC user_id
+  sourceBidId?: string;          // public_bids.id when this came from the marketplace
+  sourceResponseId?: string;     // bid_responses.id of the awarded bid
+  version: number;
+  supersededBy?: string;
+  title: string;
+  contractValue: number;
+  startDate?: string;
+  durationDays?: number;
+  scopeText: string;
+  termsText: string;
+  warrantyText: string;
+  paymentSchedule: PaymentMilestone[];
+  allowances: ContractAllowance[];
+  gcSignature?: ContractSignature;
+  homeownerSignature?: ContractSignature;
+  status: ContractStatus;
+  sentAt?: string;
+  signedAt?: string;
+  voidedAt?: string;
+  signedPdfUrl?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ─── Selections / Allowances ────────────────────────────────────────
+// Finishes, fixtures, and materials the homeowner picks within an
+// allowance budget. AI curates options; homeowner picks; allowance
+// auto-deducts. Goes into the contract as binding numbers.
+
+export type SelectionCategoryStatus = 'pending' | 'browsing' | 'chosen' | 'exceeded';
+export type SelectionOptionSource = 'ai_generated' | 'gc_added' | 'homeowner_added';
+
+export interface SelectionOption {
+  id: string;
+  categoryId: string;
+  source: SelectionOptionSource;
+  productName: string;
+  brand: string;
+  sku: string;
+  description: string;
+  imageUrl?: string;
+  productUrl?: string;
+  unitPrice: number;
+  unit: string;                  // 'ea', 'sqft', 'box', etc.
+  quantity: number;
+  total: number;
+  leadTimeDays?: number;
+  supplier?: string;
+  highlights: string[];          // e.g. ["Quartz, won't stain", "10-yr warranty"]
+  isChosen: boolean;
+  chosenAt?: string;
+  chosenByRole?: 'homeowner' | 'gc';
+  createdAt: string;
+}
+
+export interface SelectionCategory {
+  id: string;
+  projectId: string;
+  userId: string;
+  category: string;              // "Kitchen Cabinets", "Bathroom Tile", etc.
+  styleBrief: string;            // "modern farmhouse", or homeowner's free text
+  budget: number;
+  dueDate?: string;
+  status: SelectionCategoryStatus;
+  notes: string;
+  displayOrder: number;
+  createdAt: string;
+  updatedAt: string;
+  options?: SelectionOption[];   // populated when fetched with options
+}
+
 export interface ProjectTargetBudget {
   amount: number;
   setAt: string;        // ISO timestamp

@@ -458,6 +458,14 @@ function RootLayoutNav() {
         options={{ headerShown: false }}
       />
       <Stack.Screen
+        name="contract"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="selections"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
         name="plans"
         options={{ headerShown: false }}
       />
