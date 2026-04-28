@@ -466,6 +466,14 @@ function RootLayoutNav() {
         options={{ headerShown: false }}
       />
       <Stack.Screen
+        name="lien-waivers"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="closeout-binder"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
         name="plans"
         options={{ headerShown: false }}
       />

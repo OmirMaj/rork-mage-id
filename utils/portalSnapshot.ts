@@ -65,6 +65,43 @@ export interface PortalSnapshot {
   // Whether the client can 1-tap approve/decline change orders from the
   // portal. When false the CO list is read-only.
   coApprovalEnabled?: boolean;
+  // Active project contract (when status >= 'sent'). Lets the homeowner
+  // review + counter-sign their construction agreement directly in the
+  // static portal. Only the contract id + minimal metadata is bundled
+  // here; the full contract row is fetched from Supabase via the
+  // portalApi config (anon key + RLS gates the read).
+  contract?: {
+    id: string;
+    status: 'sent' | 'signed';
+    contractValue: number;
+    title: string;
+    needsSignature: boolean;   // true when GC has signed but homeowner hasn't
+  };
+  // AI-curated selections / allowances the homeowner picks. Flat list
+  // because the portal renders a category card for each. Only categories
+  // with options are bundled.
+  selections?: Array<{
+    id: string;
+    category: string;
+    styleBrief: string;
+    budget: number;
+    status: 'pending' | 'browsing' | 'chosen' | 'exceeded';
+    options: Array<{
+      id: string;
+      productName: string;
+      brand: string;
+      description: string;
+      unitPrice: number;
+      unit: string;
+      quantity: number;
+      total: number;
+      leadTimeDays?: number;
+      supplier?: string;
+      productUrl?: string;
+      highlights: string[];
+      isChosen: boolean;
+    }>;
+  }>;
   // Open-book / GMP cost transparency. When set, the portal renders a
   // dedicated "Open Book" section showing real budget vs committed vs
   // actual cost — a thing enterprise PM software can't really do for
@@ -239,6 +276,12 @@ interface BuildOpts {
   // breakdown. When absent, the open-book section is omitted from the
   // snapshot even if project.contractMode is set.
   commitments?: import('@/types').Commitment[];
+  // Active contract for this project. Pre-fetched by the GC's app and
+  // bundled into the snapshot so the portal can show a "Sign contract"
+  // card without requiring the homeowner to be authenticated.
+  contract?: import('@/types').ProjectContract;
+  // Selection categories + options to render in the portal.
+  selections?: import('@/types').SelectionCategory[];
 }
 
 export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
@@ -572,6 +615,42 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
     portalApi: apiConfig,
     coApprovalEnabled: !!portal.coApprovalEnabled,
     openBook,
+    // Contract — only emit when GC has actually sent it to the homeowner.
+    contract: opts.contract && (opts.contract.status === 'sent' || opts.contract.status === 'signed') ? {
+      id: opts.contract.id,
+      status: opts.contract.status,
+      contractValue: opts.contract.contractValue,
+      title: opts.contract.title,
+      needsSignature: !opts.contract.homeownerSignature && opts.contract.status === 'sent',
+    } : undefined,
+    // Selections — every category with at least 1 option, plus the chosen
+    // one (if any). Skip pending categories.
+    selections: opts.selections && opts.selections.length > 0
+      ? opts.selections
+          .filter(c => (c.options ?? []).length > 0)
+          .map(c => ({
+            id: c.id,
+            category: c.category,
+            styleBrief: c.styleBrief,
+            budget: c.budget,
+            status: c.status,
+            options: (c.options ?? []).map(o => ({
+              id: o.id,
+              productName: o.productName,
+              brand: o.brand,
+              description: o.description,
+              unitPrice: o.unitPrice,
+              unit: o.unit,
+              quantity: o.quantity,
+              total: o.total,
+              leadTimeDays: o.leadTimeDays,
+              supplier: o.supplier,
+              productUrl: o.productUrl,
+              highlights: o.highlights,
+              isChosen: o.isChosen,
+            })),
+          }))
+      : undefined,
     messages: trimmedMessages,
     company: {
       name: settings?.branding?.companyName ?? 'MAGE ID',

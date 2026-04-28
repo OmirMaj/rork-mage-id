@@ -195,6 +195,38 @@ export interface ProjectContract {
   updatedAt: string;
 }
 
+// ─── Lien Waivers ───────────────────────────────────────────────────
+// The 4-type generic waiver. State-specific forms (CA/TX/FL/etc.) come
+// in a future push; the generic form covers ~38 states.
+
+export type LienWaiverType =
+  | 'conditional_partial'
+  | 'unconditional_partial'
+  | 'conditional_final'
+  | 'unconditional_final';
+export type LienWaiverStatus = 'requested' | 'signed' | 'received' | 'voided';
+
+export interface LienWaiver {
+  id: string;
+  projectId: string;
+  userId: string;
+  commitmentId?: string;
+  invoiceId?: string;
+  waiverType: LienWaiverType;
+  subCompanyId?: string;
+  subName: string;
+  subEmail?: string;
+  throughDate: string;            // ISO date — what date the waiver covers up to
+  paidAmount: number;
+  status: LienWaiverStatus;
+  subSignature?: ContractSignature;  // reuses the signature shape
+  signedAt?: string;
+  signedPdfUrl?: string;
+  notes: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // ─── Selections / Allowances ────────────────────────────────────────
 // Finishes, fixtures, and materials the homeowner picks within an
 // allowance budget. AI curates options; homeowner picks; allowance

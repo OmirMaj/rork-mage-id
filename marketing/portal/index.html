@@ -489,6 +489,67 @@
   }
   .task-row .row-title .pill { white-space: nowrap; }
 
+  /* ───────── Selections ───────── */
+  .sel-cat {
+    background: #FFFFFF;
+    border: 1px solid var(--bone, #E8DFCD);
+    border-radius: 14px;
+    padding: 16px 18px;
+    margin-bottom: 14px;
+  }
+  .sel-cat-head {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    gap: 12px; margin-bottom: 10px;
+  }
+  .sel-cat-name { font-size: 16px; font-weight: 800; color: #0B0D10; letter-spacing: -0.2px; }
+  .sel-cat-brief { font-size: 11px; color: #8B9099; font-style: italic; margin-top: 2px; }
+  .sel-cat-budget { text-align: right; }
+  .sel-cat-budget-label { font-size: 9px; font-weight: 800; color: #8B9099; letter-spacing: 0.6px; }
+  .sel-cat-budget-value { font-size: 14px; font-weight: 800; color: #0B0D10; }
+  .sel-status {
+    display: inline-block; padding: 4px 9px; border-radius: 999px;
+    font-size: 9px; font-weight: 800; letter-spacing: 0.6px; margin-bottom: 12px;
+  }
+  .sel-status-pending { background: #FFE8D5; color: #C26A00; }
+  .sel-status-chosen { background: #E8F5ED; color: #1E8E4A; }
+  .sel-status-over { background: #FBEAE7; color: #C0392B; }
+  .sel-options { display: grid; grid-template-columns: 1fr; gap: 10px; }
+  @media (min-width: 720px) { .sel-options { grid-template-columns: repeat(2, 1fr); } }
+  .sel-opt {
+    background: #FAF7F0;
+    border: 2px solid #E8DFCD;
+    border-radius: 12px;
+    padding: 14px 16px;
+    cursor: pointer;
+    transition: border-color 200ms ease, transform 100ms ease;
+  }
+  .sel-opt:hover { border-color: #FF6A1A60; transform: translateY(-1px); }
+  .sel-opt:active { transform: translateY(0); }
+  .sel-opt-chosen { border-color: #1E8E4A; background: #E8F5ED; }
+  .sel-opt-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .sel-tier {
+    font-size: 9px; font-weight: 800; letter-spacing: 0.6px;
+    padding: 3px 7px; border-radius: 999px;
+  }
+  .sel-total { font-size: 16px; font-weight: 800; color: #0B0D10; font-feature-settings: "tnum"; }
+  .sel-name { font-size: 14px; font-weight: 700; color: #0B0D10; margin-bottom: 4px; }
+  .sel-meta { font-size: 11px; color: #8B9099; margin-bottom: 6px; }
+  .sel-desc { font-size: 12px; color: #4A5159; line-height: 1.5; margin-bottom: 8px; }
+  .sel-highlights { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
+  .sel-highlight {
+    font-size: 10px; font-weight: 700; color: #C26A00;
+    background: #FFF1E6; padding: 3px 7px; border-radius: 999px;
+  }
+  .sel-pick-cta { font-size: 11px; font-weight: 700; color: #FF6A1A; }
+  .sel-chosen-pill {
+    font-size: 11px; font-weight: 800; color: #1E8E4A;
+    background: rgba(30, 142, 74, 0.12);
+    padding: 4px 9px; border-radius: 999px; display: inline-block;
+  }
+
+  /* ───────── Contract sign ───────── */
+  .contract-sign { margin-top: 14px; }
+
   /* ───────── Open Book / GMP ───────── */
   .open-book { padding: 4px 0 8px; }
   .ob-summary {
@@ -1451,6 +1512,177 @@
     }).join('');
   }
 
+  // ───── Contract ─────
+  // Counter-signing happens via Supabase REST PATCH against
+  // project_contracts. RLS gates the update to status='sent' contracts
+  // on portal-enabled projects.
+  function renderContractCard(c) {
+    if (!c) return '';
+    var amount = fmtMoney(c.contractValue);
+    if (c.status === 'signed') {
+      return '' +
+        '<div class="open-book"><div class="ob-summary">' +
+          '<div class="ob-row"><span>Status</span><strong style="color:#1E8E4A">Signed by both parties</strong></div>' +
+          '<div class="ob-row"><span>Title</span><strong>' + escapeHtml(c.title) + '</strong></div>' +
+          '<div class="ob-row ob-row-total"><span>Contract value</span><strong>' + amount + '</strong></div>' +
+        '</div>' +
+        '<div class="ob-disclaimer">This is your binding agreement. Keep it for your records.</div>' +
+        '</div>';
+    }
+    // Status === 'sent' & needs signature.
+    return '' +
+      '<div class="open-book">' +
+        '<div class="ob-summary">' +
+          '<div class="ob-row"><span>Title</span><strong>' + escapeHtml(c.title) + '</strong></div>' +
+          '<div class="ob-row ob-row-total"><span>Contract value</span><strong>' + amount + '</strong></div>' +
+        '</div>' +
+        '<p style="font-size:13px;color:#4A5159;line-height:1.6;margin:10px 0">Your contractor has signed and sent this agreement. Review the full scope, payment schedule, and warranty in the app, then enter your full legal name below to counter-sign and make it binding.</p>' +
+        '<div class="contract-sign">' +
+          '<input type="text" id="contract-name-' + escapeHtml(c.id) + '" placeholder="Type your full legal name" style="width:100%;padding:12px 14px;border:1px solid #E8DFCD;border-radius:10px;font-size:15px;font-weight:600;color:#0B0D10;margin-bottom:8px" />' +
+          '<button type="button" class="btn-primary" data-action="sign-contract" data-contract-id="' + escapeHtml(c.id) + '" style="width:100%;padding:14px;background:#FF6A1A;color:#fff;border:none;border-radius:10px;font-weight:800;font-size:15px;cursor:pointer">Sign &amp; make binding</button>' +
+          '<p style="font-size:11px;color:#8B9099;margin-top:10px;line-height:1.5">By typing your name and tapping Sign, you accept the agreement as legally binding. The signed PDF will be available in this portal and emailed to you.</p>' +
+        '</div>' +
+      '</div>';
+  }
+
+  // ───── Selections ─────
+  function renderSelections(cats, api) {
+    if (!cats || !cats.length) return emptyState('No selections to make yet.');
+    return cats.map(function (c) {
+      var chosen = c.options.find(function (o) { return o.isChosen; });
+      var statusBadge = chosen
+        ? (c.status === 'exceeded'
+            ? '<div class="sel-status sel-status-over">OVER BUDGET</div>'
+            : '<div class="sel-status sel-status-chosen">CHOSEN</div>')
+        : '<div class="sel-status sel-status-pending">PICK ONE</div>';
+      var optionsHtml = c.options.map(function (o) {
+        var tier = o.total <= c.budget * 0.75 ? 'BUDGET'
+                : o.total <= c.budget * 1.05 ? 'ON TARGET'
+                :                                'PREMIUM';
+        var tierColor = tier === 'BUDGET' ? '#1E8E4A' : tier === 'ON TARGET' ? '#FF6A1A' : '#C26A00';
+        var highlightsHtml = (o.highlights || []).slice(0, 3).map(function (h) {
+          return '<span class="sel-highlight">' + escapeHtml(h) + '</span>';
+        }).join('');
+        var metaHtml = [
+          o.brand ? escapeHtml(o.brand) : '',
+          o.supplier ? escapeHtml(o.supplier) : '',
+          o.leadTimeDays != null ? (o.leadTimeDays + 'd lead') : '',
+        ].filter(Boolean).join(' · ');
+        return '' +
+          '<div class="sel-opt' + (o.isChosen ? ' sel-opt-chosen' : '') + '" data-action="choose-selection" data-category-id="' + escapeHtml(c.id) + '" data-option-id="' + escapeHtml(o.id) + '">' +
+            '<div class="sel-opt-head">' +
+              '<span class="sel-tier" style="color:' + tierColor + ';background:' + tierColor + '15">' + tier + '</span>' +
+              '<span class="sel-total">' + fmtMoney(o.total) + '</span>' +
+            '</div>' +
+            '<div class="sel-name">' + escapeHtml(o.productName) + '</div>' +
+            (metaHtml ? '<div class="sel-meta">' + metaHtml + '</div>' : '') +
+            (o.description ? '<div class="sel-desc">' + escapeHtml(o.description) + '</div>' : '') +
+            (highlightsHtml ? '<div class="sel-highlights">' + highlightsHtml + '</div>' : '') +
+            (o.isChosen ? '<div class="sel-chosen-pill">✓ Your pick</div>' : '<div class="sel-pick-cta">Tap to choose</div>') +
+          '</div>';
+      }).join('');
+      return '' +
+        '<div class="sel-cat">' +
+          '<div class="sel-cat-head">' +
+            '<div>' +
+              '<div class="sel-cat-name">' + escapeHtml(c.category) + '</div>' +
+              (c.styleBrief ? '<div class="sel-cat-brief">' + escapeHtml(c.styleBrief) + '</div>' : '') +
+            '</div>' +
+            '<div class="sel-cat-budget">' +
+              '<div class="sel-cat-budget-label">ALLOWANCE</div>' +
+              '<div class="sel-cat-budget-value">' + fmtMoney(c.budget) + '</div>' +
+            '</div>' +
+          '</div>' +
+          statusBadge +
+          '<div class="sel-options">' + optionsHtml + '</div>' +
+        '</div>';
+    }).join('');
+  }
+
+  // Selection-pick handler — POSTs the homeowner's choice via Supabase REST.
+  document.addEventListener('click', function (ev) {
+    var target = ev.target.closest('[data-action="choose-selection"]');
+    if (!target) return;
+    var data = window.__portalData;
+    if (!data || !data.portalApi) return;
+    var categoryId = target.getAttribute('data-category-id');
+    var optionId   = target.getAttribute('data-option-id');
+    if (!categoryId || !optionId) return;
+    var api = data.portalApi;
+    var headers = {
+      'Content-Type': 'application/json',
+      'apikey': api.supabaseAnonKey,
+      'Authorization': 'Bearer ' + api.supabaseAnonKey,
+      'Prefer': 'return=minimal',
+    };
+    target.style.opacity = '0.6';
+    // 1) Un-mark every other option.
+    fetch(api.supabaseUrl.replace(/\/+$/,'') + '/rest/v1/selection_options?category_id=eq.' + encodeURIComponent(categoryId),
+      { method: 'PATCH', headers: headers, body: JSON.stringify({ is_chosen: false, chosen_at: null, chosen_by_role: null }) })
+    .then(function () {
+      // 2) Mark the chosen one.
+      return fetch(api.supabaseUrl.replace(/\/+$/,'') + '/rest/v1/selection_options?id=eq.' + encodeURIComponent(optionId),
+        { method: 'PATCH', headers: headers, body: JSON.stringify({ is_chosen: true, chosen_at: new Date().toISOString(), chosen_by_role: 'homeowner' }) });
+    })
+    .then(function () {
+      // Refresh the page so the snapshot picks up the new state.
+      window.location.reload();
+    })
+    .catch(function (err) {
+      target.style.opacity = '1';
+      alert('Could not save your pick — check your connection and try again.');
+      console.error(err);
+    });
+  });
+
+  // Contract-sign handler.
+  document.addEventListener('click', function (ev) {
+    var target = ev.target.closest('[data-action="sign-contract"]');
+    if (!target) return;
+    var data = window.__portalData;
+    if (!data || !data.portalApi || !data.contract) return;
+    var contractId = target.getAttribute('data-contract-id');
+    if (!contractId) return;
+    var nameInput = document.getElementById('contract-name-' + contractId);
+    var typedName = nameInput ? nameInput.value.trim() : '';
+    if (!typedName || typedName.length < 3) {
+      alert('Type your full legal name to counter-sign the contract.');
+      if (nameInput) nameInput.focus();
+      return;
+    }
+    var api = data.portalApi;
+    target.disabled = true;
+    target.textContent = 'Signing…';
+    fetch(api.supabaseUrl.replace(/\/+$/,'') + '/rest/v1/project_contracts?id=eq.' + encodeURIComponent(contractId), {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': api.supabaseAnonKey,
+        'Authorization': 'Bearer ' + api.supabaseAnonKey,
+        'Prefer': 'return=minimal',
+      },
+      body: JSON.stringify({
+        homeowner_signature: {
+          name: typedName,
+          role: 'homeowner',
+          signedAt: new Date().toISOString(),
+        },
+        status: 'signed',
+        signed_at: new Date().toISOString(),
+      }),
+    })
+    .then(function (r) {
+      if (!r.ok) throw new Error('Sign failed: ' + r.status);
+      window.location.reload();
+    })
+    .catch(function (err) {
+      target.disabled = false;
+      target.textContent = 'Sign & make binding';
+      alert('Could not sign — check your connection and try again.');
+      console.error(err);
+    });
+  });
+
   // Open Book / GMP — clients see the full cost picture: budget vs.
   // committed vs. actual, per phase. Procore can't ship this for the
   // residential GC; it's our category-defining differentiator.
@@ -2344,6 +2576,25 @@
       sectionHtml += mkSection(id, iconKey, title, subtitle, count, body);
     }
 
+    // Contract — surfaces immediately under the hero so the homeowner
+    // can review + counter-sign before anything else.
+    if (data.contract && data.contract.status === 'sent' && data.contract.needsSignature) {
+      addSection('contract', 'dollar', 'Construction Agreement',
+        'Review the contract and sign to make it binding.', null, renderContractCard(data.contract));
+    } else if (data.contract && data.contract.status === 'signed') {
+      addSection('contract', 'dollar', 'Construction Agreement',
+        'Signed by both parties on file.', null, renderContractCard(data.contract));
+    }
+
+    // Selections — homeowner picks fixtures, finishes, materials within
+    // allowance budgets the GC set. Only renders when there's at least
+    // one category with curated options.
+    if (data.selections && data.selections.length > 0) {
+      addSection('selections', 'dollar', 'Selections & Allowances',
+        'Pick from AI-curated options within your allowance.',
+        data.selections.length, renderSelections(data.selections, data.portalApi));
+    }
+
     // Open book / GMP — full cost transparency. Only renders when the GC
     // has explicitly chosen open_book or gmp contract mode and we got
     // commitment data. Otherwise the section stays hidden so a fixed-price
@@ -2664,6 +2915,9 @@
   }
   var data = decodeHashPayload();
   if (!data) { showFallback(); return; }
+  // Stash for the click handlers attached during boot — they need access
+  // to data.portalApi to write back selection picks + contract signatures.
+  window.__portalData = data;
   runGate(data, function () { render(data); });
 
 })();

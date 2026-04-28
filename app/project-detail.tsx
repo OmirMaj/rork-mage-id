@@ -20,7 +20,7 @@ import {
   Mail, MessageSquare, X, BarChart3, ArrowDownRight, Shield, Layers,
   FileText, ShoppingCart, UserPlus, Send, Share2, Eye, PenTool, Crown, Pencil,
   Plus, Receipt, ClipboardList, Repeat, CheckSquare, Camera, Globe, Link, Copy, Wallet, Archive, Activity,
-  HardHat, FolderOpen, Hammer,
+  HardHat, FolderOpen, Hammer, ScrollText, BookOpen,
 } from 'lucide-react-native';
 import { PROJECT_TYPES, type ProjectType, type ProjectCollaborator, type EntityRef } from '@/types';
 import { Colors } from '@/constants/colors';
@@ -45,7 +45,7 @@ import { exportProjectIcs } from '@/utils/icsGenerator';
 import { formatMoney } from '@/utils/formatters';
 import { getEffectiveInvoiceStatus } from '@/utils/projectFinancials';
 
-type SectionKey = 'linkedEstimate' | 'materials' | 'labor' | 'summary' | 'schedule' | 'notes' | 'collaborators' | 'changeOrders' | 'invoices' | 'dailyReports' | 'punchList' | 'rfis' | 'submittals' | 'budget' | 'photos' | 'clientPortal' | 'communications' | 'activity' | 'calendar' | 'plans' | 'permits' | 'contract' | 'selections';
+type SectionKey = 'linkedEstimate' | 'materials' | 'labor' | 'summary' | 'schedule' | 'notes' | 'collaborators' | 'changeOrders' | 'invoices' | 'dailyReports' | 'punchList' | 'rfis' | 'submittals' | 'budget' | 'photos' | 'clientPortal' | 'communications' | 'activity' | 'calendar' | 'plans' | 'permits' | 'contract' | 'selections' | 'lienWaivers' | 'closeoutBinder';
 
 /** Tile group keys for the collapsible section grouping. */
 type TileGroupKey = 'field' | 'money' | 'docs' | 'people';
@@ -118,6 +118,8 @@ export default function ProjectDetailScreen() {
     permits: false,
     contract: false,
     selections: false,
+    lienWaivers: false,
+    closeoutBinder: false,
   });
   const [detailModal, setDetailModal] = useState<DetailModalType>(null);
   const [showShareModal, setShowShareModal] = useState(false);
@@ -955,6 +957,8 @@ export default function ProjectDetailScreen() {
             { key: 'collaborators', label: 'Team', icon: Users, color: Colors.info, count: collaborators.length + 1 },
             { key: 'contract', label: 'Contract', icon: FileText, color: Colors.primary, count: null as number | null },
             { key: 'selections', label: 'Selections', icon: ShoppingCart, color: Colors.accent, count: null as number | null },
+            { key: 'lienWaivers', label: 'Lien Waivers', icon: ScrollText, color: '#5856D6', count: null as number | null },
+            { key: 'closeoutBinder', label: 'Closeout Binder', icon: BookOpen, color: Colors.accent, count: null as number | null },
             { key: 'changeOrders', label: 'Change Orders', icon: Repeat, color: Colors.accent, count: changeOrders.length },
             { key: 'invoices', label: 'Invoices', icon: Receipt, color: Colors.success, count: projectInvoices.length },
             { key: 'dailyReports', label: 'Daily Reports', icon: ClipboardList, color: Colors.primary, count: dailyReports.length },
@@ -973,7 +977,7 @@ export default function ProjectDetailScreen() {
 
           const groups: { key: TileGroupKey; label: string; icon: React.ComponentType<{ size?: number; color?: string }>; color: string; tileKeys: SectionKey[] }[] = [
             { key: 'field', label: 'Field Ops', icon: HardHat, color: Colors.primary, tileKeys: ['dailyReports', 'punchList', 'photos', 'plans', 'schedule'] },
-            { key: 'money', label: 'Money', icon: DollarSign, color: Colors.success, tileKeys: ['contract', 'selections', 'linkedEstimate', 'changeOrders', 'invoices', 'budget'] },
+            { key: 'money', label: 'Money', icon: DollarSign, color: Colors.success, tileKeys: ['contract', 'selections', 'linkedEstimate', 'changeOrders', 'invoices', 'lienWaivers', 'closeoutBinder', 'budget'] },
             { key: 'docs', label: 'Documentation', icon: FolderOpen, color: Colors.info, tileKeys: ['rfis', 'submittals', 'permits', 'activity', 'calendar'] },
             { key: 'people', label: 'People & Communication', icon: Users, color: '#5856D6', tileKeys: ['collaborators', 'clientPortal', 'communications'] },
           ];
@@ -994,6 +998,8 @@ export default function ProjectDetailScreen() {
                   if (tile.key === 'permits') { router.push({ pathname: '/permits' as any, params: { projectId: id } }); return; }
                   if (tile.key === 'contract') { router.push({ pathname: '/contract' as any, params: { projectId: id } }); return; }
                   if (tile.key === 'selections') { router.push({ pathname: '/selections' as any, params: { projectId: id } }); return; }
+                  if (tile.key === 'lienWaivers') { router.push({ pathname: '/lien-waivers' as any, params: { projectId: id } }); return; }
+                  if (tile.key === 'closeoutBinder') { router.push({ pathname: '/closeout-binder' as any, params: { projectId: id } }); return; }
                   setActiveTile(tile.key);
                 }}
                 testID={`section-tile-${tile.key}`}

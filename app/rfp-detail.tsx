@@ -7,22 +7,24 @@
 // they accept a contractor — only city/state. Drawings + photos are
 // attached publicly so contractors can size up the work.
 
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Image,
-  ActivityIndicator, Linking, Alert,
+  ActivityIndicator, Linking, Alert, TextInput,
 } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ChevronLeft, MapPin, Calendar, FileText, ShieldCheck, AlertTriangle,
   Send, Pencil, ChevronRight, Clock, Trophy, Image as ImageIcon,
+  HelpCircle, MessageSquare, CheckCircle2,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { formatMoney } from '@/utils/formatters';
+import { fetchBidQuestions, askBidQuestion, answerBidQuestion, type BidQuestion } from '@/utils/bidQuestionsEngine';
 
 interface RfpRow {
   id: string;
@@ -92,6 +94,49 @@ export default function RfpDetailScreen() {
   const isOwner = useMemo(() => !!rfp && !!user?.id && rfp.user_id === user.id, [rfp, user]);
   const isAwarded = !!rfp?.awarded_response_id;
   const isOpen = rfp?.status === 'open' && !isAwarded;
+
+  // Pre-bid Q&A — public by default so every prospective bidder gets the
+  // same info. The homeowner answers; contractors ask.
+  const queryClient = useQueryClient();
+  const { data: questions } = useQuery({
+    queryKey: ['rfp-questions', bidId],
+    enabled: !!bidId && isSupabaseConfigured,
+    queryFn: () => fetchBidQuestions(bidId!),
+    refetchInterval: 30_000,
+  });
+  const [newQuestion, setNewQuestion] = useState('');
+  const [submittingQ, setSubmittingQ] = useState(false);
+  const handleAsk = useCallback(async () => {
+    if (!bidId || !newQuestion.trim() || newQuestion.trim().length < 8) {
+      Alert.alert('Question too short', 'Add a few more words so the homeowner has something to answer.');
+      return;
+    }
+    setSubmittingQ(true);
+    try {
+      const q = await askBidQuestion(bidId, newQuestion, user?.name);
+      if (q) {
+        setNewQuestion('');
+        void queryClient.invalidateQueries({ queryKey: ['rfp-questions', bidId] });
+      } else {
+        Alert.alert('Could not post', 'Try again in a moment.');
+      }
+    } finally {
+      setSubmittingQ(false);
+    }
+  }, [bidId, newQuestion, user, queryClient]);
+  const handleAnswer = useCallback(async (q: BidQuestion) => {
+    Alert.prompt?.(
+      'Answer',
+      `Reply to: "${q.question}"`,
+      async (text) => {
+        if (!text?.trim()) return;
+        const ok = await answerBidQuestion(q.id, text);
+        if (ok) void queryClient.invalidateQueries({ queryKey: ['rfp-questions', bidId] });
+      },
+      'plain-text',
+      q.answer ?? '',
+    );
+  }, [bidId, queryClient]);
 
   const handleSubmit = useCallback(() => {
     if (!bidId) return;
@@ -233,6 +278,84 @@ export default function RfpDetailScreen() {
           </View>
         )}
 
+        {/* Pre-bid Q&A */}
+        <View style={styles.qaCard}>
+          <View style={styles.qaHead}>
+            <HelpCircle size={14} color={Colors.primary} />
+            <Text style={styles.qaTitle}>Questions &amp; answers</Text>
+            {(questions?.length ?? 0) > 0 && (
+              <View style={styles.qaCount}>
+                <Text style={styles.qaCountText}>{questions!.length}</Text>
+              </View>
+            )}
+          </View>
+          <Text style={styles.qaHelper}>
+            {isOwner
+              ? 'Contractors ask here before submitting bids. Answer once and every prospective bidder sees it — saves you a dozen DMs.'
+              : 'Ask the homeowner anything you need to know before bidding. Answers are public so every bidder works from the same info.'}
+          </Text>
+
+          {/* Question composer (contractors only, on open RFPs) */}
+          {!isOwner && isOpen && (
+            <View style={styles.qaCompose}>
+              <TextInput
+                style={styles.qaInput}
+                value={newQuestion}
+                onChangeText={setNewQuestion}
+                placeholder="What's the existing electrical panel size? Any HOA constraints?"
+                placeholderTextColor={Colors.textMuted}
+                multiline
+                numberOfLines={3}
+                textAlignVertical="top"
+              />
+              <TouchableOpacity
+                style={[styles.qaAskBtn, (!newQuestion.trim() || submittingQ) && { opacity: 0.5 }]}
+                onPress={handleAsk}
+                disabled={!newQuestion.trim() || submittingQ}
+              >
+                {submittingQ ? (
+                  <ActivityIndicator size="small" color="#FFF" />
+                ) : (
+                  <>
+                    <MessageSquare size={13} color="#FFF" />
+                    <Text style={styles.qaAskBtnText}>Ask</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* Question list */}
+          {(questions ?? []).length === 0 ? (
+            <Text style={styles.qaEmpty}>
+              No questions yet. {!isOwner && isOpen ? 'Be the first to ask.' : ''}
+            </Text>
+          ) : (
+            <View style={styles.qaList}>
+              {questions!.map(q => (
+                <View key={q.id} style={styles.qaRow}>
+                  <View style={styles.qaQuestion}>
+                    <Text style={styles.qaAuthor}>{q.askerName ?? 'A bidder'}</Text>
+                    <Text style={styles.qaText}>{q.question}</Text>
+                  </View>
+                  {q.answer ? (
+                    <View style={styles.qaAnswer}>
+                      <CheckCircle2 size={11} color={Colors.success} />
+                      <Text style={styles.qaAnswerText}>{q.answer}</Text>
+                    </View>
+                  ) : isOwner ? (
+                    <TouchableOpacity style={styles.qaAnswerCta} onPress={() => handleAnswer(q)}>
+                      <Text style={styles.qaAnswerCtaText}>Answer →</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <Text style={styles.qaPending}>Awaiting homeowner answer</Text>
+                  )}
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+
         {/* CTA */}
         {!isOwner && isOpen && !existingResponse && (
           <TouchableOpacity style={styles.primaryCta} onPress={handleSubmit} activeOpacity={0.85}>
@@ -351,4 +474,48 @@ const styles = StyleSheet.create({
   responseTitle: { fontSize: 13, fontWeight: '800', color: Colors.text },
   responseDetail: { fontSize: 13, color: Colors.text },
   responseStatus: { fontWeight: '700', color: Colors.success },
+
+  // ─── Q&A ───
+  qaCard: {
+    backgroundColor: Colors.card, borderRadius: 14, padding: 14,
+    borderWidth: 1, borderColor: Colors.border,
+    marginTop: 4, marginBottom: 10, gap: 10,
+  },
+  qaHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  qaTitle: { flex: 1, fontSize: 14, fontWeight: '800', color: Colors.text, letterSpacing: -0.2 },
+  qaCount: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 999, backgroundColor: Colors.primary + '15' },
+  qaCountText: { fontSize: 11, fontWeight: '800', color: Colors.primary, letterSpacing: 0.4 },
+  qaHelper: { fontSize: 12, color: Colors.textMuted, lineHeight: 17 },
+
+  qaCompose: { gap: 6 },
+  qaInput: {
+    backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border, borderRadius: 10,
+    paddingHorizontal: 12, paddingVertical: 10,
+    fontSize: 13, color: Colors.text, minHeight: 70,
+  },
+  qaAskBtn: {
+    alignSelf: 'flex-end',
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    paddingHorizontal: 14, paddingVertical: 9, borderRadius: 10,
+    backgroundColor: Colors.primary,
+  },
+  qaAskBtnText: { fontSize: 13, fontWeight: '700', color: '#FFF' },
+
+  qaEmpty: { fontSize: 12, color: Colors.textMuted, fontStyle: 'italic', paddingVertical: 8 },
+  qaList: { gap: 10 },
+  qaRow: {
+    backgroundColor: Colors.background, borderRadius: 10, padding: 11,
+    borderWidth: 1, borderColor: Colors.border, gap: 8,
+  },
+  qaQuestion: { gap: 3 },
+  qaAuthor: { fontSize: 10, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.6, textTransform: 'uppercase' },
+  qaText: { fontSize: 13, color: Colors.text, lineHeight: 18 },
+  qaAnswer: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 6,
+    paddingTop: 8, borderTopWidth: 1, borderTopColor: Colors.border,
+  },
+  qaAnswerText: { flex: 1, fontSize: 13, color: Colors.text, fontWeight: '600', lineHeight: 18 },
+  qaAnswerCta: { paddingTop: 6, alignSelf: 'flex-start' },
+  qaAnswerCtaText: { fontSize: 12, fontWeight: '700', color: Colors.primary },
+  qaPending: { fontSize: 11, color: Colors.textMuted, fontStyle: 'italic', paddingTop: 4 },
 });
