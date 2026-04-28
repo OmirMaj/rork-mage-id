@@ -124,6 +124,7 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
               collaborators: r.collaborators as ProjectCollaborator[] ?? [],
               clientPortal: r.client_portal as Project['clientPortal'],
               targetBudget: r.target_budget as Project['targetBudget'],
+              handoverChecklist: (r.handover_checklist as Record<string, string> | null) ?? {},
               closedAt: r.closed_at as string | undefined, photoCount: Number(r.photo_count) || 0,
             })) as Project[];
             await saveLocal(PROJECTS_KEY, mapped);
@@ -610,6 +611,7 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
           linked_estimate: project.linkedEstimate as unknown, status: project.status,
           collaborators: project.collaborators as unknown, client_portal: project.clientPortal as unknown,
           target_budget: project.targetBudget as unknown,
+          handover_checklist: (project.handoverChecklist ?? {}) as unknown,
           closed_at: project.closedAt, photo_count: project.photoCount,
           created_at: project.createdAt, updated_at: project.updatedAt,
         });

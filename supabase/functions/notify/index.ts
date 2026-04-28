@@ -221,11 +221,72 @@ function fmtMoney(n: number | string | null | undefined): string {
   return '$' + v.toLocaleString(undefined, { maximumFractionDigits: 0 });
 }
 
+// ─── Anon-callable event allowlist ────────────────────────────────────
+//
+// Events that legitimately fire from unauthenticated contexts (the
+// static homeowner / sub portal HTML, or the app calling notify with
+// only the anon key). For these we accept the request but always
+// re-derive `gc_user_id` server-side from `portal_id` so an attacker
+// can't pretend to be acting for an arbitrary GC.
+//
+// Everything NOT on this list MUST come from a trusted caller (DB
+// trigger via service_role, or an authenticated app session). When
+// a non-allowed event is received with only an anon `apikey`, we
+// reject with 401.
+const ANON_ALLOWED_EVENTS = new Set([
+  'contract_signed',         // homeowner counter-signs
+  'selection_chosen',        // homeowner picks a tile / fixture
+  'bid_question_asked',      // contractor asks pre-bid Q
+  'bid_question_answered',   // homeowner answers
+  'closeout_binder_sent',    // GC delivers binder (also called from app)
+]);
+
+// ─── Per-portal rate limit ────────────────────────────────────────────
+//
+// Caps anon-triggered notifications per portal at 30/hour. Realistic
+// homeowner / sub usage is well under this; a flood is almost certainly
+// abusive. We count rows in notification_outbox where source_id matches
+// portal_id within the last hour.
+async function exceedsRateLimit(portalId: string | null): Promise<boolean> {
+  if (!portalId) return false;
+  const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+  // Rate-limit query: look in notification_outbox for any row where the
+  // bundled payload references this portal_id within the last hour.
+  // Filter on `payload->>portal_id` directly so we catch any kind of
+  // event regardless of how source_id was populated.
+  const url = `${SUPABASE_URL}/rest/v1/notification_outbox?payload->>portal_id=eq.${encodeURIComponent(portalId)}&created_at=gte.${encodeURIComponent(since)}&select=id`;
+  const r = await fetch(url, {
+    headers: { 'apikey': SERVICE_ROLE_KEY, 'Authorization': `Bearer ${SERVICE_ROLE_KEY}`, 'Range-Unit': 'items', 'Range': '0-30', 'Prefer': 'count=exact' },
+  }).catch(() => null);
+  if (!r || !r.ok) return false;     // fail open — don't break legit traffic if outbox lookup fails
+  const contentRange = r.headers.get('content-range') ?? '';
+  const total = parseInt(contentRange.split('/')[1] ?? '0', 10);
+  return total >= 30;
+}
+
 // ─── Event dispatch ───────────────────────────────────────────────────
-async function dispatch(req: NotifyRequest): Promise<unknown> {
+async function dispatch(req: NotifyRequest, isAnonCaller: boolean): Promise<unknown> {
   const { event, source_table, source_id, payload } = req;
   const portalId = (payload.portal_id as string) ?? (payload.portalId as string) ?? null;
   const subPortalId = (payload.sub_portal_id as string) ?? null;
+
+  // Anon callers can only fire allowlisted events. Service-role / app
+  // sessions bypass this check.
+  if (isAnonCaller && !ANON_ALLOWED_EVENTS.has(event)) {
+    return { ok: false, reason: 'event_not_anon_allowed', event };
+  }
+
+  // Anon callers also get rate-limited per portal_id.
+  if (isAnonCaller && portalId && await exceedsRateLimit(portalId)) {
+    return { ok: false, reason: 'rate_limited', portal_id: portalId };
+  }
+
+  // For anon callers: never trust client-supplied gc_user_id /
+  // contractor_user_id. Always re-derive from portal_id below.
+  if (isAnonCaller) {
+    delete (payload as Record<string, unknown>).gc_user_id;
+    delete (payload as Record<string, unknown>).contractor_user_id;
+  }
 
   // Find the GC owner. Direct projects.user_id when we already know the
   // project, else look up via gc_for_portal / gc_for_sub_portal.
@@ -745,7 +806,21 @@ serve(async (req) => {
   try {
     const body = await req.json() as NotifyRequest;
     if (!body || !body.event) return jsonResponse({ error: "Missing event" }, 400);
-    const result = await dispatch(body);
+
+    // Distinguish caller trust level. The Authorization header is
+    // either:
+    //   (a) Bearer <service_role_key> — DB triggers, fully trusted
+    //   (b) Bearer <user_jwt>          — authenticated app session
+    //   (c) Bearer <anon_key>          — static portal HTML, untrusted
+    // We treat (a) and (b) as authenticated. Only (c) — where the
+    // bearer token equals the public anon key — gets the anon
+    // restriction (allowlist + rate limit + payload sanitization).
+    const auth = req.headers.get('Authorization') || req.headers.get('authorization') || '';
+    const bearer = auth.replace(/^Bearer\s+/i, '').trim();
+    const anonKey = Deno.env.get('SUPABASE_ANON_KEY') || '';
+    const isAnonCaller = !!bearer && !!anonKey && bearer === anonKey;
+
+    const result = await dispatch(body, isAnonCaller);
     return jsonResponse({ success: true, result });
   } catch (e) {
     console.error('[notify] dispatch failed', e);

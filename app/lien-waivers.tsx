@@ -25,6 +25,7 @@ import {
   shareLienWaiverPDF, WAIVER_LABELS,
 } from '@/utils/lienWaiverEngine';
 import { formatMoney } from '@/utils/formatters';
+import { statusPillStyle } from '@/utils/statusPill';
 import type { LienWaiver, LienWaiverType, CompanyBranding } from '@/types';
 
 export default function LienWaiversScreen() {
@@ -239,12 +240,22 @@ function WaiverCard({ waiver, exporting, onExport, onMarkSigned, onMarkReceived,
   onDelete: () => void;
 }) {
   const meta = WAIVER_LABELS[waiver.waiverType];
-  const statusCfg =
-    waiver.status === 'received' ? { bg: Colors.success + '15', color: Colors.success, Icon: CheckCircle2, label: 'RECEIVED' } :
-    waiver.status === 'signed'   ? { bg: Colors.primary + '15', color: Colors.primary, Icon: FileSignature, label: 'SIGNED' } :
-    waiver.status === 'voided'   ? { bg: Colors.error + '15',   color: Colors.error,   Icon: XCircle, label: 'VOIDED' } :
-                                    { bg: Colors.background,    color: Colors.textMuted, Icon: Clock, label: 'REQUESTED' };
-  const StatusIcon = statusCfg.Icon;
+  // Use the shared statusPillStyle so SIGNED/RECEIVED/VOIDED/REQUESTED
+  // match the same color scheme used on contract + closeout binder.
+  // Icons stay per-status because they convey extra meaning beyond color.
+  const statusIcons = {
+    received: CheckCircle2,
+    signed:   FileSignature,
+    voided:   XCircle,
+    requested: Clock,
+  } as const;
+  const Icon = statusIcons[waiver.status] ?? Clock;
+  const labelMap: Record<typeof waiver.status, string> = {
+    received: 'RECEIVED', signed: 'SIGNED', voided: 'VOIDED', requested: 'REQUESTED',
+  };
+  const { color: statusColor, backgroundColor: statusBg } = statusPillStyle(waiver.status);
+  const statusCfg = { bg: statusBg, color: statusColor, label: labelMap[waiver.status] };
+  const StatusIcon = Icon;
 
   return (
     <View style={styles.waiverCard}>

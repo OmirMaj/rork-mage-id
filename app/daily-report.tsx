@@ -172,8 +172,20 @@ export default function DailyReportScreen() {
   }, [mpTrade, mpCompany, mpHeadcount, mpHours]);
 
   const handleRemoveManpower = useCallback((id: string) => {
-    setManpower(prev => prev.filter(m => m.id !== id));
-  }, []);
+    const entry = manpower.find(m => m.id === id);
+    const label = entry ? `${entry.headcount} ${entry.trade}${entry.company ? ' · ' + entry.company : ''}` : 'this entry';
+    Alert.alert(
+      'Remove crew entry?',
+      `Remove ${label} from today's report?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Remove', style: 'destructive', onPress: () => {
+          setManpower(prev => prev.filter(m => m.id !== id));
+          if (Platform.OS !== 'web') void Haptics.selectionAsync().catch(() => {});
+        } },
+      ],
+    );
+  }, [manpower]);
 
   const handleAddMaterial = useCallback(() => {
     const mat = newMaterial.trim();
@@ -183,8 +195,19 @@ export default function DailyReportScreen() {
   }, [newMaterial]);
 
   const handleRemoveMaterial = useCallback((idx: number) => {
-    setMaterialsDelivered(prev => prev.filter((_, i) => i !== idx));
-  }, []);
+    const item = materialsDelivered[idx];
+    Alert.alert(
+      'Remove material?',
+      item ? `Remove "${item}" from today's deliveries?` : 'Remove this material?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Remove', style: 'destructive', onPress: () => {
+          setMaterialsDelivered(prev => prev.filter((_, i) => i !== idx));
+          if (Platform.OS !== 'web') void Haptics.selectionAsync().catch(() => {});
+        } },
+      ],
+    );
+  }, [materialsDelivered]);
 
   const handlePickPhoto = useCallback(async () => {
     if (photos.length >= 10) {

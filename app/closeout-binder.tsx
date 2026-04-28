@@ -32,6 +32,7 @@ import {
   DEFAULT_MAINTENANCE,
   type MaintenanceItem, type CloseoutBinder,
 } from '@/utils/closeoutBinderEngine';
+import { statusPillStyle } from '@/utils/statusPill';
 import { fetchSelectionsForProject } from '@/utils/selectionsEngine';
 import { generateUUID } from '@/utils/generateId';
 import { notifyEvent } from '@/utils/notifyClient';
@@ -274,9 +275,9 @@ export default function CloseoutBinderScreen() {
   const projectWarrantiesCount  = (warranties ?? []).filter((w: any) => w.projectId === project.id).length;
 
   const statusPill = (() => {
-    if (status === 'sent') return { label: 'DELIVERED', color: '#1E8E4A', bg: 'rgba(30,142,74,0.12)' };
-    if (status === 'finalized') return { label: 'FINALIZED', color: '#C26A00', bg: 'rgba(245,166,35,0.16)' };
-    return { label: 'DRAFT', color: Colors.textMuted, bg: Colors.fillTertiary };
+    const label = status === 'sent' ? 'DELIVERED' : status === 'finalized' ? 'FINALIZED' : 'DRAFT';
+    const { color, backgroundColor } = statusPillStyle(status);
+    return { label, color, bg: backgroundColor };
   })();
 
   const formattedAt = (iso?: string) => {

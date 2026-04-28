@@ -130,6 +130,7 @@
     border: 1px solid rgba(255,255,255,0.12);
     display: inline-flex; align-items: center; justify-content: center;
     font-weight: 800; font-size: 16px; color: var(--amber);
+    -webkit-backdrop-filter: blur(8px);
     backdrop-filter: blur(8px);
   }
   .brand-name {
@@ -893,6 +894,7 @@
   .lightbox {
     position: fixed; inset: 0;
     background: rgba(11,13,16,0.96);
+    -webkit-backdrop-filter: blur(8px);
     backdrop-filter: blur(8px);
     display: none;
     align-items: center; justify-content: center;
@@ -917,13 +919,16 @@
     background: rgba(255,255,255,0.10); color: #fff;
     display: flex; align-items: center; justify-content: center;
     font-size: 22px; border: 1px solid rgba(255,255,255,0.16);
-    cursor: pointer; backdrop-filter: blur(8px);
+    cursor: pointer;
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
   }
 
   /* ───────── Drawer (invoice / AIA detail) ───────── */
   .drawer-backdrop {
     position: fixed; inset: 0;
     background: rgba(11,13,16,0.55);
+    -webkit-backdrop-filter: blur(4px);
     backdrop-filter: blur(4px);
     display: none; z-index: 110;
     animation: fadeIn 0.2s ease;

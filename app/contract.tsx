@@ -32,6 +32,7 @@ import {
 } from '@/utils/contractEngine';
 import { generateUUID } from '@/utils/generateId';
 import { formatMoney } from '@/utils/formatters';
+import { statusPillStyle } from '@/utils/statusPill';
 import SignaturePad from '@/components/SignaturePad';
 import type { ProjectContract, PaymentMilestone, ContractAllowance } from '@/types';
 
@@ -498,14 +499,14 @@ export default function ContractScreen() {
 // ─── Sub-components ─────────────────────────────────────────────────
 
 function StatusPill({ status }: { status: ProjectContract['status'] }) {
-  const cfg =
-    status === 'signed' ? { bg: Colors.success + '15', color: Colors.success, label: 'SIGNED' } :
-    status === 'sent'   ? { bg: Colors.primary + '15', color: Colors.primary, label: 'SENT' } :
-    status === 'void'   ? { bg: Colors.error + '15',   color: Colors.error,   label: 'VOID' } :
-                          { bg: Colors.background,     color: Colors.textMuted, label: 'DRAFT' };
+  // Use the shared statusPillStyle helper so SIGNED / SENT / VOID /
+  // DRAFT match the same green/amber/red/gray scheme used on lien
+  // waivers and the closeout binder header.
+  const label = (status ?? 'draft').toUpperCase();
+  const { color, backgroundColor } = statusPillStyle(status);
   return (
-    <View style={[styles.pill, { backgroundColor: cfg.bg }]}>
-      <Text style={[styles.pillText, { color: cfg.color }]}>{cfg.label}</Text>
+    <View style={[styles.pill, { backgroundColor }]}>
+      <Text style={[styles.pillText, { color }]}>{label}</Text>
     </View>
   );
 }

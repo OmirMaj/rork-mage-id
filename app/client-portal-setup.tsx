@@ -379,8 +379,12 @@ export default function ClientPortalSetupScreen() {
   const handleAddInvite = useCallback(() => {
     const email = inviteEmail.trim().toLowerCase();
     const name = inviteName.trim();
-    if (!email || !email.includes('@')) {
-      Alert.alert('Invalid Email', 'Please enter a valid email address.');
+    // RFC 5322-ish regex — catches "a@", "@b.com", typos like "@@" that
+    // a `.includes('@')` check would silently let through. Anything that
+    // can't get past Resend's validator should be caught here.
+    const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+    if (!email || !EMAIL_REGEX.test(email)) {
+      Alert.alert('Invalid Email', 'Please enter a valid email address — like name@example.com.');
       return;
     }
     if (portal.invites?.some(i => i.email === email)) {

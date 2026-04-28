@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, Switch, TouchableOpacity, ActivityIndicator,
+  View, Text, StyleSheet, ScrollView, Switch, TouchableOpacity, ActivityIndicator, Alert,
 } from 'react-native';
 import { useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -139,6 +139,11 @@ export default function NotificationsSettingsScreen() {
 
   const toggle = useCallback(async (key: string, channel: 'push' | 'email', value: boolean) => {
     void Haptics.selectionAsync().catch(() => {});
+    // Optimistic update — flip the toggle immediately so the UI feels
+    // snappy. If the persist fails, we roll back to the previous state
+    // and surface an Alert so the user knows their preference didn't
+    // stick (otherwise next session would silently revert).
+    const previous = prefs;
     const next: Prefs = {
       ...prefs,
       [key]: { ...(prefs[key] ?? {}), [channel]: value },
@@ -147,12 +152,19 @@ export default function NotificationsSettingsScreen() {
     if (!user?.id) return;
     setSaving(true);
     try {
-      await supabase
+      const { error } = await supabase
         .from('profiles')
         .update({ notification_preferences: next })
         .eq('id', user.id);
+      if (error) throw error;
     } catch (err) {
       console.log('[NotificationsSettings] save failed', err);
+      // Roll back the toggle.
+      setPrefs(previous);
+      Alert.alert(
+        'Could not save',
+        'Your notification preference didn\'t save. Check your connection and try again.',
+      );
     } finally {
       setSaving(false);
     }
