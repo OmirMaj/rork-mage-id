@@ -23,6 +23,10 @@ import {
 import { usePortalBudgetProposals } from '@/hooks/usePortalBudgetProposals';
 import { usePortalThread } from '@/hooks/usePortalThread';
 import { formatMoney } from '@/utils/formatters';
+import { useQuery } from '@tanstack/react-query';
+import { fetchActiveContract } from '@/utils/contractEngine';
+import { fetchSelectionsForProject } from '@/utils/selectionsEngine';
+import { fetchCloseoutBinder } from '@/utils/closeoutBinderEngine';
 
 const PORTAL_BASE_URL = 'https://mageid.app/portal';
 const DEEP_LINK_SCHEME = 'rork-app://client-view';
@@ -128,12 +132,33 @@ export default function ClientPortalSetupScreen() {
     getDailyReportsForProject, getPunchItemsForProject,
     getPhotosForProject, getRFIsForProject,
     getAIAPayAppsForProject,
+    getCommitmentsForProject, getWarrantiesForProject,
   } = useProjects();
   const unreadFromClient = id ? getUnreadPortalMessageCount(id, 'gc') : 0;
 
   const project = useMemo(() => getProject(id ?? ''), [id, getProject]);
   const proposalQ = usePortalBudgetProposals(id);
   const threadQ = usePortalThread(id);
+
+  // Pull contract / selections / closeout binder for the snapshot.
+  // These are async fetches against Supabase so we wrap them in
+  // useQuery — when they resolve the snapshot rebuilds and the URL
+  // updates so the homeowner sees fresh data on the next portal load.
+  const contractQ = useQuery({
+    queryKey: ['portal-contract', id],
+    queryFn: () => id ? fetchActiveContract(id) : Promise.resolve(null),
+    enabled: !!id,
+  });
+  const selectionsQ = useQuery({
+    queryKey: ['portal-selections', id],
+    queryFn: () => id ? fetchSelectionsForProject(id) : Promise.resolve([]),
+    enabled: !!id,
+  });
+  const closeoutQ = useQuery({
+    queryKey: ['portal-closeout', id],
+    queryFn: () => id ? fetchCloseoutBinder(id) : Promise.resolve(null),
+    enabled: !!id,
+  });
 
   const [portal, setPortal] = useState<ClientPortalSettings>(() => {
     if (project?.clientPortal?.enabled) {
@@ -182,6 +207,11 @@ export default function ClientPortalSetupScreen() {
       supabaseAnonKey: SUPABASE_ANON_KEY,
       contactEmail: settings?.branding?.email,
       contactName: settings?.branding?.contactName ?? settings?.branding?.companyName,
+      contract: contractQ.data ?? undefined,
+      selections: selectionsQ.data ?? undefined,
+      closeoutBinder: closeoutQ.data ?? undefined,
+      commitments: getCommitmentsForProject(project.id),
+      warranties: getWarrantiesForProject(project.id),
     });
   }, [
     project, portal, settings,
@@ -189,6 +219,8 @@ export default function ClientPortalSetupScreen() {
     getDailyReportsForProject, getPunchItemsForProject,
     getPhotosForProject, getRFIsForProject,
     getAIAPayAppsForProject, threadQ.messages,
+    contractQ.data, selectionsQ.data, closeoutQ.data,
+    getCommitmentsForProject, getWarrantiesForProject,
   ]);
 
   const portalLink = useMemo(() => {

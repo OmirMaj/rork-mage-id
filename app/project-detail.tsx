@@ -22,7 +22,8 @@ import {
   Plus, Receipt, ClipboardList, Repeat, CheckSquare, Camera, Globe, Link, Copy, Wallet, Archive, Activity,
   HardHat, FolderOpen, Hammer, ScrollText, BookOpen,
 } from 'lucide-react-native';
-import { PROJECT_TYPES, type ProjectType, type ProjectCollaborator, type EntityRef } from '@/types';
+import { PROJECT_TYPES, type ProjectType, type ProjectCollaborator, type EntityRef, type ProjectPhoto, type PhotoMarkup } from '@/types';
+import Svg, { Path as SvgPath, Circle as SvgCircle, Line as SvgLine, Polygon as SvgPolygon, Text as SvgTextEl } from 'react-native-svg';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
@@ -136,7 +137,7 @@ export default function ProjectDetailScreen() {
   // automatically without code changes.
   const [photoFilter, setPhotoFilter] = useState<string>('all');
   // Photo lightbox — shows the full-size image when a thumb is tapped.
-  const [lightboxPhoto, setLightboxPhoto] = useState<string | null>(null);
+  const [lightboxPhoto, setLightboxPhoto] = useState<ProjectPhoto | null>(null);
   // RFI status filter — defaults to 'open' so the user lands on the work
   // that needs their attention, not a wall of closed RFIs.
   const [rfiFilter, setRfiFilter] = useState<'open' | 'answered' | 'closed' | 'all'>('open');
@@ -2285,13 +2286,18 @@ export default function ProjectDetailScreen() {
                           key={photo.id}
                           style={styles.photoThumb}
                           activeOpacity={0.85}
-                          onPress={() => setLightboxPhoto(photo.uri)}
+                          onPress={() => setLightboxPhoto(photo)}
                           testID={`photo-thumb-${photo.id}`}
                         >
                           {photo.uri ? (
                             <Image source={{ uri: photo.uri }} style={styles.photoThumbImage} resizeMode="cover" />
                           ) : (
                             <Camera size={20} color={Colors.textMuted} />
+                          )}
+                          {(photo.markup?.length ?? 0) > 0 && (
+                            <View style={styles.photoThumbMarkupBadge}>
+                              <Pencil size={10} color={'#FFFFFF'} />
+                            </View>
                           )}
                           <View style={styles.photoThumbDateOverlay}>
                             <Text style={styles.photoThumbDate}>{new Date(photo.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</Text>
@@ -2814,7 +2820,21 @@ export default function ProjectDetailScreen() {
       >
         <Pressable style={styles.lightboxOverlay} onPress={() => setLightboxPhoto(null)}>
           {lightboxPhoto && (
-            <Image source={{ uri: lightboxPhoto }} style={styles.lightboxImage} resizeMode="contain" />
+            <Pressable
+              onPress={(e) => e.stopPropagation()}
+              style={styles.lightboxImageWrap}
+            >
+              <Image source={{ uri: lightboxPhoto.uri }} style={styles.lightboxImage} resizeMode="contain" />
+              {/* Markup overlay — re-renders the same SVG primitives the
+                  annotator drew, scaled to the displayed image. We use
+                  the actual rendered size (square crop) for now; web/RN
+                  return wraps via flexbox so this lines up. */}
+              {(lightboxPhoto.markup?.length ?? 0) > 0 && (
+                <View style={StyleSheet.absoluteFill} pointerEvents="none">
+                  <PhotoMarkupOverlay markup={lightboxPhoto.markup ?? []} />
+                </View>
+              )}
+            </Pressable>
           )}
           <TouchableOpacity
             style={styles.lightboxClose}
@@ -2824,6 +2844,23 @@ export default function ProjectDetailScreen() {
           >
             <X size={20} color="#FFFFFF" />
           </TouchableOpacity>
+          {lightboxPhoto && (
+            <TouchableOpacity
+              style={styles.lightboxMarkupBtn}
+              onPress={() => {
+                const photoToEdit = lightboxPhoto;
+                setLightboxPhoto(null);
+                setTimeout(() => {
+                  router.push({ pathname: '/photo-annotator' as any, params: { photoId: photoToEdit.id } });
+                }, 100);
+              }}
+              activeOpacity={0.85}
+              testID="photo-lightbox-markup"
+            >
+              <Pencil size={14} color={'#FFFFFF'} />
+              <Text style={styles.lightboxMarkupBtnText}>{(lightboxPhoto.markup?.length ?? 0) > 0 ? 'Edit markup' : 'Add markup'}</Text>
+            </TouchableOpacity>
+          )}
         </Pressable>
       </Modal>
 
@@ -2831,6 +2868,84 @@ export default function ProjectDetailScreen() {
           when there's no project to scope to. Keeps the parent hook tree
           stable across project-loading transitions. */}
       <UniversalMicButton projectId={project?.id} />
+    </View>
+  );
+}
+
+// Renders a list of PhotoMarkup primitives over an absolute-positioned
+// View. Coordinates are normalized 0..1 so we measure on layout and
+// scale to the actual rendered size — the lightbox image uses
+// `resizeMode="contain"` and the SVG overlay sizes itself to the
+// container, which gives a consistent overlay across phones / tablets
+// / web.
+const COLOR_HEX_MARKUP: Record<'red' | 'yellow' | 'green', string> = {
+  red:    '#E5484D',
+  yellow: '#F5A623',
+  green:  '#1E8E4A',
+};
+function PhotoMarkupOverlay({ markup }: { markup: PhotoMarkup[] }) {
+  const [size, setSize] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
+  return (
+    <View
+      style={StyleSheet.absoluteFill}
+      onLayout={e => setSize({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}
+    >
+      {size.w > 0 && size.h > 0 && (
+        <Svg width={size.w} height={size.h} style={StyleSheet.absoluteFill}>
+          {markup.map((m, i) => {
+            const stroke = COLOR_HEX_MARKUP[m.color];
+            // Use the smaller dimension as the normalization basis so a
+            // square-canvas overlay still works on a non-square image.
+            const w = size.w;
+            const h = size.h;
+            if (m.type === 'arrow') {
+              const [p1, p2] = m.points;
+              const x1 = p1.x * w, y1 = p1.y * h, x2 = p2.x * w, y2 = p2.y * h;
+              const dx = x2 - x1, dy = y2 - y1;
+              const len = Math.sqrt(dx * dx + dy * dy) || 1;
+              const ux = dx / len, uy = dy / len;
+              const head = 14;
+              const left = `${x2 - ux * head + uy * head / 2},${y2 - uy * head - ux * head / 2}`;
+              const right = `${x2 - ux * head - uy * head / 2},${y2 - uy * head + ux * head / 2}`;
+              return (
+                <React.Fragment key={`a-${i}`}>
+                  <SvgLine x1={x1} y1={y1} x2={x2} y2={y2} stroke={stroke} strokeWidth={3} strokeLinecap="round" />
+                  <SvgPolygon points={`${x2},${y2} ${left} ${right}`} fill={stroke} />
+                </React.Fragment>
+              );
+            }
+            if (m.type === 'circle') {
+              const [p1, p2] = m.points;
+              const cx = (p1.x + p2.x) / 2 * w;
+              const cy = (p1.y + p2.y) / 2 * h;
+              const r = Math.sqrt((p2.x - p1.x) ** 2 * w * w + (p2.y - p1.y) ** 2 * h * h) / 2;
+              return <SvgCircle key={`c-${i}`} cx={cx} cy={cy} r={r} stroke={stroke} strokeWidth={3} fill="none" />;
+            }
+            if (m.type === 'freehand') {
+              const d = m.points
+                .map((p, j) => `${j === 0 ? 'M' : 'L'}${(p.x * w).toFixed(1)},${(p.y * h).toFixed(1)}`)
+                .join(' ');
+              return <SvgPath key={`f-${i}`} d={d} stroke={stroke} strokeWidth={3} fill="none" strokeLinecap="round" strokeLinejoin="round" />;
+            }
+            if (m.type === 'text' && m.text) {
+              const [p] = m.points;
+              const x = p.x * w, y = p.y * h;
+              const len = m.text.length * 8 + 16;
+              return (
+                <React.Fragment key={`t-${i}`}>
+                  <SvgPolygon
+                    points={`${x},${y - 16} ${x + len},${y - 16} ${x + len},${y + 8} ${x},${y + 8}`}
+                    fill={stroke}
+                    opacity={0.92}
+                  />
+                  <SvgTextEl x={x + 8} y={y + 2} fill="#FFFFFF" fontSize={13} fontWeight="700">{m.text}</SvgTextEl>
+                </React.Fragment>
+              );
+            }
+            return null;
+          })}
+        </Svg>
+      )}
     </View>
   );
 }
@@ -3000,9 +3115,22 @@ const styles = StyleSheet.create({
   photoThumbImage: { width: '100%', height: '100%' },
   photoThumbDate: { fontSize: 9, color: '#FFFFFF', fontWeight: '700' as const },
   photoThumbDateOverlay: { position: 'absolute' as const, bottom: 4, left: 4, right: 4, backgroundColor: 'rgba(0,0,0,0.55)', paddingVertical: 1, paddingHorizontal: 4, borderRadius: 5, alignItems: 'center' as const },
+  photoThumbMarkupBadge: {
+    position: 'absolute' as const, top: 4, right: 4,
+    width: 18, height: 18, borderRadius: 9,
+    backgroundColor: '#FF6A1A', alignItems: 'center' as const, justifyContent: 'center' as const,
+  },
   lightboxOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.92)', alignItems: 'center' as const, justifyContent: 'center' as const, padding: 16 },
-  lightboxImage: { width: '100%', height: '80%' },
+  lightboxImageWrap: { width: '100%', height: '80%', alignItems: 'center' as const, justifyContent: 'center' as const, position: 'relative' as const },
+  lightboxImage: { width: '100%', height: '100%' },
   lightboxClose: { position: 'absolute' as const, top: 50, right: 20, padding: 12, backgroundColor: 'rgba(255,255,255,0.18)', borderRadius: 24 },
+  lightboxMarkupBtn: {
+    position: 'absolute' as const, bottom: 60, alignSelf: 'center' as const,
+    flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8,
+    paddingHorizontal: 18, paddingVertical: 12, borderRadius: 999,
+    backgroundColor: 'rgba(255,106,26,0.95)',
+  },
+  lightboxMarkupBtnText: { color: '#FFFFFF', fontWeight: '800' as const, fontSize: 13 },
   portalInfo: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 8 },
   portalTitle: { fontSize: 15, fontWeight: '700' as const, color: Colors.text, marginBottom: 2 },
   portalDesc: { fontSize: 13, color: Colors.textSecondary, lineHeight: 18 },

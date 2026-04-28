@@ -1046,6 +1046,25 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
     if (canSync) void supabaseWrite('photos', 'delete', { id });
   }, [projectPhotos, savePhotosMutation, canSync]);
 
+  // Patch a photo in place — used by the annotator to save markup, by the
+  // gallery to retag, and by clients downstream that want to update a
+  // caption / location without re-uploading the image.
+  const updateProjectPhoto = useCallback((id: string, updates: Partial<ProjectPhoto>) => {
+    const updated = projectPhotos.map(p => p.id === id ? { ...p, ...updates } : p);
+    setProjectPhotos(updated);
+    savePhotosMutation.mutate(updated);
+    if (canSync) {
+      const patch: Record<string, unknown> = { id };
+      if (updates.uri !== undefined) patch.uri = updates.uri;
+      if (updates.location !== undefined) patch.location = updates.location;
+      if (updates.tag !== undefined) patch.tag = updates.tag;
+      if (updates.linkedTaskId !== undefined) patch.linked_task_id = updates.linkedTaskId;
+      if (updates.linkedTaskName !== undefined) patch.linked_task_name = updates.linkedTaskName;
+      if (updates.markup !== undefined) patch.markup = updates.markup;
+      void supabaseWrite('photos', 'update', patch);
+    }
+  }, [projectPhotos, savePhotosMutation, canSync]);
+
   const getPhotosForProject = useCallback((projectId: string) => projectPhotos.filter(p => p.projectId === projectId).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()), [projectPhotos]);
 
   const addPriceAlert = useCallback((alert: PriceAlert) => {
@@ -1726,7 +1745,7 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
     dailyReports, addDailyReport, updateDailyReport, getDailyReportsForProject,
     subcontractors, addSubcontractor, updateSubcontractor, deleteSubcontractor, getSubcontractor,
     punchItems, addPunchItem, updatePunchItem, deletePunchItem, getPunchItemsForProject,
-    projectPhotos, addProjectPhoto, deleteProjectPhoto, getPhotosForProject,
+    projectPhotos, addProjectPhoto, updateProjectPhoto, deleteProjectPhoto, getPhotosForProject,
     priceAlerts, addPriceAlert, updatePriceAlert, deletePriceAlert,
     contacts, addContact, updateContact, deleteContact, getContact,
     commEvents, addCommEvent, getCommEventsForProject,
@@ -1742,5 +1761,5 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
     drawingPins, addDrawingPin, updateDrawingPin, deleteDrawingPin, getPinsForPlan, getPinsForPhoto,
     planMarkups, addPlanMarkup, deletePlanMarkup, getMarkupsForPlan,
     planCalibrations, upsertPlanCalibration, getCalibrationForPlan,
-  }), [sortedProjects, settings, hasSeenOnboarding, completeOnboarding, projectsQuery.isLoading, settingsQuery.isLoading, onboardingQuery.isLoading, addProject, updateProject, deleteProject, getProject, updateSettings, addCollaborator, removeCollaborator, changeOrders, addChangeOrder, updateChangeOrder, getChangeOrdersForProject, addInvoice, updateInvoice, getInvoicesForProject, getTotalOutstandingBalance, invoices, commitments, addCommitment, updateCommitment, deleteCommitment, getCommitmentsForProject, prequalPackets, upsertPrequalPacket, deletePrequalPacket, getPrequalPacketForSub, getPrequalPacketByToken, dailyReports, addDailyReport, updateDailyReport, getDailyReportsForProject, subcontractors, addSubcontractor, updateSubcontractor, deleteSubcontractor, getSubcontractor, punchItems, addPunchItem, updatePunchItem, deletePunchItem, getPunchItemsForProject, projectPhotos, addProjectPhoto, deleteProjectPhoto, getPhotosForProject, priceAlerts, addPriceAlert, updatePriceAlert, deletePriceAlert, contacts, addContact, updateContact, deleteContact, getContact, commEvents, addCommEvent, getCommEventsForProject, rfis, addRFI, updateRFI, deleteRFI, getRFIsForProject, permits, addPermit, updatePermit, deletePermit, getPermitsForProject, aiaPayApps, addAIAPayApp, deleteAIAPayApp, getAIAPayAppsForProject, subPortalLinks, upsertSubPortalLink, deleteSubPortalLink, getSubPortalLinkFor, getSubPortalLinksForProject, submittals, addSubmittal, updateSubmittal, deleteSubmittal, getSubmittalsForProject, addReviewCycle, equipment, addEquipment, updateEquipment, deleteEquipment, logUtilization, getEquipmentForProject, getEquipmentCostForProject, warranties, addWarranty, updateWarranty, deleteWarranty, getWarrantiesForProject, addWarrantyClaim, portalMessages, addPortalMessage, markPortalMessagesRead, getPortalMessagesForProject, getUnreadPortalMessageCount, getTotalUnreadPortalCountForGc, planSheets, addPlanSheet, updatePlanSheet, deletePlanSheet, getPlanSheetsForProject, getPlanSheet, drawingPins, addDrawingPin, updateDrawingPin, deleteDrawingPin, getPinsForPlan, getPinsForPhoto, planMarkups, addPlanMarkup, deletePlanMarkup, getMarkupsForPlan, planCalibrations, upsertPlanCalibration, getCalibrationForPlan]);
+  }), [sortedProjects, settings, hasSeenOnboarding, completeOnboarding, projectsQuery.isLoading, settingsQuery.isLoading, onboardingQuery.isLoading, addProject, updateProject, deleteProject, getProject, updateSettings, addCollaborator, removeCollaborator, changeOrders, addChangeOrder, updateChangeOrder, getChangeOrdersForProject, addInvoice, updateInvoice, getInvoicesForProject, getTotalOutstandingBalance, invoices, commitments, addCommitment, updateCommitment, deleteCommitment, getCommitmentsForProject, prequalPackets, upsertPrequalPacket, deletePrequalPacket, getPrequalPacketForSub, getPrequalPacketByToken, dailyReports, addDailyReport, updateDailyReport, getDailyReportsForProject, subcontractors, addSubcontractor, updateSubcontractor, deleteSubcontractor, getSubcontractor, punchItems, addPunchItem, updatePunchItem, deletePunchItem, getPunchItemsForProject, projectPhotos, addProjectPhoto, updateProjectPhoto, deleteProjectPhoto, getPhotosForProject, priceAlerts, addPriceAlert, updatePriceAlert, deletePriceAlert, contacts, addContact, updateContact, deleteContact, getContact, commEvents, addCommEvent, getCommEventsForProject, rfis, addRFI, updateRFI, deleteRFI, getRFIsForProject, permits, addPermit, updatePermit, deletePermit, getPermitsForProject, aiaPayApps, addAIAPayApp, deleteAIAPayApp, getAIAPayAppsForProject, subPortalLinks, upsertSubPortalLink, deleteSubPortalLink, getSubPortalLinkFor, getSubPortalLinksForProject, submittals, addSubmittal, updateSubmittal, deleteSubmittal, getSubmittalsForProject, addReviewCycle, equipment, addEquipment, updateEquipment, deleteEquipment, logUtilization, getEquipmentForProject, getEquipmentCostForProject, warranties, addWarranty, updateWarranty, deleteWarranty, getWarrantiesForProject, addWarrantyClaim, portalMessages, addPortalMessage, markPortalMessagesRead, getPortalMessagesForProject, getUnreadPortalMessageCount, getTotalUnreadPortalCountForGc, planSheets, addPlanSheet, updatePlanSheet, deletePlanSheet, getPlanSheetsForProject, getPlanSheet, drawingPins, addDrawingPin, updateDrawingPin, deleteDrawingPin, getPinsForPlan, getPinsForPhoto, planMarkups, addPlanMarkup, deletePlanMarkup, getMarkupsForPlan, planCalibrations, upsertPlanCalibration, getCalibrationForPlan]);
 });

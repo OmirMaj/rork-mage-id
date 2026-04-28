@@ -550,6 +550,100 @@
   /* ───────── Contract sign ───────── */
   .contract-sign { margin-top: 14px; }
 
+  /* ───────── Closeout binder ───────── */
+  .closeout { padding: 4px 0; }
+  .co-actions {
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 18px; flex-wrap: wrap;
+  }
+  .co-actions .btn-primary {
+    padding: 12px 20px; background: #FF6A1A; color: #fff;
+    border: none; border-radius: 10px;
+    font-weight: 800; font-size: 14px; cursor: pointer;
+  }
+  .co-status-pill {
+    font-size: 10px; font-weight: 800; letter-spacing: 1px;
+    color: #1E8E4A; background: rgba(30, 142, 74, 0.12);
+    padding: 6px 12px; border-radius: 999px; text-transform: uppercase;
+  }
+  .co-note {
+    background: #FFF7E6; border: 1px solid #F4D88E;
+    border-radius: 12px; padding: 14px 16px; margin-bottom: 18px;
+  }
+  .co-note-eyebrow {
+    font-size: 10px; font-weight: 800; letter-spacing: 1px;
+    color: #C26A00; text-transform: uppercase; margin-bottom: 6px;
+  }
+  .co-note-body {
+    font-size: 14px; line-height: 1.6; color: #2D2A24;
+  }
+  .co-h3 {
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 18px; font-weight: 700; color: #0B0D10;
+    margin: 22px 0 10px; letter-spacing: -0.3px;
+  }
+  .co-table {
+    width: 100%; border-collapse: collapse; background: #FFFFFF;
+    border: 1px solid #E8DFCD; border-radius: 10px; overflow: hidden;
+    margin-bottom: 8px;
+  }
+  .co-table th {
+    text-align: left; padding: 10px 12px; background: #FAF5E8;
+    font-size: 10px; font-weight: 800; letter-spacing: 0.6px;
+    color: #6B7177; text-transform: uppercase;
+    border-bottom: 1px solid #E8DFCD;
+  }
+  .co-table td {
+    padding: 10px 12px; font-size: 13px; color: #2D2A24;
+    border-bottom: 1px solid #F1EAD9; vertical-align: top;
+  }
+  .co-table tr:last-child td { border-bottom: 0; }
+  .co-table .co-cat {
+    font-size: 10px; font-weight: 800; letter-spacing: 0.5px;
+    color: #6B7177; text-transform: uppercase; width: 20%;
+  }
+  .co-meta {
+    font-size: 11px; color: #6B7177; margin-top: 2px;
+  }
+  .co-emergency {
+    margin-top: 24px; padding: 16px 18px;
+    background: rgba(255, 106, 26, 0.08);
+    border: 1px solid rgba(255, 106, 26, 0.25);
+    border-radius: 12px;
+  }
+  .co-emergency-title {
+    font-size: 14px; font-weight: 800; color: #0B0D10;
+    margin-bottom: 8px;
+  }
+  .co-emergency-list {
+    margin: 0; padding-left: 20px;
+    font-size: 13px; color: #2D2A24; line-height: 1.7;
+  }
+
+  /* Print mode: when the homeowner taps "Print", we add .printing-binder
+     to <body> just before window.print() fires. CSS hides every chrome
+     element and dumps just the printable binder into the page. */
+  @media print {
+    body.printing-binder header, body.printing-binder nav,
+    body.printing-binder .nav-rail, body.printing-binder .stats,
+    body.printing-binder .hero, body.printing-binder section:not(#sec-closeout),
+    body.printing-binder .co-actions,
+    body.printing-binder .messages-block,
+    body.printing-binder footer { display: none !important; }
+    body.printing-binder #sec-closeout {
+      display: block !important; padding: 0; margin: 0;
+    }
+    body.printing-binder #sec-closeout .section-head { display: none !important; }
+    body.printing-binder .closeout-printable { padding: 0; }
+    body.printing-binder .co-table { box-shadow: none; }
+    body.printing-binder .co-h3 {
+      page-break-after: avoid; break-after: avoid;
+    }
+    body.printing-binder .co-table tr {
+      page-break-inside: avoid; break-inside: avoid;
+    }
+  }
+
   /* ───────── Open Book / GMP ───────── */
   .open-book { padding: 4px 0 8px; }
   .ob-summary {
@@ -787,6 +881,13 @@
     text-overflow: ellipsis; overflow: hidden; white-space: nowrap;
     letter-spacing: 0.1px;
   }
+  .photo-markup-badge {
+    position: absolute; top: 6px; right: 6px;
+    width: 22px; height: 22px; border-radius: 50%;
+    background: #FF6A1A; color: #fff; font-size: 11px;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+  }
 
   /* ───────── Lightbox ───────── */
   .lightbox {
@@ -800,7 +901,16 @@
     animation: fadeIn 0.2s ease;
   }
   .lightbox.open { display: flex; }
-  .lightbox img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: var(--radius-md); }
+  .lightbox-stage {
+    position: relative; max-width: 100%; max-height: 100%;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .lightbox img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: var(--radius-md); display: block; }
+  .lightbox-stage svg {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+  }
   .lightbox-close {
     position: absolute; top: 20px; right: 20px;
     width: 42px; height: 42px; border-radius: 50%;
@@ -1333,7 +1443,10 @@
   <!-- Lightbox -->
   <div class="lightbox" id="lightbox">
     <button class="lightbox-close" id="lightbox-close" aria-label="Close">×</button>
-    <img id="lightbox-img" alt="" />
+    <div class="lightbox-stage" id="lightbox-stage">
+      <img id="lightbox-img" alt="" />
+      <svg id="lightbox-svg" preserveAspectRatio="none"></svg>
+    </div>
   </div>
 
   <!-- Drawer (used for invoice + AIA detail) -->
@@ -1683,6 +1796,98 @@
     });
   });
 
+  // ───── Closeout binder ─────
+  // The "what's installed in my house" reference — homeowners come back to
+  // this years later for warranty claims, maintenance, and resale prep.
+  // Includes a Print / Save-as-PDF button that uses window.print() with a
+  // print-friendly stylesheet, so they can keep a permanent copy.
+  function renderCloseout(c) {
+    if (!c) return '';
+    function fmtIsoDate(s) {
+      if (!s) return '';
+      var d = new Date(s);
+      if (isNaN(d.getTime())) return '';
+      return d.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+    }
+    var finishesRows = (c.finishes || []).map(function (f) {
+      var detail = [f.brand ? escapeHtml(f.brand) : '', f.sku ? 'SKU ' + escapeHtml(f.sku) : ''].filter(Boolean).join(' · ');
+      return '' +
+        '<tr>' +
+          '<td class="co-cat">' + escapeHtml(f.category) + '</td>' +
+          '<td><strong>' + escapeHtml(f.productName) + '</strong>' + (detail ? '<div class="co-meta">' + detail + '</div>' : '') + '</td>' +
+          '<td>' + (f.supplier ? escapeHtml(f.supplier) : '—') + '</td>' +
+        '</tr>';
+    }).join('');
+    var warrantyRows = (c.warranties || []).map(function (w) {
+      return '' +
+        '<tr>' +
+          '<td><strong>' + escapeHtml(w.title) + '</strong></td>' +
+          '<td>' + (w.provider ? escapeHtml(w.provider) : '—') + '</td>' +
+          '<td>' + (w.durationMonths ? w.durationMonths + ' mo' : '—') + '</td>' +
+          '<td>' + (w.endDate ? fmtIsoDate(w.endDate) : '—') + '</td>' +
+        '</tr>';
+    }).join('');
+    var maintRows = (c.maintenance || []).map(function (m) {
+      return '' +
+        '<tr>' +
+          '<td><strong>' + escapeHtml(m.task) + '</strong>' + (m.notes ? '<div class="co-meta">' + escapeHtml(m.notes) + '</div>' : '') + '</td>' +
+          '<td>' + escapeHtml(m.frequency) + '</td>' +
+          '<td>' + (m.nextDate ? fmtIsoDate(m.nextDate) : '—') + '</td>' +
+        '</tr>';
+    }).join('');
+    var contactRows = (c.tradeContacts || []).map(function (tc) {
+      return '' +
+        '<tr>' +
+          '<td><strong>' + escapeHtml(tc.company) + '</strong></td>' +
+          '<td>' + (tc.scope ? escapeHtml(tc.scope) : '—') + '</td>' +
+          '<td>' + (tc.phase ? escapeHtml(tc.phase) : '—') + '</td>' +
+        '</tr>';
+    }).join('');
+    var noteHtml = c.noteFromContractor
+      ? '<div class="co-note"><div class="co-note-eyebrow">A NOTE FROM YOUR CONTRACTOR</div><div class="co-note-body">' + escapeHtml(c.noteFromContractor).replace(/\n/g, '<br/>') + '</div></div>'
+      : '';
+    var emergencyHtml = '' +
+      '<div class="co-emergency">' +
+        '<div class="co-emergency-title">If something breaks during the warranty period</div>' +
+        '<ol class="co-emergency-list">' +
+          '<li>Snap a photo and write a one-line description.</li>' +
+          (c.emergencyEmail ? '<li>Email your contractor at <strong>' + escapeHtml(c.emergencyEmail) + '</strong> within the warranty window.</li>' : '<li>Email your contractor with the issue.</li>') +
+          (c.emergencyPhone ? '<li>For urgent items (water leak, no heat, no power), call <strong>' + escapeHtml(c.emergencyPhone) + '</strong>.</li>' : '<li>For emergencies (water, gas, no power), call your contractor directly.</li>') +
+        '</ol>' +
+      '</div>';
+    var completionLine = c.completionDate
+      ? '<div class="co-meta" style="margin-bottom:14px">Completed ' + fmtIsoDate(c.completionDate) + '</div>'
+      : '';
+    return '' +
+      '<div class="closeout">' +
+        '<div class="co-actions">' +
+          '<button type="button" class="btn-primary" data-action="print-binder">🖨️ Print / Save as PDF</button>' +
+          '<span class="co-status-pill">' + (c.status === 'sent' ? 'DELIVERED' : 'FINALIZED') + '</span>' +
+        '</div>' +
+        '<div class="closeout-printable">' +
+          completionLine +
+          noteHtml +
+          (finishesRows ? '<h3 class="co-h3">Finishes &amp; fixtures installed</h3><table class="co-table"><thead><tr><th>Category</th><th>Product</th><th>Supplier</th></tr></thead><tbody>' + finishesRows + '</tbody></table>' : '') +
+          (warrantyRows ? '<h3 class="co-h3">Warranties on file</h3><table class="co-table"><thead><tr><th>Item</th><th>Provider</th><th>Duration</th><th>Expires</th></tr></thead><tbody>' + warrantyRows + '</tbody></table>' : '') +
+          (maintRows ? '<h3 class="co-h3">Maintenance schedule</h3><table class="co-table"><thead><tr><th>Task</th><th>Frequency</th><th>Next due</th></tr></thead><tbody>' + maintRows + '</tbody></table>' : '') +
+          (contactRows ? '<h3 class="co-h3">Trade contacts</h3><table class="co-table"><thead><tr><th>Company</th><th>Scope</th><th>Phase</th></tr></thead><tbody>' + contactRows + '</tbody></table>' : '') +
+          emergencyHtml +
+        '</div>' +
+      '</div>';
+  }
+
+  // Print handler — toggles a body class so print CSS shows only the binder.
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest && e.target.closest('[data-action="print-binder"]');
+    if (!btn) return;
+    e.preventDefault();
+    document.body.classList.add('printing-binder');
+    setTimeout(function () {
+      window.print();
+      setTimeout(function () { document.body.classList.remove('printing-binder'); }, 100);
+    }, 50);
+  });
+
   // Open Book / GMP — clients see the full cost picture: budget vs.
   // committed vs. actual, per phase. Procore can't ship this for the
   // residential GC; it's our category-defining differentiator.
@@ -1877,9 +2082,54 @@
     if (!photos || !photos.length) return emptyState('No photos shared yet.');
     var grid = photos.map(function (p, idx) {
       var cap = p.caption ? '<div class="photo-caption">'+esc(p.caption)+'</div>' : '';
-      return '<div class="photo" data-photo="'+idx+'"><img loading="lazy" src="'+esc(p.url)+'" alt="'+esc(p.caption||'')+'"/>'+cap+'</div>';
+      var badge = (p.markup && p.markup.length) ? '<span class="photo-markup-badge" title="Has markup">✏️</span>' : '';
+      return '<div class="photo" data-photo="'+idx+'"><img loading="lazy" src="'+esc(p.url)+'" alt="'+esc(p.caption||'')+'"/>'+badge+cap+'</div>';
     }).join('');
     return '<div class="photo-grid">'+grid+'</div>';
+  }
+
+  // Build an SVG string from a list of normalized markup primitives.
+  // The SVG sizes itself via 100% width/height + viewBox 0 0 1 1 so the
+  // overlay scales perfectly with the rendered image regardless of
+  // aspect ratio. Stroke widths use vector-effect=non-scaling-stroke so
+  // they don't deform when the SVG is non-uniformly stretched.
+  function buildMarkupSvg(markup) {
+    if (!markup || !markup.length) return '';
+    var COLOR = { red: '#E5484D', yellow: '#F5A623', green: '#1E8E4A' };
+    var nodes = markup.map(function (m) {
+      var stroke = COLOR[m.color] || '#E5484D';
+      if (m.type === 'arrow' && m.points && m.points.length >= 2) {
+        var p1 = m.points[0], p2 = m.points[1];
+        var dx = p2.x - p1.x, dy = p2.y - p1.y;
+        var len = Math.sqrt(dx*dx + dy*dy) || 1;
+        var ux = dx/len, uy = dy/len;
+        var head = 0.04;
+        var lx = p2.x - ux*head + uy*head/2, ly = p2.y - uy*head - ux*head/2;
+        var rx = p2.x - ux*head - uy*head/2, ry = p2.y - uy*head + ux*head/2;
+        return '<line x1="'+p1.x+'" y1="'+p1.y+'" x2="'+p2.x+'" y2="'+p2.y+'" stroke="'+stroke+'" stroke-width="0.008" stroke-linecap="round" vector-effect="non-scaling-stroke" style="stroke-width:3"/>'
+             + '<polygon points="'+p2.x+','+p2.y+' '+lx+','+ly+' '+rx+','+ry+'" fill="'+stroke+'"/>';
+      }
+      if (m.type === 'circle' && m.points && m.points.length >= 2) {
+        var c1 = m.points[0], c2 = m.points[1];
+        var cx = (c1.x + c2.x)/2, cy = (c1.y + c2.y)/2;
+        var r = Math.sqrt((c2.x-c1.x)*(c2.x-c1.x) + (c2.y-c1.y)*(c2.y-c1.y))/2;
+        return '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" stroke="'+stroke+'" stroke-width="0.008" fill="none" vector-effect="non-scaling-stroke" style="stroke-width:3"/>';
+      }
+      if (m.type === 'freehand' && m.points && m.points.length) {
+        var d = m.points.map(function (pt, i) { return (i===0?'M':'L')+pt.x+','+pt.y; }).join(' ');
+        return '<path d="'+d+'" stroke="'+stroke+'" stroke-width="0.008" fill="none" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" style="stroke-width:3"/>';
+      }
+      if (m.type === 'text' && m.points && m.points.length && m.text) {
+        var t = m.points[0];
+        var label = String(m.text).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        var fontSize = 0.04;
+        var len2 = Math.max(0.04, label.length * 0.018) + 0.02;
+        return '<rect x="'+t.x+'" y="'+(t.y - fontSize)+'" width="'+len2+'" height="'+(fontSize + 0.02)+'" fill="'+stroke+'" opacity="0.92"/>'
+             + '<text x="'+(t.x + 0.01)+'" y="'+(t.y + 0.005)+'" fill="#FFFFFF" font-size="'+fontSize+'" font-weight="700" font-family="Inter,system-ui,sans-serif">'+label+'</text>';
+      }
+      return '';
+    }).join('');
+    return nodes;
   }
 
   function renderDailyReports(drs) {
@@ -2634,6 +2884,13 @@
     if (sections.documents && sections.documents.length) {
       addSection('documents', 'file', 'Documents', null, sections.documents.length, renderDocuments(sections.documents));
     }
+    // Closeout binder — the homeowner reference for the life of the home.
+    // Renders only when GC has finalized or sent the binder.
+    if (data.closeout) {
+      addSection('closeout', 'fileText', 'Closeout Binder',
+        'Everything you need to maintain, troubleshoot, and improve this build. Tap Print to save a PDF.',
+        null, renderCloseout(data.closeout));
+    }
     // Messages section is always shown when the portalApi is configured
     // (so the client can always reach the GC even if there's no thread yet).
     if (data.portalApi) {
@@ -2825,6 +3082,20 @@
         var p = photoData[idx];
         if (!p) return;
         document.getElementById('lightbox-img').src = p.url;
+        // Populate the SVG overlay with whatever markup the GC drew.
+        // viewBox 0 0 1 1 makes our normalized coords map cleanly to
+        // any rendered image size.
+        var svg = document.getElementById('lightbox-svg');
+        if (svg) {
+          if (p.markup && p.markup.length) {
+            svg.setAttribute('viewBox', '0 0 1 1');
+            svg.style.display = 'block';
+            svg.innerHTML = buildMarkupSvg(p.markup);
+          } else {
+            svg.innerHTML = '';
+            svg.style.display = 'none';
+          }
+        }
         document.getElementById('lightbox').classList.add('open');
       });
     });

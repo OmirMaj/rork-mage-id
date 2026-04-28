@@ -13,7 +13,15 @@ import type {
   SavedAIAPayApp,
 } from '@/types';
 
-// v4 adds:
+// v5 adds (Wave 3):
+// - closeout binder block: notes, finishes (chosen selections), warranty
+//   roster, maintenance schedule, trade contacts, emergency contact info.
+//   Renders only when GC has finalized or sent the binder.
+// - photos[].markup: SVG-friendly normalized-coordinate annotations
+//   (arrow/circle/freehand/text) so the portal can overlay GC markup
+//   directly on the original image.
+//
+// v4 added:
 // - portalApi (supabaseUrl + supabaseAnonKey + portalId + inviteId) shared
 //   across all client→GC writes (budget, messages, CO approvals).
 // - messages: recent thread loaded into the portal hero.
@@ -22,7 +30,7 @@ import type {
 // v3 added: clientCanSetBudget toggle, submitBudget config, project.targetBudget.
 // v2 added: invoice.lineItems summary, aiaPayApps section, hero photo +
 // schedule anchors.
-export const PORTAL_SNAPSHOT_VERSION = 4;
+export const PORTAL_SNAPSHOT_VERSION = 5;
 
 export interface PortalSnapshot {
   v: number;
@@ -76,6 +84,24 @@ export interface PortalSnapshot {
     contractValue: number;
     title: string;
     needsSignature: boolean;   // true when GC has signed but homeowner hasn't
+  };
+  // Closeout binder — only emitted when the GC has finalized or sent the
+  // binder. The portal renders a printable view with all the long-tail
+  // info homeowners come back to years later: chosen finishes (brand +
+  // SKU + supplier), warranty roster, maintenance schedule, trade
+  // contacts. A "Print / Save as PDF" button uses window.print() so they
+  // can keep a local copy.
+  closeout?: {
+    id: string;
+    status: 'finalized' | 'sent';
+    completionDate?: string;
+    noteFromContractor?: string;
+    finishes: Array<{ category: string; productName: string; brand?: string; sku?: string; supplier?: string }>;
+    warranties: Array<{ title: string; provider?: string; durationMonths?: number; endDate?: string }>;
+    maintenance: Array<{ task: string; frequency: string; nextDate?: string; notes?: string }>;
+    tradeContacts: Array<{ company: string; scope?: string; phase?: string; phone?: string; email?: string }>;
+    emergencyEmail?: string;
+    emergencyPhone?: string;
   };
   // AI-curated selections / allowances the homeowner picks. Flat list
   // because the portal renders a category card for each. Only categories
@@ -222,7 +248,20 @@ export interface PortalSnapshot {
       id: string; number: number | string; description: string;
       changeAmount: number; status: string; dateSubmitted?: string;
     }>;
-    photos?: Array<{ url: string; caption?: string; timestamp?: string }>;
+    photos?: Array<{
+      url: string;
+      caption?: string;
+      timestamp?: string;
+      // Markup primitives drawn over the photo by the GC. Coords are
+      // normalized 0..1 so the static portal can re-render them at any
+      // display size. Only emitted when there's at least one annotation.
+      markup?: Array<{
+        type: 'arrow' | 'rectangle' | 'circle' | 'freehand' | 'text';
+        color: 'red' | 'yellow' | 'green';
+        points: Array<{ x: number; y: number }>;
+        text?: string;
+      }>;
+    }>;
     dailyReports?: Array<{
       id: string; date: string; weather?: string;
       totalManpower?: number; totalManHours?: number;
@@ -282,6 +321,12 @@ interface BuildOpts {
   contract?: import('@/types').ProjectContract;
   // Selection categories + options to render in the portal.
   selections?: import('@/types').SelectionCategory[];
+  // Active closeout binder for this project (finalized or sent only).
+  // Bundled into the snapshot so the homeowner can pull the binder from
+  // the portal years after handover.
+  closeoutBinder?: import('./closeoutBinderEngine').CloseoutBinder;
+  // Project warranties — used by the closeout block.
+  warranties?: import('@/types').Warranty[];
 }
 
 export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
@@ -435,6 +480,14 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
       url: p.uri ?? '',
       caption: p.tag ?? p.location,
       timestamp: p.timestamp,
+      markup: (p.markup ?? []).length > 0
+        ? p.markup!.map(m => ({
+            type: m.type,
+            color: m.color,
+            points: m.points,
+            text: m.text,
+          }))
+        : undefined,
     })).filter(p => p.url);
   }
 
@@ -615,6 +668,53 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
     portalApi: apiConfig,
     coApprovalEnabled: !!portal.coApprovalEnabled,
     openBook,
+    // Closeout binder — only emit when GC has finalized or sent it.
+    // Inlined into the snapshot so the homeowner can pull the binder
+    // from the portal years after handover (e.g., for a warranty claim
+    // or before selling the home).
+    closeout: (() => {
+      const cb = opts.closeoutBinder;
+      if (!cb || (cb.status !== 'finalized' && cb.status !== 'sent')) return undefined;
+      const chosenSelections = (opts.selections ?? [])
+        .map(c => ({ category: c.category, chosen: (c.options ?? []).find(o => o.isChosen) }))
+        .filter((x): x is { category: string; chosen: NonNullable<typeof x.chosen> } => !!x.chosen)
+        .map(x => ({
+          category: x.category,
+          productName: x.chosen.productName,
+          brand: x.chosen.brand || undefined,
+          sku: x.chosen.sku || undefined,
+          supplier: x.chosen.supplier || undefined,
+        }));
+      const warrantyList = (opts.warranties ?? [])
+        .filter(w => w.projectId === project.id)
+        .map(w => ({
+          title: w.title ?? w.category ?? 'Item',
+          provider: w.provider || undefined,
+          durationMonths: w.durationMonths,
+          endDate: w.endDate,
+        }));
+      const tradeContacts = (opts.commitments ?? [])
+        .filter(c => c.status !== 'draft')
+        .map(c => ({
+          company: c.vendorName ?? 'Subcontractor',
+          scope: c.description ?? c.type,
+          phase: c.phase,
+          phone: undefined,  // not on commitment yet
+          email: undefined,
+        }));
+      return {
+        id: cb.id,
+        status: cb.status,
+        completionDate: project.closedAt ?? project.updatedAt,
+        noteFromContractor: cb.notes || undefined,
+        finishes: chosenSelections,
+        warranties: warrantyList,
+        maintenance: cb.maintenanceSchedule ?? [],
+        tradeContacts,
+        emergencyEmail: settings?.branding?.email,
+        emergencyPhone: settings?.branding?.phone,
+      };
+    })(),
     // Contract — only emit when GC has actually sent it to the homeowner.
     contract: opts.contract && (opts.contract.status === 'sent' || opts.contract.status === 'signed') ? {
       id: opts.contract.id,

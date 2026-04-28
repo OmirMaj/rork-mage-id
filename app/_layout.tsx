@@ -474,6 +474,10 @@ function RootLayoutNav() {
         options={{ headerShown: false }}
       />
       <Stack.Screen
+        name="photo-annotator"
+        options={{ headerShown: false, presentation: 'modal' }}
+      />
+      <Stack.Screen
         name="plans"
         options={{ headerShown: false }}
       />
