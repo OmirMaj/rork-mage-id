@@ -311,6 +311,60 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
   const signInWithGoogle = useCallback(async () => {
     console.log('[Auth] Starting Google sign-in');
     try {
+      // ─── Native iOS / Android flow ───
+      // Use the Google Sign-In native SDK so the system in-app sign-in
+      // sheet pops up — NO browser, NO "continue to supabase.co" prompt.
+      // We get an idToken back, then exchange it via Supabase's
+      // signInWithIdToken. Supabase verifies the JWT signature against
+      // Google's public keys server-side.
+      //
+      // Note: Google.signIn() needs to be called AFTER configure().
+      // The configuration uses the iOS OAuth client ID we registered
+      // in Google Cloud Console with the bundle ID com.mageid.app.
+      if (Platform.OS !== 'web') {
+        const { GoogleSignin, statusCodes } = await import('@react-native-google-signin/google-signin');
+        GoogleSignin.configure({
+          // The iOS OAuth client we registered (lives on our GCP project).
+          iosClientId: '264795467031-qi8l5k0iliiqf5fg502jk94pbciu0bkt.apps.googleusercontent.com',
+          // The web client is required for offline access / token exchange.
+          // Even on iOS we pass the web client ID so the returned idToken
+          // has the right `aud` for Supabase's signInWithIdToken.
+          webClientId: '264795467031-s1ivdn6c68bq4hh464bp0239hkh4k2oa.apps.googleusercontent.com',
+          scopes: ['email', 'profile'],
+        });
+        try {
+          await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+          const result = await GoogleSignin.signIn();
+          // SDK v13+ returns { type, data: { idToken, user, ... } }.
+          // Older shapes returned { idToken, user, ... } directly.
+          const idToken = (result as any)?.data?.idToken ?? (result as any)?.idToken;
+          if (!idToken) {
+            throw new Error('Google did not return an ID token.');
+          }
+          const { error } = await supabase.auth.signInWithIdToken({
+            provider: 'google',
+            token: idToken,
+          });
+          if (error) throw error;
+          console.log('[Auth] Google sign-in session set (native flow)');
+          queryClient.clear();
+          return;
+        } catch (gErr) {
+          const code = (gErr as { code?: string | number })?.code;
+          if (code === statusCodes.SIGN_IN_CANCELLED || code === 'SIGN_IN_CANCELLED' || code === '-5') {
+            console.log('[Auth] Google sign-in cancelled');
+            return;
+          }
+          // Fall through to web OAuth as a backup.
+          console.warn('[Auth] Google native sign-in failed, falling back to web:', gErr);
+        }
+      }
+
+      // ─── Web fallback ───
+      // For web (or if native flow above failed for a non-cancellation
+      // reason), use the existing Supabase OAuth flow. This is the
+      // path that shows "continue to supabase.co" — unavoidable on web
+      // without a custom auth domain.
       const redirectUrl = makeRedirectUri({ preferLocalhost: false });
       console.log('[Auth] Google redirect URL:', redirectUrl);
       const { data, error } = await supabase.auth.signInWithOAuth({

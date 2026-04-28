@@ -43,7 +43,13 @@
       "expo-web-browser",
       "expo-mail-composer",
       "expo-secure-store",
-      "expo-apple-authentication"
+      "expo-apple-authentication",
+      [
+        "@react-native-google-signin/google-signin",
+        {
+          "iosUrlScheme": "com.googleusercontent.apps.264795467031-qi8l5k0iliiqf5fg502jk94pbciu0bkt"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
