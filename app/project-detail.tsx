@@ -50,6 +50,14 @@ import { fetchSelectionsForProject } from '@/utils/selectionsEngine';
 import { fetchCloseoutBinder } from '@/utils/closeoutBinderEngine';
 import { fetchLienWaiversForProject } from '@/utils/lienWaiverEngine';
 import { STATUS_TONES } from '@/utils/statusPill';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { buildPortalSnapshot } from '@/utils/portalSnapshot';
+
+// Same constants as in app/client-portal-setup.tsx — kept in sync with that
+// file so the snapshot rebuilt from project-detail matches the one rebuilt
+// from the dedicated Client Portal screen.
+const PROJECT_DETAIL_SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://nteoqhcswappxxjlpvap.supabase.co';
+const PROJECT_DETAIL_SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im50ZW9xaGNzd2FwcHh4amxwdmFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzMTU0MDMsImV4cCI6MjA4OTg5MTQwM30.xpz7yWhignppH-3dYD-EV4AvB4cugr7-881GKdOFado';
 
 type SectionKey = 'linkedEstimate' | 'materials' | 'labor' | 'summary' | 'schedule' | 'notes' | 'collaborators' | 'changeOrders' | 'invoices' | 'dailyReports' | 'punchList' | 'rfis' | 'submittals' | 'budget' | 'photos' | 'clientPortal' | 'communications' | 'activity' | 'calendar' | 'plans' | 'permits' | 'contract' | 'selections' | 'lienWaivers' | 'closeoutBinder' | 'handover';
 
@@ -151,6 +159,84 @@ export default function ProjectDetailScreen() {
   }, [id]);
 
   const project = useMemo(() => getProject(id ?? ''), [id, getProject]);
+
+  // ── Portal snapshot background sync ──────────────────────────────────
+  // Pushes the homeowner-portal snapshot to Supabase any time a project
+  // with the portal enabled is viewed. Without this, the cache only
+  // refreshes when the GC opens the dedicated Client Portal setup screen
+  // — which they may rarely revisit once setup is complete, leaving
+  // shared links pointing at a missing snapshot ("link expired").
+  //
+  // The snapshot built here is "lite" — it omits sections that aren't in
+  // scope on this screen (AIA pay apps, commitments, message thread).
+  // The full rich snapshot still gets written from client-portal-setup
+  // when the GC visits that screen. Either way, the homeowner sees a
+  // working portal — the lite version covers ~90% of the data.
+  //
+  // Debounced 2s so rapid edits / re-renders don't hammer the table.
+  useEffect(() => {
+    if (!project) return;
+    const portal = project.clientPortal;
+    if (!portal?.enabled || !portal.portalId) return;
+    if (!isSupabaseConfigured) return;
+
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      try {
+        const [contract, selections, closeoutBinder] = await Promise.all([
+          fetchActiveContract(project.id).catch(() => undefined),
+          fetchSelectionsForProject(project.id).catch(() => undefined),
+          fetchCloseoutBinder(project.id).catch(() => undefined),
+        ]);
+        if (cancelled) return;
+
+        const snap = buildPortalSnapshot({
+          project,
+          portal,
+          settings,
+          invoices: projectInvoices,
+          changeOrders,
+          dailyReports,
+          punchItems,
+          photos: projectPhotos,
+          rfis: projectRFIs,
+          warranties: projectWarranties,
+          // Optional rich data — fetched async, omitted on failure.
+          contract: contract ?? undefined,
+          selections: selections ?? undefined,
+          closeoutBinder: closeoutBinder ?? undefined,
+          // Not in scope on project-detail. Filled by client-portal-setup.
+          aiaPayApps: [],
+          commitments: [],
+          messages: [],
+          supabaseUrl: PROJECT_DETAIL_SUPABASE_URL,
+          supabaseAnonKey: PROJECT_DETAIL_SUPABASE_ANON_KEY,
+          contactEmail: settings?.branding?.email,
+          contactName: settings?.branding?.contactName ?? settings?.branding?.companyName,
+        });
+
+        const { error } = await supabase
+          .from('portal_snapshots')
+          .upsert({
+            portal_id: portal.portalId,
+            project_id: project.id,
+            snapshot: snap as unknown as Record<string, unknown>,
+            updated_at: new Date().toISOString(),
+          }, { onConflict: 'portal_id' });
+        if (error) console.warn('[portal-snapshot] background sync failed:', error.message);
+        else console.log('[portal-snapshot] synced for portalId', portal.portalId);
+      } catch (err) {
+        console.warn('[portal-snapshot] background sync threw:', err);
+      }
+    }, 2000);
+
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [
+    project, settings, projectInvoices, changeOrders, dailyReports,
+    punchItems, projectPhotos, projectRFIs, projectWarranties,
+  ]);
+
+
   // `estimate` is nullable until the project loads (or if it has no estimate
   // attached). We compute it here so the useMemo/useCallback hooks below can
   // depend on it unconditionally — moving them below the `if (!project)` early

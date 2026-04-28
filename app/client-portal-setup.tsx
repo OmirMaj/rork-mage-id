@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch,
   TextInput, Alert, Platform, Share, Clipboard,
@@ -255,10 +255,20 @@ export default function ClientPortalSetupScreen() {
   // the homeowner re-opens an old link. Pushing to portal_snapshots
   // means the portal HTML can fetch by portal_id whenever the hash
   // is missing or corrupt. RLS gates writes to the project owner.
+  //
+  // Note: project-detail.tsx ALSO pushes a (lite) snapshot whenever the
+  // GC opens a project with portal enabled, so most homeowner links stay
+  // fresh without needing a visit to this screen. The push here is the
+  // RICH version (includes message thread, AIA, contract, etc) and
+  // overwrites the lite version on next save.
+  const hasPersistedRef = useRef(false);
   useEffect(() => {
     if (!snapshot || !project?.id || !portal.portalId) return;
     if (!isSupabaseConfigured) return;
-    // Debounce so rapid renders don't hammer the table.
+    // Fire IMMEDIATELY on the first ready snapshot — old behavior was a
+    // 1.5s debounce that meant a GC tapping in and out fast left the
+    // table empty. Subsequent updates still debounce.
+    const initialDelay = hasPersistedRef.current ? 1500 : 200;
     const t = setTimeout(() => {
       void supabase
         .from('portal_snapshots')
@@ -269,9 +279,10 @@ export default function ClientPortalSetupScreen() {
           updated_at: new Date().toISOString(),
         }, { onConflict: 'portal_id' })
         .then(({ error }) => {
-          if (error) console.warn('[portal-snapshot] persist failed', error.message);
+          if (error) console.warn('[portal-snapshot] persist failed:', error.message);
+          else { hasPersistedRef.current = true; console.log('[portal-snapshot] persisted (rich) for portalId', portal.portalId); }
         });
-    }, 1500);
+    }, initialDelay);
     return () => clearTimeout(t);
   }, [snapshot, project?.id, portal.portalId]);
 

@@ -322,17 +322,26 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
       // The configuration uses the iOS OAuth client ID we registered
       // in Google Cloud Console with the bundle ID com.mageid.app.
       if (Platform.OS !== 'web') {
-        const { GoogleSignin, statusCodes } = await import('@react-native-google-signin/google-signin');
-        GoogleSignin.configure({
-          // The iOS OAuth client we registered (lives on our GCP project).
-          iosClientId: '264795467031-qi8l5k0iliiqf5fg502jk94pbciu0bkt.apps.googleusercontent.com',
-          // The web client is required for offline access / token exchange.
-          // Even on iOS we pass the web client ID so the returned idToken
-          // has the right `aud` for Supabase's signInWithIdToken.
-          webClientId: '264795467031-s1ivdn6c68bq4hh464bp0239hkh4k2oa.apps.googleusercontent.com',
-          scopes: ['email', 'profile'],
-        });
+        // The entire native flow is wrapped in try/catch — including the
+        // import and configure calls. The module references native code
+        // (RNGoogleSignin TurboModule) that ONLY exists in builds that
+        // bundled the @react-native-google-signin native package
+        // (build #8 onward). Older builds (e.g. build #6 + this OTA)
+        // will crash at GoogleSignin.configure() because the native
+        // module isn't registered. Catching here lets us fall through
+        // to the web OAuth path on any failure — including the
+        // "module not found" / "native module is null" crash.
         try {
+          const { GoogleSignin } = await import('@react-native-google-signin/google-signin');
+          GoogleSignin.configure({
+            // The iOS OAuth client we registered (lives on our GCP project).
+            iosClientId: '264795467031-qi8l5k0iliiqf5fg502jk94pbciu0bkt.apps.googleusercontent.com',
+            // The web client is required for offline access / token exchange.
+            // Even on iOS we pass the web client ID so the returned idToken
+            // has the right `aud` for Supabase's signInWithIdToken.
+            webClientId: '264795467031-s1ivdn6c68bq4hh464bp0239hkh4k2oa.apps.googleusercontent.com',
+            scopes: ['email', 'profile'],
+          });
           await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
           const result = await GoogleSignin.signIn();
           // SDK v13+ returns { type, data: { idToken, user, ... } }.
@@ -351,12 +360,24 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
           return;
         } catch (gErr) {
           const code = (gErr as { code?: string | number })?.code;
-          if (code === statusCodes.SIGN_IN_CANCELLED || code === 'SIGN_IN_CANCELLED' || code === '-5') {
+          const msg = String((gErr as Error)?.message || gErr || '');
+          // User cancellation — silent return, NOT an error to surface.
+          if (code === 'SIGN_IN_CANCELLED' || code === '-5' || code === 12501) {
             console.log('[Auth] Google sign-in cancelled');
             return;
           }
-          // Fall through to web OAuth as a backup.
-          console.warn('[Auth] Google native sign-in failed, falling back to web:', gErr);
+          // Native module missing (older binary on top of newer JS bundle).
+          // Logged once at info level — falls through to web OAuth which
+          // works regardless of binary version.
+          if (
+            /native module|RNGoogleSignin|null is not an object|TurboModuleRegistry/i.test(msg)
+            || msg.includes('Cannot read property') && msg.includes('GoogleSignin')
+          ) {
+            console.log('[Auth] Google native module not present in this build — using web OAuth');
+          } else {
+            console.warn('[Auth] Google native sign-in failed, falling back to web:', gErr);
+          }
+          // Fall through to web OAuth.
         }
       }
 
