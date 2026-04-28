@@ -23,11 +23,16 @@ import * as Haptics from 'expo-haptics';
 import {
   X, ChevronLeft, ChevronRight, Home, FileText, Calendar, DollarSign,
   Users, Sparkles, Gavel, Wrench, Camera, ClipboardCheck, Plus, CheckCircle2,
-  LayoutDashboard, Target, ArrowRight,
+  LayoutDashboard, Target, ArrowRight, ShoppingCart, PenTool, BookOpen,
+  Pencil, ScrollText, Globe, Bell, Footprints,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 
-export const TUTORIAL_SEEN_KEY = 'mageid_tutorial_seen_v1';
+// Bumped to v2 so existing users see the post-Wave-5 walkthrough
+// (contracts, AI selections, closeout binder, photo markup, AI daily
+// digest, handover checklist, multi-language portal, etc.). The old
+// `_v1` key is left in AsyncStorage but ignored — no migration needed.
+export const TUTORIAL_SEEN_KEY = 'mageid_tutorial_seen_v2';
 
 // ── Step definitions ───────────────────────────────────────────────────
 // Each step has copy + an interactive demo. The demo component receives
@@ -411,8 +416,150 @@ const STEPS: TutorialStep[] = [
     ),
   },
   {
+    title: 'Send a Contract',
+    body: 'Build the construction agreement in-app — scope, payment milestones, allowances, warranty. Sign on your phone, send the portal link, the homeowner counter-signs from the same portal. Your phone pings the second they sign. No DocuSign subscription.',
+    Icon: PenTool,
+    instruction: 'How does the homeowner sign?',
+    Demo: buildQuizDemo(
+      'You sent the contract. How does the homeowner counter-sign?',
+      [
+        'Print, sign, scan, email back',
+        'Open the portal link, type their name, tap Sign',
+        'They install your app and log in',
+      ],
+      1,
+    ),
+    deepLink: '/(tabs)/projects',
+  },
+  {
+    title: 'AI Selections & Allowances',
+    body: 'Set an allowance per category — kitchen tile, bath fixtures, lighting. AI curates three options at three price points: budget, on-target, premium. Brand, SKU, supplier, lead time on each. Homeowner taps one in the portal. You get pinged with their pick — and a flag if it\u2019s over allowance.',
+    Icon: ShoppingCart,
+    instruction: 'How many AI-curated tiers do you get per allowance?',
+    Demo: buildQuizDemo(
+      'You set a $5,000 tile allowance. AI returns…',
+      [
+        'One option in your budget',
+        'Three options: under-budget, on-target, premium',
+        'A list of every tile in the catalog',
+      ],
+      1,
+    ),
+    deepLink: '/(tabs)/projects',
+  },
+  {
+    title: 'Photo Markup',
+    body: 'Tap any site photo to drop arrows, circles, freehand lines, or text labels. Sub sees exactly which window, which gap, which color. Homeowner sees the same markup in their portal. No more "third floor north window" texts.',
+    Icon: Pencil,
+    instruction: 'What can you draw on a photo?',
+    Demo: buildQuizDemo(
+      'Photo markup tools include…',
+      [
+        'Arrows + circles + text labels',
+        'Filters and stickers',
+        'AI auto-detection only',
+      ],
+      0,
+    ),
+  },
+  {
+    title: 'Lien Waivers',
+    body: 'Generate all four types — conditional / unconditional × partial / final — straight from the project. PDF on tap. State-specific disclaimer baked in. Mark signed when the sub hands you the paper.',
+    Icon: ScrollText,
+    instruction: 'Which lien waiver types does MAGE ID generate?',
+    Demo: buildQuizDemo(
+      'How many lien waiver types are built in?',
+      [
+        'Just one (final)',
+        'Four (conditional / unconditional × partial / final)',
+        'Zero — bring your own',
+      ],
+      1,
+    ),
+    deepLink: '/(tabs)/projects',
+  },
+  {
+    title: 'AI Homeowner Daily Digest',
+    body: 'Your daily field report has crew counts and trade jargon — homeowners don\u2019t care about "rough-in." Tap Generate on the daily report; AI rewrites the technical log into a friendly 2\u20134 sentence update in the homeowner\u2019s language. You review, you publish. Lands at the top of their portal.',
+    Icon: Sparkles,
+    instruction: 'Where does the homeowner see the AI daily summary?',
+    Demo: buildQuizDemo(
+      'The "Latest update" panel shows up where?',
+      [
+        'In a separate email digest',
+        'At the top of the homeowner\u2019s portal',
+        'In your phone\u2019s notifications',
+      ],
+      1,
+    ),
+  },
+  {
+    title: 'Six Languages',
+    body: 'English, Spanish, Brazilian Portuguese, Mandarin, Vietnamese, French — picked for actual US construction demographics. The AI summary is generated in the homeowner\u2019s language directly. Section labels are translated. Pick the language once when you set up the portal. Done.',
+    Icon: Globe,
+    instruction: 'Where do you set the homeowner\u2019s language?',
+    Demo: buildQuizDemo(
+      'You set the homeowner\u2019s portal language…',
+      [
+        'In Settings (one global setting for all clients)',
+        'In Client Portal Setup, per project',
+        'You can\u2019t — only English',
+      ],
+      1,
+    ),
+    deepLink: '/(tabs)/projects',
+  },
+  {
+    title: 'Closeout Binder',
+    body: 'At handover, auto-compile a binder with every paint color, fixture brand and SKU, sub contact, warranty, and a maintenance schedule. One tap to deliver to the homeowner — lands in their portal forever, plus an email with the link. Year three, when the dishwasher fails, they open the binder instead of calling you.',
+    Icon: BookOpen,
+    instruction: 'When the homeowner opens the binder in year 3, where does it live?',
+    Demo: buildQuizDemo(
+      'The closeout binder is delivered as…',
+      [
+        'A PDF email attachment that gets lost',
+        'A link in the homeowner\u2019s portal that never expires',
+        'A printed booklet you mail',
+      ],
+      1,
+    ),
+    deepLink: '/(tabs)/projects',
+  },
+  {
+    title: 'Handover Checklist',
+    body: 'The closeout-day flow most GCs improvise. Computes status live: selections confirmed, punch list cleared, warranties on file, binder delivered, final invoice paid, lien waivers collected. Plus walk-through + keys as manual checks. Tap any open item to jump straight to the screen that fixes it.',
+    Icon: Footprints,
+    instruction: 'How is each item\u2019s status determined?',
+    Demo: buildQuizDemo(
+      'The handover checklist computes status from…',
+      [
+        'You manually check each box',
+        'Live project data: selections, punch, invoices, etc.',
+        'Random sampling',
+      ],
+      1,
+    ),
+    deepLink: '/(tabs)/projects',
+  },
+  {
+    title: 'Real-time Client Signals',
+    body: 'Homeowner counter-signs the contract → your phone pings. Picks a tile → ping. Asks a pre-bid question on an RFP → ping. Push + email, per-event toggle. Open Settings → Notifications to dial in exactly which events you want.',
+    Icon: Bell,
+    instruction: 'Which homeowner action does NOT trigger a real-time notification?',
+    Demo: buildQuizDemo(
+      'Which of these does NOT ping you in real-time?',
+      [
+        'Homeowner signs the contract',
+        'Homeowner picks a selection option',
+        'Homeowner browses your portfolio',
+      ],
+      2,
+    ),
+    deepLink: '/notifications-settings',
+  },
+  {
     title: 'You\u2019re Ready',
-    body: 'That\u2019s the core loop. Replay this tour anytime from Settings → Show Tutorial, and check the FAQ for deeper guides.',
+    body: 'That\u2019s the full lifecycle — from posting an RFP to handing over the keys. Replay this tour anytime from Settings → Show Tutorial. The Client Experience features (contracts, selections, daily digest, closeout binder, six languages) are how MAGE ID feels different from generic PM tools.',
     Icon: Wrench,
     instruction: 'Tap below to finish the tour',
     Demo: TapToFinishDemo,
