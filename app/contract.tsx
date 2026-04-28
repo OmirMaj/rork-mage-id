@@ -110,11 +110,24 @@ export default function ContractScreen() {
   }, []);
 
   const removeMilestone = useCallback((id: string) => {
-    setContract(prev => prev ? {
-      ...prev,
-      paymentSchedule: prev.paymentSchedule.filter(m => m.id !== id),
-    } : prev);
-  }, []);
+    const m = contract?.paymentSchedule.find(x => x.id === id);
+    const amount = m?.amount;
+    Alert.alert(
+      'Remove this milestone?',
+      m?.label
+        ? `"${m.label}"${amount ? ` — $${amount.toLocaleString()}` : ''} will be removed from the payment schedule.`
+        : 'This milestone will be removed from the payment schedule.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Remove', style: 'destructive', onPress: () => {
+          setContract(prev => prev ? {
+            ...prev,
+            paymentSchedule: prev.paymentSchedule.filter(x => x.id !== id),
+          } : prev);
+        } },
+      ],
+    );
+  }, [contract]);
 
   const updateMilestone = useCallback((id: string, patch: Partial<PaymentMilestone>) => {
     setContract(prev => prev ? {

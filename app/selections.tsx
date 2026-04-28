@@ -368,7 +368,17 @@ function AddCategoryModal({ visible, onClose, onAdd }: {
   }, [visible]);
 
   const handleAdd = () => {
-    onAdd({ category, budget: Number(budget) || 0, styleBrief });
+    const trimmedCat = category.trim();
+    const numericBudget = Number(budget);
+    if (!trimmedCat) {
+      Alert.alert('Category required', 'Pick a category like "Kitchen Cabinets" or "Bath Tile".');
+      return;
+    }
+    if (!isFinite(numericBudget) || numericBudget <= 0) {
+      Alert.alert('Allowance required', 'Set an allowance greater than $0 so AI can curate options at the right price point.');
+      return;
+    }
+    onAdd({ category: trimmedCat, budget: numericBudget, styleBrief: styleBrief.trim() });
   };
 
   return (
@@ -420,9 +430,9 @@ function AddCategoryModal({ visible, onClose, onAdd }: {
               <Text style={styles.modalCancelText}>Cancel</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.modalConfirm, (!category.trim() || !budget) && styles.modalConfirmDisabled]}
+              style={[styles.modalConfirm, (!category.trim() || !Number(budget) || Number(budget) <= 0) && styles.modalConfirmDisabled]}
               onPress={handleAdd}
-              disabled={!category.trim() || !budget}
+              disabled={!category.trim() || !Number(budget) || Number(budget) <= 0}
             >
               <Plus size={14} color="#FFF" />
               <Text style={styles.modalConfirmText}>Add</Text>

@@ -10,7 +10,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Image,
-  ActivityIndicator, Linking, Alert, TextInput,
+  ActivityIndicator, Linking, Alert, TextInput, Platform,
 } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -125,14 +125,29 @@ export default function RfpDetailScreen() {
     }
   }, [bidId, newQuestion, user, queryClient]);
   const handleAnswer = useCallback(async (q: BidQuestion) => {
-    Alert.prompt?.(
-      'Answer',
-      `Reply to: "${q.question}"`,
-      async (text) => {
-        if (!text?.trim()) return;
+    const persist = async (raw: string) => {
+      const text = raw.trim();
+      if (!text) return;
+      try {
         const ok = await answerBidQuestion(q.id, text);
         if (ok) void queryClient.invalidateQueries({ queryKey: ['rfp-questions', bidId] });
-      },
+        else Alert.alert('Could not post', 'Try again in a moment.');
+      } catch (e) {
+        Alert.alert('Could not post', e instanceof Error ? e.message : 'Try again.');
+      }
+    };
+    if (Platform.OS === 'web' || !(Alert as any).prompt) {
+      // Alert.prompt is iOS-only; provide a window.prompt fallback so
+      // homeowners on Android / web can still answer questions.
+      const text = window.prompt(`Reply to: "${q.question}"`, q.answer ?? '');
+      if (text == null) return;
+      void persist(text);
+      return;
+    }
+    (Alert as any).prompt(
+      'Answer',
+      `Reply to: "${q.question}"`,
+      (text: string) => { if (text != null) void persist(text); },
       'plain-text',
       q.answer ?? '',
     );
@@ -299,7 +314,7 @@ export default function RfpDetailScreen() {
           {!isOwner && isOpen && (
             <View style={styles.qaCompose}>
               <TextInput
-                style={styles.qaInput}
+                style={[styles.qaInput, submittingQ && { opacity: 0.5 }]}
                 value={newQuestion}
                 onChangeText={setNewQuestion}
                 placeholder="What's the existing electrical panel size? Any HOA constraints?"
@@ -307,6 +322,7 @@ export default function RfpDetailScreen() {
                 multiline
                 numberOfLines={3}
                 textAlignVertical="top"
+                editable={!submittingQ}
               />
               <TouchableOpacity
                 style={[styles.qaAskBtn, (!newQuestion.trim() || submittingQ) && { opacity: 0.5 }]}

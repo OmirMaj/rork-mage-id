@@ -22,6 +22,11 @@
 //     'gc_message'                 — GC → client (optional, future)
 //     'nearby_rfp_posted'          — system → contractor (marketplace fan-out)
 //     'rfp_awarded'                — homeowner → contractor (winner notice)
+//     'contract_signed'            — homeowner counter-signs contract → GC
+//     'selection_chosen'           — homeowner picks a selection option → GC
+//     'bid_question_asked'         — contractor asks pre-bid question → RFP poster
+//     'bid_question_answered'      — RFP poster answers → all bidders
+//     'closeout_binder_sent'       — GC delivers binder → homeowner
 //   source_table, source_id        — for outbox dedup + back-reference
 //   payload                        — the row that triggered the event,
 //                                    plus anything the trigger wants to
@@ -516,6 +521,216 @@ async function dispatch(req: NotifyRequest): Promise<unknown> {
       });
       break;
     }
+    case 'contract_signed': {
+      // Homeowner counter-signed the contract from the static portal.
+      // Notify the GC so they can pull the signed PDF and start the job.
+      const signerName = (payload.signer_name as string) || 'your client';
+      const contractValue = payload.contract_value as number | string | null;
+      const contractTitle = (payload.contract_title as string) || 'the construction agreement';
+      await dispatchOne('gc', {
+        prefKey: 'contract_signed',
+        title: `✍️ Contract signed · ${projectName}`,
+        body: `${signerName} signed ${contractTitle}${contractValue ? ` (${fmtMoney(contractValue)})` : ''}`,
+        pushData: { projectId, portalId, kind: 'contract_signed' },
+        pushToken: gc.push_token,
+        email: gc.email,
+        emailSubject: `${signerName} signed the contract — ${projectName}`,
+        emailHtml: wrapHtml({
+          eyebrow: 'Contract signed',
+          title: `${esc(signerName)} just signed ${esc(contractTitle)}`,
+          bodyHtml: `
+            <p style="margin:0 0 6px"><strong>Project:</strong> ${esc(projectName)}</p>
+            ${contractValue ? `<p style="margin:0 0 14px"><strong>Contract value:</strong> ${esc(fmtMoney(contractValue))}</p>` : ''}
+            <p style="margin:0 0 14px">The agreement is now binding. The signed PDF is in MAGE ID under this project's Contract section — pull it for your records and start the work.</p>
+            <p style="margin:0;color:#8B9099;font-size:13px">A copy is also stored in the homeowner's portal so they can reference it any time.</p>`,
+          cta: { label: 'View signed contract', href: 'https://app.mageid.app' },
+        }),
+      });
+      break;
+    }
+
+    case 'selection_chosen': {
+      // Homeowner picked an option from the portal's Selections section.
+      // Notify the GC so they can place the order / lock in the spec.
+      const category = (payload.category as string) || 'a selection';
+      const productName = (payload.product_name as string) || 'an option';
+      const brand = (payload.brand as string) || '';
+      const totalCost = payload.total_cost as number | string | null;
+      const overBudget = !!payload.over_budget;
+      const detail = brand ? `${productName} · ${brand}` : productName;
+      await dispatchOne('gc', {
+        prefKey: 'selection_chosen',
+        title: overBudget ? `Selection chosen (over budget) · ${projectName}` : `Selection chosen · ${projectName}`,
+        body: `${category}: ${detail}${totalCost ? ` — ${fmtMoney(totalCost)}` : ''}`,
+        pushData: { projectId, portalId, kind: 'selection_chosen' },
+        pushToken: gc.push_token,
+        email: gc.email,
+        emailSubject: `Selection picked for ${esc(category)} — ${projectName}`,
+        emailHtml: wrapHtml({
+          eyebrow: overBudget ? 'Selection chosen (over budget)' : 'Selection chosen',
+          title: `Your client picked ${esc(productName)} for ${esc(category)}`,
+          bodyHtml: `
+            <p style="margin:0 0 6px"><strong>Category:</strong> ${esc(category)}</p>
+            <p style="margin:0 0 6px"><strong>Product:</strong> ${esc(detail)}</p>
+            ${totalCost ? `<p style="margin:0 0 14px"><strong>Total:</strong> ${esc(fmtMoney(totalCost))}${overBudget ? ' <span style="color:#C26A00;font-weight:700">(over allowance)</span>' : ''}</p>` : ''}
+            <p style="margin:0">Order it / lock the spec. The choice is also recorded in MAGE ID under this project's Selections.</p>`,
+          cta: { label: 'View in MAGE ID', href: 'https://app.mageid.app' },
+        }),
+      });
+      break;
+    }
+
+    case 'bid_question_asked': {
+      // A contractor asked a pre-bid question on an RFP. Notify the
+      // homeowner who posted the RFP so they can answer once and
+      // every bidder benefits.
+      const askerName = (payload.asker_name as string) || 'A bidder';
+      const question = (payload.question as string) || '';
+      const rfpId = (payload.rfp_id as string) || (payload.bid_id as string) || '';
+      const rfpTitle = (payload.rfp_title as string) || projectName || 'your RFP';
+      const homeownerEmail = (payload.homeowner_email as string) || gc.email;
+      const homeownerToken = (payload.homeowner_push_token as string) || gc.push_token;
+      const detailUrl = rfpId ? `https://app.mageid.app/rfp-detail?bidId=${encodeURIComponent(rfpId)}` : 'https://app.mageid.app';
+      await dispatchOne('gc', {
+        prefKey: 'bid_question_asked',
+        title: `New bid question · ${rfpTitle}`,
+        body: `${askerName}: ${question.slice(0, 140)}`,
+        pushData: { rfpId, kind: 'bid_question_asked' },
+        pushToken: homeownerToken,
+        email: homeownerEmail,
+        emailSubject: `${askerName} asked a question about ${rfpTitle}`,
+        emailHtml: wrapHtml({
+          eyebrow: 'New question on your RFP',
+          title: `${esc(askerName)} asked:`,
+          bodyHtml: `
+            <blockquote style="margin:0 0 14px;padding:14px 16px;background:#F4EFE6;border-left:3px solid #FF6A1A;border-radius:6px;font-style:italic;">${esc(question)}</blockquote>
+            <p style="margin:0 0 14px"><strong>RFP:</strong> ${esc(rfpTitle)}</p>
+            <p style="margin:0">Answer once and every bidder sees the same response — clearer scope means more accurate bids.</p>`,
+          cta: { label: 'Answer in MAGE ID', href: detailUrl },
+        }),
+      });
+      break;
+    }
+
+    case 'bid_question_answered': {
+      // The RFP owner posted an answer to a pre-bid question. Notify
+      // every bidder who had submitted on this RFP — they should re-read
+      // the scope before finalizing their number.
+      const rfpId = (payload.rfp_id as string) || (payload.bid_id as string) || '';
+      const rfpTitle = (payload.rfp_title as string) || projectName || 'an RFP you bid on';
+      const question = (payload.question as string) || '';
+      const answer = (payload.answer as string) || '';
+      const detailUrl = rfpId ? `https://app.mageid.app/rfp-detail?bidId=${encodeURIComponent(rfpId)}` : 'https://app.mageid.app';
+      // Recipients are pre-resolved by the trigger / app: array of
+      // contractor profile rows with email + push_token.
+      const recipients = (payload.bidder_recipients as Array<{ email?: string; push_token?: string; user_id?: string }> | undefined) ?? [];
+      for (const r of recipients) {
+        const pushTok = r.push_token ?? null;
+        const em = r.email ?? null;
+        if (!em && !pushTok) continue;
+        // Fire each independently — log to outbox per recipient.
+        if (pushTok) {
+          await sendPush(pushTok, `Answer posted · ${rfpTitle}`, `${question.slice(0, 80)}…`, { rfpId, kind: 'bid_question_answered' });
+        }
+        if (em) {
+          await sendEmail({
+            to: em,
+            subject: `Answer posted on ${rfpTitle}`,
+            html: wrapHtml({
+              eyebrow: 'Pre-bid Q&A',
+              title: 'A question on the RFP was answered',
+              bodyHtml: `
+                <p style="margin:0 0 6px"><strong>Q:</strong> ${esc(question)}</p>
+                <p style="margin:0 0 14px"><strong>A:</strong> ${esc(answer)}</p>
+                <p style="margin:0 0 14px"><strong>RFP:</strong> ${esc(rfpTitle)}</p>
+                <p style="margin:0">If this changes your scope or pricing, update your bid before the deadline.</p>`,
+              cta: { label: 'View RFP', href: detailUrl },
+            }),
+          });
+        }
+        await sbInsert('notification_outbox', {
+          event_type: event,
+          source_table: source_table ?? null,
+          source_id: source_id ?? null,
+          recipient_kind: 'sub',
+          recipient_user_id: r.user_id ?? null,
+          recipient_email: em,
+          push_token: pushTok,
+          push_status: pushTok ? 'sent' : null,
+          email_status: em ? 'sent' : null,
+          payload,
+        }).catch(() => {});
+      }
+      break;
+    }
+
+    case 'closeout_binder_sent': {
+      // GC delivered the closeout binder. Notify the homeowner — the
+      // binder lives in their portal under the Closeout section.
+      const binderId = (payload.binder_id as string) || '';
+      const homeownerEmail = (payload.homeowner_email as string) || null;
+      const homeownerName = (payload.homeowner_name as string) || 'there';
+      const portalLink2 = portalId ? `${PORTAL_BASE}/${portalId}` : 'https://app.mageid.app';
+      const company = gc.company_name || gc.contact_name || 'Your contractor';
+      // No push for homeowner — we don't have their token. Email only.
+      if (homeownerEmail) {
+        const r = await sendEmail({
+          to: homeownerEmail,
+          subject: `Your closeout binder is ready — ${projectName}`,
+          html: wrapHtml({
+            eyebrow: 'Closeout binder delivered',
+            title: `Hi ${esc(homeownerName)} — here's everything you need.`,
+            bodyHtml: `
+              <p style="margin:0 0 14px">${esc(company)} just sent you the closeout binder for <strong>${esc(projectName)}</strong>. It has every paint color, fixture brand, sub contact, warranty, and maintenance reminder you'll need for the life of the home.</p>
+              <p style="margin:0 0 14px">Open your portal and tap the <strong>Closeout Binder</strong> section. From there you can read it on your phone, or hit Print to save a PDF copy you can keep forever.</p>
+              <p style="margin:0;color:#8B9099;font-size:13px">Bookmark this email — your portal lives at the link below and doesn't expire.</p>`,
+            cta: { label: 'Open my portal', href: portalLink2 },
+          }),
+          replyTo: gc.email ?? undefined,
+        });
+        await sbInsert('notification_outbox', {
+          event_type: event,
+          source_table: source_table ?? null,
+          source_id: source_id ?? null,
+          recipient_kind: 'client',
+          recipient_user_id: null,
+          recipient_email: homeownerEmail,
+          push_status: null,
+          email_status: r.ok ? 'sent' : 'failed',
+          email_response: r.resp,
+          payload,
+          delivered_at: r.ok ? new Date().toISOString() : null,
+        }).catch(() => {});
+      } else {
+        // Log the skip so we know the binder was marked sent but the
+        // notification was a no-op due to missing email.
+        await sbInsert('notification_outbox', {
+          event_type: event,
+          source_table: source_table ?? null,
+          source_id: source_id ?? null,
+          recipient_kind: 'client',
+          recipient_user_id: null,
+          recipient_email: null,
+          push_status: null,
+          email_status: 'skipped_no_email',
+          payload,
+        }).catch(() => {});
+      }
+      // Also log for the GC (no email — just an audit trail).
+      await sbInsert('notification_outbox', {
+        event_type: event,
+        source_table: source_table ?? null,
+        source_id: binderId || (source_id ?? null),
+        recipient_kind: 'gc',
+        recipient_user_id: gcUserId,
+        recipient_email: null,
+        push_status: null,
+        email_status: null,
+        payload,
+      }).catch(() => {});
+      break;
+    }
+
     default:
       return { ok: false, reason: 'unknown_event', event };
   }

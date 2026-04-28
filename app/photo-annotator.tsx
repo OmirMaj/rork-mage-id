@@ -144,6 +144,7 @@ export default function PhotoAnnotatorScreen() {
     }]);
     setPendingText(null);
     setTextValue('');
+    if (Platform.OS !== 'web') void Haptics.selectionAsync().catch(() => {});
   }, [pendingText, textValue, color]);
 
   const handleUndo = useCallback(() => {

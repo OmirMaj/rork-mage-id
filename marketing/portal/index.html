@@ -1712,6 +1712,25 @@
     }).join('');
   }
 
+  // Fire a notify edge-function event. Best-effort — never block UX on
+  // a notification round-trip. The portal page is unauthenticated, so
+  // we use the anon key; the edge function gates per-event recipients
+  // server-side.
+  function notifyEvent(eventName, payload) {
+    var data = window.__portalData;
+    if (!data || !data.portalApi) return Promise.resolve(false);
+    var api = data.portalApi;
+    return fetch(api.supabaseUrl.replace(/\/+$/,'') + '/functions/v1/notify', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': api.supabaseAnonKey,
+        'Authorization': 'Bearer ' + api.supabaseAnonKey,
+      },
+      body: JSON.stringify({ event: eventName, payload: payload || {} }),
+    }).then(function (r) { return r.ok; }).catch(function () { return false; });
+  }
+
   // Selection-pick handler — POSTs the homeowner's choice via Supabase REST.
   document.addEventListener('click', function (ev) {
     var target = ev.target.closest('[data-action="choose-selection"]');
@@ -1729,6 +1748,12 @@
       'Prefer': 'return=minimal',
     };
     target.style.opacity = '0.6';
+
+    // Pre-compute the chosen-option metadata for the notify payload —
+    // we have it locally already, no need to round-trip Supabase again.
+    var selCat = (data.selections || []).find(function (s) { return s.id === categoryId; });
+    var selOpt = selCat && (selCat.options || []).find(function (o) { return o.id === optionId; });
+
     // 1) Un-mark every other option.
     fetch(api.supabaseUrl.replace(/\/+$/,'') + '/rest/v1/selection_options?category_id=eq.' + encodeURIComponent(categoryId),
       { method: 'PATCH', headers: headers, body: JSON.stringify({ is_chosen: false, chosen_at: null, chosen_by_role: null }) })
@@ -1738,6 +1763,19 @@
         { method: 'PATCH', headers: headers, body: JSON.stringify({ is_chosen: true, chosen_at: new Date().toISOString(), chosen_by_role: 'homeowner' }) });
     })
     .then(function () {
+      // Fire-and-forget: notify the GC so they can place the order.
+      var totalCost = selOpt ? selOpt.total : null;
+      var overBudget = !!(selCat && totalCost && totalCost > (selCat.budget * 1.05));
+      notifyEvent('selection_chosen', {
+        project_id: data.project && data.project.id,
+        portal_id: api.portalId,
+        project_name: data.project && data.project.name,
+        category: selCat && selCat.category,
+        product_name: selOpt && selOpt.productName,
+        brand: selOpt && selOpt.brand,
+        total_cost: totalCost,
+        over_budget: overBudget,
+      });
       // Refresh the page so the snapshot picks up the new state.
       window.location.reload();
     })
@@ -1786,6 +1824,16 @@
     })
     .then(function (r) {
       if (!r.ok) throw new Error('Sign failed: ' + r.status);
+      // Fire-and-forget: ping the GC so they know the contract just
+      // became binding and can pull the signed PDF.
+      notifyEvent('contract_signed', {
+        project_id: data.project && data.project.id,
+        portal_id: api.portalId,
+        project_name: data.project && data.project.name,
+        signer_name: typedName,
+        contract_value: data.contract && data.contract.contractValue,
+        contract_title: data.contract && data.contract.title,
+      });
       window.location.reload();
     })
     .catch(function (err) {

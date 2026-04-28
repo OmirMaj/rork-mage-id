@@ -101,31 +101,39 @@ export default function LienWaiversScreen() {
   }, []);
 
   const handleMarkSigned = useCallback(async (w: LienWaiver) => {
+    const persist = async (rawName: string) => {
+      const name = rawName.trim();
+      if (!name || name.length < 2) {
+        Alert.alert('Name required', 'Type the subcontractor\'s legal name to confirm signature.');
+        return;
+      }
+      try {
+        const saved = await saveLienWaiver({
+          ...w, id: w.id,
+          status: 'signed',
+          signedAt: new Date().toISOString(),
+          subSignature: { name, role: 'gc', signedAt: new Date().toISOString() },
+        });
+        if (saved) {
+          setWaivers(prev => prev.map(x => x.id === w.id ? saved : x));
+          if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+        } else {
+          Alert.alert('Save failed', 'Could not mark this waiver as signed. Try again.');
+        }
+      } catch (e) {
+        Alert.alert('Save failed', e instanceof Error ? e.message : 'Try again.');
+      }
+    };
     if (Platform.OS === 'web' || !(Alert as any).prompt) {
-      const name = window.prompt(`Type the subcontractor's name to confirm they've signed the waiver in person:`);
-      if (!name?.trim()) return;
-      const saved = await saveLienWaiver({
-        ...w, id: w.id,
-        status: 'signed',
-        signedAt: new Date().toISOString(),
-        subSignature: { name: name.trim(), role: 'gc', signedAt: new Date().toISOString() },
-      });
-      if (saved) setWaivers(prev => prev.map(x => x.id === w.id ? saved : x));
+      const name = window.prompt(`Type the subcontractor's name to confirm they've signed the waiver in person:`, w.subName);
+      if (name == null) return;
+      void persist(name);
       return;
     }
     Alert.prompt(
       'Mark as signed',
       `Type the subcontractor's name to confirm they've signed the waiver:`,
-      async (name) => {
-        if (!name?.trim()) return;
-        const saved = await saveLienWaiver({
-          ...w, id: w.id,
-          status: 'signed',
-          signedAt: new Date().toISOString(),
-          subSignature: { name: name.trim(), role: 'gc', signedAt: new Date().toISOString() },
-        });
-        if (saved) setWaivers(prev => prev.map(x => x.id === w.id ? saved : x));
-      },
+      (name) => { if (name != null) void persist(name); },
       'plain-text',
       w.subName,
     );
@@ -327,12 +335,27 @@ function NewWaiverModal({ visible, onClose, onCreate }: {
   }, [visible]);
 
   const handleSubmit = () => {
+    const trimmedName = subName.trim();
+    const trimmedEmail = subEmail.trim();
+    const numericAmount = Number(amount);
+    if (!trimmedName) {
+      Alert.alert('Sub name required', 'Type the subcontractor\'s legal company or person name.');
+      return;
+    }
+    if (!isFinite(numericAmount) || numericAmount <= 0) {
+      Alert.alert('Amount required', 'Enter the dollar amount paid through this date.');
+      return;
+    }
+    if (trimmedEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+      Alert.alert('Email looks off', 'Either fix the email or leave it blank.');
+      return;
+    }
     onCreate({
       waiverType: type,
-      subName,
-      subEmail,
+      subName: trimmedName,
+      subEmail: trimmedEmail || undefined,
       throughDate,
-      paidAmount: Number(amount) || 0,
+      paidAmount: numericAmount,
     });
   };
 
@@ -409,7 +432,7 @@ function NewWaiverModal({ visible, onClose, onCreate }: {
             <TouchableOpacity
               style={[styles.modalConfirm, (!subName.trim() || !amount) && styles.modalConfirmDisabled]}
               onPress={handleSubmit}
-              disabled={!subName.trim() || !amount}
+              disabled={!subName.trim() || !Number(amount) || Number(amount) <= 0}
             >
               <Plus size={14} color="#FFF" />
               <Text style={styles.modalConfirmText}>Create</Text>
