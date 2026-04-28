@@ -181,7 +181,62 @@ export default function SignupScreen() {
                 <Text style={styles.errorBannerText}>{errorMessage}</Text>
               </View>
             ) : null}
+          </Animated.View>
 
+          {/* ─── One-tap signup with Apple / Google ──────────────
+              Apple uses the iOS native sheet — no Supabase URL prompt.
+              Both create the account instantly with no form to fill. */}
+          <View style={styles.primaryAuthStack}>
+            {Platform.OS === 'ios' || Platform.OS === 'web' ? (
+              <TouchableOpacity
+                style={[styles.primaryAuthButton, styles.appleAuthButton]}
+                onPress={handleAppleSignup}
+                disabled={isAppleLoading}
+                activeOpacity={0.85}
+                testID="signup-apple-top"
+              >
+                {isAppleLoading ? (
+                  <ActivityIndicator color="#FFFFFF" size="small" />
+                ) : (
+                  <>
+                    <Svg width={20} height={20} viewBox="0 0 24 24" fill="#FFFFFF">
+                      <Path d="M17.05 20.28c-.98.95-2.05.88-3.08.4-1.09-.5-2.08-.48-3.24 0-1.44.62-2.2.44-3.06-.4C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z" />
+                    </Svg>
+                    <Text style={styles.appleAuthButtonText}>Sign up with Apple</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            ) : null}
+            <TouchableOpacity
+              style={[styles.primaryAuthButton, styles.googleAuthButton]}
+              onPress={handleGoogleSignup}
+              disabled={isGoogleLoading}
+              activeOpacity={0.85}
+              testID="signup-google-top"
+            >
+              {isGoogleLoading ? (
+                <ActivityIndicator color={Colors.text} size="small" />
+              ) : (
+                <>
+                  <Svg width={20} height={20} viewBox="0 0 48 48">
+                    <Path d="M44.5 20H24v8.5h11.8C34.7 33.9 30.1 37 24 37c-7.2 0-13-5.8-13-13s5.8-13 13-13c3.1 0 5.9 1.1 8.1 2.9l6.4-6.4C34.6 4.1 29.6 2 24 2 11.8 2 2 11.8 2 24s9.8 22 22 22c11 0 21-8 21-22 0-1.3-.2-2.7-.5-4z" fill="#FFC107" />
+                    <Path d="M5.3 14.7l7.4 5.4C14.3 16.3 18.8 13 24 13c3.1 0 5.9 1.1 8.1 2.9l6.4-6.4C34.6 6.1 29.6 4 24 4 16 4 9.2 8.4 5.3 14.7z" fill="#FF3D00" />
+                    <Path d="M24 44c5.2 0 10-1.8 13.7-4.9l-6.7-5.5C28.9 35.5 26.6 36.5 24 36.5c-6 0-11.1-4-12.8-9.5l-7.3 5.6C7.8 38.9 15.4 44 24 44z" fill="#4CAF50" />
+                    <Path d="M44.5 20H24v8.5h11.8c-1 3-3 5.5-5.8 7.1l6.7 5.5C40.6 37.5 46 31.4 46 24c0-1.3-.2-2.7-.5-4z" fill="#1976D2" />
+                  </Svg>
+                  <Text style={styles.googleAuthButtonText}>Sign up with Google</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.dividerRow}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>or with email</Text>
+            <View style={styles.dividerLine} />
+          </View>
+
+          <Animated.View style={{ transform: [{ translateX: shakeAnim }] }}>
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Full Name</Text>
               <View style={styles.inputWrapper}>
@@ -288,57 +343,6 @@ export default function SignupScreen() {
               )}
             </TouchableOpacity>
           </Animated.View>
-
-          <View style={styles.dividerRow}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>or sign up with</Text>
-            <View style={styles.dividerLine} />
-          </View>
-
-          <View style={styles.socialRow}>
-            <TouchableOpacity
-              style={styles.socialButton}
-              onPress={handleGoogleSignup}
-              disabled={isGoogleLoading}
-              activeOpacity={0.7}
-              testID="signup-google"
-            >
-              {isGoogleLoading ? (
-                <ActivityIndicator color={Colors.text} size="small" />
-              ) : (
-                <>
-                  <Svg width={20} height={20} viewBox="0 0 48 48">
-                    <Path d="M44.5 20H24v8.5h11.8C34.7 33.9 30.1 37 24 37c-7.2 0-13-5.8-13-13s5.8-13 13-13c3.1 0 5.9 1.1 8.1 2.9l6.4-6.4C34.6 4.1 29.6 2 24 2 11.8 2 2 11.8 2 24s9.8 22 22 22c11 0 21-8 21-22 0-1.3-.2-2.7-.5-4z" fill="#FFC107" />
-                    <Path d="M5.3 14.7l7.4 5.4C14.3 16.3 18.8 13 24 13c3.1 0 5.9 1.1 8.1 2.9l6.4-6.4C34.6 6.1 29.6 4 24 4 16 4 9.2 8.4 5.3 14.7z" fill="#FF3D00" />
-                    <Path d="M24 44c5.2 0 10-1.8 13.7-4.9l-6.7-5.5C28.9 35.5 26.6 36.5 24 36.5c-6 0-11.1-4-12.8-9.5l-7.3 5.6C7.8 38.9 15.4 44 24 44z" fill="#4CAF50" />
-                    <Path d="M44.5 20H24v8.5h11.8c-1 3-3 5.5-5.8 7.1l6.7 5.5C40.6 37.5 46 31.4 46 24c0-1.3-.2-2.7-.5-4z" fill="#1976D2" />
-                  </Svg>
-                  <Text style={styles.socialButtonText}>Google</Text>
-                </>
-              )}
-            </TouchableOpacity>
-
-            {Platform.OS === 'ios' || Platform.OS === 'web' ? (
-              <TouchableOpacity
-                style={[styles.socialButton, styles.appleSocialButton]}
-                onPress={handleAppleSignup}
-                disabled={isAppleLoading}
-                activeOpacity={0.7}
-                testID="signup-apple"
-              >
-                {isAppleLoading ? (
-                  <ActivityIndicator color="#FFFFFF" size="small" />
-                ) : (
-                  <>
-                    <Svg width={20} height={20} viewBox="0 0 24 24" fill="#FFFFFF">
-                      <Path d="M17.05 20.28c-.98.95-2.05.88-3.08.4-1.09-.5-2.08-.48-3.24 0-1.44.62-2.2.44-3.06-.4C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z" />
-                    </Svg>
-                    <Text style={styles.appleSocialButtonText}>Apple</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            ) : null}
-          </View>
 
           <View style={styles.loginRow}>
             <Text style={styles.loginPrompt}>Already have an account?</Text>
@@ -511,6 +515,37 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: Colors.textMuted,
     fontWeight: '500' as const,
+  },
+  primaryAuthStack: {
+    gap: 10,
+    marginBottom: 16,
+  },
+  primaryAuthButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    paddingVertical: 16,
+    borderRadius: 14,
+    borderWidth: 1.5,
+  },
+  appleAuthButton: {
+    backgroundColor: '#000000',
+    borderColor: '#000000',
+  },
+  appleAuthButtonText: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: '#FFFFFF',
+  },
+  googleAuthButton: {
+    backgroundColor: Colors.surface,
+    borderColor: Colors.borderLight,
+  },
+  googleAuthButtonText: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: Colors.text,
   },
   socialRow: {
     flexDirection: 'row',

@@ -27,10 +27,17 @@ let _LocalAuthentication: typeof import('expo-local-authentication') | null = nu
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { login, loginWithBiometrics, resetPassword, hasStoredCredentials, signInWithGoogle, signInWithApple } = useAuth();
+  const { login, loginWithBiometrics, resetPassword, hasStoredCredentials, signInWithGoogle, signInWithApple, sendMagicLink } = useAuth();
 
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [isAppleLoading, setIsAppleLoading] = useState(false);
+  const [isMagicLinkLoading, setIsMagicLinkLoading] = useState(false);
+  const [magicLinkSent, setMagicLinkSent] = useState(false);
+
+  // Password mode is opt-in now — Apple / Google / magic link are the
+  // primary paths. Tapping "Sign in with password" expands the
+  // password fields.
+  const [showPasswordMode, setShowPasswordMode] = useState(false);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -170,6 +177,33 @@ export default function LoginScreen() {
     }
   }, [signInWithApple, router]);
 
+  // Magic link handler — sends a one-tap login link to the user's
+  // email. They tap the link from their inbox, the app's deep-link
+  // handler in _layout.tsx redeems the tokens, and they're in. No
+  // password to type, no SMS cost.
+  const handleMagicLink = useCallback(async () => {
+    setErrorMessage('');
+    if (!email.trim()) {
+      setErrorMessage('Enter your email address first.');
+      shake();
+      return;
+    }
+    setIsMagicLinkLoading(true);
+    try {
+      await sendMagicLink(email);
+      setMagicLinkSent(true);
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      track(AnalyticsEvents.USER_LOGGED_IN, { method: 'magic_link_requested' });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Could not send link. Try again.';
+      setErrorMessage(msg);
+      shake();
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    } finally {
+      setIsMagicLinkLoading(false);
+    }
+  }, [email, sendMagicLink, shake]);
+
   return (
     <View style={styles.container}>
       <View style={[styles.topSection, { paddingTop: insets.top + 36 }]}>
@@ -215,90 +249,106 @@ export default function LoginScreen() {
                 <Text style={styles.errorBannerText}>{errorMessage}</Text>
               </View>
             ) : null}
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Email</Text>
-              <View style={styles.inputWrapper}>
-                <Mail size={18} color={Colors.textSecondary} strokeWidth={1.8} />
-                <TextInput
-                  style={styles.input}
-                  placeholder="you@company.com"
-                  placeholderTextColor={Colors.textMuted}
-                  value={email}
-                  onChangeText={setEmail}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  returnKeyType="next"
-                  selectionColor={Colors.primary}
-                  onSubmitEditing={() => passwordRef.current?.focus()}
-                  testID="login-email"
-                />
-              </View>
-            </View>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Password</Text>
-              <View style={styles.inputWrapper}>
-                <Lock size={18} color={Colors.textSecondary} strokeWidth={1.8} />
-                <TextInput
-                  ref={passwordRef}
-                  style={styles.input}
-                  placeholder="Enter password"
-                  placeholderTextColor={Colors.textMuted}
-                  value={password}
-                  onChangeText={setPassword}
-                  secureTextEntry={!showPassword}
-                  returnKeyType="go"
-                  selectionColor={Colors.primary}
-                  onSubmitEditing={handleLogin}
-                  testID="login-password"
-                />
-                <TouchableOpacity
-                  onPress={() => setShowPassword(!showPassword)}
-                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                >
-                  {showPassword ? (
-                    <EyeOff size={18} color={Colors.textSecondary} strokeWidth={1.8} />
-                  ) : (
-                    <Eye size={18} color={Colors.textSecondary} strokeWidth={1.8} />
-                  )}
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            <View style={styles.rememberRow}>
-              <Text style={styles.rememberLabel}>Remember me</Text>
-              <Switch
-                value={rememberMe}
-                onValueChange={setRememberMe}
-                trackColor={{ false: Colors.borderLight, true: Colors.primary + '60' }}
-                thumbColor={rememberMe ? Colors.primary : Colors.textMuted}
-                testID="login-remember"
-              />
-            </View>
           </Animated.View>
 
-          <Animated.View style={{ transform: [{ scale: buttonScale }] }}>
+          {/* ─── Primary auth row (Apple / Google) ─────────────────
+              Apple is iOS native — no Supabase URL prompt, no browser
+              redirect, just the system Face ID sheet. Google goes
+              through the standard OAuth flow. Both at the top because
+              they're the lowest-friction paths. */}
+          <View style={styles.primaryAuthStack}>
+            {Platform.OS === 'ios' || Platform.OS === 'web' ? (
+              <TouchableOpacity
+                style={[styles.primaryAuthButton, styles.appleAuthButton]}
+                onPress={handleAppleLogin}
+                disabled={isAppleLoading}
+                activeOpacity={0.85}
+                testID="login-apple"
+              >
+                {isAppleLoading ? (
+                  <ActivityIndicator color="#FFFFFF" size="small" />
+                ) : (
+                  <>
+                    <Svg width={20} height={20} viewBox="0 0 24 24" fill="#FFFFFF">
+                      <Path d="M17.05 20.28c-.98.95-2.05.88-3.08.4-1.09-.5-2.08-.48-3.24 0-1.44.62-2.2.44-3.06-.4C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z" />
+                    </Svg>
+                    <Text style={styles.appleAuthButtonText}>Continue with Apple</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            ) : null}
             <TouchableOpacity
-              style={[styles.loginButton, isSubmitting && styles.loginButtonDisabled]}
-              onPress={handleLogin}
-              disabled={isSubmitting}
+              style={[styles.primaryAuthButton, styles.googleAuthButton]}
+              onPress={handleGoogleLogin}
+              disabled={isGoogleLoading}
               activeOpacity={0.85}
-              testID="login-submit"
+              testID="login-google"
             >
-              {isSubmitting ? (
-                <ActivityIndicator color="#FFFFFF" size="small" />
+              {isGoogleLoading ? (
+                <ActivityIndicator color={Colors.text} size="small" />
               ) : (
                 <>
-                  <Text style={styles.loginButtonText}>Sign In</Text>
-                  <ArrowRight size={18} color="#FFFFFF" strokeWidth={2.5} />
+                  <Svg width={20} height={20} viewBox="0 0 48 48">
+                    <Path d="M44.5 20H24v8.5h11.8C34.7 33.9 30.1 37 24 37c-7.2 0-13-5.8-13-13s5.8-13 13-13c3.1 0 5.9 1.1 8.1 2.9l6.4-6.4C34.6 4.1 29.6 2 24 2 11.8 2 2 11.8 2 24s9.8 22 22 22c11 0 21-8 21-22 0-1.3-.2-2.7-.5-4z" fill="#FFC107" />
+                    <Path d="M5.3 14.7l7.4 5.4C14.3 16.3 18.8 13 24 13c3.1 0 5.9 1.1 8.1 2.9l6.4-6.4C34.6 6.1 29.6 4 24 4 16 4 9.2 8.4 5.3 14.7z" fill="#FF3D00" />
+                    <Path d="M24 44c5.2 0 10-1.8 13.7-4.9l-6.7-5.5C28.9 35.5 26.6 36.5 24 36.5c-6 0-11.1-4-12.8-9.5l-7.3 5.6C7.8 38.9 15.4 44 24 44z" fill="#4CAF50" />
+                    <Path d="M44.5 20H24v8.5h11.8c-1 3-3 5.5-5.8 7.1l6.7 5.5C40.6 37.5 46 31.4 46 24c0-1.3-.2-2.7-.5-4z" fill="#1976D2" />
+                  </Svg>
+                  <Text style={styles.googleAuthButtonText}>Continue with Google</Text>
                 </>
               )}
             </TouchableOpacity>
-          </Animated.View>
+          </View>
 
-          {biometricsAvailable && (
+          {/* ─── Magic link path ───────────────────────────────────
+              Type email → tap "Email me a sign-in link" → Resend
+              delivers a one-tap login. No password, no SMS cost. */}
+          <View style={styles.magicLinkStack}>
+            <View style={styles.inputWrapper}>
+              <Mail size={18} color={Colors.textSecondary} strokeWidth={1.8} />
+              <TextInput
+                style={styles.input}
+                placeholder="you@company.com"
+                placeholderTextColor={Colors.textMuted}
+                value={email}
+                onChangeText={(v) => { setEmail(v); setMagicLinkSent(false); }}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                returnKeyType={showPasswordMode ? 'next' : 'go'}
+                selectionColor={Colors.primary}
+                onSubmitEditing={() => showPasswordMode ? passwordRef.current?.focus() : handleMagicLink()}
+                testID="login-email"
+              />
+            </View>
+            {magicLinkSent ? (
+              <View style={styles.magicLinkSuccess}>
+                <Text style={styles.magicLinkSuccessText}>
+                  ✓ Check your inbox — we just sent a sign-in link to {email.trim()}.
+                </Text>
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={[styles.magicLinkButton, isMagicLinkLoading && styles.loginButtonDisabled]}
+                onPress={handleMagicLink}
+                disabled={isMagicLinkLoading}
+                activeOpacity={0.85}
+                testID="login-magic-link"
+              >
+                {isMagicLinkLoading ? (
+                  <ActivityIndicator color={Colors.primary} size="small" />
+                ) : (
+                  <>
+                    <KeyRound size={18} color={Colors.primary} strokeWidth={2} />
+                    <Text style={styles.magicLinkButtonText}>Email me a sign-in link</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* ─── Biometric (returning users) ──────────────────────── */}
+          {biometricsAvailable && hasStoredCredentials && (
             <TouchableOpacity
               style={styles.biometricButton}
               onPress={handleBiometricLogin}
@@ -312,65 +362,85 @@ export default function LoginScreen() {
                 <>
                   <ScanFace size={20} color={Colors.primary} strokeWidth={1.8} />
                   <Text style={styles.biometricText}>
-                    {hasStoredCredentials
-                      ? 'Sign in with Face ID / Touch ID'
-                      : 'Log in first to enable biometrics'}
+                    Sign in with Face ID / Touch ID
                   </Text>
                 </>
               )}
             </TouchableOpacity>
           )}
 
-          <View style={styles.dividerRow}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>or continue with</Text>
-            <View style={styles.dividerLine} />
-          </View>
-
-          <View style={styles.socialRow}>
+          {/* ─── Password fallback (collapsed) ─────────────────────
+              Email/password is still here for users who prefer it,
+              but it's the secondary path now. Tap to expand. */}
+          {!showPasswordMode ? (
             <TouchableOpacity
-              style={styles.socialButton}
-              onPress={handleGoogleLogin}
-              disabled={isGoogleLoading}
-              activeOpacity={0.7}
-              testID="login-google"
+              style={styles.passwordModeToggle}
+              onPress={() => setShowPasswordMode(true)}
+              testID="login-show-password-mode"
             >
-              {isGoogleLoading ? (
-                <ActivityIndicator color={Colors.text} size="small" />
-              ) : (
-                <>
-                  <Svg width={20} height={20} viewBox="0 0 48 48">
-                    <Path d="M44.5 20H24v8.5h11.8C34.7 33.9 30.1 37 24 37c-7.2 0-13-5.8-13-13s5.8-13 13-13c3.1 0 5.9 1.1 8.1 2.9l6.4-6.4C34.6 4.1 29.6 2 24 2 11.8 2 2 11.8 2 24s9.8 22 22 22c11 0 21-8 21-22 0-1.3-.2-2.7-.5-4z" fill="#FFC107" />
-                    <Path d="M5.3 14.7l7.4 5.4C14.3 16.3 18.8 13 24 13c3.1 0 5.9 1.1 8.1 2.9l6.4-6.4C34.6 6.1 29.6 4 24 4 16 4 9.2 8.4 5.3 14.7z" fill="#FF3D00" />
-                    <Path d="M24 44c5.2 0 10-1.8 13.7-4.9l-6.7-5.5C28.9 35.5 26.6 36.5 24 36.5c-6 0-11.1-4-12.8-9.5l-7.3 5.6C7.8 38.9 15.4 44 24 44z" fill="#4CAF50" />
-                    <Path d="M44.5 20H24v8.5h11.8c-1 3-3 5.5-5.8 7.1l6.7 5.5C40.6 37.5 46 31.4 46 24c0-1.3-.2-2.7-.5-4z" fill="#1976D2" />
-                  </Svg>
-                  <Text style={styles.socialButtonText}>Google</Text>
-                </>
-              )}
+              <Text style={styles.passwordModeToggleText}>Sign in with password instead</Text>
             </TouchableOpacity>
-
-            {Platform.OS === 'ios' || Platform.OS === 'web' ? (
-              <TouchableOpacity
-                style={[styles.socialButton, styles.appleSocialButton]}
-                onPress={handleAppleLogin}
-                disabled={isAppleLoading}
-                activeOpacity={0.7}
-                testID="login-apple"
-              >
-                {isAppleLoading ? (
-                  <ActivityIndicator color="#FFFFFF" size="small" />
-                ) : (
-                  <>
-                    <Svg width={20} height={20} viewBox="0 0 24 24" fill="#FFFFFF">
-                      <Path d="M17.05 20.28c-.98.95-2.05.88-3.08.4-1.09-.5-2.08-.48-3.24 0-1.44.62-2.2.44-3.06-.4C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z" />
-                    </Svg>
-                    <Text style={styles.appleSocialButtonText}>Apple</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            ) : null}
-          </View>
+          ) : (
+            <Animated.View style={{ transform: [{ translateX: shakeAnim }] }}>
+              <View style={[styles.inputGroup, { marginTop: 12 }]}>
+                <Text style={styles.inputLabel}>Password</Text>
+                <View style={styles.inputWrapper}>
+                  <Lock size={18} color={Colors.textSecondary} strokeWidth={1.8} />
+                  <TextInput
+                    ref={passwordRef}
+                    style={styles.input}
+                    placeholder="Enter password"
+                    placeholderTextColor={Colors.textMuted}
+                    value={password}
+                    onChangeText={setPassword}
+                    secureTextEntry={!showPassword}
+                    returnKeyType="go"
+                    selectionColor={Colors.primary}
+                    onSubmitEditing={handleLogin}
+                    testID="login-password"
+                  />
+                  <TouchableOpacity
+                    onPress={() => setShowPassword(!showPassword)}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  >
+                    {showPassword ? (
+                      <EyeOff size={18} color={Colors.textSecondary} strokeWidth={1.8} />
+                    ) : (
+                      <Eye size={18} color={Colors.textSecondary} strokeWidth={1.8} />
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </View>
+              <View style={styles.rememberRow}>
+                <Text style={styles.rememberLabel}>Remember me</Text>
+                <Switch
+                  value={rememberMe}
+                  onValueChange={setRememberMe}
+                  trackColor={{ false: Colors.borderLight, true: Colors.primary + '60' }}
+                  thumbColor={rememberMe ? Colors.primary : Colors.textMuted}
+                  testID="login-remember"
+                />
+              </View>
+              <Animated.View style={{ transform: [{ scale: buttonScale }] }}>
+                <TouchableOpacity
+                  style={[styles.loginButton, isSubmitting && styles.loginButtonDisabled]}
+                  onPress={handleLogin}
+                  disabled={isSubmitting}
+                  activeOpacity={0.85}
+                  testID="login-submit"
+                >
+                  {isSubmitting ? (
+                    <ActivityIndicator color="#FFFFFF" size="small" />
+                  ) : (
+                    <>
+                      <Text style={styles.loginButtonText}>Sign In</Text>
+                      <ArrowRight size={18} color="#FFFFFF" strokeWidth={2.5} />
+                    </>
+                  )}
+                </TouchableOpacity>
+              </Animated.View>
+            </Animated.View>
+          )}
 
           {/* Guest sign-in removed — we require real accounts (Google / Apple / email)
               so project data persists across devices and the MAU count only reflects
@@ -642,6 +712,84 @@ const styles = StyleSheet.create({
   socialRow: {
     flexDirection: 'row',
     gap: 12,
+  },
+  primaryAuthStack: {
+    gap: 10,
+    marginTop: 4,
+    marginBottom: 16,
+  },
+  primaryAuthButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    paddingVertical: 16,
+    borderRadius: 14,
+    borderWidth: 1.5,
+  },
+  appleAuthButton: {
+    backgroundColor: '#000000',
+    borderColor: '#000000',
+  },
+  appleAuthButtonText: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: '#FFFFFF',
+  },
+  googleAuthButton: {
+    backgroundColor: Colors.surface,
+    borderColor: Colors.borderLight,
+  },
+  googleAuthButtonText: {
+    fontSize: 16,
+    fontWeight: '700' as const,
+    color: Colors.text,
+  },
+  magicLinkStack: {
+    gap: 10,
+    marginBottom: 16,
+  },
+  magicLinkButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 14,
+    backgroundColor: Colors.primary + '0F',
+    borderWidth: 1,
+    borderColor: Colors.primary + '40',
+  },
+  magicLinkButtonText: {
+    fontSize: 15,
+    fontWeight: '700' as const,
+    color: Colors.primary,
+  },
+  magicLinkSuccess: {
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    backgroundColor: '#1E8E4A' + '12',
+    borderWidth: 1,
+    borderColor: '#1E8E4A' + '40',
+  },
+  magicLinkSuccessText: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: '#1E8E4A',
+    lineHeight: 19,
+  },
+  passwordModeToggle: {
+    alignSelf: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    marginTop: 4,
+  },
+  passwordModeToggleText: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: Colors.textSecondary,
+    textDecorationLine: 'underline',
   },
   socialButton: {
     flex: 1,

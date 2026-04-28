@@ -19,6 +19,8 @@ import { Colors, setCustomColors } from "@/constants/colors";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { processOfflineQueue } from "@/utils/offlineQueue";
+import * as Linking from "expo-linking";
+import { supabase } from "@/lib/supabase";
 
 void SplashScreen.preventAutoHideAsync();
 
@@ -39,6 +41,56 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+// Magic-link handler — listens for incoming deep links that contain
+// Supabase auth tokens (the URL the user taps from their inbox after
+// requesting a magic link), then exchanges the tokens for a session.
+// Runs at the root so it's mounted before any auth-gated screen.
+function MagicLinkHandler() {
+  useEffect(() => {
+    // Helper: pull access_token + refresh_token out of the URL hash
+    // (Supabase puts them in `#access_token=...&refresh_token=...`).
+    const tryRedeem = async (url: string | null): Promise<void> => {
+      if (!url) return;
+      try {
+        const hashIdx = url.indexOf('#');
+        if (hashIdx < 0) return;
+        const fragment = url.slice(hashIdx + 1);
+        const params = new URLSearchParams(fragment);
+        const accessToken = params.get('access_token');
+        const refreshToken = params.get('refresh_token') ?? '';
+        const errorDesc = params.get('error_description') ?? params.get('error');
+        if (errorDesc) {
+          console.warn('[MagicLink] error in URL:', errorDesc);
+          return;
+        }
+        if (!accessToken) return;
+        const { error } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        });
+        if (error) {
+          console.warn('[MagicLink] setSession failed:', error.message);
+        } else {
+          console.log('[MagicLink] session set from magic link');
+        }
+      } catch (e) {
+        console.warn('[MagicLink] redeem error:', e);
+      }
+    };
+
+    // 1) Cold launch: app was opened by tapping a magic link.
+    void Linking.getInitialURL().then(tryRedeem);
+
+    // 2) Warm: app already running, user tapped a magic link from
+    //    Mail / Safari / SMS.
+    const sub = Linking.addEventListener('url', ({ url }) => {
+      void tryRedeem(url);
+    });
+    return () => sub.remove();
+  }, []);
+  return null;
+}
 
 function OfflineSyncManager() {
   const appState = useRef(AppState.currentState);
@@ -756,6 +808,7 @@ export default function RootLayout() {
                       <HireProvider>
                         <NotificationProvider>
                           <SearchProvider>
+                            <MagicLinkHandler />
                             <OfflineSyncManager />
                             <RootLayoutNav />
                             <UniversalSearch />

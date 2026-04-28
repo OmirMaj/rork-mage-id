@@ -6,6 +6,8 @@ import createContextHook from '@nkzw/create-context-hook';
 import { supabase } from '@/lib/supabase';
 import * as SecureStore from 'expo-secure-store';
 import * as WebBrowser from 'expo-web-browser';
+import * as AppleAuthentication from 'expo-apple-authentication';
+import * as Crypto from 'expo-crypto';
 import { makeRedirectUri } from 'expo-auth-session';
 import type { Session, User } from '@supabase/supabase-js';
 
@@ -274,6 +276,38 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     console.log('[Auth] Confirmation email resent');
   }, []);
 
+  // Magic email link sign-in. The user enters their email; Supabase
+  // emails them a one-tap login link. They tap, the app's deep-link
+  // handler in _layout.tsx redeems the access token, and they're in.
+  // No password to type, no SMS cost, lower friction than email/pw.
+  // If the user doesn't have an account yet, Supabase auto-creates
+  // one (we keep `shouldCreateUser: true` so it doubles as a quick
+  // signup path).
+  const sendMagicLink = useCallback(async (email: string): Promise<void> => {
+    const trimmed = email.trim().toLowerCase();
+    if (!trimmed) throw new Error('Enter your email address.');
+    const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+    if (!EMAIL_REGEX.test(trimmed)) throw new Error('That email address looks off — please double-check.');
+    console.log('[Auth] Sending magic link to', trimmed);
+    // The `emailRedirectTo` URL is the deep link the user hits when
+    // they tap the link from their inbox. Supabase appends the access
+    // token + refresh token to the URL fragment; the app intercepts
+    // it via expo-linking in _layout.tsx and calls setSession.
+    const redirectUrl = makeRedirectUri({ preferLocalhost: false });
+    const { error } = await supabase.auth.signInWithOtp({
+      email: trimmed,
+      options: {
+        emailRedirectTo: redirectUrl,
+        shouldCreateUser: true,
+      },
+    });
+    if (error) {
+      console.log('[Auth] Magic link error:', error.message);
+      throw new Error(error.message);
+    }
+    console.log('[Auth] Magic link sent');
+  }, []);
+
   const signInWithGoogle = useCallback(async () => {
     console.log('[Auth] Starting Google sign-in');
     try {
@@ -317,6 +351,68 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
   const signInWithApple = useCallback(async () => {
     console.log('[Auth] Starting Apple sign-in');
     try {
+      // ─── iOS native flow ───
+      // Use the system Apple Sign-In sheet (Face ID prompt, no URL
+      // shown). We get back an identity token + nonce, then hand them
+      // to Supabase via signInWithIdToken — Supabase verifies the JWT
+      // signature against Apple's public keys server-side and creates
+      // / signs in the user. No browser redirect, no third-party URL
+      // prompt, no "wants to use supabase.co" dialog.
+      if (Platform.OS === 'ios') {
+        const isAvailable = await AppleAuthentication.isAvailableAsync();
+        if (!isAvailable) {
+          throw new Error('Apple Sign-In is not available on this device.');
+        }
+        // Apple requires a SHA256 hash of a random nonce. We generate
+        // one, hash it, send the hash to Apple, and pass the raw nonce
+        // to Supabase along with the identity token so Supabase can
+        // verify the binding.
+        const rawNonce = await Crypto.digestStringAsync(
+          Crypto.CryptoDigestAlgorithm.SHA256,
+          `${Date.now()}-${Math.random()}-${Math.random()}`,
+        );
+        const hashedNonce = await Crypto.digestStringAsync(
+          Crypto.CryptoDigestAlgorithm.SHA256,
+          rawNonce,
+        );
+        const credential = await AppleAuthentication.signInAsync({
+          requestedScopes: [
+            AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+            AppleAuthentication.AppleAuthenticationScope.EMAIL,
+          ],
+          nonce: hashedNonce,
+        });
+        if (!credential.identityToken) {
+          throw new Error('Apple did not return an identity token.');
+        }
+        const { error } = await supabase.auth.signInWithIdToken({
+          provider: 'apple',
+          token: credential.identityToken,
+          nonce: rawNonce,
+        });
+        if (error) throw error;
+        // First-time Apple Sign-In returns the user's full name only
+        // once. Store it as user metadata so we have something to
+        // display besides the email-prefix hack.
+        if (credential.fullName?.givenName || credential.fullName?.familyName) {
+          const fullName = [credential.fullName.givenName, credential.fullName.familyName]
+            .filter(Boolean)
+            .join(' ')
+            .trim();
+          if (fullName) {
+            await supabase.auth.updateUser({ data: { name: fullName } }).catch(() => {});
+          }
+        }
+        console.log('[Auth] Apple sign-in session set (native iOS flow)');
+        queryClient.clear();
+        return;
+      }
+
+      // ─── Android / web fallback ───
+      // Apple's native SDK is iOS-only. Android + web go through
+      // Supabase's hosted OAuth callback. The user will see the
+      // "wants to use supabase.co" prompt on these platforms — that's
+      // unavoidable without a custom domain (paid Supabase plan).
       const redirectUrl = makeRedirectUri({ preferLocalhost: false });
       console.log('[Auth] Apple redirect URL:', redirectUrl);
       const { data, error } = await supabase.auth.signInWithOAuth({
@@ -348,6 +444,12 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         }
       }
     } catch (err) {
+      // User-cancelled is a normal path on iOS — don't show an error.
+      const code = (err as { code?: string })?.code;
+      if (code === 'ERR_REQUEST_CANCELED' || code === 'ERR_CANCELED') {
+        console.log('[Auth] Apple sign-in cancelled by user');
+        return;
+      }
       console.error('[Auth] Apple sign-in error:', err);
       Alert.alert('Sign In Failed', 'Could not sign in with Apple. Please try again.');
       throw err;
@@ -369,5 +471,6 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     resendConfirmation,
     signInWithGoogle,
     signInWithApple,
-  }), [user, session, isLoading, isAuthenticated, hasStoredCredentials, login, signup, logout, loginWithBiometrics, resetPassword, updatePassword, resendConfirmation, signInWithGoogle, signInWithApple]);
+    sendMagicLink,
+  }), [user, session, isLoading, isAuthenticated, hasStoredCredentials, login, signup, logout, loginWithBiometrics, resetPassword, updatePassword, resendConfirmation, signInWithGoogle, signInWithApple, sendMagicLink]);
 });
