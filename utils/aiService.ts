@@ -2,7 +2,8 @@ import { mageAI } from '@/utils/mageAI';
 import { z } from 'zod';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { checkAILimit, recordAIUsage, type SubscriptionTierKey, type RequestTier } from '@/utils/aiRateLimiter';
-import type { Project, ProjectSchedule, ScheduleTask, ChangeOrder, Invoice, Subcontractor, Equipment, DailyFieldReport } from '@/types';
+import type { Project, ProjectSchedule, ScheduleTask, ChangeOrder, Invoice, Subcontractor, Equipment, DailyFieldReport, PortalLanguage } from '@/types';
+import { getLanguageMeta } from '@/utils/portalLanguages';
 
 const AI_CACHE_PREFIX = 'mageid_ai_cache_';
 const COPILOT_HISTORY_PREFIX = 'mageid_copilot_';
@@ -345,7 +346,7 @@ export type HomeownerSummaryResult = z.infer<typeof homeownerSummarySchema>;
 
 export async function generateHomeownerSummary(
   dfr: DailyFieldReport,
-  ctx: { projectName: string; companyName: string; ownerFirstName?: string },
+  ctx: { projectName: string; companyName: string; ownerFirstName?: string; language?: PortalLanguage },
 ): Promise<HomeownerSummaryResult> {
   console.log('[AI Homeowner] Generating digest...');
   const totalManpower = (dfr.manpower ?? []).reduce((s, m) => s + (m.headcount ?? 0), 0);
@@ -358,7 +359,16 @@ export async function generateHomeownerSummary(
     catch { return dfr.date; }
   })();
 
-  const prompt = `You are writing a 2-4 sentence update for a homeowner about their construction project. The homeowner is ${ctx.ownerFirstName || 'the client'} — they don't speak construction. Translate trade jargon into plain English. Be warm but not saccharine. Sign off implicit.
+  // Language hint — directs the model to write the entire output in the
+  // homeowner's chosen language. Defaults to English. The technical
+  // input fields stay in English (that's how the GC writes them); the
+  // model translates ideas, not strings.
+  const lang = getLanguageMeta(ctx.language);
+  const languageInstruction = lang.code === 'en'
+    ? ''
+    : `\n\nLANGUAGE: Write the ENTIRE summary, highlights, and lookingAhead in ${lang.promptName}. The homeowner reads ${lang.endonym}. Do NOT mix English in. Use natural, conversational ${lang.endonym} the way a friendly contractor would write to a client. Names of proper nouns (people, brands, the project itself) stay as written. Construction jargon should still be translated to plain ${lang.endonym} — explain the work in everyday terms.`;
+
+  const prompt = `You are writing a 2-4 sentence update for a homeowner about their construction project. The homeowner is ${ctx.ownerFirstName || 'the client'} — they don't speak construction. Translate trade jargon into plain language. Be warm but not saccharine. Sign off implicit.
 
 PROJECT: ${ctx.projectName}
 DATE: ${dateLabel}
@@ -375,11 +385,11 @@ ISSUES & DELAYS:
 ${dfr.issuesAndDelays?.trim() || '(none)'}
 
 Write:
-- summary: 2-4 sentences. Plain English. NO trade jargon (translate "rough-in" → "wiring inside the walls", "subfloor" → "the layer of wood under the finished floor", etc.). Address the homeowner directly. If the day was quiet (low manpower, no work), say so honestly — "lighter day on site" — don't manufacture progress.
-- highlights: 0-3 bullets, each ≤ 60 chars, plain English. Pick the single most important thing they'd want to know. If nothing notable, return [].
+- summary: 2-4 sentences. Plain language. NO trade jargon (translate "rough-in" → "wiring inside the walls", "subfloor" → "the layer of wood under the finished floor", etc.). Address the homeowner directly. If the day was quiet (low manpower, no work), say so honestly — "lighter day on site" — don't manufacture progress.
+- highlights: 0-3 bullets, each ≤ 60 chars, plain language. Pick the single most important thing they'd want to know. If nothing notable, return [].
 - lookingAhead: 0-1 sentence about tomorrow if you can infer it. Otherwise empty string.
 
-Tone: a contractor texting their client a friendly progress note. Not a corporate press release.`;
+Tone: a contractor texting their client a friendly progress note. Not a corporate press release.${languageInstruction}`;
 
   const aiResult = await mageAI({
     prompt,

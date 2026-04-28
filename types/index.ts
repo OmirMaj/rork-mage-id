@@ -1343,7 +1343,27 @@ export interface ClientPortalSettings {
   // portal. Approval rows land in change_order_approvals; the GC sees
   // pending approvals in-app and can sync them to the CO record.
   coApprovalEnabled?: boolean;
+  /**
+   * Language code the homeowner reads in. Drives:
+   *  - AI homeowner-summary generation (the prompt instructs the model
+   *    to write in this language)
+   *  - Static portal UI strings (section titles, CTAs, helper text)
+   *  - Email subjects + bodies sent to the homeowner
+   *
+   * Defaults to 'en' when missing. We ship 6 languages chosen for the
+   * actual demographics of US residential construction labor + clients:
+   *   en — English
+   *   es — Spanish (predominant)
+   *   pt — Portuguese (BR Portuguese; growing demographic)
+   *   zh — Mandarin Chinese (heavy in CA + secondary markets)
+   *   vi — Vietnamese (heavy in TX + CA)
+   *   fr — French (Canadian / Louisiana / Acadiana)
+   */
+  homeownerLanguage?: PortalLanguage;
 }
+
+/** Supported languages for the homeowner portal. ISO 639-1. */
+export type PortalLanguage = 'en' | 'es' | 'pt' | 'zh' | 'vi' | 'fr';
 
 // Budget proposal a client submits from the portal. Persisted via the
 // portal_budget_proposals table; the GC reviews + accepts/declines from

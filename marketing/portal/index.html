@@ -1497,6 +1497,84 @@
 (function () {
   'use strict';
 
+  // ───────── i18n helper ─────────
+  // The portal snapshot bundles pre-resolved UI strings in
+  // `data.uiStrings`. This helper looks up a key with an English
+  // fallback so any older snapshot or missing key still renders cleanly.
+  // Templating: pass {company: 'Foo'} to substitute {company} in the
+  // string.
+  var FALLBACK_STRINGS = {
+    latestUpdateEyebrow: 'Latest update from {company}',
+    contractSectionTitle: 'Construction Agreement',
+    contractSectionSubtitleSign: 'Review the contract and sign to make it binding.',
+    contractSectionSubtitleSigned: 'Signed by both parties on file.',
+    selectionsSectionTitle: 'Selections & Allowances',
+    selectionsSectionSubtitle: 'Pick from AI-curated options within your allowance.',
+    closeoutSectionTitle: 'Closeout Binder',
+    closeoutSectionSubtitle: 'Everything you need to maintain, troubleshoot, and improve this build. Tap Print to save a PDF.',
+    invoicesSectionTitle: 'Invoices',
+    invoicesSectionSubtitle: 'Click any invoice to view line items and pay online',
+    paymentAppsTitle: 'Pay Applications',
+    scheduleSectionTitle: 'Schedule',
+    scheduleSectionSubtitle: 'Live progress against the construction schedule',
+    changeOrdersTitle: 'Change Orders',
+    changeOrdersSubtitle: 'Approved and pending changes to the original contract',
+    changeOrdersSubtitleApprove: 'Tap Approve / Decline to authorize a change order',
+    photosSectionTitle: 'Site Photos',
+    photosSectionSubtitle: 'Tap any photo to view full screen',
+    dailyReportsTitle: 'Daily Field Reports',
+    dailyReportsSubtitle: 'Daily site narrative — weather, manpower and work performed',
+    punchListTitle: 'Punch List',
+    punchListSubtitle: 'Open items remaining before close-out',
+    rfisTitle: 'Requests for Information',
+    documentsTitle: 'Documents',
+    messagesTitle: 'Messages',
+    messagesSubtitle: 'Talk directly with your contractor — replies show up in their app instantly',
+    openBookGmpTitle: 'Open Book — GMP',
+    openBookOpenTitle: 'Open Book',
+    openBookGmpSubtitle: 'Real cost vs. GMP cap. We share every dollar with you — by design.',
+    openBookOpenSubtitle: 'Open book. Every dollar tracked from budget through commitment to pay-out.',
+    selectionsAllowance: 'ALLOWANCE',
+    selectionsPickOne: 'PICK ONE',
+    selectionsChosen: 'CHOSEN',
+    selectionsOverBudget: 'OVER BUDGET',
+    selectionsTapToChoose: 'Tap to choose',
+    selectionsYourPick: '✓ Your pick',
+    selectionsTierBudget: 'BUDGET',
+    selectionsTierOnTarget: 'ON TARGET',
+    selectionsTierPremium: 'PREMIUM',
+    contractStatusSigned: 'Signed by both parties',
+    contractTitleLabel: 'Title',
+    contractValueLabel: 'Contract value',
+    contractSignedDisclaimer: 'This is your binding agreement. Keep it for your records.',
+    contractSignerExplainer: 'Your contractor has signed and sent this agreement. Review the full scope, payment schedule, and warranty in the app, then enter your full legal name below to counter-sign and make it binding.',
+    contractSignNamePlaceholder: 'Type your full legal name',
+    contractSignButton: 'Sign & make binding',
+    contractFinePrint: 'By typing your name and tapping Sign, you accept the agreement as legally binding. The signed PDF will be available in this portal and emailed to you.',
+    closeoutPrint: '🖨️ Print / Save as PDF',
+    closeoutDelivered: 'DELIVERED',
+    closeoutFinalized: 'FINALIZED',
+    closeoutFinishesTitle: 'Finishes & fixtures installed',
+    closeoutWarrantiesTitle: 'Warranties on file',
+    closeoutMaintenanceTitle: 'Maintenance schedule',
+    closeoutContactsTitle: 'Trade contacts',
+    closeoutEmergencyTitle: 'If something breaks during the warranty period',
+    closeoutNoteEyebrow: 'A NOTE FROM YOUR CONTRACTOR',
+    empty: 'No data shared yet.',
+    payNow: 'Pay Now'
+  };
+  function t(key, vars) {
+    var data = window.__portalData;
+    var bundle = (data && data.uiStrings) || {};
+    var s = bundle[key] || FALLBACK_STRINGS[key] || key;
+    if (vars) {
+      Object.keys(vars).forEach(function (k) {
+        s = s.replace('{' + k + '}', vars[k]);
+      });
+    }
+    return s;
+  }
+
   // ───────── Icons (inline SVG strokes) ─────────
   function icn(d, size) {
     var s = size || 16;
@@ -1663,25 +1741,25 @@
     if (c.status === 'signed') {
       return '' +
         '<div class="open-book"><div class="ob-summary">' +
-          '<div class="ob-row"><span>Status</span><strong style="color:#1E8E4A">Signed by both parties</strong></div>' +
-          '<div class="ob-row"><span>Title</span><strong>' + escapeHtml(c.title) + '</strong></div>' +
-          '<div class="ob-row ob-row-total"><span>Contract value</span><strong>' + amount + '</strong></div>' +
+          '<div class="ob-row"><span>' + escapeHtml(t('contractStatusSigned')) + '</span><strong style="color:#1E8E4A">✓</strong></div>' +
+          '<div class="ob-row"><span>' + escapeHtml(t('contractTitleLabel')) + '</span><strong>' + escapeHtml(c.title) + '</strong></div>' +
+          '<div class="ob-row ob-row-total"><span>' + escapeHtml(t('contractValueLabel')) + '</span><strong>' + amount + '</strong></div>' +
         '</div>' +
-        '<div class="ob-disclaimer">This is your binding agreement. Keep it for your records.</div>' +
+        '<div class="ob-disclaimer">' + escapeHtml(t('contractSignedDisclaimer')) + '</div>' +
         '</div>';
     }
     // Status === 'sent' & needs signature.
     return '' +
       '<div class="open-book">' +
         '<div class="ob-summary">' +
-          '<div class="ob-row"><span>Title</span><strong>' + escapeHtml(c.title) + '</strong></div>' +
-          '<div class="ob-row ob-row-total"><span>Contract value</span><strong>' + amount + '</strong></div>' +
+          '<div class="ob-row"><span>' + escapeHtml(t('contractTitleLabel')) + '</span><strong>' + escapeHtml(c.title) + '</strong></div>' +
+          '<div class="ob-row ob-row-total"><span>' + escapeHtml(t('contractValueLabel')) + '</span><strong>' + amount + '</strong></div>' +
         '</div>' +
-        '<p style="font-size:13px;color:#4A5159;line-height:1.6;margin:10px 0">Your contractor has signed and sent this agreement. Review the full scope, payment schedule, and warranty in the app, then enter your full legal name below to counter-sign and make it binding.</p>' +
+        '<p style="font-size:13px;color:#4A5159;line-height:1.6;margin:10px 0">' + escapeHtml(t('contractSignerExplainer')) + '</p>' +
         '<div class="contract-sign">' +
-          '<input type="text" id="contract-name-' + escapeHtml(c.id) + '" placeholder="Type your full legal name" style="width:100%;padding:12px 14px;border:1px solid #E8DFCD;border-radius:10px;font-size:15px;font-weight:600;color:#0B0D10;margin-bottom:8px" />' +
-          '<button type="button" class="btn-primary" data-action="sign-contract" data-contract-id="' + escapeHtml(c.id) + '" style="width:100%;padding:14px;background:#FF6A1A;color:#fff;border:none;border-radius:10px;font-weight:800;font-size:15px;cursor:pointer">Sign &amp; make binding</button>' +
-          '<p style="font-size:11px;color:#8B9099;margin-top:10px;line-height:1.5">By typing your name and tapping Sign, you accept the agreement as legally binding. The signed PDF will be available in this portal and emailed to you.</p>' +
+          '<input type="text" id="contract-name-' + escapeHtml(c.id) + '" placeholder="' + escapeHtml(t('contractSignNamePlaceholder')) + '" style="width:100%;padding:12px 14px;border:1px solid #E8DFCD;border-radius:10px;font-size:15px;font-weight:600;color:#0B0D10;margin-bottom:8px" />' +
+          '<button type="button" class="btn-primary" data-action="sign-contract" data-contract-id="' + escapeHtml(c.id) + '" style="width:100%;padding:14px;background:#FF6A1A;color:#fff;border:none;border-radius:10px;font-weight:800;font-size:15px;cursor:pointer">' + escapeHtml(t('contractSignButton')) + '</button>' +
+          '<p style="font-size:11px;color:#8B9099;margin-top:10px;line-height:1.5">' + escapeHtml(t('contractFinePrint')) + '</p>' +
         '</div>' +
       '</div>';
   }
@@ -1693,14 +1771,17 @@
       var chosen = c.options.find(function (o) { return o.isChosen; });
       var statusBadge = chosen
         ? (c.status === 'exceeded'
-            ? '<div class="sel-status sel-status-over">OVER BUDGET</div>'
-            : '<div class="sel-status sel-status-chosen">CHOSEN</div>')
-        : '<div class="sel-status sel-status-pending">PICK ONE</div>';
+            ? '<div class="sel-status sel-status-over">' + escapeHtml(t('selectionsOverBudget')) + '</div>'
+            : '<div class="sel-status sel-status-chosen">' + escapeHtml(t('selectionsChosen')) + '</div>')
+        : '<div class="sel-status sel-status-pending">' + escapeHtml(t('selectionsPickOne')) + '</div>';
       var optionsHtml = c.options.map(function (o) {
-        var tier = o.total <= c.budget * 0.75 ? 'BUDGET'
-                : o.total <= c.budget * 1.05 ? 'ON TARGET'
-                :                                'PREMIUM';
-        var tierColor = tier === 'BUDGET' ? '#1E8E4A' : tier === 'ON TARGET' ? '#FF6A1A' : '#C26A00';
+        var tierBucket = o.total <= c.budget * 0.75 ? 'budget'
+                       : o.total <= c.budget * 1.05 ? 'ontarget'
+                       :                                'premium';
+        var tier = tierBucket === 'budget' ? t('selectionsTierBudget')
+                 : tierBucket === 'ontarget' ? t('selectionsTierOnTarget')
+                 :                              t('selectionsTierPremium');
+        var tierColor = tierBucket === 'budget' ? '#1E8E4A' : tierBucket === 'ontarget' ? '#FF6A1A' : '#C26A00';
         var highlightsHtml = (o.highlights || []).slice(0, 3).map(function (h) {
           return '<span class="sel-highlight">' + escapeHtml(h) + '</span>';
         }).join('');
@@ -1719,7 +1800,7 @@
             (metaHtml ? '<div class="sel-meta">' + metaHtml + '</div>' : '') +
             (o.description ? '<div class="sel-desc">' + escapeHtml(o.description) + '</div>' : '') +
             (highlightsHtml ? '<div class="sel-highlights">' + highlightsHtml + '</div>' : '') +
-            (o.isChosen ? '<div class="sel-chosen-pill">✓ Your pick</div>' : '<div class="sel-pick-cta">Tap to choose</div>') +
+            (o.isChosen ? '<div class="sel-chosen-pill">' + escapeHtml(t('selectionsYourPick')) + '</div>' : '<div class="sel-pick-cta">' + escapeHtml(t('selectionsTapToChoose')) + '</div>') +
           '</div>';
       }).join('');
       return '' +
@@ -1730,7 +1811,7 @@
               (c.styleBrief ? '<div class="sel-cat-brief">' + escapeHtml(c.styleBrief) + '</div>' : '') +
             '</div>' +
             '<div class="sel-cat-budget">' +
-              '<div class="sel-cat-budget-label">ALLOWANCE</div>' +
+              '<div class="sel-cat-budget-label">' + escapeHtml(t('selectionsAllowance')) + '</div>' +
               '<div class="sel-cat-budget-value">' + fmtMoney(c.budget) + '</div>' +
             '</div>' +
           '</div>' +
@@ -1920,33 +2001,32 @@
         '</tr>';
     }).join('');
     var noteHtml = c.noteFromContractor
-      ? '<div class="co-note"><div class="co-note-eyebrow">A NOTE FROM YOUR CONTRACTOR</div><div class="co-note-body">' + escapeHtml(c.noteFromContractor).replace(/\n/g, '<br/>') + '</div></div>'
+      ? '<div class="co-note"><div class="co-note-eyebrow">' + escapeHtml(t('closeoutNoteEyebrow')) + '</div><div class="co-note-body">' + escapeHtml(c.noteFromContractor).replace(/\n/g, '<br/>') + '</div></div>'
       : '';
     var emergencyHtml = '' +
       '<div class="co-emergency">' +
-        '<div class="co-emergency-title">If something breaks during the warranty period</div>' +
+        '<div class="co-emergency-title">' + escapeHtml(t('closeoutEmergencyTitle')) + '</div>' +
         '<ol class="co-emergency-list">' +
-          '<li>Snap a photo and write a one-line description.</li>' +
-          (c.emergencyEmail ? '<li>Email your contractor at <strong>' + escapeHtml(c.emergencyEmail) + '</strong> within the warranty window.</li>' : '<li>Email your contractor with the issue.</li>') +
-          (c.emergencyPhone ? '<li>For urgent items (water leak, no heat, no power), call <strong>' + escapeHtml(c.emergencyPhone) + '</strong>.</li>' : '<li>For emergencies (water, gas, no power), call your contractor directly.</li>') +
+          (c.emergencyEmail ? '<li><strong>' + escapeHtml(c.emergencyEmail) + '</strong></li>' : '') +
+          (c.emergencyPhone ? '<li><strong>' + escapeHtml(c.emergencyPhone) + '</strong></li>' : '') +
         '</ol>' +
       '</div>';
     var completionLine = c.completionDate
-      ? '<div class="co-meta" style="margin-bottom:14px">Completed ' + fmtIsoDate(c.completionDate) + '</div>'
+      ? '<div class="co-meta" style="margin-bottom:14px">' + fmtIsoDate(c.completionDate) + '</div>'
       : '';
     return '' +
       '<div class="closeout">' +
         '<div class="co-actions">' +
-          '<button type="button" class="btn-primary" data-action="print-binder">🖨️ Print / Save as PDF</button>' +
-          '<span class="co-status-pill">' + (c.status === 'sent' ? 'DELIVERED' : 'FINALIZED') + '</span>' +
+          '<button type="button" class="btn-primary" data-action="print-binder">' + escapeHtml(t('closeoutPrint')) + '</button>' +
+          '<span class="co-status-pill">' + (c.status === 'sent' ? escapeHtml(t('closeoutDelivered')) : escapeHtml(t('closeoutFinalized'))) + '</span>' +
         '</div>' +
         '<div class="closeout-printable">' +
           completionLine +
           noteHtml +
-          (finishesRows ? '<h3 class="co-h3">Finishes &amp; fixtures installed</h3><table class="co-table"><thead><tr><th>Category</th><th>Product</th><th>Supplier</th></tr></thead><tbody>' + finishesRows + '</tbody></table>' : '') +
-          (warrantyRows ? '<h3 class="co-h3">Warranties on file</h3><table class="co-table"><thead><tr><th>Item</th><th>Provider</th><th>Duration</th><th>Expires</th></tr></thead><tbody>' + warrantyRows + '</tbody></table>' : '') +
-          (maintRows ? '<h3 class="co-h3">Maintenance schedule</h3><table class="co-table"><thead><tr><th>Task</th><th>Frequency</th><th>Next due</th></tr></thead><tbody>' + maintRows + '</tbody></table>' : '') +
-          (contactRows ? '<h3 class="co-h3">Trade contacts</h3><table class="co-table"><thead><tr><th>Company</th><th>Scope</th><th>Phase</th></tr></thead><tbody>' + contactRows + '</tbody></table>' : '') +
+          (finishesRows ? '<h3 class="co-h3">' + escapeHtml(t('closeoutFinishesTitle')) + '</h3><table class="co-table"><tbody>' + finishesRows + '</tbody></table>' : '') +
+          (warrantyRows ? '<h3 class="co-h3">' + escapeHtml(t('closeoutWarrantiesTitle')) + '</h3><table class="co-table"><tbody>' + warrantyRows + '</tbody></table>' : '') +
+          (maintRows ? '<h3 class="co-h3">' + escapeHtml(t('closeoutMaintenanceTitle')) + '</h3><table class="co-table"><tbody>' + maintRows + '</tbody></table>' : '') +
+          (contactRows ? '<h3 class="co-h3">' + escapeHtml(t('closeoutContactsTitle')) + '</h3><table class="co-table"><tbody>' + contactRows + '</tbody></table>' : '') +
           emergencyHtml +
         '</div>' +
       '</div>';
@@ -2897,7 +2977,7 @@
         var lu = data.latestUpdate;
         var company = (data.company && data.company.name) ? data.company.name : 'your contractor';
         luEl.innerHTML = '' +
-          '<div class="lu-eyebrow">Latest update from ' + escapeHtml(company) + '</div>' +
+          '<div class="lu-eyebrow">' + escapeHtml(t('latestUpdateEyebrow', { company: company })) + '</div>' +
           '<div class="lu-date">' + escapeHtml(lu.dateLabel) + '</div>' +
           '<div class="lu-body">' + escapeHtml(lu.summary).replace(/\n+/g, '<br/>') + '</div>';
         luEl.style.display = 'block';
@@ -2923,19 +3003,19 @@
     // Contract — surfaces immediately under the hero so the homeowner
     // can review + counter-sign before anything else.
     if (data.contract && data.contract.status === 'sent' && data.contract.needsSignature) {
-      addSection('contract', 'dollar', 'Construction Agreement',
-        'Review the contract and sign to make it binding.', null, renderContractCard(data.contract));
+      addSection('contract', 'dollar', t('contractSectionTitle'),
+        t('contractSectionSubtitleSign'), null, renderContractCard(data.contract));
     } else if (data.contract && data.contract.status === 'signed') {
-      addSection('contract', 'dollar', 'Construction Agreement',
-        'Signed by both parties on file.', null, renderContractCard(data.contract));
+      addSection('contract', 'dollar', t('contractSectionTitle'),
+        t('contractSectionSubtitleSigned'), null, renderContractCard(data.contract));
     }
 
     // Selections — homeowner picks fixtures, finishes, materials within
     // allowance budgets the GC set. Only renders when there's at least
     // one category with curated options.
     if (data.selections && data.selections.length > 0) {
-      addSection('selections', 'dollar', 'Selections & Allowances',
-        'Pick from AI-curated options within your allowance.',
+      addSection('selections', 'dollar', t('selectionsSectionTitle'),
+        t('selectionsSectionSubtitle'),
         data.selections.length, renderSelections(data.selections, data.portalApi));
     }
 
@@ -2944,52 +3024,50 @@
     // commitment data. Otherwise the section stays hidden so a fixed-price
     // contract doesn't accidentally leak its real cost basis.
     if (data.openBook) {
-      var subtitle = data.openBook.mode === 'gmp'
-        ? 'Real cost vs. GMP cap. We share every dollar with you — by design.'
-        : 'Open book. Every dollar tracked from budget through commitment to pay-out.';
-      addSection('openbook', 'dollar', data.openBook.mode === 'gmp' ? 'Open Book — GMP' : 'Open Book',
+      var subtitle = data.openBook.mode === 'gmp' ? t('openBookGmpSubtitle') : t('openBookOpenSubtitle');
+      addSection('openbook', 'dollar', data.openBook.mode === 'gmp' ? t('openBookGmpTitle') : t('openBookOpenTitle'),
         subtitle, null, renderOpenBook(data.openBook));
     }
 
     if (sections.invoices && sections.invoices.length) {
-      addSection('invoices', 'dollar', 'Invoices', 'Click any invoice to view line items and pay online', sections.invoices.length, renderInvoices(sections.invoices));
+      addSection('invoices', 'dollar', t('invoicesSectionTitle'), t('invoicesSectionSubtitle'), sections.invoices.length, renderInvoices(sections.invoices));
     }
     if (sections.aiaPayApps && sections.aiaPayApps.length) {
-      addSection('paymentApps', 'fileText', 'Pay Applications', 'AIA G702 / G703 progress billings — printable for lender submittal', sections.aiaPayApps.length, renderAIA(sections.aiaPayApps));
+      addSection('paymentApps', 'fileText', t('paymentAppsTitle'), 'AIA G702 / G703', sections.aiaPayApps.length, renderAIA(sections.aiaPayApps));
     }
     if (sections.schedule && sections.schedule.tasks && sections.schedule.tasks.length) {
-      addSection('schedule', 'calendar', 'Schedule', 'Live progress against the construction schedule', sections.schedule.tasks.length, renderSchedule(sections.schedule.tasks));
+      addSection('schedule', 'calendar', t('scheduleSectionTitle'), t('scheduleSectionSubtitle'), sections.schedule.tasks.length, renderSchedule(sections.schedule.tasks));
     }
     if (sections.changeOrders && sections.changeOrders.length) {
-      addSection('changeOrders', 'diff', 'Change Orders', data.coApprovalEnabled ? 'Tap Approve / Decline to authorize a change order' : 'Approved and pending changes to the original contract', sections.changeOrders.length, renderChangeOrders(sections.changeOrders, !!data.coApprovalEnabled));
+      addSection('changeOrders', 'diff', t('changeOrdersTitle'), data.coApprovalEnabled ? t('changeOrdersSubtitleApprove') : t('changeOrdersSubtitle'), sections.changeOrders.length, renderChangeOrders(sections.changeOrders, !!data.coApprovalEnabled));
     }
     if (sections.photos && sections.photos.length) {
-      addSection('photos', 'image', 'Site Photos', 'Tap any photo to view full screen', sections.photos.length, renderPhotos(sections.photos));
+      addSection('photos', 'image', t('photosSectionTitle'), t('photosSectionSubtitle'), sections.photos.length, renderPhotos(sections.photos));
     }
     if (sections.dailyReports && sections.dailyReports.length) {
-      addSection('dailyReports', 'clipboard', 'Daily Field Reports', 'Daily site narrative — weather, manpower and work performed', sections.dailyReports.length, renderDailyReports(sections.dailyReports));
+      addSection('dailyReports', 'clipboard', t('dailyReportsTitle'), t('dailyReportsSubtitle'), sections.dailyReports.length, renderDailyReports(sections.dailyReports));
     }
     if (sections.punchList && sections.punchList.length) {
-      addSection('punchList', 'check', 'Punch List', 'Open items remaining before close-out', sections.punchList.length, renderPunchList(sections.punchList));
+      addSection('punchList', 'check', t('punchListTitle'), t('punchListSubtitle'), sections.punchList.length, renderPunchList(sections.punchList));
     }
     if (sections.rfis && sections.rfis.length) {
-      addSection('rfis', 'help', 'Requests for Information', null, sections.rfis.length, renderRFIs(sections.rfis));
+      addSection('rfis', 'help', t('rfisTitle'), null, sections.rfis.length, renderRFIs(sections.rfis));
     }
     if (sections.documents && sections.documents.length) {
-      addSection('documents', 'file', 'Documents', null, sections.documents.length, renderDocuments(sections.documents));
+      addSection('documents', 'file', t('documentsTitle'), null, sections.documents.length, renderDocuments(sections.documents));
     }
     // Closeout binder — the homeowner reference for the life of the home.
     // Renders only when GC has finalized or sent the binder.
     if (data.closeout) {
-      addSection('closeout', 'fileText', 'Closeout Binder',
-        'Everything you need to maintain, troubleshoot, and improve this build. Tap Print to save a PDF.',
+      addSection('closeout', 'fileText', t('closeoutSectionTitle'),
+        t('closeoutSectionSubtitle'),
         null, renderCloseout(data.closeout));
     }
     // Messages section is always shown when the portalApi is configured
     // (so the client can always reach the GC even if there's no thread yet).
     if (data.portalApi) {
       var messageCount = (data.messages || []).length;
-      addSection('messages', 'inbox', 'Messages', 'Talk directly with your contractor — replies show up in their app instantly', messageCount || null, renderMessagesSection(data));
+      addSection('messages', 'inbox', t('messagesTitle'), t('messagesSubtitle'), messageCount || null, renderMessagesSection(data));
     }
 
     if (!sectionHtml) {

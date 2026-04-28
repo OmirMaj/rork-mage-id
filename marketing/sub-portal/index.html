@@ -532,6 +532,76 @@
     stroke-linecap: round; stroke-linejoin: round;
     flex-shrink: 0;
   }
+
+  /* ───────── Punch list (Wave 5) ───────── */
+  .punch-list { display: flex; flex-direction: column; gap: 10px; }
+  .punch-row {
+    display: flex; align-items: flex-start; gap: 12px;
+    padding: 12px 14px;
+    background: var(--bone-2);
+    border-radius: 12px;
+  }
+  .punch-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    margin-top: 7px; flex-shrink: 0;
+  }
+  .punch-main { flex: 1; min-width: 0; }
+  .punch-desc {
+    font-size: 14px; font-weight: 600; color: var(--ink);
+    line-height: 1.4;
+  }
+  .punch-meta {
+    display: flex; flex-wrap: wrap; gap: 10px;
+    margin-top: 6px;
+    font-size: 11px; color: #6B7177;
+  }
+  .punch-status {
+    text-transform: uppercase; letter-spacing: 0.6px;
+    font-weight: 700; color: #6B7177;
+  }
+  .punch-loc, .punch-due { color: #6B7177; }
+
+  /* ───────── Schedule slice (Wave 5) ───────── */
+  .sched-list { display: flex; flex-direction: column; gap: 12px; }
+  .sched-row {
+    display: flex; align-items: flex-start; gap: 12px;
+    padding: 12px 14px;
+    background: #FFFFFF;
+    border: 1px solid var(--bone-2);
+    border-radius: 12px;
+  }
+  .sched-bullet {
+    width: 10px; height: 10px; border-radius: 50%;
+    margin-top: 6px; flex-shrink: 0;
+  }
+  .sched-main { flex: 1; min-width: 0; }
+  .sched-title {
+    font-size: 14px; font-weight: 700; color: var(--ink);
+    line-height: 1.35;
+  }
+  .sched-milestone {
+    color: #C26A00; font-size: 13px;
+  }
+  .sched-meta {
+    display: flex; flex-wrap: wrap; gap: 10px;
+    margin: 4px 0 8px;
+    font-size: 11px; color: #6B7177;
+  }
+  .sched-phase {
+    background: var(--bone-2);
+    padding: 2px 8px; border-radius: 999px;
+    font-weight: 700; letter-spacing: 0.4px;
+    text-transform: uppercase;
+  }
+  .sched-dates { font-weight: 600; }
+  .sched-progress-track {
+    height: 4px; background: var(--bone-2);
+    border-radius: 2px; overflow: hidden;
+  }
+  .sched-progress-fill {
+    height: 100%; border-radius: 2px;
+    transition: width 0.3s ease;
+  }
 </style>
 </head>
 <body>
@@ -587,6 +657,8 @@
         </button>
       </div>
 
+      <div id="punch-section"></div>
+      <div id="schedule-section"></div>
       <div id="commitments-section"></div>
       <div id="invoices-section"></div>
 
@@ -893,6 +965,90 @@
     sel.innerHTML = opts.join('');
   }
 
+  // ───────── Render: Punch list (Wave 5) ─────────
+  // The sub's "what's still on me to fix?" list — top of the page so
+  // the answer to their #1 question is the first thing they see.
+  function renderPunch(items) {
+    var sec = document.getElementById('punch-section');
+    if (!sec) return;
+    if (!items || !items.length) { sec.innerHTML = ''; return; }
+    var rows = items.map(function (p) {
+      var priorityColor = p.priority === 'high' ? '#E5484D' : p.priority === 'medium' ? '#FF6A1A' : '#6B7177';
+      var statusLabel = (p.status || 'open').replace(/_/g, ' ');
+      var dueLine = p.dueDate ? '<span class="punch-due">Due ' + esc(fmtDate(p.dueDate)) + '</span>' : '';
+      var locLine = p.location ? '<span class="punch-loc">' + esc(p.location) + '</span>' : '';
+      return '' +
+        '<div class="punch-row">' +
+          '<div class="punch-dot" style="background:' + priorityColor + '"></div>' +
+          '<div class="punch-main">' +
+            '<div class="punch-desc">' + esc(p.description) + '</div>' +
+            '<div class="punch-meta">' +
+              '<span class="punch-status">' + esc(statusLabel) + '</span>' +
+              locLine + dueLine +
+            '</div>' +
+          '</div>' +
+        '</div>';
+    }).join('');
+    sec.innerHTML = '' +
+      '<section class="section">' +
+        '<div class="section-head">' +
+          '<h3>What\'s still on you</h3>' +
+          '<p>' + items.length + ' open punch ' + (items.length === 1 ? 'item' : 'items') + ' assigned to your scope</p>' +
+        '</div>' +
+        '<div class="punch-list">' + rows + '</div>' +
+      '</section>';
+  }
+
+  // ───────── Render: Schedule slice (Wave 5) ─────────
+  // Shows only tasks where this sub is on the hook. Compact list
+  // ordered chronologically. Real calendar dates derived from the
+  // project's schedule start date + each task's startDay offset.
+  function renderSchedule(slice) {
+    var sec = document.getElementById('schedule-section');
+    if (!sec) return;
+    if (!slice || !slice.tasks || !slice.tasks.length) { sec.innerHTML = ''; return; }
+    var anchor = slice.projectStartDate ? new Date(slice.projectStartDate) : null;
+    function dayToDate(offsetDays) {
+      if (!anchor || isNaN(anchor.getTime())) return null;
+      var d = new Date(anchor.getTime() + offsetDays * 86400000);
+      return isNaN(d.getTime()) ? null : d;
+    }
+    var rows = slice.tasks.map(function (t) {
+      var start = dayToDate(t.startDay);
+      var end = dayToDate(t.startDay + Math.max(0, t.durationDays - 1));
+      var dateRange;
+      if (start && end) {
+        var startStr = start.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+        var endStr = end.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+        dateRange = (start.getTime() === end.getTime()) ? startStr : startStr + ' → ' + endStr;
+      } else {
+        dateRange = (t.durationDays || 1) + ' day' + (t.durationDays === 1 ? '' : 's');
+      }
+      var statusColor = t.status === 'done' ? '#1E8E4A' : t.status === 'in_progress' ? '#FF6A1A' : '#6B7177';
+      var prog = Math.max(0, Math.min(100, Math.round(t.progress || 0)));
+      return '' +
+        '<div class="sched-row">' +
+          '<div class="sched-bullet" style="background:' + statusColor + '"></div>' +
+          '<div class="sched-main">' +
+            '<div class="sched-title">' + esc(t.title) + (t.isMilestone ? ' <span class="sched-milestone">★</span>' : '') + '</div>' +
+            '<div class="sched-meta">' +
+              (t.phase ? '<span class="sched-phase">' + esc(t.phase) + '</span>' : '') +
+              '<span class="sched-dates">' + esc(dateRange) + '</span>' +
+            '</div>' +
+            '<div class="sched-progress-track"><div class="sched-progress-fill" style="width:' + prog + '%;background:' + statusColor + '"></div></div>' +
+          '</div>' +
+        '</div>';
+    }).join('');
+    sec.innerHTML = '' +
+      '<section class="section">' +
+        '<div class="section-head">' +
+          '<h3>Your schedule on this project</h3>' +
+          '<p>' + slice.tasks.length + ' task' + (slice.tasks.length === 1 ? '' : 's') + ' on you. Tap a date in the contractor\'s app for the live timeline.</p>' +
+        '</div>' +
+        '<div class="sched-list">' + rows + '</div>' +
+      '</section>';
+  }
+
   // ───────── Submit ─────────
   async function postInvoice(cfg, body) {
     if (!cfg.supabaseUrl || !cfg.supabaseAnonKey) throw new Error('No Supabase config');
@@ -972,6 +1128,8 @@
     }
 
     renderStats(data);
+    renderPunch(data.punchItems || []);
+    renderSchedule(data.scheduleSlice);
     renderCommitments(data.commitments || []);
     renderInvoices(data.submittedInvoices || []);
     renderCommitmentSelect(data.commitments || []);

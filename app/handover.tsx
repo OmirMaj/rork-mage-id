@@ -128,7 +128,7 @@ export default function HandoverScreen() {
       : 'partial';
 
     // Punch list — zero open items.
-    const openPunch = projectPunch.filter((p: any) => p.status !== 'completed' && p.status !== 'closed').length;
+    const openPunch = projectPunch.filter((p: any) => p.status !== 'closed').length;
     const punchStatus: HandoverItem['status'] = openPunch === 0 && projectPunch.length > 0 ? 'done' : (openPunch > 0 ? 'partial' : 'open');
 
     // Warranties — at least one on file.

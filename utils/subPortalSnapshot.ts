@@ -6,9 +6,18 @@
 import type {
   Project, AppSettings, Subcontractor, Commitment,
   Invoice, SubPortalLink, SubSubmittedInvoice,
+  PunchItem, ProjectSchedule,
 } from '@/types';
 
-export const SUB_PORTAL_SNAPSHOT_VERSION = 1;
+// v2 adds (Wave 5):
+// - punchItems: open + in-progress punch items assigned to this sub
+//   (filtered by assignedSubId or by trade-name match). The sub's
+//   #1 question — "what's left for me to fix?" — answered without
+//   them having to call the GC.
+// - scheduleSlice: schedule tasks where assignedSubId matches OR
+//   the task's `crew` field contains the sub's trade. Lets the sub
+//   see when they're scheduled to be on site.
+export const SUB_PORTAL_SNAPSHOT_VERSION = 2;
 
 export interface SubPortalSnapshot {
   v: number;
@@ -64,6 +73,35 @@ export interface SubPortalSnapshot {
     notesFromGc?: string;
   }>;
 
+  // v2: open + in-progress punch items assigned to this sub. Helps
+  // the sub answer "what's still on my list?" without calling the GC.
+  punchItems?: Array<{
+    id: string;
+    description: string;
+    location?: string;
+    priority?: string;
+    status: string;
+    dueDate?: string;
+    photoUri?: string;
+  }>;
+
+  // v2: schedule tasks where this sub is assigned (or their trade
+  // matches the task's crew). Includes the parent project's schedule
+  // start date so the portal can render real calendar dates.
+  scheduleSlice?: {
+    projectStartDate?: string;
+    tasks: Array<{
+      id: string;
+      title: string;
+      phase?: string;
+      progress: number;
+      status: string;
+      durationDays: number;
+      startDay: number;
+      isMilestone?: boolean;
+    }>;
+  };
+
   submitInvoice: {
     subPortalId: string;
     supabaseUrl?: string;
@@ -85,6 +123,9 @@ interface BuildOpts {
   // sub-submitted invoices status='paid' when not provided.)
   invoices?: Invoice[];
   submittedInvoices?: SubSubmittedInvoice[];
+  // v2: punch items + schedule for this sub.
+  punchItems?: PunchItem[];
+  schedule?: ProjectSchedule | null;
 
   supabaseUrl?: string;
   supabaseAnonKey?: string;
@@ -96,6 +137,7 @@ export function buildSubPortalSnapshot(opts: BuildOpts): SubPortalSnapshot {
   const {
     link, project, sub, settings, commitments,
     submittedInvoices = [],
+    punchItems = [], schedule,
     supabaseUrl, supabaseAnonKey, contactEmail, contactName,
   } = opts;
 
@@ -178,6 +220,60 @@ export function buildSubPortalSnapshot(opts: BuildOpts): SubPortalSnapshot {
       paidAt: i.paidAt,
       notesFromGc: i.notesFromGc,
     })),
+
+    // v2: scoped punch list — anything assigned to this sub, OR
+    // matching their company name (legacy free-text). Filter to open /
+    // in-progress only; the sub doesn't need to scroll past completed.
+    punchItems: (() => {
+      const tradeNorm = (sub.companyName ?? '').trim().toLowerCase();
+      const scoped = punchItems
+        .filter(p => p.projectId === project.id)
+        .filter(p => {
+          if (p.assignedSubId && p.assignedSubId === sub.id) return true;
+          if (tradeNorm && (p.assignedSub ?? '').trim().toLowerCase() === tradeNorm) return true;
+          return false;
+        })
+        .filter(p => p.status !== 'closed')
+        .slice(0, 30);
+      if (!scoped.length) return undefined;
+      return scoped.map(p => ({
+        id: p.id,
+        description: p.description,
+        location: p.location || undefined,
+        priority: p.priority,
+        status: p.status,
+        dueDate: p.dueDate || undefined,
+        photoUri: p.photoUri,
+      }));
+    })(),
+
+    // v2: schedule slice — tasks where assignedSubId matches OR the
+    // task's `crew` text contains the sub's trade. Cap at 40 tasks
+    // chronologically so the snapshot stays compact.
+    scheduleSlice: (() => {
+      if (!schedule || !schedule.tasks?.length) return undefined;
+      const tradeNorm = (sub.trade ?? '').trim().toLowerCase();
+      const scoped = schedule.tasks.filter(t => {
+        if (t.assignedSubId && t.assignedSubId === sub.id) return true;
+        if (tradeNorm && (t.crew ?? '').trim().toLowerCase().includes(tradeNorm)) return true;
+        return false;
+      });
+      if (!scoped.length) return undefined;
+      const ordered = [...scoped].sort((a, b) => a.startDay - b.startDay).slice(0, 40);
+      return {
+        projectStartDate: schedule.startDate,
+        tasks: ordered.map(t => ({
+          id: t.id,
+          title: t.title,
+          phase: t.phase,
+          progress: t.progress ?? 0,
+          status: t.status,
+          durationDays: t.durationDays ?? 0,
+          startDay: t.startDay ?? 0,
+          isMilestone: t.isMilestone,
+        })),
+      };
+    })(),
 
     submitInvoice: {
       subPortalId: link.id,

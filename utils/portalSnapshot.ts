@@ -12,8 +12,19 @@ import type {
   DailyFieldReport, PunchItem, ProjectPhoto, RFI, ClientPortalInvite,
   SavedAIAPayApp,
 } from '@/types';
+import { getUIStrings } from './portalLanguages';
 
-// v6 adds (Wave 4):
+// v7 adds (Wave 5):
+// - language: the homeowner's chosen language code ('en' / 'es' / 'pt' /
+//   'zh' / 'vi' / 'fr'). Drives both the AI summary content language
+//   (handled at generation time) AND the static portal UI strings
+//   below (`uiStrings`).
+// - uiStrings: pre-translated bundle of the static portal labels
+//   (section titles, CTAs, helper text). Shipping the bundle inline
+//   means the portal doesn't need a network call to render in the
+//   right language; it just looks up `data.uiStrings.<key>`.
+//
+// v6 added (Wave 4):
 // - latestUpdate: the most-recently-published homeowner summary (AI-
 //   generated from the daily report). Shows up in the portal as the
 //   "Latest update" panel above everything else — the homeowner's
@@ -36,11 +47,24 @@ import type {
 // v3 added: clientCanSetBudget toggle, submitBudget config, project.targetBudget.
 // v2 added: invoice.lineItems summary, aiaPayApps section, hero photo +
 // schedule anchors.
-export const PORTAL_SNAPSHOT_VERSION = 6;
+export const PORTAL_SNAPSHOT_VERSION = 7;
 
 export interface PortalSnapshot {
   v: number;
   snapshotAt: string;
+  /**
+   * Homeowner's language code. Defaults to 'en' if missing. The static
+   * portal uses `uiStrings` directly rather than re-resolving from the
+   * code, but the code is exposed for analytics + potential client-side
+   * locale-aware date formatting.
+   */
+  language?: 'en' | 'es' | 'pt' | 'zh' | 'vi' | 'fr';
+  /**
+   * Pre-resolved UI strings in the homeowner's language. The portal
+   * reads `data.uiStrings.<key>` instead of hard-coded English. Shape
+   * matches `PortalUIStrings` in utils/portalLanguages.ts.
+   */
+  uiStrings?: Record<string, string>;
   requirePasscode?: boolean;
   // NOTE: passcode is intentionally NOT serialized into the snapshot.
   // It used to live here, but base64 in the URL fragment is trivially
@@ -671,9 +695,18 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
     }
   })();
 
+  // Homeowner language — defaults to English. Drives both the AI
+  // summary at generation time AND the static portal labels. We bundle
+  // the resolved UI strings inline so the portal doesn't need a
+  // separate fetch to render in the homeowner's language.
+  const language = (portal.homeownerLanguage ?? 'en');
+  const uiStrings = getUIStrings(language) as unknown as Record<string, string>;
+
   return {
     v: PORTAL_SNAPSHOT_VERSION,
     snapshotAt: new Date().toISOString(),
+    language,
+    uiStrings,
     requirePasscode: portal.requirePasscode,
     // passcode intentionally omitted — validated server-side, never bundled.
     welcomeMessage: portal.welcomeMessage,

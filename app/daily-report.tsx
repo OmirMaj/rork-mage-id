@@ -42,6 +42,16 @@ export default function DailyReportScreen() {
   const { isProOrAbove } = useSubscription();
   const [voiceLoading, setVoiceLoading] = useState(false);
   const [showVoiceBanner, setShowVoiceBanner] = useState(false);
+  // Tracks which fields the AI populated in the most recent voice
+  // pass. We use this to render a "here's what I heard" preview card
+  // so the GC can verify before saving — no more silent auto-fill.
+  const [voiceParsed, setVoiceParsed] = useState<{
+    weather?: { temperature?: string; conditions?: string };
+    crewSummary?: string;          // "4 framers, 2 electricians"
+    workPerformed?: string;
+    materialsDelivered?: string[];
+    issuesAndDelays?: string;
+  } | null>(null);
 
   const project = useMemo(() => getProject(projectId ?? ''), [projectId, getProject]);
   const existingReports = useMemo(() => getDailyReportsForProject(projectId ?? ''), [projectId, getDailyReportsForProject]);
@@ -274,6 +284,7 @@ export default function DailyReportScreen() {
         projectName: project.name,
         companyName: settings?.branding?.companyName ?? 'Your contractor',
         ownerFirstName: ownerName,
+        language: project.clientPortal?.homeownerLanguage,
       });
       setHomeownerSummary(result.summary);
       setHsHighlights(result.highlights ?? []);
@@ -456,16 +467,41 @@ export default function DailyReportScreen() {
                 setVoiceLoading(true);
                 try {
                   const parsed = await parseDFRFromTranscript(transcript, projectId ?? '', todaysProjectPhotos);
-                  if (parsed.weather && !weather.temperature) setWeather(parsed.weather);
-                  if (parsed.manpower && manpower.length === 0) setManpower(parsed.manpower);
-                  if (parsed.workPerformed && !workPerformed) setWorkPerformed(parsed.workPerformed);
-                  if (parsed.materialsDelivered && materialsDelivered.length === 0) setMaterialsDelivered(parsed.materialsDelivered);
-                  if (parsed.issuesAndDelays && !issuesAndDelays) setIssuesAndDelays(parsed.issuesAndDelays);
+                  // Track what was filled this round — used to build the
+                  // preview card so the GC can verify before saving.
+                  const populated: typeof voiceParsed = {};
+                  if (parsed.weather && !weather.temperature) {
+                    setWeather(parsed.weather);
+                    populated.weather = { temperature: parsed.weather.temperature, conditions: parsed.weather.conditions };
+                  }
+                  if (parsed.manpower && manpower.length === 0) {
+                    setManpower(parsed.manpower);
+                    const total = parsed.manpower.reduce((s, m) => s + (m.headcount ?? 0), 0);
+                    const trades = parsed.manpower.map(m => `${m.headcount ?? 0} ${m.trade?.toLowerCase() ?? 'workers'}`).join(', ');
+                    populated.crewSummary = total > 0 ? trades : undefined;
+                  }
+                  if (parsed.workPerformed && !workPerformed) {
+                    setWorkPerformed(parsed.workPerformed);
+                    populated.workPerformed = parsed.workPerformed;
+                  }
+                  if (parsed.materialsDelivered && materialsDelivered.length === 0) {
+                    setMaterialsDelivered(parsed.materialsDelivered);
+                    populated.materialsDelivered = parsed.materialsDelivered;
+                  }
+                  if (parsed.issuesAndDelays && !issuesAndDelays) {
+                    setIssuesAndDelays(parsed.issuesAndDelays);
+                    populated.issuesAndDelays = parsed.issuesAndDelays;
+                  }
+                  setVoiceParsed(Object.keys(populated).length > 0 ? populated : null);
                   setShowVoiceBanner(true);
+                  if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
                   console.log('[DFR] Voice auto-fill complete');
                 } catch (err) {
                   console.log('[DFR] Voice parse error:', err);
-                  Alert.alert('Error', 'Could not parse voice input. Please try again.');
+                  Alert.alert(
+                    'Could not understand the recording',
+                    'The transcription service may be slow or down. Try recording again, or fill in the report by hand.',
+                  );
                 } finally {
                   setVoiceLoading(false);
                 }
@@ -476,13 +512,45 @@ export default function DailyReportScreen() {
             />
           </View>
 
-          {showVoiceBanner && (
+          {showVoiceBanner && voiceParsed && (
+            <View style={voiceStyles.previewCard}>
+              <View style={voiceStyles.previewHead}>
+                <Sparkles size={14} color={Colors.primary} />
+                <Text style={voiceStyles.previewTitle}>Here&apos;s what I heard</Text>
+                <TouchableOpacity onPress={() => { setShowVoiceBanner(false); setVoiceParsed(null); }} hitSlop={8}>
+                  <X size={14} color={Colors.textMuted} />
+                </TouchableOpacity>
+              </View>
+              <Text style={voiceStyles.previewHelper}>
+                Review each row below — tap any field in the form to edit. Anything you had already typed wasn&apos;t overwritten.
+              </Text>
+              <View style={voiceStyles.previewList}>
+                {voiceParsed.weather && (
+                  <VoiceRow label="Weather" value={[voiceParsed.weather.conditions, voiceParsed.weather.temperature].filter(Boolean).join(' · ') || '—'} />
+                )}
+                {voiceParsed.crewSummary && (
+                  <VoiceRow label="Crew" value={voiceParsed.crewSummary} />
+                )}
+                {voiceParsed.workPerformed && (
+                  <VoiceRow label="Work performed" value={voiceParsed.workPerformed.length > 90 ? voiceParsed.workPerformed.slice(0, 90) + '…' : voiceParsed.workPerformed} />
+                )}
+                {voiceParsed.materialsDelivered && voiceParsed.materialsDelivered.length > 0 && (
+                  <VoiceRow label="Materials" value={voiceParsed.materialsDelivered.join(', ')} />
+                )}
+                {voiceParsed.issuesAndDelays && (
+                  <VoiceRow label="Issues" value={voiceParsed.issuesAndDelays.length > 90 ? voiceParsed.issuesAndDelays.slice(0, 90) + '…' : voiceParsed.issuesAndDelays} valueColor={Colors.error} />
+                )}
+              </View>
+            </View>
+          )}
+
+          {showVoiceBanner && !voiceParsed && (
             <TouchableOpacity
               style={{ marginHorizontal: 16, marginBottom: 8, backgroundColor: Colors.infoLight, borderRadius: 10, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 8 }}
               onPress={() => setShowVoiceBanner(false)}
               activeOpacity={0.7}
             >
-              <Text style={{ flex: 1, fontSize: 13, color: Colors.info }}>Report auto-filled from voice. Please review before saving.</Text>
+              <Text style={{ flex: 1, fontSize: 13, color: Colors.info }}>Nothing new picked up — the fields you already had stay as-is.</Text>
               <X size={14} color={Colors.info} />
             </TouchableOpacity>
           )}
@@ -1141,6 +1209,31 @@ export default function DailyReportScreen() {
     </View>
   );
 }
+
+function VoiceRow({ label, value, valueColor }: { label: string; value: string; valueColor?: string }) {
+  return (
+    <View style={voiceStyles.row}>
+      <Text style={voiceStyles.rowLabel}>{label}</Text>
+      <Text style={[voiceStyles.rowValue, valueColor ? { color: valueColor } : null]} numberOfLines={3}>{value}</Text>
+    </View>
+  );
+}
+
+const voiceStyles = StyleSheet.create({
+  previewCard: {
+    marginHorizontal: 16, marginBottom: 8,
+    backgroundColor: Colors.primary + '0D',
+    borderWidth: 1, borderColor: Colors.primary + '30',
+    borderRadius: 12, padding: 14, gap: 8,
+  },
+  previewHead: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
+  previewTitle: { flex: 1, fontSize: 13, fontWeight: '800', color: Colors.primary, letterSpacing: -0.2 },
+  previewHelper: { fontSize: 11, color: Colors.textMuted, lineHeight: 15 },
+  previewList: { gap: 6, marginTop: 4 },
+  row: { flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
+  rowLabel: { width: 90, fontSize: 11, fontWeight: '800', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, paddingTop: 1 },
+  rowValue: { flex: 1, fontSize: 13, color: Colors.text, lineHeight: 18 },
+});
 
 const hsStyles = StyleSheet.create({
   helperText: { fontSize: 12, color: Colors.textMuted, marginBottom: 10, lineHeight: 17 },

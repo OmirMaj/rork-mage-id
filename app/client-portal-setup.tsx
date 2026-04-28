@@ -27,6 +27,7 @@ import { useQuery } from '@tanstack/react-query';
 import { fetchActiveContract } from '@/utils/contractEngine';
 import { fetchSelectionsForProject } from '@/utils/selectionsEngine';
 import { fetchCloseoutBinder } from '@/utils/closeoutBinderEngine';
+import { LANGUAGES } from '@/utils/portalLanguages';
 
 const PORTAL_BASE_URL = 'https://mageid.app/portal';
 const DEEP_LINK_SCHEME = 'rork-app://client-view';
@@ -119,6 +120,9 @@ const DEFAULT_PORTAL: ClientPortalSettings = {
   // Off by default; turn on per project to invite owners to approve COs
   // from the portal.
   coApprovalEnabled: false,
+  // Defaults to English. GC picks the homeowner's language in the
+  // setup screen — drives AI summary language + portal UI strings.
+  homeownerLanguage: 'en',
 };
 
 export default function ClientPortalSetupScreen() {
@@ -516,6 +520,37 @@ export default function ClientPortalSetupScreen() {
           )}
         </View>
 
+        {/* Homeowner Language */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Homeowner&apos;s Language</Text>
+          <Text style={styles.sectionSubtitle}>
+            The portal labels + AI daily summaries land in this language. Names of brands and the project itself stay in their original form.
+          </Text>
+          <View style={styles.langGrid}>
+            {LANGUAGES.map(l => {
+              const active = (portal.homeownerLanguage ?? 'en') === l.code;
+              return (
+                <TouchableOpacity
+                  key={l.code}
+                  style={[styles.langChip, active && styles.langChipActive]}
+                  onPress={() => {
+                    setPortal(p => ({ ...p, homeownerLanguage: l.code }));
+                    if (Platform.OS !== 'web') void Haptics.selectionAsync().catch(() => {});
+                  }}
+                  testID={`portal-lang-${l.code}`}
+                >
+                  <Text style={styles.langFlag}>{l.flag}</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.langEndonym, active && styles.langEndonymActive]}>{l.endonym}</Text>
+                    <Text style={styles.langEnglish}>{l.englishName}</Text>
+                  </View>
+                  {active && <Check size={14} color={Colors.primary} />}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+
         {/* Welcome Message */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Welcome Message</Text>
@@ -849,6 +884,20 @@ const styles = StyleSheet.create({
     minHeight: 80,
     textAlignVertical: 'top',
   },
+
+  langGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  langChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingHorizontal: 12, paddingVertical: 10,
+    backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,
+    borderRadius: 11,
+    minWidth: '47%', flexGrow: 1,
+  },
+  langChipActive: { borderColor: Colors.primary, backgroundColor: Colors.primary + '0F' },
+  langFlag: { fontSize: 22 },
+  langEndonym: { fontSize: 14, fontWeight: '700', color: Colors.text },
+  langEndonymActive: { color: Colors.primary },
+  langEnglish: { fontSize: 11, color: Colors.textMuted, marginTop: 1 },
 
   togglesCard: {
     backgroundColor: Colors.card,

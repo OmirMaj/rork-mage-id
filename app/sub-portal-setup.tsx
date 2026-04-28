@@ -33,13 +33,14 @@ export default function SubPortalSetupScreen() {
 
   const {
     getProject, subcontractors, settings,
-    getCommitmentsForProject,
+    getCommitmentsForProject, getPunchItemsForProject,
     getSubPortalLinkFor, upsertSubPortalLink,
   } = useProjects();
 
   const project = useMemo(() => projectId ? getProject(projectId) : undefined, [projectId, getProject]);
   const sub = useMemo(() => subcontractors.find(s => s.id === subId), [subcontractors, subId]);
   const commitments = useMemo(() => projectId ? getCommitmentsForProject(projectId).filter(c => c.subcontractorId === subId) : [], [projectId, subId, getCommitmentsForProject]);
+  const projectPunchItems = useMemo(() => projectId ? getPunchItemsForProject(projectId) : [], [projectId, getPunchItemsForProject]);
 
   const existing = useMemo(() =>
     projectId && subId ? getSubPortalLinkFor(projectId, subId) : undefined,
@@ -71,12 +72,14 @@ export default function SubPortalSetupScreen() {
       settings,
       commitments,
       submittedInvoices: submitted.invoices,
+      punchItems: projectPunchItems,
+      schedule: project.schedule,
       supabaseUrl: SUPABASE_URL,
       supabaseAnonKey: SUPABASE_ANON_KEY,
       contactEmail: settings?.branding?.email,
       contactName: settings?.branding?.contactName ?? settings?.branding?.companyName,
     });
-  }, [link, project, sub, settings, commitments, submitted.invoices]);
+  }, [link, project, sub, settings, commitments, submitted.invoices, projectPunchItems]);
 
   const portalUrl = useMemo(() => {
     if (!snapshot) return `${SUB_PORTAL_BASE_URL}/${link.id}`;
