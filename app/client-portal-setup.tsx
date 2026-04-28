@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch,
   TextInput, Alert, Platform, Share, Clipboard,
@@ -16,9 +16,10 @@ import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import type { ClientPortalSettings, ClientPortalInvite } from '@/types';
 import { generateUUID } from '@/utils/generateId';
-import { sendEmailNative } from '@/utils/emailService';
+import { sendEmailNative, sendEmail } from '@/utils/emailService';
+import { wrapEmailHtml, emailButton } from '@/utils/emailLayout';
 import {
-  buildPortalSnapshot, buildPortalUrl, estimateSnapshotSizeKb,
+  buildPortalSnapshot, buildPortalUrl, buildShortPortalUrl, estimateSnapshotSizeKb,
 } from '@/utils/portalSnapshot';
 import { usePortalBudgetProposals } from '@/hooks/usePortalBudgetProposals';
 import { usePortalThread } from '@/hooks/usePortalThread';
@@ -28,6 +29,7 @@ import { fetchActiveContract } from '@/utils/contractEngine';
 import { fetchSelectionsForProject } from '@/utils/selectionsEngine';
 import { fetchCloseoutBinder } from '@/utils/closeoutBinderEngine';
 import { LANGUAGES } from '@/utils/portalLanguages';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
 const PORTAL_BASE_URL = 'https://mageid.app/portal';
 const DEEP_LINK_SCHEME = 'rork-app://client-view';
@@ -227,7 +229,18 @@ export default function ClientPortalSetupScreen() {
     getCommitmentsForProject, getWarrantiesForProject,
   ]);
 
+  // Short, share-friendly URL — `mageid.app/portal/<id>`. The static
+  // portal HTML fetches the snapshot from `portal_snapshots` keyed by
+  // the path id when no hash is present. This is what the GC copies
+  // and shares — fits in SMS, doesn't get truncated, always works.
   const portalLink = useMemo(() => {
+    return buildShortPortalUrl(PORTAL_BASE_URL, portal.portalId);
+  }, [portal.portalId]);
+
+  // The full base64-hash URL is kept around as a backup for clients
+  // whose snapshot cache hasn't propagated yet (e.g., right after
+  // creation). Not currently used in the UI but available for debug.
+  const portalLinkWithHash = useMemo(() => {
     if (!snapshot) return `${PORTAL_BASE_URL}/${portal.portalId}`;
     return buildPortalUrl(PORTAL_BASE_URL, portal.portalId, snapshot);
   }, [snapshot, portal.portalId]);
@@ -235,6 +248,32 @@ export default function ClientPortalSetupScreen() {
   const snapshotSizeKb = useMemo(() => {
     return snapshot ? estimateSnapshotSizeKb(snapshot) : 0;
   }, [snapshot]);
+
+  // Server-side persistence of the portal snapshot. Without this, the
+  // portal URL relies entirely on the URL hash — which gets truncated
+  // by SMS clients, broken by copy-paste, and can't be regenerated when
+  // the homeowner re-opens an old link. Pushing to portal_snapshots
+  // means the portal HTML can fetch by portal_id whenever the hash
+  // is missing or corrupt. RLS gates writes to the project owner.
+  useEffect(() => {
+    if (!snapshot || !project?.id || !portal.portalId) return;
+    if (!isSupabaseConfigured) return;
+    // Debounce so rapid renders don't hammer the table.
+    const t = setTimeout(() => {
+      void supabase
+        .from('portal_snapshots')
+        .upsert({
+          portal_id: portal.portalId,
+          project_id: project.id,
+          snapshot: snapshot as unknown as Record<string, unknown>,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'portal_id' })
+        .then(({ error }) => {
+          if (error) console.warn('[portal-snapshot] persist failed', error.message);
+        });
+    }, 1500);
+    return () => clearTimeout(t);
+  }, [snapshot, project?.id, portal.portalId]);
 
   const buildInviteLink = useCallback((invite?: ClientPortalInvite) => {
     if (!snapshot) return `${PORTAL_BASE_URL}/${portal.portalId}`;
@@ -250,17 +289,17 @@ export default function ClientPortalSetupScreen() {
     );
   }, [snapshot, portal.portalId]);
 
-  const buildInviteEmailBody = useCallback((invite: ClientPortalInvite) => {
-    const link = buildInviteLink(invite);
-    const greeting = invite.name ? `Hi ${invite.name.split(' ')[0]},` : 'Hi,';
-    const welcome = portal.welcomeMessage
-      ? `\n\n${portal.welcomeMessage}\n`
-      : `\n\nWe've set up a private portal where you can follow along with your project in real time — schedule, photos, budget, and any change orders that need your sign-off.\n`;
-    const passcodeLine = portal.requirePasscode && portal.passcode
-      ? `\n\nPasscode (required to view): ${portal.passcode}\n(keep this private — it protects your portal)\n`
-      : '';
-    return `${greeting}${welcome}\nYour portal link:\n${link}${passcodeLine}\n\nIf the link doesn't open on your phone, paste it into Safari or Chrome.\n\n— ${project?.name ?? 'Your project team'}`;
-  }, [buildInviteLink, portal.welcomeMessage, portal.requirePasscode, portal.passcode, project?.name]);
+  // Short, shareable URL — `mageid.app/portal/<id>?inviteId=...` with no
+  // base64 hash. Use this for SMS, email body, and anywhere the long
+  // hash would get truncated or mangled. Works because the static
+  // portal HTML falls back to fetching the snapshot from
+  // `portal_snapshots` when the hash is missing.
+  const buildShortInviteLink = useCallback((invite?: ClientPortalInvite) => {
+    return buildShortPortalUrl(PORTAL_BASE_URL, portal.portalId, invite?.id);
+  }, [portal.portalId]);
+
+  // (Plain-text email body is now built inline in handleEmailInvite as
+  // a fallback when Resend is unavailable — see below.)
 
   const handleToggle = useCallback((key: keyof ClientPortalSettings, value: boolean) => {
     setPortal(p => ({ ...p, [key]: value }));
@@ -333,31 +372,77 @@ export default function ClientPortalSetupScreen() {
     await Share.share({ message, title: 'Client Portal Invite' });
   }, [portal.welcomeMessage, portal.requirePasscode, portal.passcode, portalLink, project?.name]);
 
+  // Auto-send a branded portal invite email through Resend (via the
+  // send-email edge function). The homeowner gets a polished email with
+  // a single big "Open my project portal" button — no long ugly URL,
+  // no manual MailComposer step from the GC. Falls back to the native
+  // mail composer only if Resend is unavailable.
   const handleEmailInvite = useCallback(async (invite: ClientPortalInvite) => {
-    const link = buildInviteLink(invite);
-    const subject = `Your project portal — ${project?.name ?? 'MAGE ID'}`;
-    const body = buildInviteEmailBody(invite);
+    // Use the SHORT URL (no #d= hash) so SMS / email forwarding never
+    // truncates it. The static portal HTML fetches the snapshot from
+    // portal_snapshots when no hash is present.
+    const link = buildShortInviteLink(invite);
+    const companyName = settings?.branding?.companyName ?? 'MAGE ID';
+    const projectName = project?.name ?? 'your project';
+    const recipientFirstName = invite.name?.split(' ')[0];
+    const subject = `Your project portal — ${projectName}`;
+    const passcodeLine = portal.requirePasscode && portal.passcode
+      ? `<p style="margin:0 0 16px;color:#374151;font-size:14px;line-height:1.6;"><strong style="color:#111827;">Passcode (required to view):</strong> <span style="font-family:monospace;font-size:18px;color:#FF6A1A;letter-spacing:2px;">${portal.passcode}</span><br/><span style="color:#6B7280;font-size:12px;">Keep this private — it protects your portal.</span></p>`
+      : '';
+    const welcomeBlock = portal.welcomeMessage
+      ? `<blockquote style="margin:0 0 20px;padding:14px 16px;background:#F4EFE6;border-left:3px solid #FF6A1A;border-radius:6px;color:#374151;font-size:14px;line-height:1.6;font-style:italic;">${(portal.welcomeMessage || '').replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c] as string))}</blockquote>`
+      : '';
+    const bodyHtml = `
+      <p style="margin:0 0 18px;color:#374151;font-size:15px;line-height:1.6;">We've set up a private portal where you can follow along with the project in real time — daily updates, photos, budget, schedule, contract, and any decisions that need your sign-off.</p>
+      ${welcomeBlock}
+      ${emailButton('Open my project portal', link)}
+      ${passcodeLine}
+      <p style="margin:16px 0 0;color:#6B7280;font-size:12px;line-height:1.5;">No app to install. Open the link on your phone or computer — that's it. The portal stays at this URL for the life of the project.</p>
+    `;
+    const html = wrapEmailHtml({
+      companyName,
+      logoUri: settings?.branding?.logoUri,
+      recipientName: recipientFirstName,
+      eyebrow: 'Project portal',
+      title: `${projectName} — your live project view`,
+      bodyHtml,
+      contactName: settings?.branding?.contactName ?? settings?.branding?.companyName,
+      contactEmail: settings?.branding?.email,
+      contactPhone: settings?.branding?.phone,
+    });
 
-    if (Platform.OS === 'web') {
-      if (typeof window !== 'undefined') {
-        window.open(`mailto:${encodeURIComponent(invite.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`);
-      }
+    const result = await sendEmail({
+      to: invite.email,
+      subject,
+      html,
+      replyTo: settings?.branding?.email,
+    });
+
+    if (result.success) {
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert('Sent', `Invitation sent to ${invite.email}.`);
       return;
     }
 
-    const result = await sendEmailNative({
+    // Fallback: if Resend is down, drop into the native composer with
+    // the short link so the GC can verify + send manually.
+    const fallbackBody = `${invite.name ? `Hi ${invite.name.split(' ')[0]},` : 'Hi,'}\n\nWe've set up a private portal for ${projectName} so you can follow along with the build.\n\nOpen it here:\n${link}\n${portal.requirePasscode && portal.passcode ? `\nPasscode: ${portal.passcode}\n(keep this private — it protects your portal)\n` : ''}\nNo app to install, no password to remember. Open on your phone or computer.\n\n— ${companyName}`;
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined') {
+        window.open(`mailto:${encodeURIComponent(invite.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(fallbackBody)}`);
+      }
+      return;
+    }
+    const fallback = await sendEmailNative({
       to: invite.email,
       subject,
-      body,
+      body: fallbackBody,
       isHtml: false,
     });
-
-    if (!result.success && result.error && result.error !== 'cancelled') {
-      Alert.alert('Email Not Sent', result.error);
-    } else if (result.success) {
-      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    if (!fallback.success && fallback.error && fallback.error !== 'cancelled') {
+      Alert.alert('Email Not Sent', fallback.error);
     }
-  }, [buildInviteLink, buildInviteEmailBody, project?.name]);
+  }, [buildShortInviteLink, project?.name, settings, portal.requirePasscode, portal.passcode, portal.welcomeMessage]);
 
   const handleResetPasscode = useCallback(() => {
     const generate = () => {
@@ -467,11 +552,12 @@ export default function ClientPortalSetupScreen() {
               {`${PORTAL_BASE_URL}/${portal.portalId}`}
             </Text>
           </View>
-          {snapshotSizeKb > 6 && (
-            <Text style={styles.sizeWarning}>
-              Snapshot is {snapshotSizeKb} KB — large links may break SMS. Consider hiding photos.
-            </Text>
-          )}
+          {/* The shared link is now short — `/portal/<id>` with no
+              base64 hash. The portal page fetches the snapshot from
+              the server, so SMS / email truncation is no longer an
+              issue. The snapshotSizeKb stat is kept around for the
+              "everything's working" diagnostic below but no warning
+              is shown to the GC. */}
           <View style={styles.linkActions}>
             <TouchableOpacity style={styles.linkActionBtn} onPress={handleCopyLink}>
               <Copy size={15} color={Colors.primary} />

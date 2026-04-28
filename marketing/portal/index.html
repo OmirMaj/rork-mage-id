@@ -3358,15 +3358,88 @@
   }
 
   // ───────── Boot ─────────
+  // Two-stage load:
+  //
+  //   1. Try to decode the snapshot from the URL hash (the original
+  //      "stuff everything in the fragment" model). Works for fresh
+  //      links generated in the GC's app.
+  //
+  //   2. If the hash is missing OR fails to decode (SMS truncation,
+  //      copy-paste loss, link too long for the email client), fall
+  //      back to fetching the snapshot from `portal_snapshots` keyed
+  //      by the portal_id parsed from the URL path. The GC's app
+  //      pushes a fresh snapshot there every time client-portal-setup
+  //      builds one, so even a bookmarked old link with no hash will
+  //      pull current data.
+  //
+  //   3. Only if BOTH paths fail do we show the "expired" fallback.
+  //
+  // The Supabase URL + anon key are public — fine to hardcode here so
+  // we can fetch the snapshot before we have any portalApi config.
+
+  var SUPABASE_URL_PUBLIC  = 'https://nteoqhcswappxxjlpvap.supabase.co';
+  var SUPABASE_ANON_PUBLIC = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im50ZW9xaGNzd2FwcHh4amxwdmFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzMTU0MDMsImV4cCI6MjA4OTg5MTQwM30.xpz7yWhignppH-3dYD-EV4AvB4cugr7-881GKdOFado';
+
   function showFallback() {
     document.getElementById('fallback').style.display = 'flex';
   }
+
+  // Pull portal_id from the URL path: /portal/{portalId} or
+  // /portal/{portalId}/  (trailing slash). Falls back to null if the
+  // page is hit at /portal directly.
+  function parsePortalIdFromPath() {
+    try {
+      var path = window.location.pathname || '';
+      var m = path.match(/\/portal\/([^\/?#]+)/);
+      return m ? decodeURIComponent(m[1]) : null;
+    } catch (e) { return null; }
+  }
+
+  function fetchSnapshotFromServer(portalId) {
+    if (!portalId) return Promise.resolve(null);
+    var url = SUPABASE_URL_PUBLIC + '/rest/v1/portal_snapshots?portal_id=eq.' + encodeURIComponent(portalId) + '&select=snapshot,updated_at';
+    return fetch(url, {
+      headers: { 'apikey': SUPABASE_ANON_PUBLIC, 'Authorization': 'Bearer ' + SUPABASE_ANON_PUBLIC, 'Accept': 'application/json' },
+    })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (rows) {
+        if (!rows || !rows[0] || !rows[0].snapshot) return null;
+        return rows[0].snapshot;
+      })
+      .catch(function () { return null; });
+  }
+
+  function boot(data) {
+    if (!data) { showFallback(); return; }
+    // Stash for the click handlers attached during boot — they need
+    // access to data.portalApi to write back selection picks +
+    // contract signatures.
+    window.__portalData = data;
+    runGate(data, function () { render(data); });
+  }
+
   var data = decodeHashPayload();
-  if (!data) { showFallback(); return; }
-  // Stash for the click handlers attached during boot — they need access
-  // to data.portalApi to write back selection picks + contract signatures.
-  window.__portalData = data;
-  runGate(data, function () { render(data); });
+  if (data) {
+    // Fast path: hash decoded. Render immediately AND kick off a
+    // background refresh from the server so the homeowner sees the
+    // freshest data on subsequent in-page interactions (e.g., a
+    // selection pick reload).
+    boot(data);
+    var portalIdForRefresh = parsePortalIdFromPath();
+    if (portalIdForRefresh) {
+      void fetchSnapshotFromServer(portalIdForRefresh).then(function (fresh) {
+        if (fresh && JSON.stringify(fresh) !== JSON.stringify(data)) {
+          window.__portalData = fresh;
+        }
+      });
+    }
+  } else {
+    // Slow path: hash missing or corrupt. Show a tiny loader, fetch
+    // from the server, then render.
+    var portalId = parsePortalIdFromPath();
+    if (!portalId) { showFallback(); return; }
+    fetchSnapshotFromServer(portalId).then(function (fresh) { boot(fresh); });
+  }
 
 })();
 </script>

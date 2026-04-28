@@ -863,6 +863,24 @@ export function buildPortalUrl(
   return `${base}${query}#d=${encoded}`;
 }
 
+/**
+ * Short shareable URL — just `<base>/<portalId>?inviteId=...`. The
+ * static portal HTML falls back to fetching the snapshot from the
+ * `portal_snapshots` table when no `#d=...` hash is present, so this
+ * URL works as long as the GC's app has pushed a snapshot to the
+ * server (it does, on every save). Use this for SMS, email subjects,
+ * and anywhere else where the giant base64 hash would get mangled.
+ */
+export function buildShortPortalUrl(
+  baseUrl: string,
+  portalId: string,
+  inviteId?: string,
+): string {
+  const base = `${baseUrl}/${portalId}`;
+  const query = inviteId ? `?inviteId=${encodeURIComponent(inviteId)}` : '';
+  return `${base}${query}`;
+}
+
 // Rough sanity check — URL fragments over ~8KB start to make SMS clients unhappy.
 // Return size in KB of the encoded payload to let the UI show a warning.
 export function estimateSnapshotSizeKb(snapshot: PortalSnapshot): number {

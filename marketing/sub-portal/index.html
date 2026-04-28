@@ -1265,9 +1265,46 @@
     document.getElementById('fallback').style.display = 'flex';
   }
 
+  // Two-stage load (matches the homeowner portal pattern):
+  //   1. Try the URL-hash payload.
+  //   2. Fall back to fetching from sub_portal_snapshots keyed by the
+  //      sub_portal_id parsed from the URL path. The GC's app refreshes
+  //      this on every snapshot build, so even an old / truncated link
+  //      gets fresh data.
+  //   3. Show fallback only if both fail.
+  var SUPABASE_URL_PUBLIC  = 'https://nteoqhcswappxxjlpvap.supabase.co';
+  var SUPABASE_ANON_PUBLIC = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im50ZW9xaGNzd2FwcHh4amxwdmFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzMTU0MDMsImV4cCI6MjA4OTg5MTQwM30.xpz7yWhignppH-3dYD-EV4AvB4cugr7-881GKdOFado';
+
+  function parseSubPortalIdFromPath() {
+    try {
+      var path = window.location.pathname || '';
+      var m = path.match(/\/sub-portal\/([^\/?#]+)/);
+      return m ? decodeURIComponent(m[1]) : null;
+    } catch (e) { return null; }
+  }
+
+  function fetchSubSnapshot(subPortalId) {
+    if (!subPortalId) return Promise.resolve(null);
+    var url = SUPABASE_URL_PUBLIC + '/rest/v1/sub_portal_snapshots?sub_portal_id=eq.' + encodeURIComponent(subPortalId) + '&select=snapshot,updated_at';
+    return fetch(url, {
+      headers: { 'apikey': SUPABASE_ANON_PUBLIC, 'Authorization': 'Bearer ' + SUPABASE_ANON_PUBLIC, 'Accept': 'application/json' },
+    })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (rows) { return (rows && rows[0] && rows[0].snapshot) ? rows[0].snapshot : null; })
+      .catch(function () { return null; });
+  }
+
   var data = decodeHash();
-  if (!data) { showFallback(); return; }
-  runGate(data, function () { render(data); });
+  if (data) {
+    runGate(data, function () { render(data); });
+  } else {
+    var subPortalId = parseSubPortalIdFromPath();
+    if (!subPortalId) { showFallback(); return; }
+    fetchSubSnapshot(subPortalId).then(function (fresh) {
+      if (!fresh) { showFallback(); return; }
+      runGate(fresh, function () { render(fresh); });
+    });
+  }
 })();
 </script>
 </body>

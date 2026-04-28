@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, TextInput,
   Alert, Platform, Share, Clipboard,
@@ -19,6 +19,7 @@ import {
   buildSubPortalSnapshot, buildSubPortalUrl,
 } from '@/utils/subPortalSnapshot';
 import { formatMoney } from '@/utils/formatters';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
 const SUB_PORTAL_BASE_URL = 'https://mageid.app/sub-portal';
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL
@@ -85,6 +86,29 @@ export default function SubPortalSetupScreen() {
     if (!snapshot) return `${SUB_PORTAL_BASE_URL}/${link.id}`;
     return buildSubPortalUrl(SUB_PORTAL_BASE_URL, link.id, snapshot);
   }, [snapshot, link.id]);
+
+  // Server-side persistence so the sub portal URL works even when the
+  // URL hash is missing or corrupt. Same model as the homeowner portal:
+  // push the snapshot to sub_portal_snapshots; the static page falls
+  // back to fetching by sub_portal_id when hash decode fails.
+  useEffect(() => {
+    if (!snapshot || !project?.id || !link.id) return;
+    if (!isSupabaseConfigured) return;
+    const t = setTimeout(() => {
+      void supabase
+        .from('sub_portal_snapshots')
+        .upsert({
+          sub_portal_id: link.id,
+          project_id: project.id,
+          snapshot: snapshot as unknown as Record<string, unknown>,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'sub_portal_id' })
+        .then(({ error }) => {
+          if (error) console.warn('[sub-portal-snapshot] persist failed', error.message);
+        });
+    }, 1500);
+    return () => clearTimeout(t);
+  }, [snapshot, project?.id, link.id]);
 
   const persist = useCallback((updates: Partial<SubPortalLink>) => {
     const next = { ...link, ...updates, updatedAt: new Date().toISOString() };
