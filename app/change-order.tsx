@@ -44,7 +44,13 @@ export default function ChangeOrderScreen() {
 function ChangeOrderInner() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { projectId, coId } = useLocalSearchParams<{ projectId: string; coId?: string }>();
+  const { projectId, coId, prefillReason, prefillDescription, prefillAmount } = useLocalSearchParams<{
+    projectId: string;
+    coId?: string;
+    prefillReason?: string;
+    prefillDescription?: string;
+    prefillAmount?: string;
+  }>();
   const {
     getProject, getChangeOrdersForProject, addChangeOrder, updateChangeOrder, contacts,
   } = useProjects();
@@ -68,13 +74,35 @@ function ChangeOrderInner() {
     return existingCOs.length + 1;
   }, [existingCOs, existingCO]);
 
-  const [description, setDescription] = useState(existingCO?.description ?? '');
-  const [reason, setReason] = useState(existingCO?.reason ?? '');
+  // Prefill from selections-overage CTA: when the homeowner picks an
+  // option over allowance, the selections screen routes here with
+  // a description + amount already filled. Only applies on a new CO,
+  // never overrides an existing one.
+  const [description, setDescription] = useState(
+    existingCO?.description ?? (prefillDescription ?? '')
+  );
+  const [reason, setReason] = useState(
+    existingCO?.reason ?? (prefillReason === 'allowance_overage' ? 'Allowance overage' : '')
+  );
   const [scheduleImpactDays, setScheduleImpactDays] = useState<string>(
     existingCO?.scheduleImpactDays ? String(existingCO.scheduleImpactDays) : ''
   );
+  // Pre-seed line items: single overage line so the dollar amount
+  // shows on the change order without manual entry.
+  const seedFromOverage: ChangeOrderLineItem[] | null = !existingCO && prefillAmount && Number(prefillAmount) > 0
+    ? [{
+        id: 'overage-prefill',
+        name: 'Allowance overage',
+        description: prefillDescription ?? 'Allowance overage',
+        quantity: 1,
+        unit: 'ls',
+        unitPrice: Number(prefillAmount),
+        total: Number(prefillAmount),
+        isNew: true,
+      }]
+    : null;
   const [lineItems, setLineItems] = useState<ChangeOrderLineItem[]>(
-    existingCO?.lineItems ?? []
+    existingCO?.lineItems ?? seedFromOverage ?? []
   );
   const [showAddItem, setShowAddItem] = useState(false);
   const [newItemName, setNewItemName] = useState('');

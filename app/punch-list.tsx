@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
   Alert, Platform, Modal, KeyboardAvoidingView,
@@ -53,7 +53,11 @@ export default function PunchListScreen() {
 function PunchListScreenInner() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { projectId } = useLocalSearchParams<{ projectId: string }>();
+  const { projectId, prefillPhotoUri, prefillPhotoId } = useLocalSearchParams<{
+    projectId: string;
+    prefillPhotoUri?: string;
+    prefillPhotoId?: string;
+  }>();
   const { getProject, getPunchItemsForProject, addPunchItem, updatePunchItem, deletePunchItem, updateProject, subcontractors } = useProjects();
 
   const project = useMemo(() => getProject(projectId ?? ''), [projectId, getProject]);
@@ -67,6 +71,20 @@ function PunchListScreenInner() {
   const [dueDate, setDueDate] = useState('');
   const [priority, setPriority] = useState<PunchItemPriority>('medium');
   const [linkedTaskId, setLinkedTaskId] = useState<string>('');
+  // Optional photo URI to attach when creating a new item — comes from
+  // the photo annotator's "Add to Punch List" flow. Surfaces in the
+  // form as a thumbnail badge so the GC sees what they're attaching.
+  const [attachedPhotoUri, setAttachedPhotoUri] = useState<string | undefined>(undefined);
+
+  // When arriving from photo-annotator with a prefill, open the new-item
+  // form auto-attached to that photo. Only fires once per mount.
+  useEffect(() => {
+    if (prefillPhotoUri || prefillPhotoId) {
+      setAttachedPhotoUri(prefillPhotoUri);
+      setShowForm(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [showTaskPicker, setShowTaskPicker] = useState(false);
   const [rejectionNote, setRejectionNote] = useState('');
   const [showRejectModal, setShowRejectModal] = useState<string | null>(null);
@@ -112,15 +130,17 @@ function PunchListScreenInner() {
         priority, status: 'open',
         linkedTaskId: linkedTaskId || undefined,
         linkedTaskName: linkedTaskName || undefined,
+        photoUri: attachedPhotoUri,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
       addPunchItem(item);
     }
     setShowForm(false);
+    setAttachedPhotoUri(undefined);
     resetForm();
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [description, location, assignedSub, dueDate, priority, linkedTaskId, linkedTask, editingItem, projectId, addPunchItem, updatePunchItem, resetForm]);
+  }, [description, location, assignedSub, dueDate, priority, linkedTaskId, linkedTask, editingItem, projectId, addPunchItem, updatePunchItem, resetForm, attachedPhotoUri]);
 
   const handleStatusChange = useCallback((item: PunchItem, newStatus: PunchItemStatus) => {
     const updates: Partial<PunchItem> = { status: newStatus };

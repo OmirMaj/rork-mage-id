@@ -69,15 +69,50 @@ function summarize(item: NotificationFeedItem): { title: string; body: string } 
 
 function deepLinkFor(item: NotificationFeedItem): string | null {
   const p = item.payload as Record<string, unknown>;
-  const projectId = p.project_id as string | undefined;
+  const projectId = (p.project_id as string | undefined) ?? (p.projectId as string | undefined);
   switch (item.eventType) {
     case 'portal_message':
-    case 'budget_proposal':
-    case 'co_approval':
+      // Open the portal-setup screen (which surfaces messages in-line).
       return projectId ? `/client-portal-setup?id=${projectId}` : null;
+    case 'budget_proposal':
+      // Same screen — proposals show up there for review/accept.
+      return projectId ? `/client-portal-setup?id=${projectId}` : null;
+    case 'co_approval': {
+      // Route directly to the change order, not the portal setup screen.
+      // Falls back to project-detail if we don't have a CO id.
+      const coId = (p.change_order_id as string | undefined) ?? (p.changeOrderId as string | undefined);
+      if (projectId && coId) return `/change-order?projectId=${projectId}&coId=${coId}`;
+      if (projectId) return `/project-detail?id=${projectId}`;
+      return null;
+    }
+    case 'contract_signed':
+      // Contract just got countersigned — route straight to the contract.
+      return projectId ? `/contract?projectId=${projectId}` : null;
+    case 'selection_chosen':
+      // Homeowner picked a selection — route to selections so the GC can
+      // see the new pick + flag if it's over allowance.
+      return projectId ? `/selections?projectId=${projectId}` : null;
+    case 'closeout_binder_sent':
+      return projectId ? `/closeout-binder?projectId=${projectId}` : null;
+    case 'bid_question_asked':
+    case 'bid_question_answered': {
+      const rfpId = (p.rfp_id as string | undefined) ?? (p.bid_id as string | undefined);
+      return rfpId ? `/rfp-detail?bidId=${rfpId}` : null;
+    }
     case 'sub_invoice_submitted':
-    case 'sub_invoice_reviewed':
+    case 'sub_invoice_reviewed': {
+      // If we know the project + sub portal, route to that specific sub
+      // portal setup screen so the GC can review the invoice.
+      const subId = (p.sub_id as string | undefined) ?? (p.subId as string | undefined);
+      if (projectId && subId) return `/sub-portal-setup?projectId=${projectId}&subId=${subId}`;
       return '/sub-portals';
+    }
+    case 'rfp_awarded':
+      return projectId ? `/project-detail?id=${projectId}` : null;
+    case 'nearby_rfp_posted': {
+      const rfpId = (p.rfp_id as string | undefined) ?? (p.bid_id as string | undefined);
+      return rfpId ? `/rfp-detail?bidId=${rfpId}` : null;
+    }
     default:
       return null;
   }

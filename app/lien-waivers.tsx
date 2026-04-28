@@ -31,14 +31,57 @@ import type { LienWaiver, LienWaiverType, CompanyBranding } from '@/types';
 export default function LienWaiversScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { projectId } = useLocalSearchParams<{ projectId: string }>();
-  const { getProject, settings } = useProjects();
+  const { projectId, prefillFromInvoice, prefillAmount, prefillThroughDate } = useLocalSearchParams<{
+    projectId: string;
+    prefillFromInvoice?: string;
+    prefillAmount?: string;
+    prefillThroughDate?: string;
+  }>();
+  const { getProject, settings, getInvoicesForProject, getCommitmentsForProject, subcontractors } = useProjects() as any;
   const project = projectId ? getProject(projectId) : undefined;
 
   const [waivers, setWaivers] = useState<LienWaiver[]>([]);
   const [loading, setLoading] = useState(true);
   const [addModal, setAddModal] = useState(false);
   const [exporting, setExporting] = useState<string | null>(null);
+
+  // Prefill seed for the New Waiver modal — populated when this screen
+  // is opened with `prefillFromInvoice` query params (the "Collect a
+  // lien waiver" CTA on a paid invoice). Resolves the sub from the
+  // invoice's commitmentId so the GC doesn't have to retype the name.
+  const prefillSeed = useMemo(() => {
+    if (!prefillFromInvoice) return null;
+    const invoice = (getInvoicesForProject(projectId ?? '') ?? []).find((i: any) => i.id === prefillFromInvoice);
+    if (!invoice) return null;
+    let subName = '';
+    let subEmail: string | undefined;
+    let subCompanyId: string | undefined;
+    if (invoice.commitmentId) {
+      const commit = (getCommitmentsForProject(projectId ?? '') ?? []).find((c: any) => c.id === invoice.commitmentId);
+      if (commit) {
+        subName = commit.vendorName ?? '';
+        subCompanyId = commit.companyId ?? commit.subcontractorId;
+        if (subCompanyId) {
+          const sub = subcontractors?.find((s: any) => s.id === subCompanyId);
+          if (sub) subEmail = sub.email ?? undefined;
+        }
+      }
+    }
+    return {
+      invoiceId: prefillFromInvoice,
+      commitmentId: invoice.commitmentId,
+      subName,
+      subEmail,
+      subCompanyId,
+      paidAmount: prefillAmount ? Number(prefillAmount) : (invoice.amountPaid ?? invoice.totalDue ?? 0),
+      throughDate: prefillThroughDate ?? new Date().toISOString().slice(0, 10),
+    };
+  }, [prefillFromInvoice, projectId, prefillAmount, prefillThroughDate, getInvoicesForProject, getCommitmentsForProject, subcontractors]);
+
+  // Auto-open the modal when arriving with prefill params.
+  useEffect(() => {
+    if (prefillSeed && !loading) setAddModal(true);
+  }, [prefillSeed, loading]);
 
   const branding = useMemo<CompanyBranding>(() => ({
     companyName:   settings?.branding?.companyName ?? 'MAGE ID',
@@ -74,6 +117,11 @@ export default function LienWaiversScreen() {
       paidAmount: input.paidAmount,
       notes: input.notes,
       status: 'requested',
+      // Carry through any prefill linkage so the waiver references the
+      // source invoice and commitment for downstream reporting.
+      invoiceId: prefillSeed?.invoiceId,
+      commitmentId: prefillSeed?.commitmentId,
+      subCompanyId: prefillSeed?.subCompanyId,
     });
     if (saved) {
       setWaivers(prev => [saved, ...prev]);
@@ -82,7 +130,7 @@ export default function LienWaiversScreen() {
     } else {
       Alert.alert('Save failed', 'Could not save the waiver.');
     }
-  }, [projectId]);
+  }, [projectId, prefillSeed]);
 
   const handleExport = useCallback(async (w: LienWaiver) => {
     setExporting(w.id);
@@ -225,7 +273,12 @@ export default function LienWaiversScreen() {
         ))}
       </ScrollView>
 
-      <NewWaiverModal visible={addModal} onClose={() => setAddModal(false)} onCreate={handleCreate} />
+      <NewWaiverModal
+        visible={addModal}
+        onClose={() => setAddModal(false)}
+        onCreate={handleCreate}
+        seed={prefillSeed}
+      />
     </View>
   );
 }
@@ -325,10 +378,12 @@ function WaiverCard({ waiver, exporting, onExport, onMarkSigned, onMarkReceived,
   );
 }
 
-function NewWaiverModal({ visible, onClose, onCreate }: {
+function NewWaiverModal({ visible, onClose, onCreate, seed }: {
   visible: boolean;
   onClose: () => void;
   onCreate: (input: { waiverType: LienWaiverType; subName: string; subEmail?: string; throughDate: string; paidAmount: number; notes?: string }) => void;
+  /** Optional prefill from a "Create lien waiver" CTA on a paid invoice. */
+  seed?: { subName?: string; subEmail?: string; paidAmount?: number; throughDate?: string } | null;
 }) {
   const [type, setType] = useState<LienWaiverType>('unconditional_partial');
   const [subName, setSubName] = useState('');
@@ -339,11 +394,12 @@ function NewWaiverModal({ visible, onClose, onCreate }: {
   useEffect(() => {
     if (visible) {
       setType('unconditional_partial');
-      setSubName(''); setSubEmail('');
-      setThroughDate(new Date().toISOString().slice(0, 10));
-      setAmount('');
+      setSubName(seed?.subName ?? '');
+      setSubEmail(seed?.subEmail ?? '');
+      setThroughDate(seed?.throughDate ?? new Date().toISOString().slice(0, 10));
+      setAmount(seed?.paidAmount ? String(seed.paidAmount) : '');
     }
-  }, [visible]);
+  }, [visible, seed]);
 
   const handleSubmit = () => {
     const trimmedName = subName.trim();

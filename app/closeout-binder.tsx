@@ -46,7 +46,7 @@ export default function CloseoutBinderScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
-  const { getProject, commitments, warranties, projectPhotos, rfis, submittals, settings } = useProjects() as any;
+  const { getProject, commitments, warranties, projectPhotos, rfis, submittals, settings, updateProject: ctxUpdateProject } = useProjects() as any;
   const project = projectId ? getProject(projectId) : undefined;
 
   const [maintenance, setMaintenance] = useState<MaintenanceItem[]>(DEFAULT_MAINTENANCE);
@@ -191,7 +191,29 @@ export default function CloseoutBinderScreen() {
               homeowner_name: invite?.name,
             });
             if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            Alert.alert('Delivered', 'The homeowner can see it in their portal now.');
+            // Connector: flip the project to 'closed' on first delivery.
+            // Only on first delivery (not re-deliver) and only if the
+            // project isn't already past the active phase. Asks the GC
+            // first because some projects keep working after binder
+            // delivery (e.g., warranty work, punch follow-ups).
+            const wasFirstDeliver = !sentAt;
+            if (wasFirstDeliver && project.status !== 'closed' && project.status !== 'completed') {
+              Alert.alert(
+                'Mark project as closed?',
+                'Now that the binder is delivered, do you want to mark the whole project as closed? You can still come back to it for warranty work, punch follow-ups, or invoice tracking.',
+                [
+                  { text: 'Keep open', style: 'cancel' },
+                  {
+                    text: 'Mark as closed',
+                    onPress: () => {
+                      ctxUpdateProject(project.id, { status: 'closed', closedAt: new Date().toISOString() });
+                    },
+                  },
+                ],
+              );
+            } else {
+              Alert.alert('Delivered', 'The homeowner can see it in their portal now.');
+            }
           } finally {
             setDelivering(false);
           }

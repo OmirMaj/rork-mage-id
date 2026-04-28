@@ -9,7 +9,7 @@ import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
   Trash2, X, Send, CreditCard, Check, BookUser, User, Percent, Unlock, FileSpreadsheet,
-  Link2, Copy, Share2, Zap,
+  Link2, Copy, Share2, Zap, FileText,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
@@ -1029,6 +1029,39 @@ function InvoiceInner() {
                 <Text style={styles.aiaCtaTitle}>Generate AIA G702/G703</Text>
                 <Text style={styles.aiaCtaSub}>
                   Create a lender- and architect-ready progress pay application from this invoice.
+                </Text>
+              </View>
+              <Text style={styles.aiaCtaArrow}>›</Text>
+            </TouchableOpacity>
+          )}
+
+          {/* Connector: paid invoice → lien waiver CTA. Most banks ask
+              for a waiver against every payment to a sub. We pre-fill
+              the waiver creation with the invoice id + paid amount +
+              through-date so the GC isn't re-typing what they just
+              recorded as paid. Only shows once payment is recorded. */}
+          {existingInvoice && existingInvoice.status === 'paid' && existingInvoice.projectId && (
+            <TouchableOpacity
+              style={styles.aiaCtaCard}
+              onPress={() => router.push({
+                pathname: '/lien-waivers' as any,
+                params: {
+                  projectId: existingInvoice.projectId,
+                  prefillFromInvoice: existingInvoice.id,
+                  prefillAmount: String(existingInvoice.amountPaid ?? existingInvoice.totalDue ?? 0),
+                  prefillThroughDate: (existingInvoice as any).paidDate ?? existingInvoice.issueDate ?? new Date().toISOString().slice(0, 10),
+                },
+              })}
+              activeOpacity={0.85}
+              testID="invoice-to-lien-waiver-cta"
+            >
+              <View style={styles.aiaCtaIconWrap}>
+                <FileText size={20} color={Colors.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.aiaCtaTitle}>Collect a lien waiver</Text>
+                <Text style={styles.aiaCtaSub}>
+                  Bank or homeowner will ask for it. Generate the waiver pre-filled with this invoice&apos;s amount and through-date.
                 </Text>
               </View>
               <Text style={styles.aiaCtaArrow}>›</Text>

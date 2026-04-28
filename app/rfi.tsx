@@ -35,12 +35,26 @@ export default function RFIScreen() {
 function RFIScreenInner() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { projectId, rfiId } = useLocalSearchParams<{ projectId: string; rfiId?: string }>();
-  const { getProject, getRFIsForProject, addRFI, updateRFI } = useProjects();
+  const { projectId, rfiId, prefillPhotoId } = useLocalSearchParams<{
+    projectId: string;
+    rfiId?: string;
+    prefillPhotoId?: string;
+  }>();
+  const ctx = useProjects();
+  const { getProject, getRFIsForProject, addRFI, updateRFI } = ctx;
+  const projectPhotos = (ctx as any).projectPhotos as Array<{ id: string; uri: string }> | undefined;
 
   const project = useMemo(() => getProject(projectId ?? ''), [projectId, getProject]);
   const existingRFIs = useMemo(() => getRFIsForProject(projectId ?? ''), [projectId, getRFIsForProject]);
   const existingRFI = useMemo(() => rfiId ? existingRFIs.find(r => r.id === rfiId) : null, [rfiId, existingRFIs]);
+
+  // When arriving from photo-annotator with `prefillPhotoId`, look up
+  // the photo and pre-attach its URI to the new RFI's attachments.
+  const prefillPhotoUri = useMemo(() => {
+    if (!prefillPhotoId) return null;
+    const photo = (projectPhotos ?? []).find(p => p.id === prefillPhotoId);
+    return photo?.uri ?? null;
+  }, [prefillPhotoId, projectPhotos]);
 
   const [subject, setSubject] = useState(existingRFI?.subject ?? '');
   const [question, setQuestion] = useState(existingRFI?.question ?? '');
@@ -52,6 +66,11 @@ function RFIScreenInner() {
   const [linkedDrawing, setLinkedDrawing] = useState(existingRFI?.linkedDrawing ?? '');
   const [response, setResponse] = useState(existingRFI?.response ?? '');
   const [linkedTaskId, setLinkedTaskId] = useState(existingRFI?.linkedTaskId ?? '');
+  // Local attachments — start with existing RFI attachments OR a fresh
+  // array seeded with the prefill photo URI.
+  const [attachments, setAttachments] = useState<string[]>(
+    existingRFI?.attachments ?? (prefillPhotoUri ? [prefillPhotoUri] : []),
+  );
   const [showPriorityPicker, setShowPriorityPicker] = useState(false);
   const [showStatusPicker, setShowStatusPicker] = useState(false);
   const [showTaskPicker, setShowTaskPicker] = useState(false);
@@ -98,13 +117,13 @@ function RFIScreenInner() {
         priority,
         linkedDrawing: linkedDrawing.trim() || undefined,
         linkedTaskId: linkedTaskId || undefined,
-        attachments: [],
+        attachments,
       });
     }
 
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     router.back();
-  }, [subject, question, assignedTo, submittedBy, dateRequired, priority, status, linkedDrawing, response, existingRFI, projectId, addRFI, updateRFI, router]);
+  }, [subject, question, assignedTo, submittedBy, dateRequired, priority, status, linkedDrawing, response, existingRFI, projectId, addRFI, updateRFI, router, attachments]);
 
   const priorityColor = priority === 'urgent' ? Colors.error : priority === 'normal' ? Colors.primary : Colors.textSecondary;
 

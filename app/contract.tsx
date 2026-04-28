@@ -33,6 +33,7 @@ import {
 import { generateUUID } from '@/utils/generateId';
 import { formatMoney } from '@/utils/formatters';
 import { statusPillStyle } from '@/utils/statusPill';
+import { syncAllowancesToSelections } from '@/utils/selectionsEngine';
 import SignaturePad from '@/components/SignaturePad';
 import type { ProjectContract, PaymentMilestone, ContractAllowance } from '@/types';
 
@@ -41,7 +42,7 @@ export default function ContractScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
-  const { getProject } = useProjects();
+  const { getProject, updateProject: ctxUpdateProject } = useProjects();
   const project = projectId ? getProject(projectId) : undefined;
 
   const [contract, setContract] = useState<ProjectContract | null>(null);
@@ -206,16 +207,42 @@ export default function ContractScreen() {
       }
       const refreshed = await fetchActiveContract(saved.projectId);
       if (refreshed) setContract(refreshed);
+
+      // Connector: auto-create SelectionCategory rows from contract
+      // allowances so the GC doesn't have to re-type the same data into
+      // the selections screen. Idempotent — skips categories that
+      // already exist by name. Fire-and-forget; UX continues even if
+      // this fails.
+      const allowancesPayload = (saved.allowances ?? []).filter(a => a.category && a.amount > 0);
+      let createdCount = 0;
+      if (allowancesPayload.length > 0) {
+        try {
+          createdCount = await syncAllowancesToSelections(saved.projectId, allowancesPayload);
+        } catch (err) {
+          console.warn('[contract] allowance → selection sync failed', err);
+        }
+      }
+
+      // Connector: flip project to 'in_progress' so the schedule, budget
+      // tracker and portal all reflect the project actually being live.
+      // Only flip if we're upgrading from a pre-active state — never
+      // overwrite 'completed' or 'closed'.
+      if (project && (project.status === 'draft' || project.status === 'estimated')) {
+        ctxUpdateProject(project.id, { status: 'in_progress' });
+      }
+
       setSignatureModal(false);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert(
         'Contract sent',
-        'The homeowner can now review and counter-sign in their portal. You\'ll be notified when they do.',
+        createdCount > 0
+          ? `The homeowner can now review and counter-sign in their portal. We also pre-created ${createdCount} selection categor${createdCount === 1 ? 'y' : 'ies'} from your allowances — head to Selections to add AI-curated options.`
+          : 'The homeowner can now review and counter-sign in their portal. You\'ll be notified when they do.',
       );
     } finally {
       setSigning(false);
     }
-  }, [contract]);
+  }, [contract, project, ctxUpdateProject]);
 
   if (loading || !contract || !project) {
     return (

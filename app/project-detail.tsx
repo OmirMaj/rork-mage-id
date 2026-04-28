@@ -45,6 +45,11 @@ import FilterChipRow, { type FilterChip } from '@/components/FilterChipRow';
 import { exportProjectIcs } from '@/utils/icsGenerator';
 import { formatMoney } from '@/utils/formatters';
 import { getEffectiveInvoiceStatus } from '@/utils/projectFinancials';
+import { fetchActiveContract } from '@/utils/contractEngine';
+import { fetchSelectionsForProject } from '@/utils/selectionsEngine';
+import { fetchCloseoutBinder } from '@/utils/closeoutBinderEngine';
+import { fetchLienWaiversForProject } from '@/utils/lienWaiverEngine';
+import { STATUS_TONES } from '@/utils/statusPill';
 
 type SectionKey = 'linkedEstimate' | 'materials' | 'labor' | 'summary' | 'schedule' | 'notes' | 'collaborators' | 'changeOrders' | 'invoices' | 'dailyReports' | 'punchList' | 'rfis' | 'submittals' | 'budget' | 'photos' | 'clientPortal' | 'communications' | 'activity' | 'calendar' | 'plans' | 'permits' | 'contract' | 'selections' | 'lienWaivers' | 'closeoutBinder' | 'handover';
 
@@ -88,6 +93,62 @@ export default function ProjectDetailScreen() {
     // changes (e.g. a sheet number rename) is wasted bandwidth.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, projectPlans.map((p) => p.imageUri).join('|')]);
+
+  // Load status badges for the Money-group tiles so the GC sees what's
+  // blocking handover at a glance: contract awaiting signature,
+  // selections in progress, binder ready to deliver, etc. These are
+  // async fetches against Supabase \u2014 we tolerate failure (just no
+  // badge). Refetches when the route remounts (id changes).
+  useEffect(() => {
+    if (!id) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const [contract, sels, binder, waivers] = await Promise.all([
+          fetchActiveContract(id),
+          fetchSelectionsForProject(id),
+          fetchCloseoutBinder(id),
+          fetchLienWaiversForProject(id),
+        ]);
+        if (cancelled) return;
+        const next: typeof tileBadges = {};
+        // Contract \u2014 most useful when it's hanging in 'sent' awaiting
+        // signature, or already 'signed'.
+        if (contract) {
+          if (contract.status === 'signed') next.contract = { label: 'Signed', tone: 'success' };
+          else if (contract.status === 'sent') next.contract = { label: 'Awaiting signature', tone: 'pending' };
+          else if (contract.status === 'void') next.contract = { label: 'Void', tone: 'danger' };
+          else next.contract = { label: 'Draft', tone: 'neutral' };
+        } else {
+          next.contract = { label: 'Not drafted', tone: 'neutral' };
+        }
+        // Selections \u2014 "X of Y picked" or "no allowances yet".
+        if (sels.length > 0) {
+          const chosen = sels.filter(s => (s.options ?? []).some(o => o.isChosen)).length;
+          next.selections = chosen === sels.length
+            ? { label: `All ${sels.length} picked`, tone: 'success' }
+            : { label: `${chosen} of ${sels.length} picked`, tone: 'pending' };
+        }
+        // Closeout binder
+        if (binder) {
+          if (binder.status === 'sent') next.closeoutBinder = { label: 'Delivered', tone: 'success' };
+          else if (binder.status === 'finalized') next.closeoutBinder = { label: 'Ready to deliver', tone: 'pending' };
+          else next.closeoutBinder = { label: 'Draft', tone: 'neutral' };
+        }
+        // Lien waivers
+        if (waivers.length > 0) {
+          const open = waivers.filter(w => w.status === 'requested').length;
+          next.lienWaivers = open === 0
+            ? { label: `${waivers.length} on file`, tone: 'success' }
+            : { label: `${open} pending`, tone: 'pending' };
+        }
+        setTileBadges(next);
+      } catch (err) {
+        console.warn('[project-detail] tile badge load failed', err);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [id]);
 
   const project = useMemo(() => getProject(id ?? ''), [id, getProject]);
   // `estimate` is nullable until the project loads (or if it has no estimate
@@ -133,6 +194,11 @@ export default function ProjectDetailScreen() {
   const [activeTile, setActiveTile] = useState<SectionKey | null>(null);
   // Tile group collapse state — Field & Money expanded by default, Docs & People collapsed.
   const [collapsedGroups, setCollapsedGroups] = useState<Set<TileGroupKey>>(new Set(['docs', 'people']));
+  // Async status badges for the Money-group tiles. Loaded once when the
+  // project is opened. Each badge is { label, tone } where tone maps to
+  // the status-pill colors. Drives the small text under each tile so
+  // the GC sees what's blocking handover at a glance.
+  const [tileBadges, setTileBadges] = useState<Partial<Record<SectionKey, { label: string; tone: 'pending' | 'success' | 'danger' | 'info' | 'neutral' }>>>({});
   // Photos filter — 'all' or a normalized tag. The chip row defaults to 'all'
   // and we derive the chip set from photos at render-time so new tags appear
   // automatically without code changes.
@@ -1011,7 +1077,17 @@ export default function ProjectDetailScreen() {
                 <View style={[styles.sectionTileIcon, { backgroundColor: tile.color + '15' }]}>
                   <TileIcon size={20} color={tile.color} />
                 </View>
-                <Text style={styles.sectionTileLabel} numberOfLines={1}>{tile.label}</Text>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={styles.sectionTileLabel} numberOfLines={1}>{tile.label}</Text>
+                  {tileBadges[tile.key] && (
+                    <Text
+                      style={[styles.sectionTileStatus, { color: STATUS_TONES[tileBadges[tile.key]!.tone].color }]}
+                      numberOfLines={1}
+                    >
+                      {tileBadges[tile.key]!.label}
+                    </Text>
+                  )}
+                </View>
                 {tile.count !== null && tile.count !== undefined && (
                   <View style={styles.sectionTileBadge}>
                     <Text style={styles.sectionTileBadgeText}>{tile.count}</Text>
@@ -3175,7 +3251,8 @@ const styles = StyleSheet.create({
   tileGroupBody: { gap: 8 },
   sectionTile: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 12, backgroundColor: Colors.card, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, borderWidth: 1, borderColor: Colors.cardBorder, minHeight: 56 },
   sectionTileIcon: { width: 36, height: 36, borderRadius: 10, alignItems: 'center' as const, justifyContent: 'center' as const },
-  sectionTileLabel: { flex: 1, fontSize: 15, fontWeight: '600' as const, color: Colors.text },
+  sectionTileLabel: { fontSize: 15, fontWeight: '600' as const, color: Colors.text },
+  sectionTileStatus: { fontSize: 11, fontWeight: '700' as const, marginTop: 2, letterSpacing: 0.1 },
   sectionTileBadge: { backgroundColor: Colors.fillTertiary, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2, minWidth: 24, alignItems: 'center' as const },
   sectionTileBadgeText: { fontSize: 12, fontWeight: '700' as const, color: Colors.textSecondary },
   sectionModalHeader: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'space-between' as const, paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight },

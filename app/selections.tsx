@@ -128,6 +128,27 @@ export default function SelectionsScreen() {
     );
   }, []);
 
+  // Connector: when the homeowner picks an option that exceeds the
+  // allowance, the GC needs a clean way to bill the difference. This
+  // hands off to the change-order screen with a pre-filled draft so
+  // it's a 1-tap "approve + send" instead of manual re-entry.
+  const handleDraftCOForOverage = useCallback((cat: SelectionCategory) => {
+    if (!projectId) return;
+    const chosen = (cat.options ?? []).find(o => o.isChosen);
+    if (!chosen) return;
+    const overage = Math.max(0, chosen.total - cat.budget);
+    if (overage <= 0) return;
+    router.push({
+      pathname: '/change-order' as any,
+      params: {
+        projectId,
+        prefillReason: 'allowance_overage',
+        prefillDescription: `Allowance overage on ${cat.category}: chose ${chosen.productName}${chosen.brand ? ` · ${chosen.brand}` : ''} at ${formatMoney(chosen.total)} (allowance was ${formatMoney(cat.budget)}).`,
+        prefillAmount: String(overage),
+      },
+    });
+  }, [projectId, router]);
+
   if (!project) {
     return (
       <View style={[styles.container, styles.center, { paddingTop: insets.top + 24 }]}>
@@ -201,6 +222,7 @@ export default function SelectionsScreen() {
             onCurate={() => handleCurate(cat)}
             onChoose={(opt) => handleChoose(cat.id, opt)}
             onDelete={() => handleDelete(cat)}
+            onDraftCO={() => handleDraftCOForOverage(cat)}
           />
         ))}
       </ScrollView>
@@ -232,12 +254,13 @@ function SummaryStat({ label, value, accent }: { label: string; value: string; a
   );
 }
 
-function CategoryCard({ category, curating, onCurate, onChoose, onDelete }: {
+function CategoryCard({ category, curating, onCurate, onChoose, onDelete, onDraftCO }: {
   category: SelectionCategory;
   curating: boolean;
   onCurate: () => void;
   onChoose: (opt: SelectionOption) => void;
   onDelete: () => void;
+  onDraftCO: () => void;
 }) {
   const opts = category.options ?? [];
   const chosen = opts.find(o => o.isChosen);
@@ -264,18 +287,29 @@ function CategoryCard({ category, curating, onCurate, onChoose, onDelete }: {
 
       {chosen && (
         <View style={[styles.chosenBanner, isExceeded && { backgroundColor: Colors.error + '0D', borderColor: Colors.error + '30' }]}>
-          {isExceeded
-            ? <AlertTriangle size={14} color={Colors.error} />
-            : <CheckCircle2  size={14} color={Colors.success} />}
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.chosenTitle, isExceeded && { color: Colors.error }]}>
-              {isExceeded ? 'Over allowance' : 'Chosen'}: {chosen.productName}
-            </Text>
-            <Text style={styles.chosenSub}>
-              {formatMoney(chosen.total)} · picked by {chosen.chosenByRole === 'homeowner' ? 'homeowner' : 'you'}
-              {isExceeded && ` · ${formatMoney(chosen.total - category.budget)} over`}
-            </Text>
+          <View style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-start' }}>
+            {isExceeded
+              ? <AlertTriangle size={14} color={Colors.error} />
+              : <CheckCircle2  size={14} color={Colors.success} />}
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.chosenTitle, isExceeded && { color: Colors.error }]}>
+                {isExceeded ? 'Over allowance' : 'Chosen'}: {chosen.productName}
+              </Text>
+              <Text style={styles.chosenSub}>
+                {formatMoney(chosen.total)} · picked by {chosen.chosenByRole === 'homeowner' ? 'homeowner' : 'you'}
+                {isExceeded && ` · ${formatMoney(chosen.total - category.budget)} over`}
+              </Text>
+            </View>
           </View>
+          {isExceeded && (
+            <TouchableOpacity
+              style={styles.draftCoCta}
+              onPress={onDraftCO}
+              testID={`draft-co-${category.id}`}
+            >
+              <Text style={styles.draftCoCtaText}>Draft a Change Order for the {formatMoney(chosen.total - category.budget)} overage →</Text>
+            </TouchableOpacity>
+          )}
         </View>
       )}
 
@@ -500,13 +534,20 @@ const styles = StyleSheet.create({
   catBudgetValue: { fontSize: 14, fontWeight: '800', color: Colors.text },
 
   chosenBanner: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
+    flexDirection: 'column', gap: 8,
     padding: 12, borderRadius: 10,
     backgroundColor: Colors.success + '0D',
     borderWidth: 1, borderColor: Colors.success + '30',
   },
   chosenTitle: { fontSize: 13, fontWeight: '800', color: Colors.success },
   chosenSub:   { fontSize: 11, color: Colors.text, marginTop: 2 },
+
+  draftCoCta: {
+    paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8,
+    backgroundColor: Colors.error + '12',
+    borderWidth: 1, borderColor: Colors.error + '40',
+  },
+  draftCoCtaText: { fontSize: 12, fontWeight: '800', color: Colors.error, letterSpacing: -0.1 },
 
   curateCta: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,

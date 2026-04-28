@@ -412,3 +412,51 @@ export function summarizeAllowances(categories: SelectionCategory[]): AllowanceS
   }
   return { totalBudget, totalChosen, totalOver, byCategory };
 }
+
+// ─── Connector: contract allowances → selection categories ─────────
+//
+// When a GC sends a contract with allowances, those allowances are the
+// spending caps the homeowner gets to pick within. We auto-create a
+// matching SelectionCategory for each, so the GC doesn't have to
+// re-type the same data into a separate screen. Idempotent: if a
+// category with the same (case-insensitive) name already exists for
+// the project, we skip it. Returns the count of categories actually
+// created.
+
+interface ContractAllowanceLite {
+  id: string;
+  category: string;
+  amount: number;
+  description?: string;
+}
+
+export async function syncAllowancesToSelections(
+  projectId: string,
+  allowances: ContractAllowanceLite[],
+): Promise<number> {
+  if (!isSupabaseConfigured) return 0;
+  if (!allowances || allowances.length === 0) return 0;
+  // Pull existing categories so we can dedupe by name.
+  const existing = await fetchSelectionsForProject(projectId);
+  const existingNames = new Set(
+    existing.map(c => c.category.trim().toLowerCase()).filter(Boolean),
+  );
+  let created = 0;
+  for (const a of allowances) {
+    const name = (a.category ?? '').trim();
+    if (!name) continue;
+    if (existingNames.has(name.toLowerCase())) continue;
+    if (!a.amount || a.amount <= 0) continue;
+    const saved = await saveSelectionCategory({
+      projectId,
+      category: name,
+      budget: a.amount,
+      styleBrief: a.description ?? '',
+    });
+    if (saved) {
+      created += 1;
+      existingNames.add(name.toLowerCase());
+    }
+  }
+  return created;
+}

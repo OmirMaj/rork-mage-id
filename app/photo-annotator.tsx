@@ -162,7 +162,35 @@ export default function PhotoAnnotatorScreen() {
     if (!photo) return;
     ctx.updateProjectPhoto(photo.id, { markup: markups });
     if (Platform.OS !== 'web') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-    router.back();
+    // After save, offer to attach this annotated photo to a new RFI
+    // or punch item. This is the connector that turns a "thing I saw"
+    // into a "thing I escalated." If the user just wants to save and
+    // go, the Done option preserves the old behavior.
+    Alert.alert(
+      'Saved',
+      'Your markup is saved. Want to use this photo for something?',
+      [
+        { text: 'Done', style: 'cancel', onPress: () => router.back() },
+        {
+          text: 'Create RFI',
+          onPress: () => {
+            router.replace({
+              pathname: '/rfi' as any,
+              params: { projectId: photo.projectId, prefillPhotoId: photo.id },
+            });
+          },
+        },
+        {
+          text: 'Add to Punch List',
+          onPress: () => {
+            router.replace({
+              pathname: '/punch-list' as any,
+              params: { projectId: photo.projectId, prefillPhotoUri: photo.uri, prefillPhotoId: photo.id },
+            });
+          },
+        },
+      ],
+    );
   }, [photo, markups, ctx, router]);
 
   if (!photo) {
