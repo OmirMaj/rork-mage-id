@@ -1,0 +1,521 @@
+// AI Punch from Photos — turns a walkthrough into a punch list in
+// one tap. Three steps:
+//
+//   1. Pick photos (from the project gallery or via the camera roll)
+//   2. AI analyzes (Gemini Vision via supabase/functions/analyze-photos)
+//   3. GC reviews + saves (each suggested punch item is editable +
+//      can be discarded; bulk-save commits the keepers)
+//
+// The screen is intentionally narrow scope: pick → analyze → review.
+// No editing the photo list mid-review, no batched re-analyze. The
+// GC who wants more photos drops back to step 1.
+
+import React, { useCallback, useMemo, useState } from 'react';
+import {
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
+  Image, Alert, Platform, ActivityIndicator,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import * as Haptics from 'expo-haptics';
+import * as ImagePicker from 'expo-image-picker';
+import {
+  Camera, ImagePlus, Sparkles, X, Trash2, ChevronRight, Save, AlertCircle,
+} from 'lucide-react-native';
+import { Colors } from '@/constants/colors';
+import { useProjects } from '@/contexts/ProjectContext';
+import { type PunchItem, type PunchItemPriority, type SubTrade } from '@/types';
+import { analyzePhotosForPunch, type AiPunchItem } from '@/utils/photoAnalyzer';
+import { stampPhotoLocation, type PhotoGeoStamp } from '@/utils/photoGeoStamp';
+import { sentenceCase, titleCase } from '@/utils/voiceFormParsers';
+
+// Map the loose AI-trade string to the strict SubTrade enum used in
+// the data model. Mirrors the helper in app/punch-walk.tsx.
+function aiTradeToSubTrade(aiTrade: string): SubTrade {
+  const t = (aiTrade || '').toLowerCase();
+  if (t.includes('electrical')) return 'Electrical';
+  if (t.includes('plumb')) return 'Plumbing';
+  if (t.includes('hvac') || t.includes('mechanical')) return 'HVAC';
+  if (t.includes('drywall')) return 'Drywall';
+  if (t.includes('paint')) return 'Painting';
+  if (t.includes('tile') || t.includes('floor')) return 'Flooring';
+  if (t.includes('roof')) return 'Roofing';
+  if (t.includes('concrete') || t.includes('masonry')) return 'Concrete';
+  if (t.includes('frame') || t.includes('framing')) return 'Framing';
+  if (t.includes('landscap')) return 'Landscaping';
+  return 'Other';
+}
+
+interface PickedPhoto {
+  uri: string;
+  // For pickedPhotos that came from the existing project gallery, we
+  // already have a stable id. Camera-roll picks have no id and we
+  // mint one client-side.
+  id: string;
+  fromProject?: boolean;
+}
+
+interface ReviewableItem extends AiPunchItem {
+  /** Local id for review-list keying. */
+  id: string;
+  /** Mutable copy of the AI fields so the GC can edit before save. */
+  editedDescription: string;
+  editedLocation: string;
+  editedTrade: SubTrade;
+  editedPriority: PunchItemPriority;
+  /** Source photo URI (resolved from photoIndex at analyze time). */
+  photoUri: string;
+  /** Set when saved — disables the Save button on this row. */
+  saved?: boolean;
+  /** Set when the GC discards. */
+  discarded?: boolean;
+}
+
+const PRIORITY_COLORS: Record<PunchItemPriority, string> = {
+  high: Colors.error,
+  medium: Colors.warning,
+  low: Colors.textMuted,
+};
+
+export default function AiPunchScreen() {
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const { projectId } = useLocalSearchParams<{ projectId: string }>();
+  const { getProject, getPhotosForProject, addPunchItem } = useProjects();
+
+  const project = useMemo(() => projectId ? getProject(projectId) : null, [projectId, getProject]);
+  const projectPhotos = useMemo(() => projectId ? getPhotosForProject(projectId) : [], [projectId, getPhotosForProject]);
+
+  const [pickedPhotos, setPickedPhotos] = useState<PickedPhoto[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [reviewItems, setReviewItems] = useState<ReviewableItem[]>([]);
+
+  // ── Step 1: pick photos ──────────────────────────────────────
+  const togglePhotoFromGallery = useCallback((id: string, uri: string) => {
+    setPickedPhotos(prev => {
+      const isPicked = prev.find(p => p.id === id);
+      if (isPicked) return prev.filter(p => p.id !== id);
+      if (prev.length >= 12) {
+        Alert.alert('Max 12 photos', 'Pick the most informative shots — Gemini Vision tops out at 12 per call.');
+        return prev;
+      }
+      return [...prev, { id, uri, fromProject: true }];
+    });
+  }, []);
+
+  const handlePickFromCameraRoll = useCallback(async () => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert('Photo access needed', 'Grant photo access in Settings to pick photos.');
+      return;
+    }
+    const remaining = 12 - pickedPhotos.length;
+    if (remaining <= 0) {
+      Alert.alert('Max 12 photos', 'Remove a photo before adding more.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsMultipleSelection: true,
+      selectionLimit: remaining,
+      quality: 0.7,
+    });
+    if (result.canceled) return;
+    const additions: PickedPhoto[] = result.assets.map((a, i) => ({
+      id: `roll-${Date.now()}-${i}`,
+      uri: a.uri,
+    }));
+    setPickedPhotos(prev => [...prev, ...additions]);
+  }, [pickedPhotos.length]);
+
+  const handleTakePhoto = useCallback(async () => {
+    const perm = await ImagePicker.requestCameraPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert('Camera access needed', 'Grant camera permission in Settings.');
+      return;
+    }
+    if (pickedPhotos.length >= 12) {
+      Alert.alert('Max 12 photos', 'Remove a photo before taking more.');
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({ quality: 0.7 });
+    if (result.canceled || !result.assets[0]) return;
+    setPickedPhotos(prev => [...prev, { id: `cam-${Date.now()}`, uri: result.assets[0].uri }]);
+  }, [pickedPhotos.length]);
+
+  // ── Step 2: analyze ──────────────────────────────────────────
+  const handleAnalyze = useCallback(async () => {
+    if (pickedPhotos.length === 0) {
+      Alert.alert('Pick at least one photo first');
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const { items } = await analyzePhotosForPunch({
+        photoUrls: pickedPhotos.map(p => p.uri),
+        projectName: project?.name,
+        projectType: project?.type,
+      });
+      const reviewable: ReviewableItem[] = items.map(item => {
+        const sourcePhoto = pickedPhotos[Math.min(item.photoIndex, pickedPhotos.length - 1)];
+        return {
+          ...item,
+          id: `rev-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          editedDescription: sentenceCase(item.description),
+          editedLocation: titleCase(item.location || ''),
+          editedTrade: aiTradeToSubTrade(item.trade),
+          editedPriority: item.priority,
+          photoUri: sourcePhoto?.uri ?? '',
+        };
+      });
+      if (reviewable.length === 0) {
+        setError('AI didn’t find any punch items in those photos. Try shots closer to the work, or with better lighting.');
+      }
+      setReviewItems(reviewable);
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (err) {
+      const msg = (err as Error)?.message || String(err);
+      setError(msg);
+    } finally {
+      setBusy(false);
+    }
+  }, [pickedPhotos, project]);
+
+  // ── Step 3: review + save ────────────────────────────────────
+  const updateReviewItem = useCallback((id: string, updates: Partial<ReviewableItem>) => {
+    setReviewItems(prev => prev.map(r => r.id === id ? { ...r, ...updates } : r));
+  }, []);
+
+  const handleSaveOne = useCallback(async (item: ReviewableItem) => {
+    if (!project || item.saved) return;
+    if (!item.editedDescription.trim()) {
+      Alert.alert('Description required');
+      return;
+    }
+    // Capture geo stamp at save time. 3s timeout matches punch-walk.
+    const stamp: PhotoGeoStamp | null = await stampPhotoLocation();
+    const now = new Date().toISOString();
+    // PunchItem doesn't have a `trade` column — trade is implicit via
+    // assignedSubId. We surface the AI-inferred trade in the location
+    // string ("Master Bath — Electrical") so the GC can pick the right
+    // sub on the punch list screen. Geo stamp fields land flat on the
+    // PunchItem (latitude / longitude / locationLabel).
+    const locationWithTrade = item.editedLocation.trim()
+      ? `${item.editedLocation.trim()} — ${item.editedTrade}`
+      : item.editedTrade;
+    const punch: PunchItem = {
+      id: `pi-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      projectId: project.id,
+      description: item.editedDescription.trim(),
+      location: locationWithTrade,
+      assignedSub: '',
+      dueDate: '',
+      priority: item.editedPriority,
+      status: 'open',
+      photoUri: item.photoUri || undefined,
+      photoLatitude: stamp?.latitude,
+      photoLongitude: stamp?.longitude,
+      photoLocationAccuracyMeters: stamp?.accuracyMeters,
+      photoLocationLabel: stamp?.label,
+      createdAt: now,
+      updatedAt: now,
+    };
+    addPunchItem(punch);
+    updateReviewItem(item.id, { saved: true });
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  }, [project, addPunchItem, updateReviewItem]);
+
+  const handleSaveAll = useCallback(async () => {
+    const pending = reviewItems.filter(r => !r.saved && !r.discarded);
+    for (const item of pending) {
+      // Sequential save so geo-stamp races resolve cleanly. Fast enough
+      // (no network on the punch insert itself).
+      // eslint-disable-next-line no-await-in-loop
+      await handleSaveOne(item);
+    }
+    Alert.alert(
+      `Saved ${pending.length} punch item${pending.length === 1 ? '' : 's'}`,
+      'They’re now in the punch list.',
+      [{ text: 'OK', onPress: () => router.replace({ pathname: '/punch-list' as never, params: { projectId: project?.id } as never }) }],
+    );
+  }, [reviewItems, handleSaveOne, router, project]);
+
+  const reviewMode = reviewItems.length > 0 || error !== null;
+  const savedCount = reviewItems.filter(r => r.saved).length;
+  const pendingCount = reviewItems.filter(r => !r.saved && !r.discarded).length;
+
+  if (!project) {
+    return (
+      <>
+        <Stack.Screen options={{ title: 'AI Punch' }} />
+        <View style={styles.empty}><Text style={styles.emptyText}>No project selected.</Text></View>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <Stack.Screen options={{ title: 'AI Punch from Photos', headerLargeTitle: false }} />
+      <View style={[styles.root, { paddingTop: insets.top + 8 }]}>
+        <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 130 }}>
+          {/* Hero / project context */}
+          <View style={styles.hero}>
+            <Sparkles size={20} color={Colors.primary} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.heroTitle}>AI Punch from Photos</Text>
+              <Text style={styles.heroSub}>
+                {reviewMode
+                  ? `Review what AI found. Edit, save, or discard each item.`
+                  : `Pick up to 12 photos from this project. AI will turn them into a punch list — review, edit, save.`}
+              </Text>
+            </View>
+          </View>
+
+          {!reviewMode && (
+            <>
+              {/* Photo source buttons */}
+              <View style={styles.section}>
+                <View style={styles.sourceRow}>
+                  <TouchableOpacity style={styles.sourceBtn} onPress={handleTakePhoto} activeOpacity={0.85}>
+                    <Camera size={16} color={Colors.primary} />
+                    <Text style={styles.sourceBtnText}>Camera</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.sourceBtn} onPress={handlePickFromCameraRoll} activeOpacity={0.85}>
+                    <ImagePlus size={16} color={Colors.primary} />
+                    <Text style={styles.sourceBtnText}>Photo library</Text>
+                  </TouchableOpacity>
+                </View>
+                <Text style={styles.sectionSub}>{pickedPhotos.length} of 12 picked</Text>
+              </View>
+
+              {/* Picked photos preview */}
+              {pickedPhotos.length > 0 && (
+                <View style={styles.section}>
+                  <Text style={styles.sectionTitle}>Picked photos</Text>
+                  <View style={styles.thumbGrid}>
+                    {pickedPhotos.map(p => (
+                      <View key={p.id} style={styles.thumbWrap}>
+                        <Image source={{ uri: p.uri }} style={styles.thumb} />
+                        <TouchableOpacity
+                          style={styles.thumbRemove}
+                          onPress={() => setPickedPhotos(prev => prev.filter(x => x.id !== p.id))}
+                          hitSlop={8}
+                        >
+                          <X size={12} color="#FFF" />
+                        </TouchableOpacity>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              )}
+
+              {/* Project gallery selector */}
+              {projectPhotos.length > 0 && (
+                <View style={styles.section}>
+                  <Text style={styles.sectionTitle}>Or pick from project gallery</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.galleryRow}>
+                    {projectPhotos.slice(0, 30).map(ph => {
+                      const picked = pickedPhotos.find(p => p.id === ph.id);
+                      return (
+                        <TouchableOpacity
+                          key={ph.id}
+                          style={[styles.galleryThumb, picked && styles.galleryThumbPicked]}
+                          onPress={() => togglePhotoFromGallery(ph.id, ph.uri)}
+                          activeOpacity={0.8}
+                        >
+                          <Image source={{ uri: ph.uri }} style={styles.galleryImg} />
+                          {picked && (
+                            <View style={styles.galleryCheck}>
+                              <Text style={styles.galleryCheckMark}>✓</Text>
+                            </View>
+                          )}
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+                </View>
+              )}
+            </>
+          )}
+
+          {/* Error banner */}
+          {!!error && (
+            <View style={styles.section}>
+              <View style={styles.errorBanner}>
+                <AlertCircle size={14} color={Colors.error} />
+                <Text style={styles.errorText}>{error}</Text>
+              </View>
+            </View>
+          )}
+
+          {/* Review items */}
+          {reviewItems.length > 0 && (
+            <View style={styles.section}>
+              <View style={styles.reviewHead}>
+                <Text style={styles.sectionTitle}>{reviewItems.length} item{reviewItems.length === 1 ? '' : 's'} found</Text>
+                <Text style={styles.sectionSub}>{savedCount} saved · {pendingCount} pending</Text>
+              </View>
+              {reviewItems.map(item => {
+                if (item.discarded) return null;
+                return (
+                  <View key={item.id} style={[styles.reviewCard, item.saved && styles.reviewCardSaved]}>
+                    {!!item.photoUri && (
+                      <Image source={{ uri: item.photoUri }} style={styles.reviewPhoto} />
+                    )}
+                    <View style={styles.reviewBody}>
+                      <View style={styles.reviewMetaRow}>
+                        <View style={[styles.confidenceDot, { backgroundColor: item.confidence >= 80 ? Colors.success : Colors.warning }]} />
+                        <Text style={styles.reviewMeta}>AI confidence {item.confidence}%</Text>
+                      </View>
+                      <TextInput
+                        style={styles.reviewInput}
+                        value={item.editedDescription}
+                        onChangeText={t => updateReviewItem(item.id, { editedDescription: t })}
+                        placeholder="Description"
+                        placeholderTextColor={Colors.textMuted}
+                        multiline
+                        editable={!item.saved}
+                      />
+                      <View style={styles.reviewRow}>
+                        <TextInput
+                          style={[styles.reviewInputSmall, { flex: 1 }]}
+                          value={item.editedLocation}
+                          onChangeText={t => updateReviewItem(item.id, { editedLocation: t })}
+                          placeholder="Location"
+                          placeholderTextColor={Colors.textMuted}
+                          editable={!item.saved}
+                        />
+                      </View>
+                      <View style={styles.reviewRow}>
+                        <View style={[styles.priorityPill, { backgroundColor: PRIORITY_COLORS[item.editedPriority] + '22' }]}>
+                          <Text style={[styles.priorityText, { color: PRIORITY_COLORS[item.editedPriority] }]}>{item.editedPriority.toUpperCase()}</Text>
+                        </View>
+                        <Text style={styles.tradeText}>{item.editedTrade}</Text>
+                      </View>
+                      <View style={styles.reviewActions}>
+                        {!item.saved ? (
+                          <>
+                            <TouchableOpacity style={styles.discardBtn} onPress={() => updateReviewItem(item.id, { discarded: true })}>
+                              <Trash2 size={14} color={Colors.error} />
+                              <Text style={styles.discardBtnText}>Discard</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={styles.saveOneBtn} onPress={() => handleSaveOne(item)} activeOpacity={0.85}>
+                              <Save size={14} color="#FFF" />
+                              <Text style={styles.saveOneBtnText}>Save</Text>
+                            </TouchableOpacity>
+                          </>
+                        ) : (
+                          <Text style={styles.savedFlag}>✓ Saved to punch list</Text>
+                        )}
+                      </View>
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          )}
+        </ScrollView>
+
+        {/* Sticky CTA */}
+        <View style={[styles.fab, { bottom: insets.bottom + 18 }]}>
+          {!reviewMode ? (
+            <TouchableOpacity
+              style={[styles.fabPrimary, (busy || pickedPhotos.length === 0) && styles.fabPrimaryDisabled]}
+              onPress={handleAnalyze}
+              disabled={busy || pickedPhotos.length === 0}
+              activeOpacity={0.85}
+            >
+              {busy ? (
+                <>
+                  <ActivityIndicator size="small" color="#FFF" />
+                  <Text style={styles.fabPrimaryText}>AI is reading the photos…</Text>
+                </>
+              ) : (
+                <>
+                  <Sparkles size={16} color="#FFF" />
+                  <Text style={styles.fabPrimaryText}>Run AI · {pickedPhotos.length} photo{pickedPhotos.length === 1 ? '' : 's'}</Text>
+                  <ChevronRight size={16} color="#FFF" />
+                </>
+              )}
+            </TouchableOpacity>
+          ) : pendingCount > 0 ? (
+            <TouchableOpacity style={styles.fabPrimary} onPress={handleSaveAll} activeOpacity={0.85}>
+              <Save size={16} color="#FFF" />
+              <Text style={styles.fabPrimaryText}>Save all {pendingCount} item{pendingCount === 1 ? '' : 's'}</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={styles.fabPrimary}
+              onPress={() => router.replace({ pathname: '/punch-list' as never, params: { projectId: project.id } as never })}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.fabPrimaryText}>Open punch list</Text>
+              <ChevronRight size={16} color="#FFF" />
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+    </>
+  );
+}
+
+const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: Colors.background },
+  empty: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  emptyText: { color: Colors.textMuted },
+
+  hero: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, padding: 16, marginHorizontal: 16, marginTop: 8, backgroundColor: Colors.primary + '0F', borderRadius: 14, borderWidth: 1, borderColor: Colors.primary + '30' },
+  heroTitle: { fontSize: 16, fontWeight: '700' as const, color: Colors.text },
+  heroSub: { fontSize: 13, color: Colors.textMuted, marginTop: 4, lineHeight: 18 },
+
+  section: { padding: 16, paddingBottom: 8 },
+  sectionTitle: { fontSize: 15, fontWeight: '700' as const, color: Colors.text, marginBottom: 8 },
+  sectionSub: { fontSize: 12, color: Colors.textMuted, marginTop: 4 },
+
+  sourceRow: { flexDirection: 'row', gap: 10 },
+  sourceBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, backgroundColor: Colors.primary + '12', borderRadius: 12, borderWidth: 1, borderColor: Colors.primary + '30' },
+  sourceBtnText: { fontSize: 14, fontWeight: '600' as const, color: Colors.primary },
+
+  thumbGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  thumbWrap: { width: '23%', aspectRatio: 1, borderRadius: 10, overflow: 'hidden', position: 'relative' },
+  thumb: { width: '100%', height: '100%' },
+  thumbRemove: { position: 'absolute', top: 4, right: 4, width: 22, height: 22, borderRadius: 11, backgroundColor: 'rgba(0,0,0,0.65)', alignItems: 'center', justifyContent: 'center' },
+
+  galleryRow: { gap: 6, paddingVertical: 4 },
+  galleryThumb: { width: 84, height: 84, borderRadius: 10, overflow: 'hidden', borderWidth: 2, borderColor: 'transparent' },
+  galleryThumbPicked: { borderColor: Colors.primary },
+  galleryImg: { width: '100%', height: '100%' },
+  galleryCheck: { position: 'absolute', top: 4, right: 4, width: 22, height: 22, borderRadius: 11, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
+  galleryCheckMark: { color: '#FFF', fontWeight: '800' as const, fontSize: 12 },
+
+  errorBanner: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, padding: 12, backgroundColor: Colors.error + '12', borderRadius: 12, borderWidth: 1, borderColor: Colors.error + '40' },
+  errorText: { flex: 1, fontSize: 13, color: Colors.text, lineHeight: 18 },
+
+  reviewHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
+  reviewCard: { flexDirection: 'row', gap: 12, backgroundColor: Colors.surface, borderRadius: 14, padding: 12, borderWidth: 1, borderColor: Colors.cardBorder, marginBottom: 10 },
+  reviewCardSaved: { backgroundColor: Colors.success + '0A', borderColor: Colors.success + '40' },
+  reviewPhoto: { width: 80, height: 80, borderRadius: 10 },
+  reviewBody: { flex: 1, gap: 6 },
+  reviewMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  confidenceDot: { width: 8, height: 8, borderRadius: 4 },
+  reviewMeta: { fontSize: 11, color: Colors.textMuted, fontWeight: '600' as const, textTransform: 'uppercase', letterSpacing: 0.5 },
+  reviewInput: { backgroundColor: Colors.background, borderRadius: 8, padding: 8, fontSize: 14, color: Colors.text, minHeight: 40, borderWidth: 1, borderColor: Colors.cardBorder },
+  reviewInputSmall: { backgroundColor: Colors.background, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 6, fontSize: 13, color: Colors.text, borderWidth: 1, borderColor: Colors.cardBorder },
+  reviewRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  priorityPill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  priorityText: { fontSize: 10, fontWeight: '800' as const, letterSpacing: 0.5 },
+  tradeText: { fontSize: 12, color: Colors.textMuted, fontWeight: '600' as const },
+  reviewActions: { flexDirection: 'row', gap: 6, marginTop: 4 },
+  discardBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
+  discardBtnText: { fontSize: 12, color: Colors.error, fontWeight: '600' as const },
+  saveOneBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: 8, backgroundColor: Colors.primary, borderRadius: 8 },
+  saveOneBtnText: { fontSize: 12, fontWeight: '700' as const, color: '#FFF' },
+  savedFlag: { flex: 1, fontSize: 12, color: Colors.success, fontWeight: '600' as const, textAlign: 'right' },
+
+  fab: { position: 'absolute', left: 16, right: 16 },
+  fabPrimary: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: Colors.primary, paddingVertical: 14, borderRadius: 14, shadowColor: Colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 5 },
+  fabPrimaryDisabled: { opacity: 0.5 },
+  fabPrimaryText: { color: '#FFF', fontSize: 14, fontWeight: '700' as const },
+});

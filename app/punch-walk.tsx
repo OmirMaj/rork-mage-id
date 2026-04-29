@@ -30,7 +30,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
 import {
   ChevronLeft, Camera, Mic, Check, X, Undo2, MapPin,
-  AlertTriangle, ChevronRight, Plus, Flag,
+  AlertTriangle, ChevronRight, Plus, Flag, Sparkles,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
@@ -113,6 +113,7 @@ function WalkInner({ projectName, projectId, subcontractors, onAdd, onDelete, on
   onBack: () => void;
 }) {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   // Look up the project for AI-context (description -> location/trade/priority).
   // We only need it for the voice parser; the rest of WalkInner uses projectName.
   const { getProject } = useProjects();
@@ -410,6 +411,23 @@ function WalkInner({ projectName, projectId, subcontractors, onAdd, onDelete, on
             </TouchableOpacity>
           </View>
 
+          {/* AI Punch from Photos — turns a walkthrough into a punch
+              list in one tap. Pick photos → AI returns items → review
+              + bulk save. Sits below the manual draft so the GC sees
+              it as an alternate path, not a replacement. */}
+          <TouchableOpacity
+            style={styles.aiPunchBtn}
+            onPress={() => router.push({ pathname: '/ai-punch' as never, params: { projectId } as never })}
+            activeOpacity={0.85}
+          >
+            <Sparkles size={16} color={Colors.primary} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.aiPunchBtnTitle}>AI Punch from Photos</Text>
+              <Text style={styles.aiPunchBtnSub}>Take a few photos, AI builds the punch list</Text>
+            </View>
+            <ChevronRight size={16} color={Colors.primary} />
+          </TouchableOpacity>
+
           <TouchableOpacity
             style={[styles.saveBtn, !draft.description.trim() && styles.saveBtnDisabled]}
             onPress={handleSave}
@@ -618,6 +636,20 @@ const styles = StyleSheet.create({
     borderRadius: 12, backgroundColor: Colors.fillSecondary,
   },
   cameraBtnText: { fontSize: 13, fontWeight: '700', color: Colors.text },
+  aiPunchBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: Colors.primary + '0F',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: Colors.primary + '40',
+    marginTop: 10,
+  },
+  aiPunchBtnTitle: { fontSize: 14, fontWeight: '700' as const, color: Colors.primary },
+  aiPunchBtnSub: { fontSize: 12, color: Colors.textMuted, marginTop: 2 },
 
   saveBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
