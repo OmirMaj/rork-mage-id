@@ -188,6 +188,37 @@ export default function BuyoutPackageScreen() {
   );
   const winningBidId = levelingResult?.recommendedWinnerBidId;
 
+  // ── Outlier detection (industry standard: >15% from median = review).
+  // Per Buildr / Archdesk research: a bid significantly below the median
+  // is almost always missing scope; significantly above usually means the
+  // sub priced in protection / unfamiliarity. Either way, the GC needs to
+  // pause before awarding. We compute against the leveled total so the
+  // AI's adjustments are already factored in.
+  const leveledTotals = sortedBids.map(b => b.amount + (b.normalizedAdjustment ?? 0));
+  const median = leveledTotals.length === 0 ? 0
+    : leveledTotals.length % 2 === 1
+      ? leveledTotals[Math.floor(leveledTotals.length / 2)]
+      : (leveledTotals[leveledTotals.length / 2 - 1] + leveledTotals[leveledTotals.length / 2]) / 2;
+  const isOutlier = (bid: BidPackageBid): { kind: 'low' | 'high'; pct: number } | null => {
+    if (median === 0 || sortedBids.length < 2) return null;
+    const total = bid.amount + (bid.normalizedAdjustment ?? 0);
+    const deltaPct = ((total - median) / median) * 100;
+    if (deltaPct < -15) return { kind: 'low', pct: Math.abs(deltaPct) };
+    if (deltaPct > 15) return { kind: 'high', pct: deltaPct };
+    return null;
+  };
+
+  // ── Coverage warning: <3 bids is industry "review" threshold.
+  const lowCoverage = pkg.status !== 'awarded' && pkg.status !== 'cancelled' && bids.length > 0 && bids.length < 3;
+
+  // ── Days-since-opened (the stale-RFQ signal).
+  const daysSinceOpened = (() => {
+    if (pkg.status === 'awarded' || pkg.status === 'cancelled') return null;
+    const ms = Date.now() - new Date(pkg.createdAt).getTime();
+    return Math.max(0, Math.floor(ms / 86400000));
+  })();
+  const stale = daysSinceOpened != null && daysSinceOpened >= 14 && pkg.status !== 'awarded';
+
   return (
     <>
       <Stack.Screen options={{ title: pkg.name, headerLargeTitle: false }} />
@@ -223,6 +254,30 @@ export default function BuyoutPackageScreen() {
               )}
             </View>
           </View>
+
+          {/* Industry-standard warning band (coverage + stale-RFQ) */}
+          {(lowCoverage || stale) && (
+            <View style={styles.section}>
+              {lowCoverage && (
+                <View style={styles.warningCard}>
+                  <AlertTriangle size={14} color={Colors.warning} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.warningTitle}>Coverage risk · {bids.length} bid{bids.length === 1 ? '' : 's'} in</Text>
+                    <Text style={styles.warningBody}>Industry best practice is 3+ qualified bids per package. Send the RFQ to more subs before awarding.</Text>
+                  </View>
+                </View>
+              )}
+              {stale && (
+                <View style={styles.warningCard}>
+                  <AlertTriangle size={14} color={Colors.warning} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.warningTitle}>Stale package · {daysSinceOpened} days open</Text>
+                    <Text style={styles.warningBody}>Material pricing windows are typically 30 days. Award soon or re-bid to avoid expired numbers.</Text>
+                  </View>
+                </View>
+              )}
+            </View>
+          )}
 
           {/* Run-leveling CTA when 2+ bids and not awarded */}
           {pkg.status !== 'awarded' && bids.length >= 2 && (
@@ -282,8 +337,9 @@ export default function BuyoutPackageScreen() {
                 const vsBudget = pkg.estimateBudget - total;
                 const isWinner = winningBidId === bid.id;
                 const isLowest = i === 0 && sortedBids.length > 1;
+                const outlier = isOutlier(bid);
                 return (
-                  <View key={bid.id} style={[styles.bidCard, isWinner && styles.bidCardWinner, bid.status === 'awarded' && styles.bidCardAwarded]}>
+                  <View key={bid.id} style={[styles.bidCard, isWinner && styles.bidCardWinner, bid.status === 'awarded' && styles.bidCardAwarded, outlier && styles.bidCardOutlier]}>
                     <View style={styles.bidHead}>
                       <View style={{ flex: 1 }}>
                         <View style={styles.bidNameRow}>
@@ -305,7 +361,22 @@ export default function BuyoutPackageScreen() {
                               <Text style={styles.awardedBadgeText}>AWARDED</Text>
                             </View>
                           )}
+                          {outlier && (
+                            <View style={styles.outlierBadge}>
+                              <AlertTriangle size={10} color="#FFF" />
+                              <Text style={styles.outlierBadgeText}>
+                                {outlier.kind === 'low' ? `${outlier.pct.toFixed(0)}% LOW` : `${outlier.pct.toFixed(0)}% HIGH`}
+                              </Text>
+                            </View>
+                          )}
                         </View>
+                        {outlier && (
+                          <Text style={styles.outlierHint}>
+                            {outlier.kind === 'low'
+                              ? '⚠️ Significantly below the median — review for missing scope before awarding.'
+                              : '⚠️ Significantly above the median — sub may have priced in protection or unfamiliarity.'}
+                          </Text>
+                        )}
                         {!!bid.terms && <Text style={styles.bidTerms} numberOfLines={1}>{bid.terms}</Text>}
                       </View>
                       <TouchableOpacity onPress={() => deleteBidPackageBid(bid.id)} hitSlop={10} style={styles.bidDelete}>
@@ -514,6 +585,13 @@ const styles = StyleSheet.create({
   bidCard: { backgroundColor: Colors.surface, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: Colors.cardBorder, marginBottom: 10, gap: 10 },
   bidCardWinner: { borderColor: Colors.success, borderWidth: 2, backgroundColor: Colors.success + '08' },
   bidCardAwarded: { borderColor: Colors.success, borderWidth: 2 },
+  bidCardOutlier: { borderColor: Colors.warning + '80', borderWidth: 1.5 },
+  outlierBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: Colors.warning, paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6 },
+  outlierBadgeText: { fontSize: 9, fontWeight: '800' as const, color: '#FFF', letterSpacing: 0.5 },
+  outlierHint: { fontSize: 11, color: Colors.warning, marginTop: 4, lineHeight: 15, fontWeight: '600' as const },
+  warningCard: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, backgroundColor: Colors.warning + '12', borderLeftWidth: 4, borderLeftColor: Colors.warning, padding: 12, borderRadius: 10, marginBottom: 8 },
+  warningTitle: { fontSize: 13, fontWeight: '700' as const, color: Colors.text },
+  warningBody: { fontSize: 12, color: Colors.textMuted, marginTop: 2, lineHeight: 17 },
   bidHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
   bidNameRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
   bidVendor: { fontSize: 16, fontWeight: '700' as const, color: Colors.text },
