@@ -1170,7 +1170,13 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
 
   const getCommEventsForProject = useCallback((projectId: string) => commEvents.filter(e => e.projectId === projectId).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()), [commEvents]);
 
-  const addRFI = useCallback((rfi: Omit<RFI, 'id' | 'createdAt' | 'updatedAt' | 'number'>) => {
+  // Returns the created RFI so callers (e.g. UniversalMicButton) can
+  // navigate to /rfi?rfiId=<new id> immediately, without racing on a stale
+  // closure of getRFIsForProject. Without this, the post-create navigation
+  // resolves to undefined and the RFI screen opens in "new" mode with
+  // empty fields — visible to the user as a "blank RFI" even though the
+  // actual saved row was filled correctly.
+  const addRFI = useCallback((rfi: Omit<RFI, 'id' | 'createdAt' | 'updatedAt' | 'number'>): RFI => {
     const projectRfis = rfis.filter(r => r.projectId === rfi.projectId);
     const nextNumber = projectRfis.length > 0 ? Math.max(...projectRfis.map(r => r.number)) + 1 : 1;
     const now = new Date().toISOString();
@@ -1188,6 +1194,7 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
         created_at: now, updated_at: now,
       });
     }
+    return newRfi;
   }, [rfis, saveRfisMutation, canSync, userId]);
 
   const updateRFI = useCallback((id: string, updates: Partial<RFI>) => {

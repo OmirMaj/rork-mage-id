@@ -115,7 +115,12 @@ export default function UniversalMicButton({ projectId, variant = 'fab' }: Props
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     try {
       if (parsed.kind === 'rfi') {
-        ctx.addRFI({
+        // addRFI returns the new RFI synchronously — the previous flow
+        // used setTimeout + getRFIsForProject(...)[0] which read from a
+        // stale closure and returned undefined, so the user landed on
+        // a blank RFI screen even though the saved row had subject /
+        // question filled.
+        const newRfi = ctx.addRFI({
           projectId: project.id,
           subject: parsed.subject || 'Voice-drafted RFI',
           question: parsed.question || parsed.subject,
@@ -127,15 +132,11 @@ export default function UniversalMicButton({ projectId, variant = 'fab' }: Props
           submittedBy: ctx.settings?.branding?.companyName ?? 'Contractor',
           attachments: [],
         } as unknown as Omit<RFI, 'id' | 'number' | 'createdAt' | 'updatedAt'>);
-        // Find the just-created RFI to navigate to.
-        setTimeout(() => {
-          const justCreated = ctx.getRFIsForProject(project.id)[0];
-          handleClose();
-          router.push({
-            pathname: '/rfi' as never,
-            params: { projectId: project.id, rfiId: justCreated?.id } as never,
-          });
-        }, 250);
+        handleClose();
+        router.push({
+          pathname: '/rfi' as never,
+          params: { projectId: project.id, rfiId: newRfi.id } as never,
+        });
       } else if (parsed.kind === 'co') {
         const lineItems = (parsed.lineItems && parsed.lineItems.length > 0)
           ? parsed.lineItems.map(li => ({
