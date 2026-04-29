@@ -338,6 +338,14 @@ function WalkInner({ projectName, projectId, subcontractors, onAdd, onDelete, on
               <VoiceRecorder
                 onTranscriptReady={handleTranscript}
                 isLoading={isTranscribing}
+                title="Capture a punch item"
+                contextLine={projectName ? `for ${projectName}` : undefined}
+                suggestions={[
+                  'Master bath, light fixture loose',
+                  'Hallway 2, paint touch-up near the door frame',
+                  'Kitchen, GFCI outlet not working',
+                  'Front door, weather strip torn — replace before final walk',
+                ]}
               />
             </View>
             <TouchableOpacity style={styles.cameraBtn} onPress={handleCamera}>

@@ -1,131 +1,58 @@
-import React, { useState, useRef, useCallback } from 'react';
+// VoiceRecorder — thin entry button that opens the VoiceCaptureModal.
+//
+// Historically this was a single inline button that recorded in place.
+// That had two problems:
+//   1. State could get wedged between taps (recording started but the
+//      button looked idle, or "Processing…" stuck on after a failed
+//      transcription) — leaving the user with an unresponsive control.
+//   2. No room to show what to actually say. Users opened the daily
+//      report screen, tapped the mic, and stared at it not knowing
+//      whether to speak in full sentences or keywords.
+//
+// The button now just opens VoiceCaptureModal, which handles the whole
+// recording lifecycle in isolation, shows project-specific suggestions,
+// and unmounts on close so the next session starts clean.
+
+import React, { useState, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Platform,
-  Animated, Alert,
+  View, Text, StyleSheet, TouchableOpacity, Platform,
 } from 'react-native';
 import { Mic, MicOff, Lock } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import VoiceCaptureModal from './VoiceCaptureModal';
 
 interface VoiceRecorderProps {
   onTranscriptReady: (transcript: string) => void;
-  isLoading: boolean;
+  /**
+   * Visual loading state while the parent is doing something with the
+   * transcript (e.g. parsing into structured DFR fields). Doesn't gate
+   * the modal — the modal owns its own recording/transcribing state.
+   */
+  isLoading?: boolean;
   isLocked?: boolean;
   onLockedPress?: () => void;
+  /** Title for the modal sheet. Defaults to "Voice dictation". */
+  title?: string;
+  /** Context line under the title, e.g. "for Harbor View Renovation — Daily Report". */
+  contextLine?: string;
+  /** Project-specific example phrases the user can read aloud. */
+  suggestions?: string[];
 }
 
-export default function VoiceRecorder({ onTranscriptReady, isLoading, isLocked, onLockedPress }: VoiceRecorderProps) {
-  const [isRecording, setIsRecording] = useState(false);
-  const [recordingRef, setRecordingRef] = useState<any>(null);
-  const pulseAnim = useRef(new Animated.Value(1)).current;
-  const pulseLoop = useRef<Animated.CompositeAnimation | null>(null);
+export default function VoiceRecorder({
+  onTranscriptReady, isLoading, isLocked, onLockedPress,
+  title, contextLine, suggestions,
+}: VoiceRecorderProps) {
+  const [modalOpen, setModalOpen] = useState(false);
 
-  const startPulse = useCallback(() => {
-    pulseLoop.current = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, { toValue: 1.3, duration: 600, useNativeDriver: true }),
-        Animated.timing(pulseAnim, { toValue: 1, duration: 600, useNativeDriver: true }),
-      ])
-    );
-    pulseLoop.current.start();
-  }, [pulseAnim]);
-
-  const stopPulse = useCallback(() => {
-    pulseLoop.current?.stop();
-    pulseAnim.setValue(1);
-  }, [pulseAnim]);
-
-  const handlePress = useCallback(async () => {
+  const handlePress = useCallback(() => {
     if (isLocked) {
       onLockedPress?.();
       return;
     }
-
-    if (Platform.OS === 'web') {
-      return;
-    }
-
-    if (isRecording && recordingRef) {
-      try {
-        console.log('[VoiceDFR] Stopping recording');
-        stopPulse();
-        setIsRecording(false);
-        await recordingRef.stopAndUnloadAsync();
-        const { Audio } = require('expo-av');
-        await Audio.setAudioModeAsync({ allowsRecordingIOS: false });
-        const uri = recordingRef.getURI();
-        setRecordingRef(null);
-
-        if (uri) {
-          console.log('[VoiceDFR] Sending audio for transcription');
-          const uriParts = uri.split('.');
-          const fileType = uriParts[uriParts.length - 1];
-          const formData = new FormData();
-          const audioFile = { uri, name: `recording.${fileType}`, type: `audio/${fileType}` };
-          formData.append('audio', audioFile as any);
-
-          const response = await fetch('https://toolkit.rork.com/stt/transcribe/', {
-            method: 'POST',
-            body: formData,
-          });
-          const data = await response.json();
-          if (data.text) {
-            console.log('[VoiceDFR] Transcription received:', data.text.substring(0, 50));
-            onTranscriptReady(data.text);
-          }
-        }
-      } catch (err) {
-        const msg = (err as Error)?.message || String(err);
-        console.warn('[VoiceDFR] Recording stop error:', msg);
-        Alert.alert(
-          'Transcription failed',
-          `Couldn't transcribe the recording. ${msg}`,
-        );
-      }
-    } else {
-      try {
-        const { Audio } = require('expo-av');
-        console.log('[VoiceDFR] Requesting permissions');
-        const { granted } = await Audio.requestPermissionsAsync();
-        if (!granted) {
-          Alert.alert(
-            'Microphone permission denied',
-            'Voice dictation needs microphone access. Open Settings → MAGE ID → Microphone to enable it.',
-          );
-          return;
-        }
-
-        await Audio.setAudioModeAsync({
-          allowsRecordingIOS: true,
-          playsInSilentModeIOS: true,
-        });
-
-        // expo-av v16 requires a complete RecordingOptions object — extension,
-        // outputFormat (enum value, NOT a raw int), audioQuality, sampleRate,
-        // numberOfChannels, and bitRate are all required, plus linearPCM*
-        // fields on iOS. The previous handwritten config passed `outputFormat: 6`
-        // (an int) when the iOS enum is now a string ('lpcm', 'aac ', etc),
-        // so prepareToRecordAsync rejected and the catch swallowed it as a
-        // silent log. Using the HIGH_QUALITY preset is the supported path —
-        // 44.1 kHz / stereo / 128 kbps AAC, .m4a output. Plenty for STT.
-        const recording = new Audio.Recording();
-        await recording.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
-        await recording.startAsync();
-        setRecordingRef(recording);
-        setIsRecording(true);
-        startPulse();
-        console.log('[VoiceDFR] Recording started');
-      } catch (err) {
-        // Surface via Alert so the failure is visible — historically this
-        // was console.log only and the button just looked dead.
-        const msg = (err as Error)?.message || String(err);
-        console.warn('[VoiceDFR] Recording start error:', msg);
-        Alert.alert(
-          'Voice recording failed',
-          `Couldn't start the microphone. ${msg}`,
-        );
-      }
-    }
-  }, [isRecording, recordingRef, isLocked, onLockedPress, onTranscriptReady, startPulse, stopPulse]);
+    if (Platform.OS === 'web') return;
+    setModalOpen(true);
+  }, [isLocked, onLockedPress]);
 
   if (Platform.OS === 'web') {
     return (
@@ -150,24 +77,29 @@ export default function VoiceRecorder({ onTranscriptReady, isLoading, isLocked, 
   }
 
   return (
-    <View style={styles.container}>
-      <TouchableOpacity onPress={handlePress} activeOpacity={0.7} disabled={isLoading} testID="voice-record-btn">
-        <Animated.View style={[
-          styles.micBtn,
-          isRecording && styles.micBtnRecording,
-          { transform: [{ scale: isRecording ? pulseAnim : 1 }] },
-        ]}>
-          {isLoading ? (
-            <ActivityIndicator color="#fff" size="small" />
-          ) : (
-            <Mic size={20} color={isRecording ? '#fff' : Colors.primary} />
-          )}
-        </Animated.View>
+    <>
+      <TouchableOpacity
+        style={styles.container}
+        onPress={handlePress}
+        activeOpacity={0.7}
+        testID="voice-record-btn"
+      >
+        <View style={styles.micBtn}>
+          <Mic size={20} color={Colors.primary} />
+        </View>
+        <Text style={styles.label}>
+          {isLoading ? 'Processing…' : 'Tap to dictate'}
+        </Text>
       </TouchableOpacity>
-      <Text style={styles.label}>
-        {isLoading ? 'Processing...' : isRecording ? 'Tap to stop' : 'Tap to dictate'}
-      </Text>
-    </View>
+      <VoiceCaptureModal
+        visible={modalOpen}
+        onClose={() => setModalOpen(false)}
+        onTranscriptReady={onTranscriptReady}
+        title={title}
+        contextLine={contextLine}
+        suggestions={suggestions}
+      />
+    </>
   );
 }
 
@@ -190,9 +122,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary + '15',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  micBtnRecording: {
-    backgroundColor: Colors.error,
   },
   micBtnDisabled: {
     backgroundColor: Colors.fillTertiary,

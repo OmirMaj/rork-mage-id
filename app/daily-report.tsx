@@ -532,6 +532,15 @@ export default function DailyReportScreen() {
               isLoading={voiceLoading}
               isLocked={!isProOrAbove}
               onLockedPress={() => router.push('/paywall' as any)}
+              title="Dictate today's report"
+              contextLine={project?.name ? `for ${project.name}` : undefined}
+              suggestions={[
+                'Crew arrived at 7:30, framed the back wall, finished around 4 PM',
+                "Joe's Plumbing on site for rough-in — three guys, three hours",
+                'Concrete pour delayed thirty minutes due to rain',
+                'Inspector signed off on electrical rough-in this morning',
+                'Delivered ten sheets of drywall and two doors',
+              ]}
             />
           </View>
 
