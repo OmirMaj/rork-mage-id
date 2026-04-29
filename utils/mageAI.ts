@@ -127,6 +127,16 @@ export async function mageAI(params: MageAIParams): Promise<MageAIResult> {
           if (m.success) candidate = merged;
         }
       }
+      // CRITICAL: Gemini frequently returns `null` for optional fields it thinks
+      // aren't applicable (e.g. `notes: null`, `tradeRecord: null`). Zod's
+      // `.default()` only fires on `undefined`, NOT on `null` — so a single
+      // null field causes the entire row to fail validation, the array to
+      // fail, and the whole response to fall back to empty defaults. The user
+      // sees an empty modal ("AI Quick Estimate doesn't give info anymore").
+      //
+      // Recursively strip null leaves so defaults and optional schemas behave
+      // sensibly. See stripNulls() docstring below for exact behavior.
+      candidate = stripNulls(candidate);
       const primary = schema.safeParse(candidate);
       if (primary.success) {
         clearTimeout(timer);
@@ -195,6 +205,44 @@ export async function mageAIFast(prompt: string, schema?: any, cacheKey?: string
 
 export async function mageAISmart(prompt: string, schema?: any, cacheKey?: string) {
   return mageAI({ prompt, schema, tier: "smart", maxTokens: 2000, cacheKey });
+}
+
+/**
+ * Recursively replace null leaves with undefined so Zod `.default()` and
+ * optional schemas accept the value. Gemini sometimes emits `"notes": null`
+ * for optional fields, which would otherwise reject the whole object — and
+ * since our fallback path returns empty defaults on any validation failure,
+ * a single null can produce an entirely empty modal ("AI Quick Estimate
+ * doesn't give info anymore").
+ *
+ * Behavior:
+ * - Plain objects: drop keys whose value is null (so `.default()` fires).
+ *   Other values recurse.
+ * - Arrays: drop null elements (Gemini occasionally returns
+ *   `[{...}, null, {...}]` for optional placeholder slots), then recurse
+ *   into the surviving elements. We previously kept null array slots to
+ *   preserve indices, but no schema in the codebase uses positional
+ *   indexing — they're all `z.array(z.object(...))`, where a null element
+ *   would fail validation anyway.
+ * - Primitives: return as-is.
+ */
+function stripNulls(value: unknown): unknown {
+  if (value === null) return undefined;
+  if (Array.isArray(value)) {
+    return value
+      .filter(v => v !== null)
+      .map(v => (v && typeof v === 'object') ? stripNulls(v) : v);
+  }
+  if (value && typeof value === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      if (v === null) continue;          // drop the key — undefined → defaults fire
+      if (typeof v === 'object') out[k] = stripNulls(v);
+      else out[k] = v;
+    }
+    return out;
+  }
+  return value;
 }
 
 // Walk a Zod schema and produce a plain-JS example shape Gemini can read.
