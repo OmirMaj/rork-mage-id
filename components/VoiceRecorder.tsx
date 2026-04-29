@@ -1,7 +1,7 @@
 import React, { useState, useRef, useCallback } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Platform,
-  Animated,
+  Animated, Alert,
 } from 'react-native';
 import { Mic, MicOff, Lock } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
@@ -74,41 +74,55 @@ export default function VoiceRecorder({ onTranscriptReady, isLoading, isLocked, 
           }
         }
       } catch (err) {
-        console.log('[VoiceDFR] Recording stop error:', err);
+        const msg = (err as Error)?.message || String(err);
+        console.warn('[VoiceDFR] Recording stop error:', msg);
+        Alert.alert(
+          'Transcription failed',
+          `Couldn't transcribe the recording. ${msg}`,
+        );
       }
     } else {
       try {
         const { Audio } = require('expo-av');
         console.log('[VoiceDFR] Requesting permissions');
         const { granted } = await Audio.requestPermissionsAsync();
-        if (!granted) return;
+        if (!granted) {
+          Alert.alert(
+            'Microphone permission denied',
+            'Voice dictation needs microphone access. Open Settings → MAGE ID → Microphone to enable it.',
+          );
+          return;
+        }
 
         await Audio.setAudioModeAsync({
           allowsRecordingIOS: true,
           playsInSilentModeIOS: true,
         });
 
+        // expo-av v16 requires a complete RecordingOptions object — extension,
+        // outputFormat (enum value, NOT a raw int), audioQuality, sampleRate,
+        // numberOfChannels, and bitRate are all required, plus linearPCM*
+        // fields on iOS. The previous handwritten config passed `outputFormat: 6`
+        // (an int) when the iOS enum is now a string ('lpcm', 'aac ', etc),
+        // so prepareToRecordAsync rejected and the catch swallowed it as a
+        // silent log. Using the HIGH_QUALITY preset is the supported path —
+        // 44.1 kHz / stereo / 128 kbps AAC, .m4a output. Plenty for STT.
         const recording = new Audio.Recording();
-        await recording.prepareToRecordAsync({
-          android: {
-            extension: '.m4a',
-            outputFormat: 3,
-            audioEncoder: 3,
-          },
-          ios: {
-            extension: '.wav',
-            outputFormat: 6,
-            audioQuality: 127,
-          },
-          web: {},
-        });
+        await recording.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
         await recording.startAsync();
         setRecordingRef(recording);
         setIsRecording(true);
         startPulse();
         console.log('[VoiceDFR] Recording started');
       } catch (err) {
-        console.log('[VoiceDFR] Recording start error:', err);
+        // Surface via Alert so the failure is visible — historically this
+        // was console.log only and the button just looked dead.
+        const msg = (err as Error)?.message || String(err);
+        console.warn('[VoiceDFR] Recording start error:', msg);
+        Alert.alert(
+          'Voice recording failed',
+          `Couldn't start the microphone. ${msg}`,
+        );
       }
     }
   }, [isRecording, recordingRef, isLocked, onLockedPress, onTranscriptReady, startPulse, stopPulse]);
