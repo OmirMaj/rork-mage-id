@@ -286,6 +286,10 @@
           <span class="label">to file a daily report</span>
         </div>
         <div class="pb-stat">
+          <span class="num">$30–80K</span>
+          <span class="label">buyout savings per $1M job</span>
+        </div>
+        <div class="pb-stat">
           <span class="num">0</span>
           <span class="label">forms to fill out</span>
         </div>
@@ -303,6 +307,7 @@
         <a href="#field">4. Run the day</a>
         <a href="#client">5. Keep the client in the loop</a>
         <a href="#money">6. Get paid</a>
+        <a href="#buyout">5b. Bid out the work (Buyout)</a>
         <a href="#close">7. Close the job</a>
         <a href="#cheatsheet">Voice cheat sheet</a>
       </div>
@@ -544,6 +549,75 @@
           <strong>Photos:</strong> every screen with a photo button uploads instantly to the project gallery.
           Tap a photo to mark it up, link it to a punch item, or attach it to an RFI.
           The portal shows the homeowner everything you've shared.
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────── 5b. BUYOUT ─────────── -->
+    <section class="pb-section" id="buyout" style="background: rgba(13, 108, 177, 0.06); border-top: 1px solid rgba(13, 108, 177, 0.25);">
+      <div class="wrap">
+        <span class="pb-eyebrow"><span class="pb-step-num">5</span>b · Buyout — the margin lever</span>
+        <h2>Turn estimate carry into signed subs.</h2>
+        <p class="pb-lede">
+          Most software stops at "you have an estimate." Buyout is the phase between estimate
+          and field — where you take the rough numbers you used to win the job, send scope packages
+          to subs, level the bids, and lock in actual prices. The delta between your estimate carry
+          and the awarded subcontract is the GC's biggest margin lever — typically <strong>$30K–$80K
+          on a $1M residential job</strong>. MAGE ID is the only mobile app that runs the buyout
+          phase end-to-end, with AI bid leveling that even big GCs don't have on their desk software.
+        </p>
+
+        <div class="pb-card">
+          <h3>1. Create scope packages</h3>
+          <p>Plumbing rough-in, drywall hang & finish, MEP, etc. Each package owns its budget
+            (sum of estimate items it covers) and a status: open → leveling → awarded. Tap "+ New
+            scope package," name it, set the budget. Done.</p>
+        </div>
+
+        <div class="pb-card">
+          <h3>2. Log bids by voice as they come in</h3>
+          <div class="pb-voice">"Joe's Plumbing came in at forty-eight hundred, includes everything except fixtures."</div>
+          <div class="pb-voice-result">
+            Adds a bid row: vendor "Joe's Plumbing" · amount $4,800 · excludes "fixtures."
+            The "excludes" field is critical — that's what drives leveling.
+          </div>
+          <div class="pb-voice">"ABC Mechanical at twelve thousand five hundred, all-in, ten percent deposit."</div>
+          <div class="pb-voice-result">
+            Adds: vendor "ABC Mechanical" · amount $12,500 · includes "all-in" · terms "10% deposit."
+          </div>
+        </div>
+
+        <div class="pb-card">
+          <h3>3. Tap "Run AI leveling"</h3>
+          <p>The AI reads every bid's includes/excludes/notes and computes the dollar adjustment
+            to add to each bid to make them apples-to-apples. Sub A excluded fixtures? AI adds
+            $1,200 to their bid. Sub C excluded permits? AI adds $400. Now you're comparing
+            <strong>leveled totals</strong>, not raw numbers — and you don't get blindsided by
+            "missing scope" change orders in week 2.</p>
+          <div class="pb-pro-tip">
+            <strong>The math the legacy guys don't show you:</strong> the "lowest" raw bid is
+            often <em>not</em> the lowest leveled bid. MAGE ID highlights the AI's recommended
+            winner with reasoning — you make the final call.
+          </div>
+        </div>
+
+        <div class="pb-card">
+          <h3>4. Award with one tap</h3>
+          <p>Hit "Award" on the winning bid. MAGE ID creates the subcontract (a Commitment),
+            stamps the package as awarded, and computes your <strong>buyout savings</strong>
+            (estimate budget − leveled total). The dashboard updates the running savings tally
+            so you can see margin compounding as more packages close.</p>
+        </div>
+
+        <div class="pb-card">
+          <h3>The dashboard most software doesn't ship</h3>
+          <p>Open the Buyout tab anytime and see at a glance:</p>
+          <ul style="line-height: 1.8; color: var(--text-muted);">
+            <li><strong>% bought out</strong> — committed dollars / estimate budget</li>
+            <li><strong>Buyout savings to date</strong> — green if positive, red if you're trending negative</li>
+            <li><strong>Packages awarded / total</strong> with red-flagged overdue scopes</li>
+            <li>Per-package cards showing status, lowest bid in, days till required-by</li>
+          </ul>
         </div>
       </div>
     </section>

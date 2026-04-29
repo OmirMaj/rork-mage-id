@@ -267,6 +267,8 @@ function RootLayoutNav() {
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="leads" options={{ title: 'Pipeline' }} />
       <Stack.Screen name="lead-detail" options={{ title: 'Lead' }} />
+      <Stack.Screen name="buyout" options={{ title: 'Buyout' }} />
+      <Stack.Screen name="buyout-package" options={{ title: 'Bid Package' }} />
       <Stack.Screen
         name="login"
         options={{

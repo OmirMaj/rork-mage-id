@@ -349,6 +349,50 @@ TRANSCRIPT: ${transcript}`,
 }
 
 // ───────────────────────────────────────────────
+// Buyout Bid (sub bid intake during buyout)
+// ───────────────────────────────────────────────
+
+const bidPartialSchema = z.object({
+  /** Sub or vendor name. ("Joe's Plumbing" / "ABC Mechanical") */
+  vendorName: z.string().default(''),
+  /** Total dollar bid. */
+  amount: z.number().default(0),
+  /** What the bid includes (free-text). */
+  includes: z.string().default(''),
+  /** What the bid excludes (free-text). */
+  excludes: z.string().default(''),
+  /** Free-text terms ("Net 30", "10% deposit"). */
+  terms: z.string().default(''),
+});
+export type BidPartial = z.infer<typeof bidPartialSchema>;
+
+export async function parseBidFromTranscript(transcript: string): Promise<BidPartial> {
+  const r = await mageAI({
+    prompt: `Extract a single bid record from a contractor's dictation. They just received a bid from a sub on a scope of work.
+
+OUTPUT RULES
+- vendorName: name of the sub / vendor. Title-case ("Joe's Plumbing", "ABC Mechanical").
+- amount: dollar amount. "Forty-eight hundred" -> 4800. "Twelve thousand" -> 12000. Strip all formatting; pure number.
+- includes: free-text of what the bid covers. ("All rough plumbing, fixtures, permits"). Empty if not stated.
+- excludes: free-text of what the bid does NOT cover. ("Excludes fixtures, dump fees"). Empty if not stated. CRITICAL — this is what drives bid leveling.
+- terms: payment terms / start date / etc. ("Net 30", "10% deposit", "Available 4/15"). Empty if not stated.
+
+TRANSCRIPT: ${transcript}`,
+    schema: bidPartialSchema,
+    schemaHint: {
+      vendorName: "Joe's Plumbing",
+      amount: 4800,
+      includes: 'All rough-in, fixtures, permits',
+      excludes: 'Excludes dump fees',
+      terms: 'Net 30, available 4/15',
+    },
+    tier: 'fast',
+  });
+  if (!r.success) return bidPartialSchema.parse({});
+  return r.data as BidPartial;
+}
+
+// ───────────────────────────────────────────────
 // Helper: merge an AI partial into existing form state.
 // Empty current values get filled. Filled long-form fields get APPENDED
 // (so dictation "adds to" the existing question / description). Numeric

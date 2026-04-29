@@ -1050,6 +1050,112 @@ export interface Lead {
   updatedAt: string;
 }
 
+// ─────────────────────────────────────────────
+// Buyout / Bid Packages
+// ─────────────────────────────────────────────
+//
+// Buyout is the period after a job is won, before/during the first
+// weeks of construction, when the GC converts estimate "carry" prices
+// into actual signed subcontracts. The delta between estimate carry
+// and actual subcontract is the GC's buyout savings — typically the
+// single biggest margin lever on a residential job.
+//
+// Data model:
+//   BidPackage     — A scope of work the GC sends out for bid
+//                    (e.g. "Plumbing rough-in", "Drywall hang &
+//                    finish"). Owns its budget (sum of linked
+//                    estimate items), due date, status, and a list
+//                    of bids received.
+//   BidPackageBid  — A single bid received against a package, with
+//                    inclusions / exclusions parsed for leveling.
+//
+// Lifecycle: open → leveling → awarded (creates a Commitment) →
+//            (optionally) cancelled / re-issued.
+
+export type BidPackageStatus = 'open' | 'leveling' | 'awarded' | 'cancelled';
+
+export const BID_PACKAGE_STATUSES: BidPackageStatus[] = ['open', 'leveling', 'awarded', 'cancelled'];
+export const BID_PACKAGE_STATUS_LABELS: Record<BidPackageStatus, string> = {
+  open: 'Open · Soliciting bids',
+  leveling: 'Leveling · Comparing bids',
+  awarded: 'Awarded',
+  cancelled: 'Cancelled',
+};
+
+export type BuyoutBidStatus = 'received' | 'qualified' | 'disqualified' | 'awarded';
+
+export interface BidPackageBid {
+  id: string;
+  packageId: string;
+  /** Either subcontractorId (preferred — links to verified prequal) or
+   *  free-text vendorName. Voice-intake fills the latter; user can
+   *  upgrade to a real Subcontractor record later. */
+  subcontractorId?: string;
+  vendorName?: string;
+  /** Total dollar bid. */
+  amount: number;
+  /** What the bid INCLUDES — drives the leveling delta. Free-text;
+   *  AI-leveled later. ("All rough plumbing, fixtures, permits") */
+  includes?: string;
+  /** What the bid EXCLUDES — the gotcha. ("Excludes fixtures, dump
+   *  fees, permit pull"). Required for honest leveling. */
+  excludes?: string;
+  /** Free-text terms / notes ("Net 30", "10% deposit", "Available 4/15"). */
+  terms?: string;
+  /** Voice / scan / pdf / email — where the bid came from. */
+  source?: 'voice' | 'email' | 'pdf' | 'phone' | 'in_person' | 'manual';
+  status: BuyoutBidStatus;
+  submittedAt: string;
+  /** AI-suggested adjustment in dollars to level this bid against the
+   *  others — e.g. if Sub A excluded fixtures and the average fixtures
+   *  cost is $1,200, AI would set normalizedAdjustment: 1200 so the
+   *  leveled total is amount + 1200. */
+  normalizedAdjustment?: number;
+  normalizedAdjustmentReason?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BidPackage {
+  id: string;
+  projectId: string;
+  name: string;
+  /** CSI division when applicable — drives sort order + filtering. */
+  csiDivision?: string;
+  /** Project phase ("Rough-in", "Finishes") for grouping. */
+  phase?: string;
+  /** Free-text scope description sent to bidders. AI-generates from
+   *  linked estimate items by default; GC can edit. */
+  scopeDescription?: string;
+  /** Estimate line item IDs whose carry totals to the package budget.
+   *  Required for "buyout savings" math. */
+  linkedEstimateItemIds: string[];
+  /** Sum of linked estimate carry — the budget bidders are bidding against. */
+  estimateBudget: number;
+  /** Status flow: open → leveling → awarded. */
+  status: BidPackageStatus;
+  /** When bids are due. Drives the buyout schedule view. */
+  dueDate?: string;
+  /** Bids received, denormalized for fast list rendering. The
+   *  authoritative store is the BidPackageBid table; this array is
+   *  rebuilt on every load. */
+  bids?: BidPackageBid[];
+  /** When awarded, the bid id that won + the resulting commitment. */
+  awardedBidId?: string;
+  awardedCommitmentId?: string;
+  /** Net buyout savings (or overrun) once awarded:
+   *  estimateBudget - awardedBid.amount + normalizedAdjustment. */
+  buyoutSavings?: number;
+  /** Required-by date that drives this package — usually the start
+   *  date of the linked estimate work. AI uses it to compute "you
+   *  need to award by X" warnings. */
+  requiredByDate?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Subcontractor {
   id: string;
   companyName: string;

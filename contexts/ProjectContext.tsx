@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import createContextHook from '@nkzw/create-context-hook';
-import type { Project, ProjectType, AppSettings, CompanyBranding, ProjectCollaborator, ChangeOrder, Invoice, DailyFieldReport, Subcontractor, PunchItem, ProjectPhoto, PriceAlert, Contact, CommunicationEvent, RFI, Submittal, SubmittalReviewCycle, Equipment, EquipmentUtilizationEntry, PDFNamingSettings, Warranty, WarrantyClaim, PortalMessage, Commitment, PrequalPacket, PlanSheet, DrawingPin, PlanCalibration, PlanMarkup, Permit, SavedAIAPayApp, SubPortalLink, Lead, LeadStage, LeadTouch } from '@/types';
+import type { Project, ProjectType, AppSettings, CompanyBranding, ProjectCollaborator, ChangeOrder, Invoice, DailyFieldReport, Subcontractor, PunchItem, ProjectPhoto, PriceAlert, Contact, CommunicationEvent, RFI, Submittal, SubmittalReviewCycle, Equipment, EquipmentUtilizationEntry, PDFNamingSettings, Warranty, WarrantyClaim, PortalMessage, Commitment, PrequalPacket, PlanSheet, DrawingPin, PlanCalibration, PlanMarkup, Permit, SavedAIAPayApp, SubPortalLink, Lead, LeadStage, LeadTouch, BidPackage, BidPackageBid, BidPackageStatus, BuyoutBidStatus } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { supabaseWrite } from '@/utils/offlineQueue';
@@ -12,6 +12,8 @@ const PROJECTS_KEY = 'buildwise_projects';
 const SETTINGS_KEY = 'buildwise_settings';
 const ONBOARDING_KEY = 'buildwise_onboarding_complete';
 const LEADS_KEY = 'tertiary_leads';
+const BID_PACKAGES_KEY = 'tertiary_bid_packages';
+const BID_PACKAGE_BIDS_KEY = 'tertiary_bid_package_bids';
 const CHANGE_ORDERS_KEY = 'tertiary_change_orders';
 const INVOICES_KEY = 'tertiary_invoices';
 const DAILY_REPORTS_KEY = 'tertiary_daily_reports';
@@ -83,6 +85,8 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
   const [hasSeenOnboarding, setHasSeenOnboarding] = useState<boolean | null>(null);
   const [changeOrders, setChangeOrders] = useState<ChangeOrder[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
+  const [bidPackages, setBidPackages] = useState<BidPackage[]>([]);
+  const [bidPackageBids, setBidPackageBids] = useState<BidPackageBid[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [commitments, setCommitments] = useState<Commitment[]>([]);
   const [prequalPackets, setPrequalPackets] = useState<PrequalPacket[]>([]);
@@ -308,6 +312,75 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
         } catch { /* fallback */ }
       }
       return loadLocal<Lead[]>(LEADS_KEY, []);
+    },
+  });
+
+  const bidPackagesQuery = useQuery({
+    queryKey: ['bid_packages', userId],
+    queryFn: async () => {
+      if (canSync) {
+        try {
+          const { data, error } = await supabase.from('bid_packages').select('*').order('created_at', { ascending: false });
+          if (!error && data) {
+            const mapped = data.map((r: Record<string, unknown>) => ({
+              id: r.id as string,
+              projectId: r.project_id as string,
+              name: (r.name as string) ?? '',
+              csiDivision: (r.csi_division as string) ?? undefined,
+              phase: (r.phase as string) ?? undefined,
+              scopeDescription: (r.scope_description as string) ?? undefined,
+              linkedEstimateItemIds: (r.linked_estimate_item_ids as string[]) ?? [],
+              estimateBudget: Number(r.estimate_budget) || 0,
+              status: (r.status as BidPackageStatus) ?? 'open',
+              dueDate: (r.due_date as string) ?? undefined,
+              requiredByDate: (r.required_by_date as string) ?? undefined,
+              awardedBidId: (r.awarded_bid_id as string) ?? undefined,
+              awardedCommitmentId: (r.awarded_commitment_id as string) ?? undefined,
+              buyoutSavings: r.buyout_savings != null ? Number(r.buyout_savings) : undefined,
+              notes: (r.notes as string) ?? undefined,
+              createdAt: r.created_at as string,
+              updatedAt: r.updated_at as string,
+            })) as BidPackage[];
+            await saveLocal(BID_PACKAGES_KEY, mapped);
+            return mapped;
+          }
+        } catch { /* fallback */ }
+      }
+      return loadLocal<BidPackage[]>(BID_PACKAGES_KEY, []);
+    },
+  });
+
+  const bidPackageBidsQuery = useQuery({
+    queryKey: ['bid_package_bids', userId],
+    queryFn: async () => {
+      if (canSync) {
+        try {
+          const { data, error } = await supabase.from('bid_package_bids').select('*').order('submitted_at', { ascending: false });
+          if (!error && data) {
+            const mapped = data.map((r: Record<string, unknown>) => ({
+              id: r.id as string,
+              packageId: r.package_id as string,
+              subcontractorId: (r.subcontractor_id as string) ?? undefined,
+              vendorName: (r.vendor_name as string) ?? undefined,
+              amount: Number(r.amount) || 0,
+              includes: (r.includes as string) ?? undefined,
+              excludes: (r.excludes as string) ?? undefined,
+              terms: (r.terms as string) ?? undefined,
+              source: (r.source as BidPackageBid['source']) ?? undefined,
+              status: (r.status as BuyoutBidStatus) ?? 'received',
+              submittedAt: r.submitted_at as string,
+              normalizedAdjustment: r.normalized_adjustment != null ? Number(r.normalized_adjustment) : undefined,
+              normalizedAdjustmentReason: (r.normalized_adjustment_reason as string) ?? undefined,
+              notes: (r.notes as string) ?? undefined,
+              createdAt: r.created_at as string,
+              updatedAt: r.updated_at as string,
+            })) as BidPackageBid[];
+            await saveLocal(BID_PACKAGE_BIDS_KEY, mapped);
+            return mapped;
+          }
+        } catch { /* fallback */ }
+      }
+      return loadLocal<BidPackageBid[]>(BID_PACKAGE_BIDS_KEY, []);
     },
   });
 
@@ -565,6 +638,8 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
   useEffect(() => { if (dailyReportsQuery.data) setDailyReports(dailyReportsQuery.data); }, [dailyReportsQuery.data]);
   useEffect(() => { if (subsQuery.data) setSubcontractors(subsQuery.data); }, [subsQuery.data]);
   useEffect(() => { if (leadsQuery.data) setLeads(leadsQuery.data); }, [leadsQuery.data]);
+  useEffect(() => { if (bidPackagesQuery.data) setBidPackages(bidPackagesQuery.data); }, [bidPackagesQuery.data]);
+  useEffect(() => { if (bidPackageBidsQuery.data) setBidPackageBids(bidPackageBidsQuery.data); }, [bidPackageBidsQuery.data]);
   useEffect(() => { if (punchItemsQuery.data) setPunchItems(punchItemsQuery.data); }, [punchItemsQuery.data]);
   useEffect(() => { if (photosQuery.data) setProjectPhotos(photosQuery.data); }, [photosQuery.data]);
   useEffect(() => { if (priceAlertsQuery.data) setPriceAlerts(priceAlertsQuery.data); }, [priceAlertsQuery.data]);
@@ -695,6 +770,14 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
   const saveLeadsMutation = useMutation({
     mutationFn: async (updated: Lead[]) => { await saveLocal(LEADS_KEY, updated); return updated; },
     onSuccess: (data) => { queryClient.setQueryData(['leads', userId], data); },
+  });
+  const saveBidPackagesMutation = useMutation({
+    mutationFn: async (updated: BidPackage[]) => { await saveLocal(BID_PACKAGES_KEY, updated); return updated; },
+    onSuccess: (data) => { queryClient.setQueryData(['bid_packages', userId], data); },
+  });
+  const saveBidPackageBidsMutation = useMutation({
+    mutationFn: async (updated: BidPackageBid[]) => { await saveLocal(BID_PACKAGE_BIDS_KEY, updated); return updated; },
+    onSuccess: (data) => { queryClient.setQueryData(['bid_package_bids', userId], data); },
   });
   const savePunchItemsMutation = useMutation({
     mutationFn: async (updated: PunchItem[]) => { await saveLocal(PUNCH_ITEMS_KEY, updated); return updated; },
@@ -1128,6 +1211,184 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
     updateLead(leadId, { stage: 'won', convertedProjectId: projectId });
     return projectId;
   }, [leads, projects, saveProjectsMutation, canSync, userId, updateLead]);
+
+  // ─────────────────────────────────────────────
+  // Buyout — Bid Packages + Bids
+  // ─────────────────────────────────────────────
+  const addBidPackage = useCallback((pkg: Omit<BidPackage, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }): BidPackage => {
+    const now = new Date().toISOString();
+    const newPkg: BidPackage = {
+      ...pkg,
+      id: pkg.id ?? generateUUID(),
+      createdAt: now,
+      updatedAt: now,
+    };
+    const updated = [newPkg, ...bidPackages];
+    setBidPackages(updated);
+    saveBidPackagesMutation.mutate(updated);
+    if (canSync) {
+      void supabaseWrite('bid_packages', 'insert', {
+        id: newPkg.id, user_id: userId, project_id: newPkg.projectId,
+        name: newPkg.name, csi_division: newPkg.csiDivision, phase: newPkg.phase,
+        scope_description: newPkg.scopeDescription,
+        linked_estimate_item_ids: newPkg.linkedEstimateItemIds,
+        estimate_budget: newPkg.estimateBudget, status: newPkg.status,
+        due_date: newPkg.dueDate, required_by_date: newPkg.requiredByDate,
+        awarded_bid_id: newPkg.awardedBidId, awarded_commitment_id: newPkg.awardedCommitmentId,
+        buyout_savings: newPkg.buyoutSavings, notes: newPkg.notes,
+        created_at: now, updated_at: now,
+      });
+    }
+    return newPkg;
+  }, [bidPackages, saveBidPackagesMutation, canSync, userId]);
+
+  const updateBidPackage = useCallback((id: string, updates: Partial<BidPackage>) => {
+    const now = new Date().toISOString();
+    const updated = bidPackages.map(p => p.id === id ? { ...p, ...updates, updatedAt: now } : p);
+    setBidPackages(updated);
+    saveBidPackagesMutation.mutate(updated);
+    if (canSync) {
+      const p = updated.find(x => x.id === id);
+      if (p) {
+        void supabaseWrite('bid_packages', 'update', {
+          id, name: p.name, csi_division: p.csiDivision, phase: p.phase,
+          scope_description: p.scopeDescription,
+          linked_estimate_item_ids: p.linkedEstimateItemIds,
+          estimate_budget: p.estimateBudget, status: p.status,
+          due_date: p.dueDate, required_by_date: p.requiredByDate,
+          awarded_bid_id: p.awardedBidId, awarded_commitment_id: p.awardedCommitmentId,
+          buyout_savings: p.buyoutSavings, notes: p.notes, updated_at: now,
+        });
+      }
+    }
+  }, [bidPackages, saveBidPackagesMutation, canSync]);
+
+  const deleteBidPackage = useCallback((id: string) => {
+    const updated = bidPackages.filter(p => p.id !== id);
+    setBidPackages(updated);
+    saveBidPackagesMutation.mutate(updated);
+    // Cascade: also drop the bids for this package locally.
+    const remainingBids = bidPackageBids.filter(b => b.packageId !== id);
+    setBidPackageBids(remainingBids);
+    saveBidPackageBidsMutation.mutate(remainingBids);
+    if (canSync) void supabaseWrite('bid_packages', 'delete', { id });
+  }, [bidPackages, bidPackageBids, saveBidPackagesMutation, saveBidPackageBidsMutation, canSync]);
+
+  const getBidPackagesForProject = useCallback((projectId: string) =>
+    bidPackages.filter(p => p.projectId === projectId), [bidPackages]);
+
+  const getBidPackage = useCallback((id: string) =>
+    bidPackages.find(p => p.id === id) ?? null, [bidPackages]);
+
+  // Bids
+  const addBidPackageBid = useCallback((bid: Omit<BidPackageBid, 'id' | 'createdAt' | 'updatedAt' | 'submittedAt'> & { id?: string; submittedAt?: string }): BidPackageBid => {
+    const now = new Date().toISOString();
+    const newBid: BidPackageBid = {
+      ...bid,
+      id: bid.id ?? generateUUID(),
+      submittedAt: bid.submittedAt ?? now,
+      createdAt: now,
+      updatedAt: now,
+    };
+    const updated = [newBid, ...bidPackageBids];
+    setBidPackageBids(updated);
+    saveBidPackageBidsMutation.mutate(updated);
+    // If the package was 'open', auto-promote it to 'leveling' on first bid.
+    const pkg = bidPackages.find(p => p.id === bid.packageId);
+    if (pkg && pkg.status === 'open') {
+      updateBidPackage(pkg.id, { status: 'leveling' });
+    }
+    if (canSync) {
+      void supabaseWrite('bid_package_bids', 'insert', {
+        id: newBid.id, user_id: userId, package_id: newBid.packageId,
+        subcontractor_id: newBid.subcontractorId, vendor_name: newBid.vendorName,
+        amount: newBid.amount, includes: newBid.includes, excludes: newBid.excludes,
+        terms: newBid.terms, source: newBid.source, status: newBid.status,
+        submitted_at: newBid.submittedAt,
+        normalized_adjustment: newBid.normalizedAdjustment,
+        normalized_adjustment_reason: newBid.normalizedAdjustmentReason,
+        notes: newBid.notes, created_at: now, updated_at: now,
+      });
+    }
+    return newBid;
+  }, [bidPackages, bidPackageBids, saveBidPackageBidsMutation, updateBidPackage, canSync, userId]);
+
+  const updateBidPackageBid = useCallback((id: string, updates: Partial<BidPackageBid>) => {
+    const now = new Date().toISOString();
+    const updated = bidPackageBids.map(b => b.id === id ? { ...b, ...updates, updatedAt: now } : b);
+    setBidPackageBids(updated);
+    saveBidPackageBidsMutation.mutate(updated);
+    if (canSync) {
+      const b = updated.find(x => x.id === id);
+      if (b) {
+        void supabaseWrite('bid_package_bids', 'update', {
+          id, subcontractor_id: b.subcontractorId, vendor_name: b.vendorName,
+          amount: b.amount, includes: b.includes, excludes: b.excludes,
+          terms: b.terms, source: b.source, status: b.status,
+          normalized_adjustment: b.normalizedAdjustment,
+          normalized_adjustment_reason: b.normalizedAdjustmentReason,
+          notes: b.notes, updated_at: now,
+        });
+      }
+    }
+  }, [bidPackageBids, saveBidPackageBidsMutation, canSync]);
+
+  const deleteBidPackageBid = useCallback((id: string) => {
+    const updated = bidPackageBids.filter(b => b.id !== id);
+    setBidPackageBids(updated);
+    saveBidPackageBidsMutation.mutate(updated);
+    if (canSync) void supabaseWrite('bid_package_bids', 'delete', { id });
+  }, [bidPackageBids, saveBidPackageBidsMutation, canSync]);
+
+  const getBidsForPackage = useCallback((packageId: string) =>
+    bidPackageBids.filter(b => b.packageId === packageId), [bidPackageBids]);
+
+  /** Award a bid: creates a Commitment, marks the package awarded,
+   *  computes buyout savings. Idempotent — if already awarded,
+   *  returns the existing commitment id. */
+  const awardBidPackage = useCallback((packageId: string, bidId: string): string | null => {
+    const pkg = bidPackages.find(p => p.id === packageId);
+    const bid = bidPackageBids.find(b => b.id === bidId);
+    if (!pkg || !bid) return null;
+    if (pkg.awardedCommitmentId) return pkg.awardedCommitmentId;
+    const now = new Date().toISOString();
+    // Total awarded = bid + any normalized adjustment (covers known
+    // exclusions). Buyout savings = budget - awarded total.
+    const awardedTotal = bid.amount + (bid.normalizedAdjustment ?? 0);
+    const savings = pkg.estimateBudget - awardedTotal;
+    // Build the Commitment via existing addCommitment (defined later
+    // in this file — captured via closure).
+    const commitmentId = generateUUID();
+    const commitment: Commitment = {
+      id: commitmentId,
+      projectId: pkg.projectId,
+      number: `BO-${pkg.id.slice(0, 6)}`,
+      type: 'subcontract',
+      subcontractorId: bid.subcontractorId,
+      vendorName: bid.vendorName,
+      description: pkg.name + (bid.includes ? ` — ${bid.includes}` : ''),
+      amount: awardedTotal,
+      signedDate: now,
+      phase: pkg.phase,
+      csiDivision: pkg.csiDivision,
+      linkedEstimateItems: pkg.linkedEstimateItemIds,
+      status: 'active',
+      notes: `Awarded from buyout package "${pkg.name}". Buyout ${savings >= 0 ? 'savings' : 'overrun'}: $${Math.abs(savings).toLocaleString()}.`,
+      createdAt: now,
+      updatedAt: now,
+    };
+    setCommitments(prev => [commitment, ...prev]);
+    saveCommitmentsMutation.mutate([commitment, ...commitments]);
+    // Mark the package + bid awarded.
+    updateBidPackage(packageId, {
+      status: 'awarded',
+      awardedBidId: bidId,
+      awardedCommitmentId: commitmentId,
+      buyoutSavings: savings,
+    });
+    updateBidPackageBid(bidId, { status: 'awarded' });
+    return commitmentId;
+  }, [bidPackages, bidPackageBids, commitments, saveCommitmentsMutation, updateBidPackage, updateBidPackageBid]);
 
   const addSubcontractor = useCallback((sub: Subcontractor) => {
     const updated = [sub, ...subcontractors];
@@ -1944,6 +2205,9 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
     contacts, addContact, updateContact, deleteContact, getContact,
     commEvents, addCommEvent, getCommEventsForProject,
     leads, addLead, updateLead, deleteLead, getLead, getLeadsByStage, addLeadTouch, convertLeadToProject,
+    bidPackages, bidPackageBids,
+    addBidPackage, updateBidPackage, deleteBidPackage, getBidPackagesForProject, getBidPackage,
+    addBidPackageBid, updateBidPackageBid, deleteBidPackageBid, getBidsForPackage, awardBidPackage,
     rfis, addRFI, updateRFI, deleteRFI, getRFIsForProject,
     permits, addPermit, updatePermit, deletePermit, getPermitsForProject,
     aiaPayApps, addAIAPayApp, deleteAIAPayApp, getAIAPayAppsForProject,
@@ -1956,5 +2220,5 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
     drawingPins, addDrawingPin, updateDrawingPin, deleteDrawingPin, getPinsForPlan, getPinsForPhoto,
     planMarkups, addPlanMarkup, deletePlanMarkup, getMarkupsForPlan,
     planCalibrations, upsertPlanCalibration, getCalibrationForPlan,
-  }), [sortedProjects, settings, hasSeenOnboarding, completeOnboarding, projectsQuery.isLoading, settingsQuery.isLoading, onboardingQuery.isLoading, addProject, updateProject, deleteProject, getProject, updateSettings, addCollaborator, removeCollaborator, changeOrders, addChangeOrder, updateChangeOrder, getChangeOrdersForProject, addInvoice, updateInvoice, getInvoicesForProject, getTotalOutstandingBalance, invoices, commitments, addCommitment, updateCommitment, deleteCommitment, getCommitmentsForProject, prequalPackets, upsertPrequalPacket, deletePrequalPacket, getPrequalPacketForSub, getPrequalPacketByToken, dailyReports, addDailyReport, updateDailyReport, getDailyReportsForProject, subcontractors, addSubcontractor, updateSubcontractor, deleteSubcontractor, getSubcontractor, leads, addLead, updateLead, deleteLead, getLead, getLeadsByStage, addLeadTouch, convertLeadToProject, punchItems, addPunchItem, updatePunchItem, deletePunchItem, getPunchItemsForProject, projectPhotos, addProjectPhoto, updateProjectPhoto, deleteProjectPhoto, getPhotosForProject, priceAlerts, addPriceAlert, updatePriceAlert, deletePriceAlert, contacts, addContact, updateContact, deleteContact, getContact, commEvents, addCommEvent, getCommEventsForProject, rfis, addRFI, updateRFI, deleteRFI, getRFIsForProject, permits, addPermit, updatePermit, deletePermit, getPermitsForProject, aiaPayApps, addAIAPayApp, deleteAIAPayApp, getAIAPayAppsForProject, subPortalLinks, upsertSubPortalLink, deleteSubPortalLink, getSubPortalLinkFor, getSubPortalLinksForProject, submittals, addSubmittal, updateSubmittal, deleteSubmittal, getSubmittalsForProject, addReviewCycle, equipment, addEquipment, updateEquipment, deleteEquipment, logUtilization, getEquipmentForProject, getEquipmentCostForProject, warranties, addWarranty, updateWarranty, deleteWarranty, getWarrantiesForProject, addWarrantyClaim, portalMessages, addPortalMessage, markPortalMessagesRead, getPortalMessagesForProject, getUnreadPortalMessageCount, getTotalUnreadPortalCountForGc, planSheets, addPlanSheet, updatePlanSheet, deletePlanSheet, getPlanSheetsForProject, getPlanSheet, drawingPins, addDrawingPin, updateDrawingPin, deleteDrawingPin, getPinsForPlan, getPinsForPhoto, planMarkups, addPlanMarkup, deletePlanMarkup, getMarkupsForPlan, planCalibrations, upsertPlanCalibration, getCalibrationForPlan]);
+  }), [sortedProjects, settings, hasSeenOnboarding, completeOnboarding, projectsQuery.isLoading, settingsQuery.isLoading, onboardingQuery.isLoading, addProject, updateProject, deleteProject, getProject, updateSettings, addCollaborator, removeCollaborator, changeOrders, addChangeOrder, updateChangeOrder, getChangeOrdersForProject, addInvoice, updateInvoice, getInvoicesForProject, getTotalOutstandingBalance, invoices, commitments, addCommitment, updateCommitment, deleteCommitment, getCommitmentsForProject, prequalPackets, upsertPrequalPacket, deletePrequalPacket, getPrequalPacketForSub, getPrequalPacketByToken, dailyReports, addDailyReport, updateDailyReport, getDailyReportsForProject, subcontractors, addSubcontractor, updateSubcontractor, deleteSubcontractor, getSubcontractor, leads, addLead, updateLead, deleteLead, getLead, getLeadsByStage, addLeadTouch, convertLeadToProject, bidPackages, bidPackageBids, addBidPackage, updateBidPackage, deleteBidPackage, getBidPackagesForProject, getBidPackage, addBidPackageBid, updateBidPackageBid, deleteBidPackageBid, getBidsForPackage, awardBidPackage, punchItems, addPunchItem, updatePunchItem, deletePunchItem, getPunchItemsForProject, projectPhotos, addProjectPhoto, updateProjectPhoto, deleteProjectPhoto, getPhotosForProject, priceAlerts, addPriceAlert, updatePriceAlert, deletePriceAlert, contacts, addContact, updateContact, deleteContact, getContact, commEvents, addCommEvent, getCommEventsForProject, rfis, addRFI, updateRFI, deleteRFI, getRFIsForProject, permits, addPermit, updatePermit, deletePermit, getPermitsForProject, aiaPayApps, addAIAPayApp, deleteAIAPayApp, getAIAPayAppsForProject, subPortalLinks, upsertSubPortalLink, deleteSubPortalLink, getSubPortalLinkFor, getSubPortalLinksForProject, submittals, addSubmittal, updateSubmittal, deleteSubmittal, getSubmittalsForProject, addReviewCycle, equipment, addEquipment, updateEquipment, deleteEquipment, logUtilization, getEquipmentForProject, getEquipmentCostForProject, warranties, addWarranty, updateWarranty, deleteWarranty, getWarrantiesForProject, addWarrantyClaim, portalMessages, addPortalMessage, markPortalMessagesRead, getPortalMessagesForProject, getUnreadPortalMessageCount, getTotalUnreadPortalCountForGc, planSheets, addPlanSheet, updatePlanSheet, deletePlanSheet, getPlanSheetsForProject, getPlanSheet, drawingPins, addDrawingPin, updateDrawingPin, deleteDrawingPin, getPinsForPlan, getPinsForPhoto, planMarkups, addPlanMarkup, deletePlanMarkup, getMarkupsForPlan, planCalibrations, upsertPlanCalibration, getCalibrationForPlan]);
 });
