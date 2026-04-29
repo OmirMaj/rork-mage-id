@@ -77,6 +77,10 @@ interface ReviewableItem extends AiPunchItem {
   editedPriority: PunchItemPriority;
   /** Source photo URI (resolved from photoIndex at analyze time). */
   photoUri: string;
+  /** Source photo's stable id from pickedPhotos. Round-3 #3 — URI
+   *  comparison was fragile (extension casing / percent encoding).
+   *  Tracking by id lets handleSaveOne look up reliably. */
+  sourcePhotoId: string;
   /** Set when saved — disables the Save button on this row. */
   saved?: boolean;
   /** Set when the GC discards. */
@@ -97,15 +101,17 @@ export default function AiPunchScreen() {
 
   const project = useMemo(() => projectId ? getProject(projectId) : null, [projectId, getProject]);
   // Sort newest-first so the "Show recent" toggle label actually
-  // matches what the gallery surfaces (round-2 #5). Photos without
-  // a timestamp fall to the end.
+  // matches what the gallery surfaces (round-2 #5). Bad/invalid
+  // timestamps coerce to NaN which makes the sort non-deterministic
+  // (round-3 #4) — Number.isFinite guard kicks them to the end.
   const projectPhotos = useMemo(() => {
     const list = projectId ? getPhotosForProject(projectId) : [];
-    return [...list].sort((a, b) => {
-      const ta = a.timestamp ? new Date(a.timestamp).getTime() : 0;
-      const tb = b.timestamp ? new Date(b.timestamp).getTime() : 0;
-      return tb - ta;
-    });
+    const safeTime = (t: string | undefined) => {
+      if (!t) return 0;
+      const v = new Date(t).getTime();
+      return Number.isFinite(v) ? v : 0;
+    };
+    return [...list].sort((a, b) => safeTime(b.timestamp) - safeTime(a.timestamp));
   }, [projectId, getPhotosForProject]);
 
   const [pickedPhotos, setPickedPhotos] = useState<PickedPhoto[]>([]);
@@ -176,11 +182,14 @@ export default function AiPunchScreen() {
     setBusy(true);
     setError(null);
     try {
-      const { items } = await analyzePhotosForPunch({
+      const { items, meta } = await analyzePhotosForPunch({
         photoUrls: pickedPhotos.map(p => p.uri),
         projectName: project?.name,
         projectType: project?.type,
       });
+      // Items come back with photoIndex remapped to the caller's
+      // original list — so pickedPhotos[item.photoIndex] is the
+      // correct source even if some photos failed to encode.
       const reviewable: ReviewableItem[] = items.map(item => {
         const sourcePhoto = pickedPhotos[Math.min(item.photoIndex, pickedPhotos.length - 1)];
         return {
@@ -191,10 +200,16 @@ export default function AiPunchScreen() {
           editedTrade: aiTradeToSubTrade(item.trade),
           editedPriority: item.priority,
           photoUri: sourcePhoto?.uri ?? '',
+          sourcePhotoId: sourcePhoto?.id ?? '',
         };
       });
       if (reviewable.length === 0) {
         setError('AI didn’t find any punch items in those photos. Try shots closer to the work, or with better lighting.');
+      } else if (meta.skippedIndexes.length > 0) {
+        // Surface the partial-success path so the user knows some
+        // photos were skipped — wasn't visible in the UI before
+        // (round-3 #5/#6).
+        setError(`Skipped ${meta.skippedIndexes.length} photo${meta.skippedIndexes.length === 1 ? '' : 's'} that couldn't be read. Found ${reviewable.length} item${reviewable.length === 1 ? '' : 's'} from the rest.`);
       }
       setReviewItems(reviewable);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -227,8 +242,9 @@ export default function AiPunchScreen() {
     // For gallery photos the source already has its own stamp; the
     // GC's CURRENT location is wrong if they're reviewing yesterday's
     // photos in the office. Only stamp on camera/library picks.
-    // (Round-2 #8.)
-    const sourcePicked = pickedPhotos.find(p => p.uri === item.photoUri);
+    // (Round-2 #8.) Look up by stable id, not URI (round-3 #3) —
+    // iOS file:// URIs sometimes mutate after the picker.
+    const sourcePicked = pickedPhotos.find(p => p.id === item.sourcePhotoId);
     const shouldStamp = sourcePicked ? !sourcePicked.fromProject : true;
     let stamp: PhotoGeoStamp | null = null;
     if (shouldStamp) {
@@ -279,7 +295,7 @@ export default function AiPunchScreen() {
       // camera/library (gallery picks shouldn't be re-stamped with
       // the GC's current location). (Round-2 #4 + #8.)
       const needsStamp = pending.some(p => {
-        const src = pickedPhotos.find(x => x.uri === p.photoUri);
+        const src = pickedPhotos.find(x => x.id === p.sourcePhotoId);
         return src ? !src.fromProject : true;
       });
       const sharedStamp: PhotoGeoStamp | null = needsStamp ? await stampPhotoLocation() : null;

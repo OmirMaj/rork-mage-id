@@ -56,13 +56,22 @@ const isLocal = (u: string) => u.startsWith('file:') || u.startsWith('/');
  * Encode a list of file:// URIs to inline base64 — IN PARALLEL
  * (round-1 #1). Uses allSettled (round-2 #1) so one corrupt URI
  * (e.g. file deleted between picker and analyze) doesn't kill the
- * entire batch — we proceed with the photos that succeeded and
- * surface the failed count to the caller for context.
+ * entire batch.
  *
- * Returns the encoded list AND the indexes of any inputs that
- * failed, so the caller can warn the user.
+ * Returns:
+ *   - encoded: the photos that succeeded, in surviving-input order
+ *   - originalIndexes: each surviving photo's index in the ORIGINAL
+ *     input list (round-3 #1). The caller uses this to remap the
+ *     photoIndex Gemini returns back to the original list, so a
+ *     punch item points at the correct source URI even when some
+ *     encodes were skipped.
+ *   - failedIndexes: original indexes that failed, for telemetry
  */
-async function encodeLocalPhotos(uris: string[]): Promise<{ encoded: InlinePhoto[]; failedIndexes: number[] }> {
+async function encodeLocalPhotos(uris: string[]): Promise<{
+  encoded: InlinePhoto[];
+  originalIndexes: number[];
+  failedIndexes: number[];
+}> {
   const settled = await Promise.allSettled(uris.map(async (u) => {
     // Pass string-literal 'base64' rather than the enum — expo-file-system
     // moved EncodingType into a legacy namespace in newer SDKs and the
@@ -73,12 +82,17 @@ async function encodeLocalPhotos(uris: string[]): Promise<{ encoded: InlinePhoto
     return { base64, mimeType };
   }));
   const encoded: InlinePhoto[] = [];
+  const originalIndexes: number[] = [];
   const failedIndexes: number[] = [];
   settled.forEach((r, i) => {
-    if (r.status === 'fulfilled') encoded.push(r.value);
-    else failedIndexes.push(i);
+    if (r.status === 'fulfilled') {
+      encoded.push(r.value);
+      originalIndexes.push(i);
+    } else {
+      failedIndexes.push(i);
+    }
   });
-  return { encoded, failedIndexes };
+  return { encoded, originalIndexes, failedIndexes };
 }
 
 /**
@@ -95,8 +109,24 @@ const MAX_PAYLOAD_BYTES = 8 * 1024 * 1024;
 /**
  * One automatic retry on 5xx — vision calls fail more often than text
  * (image upload timeouts, Gemini transient 503s). Code-review #12.
+ *
+ * The `_meta` we tack onto the return value lets the caller remap
+ * photoIndex from "index into the encoded array" to "index into the
+ * caller's original list" — important when some encodes failed
+ * (round-3 #1).
  */
-async function callAnalyzePhotos<T>(opts: BaseOpts & { task: 'punch' | 'dfr' }, attempt = 0): Promise<T> {
+interface AnalyzeMeta {
+  /** For each encoded photo, the index into the caller's original
+   *  photoUrls array. Gemini's photoIndex maps THROUGH this array
+   *  back to the original. Length === number of photos analyzed. */
+  originalIndexes: number[];
+  /** Indexes from the original list that failed to encode and were
+   *  therefore not analyzed. Surface to the user as "skipped N
+   *  photo(s)" if non-empty. */
+  skippedIndexes: number[];
+}
+
+async function callAnalyzePhotos<T>(opts: BaseOpts & { task: 'punch' | 'dfr' }, attempt = 0): Promise<{ data: T; meta: AnalyzeMeta }> {
   if (!opts.photoUrls || opts.photoUrls.length === 0) {
     throw new Error('No photos to analyze.');
   }
@@ -116,8 +146,13 @@ async function callAnalyzePhotos<T>(opts: BaseOpts & { task: 'punch' | 'dfr' }, 
     notes: opts.notes,
   };
 
+  // The originalIndexes array tracks, per encoded photo, which slot
+  // in the caller's input it came from. For URL paths this is just
+  // [0, 1, 2, ...]. For local-encode paths it's whatever survived
+  // the allSettled. Either way, the caller can remap photoIndex.
+  let meta: AnalyzeMeta;
   if (localUris.length > 0) {
-    const { encoded, failedIndexes } = await encodeLocalPhotos(localUris);
+    const { encoded, originalIndexes, failedIndexes } = await encodeLocalPhotos(localUris);
     if (encoded.length === 0) {
       throw new Error('Could not read any of the picked photos. They may have been moved or deleted.');
     }
@@ -133,8 +168,10 @@ async function callAnalyzePhotos<T>(opts: BaseOpts & { task: 'punch' | 'dfr' }, 
       );
     }
     payload.photos = encoded;
+    meta = { originalIndexes, skippedIndexes: failedIndexes };
   } else {
     payload.photoUrls = remoteUris;
+    meta = { originalIndexes: remoteUris.map((_, i) => i), skippedIndexes: [] };
   }
 
   const { data, error } = await supabase.functions.invoke<{ success: boolean; data?: T; error?: string }>(
@@ -154,13 +191,23 @@ async function callAnalyzePhotos<T>(opts: BaseOpts & { task: 'punch' | 'dfr' }, 
   if (!data?.success || !data.data) {
     throw new Error(data?.error ?? 'Photo analyzer returned an empty result.');
   }
-  return data.data;
+  return { data: data.data, meta };
 }
 
-export async function analyzePhotosForPunch(opts: BaseOpts): Promise<{ items: AiPunchItem[] }> {
-  return callAnalyzePhotos<{ items: AiPunchItem[] }>({ ...opts, task: 'punch' });
+export async function analyzePhotosForPunch(opts: BaseOpts): Promise<{ items: AiPunchItem[]; meta: AnalyzeMeta }> {
+  const { data, meta } = await callAnalyzePhotos<{ items: AiPunchItem[] }>({ ...opts, task: 'punch' });
+  // Remap each item's photoIndex back to the caller's original list.
+  // If encoding skipped photo #3, Gemini's index `2` actually points
+  // at the caller's original #4 — meta.originalIndexes[2] gives us 4.
+  // This was a real bug pre-round-3: the wrong photo URI got attached.
+  const remapped = data.items.map(item => ({
+    ...item,
+    photoIndex: meta.originalIndexes[item.photoIndex] ?? item.photoIndex,
+  }));
+  return { items: remapped, meta };
 }
 
-export async function analyzePhotosForDfr(opts: BaseOpts): Promise<AiDfrSummary> {
-  return callAnalyzePhotos<AiDfrSummary>({ ...opts, task: 'dfr' });
+export async function analyzePhotosForDfr(opts: BaseOpts): Promise<{ summary: AiDfrSummary; meta: AnalyzeMeta }> {
+  const { data, meta } = await callAnalyzePhotos<AiDfrSummary>({ ...opts, task: 'dfr' });
+  return { summary: data, meta };
 }
