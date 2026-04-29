@@ -52,11 +52,22 @@ export default function BuyoutPackageScreen() {
   const {
     getBidPackage, updateBidPackage, deleteBidPackage,
     getBidsForPackage, addBidPackageBid, updateBidPackageBid, deleteBidPackageBid,
-    awardBidPackage,
+    awardBidPackage, getProject, prequalPackets, getSubcontractor,
   } = useProjects();
 
   const pkg = useMemo(() => packageId ? getBidPackage(packageId) : null, [packageId, getBidPackage]);
   const bids = useMemo(() => packageId ? getBidsForPackage(packageId) : [], [packageId, getBidsForPackage]);
+  const project = useMemo(() => pkg ? getProject(pkg.projectId) : null, [pkg, getProject]);
+
+  // Identify allowance items that the package will lock to firm price
+  // when awarded. This drives the "contains allowances" banner so the
+  // GC understands the buyout's downstream effect on the estimate.
+  const allowanceItems = useMemo(() => {
+    if (!pkg || !project?.linkedEstimate) return [];
+    return project.linkedEstimate.items.filter(
+      i => pkg.linkedEstimateItemIds.includes(i.materialId) && i.isAllowance,
+    );
+  }, [pkg, project]);
 
   const [voiceOpen, setVoiceOpen] = useState(false);
   const [showAddBid, setShowAddBid] = useState(false);
@@ -134,17 +145,52 @@ export default function BuyoutPackageScreen() {
   }, [pkg, bids, updateBidPackageBid]);
 
   // ── Award a bid ─────────────────────────────────────────────
+  // Prequal gate (industry must-have): when the bidder is a tracked
+  // Subcontractor with a PrequalPacket, check that the packet is
+  // 'approved' and not 'expired' before awarding. If missing or stale,
+  // we WARN but don't block — the GC can still award after seeing the
+  // gap, because residential <$5M typically simplifies docs.
   const handleAward = useCallback((bid: BidPackageBid) => {
     if (!pkg) return;
     const total = bid.amount + (bid.normalizedAdjustment ?? 0);
     const savings = pkg.estimateBudget - total;
+
+    // Prequal lookup. We match by subcontractorId first; if the bid
+    // came in by voice with just a vendorName, there's no link yet
+    // and we surface that as a softer "no prequal on file" warning.
+    const sub = bid.subcontractorId ? getSubcontractor(bid.subcontractorId) : null;
+    const packet = sub
+      ? prequalPackets.find(p => p.subcontractorId === sub.id)
+      : null;
+    const prequalGap = !packet
+      ? (sub ? 'No prequal packet on file for this sub.' : 'Bid is not linked to a tracked subcontractor — no prequal docs verified.')
+      : (packet.status === 'approved' ? null
+        : packet.status === 'expired' ? 'Prequal packet has EXPIRED — renewal required.'
+        : `Prequal packet status: ${packet.status} (not yet approved).`);
+
+    const lines: string[] = [];
+    lines.push(`Vendor: ${bid.vendorName ?? sub?.companyName ?? 'Subcontractor'}`);
+    lines.push(`Leveled total: ${formatMoney(total)}`);
+    lines.push(`Buyout ${savings >= 0 ? 'savings' : 'overrun'}: ${formatMoney(Math.abs(savings))}`);
+    if (allowanceItems.length > 0) {
+      lines.push('');
+      lines.push(`✓ ${allowanceItems.length} allowance item${allowanceItems.length === 1 ? '' : 's'} will lock to firm price.`);
+    }
+    if (prequalGap) {
+      lines.push('');
+      lines.push(`⚠️ Prequal: ${prequalGap}`);
+    }
+    lines.push('');
+    lines.push('Awarding will create a Commitment and mark this package complete.');
+
     Alert.alert(
-      'Award this bid?',
-      `Vendor: ${bid.vendorName ?? 'Subcontractor'}\nLeveled total: ${formatMoney(total)}\nBuyout ${savings >= 0 ? 'savings' : 'overrun'}: ${formatMoney(Math.abs(savings))}\n\nAwarding will create a Commitment and mark this package complete.`,
+      prequalGap ? 'Award without prequal docs?' : 'Award this bid?',
+      lines.join('\n'),
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Award',
+          text: prequalGap ? 'Award anyway' : 'Award',
+          style: prequalGap ? 'destructive' : 'default',
           onPress: () => {
             const commitmentId = awardBidPackage(pkg.id, bid.id);
             if (commitmentId) {
@@ -154,7 +200,7 @@ export default function BuyoutPackageScreen() {
         },
       ],
     );
-  }, [pkg, awardBidPackage]);
+  }, [pkg, awardBidPackage, getSubcontractor, prequalPackets, allowanceItems]);
 
   const handleDeletePackage = useCallback(() => {
     if (!pkg) return;
@@ -255,9 +301,22 @@ export default function BuyoutPackageScreen() {
             </View>
           </View>
 
-          {/* Industry-standard warning band (coverage + stale-RFQ) */}
-          {(lowCoverage || stale) && (
+          {/* Industry-standard warning band (allowance + coverage + stale) */}
+          {(allowanceItems.length > 0 || lowCoverage || stale) && (
             <View style={styles.section}>
+              {allowanceItems.length > 0 && pkg.status !== 'awarded' && (
+                <View style={[styles.warningCard, { backgroundColor: '#0D6CB112', borderLeftColor: '#0D6CB1' }]}>
+                  <AlertTriangle size={14} color="#0D6CB1" />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.warningTitle}>Contains {allowanceItems.length} allowance item{allowanceItems.length === 1 ? '' : 's'}</Text>
+                    <Text style={styles.warningBody}>
+                      {allowanceItems.slice(0, 3).map(i => i.name).join(', ')}
+                      {allowanceItems.length > 3 ? ` +${allowanceItems.length - 3} more` : ''}.
+                      Awarding this package locks them to firm price in the estimate and homeowner portal.
+                    </Text>
+                  </View>
+                </View>
+              )}
               {lowCoverage && (
                 <View style={styles.warningCard}>
                   <AlertTriangle size={14} color={Colors.warning} />

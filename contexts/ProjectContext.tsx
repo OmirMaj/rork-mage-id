@@ -1387,8 +1387,31 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
       buyoutSavings: savings,
     });
     updateBidPackageBid(bidId, { status: 'awarded' });
+    // Allowance → firm-price conversion. Any estimate items linked to
+    // this package that were flagged isAllowance get locked: cleared
+    // isAllowance, stamped firmPricedAt. The portal + budget pick up
+    // the new firm number on the next render.
+    if (pkg.linkedEstimateItemIds.length > 0) {
+      const proj = projects.find(p => p.id === pkg.projectId);
+      const linkedEstimate = proj?.linkedEstimate;
+      if (linkedEstimate && linkedEstimate.items.some(i => pkg.linkedEstimateItemIds.includes(i.materialId) && i.isAllowance)) {
+        const updatedItems = linkedEstimate.items.map(item => {
+          if (pkg.linkedEstimateItemIds.includes(item.materialId) && item.isAllowance) {
+            return { ...item, isAllowance: false, firmPricedAt: now };
+          }
+          return item;
+        });
+        const updatedProjects = projects.map(p =>
+          p.id === pkg.projectId
+            ? { ...p, linkedEstimate: { ...linkedEstimate, items: updatedItems }, updatedAt: now }
+            : p,
+        );
+        setProjects(updatedProjects);
+        saveProjectsMutation.mutate(updatedProjects);
+      }
+    }
     return commitmentId;
-  }, [bidPackages, bidPackageBids, commitments, saveCommitmentsMutation, updateBidPackage, updateBidPackageBid]);
+  }, [bidPackages, bidPackageBids, commitments, projects, saveCommitmentsMutation, saveProjectsMutation, updateBidPackage, updateBidPackageBid]);
 
   const addSubcontractor = useCallback((sub: Subcontractor) => {
     const updated = [sub, ...subcontractors];

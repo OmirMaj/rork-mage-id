@@ -633,6 +633,18 @@ export interface LinkedEstimateItem {
   usesBulk: boolean;
   lineTotal: number;
   supplier: string;
+  /**
+   * Allowance items are placeholder line items the GC carried in the
+   * estimate before the homeowner finalized a selection (tile, fixtures,
+   * appliances). At buyout, the GC awards a sub against the actual
+   * selection and the line should be marked firm-priced. The buyout
+   * award flow stamps `firmPricedAt` and clears `isAllowance` so the
+   * estimate, portal, and budget all see the locked number.
+   */
+  isAllowance?: boolean;
+  /** ISO timestamp set by the buyout flow when an allowance item is
+   *  locked to a firm price. Audit trail for the homeowner portal. */
+  firmPricedAt?: string;
 }
 
 export interface ChangeOrderLineItem {

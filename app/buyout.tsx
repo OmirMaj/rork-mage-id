@@ -45,6 +45,34 @@ const STATUS_COLORS: Record<BidPackageStatus, string> = {
   cancelled: '#9CA3AF',
 };
 
+// Condensed CSI MasterFormat divisions used in residential buyout.
+// Industry-standard alignment so bid packages map to the same
+// "address" the project manual / spec uses. We surface a residential-
+// relevant subset (the full 50-division list would overwhelm a phone
+// picker) but `csiDivision` accepts any string for power users who
+// prefer a different code.
+const CSI_DIVISIONS = [
+  { code: '02', name: 'Existing Conditions' },
+  { code: '03', name: 'Concrete' },
+  { code: '04', name: 'Masonry' },
+  { code: '05', name: 'Metals' },
+  { code: '06', name: 'Wood / Carpentry' },
+  { code: '07', name: 'Thermal / Moisture' },
+  { code: '08', name: 'Openings (Doors/Windows)' },
+  { code: '09', name: 'Finishes' },
+  { code: '10', name: 'Specialties' },
+  { code: '11', name: 'Equipment' },
+  { code: '12', name: 'Furnishings' },
+  { code: '21', name: 'Fire Suppression' },
+  { code: '22', name: 'Plumbing' },
+  { code: '23', name: 'HVAC' },
+  { code: '26', name: 'Electrical' },
+  { code: '27', name: 'Communications' },
+  { code: '31', name: 'Earthwork' },
+  { code: '32', name: 'Exterior Improvements' },
+  { code: '33', name: 'Utilities' },
+];
+
 export default function BuyoutScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -91,7 +119,50 @@ export default function BuyoutScreen() {
   const [showNewPkg, setShowNewPkg] = useState(false);
   const [newPkgName, setNewPkgName] = useState('');
   const [newPkgPhase, setNewPkgPhase] = useState('');
+  const [newPkgCsi, setNewPkgCsi] = useState('');
   const [newPkgBudget, setNewPkgBudget] = useState('');
+  const [newPkgPickedItemIds, setNewPkgPickedItemIds] = useState<string[]>([]);
+
+  // Estimate items available to link from the active project's linked
+  // estimate (the modern estimate format with stable ids). Sorted by
+  // category so the GC can pick by trade.
+  const projectEstimateItems = useMemo(() => {
+    const items = project?.linkedEstimate?.items ?? [];
+    return [...items].sort((a, b) => a.category.localeCompare(b.category) || a.name.localeCompare(b.name));
+  }, [project]);
+
+  // Auto-compute budget from the picked items (user can override).
+  const computedBudget = useMemo(() => {
+    if (newPkgPickedItemIds.length === 0) return 0;
+    return projectEstimateItems
+      .filter(i => newPkgPickedItemIds.includes(i.materialId))
+      .reduce((s, i) => s + i.lineTotal, 0);
+  }, [newPkgPickedItemIds, projectEstimateItems]);
+
+  // Show allowance count among picked items.
+  const allowanceCount = useMemo(() => {
+    return projectEstimateItems
+      .filter(i => newPkgPickedItemIds.includes(i.materialId) && i.isAllowance).length;
+  }, [newPkgPickedItemIds, projectEstimateItems]);
+
+  // Sync auto-computed budget into the visible field whenever picks
+  // change — but only if the GC hasn't manually typed a different value
+  // (we can tell by storing the last auto-computed value).
+  const lastAutoBudgetRef = React.useRef<string>('');
+  React.useEffect(() => {
+    const auto = computedBudget > 0 ? String(Math.round(computedBudget)) : '';
+    if (newPkgBudget === '' || newPkgBudget === lastAutoBudgetRef.current) {
+      setNewPkgBudget(auto);
+      lastAutoBudgetRef.current = auto;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [computedBudget]);
+
+  const togglePickedItem = useCallback((materialId: string) => {
+    setNewPkgPickedItemIds(prev =>
+      prev.includes(materialId) ? prev.filter(id => id !== materialId) : [...prev, materialId]
+    );
+  }, []);
 
   const handleCreatePackage = useCallback(() => {
     if (!project) {
@@ -107,17 +178,21 @@ export default function BuyoutScreen() {
       projectId: project.id,
       name: newPkgName.trim(),
       phase: newPkgPhase.trim() || undefined,
-      linkedEstimateItemIds: [],
+      csiDivision: newPkgCsi.trim() || undefined,
+      linkedEstimateItemIds: newPkgPickedItemIds,
       estimateBudget: budget,
       status: 'open',
     });
     setShowNewPkg(false);
     setNewPkgName('');
     setNewPkgPhase('');
+    setNewPkgCsi('');
     setNewPkgBudget('');
+    setNewPkgPickedItemIds([]);
+    lastAutoBudgetRef.current = '';
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     router.push({ pathname: '/buyout-package' as never, params: { packageId: newPkg.id } as never });
-  }, [project, newPkgName, newPkgPhase, newPkgBudget, addBidPackage, router]);
+  }, [project, newPkgName, newPkgPhase, newPkgCsi, newPkgBudget, newPkgPickedItemIds, addBidPackage, router]);
 
   return (
     <>
@@ -313,8 +388,74 @@ export default function BuyoutScreen() {
               <Text style={styles.fieldLabel}>Phase</Text>
               <TextInput style={styles.input} value={newPkgPhase} onChangeText={setNewPkgPhase} placeholder='e.g. "Rough-in", "Finishes"' placeholderTextColor={Colors.textMuted} />
 
+              <Text style={styles.fieldLabel}>CSI Division</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.csiRow}>
+                {CSI_DIVISIONS.map(d => (
+                  <TouchableOpacity
+                    key={d.code}
+                    style={[styles.csiChip, newPkgCsi === d.code && styles.csiChipActive]}
+                    onPress={() => setNewPkgCsi(d.code)}
+                  >
+                    <Text style={[styles.csiChipText, newPkgCsi === d.code && styles.csiChipTextActive]}>{d.code} · {d.name}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+
+              {/* Estimate item picker — links the package to specific
+                  estimate line items so the budget rolls up automatically
+                  and buyout savings are line-item accurate. */}
+              {projectEstimateItems.length > 0 && (
+                <>
+                  <Text style={styles.fieldLabel}>Estimate items in this package</Text>
+                  <Text style={styles.fieldHint}>Pick the line items this scope covers — budget auto-fills from the sum.</Text>
+                  <View style={styles.itemsList}>
+                    {projectEstimateItems.map(item => {
+                      const picked = newPkgPickedItemIds.includes(item.materialId);
+                      return (
+                        <Pressable
+                          key={item.materialId}
+                          style={({ pressed }) => [
+                            styles.itemRow,
+                            picked && styles.itemRowPicked,
+                            pressed && { opacity: 0.85 },
+                          ]}
+                          onPress={() => togglePickedItem(item.materialId)}
+                        >
+                          <View style={[styles.itemCheck, picked && styles.itemCheckActive]}>
+                            {picked && <Text style={styles.itemCheckMark}>✓</Text>}
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <View style={styles.itemTopRow}>
+                              <Text style={styles.itemName} numberOfLines={1}>{item.name}</Text>
+                              {item.isAllowance && (
+                                <View style={styles.allowanceBadge}>
+                                  <Text style={styles.allowanceBadgeText}>ALLOWANCE</Text>
+                                </View>
+                              )}
+                            </View>
+                            <Text style={styles.itemMeta}>{item.category} · {item.quantity} {item.unit} · ${Math.round(item.lineTotal).toLocaleString()}</Text>
+                          </View>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                  {newPkgPickedItemIds.length > 0 && (
+                    <View style={styles.pickedSummary}>
+                      <Text style={styles.pickedSummaryText}>
+                        {newPkgPickedItemIds.length} item{newPkgPickedItemIds.length === 1 ? '' : 's'} · ${Math.round(computedBudget).toLocaleString()} carry
+                      </Text>
+                      {allowanceCount > 0 && (
+                        <Text style={styles.allowanceNote}>
+                          ⚠️ {allowanceCount} allowance item{allowanceCount === 1 ? '' : 's'} included — awarding will lock to firm price.
+                        </Text>
+                      )}
+                    </View>
+                  )}
+                </>
+              )}
+
               <Text style={styles.fieldLabel}>Estimate budget (carry)</Text>
-              <TextInput style={styles.input} value={newPkgBudget} onChangeText={setNewPkgBudget} placeholder='What you carried in your estimate (numbers only)' placeholderTextColor={Colors.textMuted} keyboardType="numeric" />
+              <TextInput style={styles.input} value={newPkgBudget} onChangeText={setNewPkgBudget} placeholder='Auto-fills from selected items, or type manually' placeholderTextColor={Colors.textMuted} keyboardType="numeric" />
 
               <Text style={styles.tip}>You'll add bids on the next screen — by voice or by hand.</Text>
             </ScrollView>
@@ -385,8 +526,28 @@ const styles = StyleSheet.create({
   modalHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 18, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Colors.cardBorder },
   modalTitle: { fontSize: 18, fontWeight: '700' as const, color: Colors.text },
   fieldLabel: { fontSize: 13, fontWeight: '600' as const, color: Colors.textMuted, marginTop: 14, marginBottom: 6 },
+  fieldHint: { fontSize: 12, color: Colors.textMuted, marginTop: -2, marginBottom: 8, lineHeight: 16 },
   input: { backgroundColor: Colors.surface, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: Colors.cardBorder, fontSize: 15, color: Colors.text },
   tip: { fontSize: 12, color: Colors.textMuted, marginTop: 18, fontStyle: 'italic', textAlign: 'center' },
+  csiRow: { flexDirection: 'row', gap: 6, paddingBottom: 4 },
+  csiChip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.cardBorder },
+  csiChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  csiChipText: { fontSize: 12, fontWeight: '500' as const, color: Colors.text },
+  csiChipTextActive: { color: '#FFF', fontWeight: '700' as const },
+  itemsList: { gap: 6, marginTop: 4, marginBottom: 4 },
+  itemRow: { flexDirection: 'row', gap: 12, alignItems: 'flex-start', backgroundColor: Colors.surface, padding: 12, borderRadius: 10, borderWidth: 1, borderColor: Colors.cardBorder },
+  itemRowPicked: { backgroundColor: Colors.primary + '0F', borderColor: Colors.primary + '60' },
+  itemCheck: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: Colors.cardBorder, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.background, marginTop: 1 },
+  itemCheckActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  itemCheckMark: { color: '#FFF', fontWeight: '800' as const, fontSize: 13 },
+  itemTopRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
+  itemName: { fontSize: 14, fontWeight: '600' as const, color: Colors.text, flex: 1 },
+  itemMeta: { fontSize: 12, color: Colors.textMuted, marginTop: 2 },
+  allowanceBadge: { backgroundColor: Colors.warning, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
+  allowanceBadgeText: { fontSize: 9, fontWeight: '800' as const, color: '#FFF', letterSpacing: 0.5 },
+  pickedSummary: { padding: 12, backgroundColor: Colors.primary + '10', borderRadius: 10, marginTop: 8, gap: 4 },
+  pickedSummaryText: { fontSize: 13, fontWeight: '700' as const, color: Colors.primary },
+  allowanceNote: { fontSize: 12, color: Colors.warning, fontWeight: '600' as const },
   modalFoot: { padding: 16, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: Colors.cardBorder },
   saveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: Colors.primary, paddingVertical: 14, borderRadius: 12 },
   saveBtnText: { color: '#FFF', fontSize: 15, fontWeight: '700' as const },
