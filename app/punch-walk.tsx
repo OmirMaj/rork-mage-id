@@ -37,7 +37,7 @@ import { useProjects } from '@/contexts/ProjectContext';
 import { generateUUID } from '@/utils/generateId';
 import VoiceRecorder from '@/components/VoiceRecorder';
 import { inferTradeFromText, pickSubForTrade } from '@/utils/tradeInference';
-import { parsePunchFromTranscript } from '@/utils/voiceFormParsers';
+import { parsePunchFromTranscript, sentenceCase, titleCase } from '@/utils/voiceFormParsers';
 import { stampPhotoLocation, type PhotoGeoStamp } from '@/utils/photoGeoStamp';
 import type { PunchItem, PunchItemPriority, SubTrade, Subcontractor } from '@/types';
 import { SUB_TRADES } from '@/types';
@@ -167,12 +167,15 @@ function WalkInner({ projectName, projectId, subcontractors, onAdd, onDelete, on
       setDraft(d => ({
         ...d,
         // Description: append so multiple dictations stack (e.g.
-        // "hallway 2" + "outlet cover missing" become one item).
+        // "hallway 2" + "outlet cover missing" become one item). Run
+        // through sentenceCase so the saved punch reads like a short
+        // title — "Light fixture loose" not "light fixture loose".
         description: parsed.description
-          ? (d.description ? `${d.description} ${parsed.description}`.trim() : parsed.description)
-          : (d.description ? `${d.description} ${text}`.trim() : text.trim()),
+          ? (d.description ? `${d.description} ${sentenceCase(parsed.description)}`.trim() : sentenceCase(parsed.description))
+          : (d.description ? `${d.description} ${sentenceCase(text)}`.trim() : sentenceCase(text.trim())),
         // Location: only fill if the user hasn't already typed one.
-        location: d.location || parsed.location || d.location,
+        // Title-case so "master bath" -> "Master Bath".
+        location: d.location || titleCase(parsed.location || ''),
         // Trade: only overwrite when AI gives us something specific
         // and the user hasn't manually picked.
         trade: (parsed.trade && parsed.trade !== 'General' && d.trade === 'General')

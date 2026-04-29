@@ -49,9 +49,12 @@ export const voiceActionSchema = z.object({
   // Note fields
   noteBody: z.string().default(''),
 
-  // Project create fields
+  // Project create fields. projectType MUST match ProjectType in
+  // types/index.ts — otherwise PROJECT_TYPES.find(...).label resolves
+  // to undefined and the project-detail screen crashes with
+  // "Cannot read property 'charAt' of undefined".
   projectName: z.string().default(''),
-  projectType: z.enum(['kitchen','bathroom','addition','whole_home','roof','flooring','deck','adu','commercial','renovation','new_construction','other']).catch('renovation').default('renovation'),
+  projectType: z.enum(['new_build','renovation','addition','remodel','commercial','landscape','roofing','flooring','painting','plumbing','electrical','concrete']).catch('renovation').default('renovation'),
   projectLocation: z.string().default(''),
   targetBudget: z.number().default(0),
 
@@ -114,7 +117,7 @@ KINDS
 - note: Internal field note — no formal document needed. ("remind me to call the inspector tomorrow", "framing on second floor is half done")
 - project: Create a NEW project. ("new project: Smith kitchen remodel at 123 Main, eighty thousand budget", "start a project for the Henderson bathroom")
 - punch: Punch-list item discovered while walking the site. ("master bath, light fixture loose", "punch list item: hallway 2 paint touch-up", "kitchen GFCI outlet not working")
-- invoice: Bill the client for work performed. ("invoice them for demolition, twenty-eight hundred", "bill 850 square feet of drywall at 2.50 a foot")
+- invoice: Bill the client / send a bill / collect payment for work performed. ("invoice them for demolition, twenty-eight hundred", "bill 850 square feet of drywall at 2.50 a foot", "send an invoice for the kitchen demo", "I need to bill the homeowner", "draft a bill for ten hours of labor", "invoice the client", "create an invoice", "charge them for materials")
 - submittal: A submittal package (cut sheets, shop drawings). ("submit door hardware schedule, spec 08 71 00", "light fixture cut sheets for the kitchen by Friday")
 - unsure: The intent is ambiguous and the contractor should re-record.
 
@@ -122,7 +125,7 @@ OUTPUT RULES
 - For rfi: subject (≤80 chars), question, priority (urgent/normal/low), assignedTo, dateRequired (YYYY-MM-DD if a deadline given).
 - For co: description (≤80 chars), reason, scheduleImpactDays, changeAmount (single $ if stated), lineItems (array of {name, description, quantity, unit, unitPrice}).
 - For note: noteBody.
-- For project: projectName, projectType (kitchen/bathroom/addition/whole_home/roof/flooring/deck/adu/commercial/renovation/new_construction/other), projectLocation, targetBudget.
+- For project: projectName, projectType (one of: new_build, renovation, addition, remodel, commercial, landscape, roofing, flooring, painting, plumbing, electrical, concrete — pick the closest. "Kitchen remodel" -> remodel; "bathroom renovation" -> renovation; "ADU" -> new_build; "deck" -> addition), projectLocation, targetBudget.
 - For punch: description (the issue), punchLocation, punchTrade ("Electrical","Plumbing","HVAC","Drywall","Painting","Flooring","Roofing","Concrete","Framing","Landscaping","General","Other"), punchPriority (low/medium/high).
 - For invoice: invoiceNotes, invoiceLineItems (array of {name, description, quantity, unit, unitPrice}).
 - For submittal: submittalTitle, submittalSpecSection, submittalSubmittedBy, submittalRequiredDate.

@@ -218,7 +218,9 @@ TRANSCRIPT: ${transcript}`,
 
 const projectPartialSchema = z.object({
   name: z.string().default(''),
-  type: z.enum(['kitchen', 'bathroom', 'addition', 'whole_home', 'roof', 'flooring', 'deck', 'adu', 'commercial', 'renovation', 'new_construction', 'other']).catch('renovation').default('renovation'),
+  // Must match ProjectType in types/index.ts — see voiceActionParser
+  // for the full reasoning. Wrong values cause downstream crashes.
+  type: z.enum(['new_build','renovation','addition','remodel','commercial','landscape','roofing','flooring','painting','plumbing','electrical','concrete']).catch('renovation').default('renovation'),
   location: z.string().default(''),
   targetBudget: z.number().default(0),
   startDate: z.string().default(''),
@@ -232,7 +234,7 @@ export async function parseProjectFromTranscript(transcript: string): Promise<Pr
 
 OUTPUT RULES
 - name: short project name. If they say "Smith kitchen remodel", use that. Title-case.
-- type: one of "kitchen", "bathroom", "addition", "whole_home", "roof", "flooring", "deck", "adu", "commercial", "renovation", "new_construction", "other". Pick the closest.
+- type: one of new_build / renovation / addition / remodel / commercial / landscape / roofing / flooring / painting / plumbing / electrical / concrete. Pick the closest. ("Kitchen remodel" -> remodel. "Bathroom renovation" -> renovation. "ADU" or "new construction" -> new_build. "Deck" -> addition.)
 - location: street + city if stated.
 - targetBudget: dollar amount if stated. "Eighty thousand" -> 80000. 0 if not stated.
 - startDate: YYYY-MM-DD if a start date was mentioned; '' otherwise.
@@ -240,7 +242,7 @@ OUTPUT RULES
 
 TRANSCRIPT: ${transcript}`,
     schema: projectPartialSchema,
-    schemaHint: { name: 'Smith Kitchen Remodel', type: 'kitchen', location: '123 Main St, San Diego, CA', targetBudget: 80000, startDate: '', notes: 'Two-week timeline, owner wants quartz counters and shaker cabinets.' },
+    schemaHint: { name: 'Smith Kitchen Remodel', type: 'remodel', location: '123 Main St, San Diego, CA', targetBudget: 80000, startDate: '', notes: 'Two-week timeline, owner wants quartz counters and shaker cabinets.' },
     tier: 'fast',
   });
   if (!r.success) return projectPartialSchema.parse({});
@@ -300,4 +302,28 @@ export function pickIfEmpty<T>(current: T | undefined | null | '', parsed: T): T
   if (current === undefined || current === null || (typeof current === 'string' && current === '')) return parsed;
   if (typeof current === 'number' && current === 0 && typeof parsed === 'number' && parsed !== 0) return parsed;
   return current as T;
+}
+
+/**
+ * Sentence-case a string — capitalize the first letter of each
+ * comma-separated clause, leave the rest alone. Used for punch
+ * descriptions and other free-text the AI returns lowercase
+ * ("master bath, light fixture loose" → "Master bath, Light
+ * fixture loose").
+ */
+export function sentenceCase(s: string): string {
+  if (!s) return s;
+  return s
+    .split(/(,\s*)/)
+    .map(chunk => {
+      if (/^,\s*$/.test(chunk)) return chunk;
+      return chunk.charAt(0).toUpperCase() + chunk.slice(1);
+    })
+    .join('');
+}
+
+/** Title-case a string — capitalize the first letter of every word. */
+export function titleCase(s: string): string {
+  if (!s) return s;
+  return s.replace(/\b\w/g, c => c.toUpperCase());
 }

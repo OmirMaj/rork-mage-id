@@ -15,6 +15,7 @@ import { useProjects } from '@/contexts/ProjectContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import VoiceRecorder from '@/components/VoiceRecorder';
 import { parseVoiceAction, type VoiceActionResult } from '@/utils/voiceActionParser';
+import { sentenceCase, titleCase } from '@/utils/voiceFormParsers';
 import type { Project, RFI, ChangeOrder } from '@/types';
 import { generateUUID } from '@/utils/generateId';
 
@@ -112,9 +113,21 @@ export default function UniversalMicButton({ projectId, variant = 'fab' }: Props
   const handleConfirm = useCallback(async () => {
     if (!parsed) return;
     // Project gate — most kinds need one. 'project' kind creates a NEW
-    // project, so it's exempt from the gate.
+    // project, so it's exempt from the gate. If no project resolved
+    // through the auto-pick, last-ditch fallback to the first project
+    // in the list — better than blocking with a "no project" error
+    // when the GC clearly has projects on file. They can change it
+    // via the picker chips above the recorder if it's wrong.
     if (!project && parsed.kind !== 'project') {
-      setError('Pick a project first, or say "new project: ..." to create one.');
+      const fallback = projectsList[0];
+      if (fallback) {
+        setPickedProjectId(fallback.id);
+        // Don't return — handleConfirm re-runs after state settles when
+        // the user hits the button. We surface a hint so they retry.
+        setError(`Drafting on ${fallback.name}. Tap "Create" again to confirm.`);
+        return;
+      }
+      setError('No projects yet — say "new project: ..." first to create one.');
       return;
     }
     setStep('creating');
@@ -221,14 +234,18 @@ export default function UniversalMicButton({ projectId, variant = 'fab' }: Props
       } else if (parsed.kind === 'punch') {
         // Punch item: save inline (no extra screen), so a GC walking
         // the site can dictate punches in succession without leaving
-        // the FAB. Land in the project's punch list.
+        // the FAB. Land in the project's punch list. Description and
+        // location go through sentenceCase / titleCase so the punch
+        // list rows read like proper short-form titles ("Master Bath
+        // — Light fixture loose") instead of the raw lowercase
+        // transcription.
         const newId = generateUUID();
         const now = new Date().toISOString();
         ctx.addPunchItem({
           id: newId,
           projectId: proj.id,
-          description: parsed.description || 'Voice-captured item',
-          location: parsed.punchLocation || 'Unspecified',
+          description: sentenceCase(parsed.description || 'Voice-captured item'),
+          location: titleCase(parsed.punchLocation || 'Unspecified'),
           trade: aiTradeToSubTrade(parsed.punchTrade) as never,
           priority: parsed.punchPriority || 'medium',
           status: 'open',
@@ -240,16 +257,25 @@ export default function UniversalMicButton({ projectId, variant = 'fab' }: Props
         router.push({ pathname: '/punch-list' as never, params: { projectId: proj.id } as never });
       } else if (parsed.kind === 'project') {
         // New project — create immediately and route into project-detail
-        // so the GC can review/extend. ProjectType validated against the
-        // enum; AI returns the snake_case value already.
+        // so the GC can review/extend. MUST populate every required
+        // Project field (squareFootage, quality, description, estimate,
+        // schedule) — missing ones used to crash project-detail with
+        // "Cannot read property 'charAt' of undefined" because downstream
+        // components called .charAt on undefined string fields. Mirrors
+        // the standard "Create Project" payload from the home tab.
         const newId = generateUUID();
         const now = new Date().toISOString();
         ctx.addProject({
           id: newId,
           name: parsed.projectName || 'Voice-drafted project',
           type: (parsed.projectType || 'renovation') as never,
-          location: parsed.projectLocation || '',
-          status: 'estimated',
+          location: parsed.projectLocation || 'United States',
+          squareFootage: 0,
+          quality: 'standard',
+          description: parsed.reasoning || '',
+          status: 'draft',
+          estimate: null,
+          schedule: null,
           targetBudget: parsed.targetBudget > 0 ? { amount: parsed.targetBudget, isFromClient: false } : undefined,
           collaborators: [],
           createdAt: now,
@@ -386,12 +412,16 @@ export default function UniversalMicButton({ projectId, variant = 'fab' }: Props
               </TouchableOpacity>
             </View>
 
-            {/* Project picker */}
-            {!projectId && activeProjects.length > 1 && (
+            {/* Project picker — render any time the user hasn't pinned
+                a projectId via prop AND there are projects to choose
+                from. Previously gated on activeProjects.length > 1
+                which meant a single project still couldn't be re-
+                picked, and no projects gave a confusing dead-end. */}
+            {!projectId && projectsList.length > 0 && (
               <View style={styles.pickerWrap}>
                 <Text style={styles.pickerLabel}>Project</Text>
                 <View style={styles.pickerRow}>
-                  {activeProjects.slice(0, 3).map(p => (
+                  {projectsList.slice(0, 4).map(p => (
                     <TouchableOpacity
                       key={p.id}
                       style={[styles.pickerChip, project?.id === p.id && styles.pickerChipActive]}
@@ -408,8 +438,11 @@ export default function UniversalMicButton({ projectId, variant = 'fab' }: Props
             {project && (
               <Text style={styles.projectHint}>Drafting on <Text style={styles.projectHintEmph}>{project.name}</Text></Text>
             )}
-            {!project && (
-              <Text style={styles.projectHintWarn}>No project yet — say &quot;new project: ...&quot; to create one. Or any other action will prompt you to pick a project first.</Text>
+            {!project && projectsList.length === 0 && (
+              <Text style={styles.projectHintWarn}>No projects yet — say &quot;new project: Smith kitchen at 123 Main, eighty thousand&quot; to create one.</Text>
+            )}
+            {!project && projectsList.length > 0 && (
+              <Text style={styles.projectHintWarn}>Tap a project above to pick which one this applies to.</Text>
             )}
 
             {/* States — voice recorder is available even without a project,
