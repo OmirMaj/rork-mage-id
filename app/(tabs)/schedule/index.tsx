@@ -164,6 +164,22 @@ export default function ScheduleScreen() {
     return projects.find(p => p.id === selectedProjectId) ?? null;
   }, [projects, selectedProjectId]);
 
+  // Project chips are sorted so the GC's working set is on top: actively
+  // running projects first, then estimated, draft, then anything else
+  // (completed / closed). Within each status, most-recently-updated wins.
+  // No more modal picker — they tap a chip to switch in one motion.
+  const sortedProjectChips = useMemo<Project[]>(() => {
+    const rank: Record<string, number> = {
+      in_progress: 0, estimated: 1, draft: 2, completed: 3, closed: 4,
+    };
+    return [...projects].sort((a, b) => {
+      const ra = rank[a.status] ?? 9;
+      const rb = rank[b.status] ?? 9;
+      if (ra !== rb) return ra - rb;
+      return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+    });
+  }, [projects]);
+
   const activeSchedule = useMemo<ProjectSchedule | null>(() => {
     return selectedProject?.schedule ?? null;
   }, [selectedProject]);
@@ -1556,19 +1572,37 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
     return (
       <View style={styles.container}>
         <View style={desktopStyles.desktopHeader}>
-          <View style={desktopStyles.desktopHeaderLeft}>
-            <TouchableOpacity
-              style={styles.projectPickerBtn}
-              onPress={() => setIsProjectPickerOpen(true)}
-              activeOpacity={0.8}
-            >
-              <FolderOpen size={15} color={Colors.primary} />
-              <Text style={styles.projectPickerText} numberOfLines={1}>
-                {selectedProject?.name ?? 'Select project'}
-              </Text>
-              <ChevronDown size={14} color={Colors.textMuted} />
-            </TouchableOpacity>
-          </View>
+          {/* Desktop ribbon: project chips on the left half, view tabs
+              on the right half — both scrollable so they don't fight
+              each other on narrow widths. Mirrors MS Project's
+              file-tab + view-tab convention. */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={desktopStyles.desktopHeaderLeft}
+            contentContainerStyle={{ alignItems: 'center', gap: 6 }}
+          >
+            {sortedProjectChips.map(p => {
+              const active = p.id === selectedProjectId;
+              const dotColor = p.status === 'in_progress' ? Colors.success
+                : p.status === 'estimated' ? Colors.primary
+                : p.status === 'draft' ? Colors.warning
+                : Colors.textMuted;
+              return (
+                <TouchableOpacity
+                  key={p.id}
+                  style={[styles.projectChip, active && styles.projectChipActive]}
+                  onPress={() => setSelectedProjectId(p.id)}
+                  activeOpacity={0.8}
+                >
+                  <View style={[styles.projectChipDot, { backgroundColor: dotColor }]} />
+                  <Text style={[styles.projectChipText, active && styles.projectChipTextActive]} numberOfLines={1}>
+                    {p.name}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }}>
             <View style={styles.viewTabBar}>
               {([
@@ -2035,20 +2069,41 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
           </View>
         </View>
 
-        <View style={styles.projectPickerRow}>
-          <TouchableOpacity
-            style={styles.projectPickerBtn}
-            onPress={() => setIsProjectPickerOpen(true)}
-            activeOpacity={0.8}
-            testID="schedule-project-picker"
-          >
-            <FolderOpen size={15} color={Colors.primary} />
-            <Text style={styles.projectPickerText} numberOfLines={1}>
-              {selectedProject?.name ?? 'Select project'}
-            </Text>
-            <ChevronDown size={14} color={Colors.textMuted} />
-          </TouchableOpacity>
-        </View>
+        {/* Active-projects chip row — primary navigation across projects.
+            Replaces the old picker-button-then-modal flow so the GC can
+            see every project they have at a glance and one-tap switch.
+            Sorted so in-progress / estimated land first. The picker
+            modal still opens via the chevron at the end if the list
+            scrolls past what's visible. */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.projectChipsRow}
+        >
+          {sortedProjectChips.map(p => {
+            const active = p.id === selectedProjectId;
+            const dotColor = p.status === 'in_progress' ? Colors.success
+              : p.status === 'estimated' ? Colors.primary
+              : p.status === 'draft' ? Colors.warning
+              : Colors.textMuted;
+            return (
+              <TouchableOpacity
+                key={p.id}
+                style={[styles.projectChip, active && styles.projectChipActive]}
+                onPress={() => setSelectedProjectId(p.id)}
+                activeOpacity={0.8}
+              >
+                <View style={[styles.projectChipDot, { backgroundColor: dotColor }]} />
+                <Text style={[styles.projectChipText, active && styles.projectChipTextActive]} numberOfLines={1}>
+                  {p.name}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+          {sortedProjectChips.length === 0 && (
+            <Text style={styles.projectChipsEmpty}>No projects yet — create one from the Home tab.</Text>
+          )}
+        </ScrollView>
 
         {!selectedProject && (
           <View style={styles.emptyPrompt}>
@@ -2994,6 +3049,33 @@ const styles = StyleSheet.create({
   projectPickerBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: Colors.surface, borderRadius: 14, paddingHorizontal: 14, minHeight: 46, borderWidth: 1, borderColor: Colors.cardBorder },
   projectPickerText: { flex: 1, fontSize: 14, fontWeight: '600' as const, color: Colors.text },
 
+  // Project chips — replaces the picker-button-then-modal flow.
+  projectChipsRow: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 10, gap: 8, alignItems: 'center', flexDirection: 'row' as const },
+  projectChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+    maxWidth: 220,
+  },
+  projectChipActive: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  projectChipDot: { width: 8, height: 8, borderRadius: 4 },
+  projectChipText: {
+    fontSize: 13,
+    fontWeight: '600' as const,
+    color: Colors.text,
+  },
+  projectChipTextActive: { color: '#FFF' },
+  projectChipsEmpty: { fontSize: 13, color: Colors.textMuted, paddingHorizontal: 4 },
+
   emptyPrompt: { alignItems: 'center', paddingVertical: 60, paddingHorizontal: 40, gap: 10 },
   emptyTitle: { fontSize: 20, fontWeight: '700' as const, color: Colors.text },
   emptyDesc: { fontSize: 14, color: Colors.textSecondary, textAlign: 'center' as const },
@@ -3017,11 +3099,31 @@ const styles = StyleSheet.create({
   overallProgress: { height: 6, borderRadius: 3, backgroundColor: Colors.fillSecondary, overflow: 'hidden' as const },
   overallProgressFill: { height: '100%', borderRadius: 3, backgroundColor: Colors.primary },
 
-  viewTabScroll: { marginBottom: 14 },
-  viewTabBar: { flexDirection: 'row', paddingHorizontal: 16, gap: 6 },
-  viewTab: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: Colors.fillTertiary },
-  viewTabActive: { backgroundColor: Colors.primary },
-  viewTabText: { fontSize: 12, fontWeight: '600' as const, color: Colors.textSecondary },
+  // View-tab ribbon — MS-Project style. Lives on a surface band so it
+  // reads as a single ribbon, not a sea of pills. Active tab gets a
+  // subtle elevation + the brand color, inactive tabs are flat text
+  // (no visual noise from pill backgrounds you scroll past).
+  viewTabScroll: {
+    marginBottom: 14,
+    backgroundColor: Colors.surface,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.cardBorder,
+  },
+  viewTabBar: { flexDirection: 'row', paddingHorizontal: 12, gap: 2, paddingVertical: 4 },
+  viewTab: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: 'transparent',
+  },
+  viewTabActive: {
+    backgroundColor: Colors.primary,
+  },
+  viewTabText: { fontSize: 13, fontWeight: '600' as const, color: Colors.textSecondary },
   viewTabTextActive: { color: '#FFF' },
   weatherBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#007AFF12', alignItems: 'center', justifyContent: 'center', marginLeft: 'auto' as const },
   fieldModeBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#FF950015', alignItems: 'center', justifyContent: 'center' },
