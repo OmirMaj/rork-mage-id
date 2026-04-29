@@ -21,7 +21,7 @@ import { mageAI } from '@/utils/mageAI';
 import type { Project, ScheduleTask } from '@/types';
 
 export const voiceActionSchema = z.object({
-  kind: z.enum(['rfi', 'co', 'note', 'project', 'punch', 'invoice', 'submittal', 'unsure']).catch('unsure').default('unsure'),
+  kind: z.enum(['rfi', 'co', 'note', 'project', 'punch', 'invoice', 'submittal', 'lead', 'unsure']).catch('unsure').default('unsure'),
   // Why we chose this kind. Surfaces in the confirmation toast so the GC
   // can see the AI's read and quickly correct it.
   reasoning: z.string().default(''),
@@ -78,6 +78,21 @@ export const voiceActionSchema = z.object({
   submittalSpecSection: z.string().default(''),
   submittalSubmittedBy: z.string().default(''),
   submittalRequiredDate: z.string().default(''),
+
+  // Lead (CRM) fields
+  leadName: z.string().default(''),
+  leadPhone: z.string().default(''),
+  leadEmail: z.string().default(''),
+  leadAddress: z.string().default(''),
+  leadProjectType: z.string().default(''),
+  leadScope: z.string().default(''),
+  leadBudgetMin: z.number().default(0),
+  leadBudgetMax: z.number().default(0),
+  leadTimeline: z.string().default(''),
+  leadSource: z.enum(['referral','website','houzz','angi','yelp','thumbtack','google','facebook','instagram','walk_in','repeat','sign','truck','other']).catch('other').default('other'),
+  leadSourceOther: z.string().default(''),
+  leadScore: z.number().default(0),
+  leadScoreReason: z.string().default(''),
 });
 
 export type VoiceActionResult = z.infer<typeof voiceActionSchema>;
@@ -119,6 +134,7 @@ KINDS
 - punch: Punch-list item discovered while walking the site. ("master bath, light fixture loose", "punch list item: hallway 2 paint touch-up", "kitchen GFCI outlet not working")
 - invoice: Bill the client / send a bill / collect payment for work performed. ("invoice them for demolition, twenty-eight hundred", "bill 850 square feet of drywall at 2.50 a foot", "send an invoice for the kitchen demo", "I need to bill the homeowner", "draft a bill for ten hours of labor", "invoice the client", "create an invoice", "charge them for materials")
 - submittal: A submittal package (cut sheets, shop drawings). ("submit door hardware schedule, spec 08 71 00", "light fixture cut sheets for the kitchen by Friday")
+- lead: A NEW homeowner inquiry / sales lead — a potential customer the GC just talked to or got a message from. ("new lead: John Smith, 555 1234, kitchen remodel, found us on Houzz", "got a lead from referral — Jane wants a bathroom reno around 25 grand", "Henderson family called about a two-story addition", "lead came in from Yelp, walk-in this morning")
 - unsure: The intent is ambiguous and the contractor should re-record.
 
 OUTPUT RULES
@@ -129,6 +145,7 @@ OUTPUT RULES
 - For punch: description (the issue), punchLocation, punchTrade ("Electrical","Plumbing","HVAC","Drywall","Painting","Flooring","Roofing","Concrete","Framing","Landscaping","General","Other"), punchPriority (low/medium/high).
 - For invoice: invoiceNotes, invoiceLineItems (array of {name, description, quantity, unit, unitPrice}).
 - For submittal: submittalTitle, submittalSpecSection, submittalSubmittedBy, submittalRequiredDate.
+- For lead: leadName (homeowner, title-case), leadPhone, leadEmail, leadAddress, leadProjectType (free-text like "Kitchen remodel"), leadScope (any extra detail), leadBudgetMin / leadBudgetMax (dollars), leadTimeline ("spring", "ASAP"), leadSource (referral/website/houzz/angi/yelp/thumbtack/google/facebook/instagram/walk_in/repeat/sign/truck/other), leadSourceOther (referrer name if applicable), leadScore (1-10 fit score — be honest), leadScoreReason (one short sentence).
 - For unsure: leave fields blank, set reasoning to explain what was missing.
 
 Always set 'reasoning' to a one-sentence explanation of why you picked this kind, in the contractor's voice ("Sounds like an RFI because…").
@@ -166,6 +183,19 @@ ${transcript}`,
       submittalSpecSection: '',
       submittalSubmittedBy: '',
       submittalRequiredDate: '',
+      leadName: '',
+      leadPhone: '',
+      leadEmail: '',
+      leadAddress: '',
+      leadProjectType: '',
+      leadScope: '',
+      leadBudgetMin: 0,
+      leadBudgetMax: 0,
+      leadTimeline: '',
+      leadSource: 'other',
+      leadSourceOther: '',
+      leadScore: 0,
+      leadScoreReason: '',
     },
     tier: 'fast',
   });

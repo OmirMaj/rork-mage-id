@@ -13,6 +13,7 @@ import {
   Plus, TrendingUp, FolderOpen, Layers, X, ChevronRight, Calculator, CalendarDays,
   BarChart3, TrendingDown, Package, DollarSign, Percent, ShoppingCart, ArrowDownRight,
   Receipt, Wallet, Search, Sparkles, ChevronDown, ChevronUp, Inbox, HardHat, Bell,
+  UserPlus,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
@@ -293,6 +294,14 @@ export default function HomeScreen() {
                     <Wallet size={22} color={Colors.primary} strokeWidth={2} />
                   </TouchableOpacity>
                 )}
+                <TouchableOpacity
+                  style={[styles.addButton, { backgroundColor: Colors.fillTertiary }]}
+                  onPress={() => router.push('/leads' as never)}
+                  activeOpacity={0.7}
+                  testID="pipeline-btn"
+                >
+                  <UserPlus size={20} color={Colors.primary} strokeWidth={2} />
+                </TouchableOpacity>
                 {projects.length > 0 && (
                   <TouchableOpacity
                     style={[styles.addButton, { backgroundColor: Colors.fillTertiary }]}

@@ -8,7 +8,7 @@ import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import {
   Mic, X, FileText, FilePlus2, MessageSquare, AlertTriangle, Sparkles,
-  CheckSquare, Briefcase, Receipt, FolderOpen,
+  CheckSquare, Briefcase, Receipt, FolderOpen, UserPlus,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
@@ -113,12 +113,13 @@ export default function UniversalMicButton({ projectId, variant = 'fab' }: Props
   const handleConfirm = useCallback(async () => {
     if (!parsed) return;
     // Project gate — most kinds need one. 'project' kind creates a NEW
-    // project, so it's exempt from the gate. If no project resolved
-    // through the auto-pick, last-ditch fallback to the first project
-    // in the list — better than blocking with a "no project" error
-    // when the GC clearly has projects on file. They can change it
-    // via the picker chips above the recorder if it's wrong.
-    if (!project && parsed.kind !== 'project') {
+    // project, so it's exempt. 'lead' is exempt too — leads pre-date
+    // any project (a lead becomes a project once won). If no project
+    // resolved through the auto-pick, last-ditch fallback to the first
+    // project in the list — better than blocking with a "no project"
+    // error when the GC clearly has projects on file. They can change
+    // it via the picker chips above the recorder if it's wrong.
+    if (!project && parsed.kind !== 'project' && parsed.kind !== 'lead') {
       const fallback = projectsList[0];
       if (fallback) {
         setPickedProjectId(fallback.id);
@@ -298,6 +299,30 @@ export default function UniversalMicButton({ projectId, variant = 'fab' }: Props
             prefillNotes: parsed.invoiceNotes ?? '',
           } as never,
         });
+      } else if (parsed.kind === 'lead') {
+        // New CRM lead — homeowner inquiry. Saves immediately, lands in
+        // /lead-detail so the GC can review/log first contact. Source
+        // defaults to 'other' if AI didn't catch one.
+        const newLead = ctx.addLead({
+          name: titleCase(parsed.leadName || 'Voice-captured lead'),
+          phone: parsed.leadPhone || undefined,
+          email: parsed.leadEmail || undefined,
+          address: parsed.leadAddress || undefined,
+          projectType: parsed.leadProjectType || undefined,
+          scope: parsed.leadScope || undefined,
+          budgetMin: parsed.leadBudgetMin > 0 ? parsed.leadBudgetMin : undefined,
+          budgetMax: parsed.leadBudgetMax > 0 ? parsed.leadBudgetMax : undefined,
+          timeline: parsed.leadTimeline || undefined,
+          source: parsed.leadSource || 'other',
+          sourceOther: parsed.leadSourceOther || undefined,
+          stage: 'new',
+          score: parsed.leadScore > 0 ? parsed.leadScore : undefined,
+          scoreReason: parsed.leadScoreReason || undefined,
+          touches: [],
+        });
+        if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        handleClose();
+        router.push({ pathname: '/lead-detail' as never, params: { leadId: newLead.id } as never });
       } else if (parsed.kind === 'submittal') {
         // Submittal: same pattern — route to the form with prefills,
         // then the user reviews + saves.
@@ -350,6 +375,7 @@ export default function UniversalMicButton({ projectId, variant = 'fab' }: Props
     : parsed?.kind === 'project' ? Briefcase
     : parsed?.kind === 'invoice' ? Receipt
     : parsed?.kind === 'submittal' ? FolderOpen
+    : parsed?.kind === 'lead' ? UserPlus
     : AlertTriangle;
   const kindLabel = parsed?.kind === 'rfi' ? 'Request for information'
     : parsed?.kind === 'co' ? 'Change order draft'
@@ -358,6 +384,7 @@ export default function UniversalMicButton({ projectId, variant = 'fab' }: Props
     : parsed?.kind === 'project' ? 'New project'
     : parsed?.kind === 'invoice' ? 'Invoice draft'
     : parsed?.kind === 'submittal' ? 'Submittal'
+    : parsed?.kind === 'lead' ? 'New lead'
     : 'Not sure yet';
   const kindCTA = parsed?.kind === 'rfi' ? 'RFI'
     : parsed?.kind === 'co' ? 'change order'
@@ -366,6 +393,7 @@ export default function UniversalMicButton({ projectId, variant = 'fab' }: Props
     : parsed?.kind === 'project' ? 'project'
     : parsed?.kind === 'invoice' ? 'invoice'
     : parsed?.kind === 'submittal' ? 'submittal'
+    : parsed?.kind === 'lead' ? 'lead'
     : '';
 
   // Hide self when there's nothing to scope to. Done in render (not via an
@@ -452,6 +480,7 @@ export default function UniversalMicButton({ projectId, variant = 'fab' }: Props
               <View style={styles.bodyWrap}>
                 <View style={styles.tipsBox}>
                   <Text style={styles.tipsTitle}>Try saying…</Text>
+                  <Text style={styles.tipsLine}>&quot;New lead: John Smith, 555 1234, kitchen remodel, found us on Houzz, eighty thousand.&quot;</Text>
                   <Text style={styles.tipsLine}>&quot;Submit an RFI to the architect about the steel beam size.&quot;</Text>
                   <Text style={styles.tipsLine}>&quot;Owner wants the heat pump upgrade — change order for forty-five hundred.&quot;</Text>
                   <Text style={styles.tipsLine}>&quot;Punch list: master bath, light fixture loose.&quot;</Text>
@@ -574,6 +603,23 @@ export default function UniversalMicButton({ projectId, variant = 'fab' }: Props
                         <PreviewField label="Submitted by" value={parsed.submittalSubmittedBy || '—'} small />
                         <PreviewField label="Required by" value={parsed.submittalRequiredDate || '—'} small />
                       </View>
+                    </View>
+                  )}
+
+                  {parsed.kind === 'lead' && (
+                    <View style={styles.previewBody}>
+                      <PreviewField label="Name" value={parsed.leadName || '—'} />
+                      <View style={styles.previewMetaRow}>
+                        {!!parsed.leadPhone && <PreviewField label="Phone" value={parsed.leadPhone} small />}
+                        {!!parsed.leadEmail && <PreviewField label="Email" value={parsed.leadEmail} small />}
+                      </View>
+                      {!!parsed.leadProjectType && <PreviewField label="Project" value={parsed.leadProjectType} />}
+                      <View style={styles.previewMetaRow}>
+                        <PreviewField label="Source" value={parsed.leadSource} small />
+                        <PreviewField label="Budget" value={parsed.leadBudgetMax > 0 ? `$${parsed.leadBudgetMax.toLocaleString()}` : (parsed.leadBudgetMin > 0 ? `$${parsed.leadBudgetMin.toLocaleString()}` : '—')} small />
+                        <PreviewField label="Score" value={parsed.leadScore > 0 ? `${parsed.leadScore}/10` : '—'} small />
+                      </View>
+                      {!!parsed.leadScoreReason && <Text style={styles.previewNote}>{parsed.leadScoreReason}</Text>}
                     </View>
                   )}
 

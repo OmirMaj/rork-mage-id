@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import createContextHook from '@nkzw/create-context-hook';
-import type { Project, AppSettings, CompanyBranding, ProjectCollaborator, ChangeOrder, Invoice, DailyFieldReport, Subcontractor, PunchItem, ProjectPhoto, PriceAlert, Contact, CommunicationEvent, RFI, Submittal, SubmittalReviewCycle, Equipment, EquipmentUtilizationEntry, PDFNamingSettings, Warranty, WarrantyClaim, PortalMessage, Commitment, PrequalPacket, PlanSheet, DrawingPin, PlanCalibration, PlanMarkup, Permit, SavedAIAPayApp, SubPortalLink } from '@/types';
+import type { Project, ProjectType, AppSettings, CompanyBranding, ProjectCollaborator, ChangeOrder, Invoice, DailyFieldReport, Subcontractor, PunchItem, ProjectPhoto, PriceAlert, Contact, CommunicationEvent, RFI, Submittal, SubmittalReviewCycle, Equipment, EquipmentUtilizationEntry, PDFNamingSettings, Warranty, WarrantyClaim, PortalMessage, Commitment, PrequalPacket, PlanSheet, DrawingPin, PlanCalibration, PlanMarkup, Permit, SavedAIAPayApp, SubPortalLink, Lead, LeadStage, LeadTouch } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { supabaseWrite } from '@/utils/offlineQueue';
@@ -11,6 +11,7 @@ import { generateUUID } from '@/utils/generateId';
 const PROJECTS_KEY = 'buildwise_projects';
 const SETTINGS_KEY = 'buildwise_settings';
 const ONBOARDING_KEY = 'buildwise_onboarding_complete';
+const LEADS_KEY = 'tertiary_leads';
 const CHANGE_ORDERS_KEY = 'tertiary_change_orders';
 const INVOICES_KEY = 'tertiary_invoices';
 const DAILY_REPORTS_KEY = 'tertiary_daily_reports';
@@ -81,6 +82,7 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [hasSeenOnboarding, setHasSeenOnboarding] = useState<boolean | null>(null);
   const [changeOrders, setChangeOrders] = useState<ChangeOrder[]>([]);
+  const [leads, setLeads] = useState<Lead[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [commitments, setCommitments] = useState<Commitment[]>([]);
   const [prequalPackets, setPrequalPackets] = useState<PrequalPacket[]>([]);
@@ -265,6 +267,47 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
         } catch { /* fallback */ }
       }
       return loadLocal<DailyFieldReport[]>(DAILY_REPORTS_KEY, []);
+    },
+  });
+
+  const leadsQuery = useQuery({
+    queryKey: ['leads', userId],
+    queryFn: async () => {
+      if (canSync) {
+        try {
+          const { data, error } = await supabase.from('leads').select('*').order('received_at', { ascending: false });
+          if (!error && data) {
+            const mapped = data.map((r: Record<string, unknown>) => ({
+              id: r.id as string,
+              name: (r.name as string) ?? '',
+              phone: (r.phone as string) ?? undefined,
+              email: (r.email as string) ?? undefined,
+              address: (r.address as string) ?? undefined,
+              projectType: (r.project_type as string) ?? undefined,
+              projectTypeMapped: (r.project_type_mapped as Lead['projectTypeMapped']) ?? undefined,
+              scope: (r.scope as string) ?? undefined,
+              budgetMin: (r.budget_min as number) ?? undefined,
+              budgetMax: (r.budget_max as number) ?? undefined,
+              timeline: (r.timeline as string) ?? undefined,
+              source: (r.source as Lead['source']) ?? 'other',
+              sourceOther: (r.source_other as string) ?? undefined,
+              stage: (r.stage as LeadStage) ?? 'new',
+              score: (r.score as number) ?? undefined,
+              scoreReason: (r.score_reason as string) ?? undefined,
+              receivedAt: r.received_at as string,
+              firstRespondedAt: (r.first_responded_at as string) ?? undefined,
+              touches: (r.touches as LeadTouch[]) ?? [],
+              convertedProjectId: (r.converted_project_id as string) ?? undefined,
+              lostReason: (r.lost_reason as string) ?? undefined,
+              createdAt: r.created_at as string,
+              updatedAt: r.updated_at as string,
+            })) as Lead[];
+            await saveLocal(LEADS_KEY, mapped);
+            return mapped;
+          }
+        } catch { /* fallback */ }
+      }
+      return loadLocal<Lead[]>(LEADS_KEY, []);
     },
   });
 
@@ -521,6 +564,7 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
   useEffect(() => { if (prequalQuery.data) setPrequalPackets(prequalQuery.data); }, [prequalQuery.data]);
   useEffect(() => { if (dailyReportsQuery.data) setDailyReports(dailyReportsQuery.data); }, [dailyReportsQuery.data]);
   useEffect(() => { if (subsQuery.data) setSubcontractors(subsQuery.data); }, [subsQuery.data]);
+  useEffect(() => { if (leadsQuery.data) setLeads(leadsQuery.data); }, [leadsQuery.data]);
   useEffect(() => { if (punchItemsQuery.data) setPunchItems(punchItemsQuery.data); }, [punchItemsQuery.data]);
   useEffect(() => { if (photosQuery.data) setProjectPhotos(photosQuery.data); }, [photosQuery.data]);
   useEffect(() => { if (priceAlertsQuery.data) setPriceAlerts(priceAlertsQuery.data); }, [priceAlertsQuery.data]);
@@ -647,6 +691,10 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
   const saveSubsMutation = useMutation({
     mutationFn: async (updated: Subcontractor[]) => { await saveLocal(SUBS_KEY, updated); return updated; },
     onSuccess: (data) => { queryClient.setQueryData(['subcontractors', userId], data); },
+  });
+  const saveLeadsMutation = useMutation({
+    mutationFn: async (updated: Lead[]) => { await saveLocal(LEADS_KEY, updated); return updated; },
+    onSuccess: (data) => { queryClient.setQueryData(['leads', userId], data); },
   });
   const savePunchItemsMutation = useMutation({
     mutationFn: async (updated: PunchItem[]) => { await saveLocal(PUNCH_ITEMS_KEY, updated); return updated; },
@@ -953,6 +1001,133 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
   }, [dailyReports, saveDailyReportsMutation, canSync]);
 
   const getDailyReportsForProject = useCallback((projectId: string) => dailyReports.filter(dr => dr.projectId === projectId).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()), [dailyReports]);
+
+  // ─────────────────────────────────────────────
+  // CRM / Leads
+  // ─────────────────────────────────────────────
+  // Returns the new Lead so callers (e.g. UniversalMicButton) can route
+  // straight to /lead-detail without racing on closure refresh — same
+  // pattern used by addRFI.
+  const addLead = useCallback((lead: Omit<Lead, 'id' | 'createdAt' | 'updatedAt' | 'receivedAt'> & { id?: string; receivedAt?: string }): Lead => {
+    const now = new Date().toISOString();
+    const newLead: Lead = {
+      ...lead,
+      id: lead.id ?? generateUUID(),
+      receivedAt: lead.receivedAt ?? now,
+      createdAt: now,
+      updatedAt: now,
+    };
+    const updated = [newLead, ...leads];
+    setLeads(updated);
+    saveLeadsMutation.mutate(updated);
+    if (canSync) {
+      void supabaseWrite('leads', 'insert', {
+        id: newLead.id, user_id: userId,
+        name: newLead.name, phone: newLead.phone, email: newLead.email, address: newLead.address,
+        project_type: newLead.projectType, project_type_mapped: newLead.projectTypeMapped,
+        scope: newLead.scope, budget_min: newLead.budgetMin, budget_max: newLead.budgetMax,
+        timeline: newLead.timeline, source: newLead.source, source_other: newLead.sourceOther,
+        stage: newLead.stage, score: newLead.score, score_reason: newLead.scoreReason,
+        received_at: newLead.receivedAt, first_responded_at: newLead.firstRespondedAt,
+        touches: newLead.touches ?? [], converted_project_id: newLead.convertedProjectId,
+        lost_reason: newLead.lostReason, created_at: now, updated_at: now,
+      });
+    }
+    return newLead;
+  }, [leads, saveLeadsMutation, canSync, userId]);
+
+  const updateLead = useCallback((id: string, updates: Partial<Lead>) => {
+    const now = new Date().toISOString();
+    const updated = leads.map(l => l.id === id ? { ...l, ...updates, updatedAt: now } : l);
+    setLeads(updated);
+    saveLeadsMutation.mutate(updated);
+    if (canSync) {
+      const l = updated.find(x => x.id === id);
+      if (l) {
+        void supabaseWrite('leads', 'update', {
+          id, name: l.name, phone: l.phone, email: l.email, address: l.address,
+          project_type: l.projectType, project_type_mapped: l.projectTypeMapped,
+          scope: l.scope, budget_min: l.budgetMin, budget_max: l.budgetMax,
+          timeline: l.timeline, source: l.source, source_other: l.sourceOther,
+          stage: l.stage, score: l.score, score_reason: l.scoreReason,
+          received_at: l.receivedAt, first_responded_at: l.firstRespondedAt,
+          touches: l.touches ?? [], converted_project_id: l.convertedProjectId,
+          lost_reason: l.lostReason, updated_at: now,
+        });
+      }
+    }
+  }, [leads, saveLeadsMutation, canSync]);
+
+  const deleteLead = useCallback((id: string) => {
+    const updated = leads.filter(l => l.id !== id);
+    setLeads(updated);
+    saveLeadsMutation.mutate(updated);
+    if (canSync) void supabaseWrite('leads', 'delete', { id });
+  }, [leads, saveLeadsMutation, canSync]);
+
+  const getLead = useCallback((id: string) => leads.find(l => l.id === id) ?? null, [leads]);
+
+  const getLeadsByStage = useCallback((stage: LeadStage) => leads.filter(l => l.stage === stage), [leads]);
+
+  /** Append a touch (call/text/email/etc) to a lead's activity log. If
+   *  this is the first touch and firstRespondedAt isn't set, stamp it
+   *  now — drives the "responded in Xh" KPI on the pipeline screen. */
+  const addLeadTouch = useCallback((leadId: string, kind: LeadTouch['kind'], body: string, byName?: string) => {
+    const now = new Date().toISOString();
+    const lead = leads.find(l => l.id === leadId);
+    if (!lead) return;
+    const touch: LeadTouch = {
+      id: generateUUID(),
+      kind, body, occurredAt: now, byName,
+    };
+    const nextTouches = [touch, ...(lead.touches ?? [])];
+    const firstRespondedAt = lead.firstRespondedAt
+      ?? (kind !== 'note' ? now : undefined);
+    updateLead(leadId, { touches: nextTouches, firstRespondedAt });
+  }, [leads, updateLead]);
+
+  /** Convert a 'won' lead into a real Project. Idempotent — if already
+   *  converted, returns the existing project id. */
+  const convertLeadToProject = useCallback((leadId: string): string | null => {
+    const lead = leads.find(l => l.id === leadId);
+    if (!lead) return null;
+    if (lead.convertedProjectId) return lead.convertedProjectId;
+    const now = new Date().toISOString();
+    const projectId = generateUUID();
+    // Use the inline addProject path so we don't introduce a new
+    // dependency between callbacks here.
+    const newProject: Project = {
+      id: projectId,
+      name: lead.name + (lead.projectType ? ` — ${lead.projectType}` : ''),
+      type: (lead.projectTypeMapped ?? 'renovation') as ProjectType,
+      location: lead.address ?? 'United States',
+      squareFootage: 0,
+      quality: 'standard',
+      description: lead.scope ?? '',
+      status: 'estimated',
+      estimate: null,
+      schedule: null,
+      targetBudget: lead.budgetMax && lead.budgetMax > 0
+        ? { amount: lead.budgetMax, setAt: now, setBy: 'gc' }
+        : (lead.budgetMin && lead.budgetMin > 0
+            ? { amount: lead.budgetMin, setAt: now, setBy: 'gc' }
+            : undefined),
+      createdAt: now,
+      updatedAt: now,
+    };
+    setProjects(prev => [newProject, ...prev]);
+    saveProjectsMutation.mutate([newProject, ...projects]);
+    if (canSync) {
+      void supabaseWrite('projects', 'insert', {
+        id: projectId, user_id: userId, name: newProject.name, type: newProject.type,
+        location: newProject.location, square_footage: 0, quality: 'standard',
+        description: newProject.description, status: newProject.status,
+        target_budget: newProject.targetBudget, created_at: now, updated_at: now,
+      });
+    }
+    updateLead(leadId, { stage: 'won', convertedProjectId: projectId });
+    return projectId;
+  }, [leads, projects, saveProjectsMutation, canSync, userId, updateLead]);
 
   const addSubcontractor = useCallback((sub: Subcontractor) => {
     const updated = [sub, ...subcontractors];
@@ -1768,6 +1943,7 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
     priceAlerts, addPriceAlert, updatePriceAlert, deletePriceAlert,
     contacts, addContact, updateContact, deleteContact, getContact,
     commEvents, addCommEvent, getCommEventsForProject,
+    leads, addLead, updateLead, deleteLead, getLead, getLeadsByStage, addLeadTouch, convertLeadToProject,
     rfis, addRFI, updateRFI, deleteRFI, getRFIsForProject,
     permits, addPermit, updatePermit, deletePermit, getPermitsForProject,
     aiaPayApps, addAIAPayApp, deleteAIAPayApp, getAIAPayAppsForProject,
@@ -1780,5 +1956,5 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
     drawingPins, addDrawingPin, updateDrawingPin, deleteDrawingPin, getPinsForPlan, getPinsForPhoto,
     planMarkups, addPlanMarkup, deletePlanMarkup, getMarkupsForPlan,
     planCalibrations, upsertPlanCalibration, getCalibrationForPlan,
-  }), [sortedProjects, settings, hasSeenOnboarding, completeOnboarding, projectsQuery.isLoading, settingsQuery.isLoading, onboardingQuery.isLoading, addProject, updateProject, deleteProject, getProject, updateSettings, addCollaborator, removeCollaborator, changeOrders, addChangeOrder, updateChangeOrder, getChangeOrdersForProject, addInvoice, updateInvoice, getInvoicesForProject, getTotalOutstandingBalance, invoices, commitments, addCommitment, updateCommitment, deleteCommitment, getCommitmentsForProject, prequalPackets, upsertPrequalPacket, deletePrequalPacket, getPrequalPacketForSub, getPrequalPacketByToken, dailyReports, addDailyReport, updateDailyReport, getDailyReportsForProject, subcontractors, addSubcontractor, updateSubcontractor, deleteSubcontractor, getSubcontractor, punchItems, addPunchItem, updatePunchItem, deletePunchItem, getPunchItemsForProject, projectPhotos, addProjectPhoto, updateProjectPhoto, deleteProjectPhoto, getPhotosForProject, priceAlerts, addPriceAlert, updatePriceAlert, deletePriceAlert, contacts, addContact, updateContact, deleteContact, getContact, commEvents, addCommEvent, getCommEventsForProject, rfis, addRFI, updateRFI, deleteRFI, getRFIsForProject, permits, addPermit, updatePermit, deletePermit, getPermitsForProject, aiaPayApps, addAIAPayApp, deleteAIAPayApp, getAIAPayAppsForProject, subPortalLinks, upsertSubPortalLink, deleteSubPortalLink, getSubPortalLinkFor, getSubPortalLinksForProject, submittals, addSubmittal, updateSubmittal, deleteSubmittal, getSubmittalsForProject, addReviewCycle, equipment, addEquipment, updateEquipment, deleteEquipment, logUtilization, getEquipmentForProject, getEquipmentCostForProject, warranties, addWarranty, updateWarranty, deleteWarranty, getWarrantiesForProject, addWarrantyClaim, portalMessages, addPortalMessage, markPortalMessagesRead, getPortalMessagesForProject, getUnreadPortalMessageCount, getTotalUnreadPortalCountForGc, planSheets, addPlanSheet, updatePlanSheet, deletePlanSheet, getPlanSheetsForProject, getPlanSheet, drawingPins, addDrawingPin, updateDrawingPin, deleteDrawingPin, getPinsForPlan, getPinsForPhoto, planMarkups, addPlanMarkup, deletePlanMarkup, getMarkupsForPlan, planCalibrations, upsertPlanCalibration, getCalibrationForPlan]);
+  }), [sortedProjects, settings, hasSeenOnboarding, completeOnboarding, projectsQuery.isLoading, settingsQuery.isLoading, onboardingQuery.isLoading, addProject, updateProject, deleteProject, getProject, updateSettings, addCollaborator, removeCollaborator, changeOrders, addChangeOrder, updateChangeOrder, getChangeOrdersForProject, addInvoice, updateInvoice, getInvoicesForProject, getTotalOutstandingBalance, invoices, commitments, addCommitment, updateCommitment, deleteCommitment, getCommitmentsForProject, prequalPackets, upsertPrequalPacket, deletePrequalPacket, getPrequalPacketForSub, getPrequalPacketByToken, dailyReports, addDailyReport, updateDailyReport, getDailyReportsForProject, subcontractors, addSubcontractor, updateSubcontractor, deleteSubcontractor, getSubcontractor, leads, addLead, updateLead, deleteLead, getLead, getLeadsByStage, addLeadTouch, convertLeadToProject, punchItems, addPunchItem, updatePunchItem, deletePunchItem, getPunchItemsForProject, projectPhotos, addProjectPhoto, updateProjectPhoto, deleteProjectPhoto, getPhotosForProject, priceAlerts, addPriceAlert, updatePriceAlert, deletePriceAlert, contacts, addContact, updateContact, deleteContact, getContact, commEvents, addCommEvent, getCommEventsForProject, rfis, addRFI, updateRFI, deleteRFI, getRFIsForProject, permits, addPermit, updatePermit, deletePermit, getPermitsForProject, aiaPayApps, addAIAPayApp, deleteAIAPayApp, getAIAPayAppsForProject, subPortalLinks, upsertSubPortalLink, deleteSubPortalLink, getSubPortalLinkFor, getSubPortalLinksForProject, submittals, addSubmittal, updateSubmittal, deleteSubmittal, getSubmittalsForProject, addReviewCycle, equipment, addEquipment, updateEquipment, deleteEquipment, logUtilization, getEquipmentForProject, getEquipmentCostForProject, warranties, addWarranty, updateWarranty, deleteWarranty, getWarrantiesForProject, addWarrantyClaim, portalMessages, addPortalMessage, markPortalMessagesRead, getPortalMessagesForProject, getUnreadPortalMessageCount, getTotalUnreadPortalCountForGc, planSheets, addPlanSheet, updatePlanSheet, deletePlanSheet, getPlanSheetsForProject, getPlanSheet, drawingPins, addDrawingPin, updateDrawingPin, deleteDrawingPin, getPinsForPlan, getPinsForPhoto, planMarkups, addPlanMarkup, deletePlanMarkup, getMarkupsForPlan, planCalibrations, upsertPlanCalibration, getCalibrationForPlan]);
 });

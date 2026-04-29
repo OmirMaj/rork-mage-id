@@ -265,6 +265,8 @@ function RootLayoutNav() {
   return (
     <Stack screenOptions={{ headerBackTitle: "Back" }}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="leads" options={{ title: 'Pipeline' }} />
+      <Stack.Screen name="lead-detail" options={{ title: 'Lead' }} />
       <Stack.Screen
         name="login"
         options={{

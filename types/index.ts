@@ -931,6 +931,125 @@ export interface SubBidRecord {
   date: string;
 }
 
+// ─────────────────────────────────────────────
+// CRM / Lead pipeline
+// ─────────────────────────────────────────────
+
+/**
+ * Pipeline stage for a homeowner inquiry. We keep the set tight on
+ * purpose — solo / small-team GCs lose deals in the gaps between
+ * stages, so each stage represents a clear next-action handoff.
+ *   new        — just came in, hasn't been contacted yet.
+ *   qualified  — replied / spoken to, fits the GC's wheelhouse.
+ *   proposal   — estimate / quote sent; awaiting decision.
+ *   won        — accepted; converted to a Project.
+ *   lost       — declined or went cold.
+ */
+export type LeadStage = 'new' | 'qualified' | 'proposal' | 'won' | 'lost';
+
+export const LEAD_STAGES: LeadStage[] = ['new', 'qualified', 'proposal', 'won', 'lost'];
+export const LEAD_STAGE_LABELS: Record<LeadStage, string> = {
+  new: 'New',
+  qualified: 'Qualified',
+  proposal: 'Proposal sent',
+  won: 'Won',
+  lost: 'Lost',
+};
+
+/** Where the lead originated. Open enum — anything not in the list goes
+ *  in `sourceOther`. The fixed list covers the channels residential GCs
+ *  most often track for ROI. */
+export type LeadSource =
+  | 'referral' | 'website' | 'houzz' | 'angi' | 'yelp' | 'thumbtack'
+  | 'google' | 'facebook' | 'instagram' | 'walk_in' | 'repeat'
+  | 'sign' | 'truck' | 'other';
+
+export const LEAD_SOURCES: LeadSource[] = [
+  'referral','website','houzz','angi','yelp','thumbtack','google','facebook','instagram','walk_in','repeat','sign','truck','other',
+];
+export const LEAD_SOURCE_LABELS: Record<LeadSource, string> = {
+  referral: 'Referral',
+  website: 'Website',
+  houzz: 'Houzz',
+  angi: 'Angi',
+  yelp: 'Yelp',
+  thumbtack: 'Thumbtack',
+  google: 'Google',
+  facebook: 'Facebook',
+  instagram: 'Instagram',
+  walk_in: 'Walk-in',
+  repeat: 'Repeat client',
+  sign: 'Yard sign',
+  truck: 'Truck signage',
+  other: 'Other',
+};
+
+/** Single contact / activity touch on a lead. The list is the activity
+ *  feed the GC sees on the lead-detail screen. */
+export type LeadTouchKind = 'note' | 'call' | 'text' | 'email' | 'meeting' | 'site_visit' | 'voicemail';
+
+export interface LeadTouch {
+  id: string;
+  kind: LeadTouchKind;
+  body: string;
+  /** ISO timestamp the touch happened. */
+  occurredAt: string;
+  /** Who did the touch (defaults to current user; lets us show "Mike called" later). */
+  byName?: string;
+}
+
+export interface Lead {
+  id: string;
+  /** Display name of the homeowner ("John Smith"). */
+  name: string;
+  /** Best phone — drives the call/text quick actions on the detail screen. */
+  phone?: string;
+  email?: string;
+  /** Where the work would happen — drives drive-time / region matching. */
+  address?: string;
+
+  /** What kind of project. Free-text so the AI can fill ANY description. */
+  projectType?: string;
+  /** Mapped to ProjectType when we convert to a Project. */
+  projectTypeMapped?: ProjectType;
+  /** Free-text scope notes the homeowner described. */
+  scope?: string;
+
+  /** GC's expected ballpark from the conversation. 0 if not stated. */
+  budgetMin?: number;
+  budgetMax?: number;
+  /** When they want it done. Free-text ("spring", "before July"). */
+  timeline?: string;
+
+  source: LeadSource;
+  /** When source is 'other' or specific, free-text fallback ("Bob Jones referred"). */
+  sourceOther?: string;
+
+  stage: LeadStage;
+
+  /** AI-computed fit score 0-100. Higher = better fit for this GC's
+   *  sweet spot. Recomputed when a lead is updated. */
+  score?: number;
+  /** Human-readable reason behind the score. */
+  scoreReason?: string;
+
+  /** First-response clock — when the lead arrived. The list view shows
+   *  "waiting Xh for first response" until firstRespondedAt fills in. */
+  receivedAt: string;
+  firstRespondedAt?: string;
+
+  /** Activity log — most-recent first. */
+  touches?: LeadTouch[];
+
+  /** When 'won' is hit, we convert this to a Project and store its ID. */
+  convertedProjectId?: string;
+  /** When 'lost' is hit, optional reason ("price", "timing", "ghosted"). */
+  lostReason?: string;
+
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Subcontractor {
   id: string;
   companyName: string;

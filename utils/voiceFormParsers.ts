@@ -285,6 +285,70 @@ TRANSCRIPT: ${transcript}`,
 }
 
 // ───────────────────────────────────────────────
+// Lead (CRM)
+// ───────────────────────────────────────────────
+
+const leadPartialSchema = z.object({
+  name: z.string().default(''),
+  phone: z.string().default(''),
+  email: z.string().default(''),
+  address: z.string().default(''),
+  projectType: z.string().default(''),
+  scope: z.string().default(''),
+  budgetMin: z.number().default(0),
+  budgetMax: z.number().default(0),
+  timeline: z.string().default(''),
+  source: z.enum(['referral','website','houzz','angi','yelp','thumbtack','google','facebook','instagram','walk_in','repeat','sign','truck','other']).catch('other').default('other'),
+  sourceOther: z.string().default(''),
+  // Score 1-10 — AI computes a fit score based on the GC's stated
+  // sweet spot. We default to 5 = average; the parser can override.
+  score: z.number().default(5),
+  scoreReason: z.string().default(''),
+});
+export type LeadPartial = z.infer<typeof leadPartialSchema>;
+
+export async function parseLeadFromTranscript(transcript: string): Promise<LeadPartial> {
+  const r = await mageAI({
+    prompt: `Extract a sales-lead record from a contractor's dictation. They're describing a homeowner who just inquired about work.
+
+OUTPUT RULES
+- name: homeowner's name. Title-case. ("john smith" → "John Smith")
+- phone: digits + common separators if stated. "" if not.
+- email: full email if stated. "" otherwise.
+- address: street + city if stated.
+- projectType: what they want done, in plain words. ("Kitchen remodel", "Bathroom renovation", "Two-story addition", "ADU"). Don't map to a slug — keep the natural phrasing.
+- scope: any extra detail the homeowner mentioned about the work.
+- budgetMin / budgetMax: dollar amounts the homeowner mentioned. "Around 80 thousand" → both 80000. "Between 60 and 90" → 60000 / 90000. 0 if no budget given.
+- timeline: free-text from the homeowner ("spring", "by July", "no rush", "ASAP"). "" if not stated.
+- source: one of referral / website / houzz / angi / yelp / thumbtack / google / facebook / instagram / walk_in / repeat / sign / truck / other. Pick the closest. Default 'other'.
+- sourceOther: when source is referral, the referrer's name if mentioned ("Bob Jones referred them" → "Bob Jones"). Otherwise free-text fallback for unusual sources.
+- score: 1-10 fit score. 9-10 = perfect fit (in-budget, near-term, GC's sweet spot). 7-8 = solid. 5-6 = average / unclear. 3-4 = stretch. 1-2 = poor fit (out of region, way too small/big, no budget). Be honest — over-scoring trains the GC to ignore you.
+- scoreReason: one short sentence ("Solid fit — kitchen remodel in-budget, referral source"). Visible to the GC on the lead card so they trust the number.
+
+TRANSCRIPT: ${transcript}`,
+    schema: leadPartialSchema,
+    schemaHint: {
+      name: 'John Smith',
+      phone: '555-555-1234',
+      email: '',
+      address: '123 Main St, San Diego, CA',
+      projectType: 'Kitchen remodel',
+      scope: 'Open up wall to dining room, new cabinets and counters',
+      budgetMin: 75000,
+      budgetMax: 90000,
+      timeline: 'Wants to start in spring',
+      source: 'houzz',
+      sourceOther: '',
+      score: 8,
+      scoreReason: 'In-budget kitchen remodel from Houzz — GC closes most of these.',
+    },
+    tier: 'fast',
+  });
+  if (!r.success) return leadPartialSchema.parse({});
+  return r.data as LeadPartial;
+}
+
+// ───────────────────────────────────────────────
 // Helper: merge an AI partial into existing form state.
 // Empty current values get filled. Filled long-form fields get APPENDED
 // (so dictation "adds to" the existing question / description). Numeric
