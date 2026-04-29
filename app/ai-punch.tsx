@@ -117,6 +117,10 @@ export default function AiPunchScreen() {
   const [pickedPhotos, setPickedPhotos] = useState<PickedPhoto[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Warning channel — used for "partial success" states (e.g. some
+  // photos couldn't be read, AI ran on the rest). Red-styled `error`
+  // is the wrong vibe for a partial result. Round-4 #3.
+  const [notice, setNotice] = useState<string | null>(null);
   const [reviewItems, setReviewItems] = useState<ReviewableItem[]>([]);
   const [showAllGallery, setShowAllGallery] = useState(false);
 
@@ -181,6 +185,7 @@ export default function AiPunchScreen() {
     }
     setBusy(true);
     setError(null);
+    setNotice(null);
     try {
       const { items, meta } = await analyzePhotosForPunch({
         photoUrls: pickedPhotos.map(p => p.uri),
@@ -206,10 +211,13 @@ export default function AiPunchScreen() {
       if (reviewable.length === 0) {
         setError('AI didn’t find any punch items in those photos. Try shots closer to the work, or with better lighting.');
       } else if (meta.skippedIndexes.length > 0) {
-        // Surface the partial-success path so the user knows some
-        // photos were skipped — wasn't visible in the UI before
-        // (round-3 #5/#6).
-        setError(`Skipped ${meta.skippedIndexes.length} photo${meta.skippedIndexes.length === 1 ? '' : 's'} that couldn't be read. Found ${reviewable.length} item${reviewable.length === 1 ? '' : 's'} from the rest.`);
+        // Partial success — some photos couldn't be read but the AI
+        // analyzed the rest. Surface as a warning, not an error
+        // (round-4 #3): different visual channel + amber tone.
+        setNotice(
+          `Skipped ${meta.skippedIndexes.length} photo${meta.skippedIndexes.length === 1 ? '' : 's'} that couldn't be read. ` +
+          `Found ${reviewable.length} item${reviewable.length === 1 ? '' : 's'} from the rest.`,
+        );
       }
       setReviewItems(reviewable);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -434,12 +442,25 @@ export default function AiPunchScreen() {
             </>
           )}
 
-          {/* Error banner */}
+          {/* Error banner — red, blocking. Used for actual failures. */}
           {!!error && (
             <View style={styles.section}>
               <View style={styles.errorBanner}>
                 <AlertCircle size={14} color={Colors.error} />
                 <Text style={styles.errorText}>{error}</Text>
+              </View>
+            </View>
+          )}
+
+          {/* Notice banner — amber, informational. Used for partial-
+              success states like "skipped 2 photos but found 5 items
+              from the rest." Different visual channel than error so
+              the user understands the AI still produced a result. */}
+          {!!notice && (
+            <View style={styles.section}>
+              <View style={styles.noticeBanner}>
+                <AlertCircle size={14} color={Colors.warning} />
+                <Text style={styles.noticeText}>{notice}</Text>
               </View>
             </View>
           )}
@@ -602,6 +623,10 @@ const styles = StyleSheet.create({
 
   errorBanner: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, padding: 12, backgroundColor: Colors.error + '12', borderRadius: 12, borderWidth: 1, borderColor: Colors.error + '40' },
   errorText: { flex: 1, fontSize: 13, color: Colors.text, lineHeight: 18 },
+  // Round-4 #3: notice (warning) is amber rather than red so a
+  // partial-success doesn't read as a failure.
+  noticeBanner: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, padding: 12, backgroundColor: Colors.warning + '12', borderRadius: 12, borderWidth: 1, borderColor: Colors.warning + '40' },
+  noticeText: { flex: 1, fontSize: 13, color: Colors.text, lineHeight: 18 },
 
   reviewHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
   reviewCard: { flexDirection: 'row', gap: 12, backgroundColor: Colors.surface, borderRadius: 14, padding: 12, borderWidth: 1, borderColor: Colors.cardBorder, marginBottom: 10 },

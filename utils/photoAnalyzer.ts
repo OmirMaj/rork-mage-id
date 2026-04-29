@@ -200,10 +200,24 @@ export async function analyzePhotosForPunch(opts: BaseOpts): Promise<{ items: Ai
   // If encoding skipped photo #3, Gemini's index `2` actually points
   // at the caller's original #4 — meta.originalIndexes[2] gives us 4.
   // This was a real bug pre-round-3: the wrong photo URI got attached.
-  const remapped = data.items.map(item => ({
-    ...item,
-    photoIndex: meta.originalIndexes[item.photoIndex] ?? item.photoIndex,
-  }));
+  //
+  // Round-4 #1: Drop items whose photoIndex is out-of-bounds for the
+  // analyzed-photos array (Gemini occasionally hallucinates a photoIndex
+  // larger than what we sent). Falling through to the un-remapped value
+  // would silently attach the wrong source photo. console.warn keeps
+  // visibility for debugging without crashing the flow.
+  const remapped: AiPunchItem[] = [];
+  for (const item of data.items) {
+    if (item.photoIndex < 0 || item.photoIndex >= meta.originalIndexes.length) {
+      console.warn('[photoAnalyzer] AI returned out-of-bounds photoIndex', {
+        photoIndex: item.photoIndex,
+        analyzed: meta.originalIndexes.length,
+        description: item.description.slice(0, 60),
+      });
+      continue;
+    }
+    remapped.push({ ...item, photoIndex: meta.originalIndexes[item.photoIndex] });
+  }
   return { items: remapped, meta };
 }
 
