@@ -53,12 +53,25 @@ export default function VoiceCaptureModal({
       setStep('idle');
       setErrorMsg(null);
       recordingRef.current = null;
+      setRotatingIdx(0);
     } else {
       // Modal closing — make sure we don't leave a recording armed.
       void cleanupRecording();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
+
+  // Rotate the highlighted suggestion every 3.5s while idle, so the user
+  // sees varied prompts without having to read the whole list. Stops
+  // once they start recording — that's a cue to focus.
+  const [rotatingIdx, setRotatingIdx] = useState(0);
+  useEffect(() => {
+    if (!visible || step !== 'idle' || !suggestions || suggestions.length <= 1) return;
+    const t = setInterval(() => {
+      setRotatingIdx(i => (i + 1) % suggestions.length);
+    }, 3500);
+    return () => clearInterval(t);
+  }, [visible, step, suggestions]);
 
   const startPulse = useCallback(() => {
     pulseLoop.current = Animated.loop(
@@ -253,16 +266,32 @@ export default function VoiceCaptureModal({
         </View>
 
         <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
-          {/* Suggestions */}
+          {/* Suggestions — highlighted one rotates every 3.5s while idle.
+              Showing a single rotating line keeps the modal visually
+              calm (lots of suggestions = wall of italics) but still
+              cycles examples for the GC to read aloud. */}
           {suggestions.length > 0 && (
             <View style={styles.suggestionsCard}>
               <View style={styles.suggestionsHeaderRow}>
                 <Lightbulb size={16} color={Colors.primary} />
                 <Text style={styles.suggestionsHeader}>Try saying</Text>
               </View>
-              {suggestions.map((s, i) => (
-                <Text key={i} style={styles.suggestionItem}>“{s}”</Text>
-              ))}
+              <Text style={styles.suggestionItemHero}>
+                “{suggestions[rotatingIdx % suggestions.length]}”
+              </Text>
+              {suggestions.length > 1 && (
+                <View style={styles.suggestionDots}>
+                  {suggestions.map((_, i) => (
+                    <View
+                      key={i}
+                      style={[
+                        styles.suggestionDot,
+                        i === rotatingIdx % suggestions.length && styles.suggestionDotActive,
+                      ]}
+                    />
+                  ))}
+                </View>
+              )}
             </View>
           )}
 
@@ -379,6 +408,29 @@ const styles = StyleSheet.create({
     color: Colors.text,
     lineHeight: 20,
     fontStyle: 'italic',
+  },
+  suggestionItemHero: {
+    fontSize: 16,
+    color: Colors.text,
+    lineHeight: 22,
+    fontStyle: 'italic',
+    fontWeight: '500' as const,
+    minHeight: 44, // reserve space so swap doesn't jump layout
+  },
+  suggestionDots: {
+    flexDirection: 'row',
+    gap: 6,
+    marginTop: 6,
+  },
+  suggestionDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: Colors.primary + '30',
+  },
+  suggestionDotActive: {
+    backgroundColor: Colors.primary,
+    width: 16,
   },
   recorderArea: {
     alignItems: 'center',

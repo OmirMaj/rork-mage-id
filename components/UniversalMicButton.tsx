@@ -8,6 +8,7 @@ import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import {
   Mic, X, FileText, FilePlus2, MessageSquare, AlertTriangle, Sparkles,
+  CheckSquare, Briefcase, Receipt, FolderOpen,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
@@ -50,8 +51,11 @@ export default function UniversalMicButton({ projectId, variant = 'fab' }: Props
 
   const projectsList = ctx?.projects ?? [];
 
+  // Active first, but fall back to all projects so a GC who's labelled
+  // everything 'completed' can still dictate. Empty array stays empty.
   const activeProjects = useMemo(() => {
-    return projectsList.filter(p => p.status === 'in_progress' || p.status === 'estimated' || p.status === 'draft');
+    const active = projectsList.filter(p => p.status === 'in_progress' || p.status === 'estimated' || p.status === 'draft');
+    return active.length > 0 ? active : projectsList;
   }, [projectsList]);
 
   const project: Project | undefined = useMemo(() => {
@@ -59,7 +63,7 @@ export default function UniversalMicButton({ projectId, variant = 'fab' }: Props
     if (id) return projectsList.find(p => p.id === id);
     if (activeProjects.length === 1) return activeProjects[0];
     if (activeProjects.length === 0) return undefined;
-    // Most-recently-updated active project as the default.
+    // Most-recently-updated project as the default.
     return [...activeProjects].sort((a, b) =>
       new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0];
   }, [projectsList, projectId, pickedProjectId, activeProjects]);
@@ -107,12 +111,18 @@ export default function UniversalMicButton({ projectId, variant = 'fab' }: Props
 
   const handleConfirm = useCallback(async () => {
     if (!parsed) return;
-    if (!project) {
-      setError('Pick a project first.');
+    // Project gate — most kinds need one. 'project' kind creates a NEW
+    // project, so it's exempt from the gate.
+    if (!project && parsed.kind !== 'project') {
+      setError('Pick a project first, or say "new project: ..." to create one.');
       return;
     }
     setStep('creating');
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    // Inside this try, `project` is non-null for every branch except
+    // 'project' (the new-project flow). Use a local non-null alias so
+    // TS narrows correctly under conditional branches.
+    const proj = project!;
     try {
       if (parsed.kind === 'rfi') {
         // addRFI returns the new RFI synchronously — the previous flow
@@ -121,7 +131,7 @@ export default function UniversalMicButton({ projectId, variant = 'fab' }: Props
         // a blank RFI screen even though the saved row had subject /
         // question filled.
         const newRfi = ctx.addRFI({
-          projectId: project.id,
+          projectId: proj.id,
           subject: parsed.subject || 'Voice-drafted RFI',
           question: parsed.question || parsed.subject,
           priority: parsed.priority || 'normal',
@@ -135,7 +145,7 @@ export default function UniversalMicButton({ projectId, variant = 'fab' }: Props
         handleClose();
         router.push({
           pathname: '/rfi' as never,
-          params: { projectId: project.id, rfiId: newRfi.id } as never,
+          params: { projectId: proj.id, rfiId: newRfi.id } as never,
         });
       } else if (parsed.kind === 'co') {
         const lineItems = (parsed.lineItems && parsed.lineItems.length > 0)
@@ -162,14 +172,14 @@ export default function UniversalMicButton({ projectId, variant = 'fab' }: Props
                 }]
               : []);
         const totalChange = lineItems.reduce((s, li) => s + (li.total ?? 0), 0);
-        const baseValue = project.estimate?.grandTotal ?? 0;
-        const projectCOs = ctx.getChangeOrdersForProject(project.id);
+        const baseValue = proj.estimate?.grandTotal ?? 0;
+        const projectCOs = ctx.getChangeOrdersForProject(proj.id);
         const nextNumber = projectCOs.length > 0 ? Math.max(...projectCOs.map(c => c.number)) + 1 : 1;
         const newId = generateUUID();
         const now = new Date().toISOString();
         ctx.addChangeOrder({
           id: newId,
-          projectId: project.id,
+          projectId: proj.id,
           number: nextNumber,
           date: now,
           description: parsed.description || 'Voice-drafted change order',
@@ -192,7 +202,7 @@ export default function UniversalMicButton({ projectId, variant = 'fab' }: Props
         // from disappearing into the void.
         ctx.addDailyReport({
           id: generateUUID(),
-          projectId: project.id,
+          projectId: proj.id,
           date: new Date().toISOString(),
           weather: { temperature: '', conditions: '', wind: '', isManual: true },
           manpower: [],
@@ -208,9 +218,77 @@ export default function UniversalMicButton({ projectId, variant = 'fab' }: Props
         Alert.alert('Note saved', 'Saved as a daily-report draft you can finish later.', [{
           text: 'OK', onPress: handleClose,
         }]);
+      } else if (parsed.kind === 'punch') {
+        // Punch item: save inline (no extra screen), so a GC walking
+        // the site can dictate punches in succession without leaving
+        // the FAB. Land in the project's punch list.
+        const newId = generateUUID();
+        const now = new Date().toISOString();
+        ctx.addPunchItem({
+          id: newId,
+          projectId: proj.id,
+          description: parsed.description || 'Voice-captured item',
+          location: parsed.punchLocation || 'Unspecified',
+          trade: aiTradeToSubTrade(parsed.punchTrade) as never,
+          priority: parsed.punchPriority || 'medium',
+          status: 'open',
+          createdAt: now,
+          updatedAt: now,
+        } as never);
+        if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        handleClose();
+        router.push({ pathname: '/punch-list' as never, params: { projectId: proj.id } as never });
+      } else if (parsed.kind === 'project') {
+        // New project — create immediately and route into project-detail
+        // so the GC can review/extend. ProjectType validated against the
+        // enum; AI returns the snake_case value already.
+        const newId = generateUUID();
+        const now = new Date().toISOString();
+        ctx.addProject({
+          id: newId,
+          name: parsed.projectName || 'Voice-drafted project',
+          type: (parsed.projectType || 'renovation') as never,
+          location: parsed.projectLocation || '',
+          status: 'estimated',
+          targetBudget: parsed.targetBudget > 0 ? { amount: parsed.targetBudget, isFromClient: false } : undefined,
+          collaborators: [],
+          createdAt: now,
+          updatedAt: now,
+        } as never);
+        if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        handleClose();
+        router.push({ pathname: '/project-detail' as never, params: { id: newId } as never });
+      } else if (parsed.kind === 'invoice') {
+        // Invoice: navigate to the invoice form with prefilled line
+        // items. We pass them as a JSON-encoded URL param so the form
+        // can pre-seed without a prior save (similar to the existing
+        // selections-overage prefill pattern in change-order).
+        handleClose();
+        router.push({
+          pathname: '/invoice' as never,
+          params: {
+            projectId: proj.id,
+            prefillLines: JSON.stringify(parsed.invoiceLineItems ?? []),
+            prefillNotes: parsed.invoiceNotes ?? '',
+          } as never,
+        });
+      } else if (parsed.kind === 'submittal') {
+        // Submittal: same pattern — route to the form with prefills,
+        // then the user reviews + saves.
+        handleClose();
+        router.push({
+          pathname: '/submittal' as never,
+          params: {
+            projectId: proj.id,
+            prefillTitle: parsed.submittalTitle ?? '',
+            prefillSpecSection: parsed.submittalSpecSection ?? '',
+            prefillSubmittedBy: parsed.submittalSubmittedBy ?? '',
+            prefillRequiredDate: parsed.submittalRequiredDate ?? '',
+          } as never,
+        });
       } else {
-        setError('AI wasn\'t sure what to do — try again with more detail.');
-        setStep('idle');
+        setError('AI wasn\'t sure what to do — try again with more detail. Try starting with the action: "RFI for...", "change order to...", "punch list:", "new project:", "invoice for...", or "submittal:..."');
+        setStep('reviewing');
       }
     } catch (e) {
       console.warn('[UniversalMic] create failed', e);
@@ -219,14 +297,50 @@ export default function UniversalMicButton({ projectId, variant = 'fab' }: Props
     }
   }, [parsed, project, ctx, router, handleClose]);
 
+  // Map the AI's loose trade label to the strict SubTrade enum used
+  // for punch items. (Inline-defined here rather than imported because
+  // it's a one-screen helper.)
+  function aiTradeToSubTrade(aiTrade: string): string {
+    const t = (aiTrade || '').toLowerCase();
+    if (t.includes('electrical')) return 'Electrical';
+    if (t.includes('plumb')) return 'Plumbing';
+    if (t.includes('hvac') || t.includes('mechanical')) return 'HVAC';
+    if (t.includes('drywall')) return 'Drywall';
+    if (t.includes('paint')) return 'Painting';
+    if (t.includes('tile') || t.includes('floor')) return 'Flooring';
+    if (t.includes('roof')) return 'Roofing';
+    if (t.includes('concrete') || t.includes('masonry')) return 'Concrete';
+    if (t.includes('frame')) return 'Framing';
+    if (t.includes('landscap')) return 'Landscaping';
+    if (t.includes('door') || t.includes('cabinet') || t.includes('insul')
+        || t.includes('cleanup') || t.includes('trim') || t.includes('carpentry')) return 'Other';
+    return 'General';
+  }
+
   const KindIcon = parsed?.kind === 'rfi' ? MessageSquare
     : parsed?.kind === 'co' ? FilePlus2
     : parsed?.kind === 'note' ? FileText
+    : parsed?.kind === 'punch' ? CheckSquare
+    : parsed?.kind === 'project' ? Briefcase
+    : parsed?.kind === 'invoice' ? Receipt
+    : parsed?.kind === 'submittal' ? FolderOpen
     : AlertTriangle;
   const kindLabel = parsed?.kind === 'rfi' ? 'Request for information'
     : parsed?.kind === 'co' ? 'Change order draft'
     : parsed?.kind === 'note' ? 'Field note'
+    : parsed?.kind === 'punch' ? 'Punch-list item'
+    : parsed?.kind === 'project' ? 'New project'
+    : parsed?.kind === 'invoice' ? 'Invoice draft'
+    : parsed?.kind === 'submittal' ? 'Submittal'
     : 'Not sure yet';
+  const kindCTA = parsed?.kind === 'rfi' ? 'RFI'
+    : parsed?.kind === 'co' ? 'change order'
+    : parsed?.kind === 'note' ? 'note'
+    : parsed?.kind === 'punch' ? 'punch item'
+    : parsed?.kind === 'project' ? 'project'
+    : parsed?.kind === 'invoice' ? 'invoice'
+    : parsed?.kind === 'submittal' ? 'submittal'
+    : '';
 
   // Hide self when there's nothing to scope to. Done in render (not via an
   // earlier return) so all hooks above run unconditionally on every render.
@@ -295,16 +409,22 @@ export default function UniversalMicButton({ projectId, variant = 'fab' }: Props
               <Text style={styles.projectHint}>Drafting on <Text style={styles.projectHintEmph}>{project.name}</Text></Text>
             )}
             {!project && (
-              <Text style={styles.projectHintWarn}>You don&apos;t have any active projects yet — create one first.</Text>
+              <Text style={styles.projectHintWarn}>No project yet — say &quot;new project: ...&quot; to create one. Or any other action will prompt you to pick a project first.</Text>
             )}
 
-            {/* States */}
-            {step === 'idle' && project && (
+            {/* States — voice recorder is available even without a project,
+                so the GC can dictate "new project: ..." to create one.
+                For other kinds, the project gate fires inside handleConfirm. */}
+            {step === 'idle' && (
               <View style={styles.bodyWrap}>
                 <View style={styles.tipsBox}>
                   <Text style={styles.tipsTitle}>Try saying…</Text>
                   <Text style={styles.tipsLine}>&quot;Submit an RFI to the architect about the steel beam size.&quot;</Text>
                   <Text style={styles.tipsLine}>&quot;Owner wants the heat pump upgrade — change order for forty-five hundred.&quot;</Text>
+                  <Text style={styles.tipsLine}>&quot;Punch list: master bath, light fixture loose.&quot;</Text>
+                  <Text style={styles.tipsLine}>&quot;New project: Smith kitchen remodel at 123 Main, eighty thousand.&quot;</Text>
+                  <Text style={styles.tipsLine}>&quot;Invoice them for demolition — twenty-eight hundred lump.&quot;</Text>
+                  <Text style={styles.tipsLine}>&quot;Submittal: light fixture cut sheets, spec twenty-six fifty-one zero zero.&quot;</Text>
                   <Text style={styles.tipsLine}>&quot;Note: framing on second floor is half done.&quot;</Text>
                 </View>
                 <VoiceRecorder
@@ -374,6 +494,56 @@ export default function UniversalMicButton({ projectId, variant = 'fab' }: Props
                     </View>
                   )}
 
+                  {parsed.kind === 'punch' && (
+                    <View style={styles.previewBody}>
+                      <PreviewField label="Issue" value={parsed.description || '—'} multi />
+                      <View style={styles.previewMetaRow}>
+                        <PreviewField label="Location" value={parsed.punchLocation || '—'} small />
+                        <PreviewField label="Trade" value={parsed.punchTrade || 'General'} small />
+                        <PreviewField label="Priority" value={(parsed.punchPriority || 'medium').toUpperCase()} small />
+                      </View>
+                    </View>
+                  )}
+
+                  {parsed.kind === 'project' && (
+                    <View style={styles.previewBody}>
+                      <PreviewField label="Project name" value={parsed.projectName || '—'} />
+                      <View style={styles.previewMetaRow}>
+                        <PreviewField label="Type" value={(parsed.projectType || 'renovation').replace(/_/g, ' ')} small />
+                        <PreviewField label="Location" value={parsed.projectLocation || '—'} small />
+                        <PreviewField label="Budget" value={parsed.targetBudget > 0 ? `$${parsed.targetBudget.toLocaleString()}` : '—'} small />
+                      </View>
+                    </View>
+                  )}
+
+                  {parsed.kind === 'invoice' && (
+                    <View style={styles.previewBody}>
+                      {parsed.invoiceLineItems && parsed.invoiceLineItems.length > 0 ? (
+                        parsed.invoiceLineItems.map((li, i) => (
+                          <View key={i} style={styles.lineItemRow}>
+                            <Text style={styles.lineItemName} numberOfLines={1}>{li.name || '—'}</Text>
+                            <Text style={styles.lineItemQty}>{li.quantity} {li.unit}</Text>
+                            <Text style={styles.lineItemAmt}>${(li.unitPrice * li.quantity).toLocaleString()}</Text>
+                          </View>
+                        ))
+                      ) : (
+                        <Text style={styles.previewNote}>No line items detected — you can add them on the next screen.</Text>
+                      )}
+                      {!!parsed.invoiceNotes && <PreviewField label="Notes" value={parsed.invoiceNotes} multi />}
+                    </View>
+                  )}
+
+                  {parsed.kind === 'submittal' && (
+                    <View style={styles.previewBody}>
+                      <PreviewField label="Title" value={parsed.submittalTitle || '—'} multi />
+                      <View style={styles.previewMetaRow}>
+                        <PreviewField label="Spec section" value={parsed.submittalSpecSection || '—'} small />
+                        <PreviewField label="Submitted by" value={parsed.submittalSubmittedBy || '—'} small />
+                        <PreviewField label="Required by" value={parsed.submittalRequiredDate || '—'} small />
+                      </View>
+                    </View>
+                  )}
+
                   {parsed.kind === 'unsure' && (
                     <View style={styles.previewBody}>
                       <Text style={styles.unsureText}>
@@ -394,7 +564,7 @@ export default function UniversalMicButton({ projectId, variant = 'fab' }: Props
                     >
                       <Sparkles size={14} color="#FFF" />
                       <Text style={styles.ctaPrimaryText}>
-                        Create {parsed.kind === 'rfi' ? 'RFI' : parsed.kind === 'co' ? 'change order' : 'note'}
+                        Create {kindCTA}
                       </Text>
                     </TouchableOpacity>
                   )}

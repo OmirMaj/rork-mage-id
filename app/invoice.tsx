@@ -85,8 +85,13 @@ export default function InvoiceScreen() {
 function InvoiceInner() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { projectId, invoiceId, type: invoiceType } = useLocalSearchParams<{
+  // prefillLines / prefillNotes come from the floating-mic flow when
+  // the GC said something like "invoice them for demolition twenty-eight
+  // hundred". JSON-encoded so we don't have to re-parse the AI's
+  // structured output on this side.
+  const { projectId, invoiceId, type: invoiceType, prefillLines, prefillNotes } = useLocalSearchParams<{
     projectId: string; invoiceId?: string; type?: string;
+    prefillLines?: string; prefillNotes?: string;
   }>();
   const {
     getProject, getInvoicesForProject, addInvoice, updateInvoice, settings, updateSettings,
@@ -118,6 +123,25 @@ function InvoiceInner() {
 
   const initialLineItems = useMemo((): InvoiceLineItem[] => {
     if (existingInvoice) return existingInvoice.lineItems;
+    // Voice-mic prefill: when the floating mic landed us here with
+    // parsed line items in the URL, seed the form with them so the
+    // GC sees their dictation reflected immediately.
+    if (prefillLines) {
+      try {
+        const parsed = JSON.parse(prefillLines) as Array<{ name?: string; description?: string; quantity?: number; unit?: string; unitPrice?: number }>;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.map(li => ({
+            id: createId('ili'),
+            name: li.name || 'Voice line item',
+            description: li.description || '',
+            quantity: li.quantity ?? 1,
+            unit: li.unit || 'lump',
+            unitPrice: li.unitPrice ?? 0,
+            total: (li.quantity ?? 1) * (li.unitPrice ?? 0),
+          }));
+        }
+      } catch {/* malformed JSON; fall through */}
+    }
     if (!project) return [];
     const linked = project.linkedEstimate;
     if (linked && linked.items.length > 0) {
@@ -148,7 +172,7 @@ function InvoiceInner() {
 
   const [lineItems, setLineItems] = useState<InvoiceLineItem[]>(initialLineItems);
   const [paymentTerms, setPaymentTerms] = useState<PaymentTerms>(existingInvoice?.paymentTerms ?? 'net_30');
-  const [notes, setNotes] = useState(existingInvoice?.notes ?? '');
+  const [notes, setNotes] = useState(existingInvoice?.notes ?? prefillNotes ?? '');
   const [progressPercent, setProgressPercent] = useState(
     existingInvoice?.progressPercent?.toString() ?? '30'
   );

@@ -55,17 +55,24 @@ export default function SubmittalScreen() {
 function SubmittalScreenInner() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { projectId, submittalId } = useLocalSearchParams<{ projectId: string; submittalId?: string }>();
+  // prefill* params come from the floating-mic flow when the GC
+  // dictated a submittal at the FAB. They pre-seed the new form so
+  // the parsed fields land instantly without a manual re-fill.
+  const { projectId, submittalId, prefillTitle, prefillSpecSection, prefillSubmittedBy, prefillRequiredDate } = useLocalSearchParams<{
+    projectId: string; submittalId?: string;
+    prefillTitle?: string; prefillSpecSection?: string;
+    prefillSubmittedBy?: string; prefillRequiredDate?: string;
+  }>();
   const { getProject, getSubmittalsForProject, addSubmittal, updateSubmittal, addReviewCycle, settings } = useProjects();
 
   const project = useMemo(() => getProject(projectId ?? ''), [projectId, getProject]);
   const existingSubmittals = useMemo(() => getSubmittalsForProject(projectId ?? ''), [projectId, getSubmittalsForProject]);
   const existingSubmittal = useMemo(() => submittalId ? existingSubmittals.find(s => s.id === submittalId) : null, [submittalId, existingSubmittals]);
 
-  const [title, setTitle] = useState(existingSubmittal?.title ?? '');
-  const [specSection, setSpecSection] = useState(existingSubmittal?.specSection ?? '');
-  const [submittedBy, setSubmittedBy] = useState(existingSubmittal?.submittedBy ?? '');
-  const [requiredDate, setRequiredDate] = useState(existingSubmittal?.requiredDate ?? '');
+  const [title, setTitle] = useState(existingSubmittal?.title ?? prefillTitle ?? '');
+  const [specSection, setSpecSection] = useState(existingSubmittal?.specSection ?? prefillSpecSection ?? '');
+  const [submittedBy, setSubmittedBy] = useState(existingSubmittal?.submittedBy ?? prefillSubmittedBy ?? '');
+  const [requiredDate, setRequiredDate] = useState(existingSubmittal?.requiredDate ?? prefillRequiredDate ?? '');
 
   const [linkedTaskId, setLinkedTaskId] = useState('');
   const [showTaskPicker, setShowTaskPicker] = useState(false);

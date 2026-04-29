@@ -2,12 +2,16 @@
 //
 // The GC taps the floating mic anywhere in the app and speaks. We
 // transcribe, then this util reads intent and returns a structured
-// draft for one of four action kinds:
+// draft for one of seven action kinds:
 //
-//   - 'rfi'   — Question for the architect / engineer / owner.
-//   - 'co'    — Change order; out-of-scope work that changes price.
-//   - 'note'  — Internal field note (no formal doc).
-//   - 'unsure'— AI couldn't tell; the UI asks the GC to retry / clarify.
+//   - 'rfi'      — Question for the architect / engineer / owner.
+//   - 'co'       — Change order; out-of-scope work that changes price.
+//   - 'note'     — Internal field note (no formal doc).
+//   - 'project'  — Create a new project ("Smith kitchen remodel...").
+//   - 'punch'    — Punch-list item ("hallway 2, light fixture loose").
+//   - 'invoice'  — Invoice draft ("bill them for demolition, 2800").
+//   - 'submittal'— Submittal ("door hardware schedule, spec 08 71 00").
+//   - 'unsure'   — AI couldn't tell; the UI asks the GC to retry.
 //
 // The parser also gets a tiny project context (name, type, recent
 // schedule items) so it can pick a sensible priority + assignee.
@@ -17,7 +21,7 @@ import { mageAI } from '@/utils/mageAI';
 import type { Project, ScheduleTask } from '@/types';
 
 export const voiceActionSchema = z.object({
-  kind: z.enum(['rfi', 'co', 'note', 'unsure']).catch('unsure').default('unsure'),
+  kind: z.enum(['rfi', 'co', 'note', 'project', 'punch', 'invoice', 'submittal', 'unsure']).catch('unsure').default('unsure'),
   // Why we chose this kind. Surfaces in the confirmation toast so the GC
   // can see the AI's read and quickly correct it.
   reasoning: z.string().default(''),
@@ -27,10 +31,12 @@ export const voiceActionSchema = z.object({
   question: z.string().default(''),
   priority: z.enum(['low', 'normal', 'urgent']).catch('normal').default('normal'),
   assignedTo: z.string().default(''),
+  dateRequired: z.string().default(''),
 
   // Change-order fields
   description: z.string().default(''),
   reason: z.string().default(''),
+  scheduleImpactDays: z.number().default(0),
   changeAmount: z.number().default(0),
   lineItems: z.array(z.object({
     name: z.string().default(''),
@@ -42,6 +48,33 @@ export const voiceActionSchema = z.object({
 
   // Note fields
   noteBody: z.string().default(''),
+
+  // Project create fields
+  projectName: z.string().default(''),
+  projectType: z.enum(['kitchen','bathroom','addition','whole_home','roof','flooring','deck','adu','commercial','renovation','new_construction','other']).catch('renovation').default('renovation'),
+  projectLocation: z.string().default(''),
+  targetBudget: z.number().default(0),
+
+  // Punch fields
+  punchLocation: z.string().default(''),
+  punchTrade: z.string().default('General'),
+  punchPriority: z.enum(['low','medium','high']).catch('medium').default('medium'),
+
+  // Invoice fields
+  invoiceNotes: z.string().default(''),
+  invoiceLineItems: z.array(z.object({
+    name: z.string().default(''),
+    description: z.string().default(''),
+    quantity: z.number().default(1),
+    unit: z.string().default('lump'),
+    unitPrice: z.number().default(0),
+  })).default([]),
+
+  // Submittal fields
+  submittalTitle: z.string().default(''),
+  submittalSpecSection: z.string().default(''),
+  submittalSubmittedBy: z.string().default(''),
+  submittalRequiredDate: z.string().default(''),
 });
 
 export type VoiceActionResult = z.infer<typeof voiceActionSchema>;
@@ -76,16 +109,24 @@ export async function parseVoiceAction(opts: ParseOpts): Promise<VoiceActionResu
     prompt: `You are a construction superintendent's voice assistant. The contractor just dictated something on site. Decide what kind of in-app action they want, then return a structured draft.
 
 KINDS
-- rfi: They have a question that needs an answer from architect / engineer / owner. Examples: "ask the architect about the steel beam size", "we need to know the tile pattern", "submit an RFI about knob-and-tube wiring".
-- co: Out-of-scope work that needs a change order. Examples: "owner wants the heat pump upgrade", "create a change order for $4,500 to redo the bath tile", "need to add a window in the basement".
-- note: Internal field note — no formal document needed. Examples: "remind me to call the inspector tomorrow", "framing on second floor is half done".
+- rfi: A question that needs an answer from architect / engineer / owner. ("ask the architect about the steel beam size", "we need to know the tile pattern", "submit an RFI about knob-and-tube")
+- co: Out-of-scope work that needs a change order. ("owner wants the heat pump upgrade", "create a change order for forty-five hundred to redo the bath tile", "need to add a window in the basement")
+- note: Internal field note — no formal document needed. ("remind me to call the inspector tomorrow", "framing on second floor is half done")
+- project: Create a NEW project. ("new project: Smith kitchen remodel at 123 Main, eighty thousand budget", "start a project for the Henderson bathroom")
+- punch: Punch-list item discovered while walking the site. ("master bath, light fixture loose", "punch list item: hallway 2 paint touch-up", "kitchen GFCI outlet not working")
+- invoice: Bill the client for work performed. ("invoice them for demolition, twenty-eight hundred", "bill 850 square feet of drywall at 2.50 a foot")
+- submittal: A submittal package (cut sheets, shop drawings). ("submit door hardware schedule, spec 08 71 00", "light fixture cut sheets for the kitchen by Friday")
 - unsure: The intent is ambiguous and the contractor should re-record.
 
 OUTPUT RULES
-- For rfi: subject (≤80 chars), question (full re-statement), priority (urgent / normal / low), assignedTo (best guess: "Architect", "Engineer", "Owner", "Inspector", or specific name if mentioned).
-- For co: description (≤80 chars), reason ("Owner direction", "Field condition", etc.), changeAmount if explicitly stated (else 0), lineItems if itemized (else empty).
-- For note: noteBody (the cleaned-up note text).
-- For unsure: leave fields blank, set reasoning.
+- For rfi: subject (≤80 chars), question, priority (urgent/normal/low), assignedTo, dateRequired (YYYY-MM-DD if a deadline given).
+- For co: description (≤80 chars), reason, scheduleImpactDays, changeAmount (single $ if stated), lineItems (array of {name, description, quantity, unit, unitPrice}).
+- For note: noteBody.
+- For project: projectName, projectType (kitchen/bathroom/addition/whole_home/roof/flooring/deck/adu/commercial/renovation/new_construction/other), projectLocation, targetBudget.
+- For punch: description (the issue), punchLocation, punchTrade ("Electrical","Plumbing","HVAC","Drywall","Painting","Flooring","Roofing","Concrete","Framing","Landscaping","General","Other"), punchPriority (low/medium/high).
+- For invoice: invoiceNotes, invoiceLineItems (array of {name, description, quantity, unit, unitPrice}).
+- For submittal: submittalTitle, submittalSpecSection, submittalSubmittedBy, submittalRequiredDate.
+- For unsure: leave fields blank, set reasoning to explain what was missing.
 
 Always set 'reasoning' to a one-sentence explanation of why you picked this kind, in the contractor's voice ("Sounds like an RFI because…").
 
@@ -102,23 +143,35 @@ ${transcript}`,
       question: 'What LVL spec should we use for the new kitchen island beam?',
       priority: 'urgent',
       assignedTo: 'Engineer',
+      dateRequired: '',
       description: '',
       reason: '',
+      scheduleImpactDays: 0,
       changeAmount: 0,
       lineItems: [],
       noteBody: '',
+      projectName: '',
+      projectType: 'renovation',
+      projectLocation: '',
+      targetBudget: 0,
+      punchLocation: '',
+      punchTrade: 'General',
+      punchPriority: 'medium',
+      invoiceNotes: '',
+      invoiceLineItems: [],
+      submittalTitle: '',
+      submittalSpecSection: '',
+      submittalSubmittedBy: '',
+      submittalRequiredDate: '',
     },
     tier: 'fast',
   });
 
   if (!aiResult.success) {
-    return {
+    return voiceActionSchema.parse({
       kind: 'unsure',
       reasoning: 'AI is unavailable right now — try again in a moment.',
-      subject: '', question: '', priority: 'normal', assignedTo: '',
-      description: '', reason: '', changeAmount: 0, lineItems: [],
-      noteBody: '',
-    };
+    });
   }
   return aiResult.data as VoiceActionResult;
 }
