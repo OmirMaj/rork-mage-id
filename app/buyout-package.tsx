@@ -129,14 +129,26 @@ export default function BuyoutPackageScreen() {
     try {
       const result = await levelBids({ pkg, bids });
       setLevelingResult(result);
-      // Persist each adjustment back to the bid records.
+      // Persist each adjustment back to the bid records — but only when
+      // the AI actually succeeded. confidence === 0 is the failure
+      // sentinel from the engine; persisting "AI unavailable — review
+      // manually" onto bids leaves stale reasons that confuse users on
+      // a successful re-run (code-review #8).
       for (const adj of result.adjustments) {
+        if (adj.confidence === 0) continue;
         updateBidPackageBid(adj.bidId, {
           normalizedAdjustment: adj.adjustment,
           normalizedAdjustmentReason: adj.reason,
         });
       }
-      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      // Surface AI-down state to the GC so they don't think leveling
+      // silently worked. Empty summary + every adjustment at confidence 0
+      // is the failure signature.
+      if (result.summary === '' && result.adjustments.every(a => a.confidence === 0)) {
+        Alert.alert('AI leveling unavailable', 'The AI is offline right now. Try again in a minute, or compare bids manually.');
+      } else {
+        if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
     } catch (err) {
       Alert.alert('Leveling failed', String((err as Error)?.message || err));
     } finally {

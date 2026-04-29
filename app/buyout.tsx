@@ -18,7 +18,7 @@
 // status chip, days-til-required, and either "Lowest bid: $X" or
 // "Awarded to Joe's at $X · saved $Y".
 
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Pressable,
   Alert, Platform, TextInput, Modal, KeyboardAvoidingView,
@@ -148,8 +148,8 @@ export default function BuyoutScreen() {
   // Sync auto-computed budget into the visible field whenever picks
   // change — but only if the GC hasn't manually typed a different value
   // (we can tell by storing the last auto-computed value).
-  const lastAutoBudgetRef = React.useRef<string>('');
-  React.useEffect(() => {
+  const lastAutoBudgetRef = useRef<string>('');
+  useEffect(() => {
     const auto = computedBudget > 0 ? String(Math.round(computedBudget)) : '';
     if (newPkgBudget === '' || newPkgBudget === lastAutoBudgetRef.current) {
       setNewPkgBudget(auto);

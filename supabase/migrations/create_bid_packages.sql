@@ -76,3 +76,6 @@ create policy bid_package_bids_owner_all on public.bid_package_bids
 
 create index if not exists bid_package_bids_user_id_idx on public.bid_package_bids (user_id);
 create index if not exists bid_package_bids_package_id_idx on public.bid_package_bids (user_id, package_id);
+-- Code-review #9: queries like "every bid I've received from this sub
+-- across all projects" otherwise full-scan the table.
+create index if not exists bid_package_bids_subcontractor_id_idx on public.bid_package_bids (user_id, subcontractor_id);

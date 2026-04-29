@@ -1344,25 +1344,54 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
     bidPackageBids.filter(b => b.packageId === packageId), [bidPackageBids]);
 
   /** Award a bid: creates a Commitment, marks the package awarded,
-   *  computes buyout savings. Idempotent — if already awarded,
-   *  returns the existing commitment id. */
+   *  computes buyout savings, and locks any allowance items linked to
+   *  this package to firm price. Idempotent — if already awarded,
+   *  returns the existing commitment id.
+   *
+   *  Implementation note: this orchestrates 4 state updates (commitments,
+   *  bidPackages, bidPackageBids, projects) and we want them to land
+   *  atomically without stale-closure reads. We compute every "next"
+   *  array up front from the closure-captured arrays once, then batch
+   *  the setState + persist + Supabase-sync calls. No use of the
+   *  per-row update* helpers here, because each one would re-read
+   *  this callback's closure version of state and re-execute the
+   *  Supabase write paths separately. */
   const awardBidPackage = useCallback((packageId: string, bidId: string): string | null => {
     const pkg = bidPackages.find(p => p.id === packageId);
     const bid = bidPackageBids.find(b => b.id === bidId);
     if (!pkg || !bid) return null;
     if (pkg.awardedCommitmentId) return pkg.awardedCommitmentId;
+    // Defensive: refuse a bid that doesn't belong to this package.
+    // Code-review #3.
+    if (bid.packageId !== packageId) {
+      console.warn('[awardBidPackage] bid.packageId mismatch — refusing', { packageId, bidPackageId: bid.packageId });
+      return null;
+    }
+    // Defensive: refuse a $0 bid (voice transcripts where the parser
+    // failed to extract a number return amount: 0 — awarding would
+    // create a phantom commitment with the full estimate as "savings").
+    // Code-review #4.
+    if (!bid.amount || bid.amount <= 0) {
+      console.warn('[awardBidPackage] zero / negative bid amount — refusing');
+      return null;
+    }
     const now = new Date().toISOString();
     // Total awarded = bid + any normalized adjustment (covers known
     // exclusions). Buyout savings = budget - awarded total.
     const awardedTotal = bid.amount + (bid.normalizedAdjustment ?? 0);
     const savings = pkg.estimateBudget - awardedTotal;
-    // Build the Commitment via existing addCommitment (defined later
-    // in this file — captured via closure).
+    // Sequential commitment number per project (mirrors addChangeOrder's
+    // pattern — code-review #11). Avoids the slim collision risk of the
+    // 6-char UUID prefix and reads better on documents the GC sends out.
+    const projectCommitments = commitments.filter(c => c.projectId === pkg.projectId);
+    const nextNumber = projectCommitments.length > 0
+      ? `BO-${projectCommitments.length + 1}`
+      : 'BO-1';
     const commitmentId = generateUUID();
     const commitment: Commitment = {
       id: commitmentId,
       projectId: pkg.projectId,
-      number: `BO-${pkg.id.slice(0, 6)}`,
+      number: nextNumber,
       type: 'subcontract',
       subcontractorId: bid.subcontractorId,
       vendorName: bid.vendorName,
@@ -1373,45 +1402,95 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
       csiDivision: pkg.csiDivision,
       linkedEstimateItems: pkg.linkedEstimateItemIds,
       status: 'active',
-      notes: `Awarded from buyout package "${pkg.name}". Buyout ${savings >= 0 ? 'savings' : 'overrun'}: $${Math.abs(savings).toLocaleString()}.`,
+      // Force en-US locale so the saved notes are consistent regardless
+      // of device locale (code-review #7).
+      notes: `Awarded from buyout package "${pkg.name}". Buyout ${savings >= 0 ? 'savings' : 'overrun'}: $${Math.abs(savings).toLocaleString('en-US')}.`,
       createdAt: now,
       updatedAt: now,
     };
-    setCommitments(prev => [commitment, ...prev]);
-    saveCommitmentsMutation.mutate([commitment, ...commitments]);
-    // Mark the package + bid awarded.
-    updateBidPackage(packageId, {
-      status: 'awarded',
-      awardedBidId: bidId,
-      awardedCommitmentId: commitmentId,
-      buyoutSavings: savings,
-    });
-    updateBidPackageBid(bidId, { status: 'awarded' });
+
+    // ── Pre-compute every next array atomically (code-review #2 + #6) ──
+    // Each state slice is updated using its closure-captured value
+    // exactly once, so two awards in quick succession can't lose data
+    // through stale-closure reads.
+    const nextCommitments = [commitment, ...commitments];
+    const nextPackages = bidPackages.map(p =>
+      p.id === packageId
+        ? { ...p, status: 'awarded' as BidPackageStatus, awardedBidId: bidId, awardedCommitmentId: commitmentId, buyoutSavings: savings, updatedAt: now }
+        : p,
+    );
+    const nextBids = bidPackageBids.map(b =>
+      b.id === bidId
+        ? { ...b, status: 'awarded' as BuyoutBidStatus, updatedAt: now }
+        : b,
+    );
+
     // Allowance → firm-price conversion. Any estimate items linked to
     // this package that were flagged isAllowance get locked: cleared
     // isAllowance, stamped firmPricedAt. The portal + budget pick up
     // the new firm number on the next render.
+    let nextProjects = projects;
+    let updatedProject: Project | null = null;
     if (pkg.linkedEstimateItemIds.length > 0) {
       const proj = projects.find(p => p.id === pkg.projectId);
       const linkedEstimate = proj?.linkedEstimate;
-      if (linkedEstimate && linkedEstimate.items.some(i => pkg.linkedEstimateItemIds.includes(i.materialId) && i.isAllowance)) {
+      if (proj && linkedEstimate && linkedEstimate.items.some(i => pkg.linkedEstimateItemIds.includes(i.materialId) && i.isAllowance)) {
         const updatedItems = linkedEstimate.items.map(item => {
           if (pkg.linkedEstimateItemIds.includes(item.materialId) && item.isAllowance) {
             return { ...item, isAllowance: false, firmPricedAt: now };
           }
           return item;
         });
-        const updatedProjects = projects.map(p =>
-          p.id === pkg.projectId
-            ? { ...p, linkedEstimate: { ...linkedEstimate, items: updatedItems }, updatedAt: now }
-            : p,
-        );
-        setProjects(updatedProjects);
-        saveProjectsMutation.mutate(updatedProjects);
+        updatedProject = { ...proj, linkedEstimate: { ...linkedEstimate, items: updatedItems }, updatedAt: now };
+        nextProjects = projects.map(p => p.id === pkg.projectId ? updatedProject! : p);
       }
     }
+
+    // ── Apply all state updates ──
+    setCommitments(nextCommitments);
+    saveCommitmentsMutation.mutate(nextCommitments);
+
+    setBidPackages(nextPackages);
+    saveBidPackagesMutation.mutate(nextPackages);
+
+    setBidPackageBids(nextBids);
+    saveBidPackageBidsMutation.mutate(nextBids);
+
+    if (updatedProject) {
+      setProjects(nextProjects);
+      saveProjectsMutation.mutate(nextProjects);
+      // Critical fix (code-review #1): sync the firm-priced project
+      // back to Supabase so the homeowner portal sees the locked
+      // numbers, not the old allowance carry. Without this the
+      // allowance lockdown was local-only.
+      syncProjectToSupabase(updatedProject, 'upsert');
+    }
+
+    // Sync the package + bid updates to Supabase too. We don't use the
+    // per-row updaters here (those would have refired stale closures);
+    // we issue the writes directly instead.
+    if (canSync) {
+      void supabaseWrite('bid_packages', 'update', {
+        id: packageId, name: pkg.name, csi_division: pkg.csiDivision, phase: pkg.phase,
+        scope_description: pkg.scopeDescription,
+        linked_estimate_item_ids: pkg.linkedEstimateItemIds,
+        estimate_budget: pkg.estimateBudget, status: 'awarded',
+        due_date: pkg.dueDate, required_by_date: pkg.requiredByDate,
+        awarded_bid_id: bidId, awarded_commitment_id: commitmentId,
+        buyout_savings: savings, notes: pkg.notes, updated_at: now,
+      });
+      void supabaseWrite('bid_package_bids', 'update', {
+        id: bidId, subcontractor_id: bid.subcontractorId, vendor_name: bid.vendorName,
+        amount: bid.amount, includes: bid.includes, excludes: bid.excludes,
+        terms: bid.terms, source: bid.source, status: 'awarded',
+        normalized_adjustment: bid.normalizedAdjustment,
+        normalized_adjustment_reason: bid.normalizedAdjustmentReason,
+        notes: bid.notes, updated_at: now,
+      });
+    }
+
     return commitmentId;
-  }, [bidPackages, bidPackageBids, commitments, projects, saveCommitmentsMutation, saveProjectsMutation, updateBidPackage, updateBidPackageBid]);
+  }, [bidPackages, bidPackageBids, commitments, projects, saveCommitmentsMutation, saveBidPackagesMutation, saveBidPackageBidsMutation, saveProjectsMutation, syncProjectToSupabase, canSync]);
 
   const addSubcontractor = useCallback((sub: Subcontractor) => {
     const updated = [sub, ...subcontractors];

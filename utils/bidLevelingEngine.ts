@@ -58,7 +58,10 @@ interface LevelOpts {
 
 export async function levelBids(opts: LevelOpts): Promise<LevelingResult> {
   const { pkg, bids } = opts;
-  if (bids.length === 0) return { adjustments: [], summary: '', recommendedWinnerBidId: '', recommendedWinnerReason: '' };
+  // Leveling requires at least 2 bids — otherwise there's nothing to
+  // normalize against. The screen guards this too, but utilities exposed
+  // module-wide should defend themselves (code-review #5).
+  if (bids.length < 2) return { adjustments: [], summary: '', recommendedWinnerBidId: '', recommendedWinnerReason: '' };
 
   // Build the prompt with each bid's raw text.
   const bidLines = bids.map((b, i) => {
