@@ -11,6 +11,8 @@ import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
+import InlineVoiceFill from '@/components/InlineVoiceFill';
+import { parseRFIFromTranscript, mergeText, pickIfEmpty } from '@/utils/voiceFormParsers';
 import type { RFIStatus, RFIPriority } from '@/types';
 
 const PRIORITY_OPTIONS: RFIPriority[] = ['low', 'normal', 'urgent'];
@@ -138,6 +140,33 @@ function RFIScreenInner() {
         {project && (
           <Text style={styles.projectLabel}>{project.name}</Text>
         )}
+
+        <InlineVoiceFill
+          title="Dictate this RFI"
+          contextLine={project?.name ? `for ${project.name}` : undefined}
+          buttonLabel={existingRFI ? 'Add detail by voice' : 'Fill RFI by voice'}
+          suggestions={[
+            'Ask the architect about the LVL beam size for the kitchen island, urgent',
+            'We need the tile pattern for the master bath by Friday',
+            'Engineer — please confirm the footing depth on the south side',
+            'Owner question about the door swing direction in the powder room',
+          ]}
+          onTranscript={async (transcript) => {
+            const partial = await parseRFIFromTranscript(transcript, project);
+            // Subject: fill if empty, else leave alone (don't clobber).
+            if (partial.subject) setSubject(prev => pickIfEmpty(prev, partial.subject));
+            // Question is long-form free text — append so a second
+            // dictation extends the question rather than replacing it.
+            if (partial.question) setQuestion(prev => mergeText(prev, partial.question, prev ? 'append' : 'replace-if-empty'));
+            // Priority: only overwrite if user hasn't picked something
+            // explicit. Default state is 'normal' so we'd always overwrite
+            // — instead, only overwrite when AI says urgent or low (i.e.
+            // they spoke an explicit priority cue).
+            if (partial.priority && partial.priority !== 'normal') setPriority(partial.priority);
+            if (partial.assignedTo) setAssignedTo(prev => pickIfEmpty(prev, partial.assignedTo));
+            if (partial.dateRequired) setDateRequired(prev => pickIfEmpty(prev, partial.dateRequired));
+          }}
+        />
 
         <Text style={styles.fieldLabel}>Subject *</Text>
         <TextInput

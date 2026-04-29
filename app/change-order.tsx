@@ -14,6 +14,8 @@ import { useProjects } from '@/contexts/ProjectContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import ContactPickerModal from '@/components/ContactPickerModal';
+import InlineVoiceFill from '@/components/InlineVoiceFill';
+import { parseCOFromTranscript, mergeText, pickIfEmpty } from '@/utils/voiceFormParsers';
 import { getLivePrices, getRegionMultiplier, CATEGORY_META, type MaterialItem } from '@/constants/materials';
 import { sendEmail, buildChangeOrderEmailHtml } from '@/utils/emailService';
 import AIChangeOrderImpact from '@/components/AIChangeOrderImpact';
@@ -427,6 +429,53 @@ function ChangeOrderInner() {
           {!isLocked && (
             <>
               <View style={styles.fieldSection}>
+                <InlineVoiceFill
+                  title="Dictate this change order"
+                  contextLine={project?.name ? `for ${project.name}` : undefined}
+                  buttonLabel={existingCO ? 'Add detail by voice' : 'Fill change order by voice'}
+                  suggestions={[
+                    'Owner wants the heat pump upgrade — change order for forty-five hundred dollars',
+                    'Field condition — found knob and tube wiring, two days extra and twelve hundred dollars',
+                    'Add a window in the basement bedroom, owner direction, three thousand',
+                    'Code requirement — upgrade panel to 200 amp, sub bid is twenty-eight hundred',
+                  ]}
+                  onTranscript={async (transcript) => {
+                    const partial = await parseCOFromTranscript(transcript, project);
+                    if (partial.description) setDescription(prev => mergeText(prev, partial.description, prev ? 'append' : 'replace-if-empty'));
+                    if (partial.reason) setReason(prev => pickIfEmpty(prev, partial.reason));
+                    if (partial.scheduleImpactDays && partial.scheduleImpactDays !== 0) {
+                      setScheduleImpactDays(prev => prev || String(partial.scheduleImpactDays));
+                    }
+                    // Line items: append voice-derived items to whatever's already there.
+                    if (partial.lineItems && partial.lineItems.length > 0) {
+                      setLineItems(prev => [
+                        ...prev,
+                        ...partial.lineItems.map(li => ({
+                          id: createId('coli'),
+                          name: li.name || 'Voice line item',
+                          description: li.description || '',
+                          quantity: li.quantity || 1,
+                          unit: li.unit || 'lump',
+                          unitPrice: li.unitPrice || 0,
+                          total: (li.quantity || 1) * (li.unitPrice || 0),
+                          isNew: true,
+                        })),
+                      ]);
+                    } else if (partial.changeAmount > 0 && lineItems.length === 0) {
+                      // Single bulk amount with no itemization — seed one line.
+                      setLineItems([{
+                        id: createId('coli'),
+                        name: partial.description || 'Voice change order',
+                        description: '',
+                        quantity: 1,
+                        unit: 'lump',
+                        unitPrice: partial.changeAmount,
+                        total: partial.changeAmount,
+                        isNew: true,
+                      }]);
+                    }
+                  }}
+                />
                 <Text style={styles.fieldLabel}>Description</Text>
                 <TextInput
                   style={styles.textArea}

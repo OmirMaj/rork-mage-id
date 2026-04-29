@@ -37,9 +37,30 @@ import { useProjects } from '@/contexts/ProjectContext';
 import { generateUUID } from '@/utils/generateId';
 import VoiceRecorder from '@/components/VoiceRecorder';
 import { inferTradeFromText, pickSubForTrade } from '@/utils/tradeInference';
+import { parsePunchFromTranscript } from '@/utils/voiceFormParsers';
 import { stampPhotoLocation, type PhotoGeoStamp } from '@/utils/photoGeoStamp';
 import type { PunchItem, PunchItemPriority, SubTrade, Subcontractor } from '@/types';
 import { SUB_TRADES } from '@/types';
+
+// Map the loose AI-trade string to the strict SubTrade enum used in
+// the data model. Anything not recognized falls back to 'General'.
+function aiTradeToSubTrade(aiTrade: string): SubTrade {
+  const t = (aiTrade || '').toLowerCase();
+  if (t.includes('electrical')) return 'Electrical';
+  if (t.includes('plumb')) return 'Plumbing';
+  if (t.includes('hvac') || t.includes('mechanical')) return 'HVAC';
+  if (t.includes('drywall')) return 'Drywall';
+  if (t.includes('paint')) return 'Painting';
+  if (t.includes('tile')) return 'Flooring';
+  if (t.includes('floor')) return 'Flooring';
+  if (t.includes('roof')) return 'Roofing';
+  if (t.includes('concrete') || t.includes('masonry')) return 'Concrete';
+  if (t.includes('frame') || t.includes('framing')) return 'Framing';
+  if (t.includes('landscap')) return 'Landscaping';
+  if (t.includes('trim') || t.includes('carpentry') || t.includes('door')
+      || t.includes('cabinet') || t.includes('insulation') || t.includes('cleanup')) return 'Other';
+  return 'General';
+}
 
 const TRADE_ORDER: SubTrade[] = SUB_TRADES;
 
@@ -92,6 +113,10 @@ function WalkInner({ projectName, projectId, subcontractors, onAdd, onDelete, on
   onBack: () => void;
 }) {
   const insets = useSafeAreaInsets();
+  // Look up the project for AI-context (description -> location/trade/priority).
+  // We only need it for the voice parser; the rest of WalkInner uses projectName.
+  const { getProject } = useProjects();
+  const project = getProject(projectId);
 
   // Draft — what the user is building right now. Each save clears it
   // back to an empty draft seeded with the last location (see persist).
@@ -130,17 +155,45 @@ function WalkInner({ projectName, projectId, subcontractors, onAdd, onDelete, on
     return () => { if (inferenceTimer.current) clearTimeout(inferenceTimer.current); };
   }, [draft.description]);
 
-  // Voice transcript handler. We append rather than replace so the user
-  // can dictate "hallway 2" then tap again for "outlet cover missing"
-  // and get both sentences.
-  const handleTranscript = useCallback((text: string) => {
-    setIsTranscribing(false);
-    setDraft(d => ({
-      ...d,
-      description: d.description ? `${d.description} ${text}`.trim() : text.trim(),
-    }));
-    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, []);
+  // Voice transcript handler — runs the AI parser to split the
+  // dictation into description / location / trade / priority and merges
+  // into the current draft. Falls back to plain append if the parser
+  // can't get anything useful (offline, AI down, etc.) so a
+  // disconnected GC still gets text into the description.
+  const handleTranscript = useCallback(async (text: string) => {
+    setIsTranscribing(true);
+    try {
+      const parsed = await parsePunchFromTranscript(text, project ?? null);
+      setDraft(d => ({
+        ...d,
+        // Description: append so multiple dictations stack (e.g.
+        // "hallway 2" + "outlet cover missing" become one item).
+        description: parsed.description
+          ? (d.description ? `${d.description} ${parsed.description}`.trim() : parsed.description)
+          : (d.description ? `${d.description} ${text}`.trim() : text.trim()),
+        // Location: only fill if the user hasn't already typed one.
+        location: d.location || parsed.location || d.location,
+        // Trade: only overwrite when AI gives us something specific
+        // and the user hasn't manually picked.
+        trade: (parsed.trade && parsed.trade !== 'General' && d.trade === 'General')
+          ? aiTradeToSubTrade(parsed.trade)
+          : d.trade,
+        // Priority: AI returns 'low' | 'medium' | 'high' which matches
+        // PunchItemPriority. Overwrite only if AI was confident enough
+        // to set non-default 'medium'.
+        priority: (parsed.priority && parsed.priority !== 'medium') ? parsed.priority : d.priority,
+      }));
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (err) {
+      console.warn('[punch-walk] voice parse failed, falling back to append:', err);
+      setDraft(d => ({
+        ...d,
+        description: d.description ? `${d.description} ${text}`.trim() : text.trim(),
+      }));
+    } finally {
+      setIsTranscribing(false);
+    }
+  }, [project]);
 
   const handleCamera = useCallback(async () => {
     const perm = await ImagePicker.requestCameraPermissionsAsync();

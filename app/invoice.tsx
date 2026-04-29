@@ -23,6 +23,8 @@ import * as Sharing from 'expo-sharing';
 import PDFPreSendSheet from '@/components/PDFPreSendSheet';
 import type { PDFSendOptions } from '@/components/PDFPreSendSheet';
 import { sendEmail, buildInvoiceEmailHtml } from '@/utils/emailService';
+import InlineVoiceFill from '@/components/InlineVoiceFill';
+import { parseInvoiceFromTranscript, mergeText } from '@/utils/voiceFormParsers';
 import { getEffectiveInvoiceStatus, getDaysPastDue } from '@/utils/projectFinancials';
 import { createPaymentLink } from '@/utils/stripe';
 import { fetchStripeConnectStatus } from '@/utils/stripeConnect';
@@ -772,6 +774,40 @@ function InvoiceInner() {
               <Text style={styles.termsSelectorText}>{retentionPctValue}%</Text>
             )}
           </View>
+
+          {!isLocked && (
+            <View style={styles.fieldSection}>
+              <InlineVoiceFill
+                title="Dictate this invoice"
+                contextLine={project?.name ? `for ${project.name}` : undefined}
+                buttonLabel={existingInvoice ? 'Add detail by voice' : 'Fill invoice by voice'}
+                suggestions={[
+                  'Demolition kitchen, lump sum twenty-eight hundred',
+                  'Drywall hang and finish, 850 square feet at 2.50 per square foot',
+                  'Electrical rough-in, 8 hours at 95 per hour',
+                  'Add a note: net 15 terms, late fee 1.5% per month',
+                ]}
+                onTranscript={async (transcript) => {
+                  const partial = await parseInvoiceFromTranscript(transcript, project);
+                  if (partial.notes) setNotes(prev => mergeText(prev, partial.notes, prev ? 'append' : 'replace-if-empty'));
+                  if (partial.lineItems && partial.lineItems.length > 0) {
+                    setLineItems(prev => [
+                      ...prev,
+                      ...partial.lineItems.map(li => ({
+                        id: createId('ili'),
+                        name: li.name || 'Voice line item',
+                        description: li.description || '',
+                        quantity: li.quantity || 1,
+                        unit: li.unit || 'lump',
+                        unitPrice: li.unitPrice || 0,
+                        total: (li.quantity || 1) * (li.unitPrice || 0),
+                      })),
+                    ]);
+                  }
+                }}
+              />
+            </View>
+          )}
 
           <View style={styles.fieldSection}>
             <Text style={styles.fieldLabel}>Line Items</Text>

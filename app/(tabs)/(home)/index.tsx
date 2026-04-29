@@ -25,6 +25,8 @@ import { useSubscription } from '@/contexts/SubscriptionContext';
 import { useEntityNavigation } from '@/hooks/useEntityNavigation';
 import { useSearch } from '@/contexts/SearchContext';
 import EntityActionSheet from '@/components/EntityActionSheet';
+import InlineVoiceFill from '@/components/InlineVoiceFill';
+import { parseProjectFromTranscript } from '@/utils/voiceFormParsers';
 import { useNotificationFeed } from '@/hooks/useNotificationFeed';
 import UniversalMicButton from '@/components/UniversalMicButton';
 import EmptyState from '@/components/EmptyState';
@@ -448,6 +450,23 @@ export default function HomeScreen() {
               </View>
 
               <ScrollView showsVerticalScrollIndicator={false} style={styles.createModalScroll} keyboardShouldPersistTaps="handled">
+                <InlineVoiceFill
+                  title="Dictate this project"
+                  buttonLabel="Fill project by voice"
+                  suggestions={[
+                    'Smith kitchen remodel at 123 Main Street San Diego, budget eighty thousand',
+                    'Bathroom renovation for the Henderson residence, twenty-five thousand',
+                    'Two-story addition on the Garcia house, two hundred thousand budget',
+                    'New construction ADU at 456 Oak Avenue, one fifty start date June 1st',
+                  ]}
+                  onTranscript={async (transcript) => {
+                    const partial = await parseProjectFromTranscript(transcript);
+                    if (partial.name) setProjectName(prev => prev || partial.name);
+                    if (partial.notes) setProjectDescription(prev => prev || partial.notes);
+                    if (partial.type) setProjectType(partial.type as ProjectType);
+                  }}
+                />
+
                 <Text style={styles.fieldLabel}>Project Name</Text>
                 <TextInput
                   style={styles.input}

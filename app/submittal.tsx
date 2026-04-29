@@ -14,6 +14,8 @@ import Paywall from '@/components/Paywall';
 import { generateSubmittalPDF, generateSubmittalPDFUri, buildSubmittalEmailHtml } from '@/utils/pdfGenerator';
 import { sendEmail } from '@/utils/emailService';
 import { nailIt } from '@/components/animations/NailItToast';
+import InlineVoiceFill from '@/components/InlineVoiceFill';
+import { parseSubmittalFromTranscript, pickIfEmpty } from '@/utils/voiceFormParsers';
 import type { SubmittalStatus } from '@/types';
 
 const STATUS_COLORS: Record<SubmittalStatus, string> = {
@@ -212,6 +214,25 @@ function SubmittalScreenInner() {
         keyboardShouldPersistTaps="handled"
       >
         {project && <Text style={styles.projectLabel}>{project.name}</Text>}
+
+        <InlineVoiceFill
+          title="Dictate this submittal"
+          contextLine={project?.name ? `for ${project.name}` : undefined}
+          buttonLabel={existingSubmittal ? 'Add detail by voice' : 'Fill submittal by voice'}
+          suggestions={[
+            'Door hardware schedule, spec section 08 71 00, submitted by Acme Doors',
+            'Light fixture cut sheets for the kitchen, need by Friday',
+            'Submit the tile shop drawings, spec 09 30 00',
+            'Mechanical equipment cut sheets, submitted by Anderson HVAC',
+          ]}
+          onTranscript={async (transcript) => {
+            const partial = await parseSubmittalFromTranscript(transcript, project);
+            if (partial.title) setTitle(prev => pickIfEmpty(prev, partial.title));
+            if (partial.specSection) setSpecSection(prev => pickIfEmpty(prev, partial.specSection));
+            if (partial.submittedBy) setSubmittedBy(prev => pickIfEmpty(prev, partial.submittedBy));
+            if (partial.requiredDate) setRequiredDate(prev => pickIfEmpty(prev, partial.requiredDate));
+          }}
+        />
 
         <Text style={styles.fieldLabel}>Title *</Text>
         <TextInput
