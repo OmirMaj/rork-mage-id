@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>You're in — MAGE ID</title>
+  <meta name="description" content="Thanks for requesting access to MAGE ID. We'll be in touch within 24 hours to get your first project onboarded." />
+  <meta name="theme-color" content="#0B0D10" />
+  <meta name="robots" content="noindex" />
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="/assets/favicon-16.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/assets/favicon-180.png" />
+  <link rel="icon" type="image/png" sizes="512x512" href="/assets/favicon-512.png" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500;1,9..144,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="/styles.css" />
+
+  <style>
+    .ty-shell {
+      min-height: calc(100vh - 80px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 80px 24px;
+    }
+    .ty-card {
+      max-width: 580px;
+      width: 100%;
+      text-align: center;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border);
+      border-radius: 22px;
+      padding: clamp(40px, 6vw, 64px);
+    }
+    .ty-icon {
+      display: inline-flex;
+      width: 72px; height: 72px;
+      border-radius: 50%;
+      align-items: center; justify-content: center;
+      background: rgba(34, 197, 94, 0.15);
+      margin-bottom: 24px;
+    }
+    .ty-icon svg { width: 32px; height: 32px; color: #22C55E; }
+    .ty-card h1 {
+      font-family: 'Fraunces', serif;
+      font-size: clamp(36px, 6vw, 56px);
+      letter-spacing: -1px;
+      line-height: 1;
+      margin: 0 0 20px;
+    }
+    .ty-card h1 em { color: var(--amber); font-style: italic; }
+    .ty-card p {
+      font-size: 17px;
+      color: var(--text-muted);
+      line-height: 1.6;
+      margin: 0 0 14px;
+    }
+    .ty-list {
+      text-align: left;
+      max-width: 440px;
+      margin: 28px auto 0;
+      padding: 0;
+      list-style: none;
+    }
+    .ty-list li {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 14px;
+      color: var(--text);
+      line-height: 1.55;
+      font-size: 15px;
+    }
+    .ty-list li::before {
+      content: '→';
+      color: var(--amber);
+      font-weight: 800;
+      flex-shrink: 0;
+    }
+    .ty-cta-row {
+      display: flex; gap: 10px; justify-content: center;
+      flex-wrap: wrap; margin-top: 32px;
+    }
+  </style>
+</head>
+<body>
+  <header class="nav">
+    <div class="nav-inner">
+      <a href="/" class="brand"><img class="brand-mark" src="/assets/logo-mark-light.png" alt="" width="32" height="32" /><span>MAGE&nbsp;ID</span></a>
+      <nav class="links">
+        <a href="/playbook.html">How it works</a>
+        <a href="/features/field.html">Features</a>
+        <a href="/support.html">Support</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="ty-shell">
+    <div class="ty-card">
+      <div class="ty-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="20 6 9 17 4 12"/>
+        </svg>
+      </div>
+      <h1>You're <em>in.</em></h1>
+      <p>
+        We got your email. We'll personally reach out within <strong>24 hours</strong>
+        with a TestFlight invite and walk you through onboarding your first project.
+      </p>
+
+      <ul class="ty-list">
+        <li>You'll get a TestFlight invite for the iPhone app</li>
+        <li>We'll set up a 15-minute call to import your first project</li>
+        <li>Your first project is free — no card required to start</li>
+      </ul>
+
+      <div class="ty-cta-row">
+        <a class="btn btn-primary" href="/playbook.html">
+          <span>Read the Playbook</span>
+        </a>
+        <a class="btn btn-secondary" href="https://app.mageid.app">
+          <span>Try the web app</span>
+        </a>
+      </div>
+
+      <p style="font-size: 13px; color: var(--text-muted); margin-top: 28px;">
+        Didn't mean to submit? Email <a href="mailto:hello@mageid.app">hello@mageid.app</a> and we'll remove you.
+      </p>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap">
+      <p>&copy; <span id="year">2026</span> MAGE ID. Built for the contractors doing the work.</p>
+    </div>
+  </footer>
+
+  <script>document.getElementById('year').textContent = new Date().getFullYear();</script>
+</body>
+</html>

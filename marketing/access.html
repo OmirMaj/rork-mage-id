@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Request access — MAGE ID</title>
+  <meta name="description" content="Get TestFlight access to MAGE ID and we'll personally onboard your first project within 24 hours. Free for your first project." />
+  <meta name="theme-color" content="#0B0D10" />
+
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="Request access — MAGE ID" />
+  <meta property="og:description" content="Voice-first construction management for residential GCs. Free for your first project. We'll onboard you in 15 minutes." />
+  <meta property="og:url" content="https://mageid.app/access.html" />
+  <meta property="og:image" content="https://mageid.app/assets/og-image.png" />
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="/assets/favicon-16.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/assets/favicon-180.png" />
+  <link rel="icon" type="image/png" sizes="512x512" href="/assets/favicon-512.png" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500;1,9..144,600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="/styles.css" />
+
+  <style>
+    .access-shell {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 80px clamp(20px, 4vw, 40px);
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 48px;
+    }
+    @media (min-width: 880px) {
+      .access-shell { grid-template-columns: 1.05fr 1fr; align-items: start; }
+    }
+
+    .access-pitch h1 {
+      font-family: 'Fraunces', serif;
+      font-size: clamp(36px, 5vw, 56px);
+      letter-spacing: -1px;
+      line-height: 1.05;
+      margin: 0 0 18px;
+    }
+    .access-pitch h1 em { color: var(--amber); font-style: italic; }
+    .access-pitch p.lede {
+      font-size: 17px;
+      color: var(--text-muted);
+      line-height: 1.6;
+      margin: 0 0 32px;
+    }
+    .access-bullets { list-style: none; padding: 0; margin: 0; }
+    .access-bullets li {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 14px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 15px;
+      line-height: 1.55;
+      color: var(--text);
+    }
+    .access-bullets li::before {
+      content: '✓';
+      color: var(--amber);
+      font-weight: 800;
+      flex-shrink: 0;
+      font-size: 18px;
+      line-height: 1;
+      margin-top: 2px;
+    }
+
+    .access-form-card {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: clamp(28px, 4vw, 40px);
+      position: sticky;
+      top: 100px;
+    }
+    .access-form-card .eyebrow {
+      display: block;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--amber);
+      margin-bottom: 8px;
+    }
+    .access-form-card h2 {
+      font-family: 'Fraunces', serif;
+      font-size: 28px;
+      letter-spacing: -0.5px;
+      line-height: 1.1;
+      margin: 0 0 8px;
+    }
+    .access-form-card p.sub {
+      font-size: 14px;
+      color: var(--text-muted);
+      margin: 0 0 24px;
+      line-height: 1.5;
+    }
+    .access-form { display: flex; flex-direction: column; gap: 14px; }
+    .access-form label {
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+    .access-form input,
+    .access-form select,
+    .access-form textarea {
+      width: 100%;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px 16px;
+      font: inherit;
+      color: var(--text);
+      font-size: 15px;
+    }
+    .access-form input:focus,
+    .access-form select:focus,
+    .access-form textarea:focus {
+      outline: none;
+      border-color: var(--amber);
+      background: rgba(255, 106, 26, 0.05);
+    }
+    .access-form textarea { min-height: 88px; resize: vertical; }
+    .access-form .field { display: flex; flex-direction: column; }
+    .access-form button {
+      margin-top: 8px;
+      background: var(--amber);
+      color: #0B0D10;
+      border: 0;
+      border-radius: 12px;
+      padding: 16px 20px;
+      font: inherit;
+      font-weight: 700;
+      font-size: 15px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    .access-form button:hover { background: #FF8540; }
+    .access-form .form-foot {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin: 12px 0 0;
+      line-height: 1.5;
+    }
+    .access-form .form-foot a { color: var(--amber); }
+  </style>
+</head>
+<body>
+  <header class="nav">
+    <div class="nav-inner">
+      <a href="/" class="brand"><img class="brand-mark" src="/assets/logo-mark-light.png" alt="" width="32" height="32" /><span>MAGE&nbsp;ID</span></a>
+      <nav class="links">
+        <a href="/playbook.html">How it works</a>
+        <a href="/features/field.html">Features</a>
+        <a href="/features/vs-competitors.html">vs. Competitors</a>
+        <a href="/support.html">Support</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="access-shell">
+      <!-- Pitch -->
+      <div class="access-pitch">
+        <span class="eyebrow" style="color: var(--amber); font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 800;">Private beta</span>
+        <h1>Tell us a little<br>about your work.<br><em>We onboard within 24 hours.</em></h1>
+        <p class="lede">
+          We build for residential GCs running $1M–$30M projects. We don't run a 90-minute discovery
+          call. We don't make you sit through a demo deck. We give you the app, walk you through your
+          first project in 15 minutes, and stay out of the way.
+        </p>
+
+        <ul class="access-bullets">
+          <li>TestFlight invite for the iPhone app within 24 hours</li>
+          <li>15-minute setup call to import your first project</li>
+          <li>Your first project is free — no card required to start</li>
+          <li>Pro at $24.99/mo when you're ready · Business at $63.99/mo</li>
+          <li>Cancel anytime in your App Store subscriptions</li>
+          <li>Talk to a real builder, not a sales rep</li>
+        </ul>
+      </div>
+
+      <!-- Form -->
+      <aside class="access-form-card">
+        <span class="eyebrow">Request access</span>
+        <h2>Get the TestFlight invite.</h2>
+        <p class="sub">All fields besides email are optional — fill in what's relevant. You'll hear from us within a business day.</p>
+
+        <form class="access-form" action="https://formspree.io/f/mblabgzr" method="POST" aria-label="Request access">
+          <!-- Honey trap (Formspree _gotcha): silently filtered. -->
+          <input type="text" name="_gotcha" style="display:none" tabindex="-1" autocomplete="off" />
+          <!-- Where Formspree sends users after a successful submit. -->
+          <input type="hidden" name="_next" value="https://mageid.app/thanks.html" />
+          <!-- Subject line on the email we'll receive. -->
+          <input type="hidden" name="_subject" value="MAGE ID access request" />
+
+          <div class="field">
+            <label for="email">Email *</label>
+            <input id="email" type="email" name="email" placeholder="you@your-company.com" required autocomplete="email" />
+          </div>
+
+          <div class="field">
+            <label for="name">Your name</label>
+            <input id="name" type="text" name="name" placeholder="First and last" autocomplete="name" />
+          </div>
+
+          <div class="field">
+            <label for="company">Company</label>
+            <input id="company" type="text" name="company" placeholder="Acme Builders, LLC" autocomplete="organization" />
+          </div>
+
+          <div class="field">
+            <label for="role">What you do</label>
+            <select id="role" name="role">
+              <option value="">— pick one —</option>
+              <option>Owner / Owner-operator</option>
+              <option>Project manager</option>
+              <option>Estimator</option>
+              <option>Superintendent</option>
+              <option>Office manager</option>
+              <option>Other</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="size">How many active projects</label>
+            <select id="size" name="active_projects">
+              <option value="">— pick one —</option>
+              <option>1–2</option>
+              <option>3–5</option>
+              <option>6–10</option>
+              <option>11–20</option>
+              <option>20+</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="notes">Anything else (optional)</label>
+            <textarea id="notes" name="notes" placeholder="What's the biggest pain right now? What do you currently use?"></textarea>
+          </div>
+
+          <button type="submit">
+            Request access
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+          </button>
+
+          <p class="form-foot">
+            By submitting you agree to receive a one-time onboarding email from a real human at MAGE ID.
+            We don't sell your contact info. Or you can email us directly at
+            <a href="mailto:hello@mageid.app">hello@mageid.app</a>.
+          </p>
+        </form>
+      </aside>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap">
+      <p>&copy; <span id="year">2026</span> MAGE ID. Built for the contractors doing the work.</p>
+    </div>
+  </footer>
+
+  <script>document.getElementById('year').textContent = new Date().getFullYear();</script>
+</body>
+</html>

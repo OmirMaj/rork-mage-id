@@ -478,12 +478,22 @@
           Private beta is live. Request access and we'll onboard your first project this week.
         </p>
         <form class="cta-form reveal" action="https://formspree.io/f/mblabgzr" method="POST" aria-label="Request access">
+          <!-- Honey trap (Formspree _gotcha): silently filtered. -->
+          <input type="text" name="_gotcha" style="display:none" tabindex="-1" autocomplete="off" />
+          <!-- Where Formspree redirects after a successful submit.
+               Without this it dumps to Formspree's barebones default
+               confirmation, which reads as "no form was here." -->
+          <input type="hidden" name="_next" value="https://mageid.app/thanks.html" />
+          <input type="hidden" name="_subject" value="MAGE ID access request (homepage)" />
           <input type="email" name="email" placeholder="you@your-company.com" required autocomplete="email" />
           <button type="submit" class="btn btn-primary magnetic">
             <span>Request access</span>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
           </button>
         </form>
+        <p class="cta-foot reveal" style="margin-top: 6px; font-size: 13px;">
+          Want a longer form with details? <a href="/access.html">Use the full request form →</a>
+        </p>
         <p class="cta-foot reveal">
           Or try it right now on <a href="https://app.mageid.app">app.mageid.app</a> — no download.
         </p>
