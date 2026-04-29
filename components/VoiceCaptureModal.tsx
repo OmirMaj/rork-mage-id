@@ -111,9 +111,46 @@ export default function VoiceCaptureModal({
         playsInSilentModeIOS: true,
       });
       const recording = new Audio.Recording();
-      // expo-av v16 enums are strings — using HIGH_QUALITY preset avoids
-      // any drift between handwritten options and the SDK version.
-      await recording.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
+      // IMPORTANT: the Rork toolkit STT endpoint at
+      // https://toolkit.rork.com/stt/transcribe/ silently returns
+      // {"text":"","language":""} for M4A/AAC uploads (verified — it
+      // doesn't error, it just emits no transcript). It transcribes WAV
+      // perfectly. So we record as 16-kHz mono LPCM and send a real
+      // .wav. 16kHz/16-bit mono is the standard speech bandwidth — half
+      // the file size of 44.1kHz stereo, identical accuracy for STT.
+      await recording.prepareToRecordAsync({
+        isMeteringEnabled: true,
+        ios: {
+          extension: '.wav',
+          // 'lpcm' matches IOSOutputFormat.LINEARPCM in expo-av v16.
+          // Hard-coded as a string so we don't drift if the SDK enum
+          // moves.
+          outputFormat: 'lpcm',
+          audioQuality: 96, // HIGH (0=MIN, 32=LOW, 64=MEDIUM, 96=HIGH, 127=MAX)
+          sampleRate: 16000,
+          numberOfChannels: 1,
+          bitRate: 256000, // 16kHz × 16-bit × mono ≈ 256 kbps
+          linearPCMBitDepth: 16,
+          linearPCMIsBigEndian: false,
+          linearPCMIsFloat: false,
+        },
+        // Android can't natively record raw WAV via MediaRecorder, so
+        // we keep AAC/.m4a here. The toolkit STT may not transcribe it
+        // until we add an Android-side WAV path or swap STT providers.
+        // Documented as a known gap; iOS is the primary target.
+        android: {
+          extension: '.m4a',
+          outputFormat: 2, // MPEG_4
+          audioEncoder: 3, // AAC
+          sampleRate: 16000,
+          numberOfChannels: 1,
+          bitRate: 64000,
+        },
+        web: {
+          mimeType: 'audio/webm',
+          bitsPerSecond: 64000,
+        },
+      });
       await recording.startAsync();
       recordingRef.current = recording;
       setStep('recording');
@@ -147,9 +184,23 @@ export default function VoiceCaptureModal({
       if (!uri) throw new Error('Recording produced no file.');
 
       const uriParts = uri.split('.');
-      const fileType = uriParts[uriParts.length - 1] || 'm4a';
+      const fileType = (uriParts[uriParts.length - 1] || 'wav').toLowerCase();
+      // Map our recorded extension to the mime type the Rork toolkit
+      // STT endpoint expects. WAV is the format that actually transcribes
+      // (M4A returns empty silently — confirmed by direct testing). Keep
+      // .m4a/.caf in the lookup as a fallback so we're not stuck if the
+      // recording format changes.
+      const mimeMap: Record<string, string> = {
+        wav: 'audio/wav',
+        m4a: 'audio/m4a',
+        caf: 'audio/x-caf',
+        aac: 'audio/aac',
+        mp3: 'audio/mpeg',
+        webm: 'audio/webm',
+      };
+      const mime = mimeMap[fileType] || `audio/${fileType}`;
       const formData = new FormData();
-      formData.append('audio', { uri, name: `recording.${fileType}`, type: `audio/${fileType}` } as any);
+      formData.append('audio', { uri, name: `recording.${fileType}`, type: mime } as any);
 
       const resp = await fetch('https://toolkit.rork.com/stt/transcribe/', {
         method: 'POST',
