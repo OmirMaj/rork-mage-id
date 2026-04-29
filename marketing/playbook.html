@@ -1,0 +1,755 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>The MAGE ID Playbook — How to run a job from your phone</title>
+  <meta name="description" content="The complete how-to guide for MAGE ID. Voice-first construction management — capture leads in 10 seconds, run daily reports from the truck, get paid faster. Step-by-step with the exact words to say." />
+  <meta name="theme-color" content="#0B0D10" />
+
+  <meta property="og:type" content="article" />
+  <meta property="og:title" content="The MAGE ID Playbook — How to run a job from your phone" />
+  <meta property="og:description" content="The complete step-by-step guide. Voice-first construction management for residential GCs. Easy enough that a kid could use it. Fast enough that an adult will love it." />
+  <meta property="og:url" content="https://mageid.app/playbook.html" />
+  <meta property="og:site_name" content="MAGE ID" />
+  <meta property="og:image" content="https://mageid.app/assets/og-image.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:image" content="https://mageid.app/assets/og-image.png" />
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="/assets/favicon-16.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/assets/favicon-180.png" />
+  <link rel="icon" type="image/png" sizes="512x512" href="/assets/favicon-512.png" />
+
+  <link rel="stylesheet" href="/styles.css" />
+
+  <style>
+    /* Playbook-specific UI: the page is dense with content so we use
+       subtle deviations from the rest of the site to keep it scannable.
+       Everything here is additive — no overrides of base styles. */
+
+    .pb-toc {
+      position: sticky;
+      top: 76px;
+      background: var(--bg);
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      padding: 14px clamp(20px, 4vw, 40px);
+      z-index: 50;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      background: rgba(11, 13, 16, 0.85);
+    }
+    .pb-toc-inner {
+      display: flex; gap: 8px; overflow-x: auto;
+      max-width: 1200px; margin: 0 auto;
+      scrollbar-width: none;
+    }
+    .pb-toc-inner::-webkit-scrollbar { display: none; }
+    .pb-toc a {
+      flex-shrink: 0;
+      padding: 8px 14px;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-muted);
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border);
+      text-decoration: none;
+      white-space: nowrap;
+    }
+    .pb-toc a:hover { color: var(--text); border-color: var(--amber); }
+
+    .pb-section { padding: 80px 0; border-top: 1px solid var(--border); }
+    .pb-section:first-of-type { border-top: 0; }
+    .pb-section .wrap { max-width: 880px; }
+
+    .pb-step-num {
+      display: inline-flex;
+      align-items: center; justify-content: center;
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      background: var(--amber);
+      color: #0B0D10;
+      font-weight: 800;
+      font-size: 16px;
+      margin-right: 14px;
+    }
+
+    .pb-section h2 {
+      display: flex; align-items: center;
+      font-family: 'Fraunces', serif;
+      font-size: clamp(28px, 4vw, 40px);
+      letter-spacing: -0.5px;
+      margin: 0 0 8px 0;
+    }
+    .pb-section .pb-eyebrow {
+      display: block;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--amber);
+      margin-bottom: 12px;
+    }
+    .pb-section .pb-lede {
+      font-size: 17px;
+      line-height: 1.6;
+      color: var(--text-muted);
+      max-width: 720px;
+      margin: 0 0 32px 0;
+    }
+
+    .pb-card {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px;
+      margin: 16px 0;
+    }
+    .pb-card h3 {
+      font-family: 'Fraunces', serif;
+      font-size: 22px;
+      margin: 0 0 8px 0;
+      color: var(--text);
+    }
+    .pb-card p { color: var(--text-muted); line-height: 1.6; margin: 0 0 12px 0; }
+
+    .pb-voice {
+      background: linear-gradient(180deg, rgba(255, 106, 26, 0.10), rgba(255, 106, 26, 0.04));
+      border: 1px solid rgba(255, 106, 26, 0.30);
+      border-radius: 14px;
+      padding: 18px 22px;
+      margin: 12px 0;
+      font-family: 'Fraunces', serif;
+      font-style: italic;
+      font-size: 17px;
+      color: var(--text);
+      line-height: 1.5;
+      position: relative;
+    }
+    .pb-voice::before {
+      content: '🎤  Say:';
+      display: block;
+      font-family: 'Inter', sans-serif;
+      font-style: normal;
+      font-size: 11px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      font-weight: 700;
+      color: var(--amber);
+      margin-bottom: 6px;
+    }
+    .pb-voice-result {
+      background: rgba(34, 197, 94, 0.06);
+      border: 1px solid rgba(34, 197, 94, 0.25);
+      border-radius: 14px;
+      padding: 14px 18px;
+      margin: 4px 0 16px 0;
+      font-size: 14px;
+      color: var(--text);
+      line-height: 1.6;
+    }
+    .pb-voice-result::before {
+      content: '✓  App fills in:';
+      display: block;
+      font-size: 11px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      font-weight: 700;
+      color: #22C55E;
+      margin-bottom: 4px;
+    }
+
+    .pb-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 14px;
+      margin-top: 24px;
+    }
+    .pb-grid .pb-card { margin: 0; }
+
+    .pb-pro-tip {
+      background: rgba(13, 108, 177, 0.10);
+      border-left: 4px solid #0D6CB1;
+      padding: 14px 18px;
+      margin: 16px 0;
+      border-radius: 8px;
+      font-size: 14px;
+      color: var(--text);
+      line-height: 1.6;
+    }
+    .pb-pro-tip strong { color: #4FA8E8; }
+
+    .pb-cheatsheet {
+      background: var(--ink);
+      border: 1px solid var(--amber);
+      border-radius: 16px;
+      padding: 28px;
+      margin: 24px 0;
+    }
+    .pb-cheatsheet h3 {
+      font-family: 'Fraunces', serif;
+      color: var(--amber);
+      font-size: 20px;
+      margin: 0 0 18px 0;
+    }
+    .pb-cheatsheet table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    .pb-cheatsheet th { text-align: left; color: var(--text-muted); padding: 8px 0; border-bottom: 1px solid var(--border); font-weight: 600; }
+    .pb-cheatsheet td { padding: 12px 0 12px 0; border-bottom: 1px solid var(--border); color: var(--text); vertical-align: top; }
+    .pb-cheatsheet td:first-child { font-family: 'Fraunces', serif; font-style: italic; padding-right: 16px; width: 50%; }
+    .pb-cheatsheet td:last-child { color: var(--text-muted); }
+
+    .pb-hero {
+      padding: 100px 0 60px;
+      text-align: center;
+      background:
+        radial-gradient(900px 500px at 50% 0%, rgba(255, 106, 26, 0.10), transparent 70%),
+        var(--bg);
+      border-bottom: 1px solid var(--border);
+    }
+    .pb-hero h1 {
+      font-family: 'Fraunces', serif;
+      font-size: clamp(40px, 7vw, 72px);
+      letter-spacing: -1.5px;
+      line-height: 1;
+      margin: 16px 0;
+    }
+    .pb-hero h1 em { font-style: italic; color: var(--amber); }
+    .pb-hero p { font-size: 18px; color: var(--text-muted); max-width: 640px; margin: 0 auto; line-height: 1.6; }
+    .pb-hero .eyebrow { color: var(--amber); }
+
+    .pb-stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 24px;
+      margin-top: 48px;
+      max-width: 720px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    .pb-stat .num {
+      font-family: 'Fraunces', serif;
+      font-size: 40px;
+      color: var(--amber);
+      font-weight: 700;
+      line-height: 1;
+    }
+    .pb-stat .label {
+      display: block;
+      font-size: 12px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-top: 4px;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <header class="nav">
+    <div class="nav-inner">
+      <a href="/" class="brand">
+        <img class="brand-mark" src="/assets/logo-mark-light.png" alt="" width="32" height="32" />
+        <span>MAGE&nbsp;ID</span>
+      </a>
+      <nav class="links">
+        <a href="/playbook.html" class="active">How it works</a>
+        <a href="/features/field.html">Field Ops</a>
+        <a href="/features/financials.html">Financials</a>
+        <a href="/features/scheduling.html">Scheduling</a>
+        <a href="/features/client-experience.html">Client Portal</a>
+        <a href="/features/vs-competitors.html">vs. Competitors</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <!-- ─────────── HERO ─────────── -->
+    <section class="pb-hero">
+      <span class="eyebrow">The Playbook</span>
+      <h1>How to run a job<br><em>from your phone.</em></h1>
+      <p>
+        Easy enough that a kid could use it. Fast enough that an adult will love it.
+        Every section below has the exact words to say into the mic and what the app fills in.
+      </p>
+
+      <div class="pb-stats">
+        <div class="pb-stat">
+          <span class="num">10s</span>
+          <span class="label">to log a lead</span>
+        </div>
+        <div class="pb-stat">
+          <span class="num">30s</span>
+          <span class="label">to file a daily report</span>
+        </div>
+        <div class="pb-stat">
+          <span class="num">0</span>
+          <span class="label">forms to fill out</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────── TABLE OF CONTENTS ─────────── -->
+    <nav class="pb-toc" aria-label="Playbook sections">
+      <div class="pb-toc-inner">
+        <a href="#tour">The 30-second tour</a>
+        <a href="#mic">The mic is your office</a>
+        <a href="#leads">1. Capture a lead</a>
+        <a href="#projects">2. Start a project</a>
+        <a href="#schedule">3. Build the schedule</a>
+        <a href="#field">4. Run the day</a>
+        <a href="#client">5. Keep the client in the loop</a>
+        <a href="#money">6. Get paid</a>
+        <a href="#close">7. Close the job</a>
+        <a href="#cheatsheet">Voice cheat sheet</a>
+      </div>
+    </nav>
+
+    <!-- ─────────── 30-SECOND TOUR ─────────── -->
+    <section class="pb-section" id="tour">
+      <div class="wrap">
+        <span class="pb-eyebrow">Read this first</span>
+        <h2>The 30-second tour.</h2>
+        <p class="pb-lede">
+          Most contractor software was built for the office staff who run around behind you.
+          MAGE ID is built for <strong>the person doing the work</strong> — you, in the truck,
+          on a roof, talking to a homeowner in their kitchen. It does six things, all of them
+          from your phone, all of them by voice.
+        </p>
+
+        <div class="pb-grid">
+          <div class="pb-card">
+            <h3>1. Capture leads</h3>
+            <p>Voice-dictate a homeowner inquiry in 10 seconds. AI scores fit, tracks first-response time, converts to project on win.</p>
+          </div>
+          <div class="pb-card">
+            <h3>2. Plan jobs</h3>
+            <p>AI builds a schedule from a sentence. Phase-based Gantt, critical path, weather alerts on outdoor tasks.</p>
+          </div>
+          <div class="pb-card">
+            <h3>3. Run the field</h3>
+            <p>Daily reports, RFIs, change orders, punch lists, photos — all dictated. The day's paperwork takes a minute.</p>
+          </div>
+          <div class="pb-card">
+            <h3>4. Show the homeowner</h3>
+            <p>A live portal at <code>mageid.app/portal/&lt;code&gt;</code>. Photos, schedule, budget, decisions to sign — no app to install.</p>
+          </div>
+          <div class="pb-card">
+            <h3>5. Get paid</h3>
+            <p>Invoices and AIA G702/G703 pay apps. Stripe Connect lets the homeowner pay online; you skip the bank trip.</p>
+          </div>
+          <div class="pb-card">
+            <h3>6. Close out clean</h3>
+            <p>Punch list, lien waivers, warranties, closeout binder — all exportable. The handoff is a single tap.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────── THE MIC ─────────── -->
+    <section class="pb-section" id="mic" style="background: rgba(255,106,26,0.04);">
+      <div class="wrap">
+        <span class="pb-eyebrow">The Trick</span>
+        <h2>The mic is your office.</h2>
+        <p class="pb-lede">
+          Anywhere you see a <strong>black floating mic button</strong> at the bottom of the screen,
+          you can talk to MAGE ID. The AI figures out what you meant — RFI, change order,
+          punch item, new lead, new project, invoice — and routes it to the right form
+          with the fields filled in. You review, tap Create, done.
+        </p>
+
+        <div class="pb-card">
+          <h3>What you can say</h3>
+          <p>Start with the action word, then describe like you're texting a friend:</p>
+          <div class="pb-voice">"Submit an RFI to the architect about the LVL beam size for the kitchen island, urgent, need it by Friday."</div>
+          <div class="pb-voice-result">Routes to RFI form. Fills subject ("LVL beam size for kitchen island"), question, priority (urgent), assigned to (Architect), required date (this Friday). You tap Create.</div>
+
+          <div class="pb-voice">"Owner wants the heat pump upgrade — change order for forty-five hundred."</div>
+          <div class="pb-voice-result">Routes to Change Order form with description, reason ("Owner direction"), and a $4,500 line item.</div>
+
+          <div class="pb-voice">"Punch list: master bath, light fixture loose."</div>
+          <div class="pb-voice-result">Saves a punch item with description ("Light fixture loose"), location ("Master Bath"), trade ("Electrical"), priority ("medium"). You walk to the next one.</div>
+        </div>
+
+        <div class="pb-pro-tip">
+          <strong>Pro tip:</strong> The mic button has rotating example phrases right above it — read whichever
+          one shows up and adapt it to your situation. By the third try you won't need them.
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────── 1. LEADS ─────────── -->
+    <section class="pb-section" id="leads">
+      <div class="wrap">
+        <span class="pb-eyebrow"><span class="pb-step-num">1</span> The first 10 seconds</span>
+        <h2>A homeowner just called you. Now what?</h2>
+        <p class="pb-lede">
+          Forget calling them back from the office to "log it." Pull over (safely!), tap the mic,
+          and talk through what they told you. The lead lands in your pipeline scored, sourced, and stopwatch-running.
+        </p>
+
+        <div class="pb-card">
+          <h3>The voice command</h3>
+          <div class="pb-voice">
+            "New lead: John Smith, five-five-five one-two-three-four. Kitchen remodel, found us on Houzz,
+            eighty thousand budget, wants to start in spring."
+          </div>
+          <div class="pb-voice-result">
+            <strong>Saves a Lead with:</strong><br>
+            Name: John Smith · Phone: 555-1234 · Project: Kitchen remodel ·
+            Source: Houzz · Budget: $80,000 · Timeline: spring · Stage: New ·
+            <strong>AI fit score: 8/10</strong> ("In-budget kitchen from Houzz — GC closes most of these")
+          </div>
+        </div>
+
+        <div class="pb-pro-tip">
+          <strong>What's special:</strong> the moment a lead lands as "New," a clock starts. The pipeline
+          screen turns the card <strong>red after one hour with no first response</strong> — because
+          first-response time is the single biggest driver of close rate.
+        </div>
+
+        <div class="pb-card">
+          <h3>What you do next</h3>
+          <ol style="line-height: 1.8; color: var(--text-muted);">
+            <li><strong>Tap the lead</strong> from the pipeline → see name, phone, score, address, scope.</li>
+            <li><strong>Tap "Call"</strong> at the top → it dials. The clock stops once you log a touch.</li>
+            <li><strong>Log the call</strong>: tap the mic in the activity row, say what was discussed.</li>
+            <li><strong>Move stages</strong>: tap "Qualified" once you've spoken, "Proposal sent" once you've quoted, "Won" once they sign.</li>
+            <li><strong>One-tap convert</strong>: at "Won," the button reads <em>"Convert to project"</em> — tap it and the project is created with everything carried over.</li>
+          </ol>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────── 2. PROJECTS ─────────── -->
+    <section class="pb-section" id="projects">
+      <div class="wrap">
+        <span class="pb-eyebrow"><span class="pb-step-num">2</span> Set up the job</span>
+        <h2>Start a project in one breath.</h2>
+        <p class="pb-lede">
+          You won the lead, you've got the deposit. Time to spin up the actual project. Don't open a form.
+          Just dictate it.
+        </p>
+
+        <div class="pb-voice">"New project: Smith kitchen remodel at 123 Main, San Diego, eighty thousand budget."</div>
+        <div class="pb-voice-result">Creates a project with name "Smith Kitchen Remodel," type "remodel," location "123 Main, San Diego," target budget $80,000. Lands you on the project detail screen, ready for everything else.</div>
+
+        <div class="pb-card">
+          <h3>What gets unlocked</h3>
+          <p>The moment a project exists, the rest of the app comes alive for it:</p>
+          <ul style="line-height: 1.8; color: var(--text-muted);">
+            <li><strong>Estimate wizard</strong> — itemized line-by-line or AI-generated from a sentence</li>
+            <li><strong>Schedule</strong> — phase-based Gantt with critical path</li>
+            <li><strong>Daily reports</strong> — who, what, weather, materials, issues</li>
+            <li><strong>Documents</strong> — plans, permits, photos, all attached to this job</li>
+            <li><strong>The client portal</strong> — automatically generated, ready to share</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────── 3. SCHEDULE ─────────── -->
+    <section class="pb-section" id="schedule" style="background: rgba(13, 108, 177, 0.04);">
+      <div class="wrap">
+        <span class="pb-eyebrow"><span class="pb-step-num">3</span> Plan the work</span>
+        <h2>A schedule, in 60 seconds.</h2>
+        <p class="pb-lede">
+          The schedule tab opens directly on your active projects — no scrolling, no picker. Tap the project chip,
+          choose how to start.
+        </p>
+
+        <div class="pb-grid">
+          <div class="pb-card">
+            <h3>📋 From a template</h3>
+            <p>Kitchen, bathroom, ADU, addition, new build — eight templates with realistic phases and durations. Pick, tweak, ship.</p>
+          </div>
+          <div class="pb-card">
+            <h3>✨ From AI</h3>
+            <p>Tap the "AI Builder" and describe your scope: <em>"Two-story addition, 800 sf, structural changes, fall start."</em> Full schedule with dependencies.</p>
+          </div>
+          <div class="pb-card">
+            <h3>📊 From your estimate</h3>
+            <p>If you've built the estimate, MAGE ID can auto-derive tasks from line items. One tap.</p>
+          </div>
+        </div>
+
+        <div class="pb-card">
+          <h3>Working with the schedule</h3>
+          <ul style="line-height: 1.8; color: var(--text-muted);">
+            <li><strong>Today view</strong> — what should happen today + who's on it</li>
+            <li><strong>Lookahead</strong> — the next 7 / 14 / 30 days, vendor calls in advance</li>
+            <li><strong>Board</strong> — Kanban-style by status (To do → Doing → Done)</li>
+            <li><strong>Gantt</strong> — pinch-to-zoom timeline with critical path highlighted</li>
+            <li><strong>Crew</strong> — workload by sub: who's overbooked this week</li>
+            <li><strong>Summary</strong> — health score, milestones, baseline variance</li>
+          </ul>
+        </div>
+
+        <div class="pb-pro-tip">
+          <strong>The shift the homeowner notices:</strong> when a change order adds days,
+          the schedule shifts automatically and the portal updates the same minute.
+          You don't email a new schedule. They just see the new one.
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────── 4. RUN THE DAY ─────────── -->
+    <section class="pb-section" id="field">
+      <div class="wrap">
+        <span class="pb-eyebrow"><span class="pb-step-num">4</span> Run the day</span>
+        <h2>Daily reports, RFIs, change orders, punches — all by voice.</h2>
+        <p class="pb-lede">
+          This is the bulk of the work and where you'll save the most time. Pick a project,
+          tap the mic, describe what happened. The app routes the words to the right place.
+        </p>
+
+        <div class="pb-card">
+          <h3>Daily Field Report</h3>
+          <p>Tap into the project, tap "Daily Report," tap the mic.</p>
+          <div class="pb-voice">"Crew arrived at 7:30, framed the back wall, finished around 4 PM.
+            Joe's Plumbing on site for rough-in — three guys, three hours.
+            Concrete pour delayed thirty minutes due to rain.
+            Inspector signed off on electrical rough-in this morning."</div>
+          <div class="pb-voice-result">
+            <strong>Fills:</strong> work performed (the framing summary), manpower (Joe's Plumbing × 3, 3hrs),
+            issues/delays (concrete rain delay), inspections passed (electrical rough-in). You tap Save.
+          </div>
+        </div>
+
+        <div class="pb-card">
+          <h3>Punch walk</h3>
+          <p>Walk the site. Tap "Punch Walk." Tap the mic for each item.</p>
+          <div class="pb-voice">"Master bath, light fixture loose."</div>
+          <div class="pb-voice-result">Description: "Light fixture loose" · Location: "Master Bath" · Trade: "Electrical" · Priority: "medium"</div>
+          <div class="pb-voice">"Hallway 2, paint touch-up near the door frame."</div>
+          <div class="pb-voice-result">Description: "Paint touch-up near the door frame" · Location: "Hallway 2" · Trade: "Painting" · Priority: "low"</div>
+          <p style="margin-top: 12px; color: var(--text-muted);">
+            Each item gets photographed, geo-stamped, and assigned to the right sub automatically.
+          </p>
+        </div>
+
+        <div class="pb-card">
+          <h3>RFI / Change Order on the spot</h3>
+          <p>Doesn't matter where you are in the app — the floating mic always works.</p>
+          <div class="pb-voice">"RFI to the engineer: confirm footing depth on the south side, urgent."</div>
+          <div class="pb-voice-result">Routes to RFI form, fills everything, lands on the RFI ready to send via email.</div>
+          <div class="pb-voice">"Change order: knob and tube wiring discovered, field condition, twelve hundred dollars and two days."</div>
+          <div class="pb-voice-result">Description, reason ("Field condition"), schedule impact (+2 days), line item ($1,200). Notifies the homeowner via the portal.</div>
+        </div>
+
+        <div class="pb-pro-tip">
+          <strong>Photos:</strong> every screen with a photo button uploads instantly to the project gallery.
+          Tap a photo to mark it up, link it to a punch item, or attach it to an RFI.
+          The portal shows the homeowner everything you've shared.
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────── 5. CLIENT PORTAL ─────────── -->
+    <section class="pb-section" id="client" style="background: rgba(34, 197, 94, 0.04);">
+      <div class="wrap">
+        <span class="pb-eyebrow"><span class="pb-step-num">5</span> Keep the client in the loop</span>
+        <h2>One link. Live, forever.</h2>
+        <p class="pb-lede">
+          Open the project, tap "Client Portal," generate a link. Email it (the email is already drafted
+          for you, branded with your company logo). The homeowner opens it on their phone — no app to install.
+          From that moment on, anything you change in MAGE ID, they see.
+        </p>
+
+        <div class="pb-card">
+          <h3>What the homeowner sees</h3>
+          <ul style="line-height: 1.8; color: var(--text-muted);">
+            <li><strong>Project status</strong> — where things are right now</li>
+            <li><strong>Schedule</strong> — what's happening this week, next week</li>
+            <li><strong>Photos</strong> — daily updates from the field, marked up if needed</li>
+            <li><strong>Budget</strong> — contract value, paid to date, outstanding (transparency mode)</li>
+            <li><strong>Selections</strong> — pick tile/cabinets/lighting, see allowance vs picks</li>
+            <li><strong>Change orders</strong> — review and approve with one tap</li>
+            <li><strong>Invoices</strong> — line-item detail and a Pay Now button (Stripe)</li>
+            <li><strong>Messages</strong> — direct chat with you, in-portal</li>
+            <li><strong>Closeout binder</strong> — at handover, with warranties, contacts, maintenance</li>
+          </ul>
+        </div>
+
+        <div class="pb-pro-tip">
+          <strong>Open Book mode:</strong> if you want to win on transparency, switch the project to
+          Open Book or GMP contract mode. The homeowner sees every commitment vs cost line. Most
+          GCs are afraid of this; the ones who do it close 30% faster on premium jobs.
+        </div>
+
+        <div class="pb-card">
+          <h3>Six languages, native</h3>
+          <p>The portal auto-detects the homeowner's language preference. Today: English, Spanish, Portuguese,
+            Chinese, Vietnamese, French. The dictation parser still works in English — only the homeowner-facing
+            text translates.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────── 6. MONEY ─────────── -->
+    <section class="pb-section" id="money">
+      <div class="wrap">
+        <span class="pb-eyebrow"><span class="pb-step-num">6</span> Get paid</span>
+        <h2>Invoice in your pocket. Paid in your pocket.</h2>
+        <p class="pb-lede">
+          Money is the part most software handles last and worst. MAGE ID puts a Stripe-powered invoice
+          in your hand from day one and an AIA G702/G703 pay app in two taps.
+        </p>
+
+        <div class="pb-card">
+          <h3>Voice an invoice</h3>
+          <div class="pb-voice">"Invoice them for demolition kitchen, lump sum twenty-eight hundred.
+            Drywall hang and finish, eight hundred fifty square feet at two-fifty per square foot.
+            Net 15."</div>
+          <div class="pb-voice-result">
+            Two line items ($2,800 + $2,125), total $4,925. Net 15 due date auto-calculated. Branded invoice ready
+            to send. Hit Send → the homeowner gets an email with a Pay Now button.
+          </div>
+        </div>
+
+        <div class="pb-card">
+          <h3>AIA pay applications</h3>
+          <p>For commercial-style draw billing on bigger jobs. The app builds the G702 cover sheet and
+            G703 schedule of values from your line items. Each draw shows previous, this period, retainage,
+            and balance to finish. Submitted? PDF generated for the bank.</p>
+        </div>
+
+        <div class="pb-card">
+          <h3>Stripe Connect</h3>
+          <p>Set it up once in Settings. The homeowner pays via card or ACH from the portal.
+            Money lands in your bank account in 1–2 days. No bank visit, no check chase.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────── 7. CLOSE ─────────── -->
+    <section class="pb-section" id="close" style="background: rgba(15, 23, 42, 0.6);">
+      <div class="wrap">
+        <span class="pb-eyebrow"><span class="pb-step-num">7</span> Close the job clean</span>
+        <h2>The handoff that wins your next job.</h2>
+        <p class="pb-lede">
+          The closeout binder is what separates a contractor the homeowner remembers from one they don't.
+          MAGE ID assembles it as you go.
+        </p>
+
+        <div class="pb-grid">
+          <div class="pb-card">
+            <h3>Punch list</h3>
+            <p>Walk the site, dictate each item with photo. Assign to subs. Track to zero open. The portal
+              shows the homeowner the count drop in real time.</p>
+          </div>
+          <div class="pb-card">
+            <h3>Lien waivers</h3>
+            <p>Request from each sub by email. Conditional and unconditional. Track which are in,
+              which are still out. Required before final pay app on most jobs.</p>
+          </div>
+          <div class="pb-card">
+            <h3>Warranties</h3>
+            <p>Track manufacturer + workmanship warranties per item. The homeowner gets them in the binder.</p>
+          </div>
+          <div class="pb-card">
+            <h3>The binder</h3>
+            <p>One PDF: warranty roster, finish list, trade contacts, maintenance schedule, your business card,
+              emergency contact info. Tap "Deliver" — homeowner gets it forever in their portal.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────── CHEAT SHEET ─────────── -->
+    <section class="pb-section" id="cheatsheet">
+      <div class="wrap">
+        <span class="pb-eyebrow">For the truck</span>
+        <h2>The voice cheat sheet.</h2>
+        <p class="pb-lede">
+          Print it. Stick it on the dash. The mic understands all of these.
+        </p>
+
+        <div class="pb-cheatsheet">
+          <h3>Just start with one of these phrases</h3>
+          <table>
+            <thead>
+              <tr><th>Say</th><th>What happens</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>"New lead: [name], [phone], [project type], [source], [budget]"</td>
+                <td>CRM lead, AI-scored, stopwatch starts on first response.</td>
+              </tr>
+              <tr>
+                <td>"New project: [name] at [address], [budget]"</td>
+                <td>Project created and opened.</td>
+              </tr>
+              <tr>
+                <td>"Submit an RFI to [the architect/engineer/owner] about [topic], [urgent/today/by Friday]"</td>
+                <td>RFI form filled. Tap to send.</td>
+              </tr>
+              <tr>
+                <td>"Change order: [description], [reason], [amount]"</td>
+                <td>CO with line item. Routes to homeowner for approval.</td>
+              </tr>
+              <tr>
+                <td>"Punch list: [location], [issue]"</td>
+                <td>Punch item saved with location, trade, priority.</td>
+              </tr>
+              <tr>
+                <td>"Submittal: [what], spec [number], [submitted by]"</td>
+                <td>Submittal record created.</td>
+              </tr>
+              <tr>
+                <td>"Invoice them for [item], [amount]"</td>
+                <td>Invoice with line item, ready to send.</td>
+              </tr>
+              <tr>
+                <td>"Note: [anything]"</td>
+                <td>Saved as a daily-report draft so it doesn't fall through.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="pb-pro-tip">
+          <strong>If you're not sure what to say:</strong> tap the mic anyway. The example phrases
+          above the record button rotate through all eight of these. Read whichever shows up
+          and adapt it. By the third try you won't need them.
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────── CTA ─────────── -->
+    <section class="pb-section" style="background: linear-gradient(180deg, rgba(255,106,26,0.05), transparent);">
+      <div class="wrap" style="text-align: center;">
+        <span class="pb-eyebrow">Ready?</span>
+        <h2 style="justify-content: center;">Run your next job from your phone.</h2>
+        <p class="pb-lede" style="margin-left: auto; margin-right: auto;">
+          Free for your first project. Pro from $29/mo with everything in this guide unlocked.
+          No sales call, no contract.
+        </p>
+        <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-top: 24px;">
+          <a class="btn btn-primary" href="https://apps.apple.com/app/mage-id/id6762229238">Get on iPhone</a>
+          <a class="btn btn-secondary" href="https://app.mageid.app">Try on the web</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap">
+      <p>&copy; <span id="year">2026</span> MAGE ID. Built for the contractors doing the work.</p>
+      <nav class="footer-links">
+        <a href="/playbook.html">Playbook</a>
+        <a href="/features/vs-competitors.html">vs. Competitors</a>
+        <a href="/support.html">Support</a>
+        <a href="/privacy.html">Privacy</a>
+      </nav>
+    </div>
+  </footer>
+
+  <script>
+    document.getElementById('year').textContent = new Date().getFullYear();
+  </script>
+</body>
+</html>
