@@ -54,12 +54,16 @@ const isLocal = (u: string) => u.startsWith('file:') || u.startsWith('/');
 
 /**
  * Encode a list of file:// URIs to inline base64 — IN PARALLEL
- * (code-review #1). 12 photos × sequential ~50ms each = 600ms;
- * Promise.all collapses that to one round-trip's worth of CPU
- * (~50–100ms total).
+ * (round-1 #1). Uses allSettled (round-2 #1) so one corrupt URI
+ * (e.g. file deleted between picker and analyze) doesn't kill the
+ * entire batch — we proceed with the photos that succeeded and
+ * surface the failed count to the caller for context.
+ *
+ * Returns the encoded list AND the indexes of any inputs that
+ * failed, so the caller can warn the user.
  */
-async function encodeLocalPhotos(uris: string[]): Promise<InlinePhoto[]> {
-  return Promise.all(uris.map(async (u) => {
+async function encodeLocalPhotos(uris: string[]): Promise<{ encoded: InlinePhoto[]; failedIndexes: number[] }> {
+  const settled = await Promise.allSettled(uris.map(async (u) => {
     // Pass string-literal 'base64' rather than the enum — expo-file-system
     // moved EncodingType into a legacy namespace in newer SDKs and the
     // string form is accepted by the typed signature regardless.
@@ -68,6 +72,13 @@ async function encodeLocalPhotos(uris: string[]): Promise<InlinePhoto[]> {
     const mimeType = ext === 'png' ? 'image/png' : ext === 'heic' ? 'image/heic' : 'image/jpeg';
     return { base64, mimeType };
   }));
+  const encoded: InlinePhoto[] = [];
+  const failedIndexes: number[] = [];
+  settled.forEach((r, i) => {
+    if (r.status === 'fulfilled') encoded.push(r.value);
+    else failedIndexes.push(i);
+  });
+  return { encoded, failedIndexes };
 }
 
 /**
@@ -106,8 +117,14 @@ async function callAnalyzePhotos<T>(opts: BaseOpts & { task: 'punch' | 'dfr' }, 
   };
 
   if (localUris.length > 0) {
-    const inline = await encodeLocalPhotos(localUris);
-    const bytes = totalBase64Bytes(inline);
+    const { encoded, failedIndexes } = await encodeLocalPhotos(localUris);
+    if (encoded.length === 0) {
+      throw new Error('Could not read any of the picked photos. They may have been moved or deleted.');
+    }
+    if (failedIndexes.length > 0) {
+      console.warn(`[photoAnalyzer] ${failedIndexes.length} photo(s) failed to encode; proceeding with ${encoded.length}`);
+    }
+    const bytes = totalBase64Bytes(encoded);
     if (bytes > MAX_PAYLOAD_BYTES) {
       const mb = (bytes / 1024 / 1024).toFixed(1);
       throw new Error(
@@ -115,7 +132,7 @@ async function callAnalyzePhotos<T>(opts: BaseOpts & { task: 'punch' | 'dfr' }, 
         `The AI analyzer accepts up to ~8 MB total per call.`,
       );
     }
-    payload.photos = inline;
+    payload.photos = encoded;
   } else {
     payload.photoUrls = remoteUris;
   }

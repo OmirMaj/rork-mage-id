@@ -96,7 +96,17 @@ export default function AiPunchScreen() {
   const { getProject, getPhotosForProject, addPunchItem } = useProjects();
 
   const project = useMemo(() => projectId ? getProject(projectId) : null, [projectId, getProject]);
-  const projectPhotos = useMemo(() => projectId ? getPhotosForProject(projectId) : [], [projectId, getPhotosForProject]);
+  // Sort newest-first so the "Show recent" toggle label actually
+  // matches what the gallery surfaces (round-2 #5). Photos without
+  // a timestamp fall to the end.
+  const projectPhotos = useMemo(() => {
+    const list = projectId ? getPhotosForProject(projectId) : [];
+    return [...list].sort((a, b) => {
+      const ta = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+      const tb = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+      return tb - ta;
+    });
+  }, [projectId, getPhotosForProject]);
 
   const [pickedPhotos, setPickedPhotos] = useState<PickedPhoto[]>([]);
   const [busy, setBusy] = useState(false);
@@ -201,20 +211,34 @@ export default function AiPunchScreen() {
     setReviewItems(prev => prev.map(r => r.id === id ? { ...r, ...updates } : r));
   }, []);
 
-  const handleSaveOne = useCallback(async (item: ReviewableItem) => {
+  /**
+   * Save one item. The optional `presetStamp` is the bulk-save's
+   * single-fix GPS stamp — passed in by handleSaveAll so we don't
+   * re-fix per item (round-2 #4: 10 saves × 3s GPS budget = 30s).
+   * For single-item saves (the per-row Save button) the stamp is
+   * captured at save time as before.
+   */
+  const handleSaveOne = useCallback(async (item: ReviewableItem, presetStamp?: PhotoGeoStamp | null) => {
     if (!project || item.saved) return;
     if (!item.editedDescription.trim()) {
       Alert.alert('Description required');
       return;
     }
-    // Capture geo stamp at save time. 3s timeout matches punch-walk.
-    const stamp: PhotoGeoStamp | null = await stampPhotoLocation();
+    // For gallery photos the source already has its own stamp; the
+    // GC's CURRENT location is wrong if they're reviewing yesterday's
+    // photos in the office. Only stamp on camera/library picks.
+    // (Round-2 #8.)
+    const sourcePicked = pickedPhotos.find(p => p.uri === item.photoUri);
+    const shouldStamp = sourcePicked ? !sourcePicked.fromProject : true;
+    let stamp: PhotoGeoStamp | null = null;
+    if (shouldStamp) {
+      stamp = presetStamp !== undefined ? presetStamp : await stampPhotoLocation();
+    }
     const now = new Date().toISOString();
     // PunchItem doesn't have a `trade` column — trade is implicit via
     // assignedSubId. We surface the AI-inferred trade in the location
     // string ("Master Bath — Electrical") so the GC can pick the right
-    // sub on the punch list screen. Geo stamp fields land flat on the
-    // PunchItem (latitude / longitude / locationLabel).
+    // sub on the punch list screen.
     const locationWithTrade = item.editedLocation.trim()
       ? `${item.editedLocation.trim()} — ${item.editedTrade}`
       : item.editedTrade;
@@ -238,7 +262,7 @@ export default function AiPunchScreen() {
     addPunchItem(punch);
     updateReviewItem(item.id, { saved: true });
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [project, addPunchItem, updateReviewItem]);
+  }, [project, addPunchItem, updateReviewItem, pickedPhotos]);
 
   const [saving, setSaving] = useState(false);
   const handleSaveAll = useCallback(async () => {
@@ -249,13 +273,20 @@ export default function AiPunchScreen() {
     let failed = 0;
     let firstError: string | null = null;
     try {
+      // Single GPS fix for the whole batch — a punch walk takes a
+      // few minutes in one room of the same project, so one stamp is
+      // representative. Only stamp if any pending item came from
+      // camera/library (gallery picks shouldn't be re-stamped with
+      // the GC's current location). (Round-2 #4 + #8.)
+      const needsStamp = pending.some(p => {
+        const src = pickedPhotos.find(x => x.uri === p.photoUri);
+        return src ? !src.fromProject : true;
+      });
+      const sharedStamp: PhotoGeoStamp | null = needsStamp ? await stampPhotoLocation() : null;
       for (const item of pending) {
-        // Sequential save so geo-stamp races resolve cleanly. Each
-        // save can take up to 3s for the GPS budget — that's why the
-        // banner above shows a "this may take a moment" hint.
         try {
           // eslint-disable-next-line no-await-in-loop
-          await handleSaveOne(item);
+          await handleSaveOne(item, sharedStamp);
           saved += 1;
         } catch (err) {
           failed += 1;
@@ -276,7 +307,7 @@ export default function AiPunchScreen() {
       text: 'OK',
       onPress: () => failed === 0 && router.replace({ pathname: '/punch-list' as never, params: { projectId: project?.id } as never }),
     }]);
-  }, [reviewItems, handleSaveOne, router, project]);
+  }, [reviewItems, handleSaveOne, router, project, pickedPhotos]);
 
   const reviewMode = reviewItems.length > 0 || error !== null;
   const savedCount = reviewItems.filter(r => r.saved).length;
