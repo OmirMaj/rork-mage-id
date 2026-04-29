@@ -18,7 +18,8 @@
       "bundleIdentifier": "com.mageid.app",
       "usesAppleSignIn": true,
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSMicrophoneUsageDescription": "MAGE ID uses your microphone for voice dictation — capturing daily field reports, punch-list items, and project notes hands-free on the jobsite. Audio is transcribed and discarded; nothing is recorded permanently."
       }
     },
     "android": {
