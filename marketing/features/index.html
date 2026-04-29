@@ -1,0 +1,801 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Explore the App — MAGE ID</title>
+  <meta name="description" content="Every feature in MAGE ID, broken out tab-by-tab. What each section does and how to use it. Voice commands, screenshots, walkthroughs." />
+  <meta name="theme-color" content="#0B0D10" />
+
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="Explore the App — MAGE ID" />
+  <meta property="og:description" content="The feature explorer. Tab through every part of the app and see what it does, plus how to use it." />
+  <meta property="og:url" content="https://mageid.app/features/" />
+  <meta property="og:image" content="https://mageid.app/assets/og-image.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:image" content="https://mageid.app/assets/og-image.png" />
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="/assets/favicon-16.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/assets/favicon-180.png" />
+  <link rel="icon" type="image/png" sizes="512x512" href="/assets/favicon-512.png" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500;1,9..144,600&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="/styles.css" />
+
+  <style>
+    /* ========== explorer hero ========== */
+    .ex-hero {
+      padding: 80px 0 28px;
+      text-align: center;
+      background:
+        radial-gradient(900px 500px at 50% 0%, rgba(255, 106, 26, 0.10), transparent 70%),
+        var(--bg);
+      border-bottom: 1px solid var(--border);
+    }
+    .ex-hero h1 {
+      font-family: 'Fraunces', serif;
+      font-size: clamp(36px, 6vw, 60px);
+      letter-spacing: -1.2px;
+      line-height: 1.05;
+      margin: 12px 0 14px;
+    }
+    .ex-hero h1 em { color: var(--amber); font-style: italic; }
+    .ex-hero p {
+      font-size: 17px;
+      color: var(--text-muted);
+      line-height: 1.6;
+      max-width: 640px;
+      margin: 0 auto;
+    }
+    .ex-hero .eyebrow { color: var(--amber); }
+
+    /* ========== sticky tab nav ========== */
+    .ex-tabs {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      background: rgba(11, 13, 16, 0.85);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      padding: 12px clamp(20px, 4vw, 40px);
+    }
+    .ex-tabs-inner {
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      max-width: 1200px;
+      margin: 0 auto;
+      scrollbar-width: none;
+      -webkit-overflow-scrolling: touch;
+    }
+    .ex-tabs-inner::-webkit-scrollbar { display: none; }
+    .ex-tab {
+      flex-shrink: 0;
+      padding: 10px 16px;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-muted);
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border);
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .ex-tab:hover { color: var(--text); border-color: var(--amber); }
+    .ex-tab.is-active {
+      background: var(--amber);
+      color: #0B0D10;
+      border-color: var(--amber);
+    }
+    .ex-tab .ex-tab-emoji { font-size: 14px; }
+
+    /* ========== panels ========== */
+    .ex-panels { padding: 56px 0 80px; }
+    .ex-panel {
+      display: none;
+      max-width: 920px;
+      margin: 0 auto;
+      padding: 0 clamp(20px, 4vw, 40px);
+    }
+    .ex-panel.is-active { display: block; animation: fadeIn 0.25s ease; }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .ex-panel-eyebrow {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--amber);
+      margin-bottom: 10px;
+    }
+    .ex-panel h2 {
+      font-family: 'Fraunces', serif;
+      font-size: clamp(32px, 5vw, 48px);
+      letter-spacing: -0.8px;
+      line-height: 1.05;
+      margin: 0 0 14px;
+    }
+    .ex-panel h2 em { color: var(--amber); font-style: italic; }
+    .ex-panel .lede {
+      font-size: 17px;
+      color: var(--text-muted);
+      line-height: 1.6;
+      margin: 0 0 36px;
+    }
+
+    /* what / how blocks */
+    .ex-section {
+      margin-bottom: 36px;
+    }
+    .ex-section h3 {
+      font-family: 'Fraunces', serif;
+      font-size: 22px;
+      margin: 0 0 14px;
+      color: var(--text);
+    }
+    .ex-bullets {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    .ex-bullets li {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 14px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 15px;
+      line-height: 1.55;
+      color: var(--text);
+    }
+    .ex-bullets li::before {
+      content: '✓';
+      color: var(--amber);
+      font-weight: 800;
+      flex-shrink: 0;
+      font-size: 18px;
+      line-height: 1;
+      margin-top: 2px;
+    }
+
+    .ex-steps {
+      counter-reset: ex-step;
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    .ex-steps li {
+      counter-increment: ex-step;
+      position: relative;
+      padding: 14px 0 14px 44px;
+      border-bottom: 1px solid var(--border);
+      font-size: 15px;
+      line-height: 1.55;
+      color: var(--text);
+    }
+    .ex-steps li::before {
+      content: counter(ex-step);
+      position: absolute;
+      left: 0;
+      top: 12px;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--amber);
+      color: #0B0D10;
+      font-weight: 800;
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* voice command boxes */
+    .ex-voice {
+      background: linear-gradient(180deg, rgba(255, 106, 26, 0.10), rgba(255, 106, 26, 0.04));
+      border: 1px solid rgba(255, 106, 26, 0.28);
+      border-radius: 14px;
+      padding: 16px 20px;
+      margin: 12px 0;
+      font-family: 'Fraunces', serif;
+      font-style: italic;
+      font-size: 16px;
+      color: var(--text);
+      line-height: 1.5;
+      position: relative;
+    }
+    .ex-voice::before {
+      content: '🎤  Say:';
+      display: block;
+      font-family: 'Inter', sans-serif;
+      font-style: normal;
+      font-size: 11px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      font-weight: 700;
+      color: var(--amber);
+      margin-bottom: 6px;
+    }
+
+    /* highlight callout */
+    .ex-callout {
+      background: rgba(13, 108, 177, 0.10);
+      border-left: 4px solid #0D6CB1;
+      padding: 14px 18px;
+      margin: 18px 0;
+      border-radius: 8px;
+      font-size: 14px;
+      color: var(--text);
+      line-height: 1.6;
+    }
+    .ex-callout strong { color: #4FA8E8; }
+
+    /* "Try it" cta */
+    .ex-try {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 28px;
+      padding-top: 28px;
+      border-top: 1px solid var(--border);
+    }
+
+    /* feature grid for tabs that list multiple sub-features */
+    .ex-mini-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 14px;
+      margin: 18px 0;
+    }
+    .ex-mini-card {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 18px;
+    }
+    .ex-mini-card h4 {
+      font-family: 'Fraunces', serif;
+      font-size: 17px;
+      margin: 0 0 6px;
+      color: var(--text);
+    }
+    .ex-mini-card p {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin: 0;
+      line-height: 1.5;
+    }
+    .ex-mini-card .ex-mini-emoji {
+      font-size: 22px;
+      margin-bottom: 8px;
+      display: block;
+    }
+
+    /* responsive */
+    @media (max-width: 720px) {
+      .ex-hero { padding: 56px 0 24px; }
+      .ex-tabs { padding: 10px 12px; }
+      .ex-tab { padding: 8px 12px; font-size: 12px; }
+    }
+  </style>
+</head>
+<body>
+  <header class="nav">
+    <div class="nav-inner">
+      <a href="/" class="brand">
+        <img class="brand-mark" src="/assets/logo-mark-light.png" alt="" width="32" height="32" />
+        <span>MAGE&nbsp;ID</span>
+      </a>
+      <nav class="links">
+        <a href="/playbook.html">How it works</a>
+        <a href="/features/" class="active">Explore</a>
+        <a href="/features/vs-competitors.html">vs. Competitors</a>
+        <a href="/access.html">Get access</a>
+        <a href="/support.html">Support</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <!-- ─────────── HERO ─────────── -->
+    <section class="ex-hero">
+      <span class="eyebrow" style="color: var(--amber); font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 800;">The Explorer</span>
+      <h1>Every part of the app,<br><em>tab by tab.</em></h1>
+      <p>
+        Pick a section. See what it does, how to use it, and the exact words to say into the mic.
+        For getting started, training a new estimator, or sending a prospect a deep dive without a sales call.
+      </p>
+    </section>
+
+    <!-- ─────────── TAB NAV ─────────── -->
+    <nav class="ex-tabs" aria-label="Feature explorer tabs">
+      <div class="ex-tabs-inner" role="tablist">
+        <button class="ex-tab is-active" role="tab" data-tab="voice"><span class="ex-tab-emoji">🎤</span> Voice &amp; AI</button>
+        <button class="ex-tab" role="tab" data-tab="leads"><span class="ex-tab-emoji">📞</span> Leads (CRM)</button>
+        <button class="ex-tab" role="tab" data-tab="projects"><span class="ex-tab-emoji">🏗️</span> Projects &amp; Estimate</button>
+        <button class="ex-tab" role="tab" data-tab="schedule"><span class="ex-tab-emoji">📅</span> Schedule</button>
+        <button class="ex-tab" role="tab" data-tab="buyout"><span class="ex-tab-emoji">⚖️</span> Buyout</button>
+        <button class="ex-tab" role="tab" data-tab="field"><span class="ex-tab-emoji">📋</span> Field Ops</button>
+        <button class="ex-tab" role="tab" data-tab="plans"><span class="ex-tab-emoji">📐</span> Plans</button>
+        <button class="ex-tab" role="tab" data-tab="financials"><span class="ex-tab-emoji">💰</span> Financials</button>
+        <button class="ex-tab" role="tab" data-tab="portals"><span class="ex-tab-emoji">🔗</span> Portals</button>
+        <button class="ex-tab" role="tab" data-tab="closeout"><span class="ex-tab-emoji">📦</span> Closeout</button>
+      </div>
+    </nav>
+
+    <!-- ─────────── PANELS ─────────── -->
+    <section class="ex-panels">
+
+      <!-- VOICE & AI -->
+      <div class="ex-panel is-active" id="panel-voice" role="tabpanel">
+        <span class="ex-panel-eyebrow">The throughline</span>
+        <h2>Voice and AI <em>everywhere.</em></h2>
+        <p class="lede">The thing that separates MAGE ID from legacy GC software: every form has voice input, and the AI knows what to do with what you said. There's no separate "speech-to-text" feature — it's just how the app works.</p>
+
+        <div class="ex-section">
+          <h3>What it does</h3>
+          <ul class="ex-bullets">
+            <li><strong>Floating mic</strong> on the home tab and project detail. Tap, speak, the app figures out the action.</li>
+            <li><strong>Inline voice fill</strong> on every form (RFI, change order, submittal, invoice, lead, project, punch).</li>
+            <li>AI parses the words into structured fields — subject, location, trade, priority, dollar amounts, dates.</li>
+            <li>Rotating example phrases inside the recorder so first-time users know what to say.</li>
+            <li>Eight intent kinds the floating mic understands: RFI, change order, note, project, punch, invoice, submittal, lead.</li>
+          </ul>
+        </div>
+
+        <div class="ex-section">
+          <h3>How to use it</h3>
+          <ol class="ex-steps">
+            <li>Tap the black mic button at the bottom of the home tab or project detail.</li>
+            <li>Wait for the modal to slide up — read the rotating "Try saying" prompt.</li>
+            <li>Speak naturally — start with the action word ("New lead:", "RFI to the architect:", "Punch list:").</li>
+            <li>Review the parsed preview card. Edit anything that's off.</li>
+            <li>Tap "Create" — lands you on the right form with everything filled in.</li>
+          </ol>
+          <div class="ex-voice">"Submit an RFI to the architect about the LVL beam size for the kitchen island, urgent, need it by Friday."</div>
+          <div class="ex-voice">"Change order: heat pump upgrade, owner direction, forty-five hundred."</div>
+          <div class="ex-voice">"Punch list: master bath, light fixture loose."</div>
+        </div>
+
+        <div class="ex-callout">
+          <strong>The trick:</strong> if you don't know what to say, tap the mic anyway. The example prompts above the record button rotate through eight phrasings. Read whichever one shows up. By the third try, you won't need them.
+        </div>
+      </div>
+
+      <!-- LEADS -->
+      <div class="ex-panel" id="panel-leads" role="tabpanel">
+        <span class="ex-panel-eyebrow">CRM &amp; pipeline</span>
+        <h2>Capture leads<br><em>in 10 seconds.</em></h2>
+        <p class="lede">A homeowner just called you. Pull over (safely!), tap the mic, talk through what they told you. The lead lands in your pipeline scored, sourced, and stopwatch-running for first response.</p>
+
+        <div class="ex-section">
+          <h3>What it does</h3>
+          <ul class="ex-bullets">
+            <li>Voice intake → AI scores the lead 1–10 with a one-sentence reason.</li>
+            <li><strong>Fast-response timer</strong> turns the card red if a "New" lead has waited more than an hour.</li>
+            <li>Pipeline stages: New → Qualified → Proposal sent → Won → Lost.</li>
+            <li>Tap-to-call / text / email / map directly from the lead detail.</li>
+            <li>Activity log per lead — every call, text, email, meeting timestamped.</li>
+            <li>One-tap convert to project when stage = Won. Name, address, scope, budget all carry over.</li>
+            <li>Source tracking (Houzz / Yelp / Referral / Walk-in / etc.) to see where good leads come from.</li>
+          </ul>
+        </div>
+
+        <div class="ex-section">
+          <h3>How to use it</h3>
+          <ol class="ex-steps">
+            <li>Open MAGE ID. Tap the <strong>UserPlus</strong> icon in the home tab header.</li>
+            <li>Tap "New lead by voice." Say it like you're texting a friend — name, phone, project type, source, budget, timeline.</li>
+            <li>Review the AI fit score on the lead detail. 8+ is a strong fit; 4 or below is a stretch.</li>
+            <li>Tap the phone number to call. The first-response timer stops the moment you log a call/text/email.</li>
+            <li>Move stages by tapping a chip. Hit "Won" → tap "Convert to project."</li>
+          </ol>
+          <div class="ex-voice">"New lead: John Smith, five-five-five one-two-three-four. Kitchen remodel, found us on Houzz, eighty thousand budget, wants to start in spring."</div>
+        </div>
+
+        <div class="ex-callout">
+          <strong>The killer metric:</strong> first-response time is the single biggest driver of close rate in residential. The red card after one hour exists to make that visible. If you fix nothing else this year, fix that.
+        </div>
+      </div>
+
+      <!-- PROJECTS & ESTIMATE -->
+      <div class="ex-panel" id="panel-projects" role="tabpanel">
+        <span class="ex-panel-eyebrow">Spin up the job</span>
+        <h2>Project, estimate,<br><em>everything that follows.</em></h2>
+        <p class="lede">A project is the spine — schedule, daily reports, photos, RFIs, change orders, invoices all hang off it. Create one in a sentence. Then build the estimate that drives buyout and billing.</p>
+
+        <div class="ex-section">
+          <h3>What it does</h3>
+          <ul class="ex-bullets">
+            <li>Voice-create a project ("New project: Smith kitchen at 123 Main, eighty thousand").</li>
+            <li>Project Detail screen with tile sections — every related entity opens as a modal, not a new screen.</li>
+            <li>Estimate Wizard: project type → square footage → quality tier → line items → review.</li>
+            <li>Modern <strong>Linked Estimate</strong> with stable IDs per line item — survives buyout linking + variance tracking.</li>
+            <li>Materials with <strong>bulk-pricing thresholds</strong> + savings auto-calculated.</li>
+            <li><strong>Allowance items</strong> — placeholder pricing (tile, fixtures) that locks to firm price at buyout.</li>
+            <li>AI Quick Estimate from a sentence ("two-story addition, 800 sf, structural changes").</li>
+            <li>Markup, overhead, contingency, permits — all transparent on the summary line.</li>
+          </ul>
+        </div>
+
+        <div class="ex-section">
+          <h3>How to use it</h3>
+          <ol class="ex-steps">
+            <li>Tap <strong>+</strong> on the home tab → fill in name / type / description, or use the voice button at the top.</li>
+            <li>Open the project → tap the <strong>Linked Estimate</strong> tile → "Build Estimate."</li>
+            <li>Walk through the wizard. Add line items by category.</li>
+            <li>Mark allowances by tapping the item → toggle "Allowance." (Tile budget, fixtures, etc.)</li>
+            <li>Review the summary tile on the project — it's now the truth source for buyout + invoicing.</li>
+          </ol>
+          <div class="ex-voice">"New project: Henderson bathroom remodel at 456 Oak Avenue, twenty-five thousand budget."</div>
+        </div>
+      </div>
+
+      <!-- SCHEDULE -->
+      <div class="ex-panel" id="panel-schedule" role="tabpanel">
+        <span class="ex-panel-eyebrow">Plan the work</span>
+        <h2>A schedule,<br><em>in 60 seconds.</em></h2>
+        <p class="lede">Project chips on top, MS-Project-style ribbon below. Build the schedule three ways: template, AI, or auto-derived from your estimate.</p>
+
+        <div class="ex-section">
+          <h3>What it does</h3>
+          <ul class="ex-bullets">
+            <li><strong>Project chips at the top</strong> — every project visible at a glance, one tap to switch.</li>
+            <li>Six view tabs: Today / Lookahead / Board / Gantt / Crew / Summary.</li>
+            <li>Phase-based Gantt with <strong>critical path</strong> highlighted.</li>
+            <li>8 templates: kitchen / bath / ADU / new home / addition / etc.</li>
+            <li><strong>AI Builder</strong>: describe the project, get a full schedule with dependencies.</li>
+            <li>Build from estimate — auto-derive tasks from estimate line items.</li>
+            <li>Weather forecast badges on outdoor tasks (concrete, roofing).</li>
+            <li>Schedule auto-shifts when approved CO adds days.</li>
+          </ul>
+        </div>
+
+        <div class="ex-section">
+          <h3>How to use it</h3>
+          <ol class="ex-steps">
+            <li>Tap the <strong>Schedule</strong> tab. Tap a project chip at the top.</li>
+            <li>If no schedule yet, pick how to start: AI Builder / Template / From Estimate.</li>
+            <li>Use the view tabs to switch perspectives — <strong>Today</strong> for what's happening now, <strong>Gantt</strong> for the timeline.</li>
+            <li>Tap a task to edit — duration, dependencies, % complete, assigned crew.</li>
+            <li>Drag bars on the Gantt to reschedule. Critical path recalculates live.</li>
+          </ol>
+        </div>
+
+        <div class="ex-callout">
+          <strong>What the homeowner notices:</strong> when a change order adds days, the schedule shifts automatically and the portal updates the same minute. You don't email a new schedule. They just see it.
+        </div>
+      </div>
+
+      <!-- BUYOUT -->
+      <div class="ex-panel" id="panel-buyout" role="tabpanel">
+        <span class="ex-panel-eyebrow">The margin lever</span>
+        <h2>Buyout —<br><em>$30K–80K savings per $1M job.</em></h2>
+        <p class="lede">Most software stops at "you have an estimate." Buyout is the phase between estimate and field where you convert rough carry into signed subcontracts. The delta is the GC's biggest margin lever — and the phase legacy GC software handles worst.</p>
+
+        <div class="ex-section">
+          <h3>What it does</h3>
+          <ul class="ex-bullets">
+            <li><strong>Scope packages</strong> — group estimate items into "Plumbing rough-in", "Drywall", etc. CSI division aware.</li>
+            <li>Voice bid intake — "Joe's Plumbing came in at forty-eight hundred, includes everything except fixtures."</li>
+            <li><strong>AI bid leveling</strong> — apples-to-apples adjustment per bid based on includes/excludes.</li>
+            <li>Side-by-side comparison with leveled totals, AI PICK trophy on the recommended winner.</li>
+            <li><strong>Outlier alerts</strong> — bid >15% from median flagged with "review for missing scope."</li>
+            <li><strong>Coverage warning</strong> when fewer than 3 bids in.</li>
+            <li><strong>Stale-RFQ flag</strong> when a package has been open 14+ days.</li>
+            <li>One-tap award → creates a Commitment, computes <strong>buyout savings</strong>, locks any allowance items to firm price.</li>
+            <li><strong>Prequal gate</strong>: warns if the awarded sub doesn't have COI / W-9 / license on file.</li>
+            <li>Live KPI dashboard — % bought out, savings YTD, packages awarded, overdue red-dot.</li>
+          </ul>
+        </div>
+
+        <div class="ex-section">
+          <h3>How to use it</h3>
+          <ol class="ex-steps">
+            <li>Home tab → tap the <strong>Gavel</strong> icon. Pick a project chip.</li>
+            <li>Tap "+ New scope package." Name it. Pick CSI Division. Multi-select estimate line items it covers — budget auto-fills.</li>
+            <li>Tap "Add bid by voice" — speak each sub's number, includes, excludes, terms.</li>
+            <li>With 2+ bids in, tap "Run AI leveling." Review the AI's adjustments + recommended winner.</li>
+            <li>Tap "Award" on the winner. Confirm. Commitment created, package marked awarded, savings computed.</li>
+          </ol>
+          <div class="ex-voice">"Joe's Plumbing came in at forty-eight hundred, includes everything except fixtures."</div>
+          <div class="ex-voice">"ABC Mechanical at fifty-two hundred, all-in, ten percent deposit."</div>
+        </div>
+
+        <div class="ex-callout">
+          <strong>What the AI catches that you don't:</strong> the "lowest" raw bid is often <em>not</em> the lowest leveled bid. A bid that excluded $1,200 of fixtures looks cheap on bid day and shows up as a change order in week 2. The leveler closes that gap.
+        </div>
+      </div>
+
+      <!-- FIELD OPS -->
+      <div class="ex-panel" id="panel-field" role="tabpanel">
+        <span class="ex-panel-eyebrow">Run the day</span>
+        <h2>The field paperwork,<br><em>by voice or by photo.</em></h2>
+        <p class="lede">Daily reports, RFIs, change orders, punch lists, submittals — all dictated, photos included, sent before you leave the truck.</p>
+
+        <div class="ex-mini-grid">
+          <div class="ex-mini-card">
+            <span class="ex-mini-emoji">📝</span>
+            <h4>Daily Field Report</h4>
+            <p>Dictate the day, AI parses weather + manpower + work performed + materials + issues. Or generate from photos.</p>
+          </div>
+          <div class="ex-mini-card">
+            <span class="ex-mini-emoji">❓</span>
+            <h4>RFI</h4>
+            <p>Voice → subject, question, priority, assignee, required date all filled in. Send via email with one tap.</p>
+          </div>
+          <div class="ex-mini-card">
+            <span class="ex-mini-emoji">📑</span>
+            <h4>Change Order</h4>
+            <p>Voice → description, reason, schedule impact, line items. Goes to the homeowner portal for one-tap approval.</p>
+          </div>
+          <div class="ex-mini-card">
+            <span class="ex-mini-emoji">✅</span>
+            <h4>Punch List</h4>
+            <p>Walk by voice ("master bath, light fixture loose") or <strong>AI Punch from Photos</strong> — take 5 photos, AI builds the list.</p>
+          </div>
+          <div class="ex-mini-card">
+            <span class="ex-mini-emoji">📄</span>
+            <h4>Submittal</h4>
+            <p>Voice → title, spec section, submitted by, required date. Review cycles + PDF generation.</p>
+          </div>
+          <div class="ex-mini-card">
+            <span class="ex-mini-emoji">📸</span>
+            <h4>Photos</h4>
+            <p>Capture with geo-stamp, mark up with arrow / circle / freehand / text overlays. Pin to plans, attach to punch items.</p>
+          </div>
+        </div>
+
+        <div class="ex-section">
+          <h3>How to use AI Punch from Photos</h3>
+          <ol class="ex-steps">
+            <li>Open a project. Tap <strong>Punch List</strong> → "Punch Walk" → "AI Punch from Photos" at the bottom.</li>
+            <li>Take photos of every issue you see during your walkthrough. Up to 12 per call.</li>
+            <li>Tap "Run AI." About 8 seconds later, structured punch items appear — each with description, location, trade, priority, source photo, and confidence score.</li>
+            <li>Edit, discard, or save each one. Bulk-save the keepers in one tap.</li>
+          </ol>
+        </div>
+
+        <div class="ex-section">
+          <h3>How to use AI DFR from Photos</h3>
+          <ol class="ex-steps">
+            <li>Open the project's Daily Reports tile → New Report.</li>
+            <li>Today's site photos appear in a strip. Pick 5–8 of the most informative.</li>
+            <li>Tap "Generate from photos." AI writes the workPerformed section based on what's visible.</li>
+            <li>Edit, add manpower / weather, save.</li>
+          </ol>
+        </div>
+      </div>
+
+      <!-- PLANS -->
+      <div class="ex-panel" id="panel-plans" role="tabpanel">
+        <span class="ex-panel-eyebrow">Drawings &amp; markup</span>
+        <h2>Plans, pinned and<br><em>annotated.</em></h2>
+        <p class="lede">Upload PDFs, the server converts them to PNG pages. Drop pins linked to photos, punch items, RFIs. Mark up with SVG annotations. Calibrate a scale and measure off the plan.</p>
+
+        <div class="ex-section">
+          <h3>What it does</h3>
+          <ul class="ex-bullets">
+            <li>PDF → PNG conversion server-side (Supabase edge function).</li>
+            <li>Plan sheets per project, swipeable.</li>
+            <li><strong>Drawing pins</strong> — drop a pin, link it to a photo, punch item, or RFI.</li>
+            <li>SVG markup overlay — arrows, circles, freehand, text.</li>
+            <li>Scale calibration — draw a known dimension, then measure off the plan.</li>
+            <li><strong>AI Drawing Analysis</strong> — Gemini Vision returns a structured estimate with quantity takeoff and reasoning.</li>
+          </ul>
+        </div>
+
+        <div class="ex-section">
+          <h3>How to use it</h3>
+          <ol class="ex-steps">
+            <li>Project → Plans tile → Upload PDF.</li>
+            <li>Wait for conversion (a few seconds per page).</li>
+            <li>Tap a sheet → drop pins where issues are → tap a pin to link a photo/punch/RFI.</li>
+            <li>For an AI estimate: select sheets → "Analyze with AI" → review the takeoff + reasoning.</li>
+          </ol>
+        </div>
+      </div>
+
+      <!-- FINANCIALS -->
+      <div class="ex-panel" id="panel-financials" role="tabpanel">
+        <span class="ex-panel-eyebrow">Get paid</span>
+        <h2>Invoice in your pocket.<br><em>Paid in your pocket.</em></h2>
+        <p class="lede">Invoices, AIA G702/G703 pay applications, commitments, and live financial reports. Stripe Connect lets the homeowner pay online — money in your bank in 1–2 days.</p>
+
+        <div class="ex-mini-grid">
+          <div class="ex-mini-card">
+            <span class="ex-mini-emoji">🧾</span>
+            <h4>Invoices</h4>
+            <p>Voice intake (line items, terms, due date). Stripe "Pay Now" button on the portal. Branded PDF + email.</p>
+          </div>
+          <div class="ex-mini-card">
+            <span class="ex-mini-emoji">📊</span>
+            <h4>AIA Pay Apps</h4>
+            <p>G702 cover + G703 schedule of values. Retainage tracking, prior billings carryforward, this-period draw.</p>
+          </div>
+          <div class="ex-mini-card">
+            <span class="ex-mini-emoji">📜</span>
+            <h4>Commitments</h4>
+            <p>Signed subs/POs. Created automatically by buyout award. Linked to estimate items for variance tracing.</p>
+          </div>
+          <div class="ex-mini-card">
+            <span class="ex-mini-emoji">📈</span>
+            <h4>Reports</h4>
+            <p>WIP, profit per project, A/R aging, cash flow projection. Bank-ready PDFs in three taps.</p>
+          </div>
+        </div>
+
+        <div class="ex-section">
+          <h3>How to use it</h3>
+          <ol class="ex-steps">
+            <li>Project → Invoices tile → New invoice. Voice it ("Invoice them for demolition lump sum twenty-eight hundred, drywall 850 square feet at 2.50, net 15").</li>
+            <li>Review line items. Tap Send → homeowner gets a branded email with a Pay Now button.</li>
+            <li>For AIA jobs: AIA Pay Applications tile → "+ New draw." Fill in this-period amounts. PDF generates automatically.</li>
+            <li>Reports tile → tap WIP / Profit / A/R Aging. Export PDF for the bank.</li>
+          </ol>
+          <div class="ex-voice">"Invoice them for demolition kitchen, lump sum twenty-eight hundred. Drywall hang and finish, eight hundred fifty square feet at two-fifty per square foot. Net 15."</div>
+        </div>
+      </div>
+
+      <!-- PORTALS -->
+      <div class="ex-panel" id="panel-portals" role="tabpanel">
+        <span class="ex-panel-eyebrow">Live links</span>
+        <h2>The homeowner sees<br><em>everything you let them see.</em></h2>
+        <p class="lede">No app to install. One link. Lives forever. The same pattern works for subcontractors so they can submit invoices and pay apps without email.</p>
+
+        <div class="ex-section">
+          <h3>Client Portal — what the homeowner sees</h3>
+          <ul class="ex-bullets">
+            <li>Project status + schedule (live, six languages: en/es/pt/zh/vi/fr).</li>
+            <li>Daily photo updates with markup overlay if you drew on them.</li>
+            <li>Budget — contract value, paid-to-date, outstanding (or full <strong>Open Book</strong> transparency).</li>
+            <li>Selections — pick tile/cabinets/lighting from AI-curated options within your allowance.</li>
+            <li>Change orders — review and approve with one tap.</li>
+            <li>Invoices with line-item detail + a Stripe <strong>Pay Now</strong> button.</li>
+            <li>Direct chat with you, in-portal.</li>
+            <li>Closeout binder at handover with warranties, contacts, maintenance schedule.</li>
+          </ul>
+        </div>
+
+        <div class="ex-section">
+          <h3>Sub Portal — what the sub sees</h3>
+          <ul class="ex-bullets">
+            <li>Their assigned scope on the project.</li>
+            <li>Submit invoices with photos of work done.</li>
+            <li>Submit AIA pay app drafts (when GC has set up AIA on the project).</li>
+            <li><em>Coming soon:</em> self-serve lien waivers, COI/W-9 upload reusable across projects.</li>
+          </ul>
+        </div>
+
+        <div class="ex-section">
+          <h3>How to use it</h3>
+          <ol class="ex-steps">
+            <li>Project → Client Portal tile → Generate link.</li>
+            <li>Email it to the homeowner — the email is already drafted, branded with your company logo.</li>
+            <li>Homeowner taps the link from any phone or laptop. No download.</li>
+            <li>Anything you change in MAGE ID, they see — schedule, photos, budget, decisions to sign.</li>
+          </ol>
+        </div>
+
+        <div class="ex-callout">
+          <strong>Open Book mode:</strong> if you want to win on transparency, switch the project to Open Book or GMP contract mode. The homeowner sees every commitment vs cost line. Most GCs are afraid of this. The ones who do it close 30% faster on premium jobs.
+        </div>
+      </div>
+
+      <!-- CLOSEOUT -->
+      <div class="ex-panel" id="panel-closeout" role="tabpanel">
+        <span class="ex-panel-eyebrow">Hand off clean</span>
+        <h2>The handoff that<br><em>wins your next job.</em></h2>
+        <p class="lede">Closeout is what separates a contractor the homeowner remembers from one they don't. MAGE ID assembles the binder as you go.</p>
+
+        <div class="ex-section">
+          <h3>What it does</h3>
+          <ul class="ex-bullets">
+            <li><strong>Punch list</strong> — track open items to zero. Portal shows the homeowner the count drop in real time.</li>
+            <li><strong>Lien waivers</strong> — request from each sub by email. Conditional + unconditional. Track which are in.</li>
+            <li><strong>Warranties</strong> — manufacturer + workmanship per item.</li>
+            <li><strong>Maintenance schedule</strong> — what to service when (HVAC filters, water heater anodes, etc.).</li>
+            <li><strong>Trade contacts</strong> — every sub's number, in case the homeowner needs them after warranty.</li>
+            <li><strong>Emergency contact info</strong> — for the warranty period.</li>
+            <li>One-tap <strong>Deliver</strong> → homeowner gets a single PDF in their portal forever.</li>
+          </ul>
+        </div>
+
+        <div class="ex-section">
+          <h3>How to use it</h3>
+          <ol class="ex-steps">
+            <li>Project → Closeout Binder tile → Build binder.</li>
+            <li>The screen pulls in your warranties, lien waivers, finishes, contacts. Add maintenance schedule notes if you have them.</li>
+            <li>Status moves Draft → Finalized → Sent. At "Sent" the homeowner sees it in their portal as a downloadable PDF.</li>
+            <li>For lien waivers: Lien Waivers tile → request from a sub → they receive an email and sign digitally.</li>
+          </ol>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ─────────── CTA ─────────── -->
+    <section class="ex-panels" style="padding-top: 0;">
+      <div class="ex-panel is-active" style="text-align: center;">
+        <h2 style="font-size: clamp(28px, 4vw, 40px);">Ready to run your next job from your phone?</h2>
+        <p class="lede" style="margin-left: auto; margin-right: auto;">First project free. Pro from $24.99/mo, Business $63.99/mo. No sales call, no contract.</p>
+        <div class="ex-try" style="justify-content: center; border-top: 0; padding-top: 0;">
+          <a class="btn btn-primary" href="/access.html">Request access</a>
+          <a class="btn btn-secondary" href="/playbook.html">Read the playbook</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap">
+      <p>&copy; <span id="year">2026</span> MAGE ID. Built for the contractors doing the work.</p>
+      <nav class="footer-links">
+        <a href="/playbook.html">Playbook</a>
+        <a href="/features/">Explore</a>
+        <a href="/features/vs-competitors.html">vs. Competitors</a>
+        <a href="/access.html">Get access</a>
+        <a href="/support.html">Support</a>
+        <a href="/privacy.html">Privacy</a>
+      </nav>
+    </div>
+  </footer>
+
+  <script>
+    document.getElementById('year').textContent = new Date().getFullYear();
+
+    // Tab switcher: clicking a tab swaps which panel is visible.
+    // Hash fragment (e.g. /features/#buyout) deep-links to a tab so the
+    // marketing site / playbook can link directly into a section.
+    (function () {
+      const tabs = document.querySelectorAll('.ex-tab');
+      const panels = document.querySelectorAll('.ex-panel');
+
+      function activate(name) {
+        tabs.forEach(t => t.classList.toggle('is-active', t.dataset.tab === name));
+        panels.forEach(p => p.classList.toggle('is-active', p.id === 'panel-' + name));
+      }
+
+      tabs.forEach(t => {
+        t.addEventListener('click', () => {
+          const name = t.dataset.tab;
+          activate(name);
+          // Update hash without scrolling. history.replaceState avoids
+          // adding to back-button history for every tab tap.
+          history.replaceState(null, '', '#' + name);
+        });
+      });
+
+      // On load: if URL has a hash matching a tab, open it.
+      const initial = (location.hash || '').replace('#', '');
+      if (initial && document.querySelector('.ex-tab[data-tab="' + initial + '"]')) {
+        activate(initial);
+      }
+
+      // Browser back / forward through hashes also switches tabs.
+      window.addEventListener('hashchange', () => {
+        const name = (location.hash || '').replace('#', '');
+        if (name && document.querySelector('.ex-tab[data-tab="' + name + '"]')) {
+          activate(name);
+        }
+      });
+    })();
+  </script>
+</body>
+</html>
