@@ -140,6 +140,33 @@ serve(async (req) => {
   // call so a single expired signed URL doesn't kill the request.
   let goodPhotos: Array<{ data: string; mimeType: string; originalIndex: number }> = [];
   if (usingInline) {
+    // Per-photo + total payload size guards (code-review #6). Supabase
+    // Functions cap requests at ~10MB; we reject before forwarding so
+    // the client gets a clear error instead of a silent network drop.
+    const MAX_INLINE_BYTES_PER_PHOTO = 6 * 1024 * 1024;  // ~4.5MB raw
+    const MAX_INLINE_BYTES_TOTAL = 8 * 1024 * 1024;
+    let total = 0;
+    for (let i = 0; i < body.photos!.length; i++) {
+      const p = body.photos![i];
+      if (!p || typeof p.base64 !== 'string' || p.base64.length === 0) {
+        return jsonResponse({ success: false, error: `Photo ${i} missing base64 data` }, 400);
+      }
+      if (p.base64.length > MAX_INLINE_BYTES_PER_PHOTO) {
+        const mb = (p.base64.length / 1024 / 1024).toFixed(1);
+        return jsonResponse({
+          success: false,
+          error: `Photo ${i} is too large (${mb} MB encoded). Take photos at lower quality — around 1200×1600 px works well.`,
+        }, 413);
+      }
+      total += p.base64.length;
+    }
+    if (total > MAX_INLINE_BYTES_TOTAL) {
+      const mb = (total / 1024 / 1024).toFixed(1);
+      return jsonResponse({
+        success: false,
+        error: `Total photo payload too large (${mb} MB). Pick fewer photos or take them at lower quality.`,
+      }, 413);
+    }
     goodPhotos = body.photos!.map((p, i) => ({
       data: p.base64,
       mimeType: p.mimeType || 'image/jpeg',
@@ -155,6 +182,9 @@ serve(async (req) => {
   if (goodPhotos.length === 0) {
     return jsonResponse({ success: false, error: 'Could not load any of the supplied photos' }, 400);
   }
+
+  // Lightweight observability (code-review #11) — task + count + path.
+  console.log(`[analyze-photos] task=${body.task} photos=${goodPhotos.length} inline=${usingInline}`);
 
   const ctxLine = [
     body.projectName ? `Project: ${body.projectName}` : null,

@@ -19,6 +19,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
+import { generateUUID } from '@/utils/generateId';
 import {
   Camera, ImagePlus, Sparkles, X, Trash2, ChevronRight, Save, AlertCircle,
 } from 'lucide-react-native';
@@ -30,7 +31,11 @@ import { stampPhotoLocation, type PhotoGeoStamp } from '@/utils/photoGeoStamp';
 import { sentenceCase, titleCase } from '@/utils/voiceFormParsers';
 
 // Map the loose AI-trade string to the strict SubTrade enum used in
-// the data model. Mirrors the helper in app/punch-walk.tsx.
+// the data model. Expanded per code-review #8 to cover the trades
+// the AI prompt mentions but the SubTrade enum doesn't natively
+// include — Cabinets, Trim/Carpentry, Doors/Hardware, Insulation,
+// Cleanup all funnel to the closest enum value rather than collapsing
+// to "Other" and losing the signal.
 function aiTradeToSubTrade(aiTrade: string): SubTrade {
   const t = (aiTrade || '').toLowerCase();
   if (t.includes('electrical')) return 'Electrical';
@@ -43,7 +48,14 @@ function aiTradeToSubTrade(aiTrade: string): SubTrade {
   if (t.includes('concrete') || t.includes('masonry')) return 'Concrete';
   if (t.includes('frame') || t.includes('framing')) return 'Framing';
   if (t.includes('landscap')) return 'Landscaping';
-  return 'Other';
+  // Trim, carpentry, cabinets, doors, hardware, insulation all
+  // belong to a generalist carpenter/finishing scope in residential.
+  // 'Other' is the closest the SubTrade enum has — keep the original
+  // AI label visible in the location string (set in handleSaveOne).
+  if (t.includes('trim') || t.includes('carpentry') || t.includes('cabinet')
+      || t.includes('door') || t.includes('hardware') || t.includes('insul')
+      || t.includes('cleanup') || t.includes('clean-up')) return 'Other';
+  return 'General';
 }
 
 interface PickedPhoto {
@@ -90,6 +102,7 @@ export default function AiPunchScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reviewItems, setReviewItems] = useState<ReviewableItem[]>([]);
+  const [showAllGallery, setShowAllGallery] = useState(false);
 
   // ── Step 1: pick photos ──────────────────────────────────────
   const togglePhotoFromGallery = useCallback((id: string, uri: string) => {
@@ -119,11 +132,11 @@ export default function AiPunchScreen() {
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsMultipleSelection: true,
       selectionLimit: remaining,
-      quality: 0.7,
+      quality: 0.4,
     });
     if (result.canceled) return;
     const additions: PickedPhoto[] = result.assets.map((a, i) => ({
-      id: `roll-${Date.now()}-${i}`,
+      id: `roll-${generateUUID().slice(0, 8)}-${i}`,
       uri: a.uri,
     }));
     setPickedPhotos(prev => [...prev, ...additions]);
@@ -141,7 +154,7 @@ export default function AiPunchScreen() {
     }
     const result = await ImagePicker.launchCameraAsync({ quality: 0.7 });
     if (result.canceled || !result.assets[0]) return;
-    setPickedPhotos(prev => [...prev, { id: `cam-${Date.now()}`, uri: result.assets[0].uri }]);
+    setPickedPhotos(prev => [...prev, { id: `cam-${generateUUID()}`, uri: result.assets[0].uri }]);
   }, [pickedPhotos.length]);
 
   // ── Step 2: analyze ──────────────────────────────────────────
@@ -162,7 +175,7 @@ export default function AiPunchScreen() {
         const sourcePhoto = pickedPhotos[Math.min(item.photoIndex, pickedPhotos.length - 1)];
         return {
           ...item,
-          id: `rev-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          id: `rev-${generateUUID()}`,
           editedDescription: sentenceCase(item.description),
           editedLocation: titleCase(item.location || ''),
           editedTrade: aiTradeToSubTrade(item.trade),
@@ -206,7 +219,7 @@ export default function AiPunchScreen() {
       ? `${item.editedLocation.trim()} — ${item.editedTrade}`
       : item.editedTrade;
     const punch: PunchItem = {
-      id: `pi-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      id: `pi-${generateUUID()}`,
       projectId: project.id,
       description: item.editedDescription.trim(),
       location: locationWithTrade,
@@ -227,19 +240,42 @@ export default function AiPunchScreen() {
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }, [project, addPunchItem, updateReviewItem]);
 
+  const [saving, setSaving] = useState(false);
   const handleSaveAll = useCallback(async () => {
     const pending = reviewItems.filter(r => !r.saved && !r.discarded);
-    for (const item of pending) {
-      // Sequential save so geo-stamp races resolve cleanly. Fast enough
-      // (no network on the punch insert itself).
-      // eslint-disable-next-line no-await-in-loop
-      await handleSaveOne(item);
+    if (pending.length === 0) return;
+    setSaving(true);
+    let saved = 0;
+    let failed = 0;
+    let firstError: string | null = null;
+    try {
+      for (const item of pending) {
+        // Sequential save so geo-stamp races resolve cleanly. Each
+        // save can take up to 3s for the GPS budget — that's why the
+        // banner above shows a "this may take a moment" hint.
+        try {
+          // eslint-disable-next-line no-await-in-loop
+          await handleSaveOne(item);
+          saved += 1;
+        } catch (err) {
+          failed += 1;
+          if (!firstError) firstError = String((err as Error)?.message || err);
+        }
+      }
+    } finally {
+      setSaving(false);
     }
-    Alert.alert(
-      `Saved ${pending.length} punch item${pending.length === 1 ? '' : 's'}`,
-      'They’re now in the punch list.',
-      [{ text: 'OK', onPress: () => router.replace({ pathname: '/punch-list' as never, params: { projectId: project?.id } as never }) }],
-    );
+    // Report partial success accurately (code-review #4).
+    const title = failed === 0
+      ? `Saved ${saved} punch item${saved === 1 ? '' : 's'}`
+      : `Saved ${saved} of ${pending.length}`;
+    const body = failed === 0
+      ? 'They’re now in the punch list.'
+      : `${failed} failed${firstError ? ` — first error: ${firstError}` : '.'}\nReview the screen for items still pending.`;
+    Alert.alert(title, body, [{
+      text: 'OK',
+      onPress: () => failed === 0 && router.replace({ pathname: '/punch-list' as never, params: { projectId: project?.id } as never }),
+    }]);
   }, [reviewItems, handleSaveOne, router, project]);
 
   const reviewMode = reviewItems.length > 0 || error !== null;
@@ -311,12 +347,23 @@ export default function AiPunchScreen() {
                 </View>
               )}
 
-              {/* Project gallery selector */}
+              {/* Project gallery selector — most recent first, paginated.
+                  Long-running projects can have hundreds of photos and a
+                  hard 30-cap was making old photos unreachable
+                  (code-review #10). The "Show all" toggle reveals the
+                  rest, sorted newest-first. */}
               {projectPhotos.length > 0 && (
                 <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>Or pick from project gallery</Text>
+                  <View style={styles.galleryHead}>
+                    <Text style={styles.sectionTitle}>Or pick from project gallery</Text>
+                    {projectPhotos.length > 30 && (
+                      <TouchableOpacity onPress={() => setShowAllGallery(s => !s)} hitSlop={10}>
+                        <Text style={styles.galleryToggle}>{showAllGallery ? 'Show recent' : `Show all ${projectPhotos.length}`}</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.galleryRow}>
-                    {projectPhotos.slice(0, 30).map(ph => {
+                    {(showAllGallery ? projectPhotos : projectPhotos.slice(0, 30)).map(ph => {
                       const picked = pickedPhotos.find(p => p.id === ph.id);
                       return (
                         <TouchableOpacity
@@ -441,9 +488,23 @@ export default function AiPunchScreen() {
               )}
             </TouchableOpacity>
           ) : pendingCount > 0 ? (
-            <TouchableOpacity style={styles.fabPrimary} onPress={handleSaveAll} activeOpacity={0.85}>
-              <Save size={16} color="#FFF" />
-              <Text style={styles.fabPrimaryText}>Save all {pendingCount} item{pendingCount === 1 ? '' : 's'}</Text>
+            <TouchableOpacity
+              style={[styles.fabPrimary, saving && styles.fabPrimaryDisabled]}
+              onPress={handleSaveAll}
+              disabled={saving}
+              activeOpacity={0.85}
+            >
+              {saving ? (
+                <>
+                  <ActivityIndicator size="small" color="#FFF" />
+                  <Text style={styles.fabPrimaryText}>Saving {pendingCount} item{pendingCount === 1 ? '' : 's'}…</Text>
+                </>
+              ) : (
+                <>
+                  <Save size={16} color="#FFF" />
+                  <Text style={styles.fabPrimaryText}>Save all {pendingCount} item{pendingCount === 1 ? '' : 's'}</Text>
+                </>
+              )}
             </TouchableOpacity>
           ) : (
             <TouchableOpacity
@@ -483,6 +544,8 @@ const styles = StyleSheet.create({
   thumb: { width: '100%', height: '100%' },
   thumbRemove: { position: 'absolute', top: 4, right: 4, width: 22, height: 22, borderRadius: 11, backgroundColor: 'rgba(0,0,0,0.65)', alignItems: 'center', justifyContent: 'center' },
 
+  galleryHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 },
+  galleryToggle: { fontSize: 13, fontWeight: '600' as const, color: Colors.primary },
   galleryRow: { gap: 6, paddingVertical: 4 },
   galleryThumb: { width: 84, height: 84, borderRadius: 10, overflow: 'hidden', borderWidth: 2, borderColor: 'transparent' },
   galleryThumbPicked: { borderColor: Colors.primary },

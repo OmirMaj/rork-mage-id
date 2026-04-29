@@ -10,8 +10,9 @@
 //     report draft.
 //
 // The edge function caps at 12 photos per call for cost / latency.
-// Callers should down-sample the photo list to the most informative
-// 6-8 frames before invoking — vision tokens are not cheap.
+// The wire payload is also limited (Supabase Functions: ~10MB) — we
+// down-sample inline base64 photos in payload size by sending only
+// what's necessary and keeping count moderate.
 
 import { supabase } from '@/lib/supabase';
 import * as FileSystem from 'expo-file-system';
@@ -20,8 +21,7 @@ export interface AiPunchItem {
   description: string;
   /** Title-case location ("Master Bath"). May be empty if unclear. */
   location: string;
-  /** Free-text trade — caller maps to its own enum (see
-   *  app/punch-walk.tsx aiTradeToSubTrade). */
+  /** Free-text trade — caller maps to its own enum. */
   trade: string;
   priority: 'low' | 'medium' | 'high';
   /** Index into the photoUrls array the caller passed in. Lets the
@@ -39,9 +39,9 @@ export interface AiDfrSummary {
 }
 
 interface BaseOpts {
-  /** Mixed: each entry can be a remote URL (server fetches) or a
-   *  local file:// URI (we base64-encode client-side and send inline).
-   *  The edge function accepts either path. */
+  /** Each entry can be a remote URL (server fetches) or a local
+   *  file:// URI (we base64-encode client-side and send inline).
+   *  Mixing both is currently unsupported — caller should pick one. */
   photoUrls: string[];
   projectName?: string;
   projectType?: string;
@@ -50,77 +50,89 @@ interface BaseOpts {
 
 interface InlinePhoto { base64: string; mimeType?: string }
 
-/**
- * Split a list of mixed URIs into:
- *   - inline photos (file:// URIs we base64 client-side)
- *   - URL photos (https URLs the server fetches itself)
- * Server can't reach file:// URIs because they live on the device.
- * Mixing the two paths in one call wouldn't preserve photoIndex
- * cleanly, so callers should use one or the other — we pick the
- * dominant kind here.
- */
-async function partitionAndEncode(uris: string[]): Promise<{ inline?: InlinePhoto[]; urls?: string[] }> {
-  const isLocal = (u: string) => u.startsWith('file:') || u.startsWith('/');
-  const localCount = uris.filter(isLocal).length;
-  // If any URI is local, base64-encode them all so the photoIndex
-  // returned by Gemini lines up with the input array. Otherwise send
-  // URLs and let the server fetch them.
-  if (localCount === 0) return { urls: uris };
+const isLocal = (u: string) => u.startsWith('file:') || u.startsWith('/');
 
-  const inline: InlinePhoto[] = [];
-  for (const u of uris) {
-    if (isLocal(u)) {
-      // Pass string-literal 'base64' rather than the enum — expo-file-system
-      // moved EncodingType into a legacy namespace in newer versions, and the
-      // string form is accepted by the typed signature regardless.
-      const base64 = await FileSystem.readAsStringAsync(u, { encoding: 'base64' });
-      // Cheap MIME inference from extension. Gemini accepts most.
-      const ext = u.split('.').pop()?.toLowerCase() ?? '';
-      const mimeType = ext === 'png' ? 'image/png' : ext === 'heic' ? 'image/heic' : 'image/jpeg';
-      inline.push({ base64, mimeType });
-    } else {
-      // Fetch + base64 the remote one too so all entries are inline
-      // and indices are stable.
-      const resp = await fetch(u);
-      const blob = await resp.blob();
-      const base64 = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          const dataUrl = reader.result as string;
-          // strip "data:image/jpeg;base64," prefix
-          const idx = dataUrl.indexOf(',');
-          resolve(idx >= 0 ? dataUrl.slice(idx + 1) : dataUrl);
-        };
-        reader.onerror = () => reject(new Error('Failed to read blob'));
-        reader.readAsDataURL(blob);
-      });
-      inline.push({ base64, mimeType: blob.type || 'image/jpeg' });
-    }
-  }
-  return { inline };
+/**
+ * Encode a list of file:// URIs to inline base64 — IN PARALLEL
+ * (code-review #1). 12 photos × sequential ~50ms each = 600ms;
+ * Promise.all collapses that to one round-trip's worth of CPU
+ * (~50–100ms total).
+ */
+async function encodeLocalPhotos(uris: string[]): Promise<InlinePhoto[]> {
+  return Promise.all(uris.map(async (u) => {
+    // Pass string-literal 'base64' rather than the enum — expo-file-system
+    // moved EncodingType into a legacy namespace in newer SDKs and the
+    // string form is accepted by the typed signature regardless.
+    const base64 = await FileSystem.readAsStringAsync(u, { encoding: 'base64' });
+    const ext = u.split('.').pop()?.toLowerCase() ?? '';
+    const mimeType = ext === 'png' ? 'image/png' : ext === 'heic' ? 'image/heic' : 'image/jpeg';
+    return { base64, mimeType };
+  }));
 }
 
-async function callAnalyzePhotos<T>(opts: BaseOpts & { task: 'punch' | 'dfr' }): Promise<T> {
+/**
+ * Estimate the wire size of the inline-photos payload. Base64 inflates
+ * raw bytes by 4/3, plus JSON overhead. We use this to short-circuit
+ * before hitting Supabase's 10MB function-request limit (code-review #6).
+ * Threshold of 8MB leaves room for the rest of the JSON payload + headers.
+ */
+function totalBase64Bytes(photos: InlinePhoto[]): number {
+  return photos.reduce((sum, p) => sum + p.base64.length, 0);
+}
+const MAX_PAYLOAD_BYTES = 8 * 1024 * 1024;
+
+/**
+ * One automatic retry on 5xx — vision calls fail more often than text
+ * (image upload timeouts, Gemini transient 503s). Code-review #12.
+ */
+async function callAnalyzePhotos<T>(opts: BaseOpts & { task: 'punch' | 'dfr' }, attempt = 0): Promise<T> {
   if (!opts.photoUrls || opts.photoUrls.length === 0) {
     throw new Error('No photos to analyze.');
   }
   if (opts.photoUrls.length > 12) {
     throw new Error('Max 12 photos per call.');
   }
-  const partitioned = await partitionAndEncode(opts.photoUrls);
+  const localUris = opts.photoUrls.filter(isLocal);
+  const remoteUris = opts.photoUrls.filter(u => !isLocal(u));
+  if (localUris.length > 0 && remoteUris.length > 0) {
+    throw new Error('Mixed local + remote URIs not supported in one call. Pick one source.');
+  }
+
   const payload: Record<string, unknown> = {
     task: opts.task,
     projectName: opts.projectName,
     projectType: opts.projectType,
     notes: opts.notes,
   };
-  if (partitioned.inline) payload.photos = partitioned.inline;
-  if (partitioned.urls) payload.photoUrls = partitioned.urls;
+
+  if (localUris.length > 0) {
+    const inline = await encodeLocalPhotos(localUris);
+    const bytes = totalBase64Bytes(inline);
+    if (bytes > MAX_PAYLOAD_BYTES) {
+      const mb = (bytes / 1024 / 1024).toFixed(1);
+      throw new Error(
+        `Photo payload too large (${mb} MB). Pick fewer photos, or take them at lower quality. ` +
+        `The AI analyzer accepts up to ~8 MB total per call.`,
+      );
+    }
+    payload.photos = inline;
+  } else {
+    payload.photoUrls = remoteUris;
+  }
 
   const { data, error } = await supabase.functions.invoke<{ success: boolean; data?: T; error?: string }>(
     'analyze-photos',
     { body: payload },
   );
+
+  // Detect transient 5xx via the wrapper's error.message convention
+  // ("Edge function returned non-2xx response: 502" etc).
+  const transient = error && /5\d\d/.test(error.message ?? '');
+  if (transient && attempt === 0) {
+    await new Promise(r => setTimeout(r, 600 + Math.random() * 400));
+    return callAnalyzePhotos<T>(opts, attempt + 1);
+  }
+
   if (error) throw new Error(`Photo analyzer call failed: ${error.message}`);
   if (!data?.success || !data.data) {
     throw new Error(data?.error ?? 'Photo analyzer returned an empty result.');
