@@ -131,7 +131,10 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
               clientPortal: r.client_portal as Project['clientPortal'],
               targetBudget: r.target_budget as Project['targetBudget'],
               handoverChecklist: (r.handover_checklist as Record<string, string> | null) ?? {},
-              closedAt: r.closed_at as string | undefined, photoCount: Number(r.photo_count) || 0,
+              closedAt: r.closed_at as string | undefined,
+              substantialCompletionDate: r.substantial_completion_date as string | undefined,
+              warrantyWalkCompletedAt: r.warranty_walk_completed_at as string | undefined,
+              photoCount: Number(r.photo_count) || 0,
             })) as Project[];
             await saveLocal(PROJECTS_KEY, mapped);
             return mapped;
@@ -733,7 +736,10 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
           collaborators: project.collaborators as unknown, client_portal: project.clientPortal as unknown,
           target_budget: project.targetBudget as unknown,
           handover_checklist: (project.handoverChecklist ?? {}) as unknown,
-          closed_at: project.closedAt, photo_count: project.photoCount,
+          closed_at: project.closedAt,
+          substantial_completion_date: project.substantialCompletionDate,
+          warranty_walk_completed_at: project.warrantyWalkCompletedAt,
+          photo_count: project.photoCount,
           created_at: project.createdAt, updated_at: project.updatedAt,
         });
       }

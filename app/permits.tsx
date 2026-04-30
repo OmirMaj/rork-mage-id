@@ -32,12 +32,18 @@ import {
   Clock, Plus, X, Save, Camera, FileText, Trash2, ChevronDown,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
-import { PERMIT_TYPE_INFO, PERMIT_STATUS_INFO } from '@/mocks/permits';
-import type { Permit, PermitStatus, PermitType } from '@/types';
+import { PERMIT_TYPE_INFO, PERMIT_STATUS_INFO, SPECIAL_INSPECTION_LABELS } from '@/mocks/permits';
+import type { Permit, PermitStatus, PermitType, SpecialInspectionCategory } from '@/types';
 import { formatMoney } from '@/utils/formatters';
 import { useProjects } from '@/contexts/ProjectContext';
 
-const PERMIT_TYPES: PermitType[] = ['building', 'electrical', 'plumbing', 'mechanical', 'demolition', 'grading', 'fire', 'occupancy', 'other'];
+const PERMIT_TYPES: PermitType[] = ['building', 'electrical', 'plumbing', 'mechanical', 'demolition', 'grading', 'fire', 'occupancy', 'special_inspection', 'other'];
+
+// IBC Ch.17 categories ordered the way they typically appear on a project
+const SPECIAL_INSPECTION_TYPES: SpecialInspectionCategory[] = [
+  'soils', 'concrete', 'masonry', 'structural_steel', 'cold_formed_steel',
+  'wood', 'fire_resistive', 'sprayed_fireproof', 'smoke_control', 'special_cases',
+];
 const PERMIT_STATUSES: PermitStatus[] = ['applied', 'under_review', 'approved', 'denied', 'expired', 'inspection_scheduled', 'inspection_passed', 'inspection_failed'];
 
 function PermitCard({ permit, onPress }: { permit: Permit; onPress: () => void }) {
@@ -75,8 +81,21 @@ function PermitCard({ permit, onPress }: { permit: Permit; onPress: () => void }
           <Text style={styles.permitNumber}>#{permit.permitNumber}</Text>
         )}
 
+        {/* IBC Ch.17 category chip — only renders for special inspections,
+            making them visually distinct from regular permits in the list. */}
+        {permit.type === 'special_inspection' && permit.specialInspectionCategory && (
+          <View style={styles.specialCategoryChip}>
+            <Text style={styles.specialCategoryText}>
+              {SPECIAL_INSPECTION_LABELS[permit.specialInspectionCategory] ?? permit.specialInspectionCategory}
+            </Text>
+          </View>
+        )}
+
         <Text style={styles.permitProject}>{permit.projectName}</Text>
         <Text style={styles.permitJurisdiction}>{permit.jurisdiction}</Text>
+        {permit.type === 'special_inspection' && permit.inspectorName && (
+          <Text style={styles.specialInspectorLine}>Inspector: {permit.inspectorName}</Text>
+        )}
 
         {permit.phase && (
           <View style={styles.phaseTag}>
@@ -131,6 +150,11 @@ interface PermitFormState {
   phase: string;
   notes: string;
   attachmentUri?: string;
+  // IBC Ch.17 special-inspection extras — populated only when type === 'special_inspection'.
+  specialInspectionCategory?: SpecialInspectionCategory;
+  inspectorName?: string;
+  lastReportSummary?: string;
+  lastReportDate?: string;
 }
 
 const EMPTY_FORM: PermitFormState = {
@@ -155,7 +179,7 @@ export default function PermitsScreen() {
   const [editingPermit, setEditingPermit] = useState<Permit | null>(null);
   const [showForm, setShowForm] = useState<boolean>(false);
   const [form, setForm] = useState<PermitFormState>(EMPTY_FORM);
-  const [pickerOpen, setPickerOpen] = useState<'project' | 'type' | 'status' | null>(null);
+  const [pickerOpen, setPickerOpen] = useState<'project' | 'type' | 'status' | 'specialCategory' | null>(null);
 
   const filters = [
     { id: 'all', label: 'All' },
@@ -237,6 +261,10 @@ export default function PermitsScreen() {
       phase: permit.phase ?? '',
       notes: permit.notes ?? '',
       attachmentUri: permit.attachmentUri,
+      specialInspectionCategory: permit.specialInspectionCategory,
+      inspectorName: permit.inspectorName ?? '',
+      lastReportSummary: permit.lastReportSummary ?? '',
+      lastReportDate: permit.lastReportDate?.slice(0, 10) ?? '',
     });
     setShowForm(true);
   }, []);
@@ -291,6 +319,12 @@ export default function PermitsScreen() {
       phase: form.phase.trim() || undefined,
       notes: form.notes.trim() || undefined,
       attachmentUri: form.attachmentUri,
+      // IBC Ch.17 fields — only saved when type === 'special_inspection'
+      // so we don't pollute regular permits with empty placeholders.
+      specialInspectionCategory: form.type === 'special_inspection' ? form.specialInspectionCategory : undefined,
+      inspectorName:    form.type === 'special_inspection' ? (form.inspectorName?.trim() || undefined)    : undefined,
+      lastReportSummary: form.type === 'special_inspection' ? (form.lastReportSummary?.trim() || undefined) : undefined,
+      lastReportDate:    form.type === 'special_inspection' && form.lastReportDate ? new Date(form.lastReportDate).toISOString() : undefined,
     };
 
     if (editingPermit) {
@@ -538,6 +572,68 @@ export default function PermitsScreen() {
                       </TouchableOpacity>
                     ))}
                   </View>
+                )}
+
+                {/* IBC Ch.17 sub-fields — only render when the user
+                    picked Special Inspection. Keeps the form short for
+                    regular permit types so it doesn't feel cluttered. */}
+                {form.type === 'special_inspection' && (
+                  <>
+                    <Text style={styles.formLabel}>IBC Ch.17 category</Text>
+                    <TouchableOpacity
+                      style={styles.formPicker}
+                      onPress={() => setPickerOpen(pickerOpen === 'specialCategory' ? null : 'specialCategory')}
+                      testID="permit-special-category-picker"
+                    >
+                      <Text style={styles.formPickerText}>
+                        {form.specialInspectionCategory ? SPECIAL_INSPECTION_LABELS[form.specialInspectionCategory] : 'Pick a category'}
+                      </Text>
+                      <ChevronDown size={16} color={Colors.textMuted} />
+                    </TouchableOpacity>
+                    {pickerOpen === 'specialCategory' && (
+                      <View style={styles.pickerOptions}>
+                        {SPECIAL_INSPECTION_TYPES.map(c => (
+                          <TouchableOpacity
+                            key={c}
+                            style={[styles.pickerRow, form.specialInspectionCategory === c && styles.pickerRowActive]}
+                            onPress={() => { setForm(f => ({ ...f, specialInspectionCategory: c })); setPickerOpen(null); }}
+                          >
+                            <Text style={[styles.pickerRowText, form.specialInspectionCategory === c && styles.pickerRowTextActive]}>
+                              {SPECIAL_INSPECTION_LABELS[c]}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    )}
+
+                    <Text style={styles.formLabel}>Inspector / agency</Text>
+                    <TextInput
+                      style={styles.formInput}
+                      value={form.inspectorName ?? ''}
+                      onChangeText={t => setForm(f => ({ ...f, inspectorName: t }))}
+                      placeholder='e.g. "Geotek Engineering — Lic. STX-4112"'
+                      placeholderTextColor={Colors.textMuted}
+                    />
+
+                    <Text style={styles.formLabel}>Last report date</Text>
+                    <TextInput
+                      style={styles.formInput}
+                      value={form.lastReportDate ?? ''}
+                      onChangeText={t => setForm(f => ({ ...f, lastReportDate: t }))}
+                      placeholder="YYYY-MM-DD"
+                      placeholderTextColor={Colors.textMuted}
+                    />
+
+                    <Text style={styles.formLabel}>Last report summary</Text>
+                    <TextInput
+                      style={[styles.formInput, { minHeight: 60, textAlignVertical: 'top' as const }]}
+                      value={form.lastReportSummary ?? ''}
+                      onChangeText={t => setForm(f => ({ ...f, lastReportSummary: t }))}
+                      placeholder="One-line summary of findings, e.g. 'Concrete sample 4-day compressive 4180 psi — passing'"
+                      placeholderTextColor={Colors.textMuted}
+                      multiline
+                    />
+                  </>
                 )}
 
                 <Text style={styles.formLabel}>Status</Text>
@@ -850,6 +946,28 @@ const styles = StyleSheet.create({
   permitNumber: { fontSize: 13, fontWeight: '500' as const, color: Colors.textMuted },
   permitProject: { fontSize: 15, fontWeight: '600' as const, color: Colors.text },
   permitJurisdiction: { fontSize: 13, color: Colors.textSecondary },
+  // IBC Ch.17 category chip — sits between permit number and project name
+  // on Special Inspection cards. Color tied to PERMIT_TYPE_INFO.special_inspection.
+  specialCategoryChip: {
+    alignSelf: 'flex-start' as const,
+    backgroundColor: '#3949AB' + '15',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    marginTop: 4,
+  },
+  specialCategoryText: {
+    fontSize: 11,
+    fontWeight: '700' as const,
+    color: '#3949AB',
+    letterSpacing: 0.2,
+  },
+  specialInspectorLine: {
+    fontSize: 11,
+    color: Colors.textMuted,
+    marginTop: 2,
+    fontStyle: 'italic' as const,
+  },
   phaseTag: {
     alignSelf: 'flex-start',
     backgroundColor: Colors.fillTertiary,

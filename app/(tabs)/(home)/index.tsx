@@ -35,6 +35,8 @@ import OfflineSyncPill from '@/components/OfflineSyncPill';
 import QuickFieldUpdate from '@/components/QuickFieldUpdate';
 import { PROJECT_TYPES, type Project, type ProjectType, type EntityRef } from '@/types';
 import { formatMoney, formatMoneyShort } from '@/utils/formatters';
+import WarrantyWalkBanner from '@/components/WarrantyWalkBanner';
+import { getUpcomingWarrantyWalks } from '@/utils/warrantyWalks';
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
@@ -75,6 +77,11 @@ export default function HomeScreen() {
   const [actionSheetRef, setActionSheetRef] = useState<EntityRef | null>(null);
 
   const totalOutstanding = getTotalOutstandingBalance();
+
+  // Surface upcoming 11-month warranty walks. Hidden when none — keeps
+  // the home tab quiet during normal operation. Drives an inline banner
+  // below the nav bar.
+  const warrantyWalkAlerts = useMemo(() => getUpcomingWarrantyWalks(projects), [projects]);
 
   const [showTotalDetail, setShowTotalDetail] = useState(false);
   const [showSavingsDetail, setShowSavingsDetail] = useState(false);
@@ -332,6 +339,10 @@ export default function HomeScreen() {
             </View>
 
             <Text style={styles.largeTitle}>Your Projects</Text>
+
+            {/* 11-month warranty walk reminders — only renders when
+                there are upcoming/overdue walks. Tap → opens project. */}
+            <WarrantyWalkBanner alerts={warrantyWalkAlerts} />
 
             {projects.length > 0 && (
               <View style={styles.statsSection}>

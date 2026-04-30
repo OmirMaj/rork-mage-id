@@ -98,6 +98,17 @@ export interface Project {
   collaborators?: ProjectCollaborator[];
   clientPortal?: ClientPortalSettings;
   closedAt?: string;
+  /**
+   * Date the work was certified Substantially Complete — typically stamped
+   * when the GC issues the G704 from the Closeout Binder. Drives the
+   * 11-month warranty walk reminder on the home screen.
+   */
+  substantialCompletionDate?: string;
+  /**
+   * Set when the GC has logged the 11-month warranty walk-through.
+   * Suppresses the reminder banner. Stored as ISO date.
+   */
+  warrantyWalkCompletedAt?: string;
   photoCount?: number;
   // Set when a project has a target / agreed contract value but no full
   // estimate yet — typically the result of a client budget proposal
@@ -2107,7 +2118,26 @@ export interface ProjectDocument {
 }
 
 export type PermitStatus = 'applied' | 'under_review' | 'approved' | 'denied' | 'expired' | 'inspection_scheduled' | 'inspection_passed' | 'inspection_failed';
-export type PermitType = 'building' | 'electrical' | 'plumbing' | 'mechanical' | 'demolition' | 'grading' | 'fire' | 'occupancy' | 'other';
+export type PermitType = 'building' | 'electrical' | 'plumbing' | 'mechanical' | 'demolition' | 'grading' | 'fire' | 'occupancy' | 'special_inspection' | 'other';
+
+/**
+ * IBC Chapter 17 special inspection categories. When a Permit has
+ * `type: 'special_inspection'`, the specific category is captured here.
+ * Driven by the structural systems on the project (concrete, masonry,
+ * steel, etc.). Required by the building official on most projects > $1M
+ * unless explicitly waived.
+ */
+export type SpecialInspectionCategory =
+  | 'soils'             // foundation soils investigation, fill compaction
+  | 'concrete'          // sampling, slump, strength, placement
+  | 'masonry'           // mortar/grout, reinforcement, prism testing
+  | 'structural_steel'  // welding, high-strength bolts, fabrication
+  | 'cold_formed_steel' // light-gauge framing
+  | 'wood'              // glulam, prefab trusses, mass timber
+  | 'fire_resistive'    // sprayed-on fireproofing, firestopping
+  | 'sprayed_fireproof' // SFRM thickness verification
+  | 'smoke_control'     // smoke control system
+  | 'special_cases';    // anything covered by approved alternative
 
 export interface Permit {
   id: string;
@@ -2128,6 +2158,18 @@ export interface Permit {
   phase?: string;
   /** Local file URI of the attached permit scan (issued permit, plan check stamp, inspection card). Optional. */
   attachmentUri?: string;
+  /**
+   * IBC Chapter 17 category — only set when `type: 'special_inspection'`.
+   * Drives the inspector qualifications + report cadence the contractor
+   * is expected to coordinate. Picker in the permit form gates on type.
+   */
+  specialInspectionCategory?: SpecialInspectionCategory;
+  /** Inspector or testing agency name + license # (e.g. "Geotek - Lic. STX-4112"). */
+  inspectorName?: string;
+  /** Most recent IBC special inspection report — pasted notes or short summary. */
+  lastReportSummary?: string;
+  /** Date of last filed report. Drives "report overdue" warnings on long jobs. */
+  lastReportDate?: string;
   createdAt?: string;
   updatedAt?: string;
 }

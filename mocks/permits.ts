@@ -88,7 +88,28 @@ export const PERMIT_TYPE_INFO: Record<string, { label: string; color: string }> 
   grading: { label: 'Grading', color: '#4E342E' },
   fire: { label: 'Fire', color: '#C62828' },
   occupancy: { label: 'Occupancy', color: '#2E7D32' },
+  // IBC Chapter 17 special inspection — distinct color so it stands out
+  // in the permit list. Subcategory (concrete / masonry / etc.) is shown
+  // as a chip on the card when present.
+  special_inspection: { label: 'Special Inspection', color: '#3949AB' },
   other: { label: 'Other', color: '#546E7A' },
+};
+
+// IBC Chapter 17 special inspection labels — used in the permit form
+// when type === 'special_inspection'. Order roughly mirrors the order
+// they typically appear on a project (soils first, then concrete/masonry/steel,
+// then fire-resistive). Matches the SpecialInspectionCategory union.
+export const SPECIAL_INSPECTION_LABELS: Record<string, string> = {
+  soils:             'Soils & foundation',
+  concrete:          'Concrete (placement & strength)',
+  masonry:           'Masonry',
+  structural_steel:  'Structural steel (welding & bolting)',
+  cold_formed_steel: 'Cold-formed steel framing',
+  wood:              'Wood (glulam, trusses, mass timber)',
+  fire_resistive:    'Fire-resistive construction',
+  sprayed_fireproof: 'Sprayed fireproofing (SFRM thickness)',
+  smoke_control:     'Smoke control system',
+  special_cases:     'Special cases / approved alternative',
 };
 
 export const PERMIT_STATUS_INFO: Record<string, { label: string; color: string; bgColor: string }> = {

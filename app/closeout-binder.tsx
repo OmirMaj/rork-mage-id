@@ -23,7 +23,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import {
   ChevronLeft, FileDown, Plus, Trash2, Wrench, Sparkles,
-  CheckCircle2, Send, Lock, RefreshCw,
+  CheckCircle2, Send, Lock, RefreshCw, Stamp, FileText, Shield, X,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
@@ -36,6 +36,10 @@ import { statusPillStyle } from '@/utils/statusPill';
 import { fetchSelectionsForProject } from '@/utils/selectionsEngine';
 import { generateUUID } from '@/utils/generateId';
 import { notifyEvent } from '@/utils/notifyClient';
+import {
+  generateG704PDF, generateG706PDF, generateG706APDF, generateG707PDF,
+  type G704Data, type G706Data, type G706AData, type G707Data,
+} from '@/utils/aiaForms';
 import type {
   CompanyBranding, SelectionCategory,
 } from '@/types';
@@ -46,7 +50,7 @@ export default function CloseoutBinderScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
-  const { getProject, commitments, warranties, projectPhotos, rfis, submittals, settings, updateProject: ctxUpdateProject } = useProjects() as any;
+  const { getProject, commitments, warranties, projectPhotos, rfis, submittals, settings, updateProject: ctxUpdateProject, getPunchItemsForProject, getInvoicesForProject, getChangeOrdersForProject } = useProjects() as any;
   const project = projectId ? getProject(projectId) : undefined;
 
   const [maintenance, setMaintenance] = useState<MaintenanceItem[]>(DEFAULT_MAINTENANCE);
@@ -60,6 +64,11 @@ export default function CloseoutBinderScreen() {
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [delivering, setDelivering] = useState(false);
+  // Tracks which AIA form (if any) is open in the input modal.
+  // null when no modal is open. Each form needs slightly different
+  // extras the user has to fill in (notary state, surety, etc.) so
+  // we use a single modal that branches on `form`.
+  const [aiaModal, setAiaModal] = useState<AiaFormId | null>(null);
 
   const branding = useMemo<CompanyBranding>(() => ({
     companyName:   settings?.branding?.companyName ?? 'MAGE ID',
@@ -280,6 +289,111 @@ export default function CloseoutBinderScreen() {
     setMaintenance(prev => prev.map(m => m.id === id ? { ...m, ...patch } : m));
   }, []);
 
+  // ── AIA closeout forms (G704 / G706 / G706A / G707) ─────────────
+  // Each form has slightly different "extras" the user has to provide
+  // (notary state, surety info). We branch in handleAiaFormTap to
+  // open the modal only when extras are needed; if nothing's missing
+  // (G704), we generate immediately.
+  const handleAiaFormTap = useCallback((formId: AiaFormId) => {
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+    if (formId === 'G704') {
+      // No extras needed — generate from project data.
+      void generateAiaForm(formId, {});
+      return;
+    }
+    setAiaModal(formId);
+  }, []);
+
+  const generateAiaForm = useCallback(async (formId: AiaFormId, extras: Record<string, string>) => {
+    if (!project) return;
+    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      const punch = (getPunchItemsForProject?.(project.id) ?? []) as Array<{ description: string; location?: string; trade?: string; status: string }>;
+      const openPunch = punch.filter(p => p.status !== 'closed').map(p => ({
+        description: p.description,
+        location: p.location,
+        trade: p.trade,
+      }));
+      const projectAddress = (project as { location?: string; address?: string }).location ?? (project as { address?: string }).address ?? '';
+      const owner = (project.clientPortal?.invites?.[0]?.name) ?? (project.owner) ?? 'Owner';
+
+      switch (formId) {
+        case 'G704': {
+          const scDate = new Date().toISOString();
+          const data: G704Data = {
+            ownerName: owner,
+            contractorName: branding.companyName,
+            projectName: project.name,
+            projectAddress,
+            contractDate: undefined,
+            dateOfSubstantialCompletion: scDate,
+            punchList: openPunch,
+            punchCompletionDate: new Date(Date.now() + 30 * 86400000).toISOString(),
+            warrantyStartDate: scDate,
+          };
+          await generateG704PDF(data, branding);
+          // Stamp the project so the 11-month warranty walk reminder
+          // can fire ~11 months from now. Only sets if not already set;
+          // a re-issued G704 (re-walk after revisions) shouldn't reset
+          // the warranty clock.
+          if (!project.substantialCompletionDate && ctxUpdateProject) {
+            ctxUpdateProject(project.id, { substantialCompletionDate: scDate });
+          }
+          break;
+        }
+        case 'G706': {
+          const data: G706Data = {
+            ownerName: owner,
+            contractorName: branding.companyName,
+            projectName: project.name,
+            projectAddress,
+            contractDate: undefined,
+            contractorState: (extras.state || '').toUpperCase(),
+            contractorCounty: extras.county || undefined,
+            exceptions: extras.exceptions || undefined,
+          };
+          await generateG706PDF(data, branding);
+          break;
+        }
+        case 'G706A': {
+          const data: G706AData = {
+            ownerName: owner,
+            contractorName: branding.companyName,
+            projectName: project.name,
+            projectAddress,
+            contractDate: undefined,
+            contractorState: (extras.state || '').toUpperCase(),
+            contractorCounty: extras.county || undefined,
+          };
+          await generateG706APDF(data, branding);
+          break;
+        }
+        case 'G707': {
+          const cos = (getChangeOrdersForProject?.(project.id) ?? []) as Array<{ status: string; changeAmount: number }>;
+          const coTotal = cos.filter(c => c.status === 'approved').reduce((s, c) => s + (c.changeAmount ?? 0), 0);
+          const baseSum = (project.linkedEstimate?.grandTotal) ?? (project.estimate?.grandTotal) ?? 0;
+          const data: G707Data = {
+            ownerName: owner,
+            contractorName: branding.companyName,
+            projectName: project.name,
+            projectAddress,
+            contractDate: undefined,
+            suretyName: extras.suretyName || '',
+            bondNumber: extras.bondNumber || undefined,
+            bondDate: extras.bondDate || undefined,
+            finalContractSum: baseSum + coTotal,
+          };
+          await generateG707PDF(data, branding);
+          break;
+        }
+      }
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (err) {
+      console.error('[AIA Forms] Generate failed:', err);
+      Alert.alert('Could not generate', err instanceof Error ? err.message : 'Try again.');
+    }
+  }, [project, branding, getPunchItemsForProject, getChangeOrdersForProject]);
+
   if (!project) {
     return (
       <View style={[styles.container, styles.center, { paddingTop: insets.top + 24 }]}>
@@ -429,7 +543,57 @@ export default function CloseoutBinderScreen() {
               <Text style={styles.emptyHint}>No maintenance items. Tap Add to start, or leave it blank — the rest of the binder still ships.</Text>
             )}
           </View>
+
+          {/* AIA-styled closeout forms — collapsed by default to keep
+              the screen calm. Shows 4 form rows with one-tap Generate.
+              Each form pulls live project data; only G706/A and G707
+              prompt for the small extras (notary state, surety info)
+              they need. Lives here because closeout is the natural
+              moment to issue these — not buried in a separate menu. */}
+          <View style={styles.card}>
+            <View style={styles.cardHead}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.cardLabel}>AIA-styled closeout forms</Text>
+                <Text style={styles.cardHelper}>Generate G704 (Substantial Completion), G706/A affidavits, and G707 (Surety) as PDFs you can sign and send. Auto-fills from project data.</Text>
+              </View>
+            </View>
+            {AIA_FORM_LIST.map(form => (
+              <TouchableOpacity
+                key={form.id}
+                style={styles.aiaFormRow}
+                onPress={() => handleAiaFormTap(form.id)}
+                activeOpacity={0.7}
+                testID={`aia-${form.id.toLowerCase()}-row`}
+              >
+                <View style={[styles.aiaFormIcon, { backgroundColor: form.color + '15' }]}>
+                  <form.Icon size={18} color={form.color} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.aiaFormTitle}>{form.title}</Text>
+                  <Text style={styles.aiaFormSub}>{form.subtitle}</Text>
+                </View>
+                <FileDown size={16} color={Colors.textMuted} />
+              </TouchableOpacity>
+            ))}
+            <Text style={styles.emptyHint}>
+              These are MAGE ID-styled versions of the AIA forms. Some lenders, sureties, and architects require official AIA documents — verify before you send.
+            </Text>
+          </View>
         </ScrollView>
+      )}
+
+      {/* AIA form input modal — captures only the fields we couldn't
+          auto-derive (state/county for notary affidavits, surety info
+          for G707, exceptions etc.). Tap "Generate PDF" to render. */}
+      {aiaModal && (
+        <AiaFormModal
+          form={aiaModal}
+          onClose={() => setAiaModal(null)}
+          onGenerate={(extras) => {
+            void generateAiaForm(aiaModal, extras);
+            setAiaModal(null);
+          }}
+        />
       )}
 
       {/* Action bar — different actions per status. PDF is always
@@ -513,6 +677,214 @@ function PreviewRow({ label, value }: { label: string; value: string }) {
   );
 }
 
+// ── AIA closeout forms catalog ──────────────────────────────────────
+// Static list rendered as the form grid. Each entry is one row in the
+// closeout-binder screen; tapping fires handleAiaFormTap.
+type AiaFormId = 'G704' | 'G706' | 'G706A' | 'G707';
+
+const AIA_FORM_LIST: Array<{
+  id: AiaFormId;
+  title: string;
+  subtitle: string;
+  Icon: typeof FileText;
+  color: string;
+}> = [
+  { id: 'G704',  title: 'G704 — Substantial Completion',         subtitle: 'Certifies the project is complete enough for owner to occupy. Includes punch list.', Icon: Stamp,    color: '#1E8E4A' },
+  { id: 'G706',  title: 'G706 — Affidavit of Debts & Claims',    subtitle: 'Notarized — confirms all bills and claims are paid except as listed.',               Icon: FileText, color: '#1E5BC6' },
+  { id: 'G706A', title: 'G706A — Affidavit of Lien Releases',    subtitle: 'Notarized — confirms all lien waivers received except as listed.',                   Icon: FileText, color: '#1E5BC6' },
+  { id: 'G707',  title: 'G707 — Consent of Surety',              subtitle: 'Surety company approves final payment to contractor without releasing bond.',         Icon: Shield,   color: '#C26A00' },
+];
+
+// ── AIA form input modal ────────────────────────────────────────────
+// Captures the small extras each form needs (state/county for notary,
+// surety info for G707). Single component branches by form ID so the
+// closeout-binder screen stays clean — no per-form modal explosion.
+function AiaFormModal({
+  form,
+  onClose,
+  onGenerate,
+}: {
+  form: AiaFormId;
+  onClose: () => void;
+  onGenerate: (extras: Record<string, string>) => void;
+}) {
+  const [state, setState] = useState('');
+  const [county, setCounty] = useState('');
+  const [exceptions, setExceptions] = useState('');
+  const [suretyName, setSuretyName] = useState('');
+  const [bondNumber, setBondNumber] = useState('');
+  const [bondDate, setBondDate] = useState('');
+
+  const formMeta = AIA_FORM_LIST.find(f => f.id === form);
+  const needsNotary = form === 'G706' || form === 'G706A';
+  const isSurety = form === 'G707';
+  const isG706 = form === 'G706';
+
+  const canGenerate = needsNotary
+    ? state.trim().length === 2
+    : isSurety
+      ? suretyName.trim().length > 1
+      : true;
+
+  const handleSubmit = () => {
+    onGenerate({ state, county, exceptions, suretyName, bondNumber, bondDate });
+  };
+
+  return (
+    <View style={modalStyles.backdrop}>
+      <View style={modalStyles.sheet}>
+        <View style={modalStyles.head}>
+          <View style={{ flex: 1 }}>
+            <Text style={modalStyles.headSub}>Generate</Text>
+            <Text style={modalStyles.headTitle}>{formMeta?.title}</Text>
+          </View>
+          <TouchableOpacity onPress={onClose} hitSlop={10} testID="aia-modal-close">
+            <X size={20} color={Colors.textMuted} />
+          </TouchableOpacity>
+        </View>
+
+        <ScrollView style={{ maxHeight: 380 }} showsVerticalScrollIndicator={false}>
+          {needsNotary && (
+            <>
+              <Text style={modalStyles.label}>State (2-letter)</Text>
+              <TextInput
+                style={modalStyles.input}
+                value={state}
+                onChangeText={t => setState(t.slice(0, 2).toUpperCase())}
+                placeholder="e.g. TX"
+                placeholderTextColor={Colors.textMuted}
+                autoCapitalize="characters"
+                maxLength={2}
+                testID="aia-state-input"
+              />
+              <Text style={modalStyles.label}>County (optional)</Text>
+              <TextInput
+                style={modalStyles.input}
+                value={county}
+                onChangeText={setCounty}
+                placeholder="e.g. Travis"
+                placeholderTextColor={Colors.textMuted}
+              />
+              {isG706 && (
+                <>
+                  <Text style={modalStyles.label}>Exceptions / unsettled items (optional)</Text>
+                  <TextInput
+                    style={[modalStyles.input, { minHeight: 70, textAlignVertical: 'top' }]}
+                    value={exceptions}
+                    onChangeText={setExceptions}
+                    placeholder="Leave blank if all settled"
+                    placeholderTextColor={Colors.textMuted}
+                    multiline
+                  />
+                </>
+              )}
+              <Text style={modalStyles.helper}>
+                Sign before a notary public. The form has signature + commission lines ready.
+              </Text>
+            </>
+          )}
+
+          {isSurety && (
+            <>
+              <Text style={modalStyles.label}>Surety company *</Text>
+              <TextInput
+                style={modalStyles.input}
+                value={suretyName}
+                onChangeText={setSuretyName}
+                placeholder="e.g. Travelers Casualty and Surety"
+                placeholderTextColor={Colors.textMuted}
+                testID="aia-surety-input"
+              />
+              <Text style={modalStyles.label}>Bond number</Text>
+              <TextInput
+                style={modalStyles.input}
+                value={bondNumber}
+                onChangeText={setBondNumber}
+                placeholder="e.g. 105-XXXX-22"
+                placeholderTextColor={Colors.textMuted}
+              />
+              <Text style={modalStyles.label}>Bond date</Text>
+              <TextInput
+                style={modalStyles.input}
+                value={bondDate}
+                onChangeText={setBondDate}
+                placeholder="YYYY-MM-DD"
+                placeholderTextColor={Colors.textMuted}
+              />
+              <Text style={modalStyles.helper}>
+                Final contract sum is auto-pulled from your linked estimate + approved change orders.
+              </Text>
+            </>
+          )}
+        </ScrollView>
+
+        <TouchableOpacity
+          style={[modalStyles.cta, !canGenerate && modalStyles.ctaDisabled]}
+          onPress={handleSubmit}
+          disabled={!canGenerate}
+          activeOpacity={0.85}
+          testID="aia-modal-generate"
+        >
+          <FileDown size={16} color="#FFF" />
+          <Text style={modalStyles.ctaText}>Generate PDF</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
+const modalStyles = StyleSheet.create({
+  backdrop: {
+    position: 'absolute', inset: 0,
+    backgroundColor: 'rgba(11,13,16,0.5)',
+    justifyContent: 'flex-end' as const,
+  } as any,
+  sheet: {
+    backgroundColor: Colors.surface,
+    borderTopLeftRadius: 20, borderTopRightRadius: 20,
+    paddingHorizontal: 18, paddingTop: 16, paddingBottom: 22,
+    gap: 8,
+  },
+  head: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    paddingBottom: 12, marginBottom: 4,
+    borderBottomWidth: 1, borderBottomColor: Colors.borderLight,
+  },
+  headSub: {
+    fontSize: 10, fontWeight: '800' as const, color: Colors.textMuted,
+    letterSpacing: 0.8, textTransform: 'uppercase' as const,
+  },
+  headTitle: {
+    fontSize: 16, fontWeight: '800' as const, color: Colors.text,
+    marginTop: 2,
+  },
+  label: {
+    fontSize: 11, fontWeight: '800' as const, color: Colors.textMuted,
+    letterSpacing: 0.6, textTransform: 'uppercase' as const,
+    marginTop: 12, marginBottom: 5,
+  },
+  input: {
+    backgroundColor: Colors.background,
+    borderWidth: 1, borderColor: Colors.border, borderRadius: 10,
+    paddingHorizontal: 12, paddingVertical: 10,
+    fontSize: 14, color: Colors.text,
+  },
+  helper: {
+    fontSize: 11, color: Colors.textMuted, lineHeight: 16,
+    marginTop: 10, fontStyle: 'italic' as const,
+  },
+  cta: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const, justifyContent: 'center' as const,
+    gap: 8,
+    backgroundColor: Colors.primary,
+    borderRadius: 12, paddingVertical: 14,
+    marginTop: 14,
+  },
+  ctaDisabled: { opacity: 0.5 },
+  ctaText: { color: '#FFF', fontSize: 15, fontWeight: '800' as const },
+});
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   center: { alignItems: 'center', justifyContent: 'center' },
@@ -555,6 +927,24 @@ const styles = StyleSheet.create({
   smallBtnText: { fontSize: 12, fontWeight: '800', color: Colors.primary },
 
   textarea: { backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 11, fontSize: 14, color: Colors.text, minHeight: 110 },
+
+  // AIA closeout form rows — clean tappable list inside the binder card
+  aiaFormRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 12,
+    paddingVertical: 11,
+    paddingHorizontal: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.borderLight,
+  },
+  aiaFormIcon: {
+    width: 36, height: 36,
+    borderRadius: 10,
+    alignItems: 'center' as const, justifyContent: 'center' as const,
+  },
+  aiaFormTitle: { fontSize: 13, fontWeight: '700' as const, color: Colors.text },
+  aiaFormSub: { fontSize: 11, color: Colors.textMuted, marginTop: 2, lineHeight: 15 },
 
   maintRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: Colors.border },
   maintMain: { flex: 1, gap: 6 },

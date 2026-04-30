@@ -21,6 +21,7 @@ import { sendEmail, buildChangeOrderEmailHtml } from '@/utils/emailService';
 import AIChangeOrderImpact from '@/components/AIChangeOrderImpact';
 import { nailIt } from '@/components/animations/NailItToast';
 import TapeRollNumber from '@/components/animations/TapeRollNumber';
+import { generateG714PDF, type G714Data, type CCDPaymentBasis } from '@/utils/aiaForms';
 import type { ChangeOrderLineItem, ChangeOrder } from '@/types';
 
 function createId(prefix: string): string {
@@ -316,6 +317,58 @@ function ChangeOrderInner() {
   const handleSendPress = useCallback(() => {
     setShowSendRecipient(true);
   }, []);
+
+  // Issue as G714 — Construction Change Directive. The same change
+  // content is rendered as a G714 PDF instead of (or in addition to)
+  // the standard Change Order. Used when work must proceed before the
+  // owner/GC have agreed on price/time. Action sheet picks the payment
+  // basis (lump sum, T&M, cost+, unit prices, or pending negotiation).
+  const handleIssueAsCcd = useCallback(() => {
+    if (!project) return;
+    if (!description.trim()) {
+      Alert.alert('Add a description', 'A CCD needs a clear description of the work being directed.');
+      return;
+    }
+    Alert.alert(
+      'Issue as Construction Change Directive?',
+      'A CCD directs the contractor to start work before final pricing is agreed. Pick how payment will be calculated:',
+      [
+        { text: 'Lump sum (estimate stated)',  onPress: () => generateCcd('lump_sum') },
+        { text: 'Time & materials',            onPress: () => generateCcd('time_and_materials') },
+        { text: 'Cost-plus fee',               onPress: () => generateCcd('cost_plus') },
+        { text: 'Unit prices in contract',     onPress: () => generateCcd('unit_prices') },
+        { text: 'Pending negotiation',         onPress: () => generateCcd('pending_negotiation') },
+        { text: 'Cancel', style: 'cancel' },
+      ],
+    );
+  }, [project, description]);
+
+  const generateCcd = useCallback(async (basis: CCDPaymentBasis) => {
+    if (!project) return;
+    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      const branding = settings.branding ?? { companyName: 'MAGE ID', contactName: '', email: '', phone: '', address: '', licenseNumber: '', tagline: '' };
+      const owner = (project.clientPortal?.invites?.[0]?.name) ?? (project as { owner?: string }).owner ?? 'Owner';
+      const data: G714Data = {
+        ownerName: owner,
+        contractorName: branding.companyName,
+        projectName: project.name,
+        projectAddress: (project as { location?: string }).location ?? '',
+        contractDate: undefined,
+        ccdNumber: nextCoNumber,
+        ccdDate: new Date().toISOString(),
+        changeDescription: description.trim(),
+        paymentBasis: basis,
+        estimatedCostAdjustment: lineItems.reduce((s, l) => s + (l.total ?? 0), 0) || undefined,
+        estimatedTimeAdjustmentDays: undefined,
+      };
+      await generateG714PDF(data, branding);
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (err) {
+      console.error('[CCD] Generate failed:', err);
+      Alert.alert('Could not generate', err instanceof Error ? err.message : 'Try again.');
+    }
+  }, [project, settings, description, lineItems, nextCoNumber]);
 
   const handleConfirmSend = useCallback(async () => {
     if (!sendRecipientEmail.trim()) {
@@ -635,6 +688,28 @@ function ChangeOrderInner() {
             ))}
           </View>
         </ScrollView>
+
+        {/* CCD (G714) — issued when work needs to start BEFORE pricing
+            is agreed. Lives as a small tertiary text action so it's
+            available to GCs who know what it is, but stays out of the
+            way for GCs who don't. Tap → option sheet to pick payment
+            basis → renders G714 PDF with same change content. The CO
+            record is unchanged; G714 is just an alternate output. */}
+        {!isLocked && (
+          <View style={styles.ccdRow}>
+            <TouchableOpacity
+              style={styles.ccdLink}
+              onPress={handleIssueAsCcd}
+              activeOpacity={0.7}
+              testID="issue-as-ccd-btn"
+            >
+              <FileText size={13} color={Colors.textSecondary} />
+              <Text style={styles.ccdLinkText}>
+                Need work to start before pricing is agreed? Issue as Construction Change Directive (G714)
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {!isLocked && (
           <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]}>
@@ -978,6 +1053,29 @@ const styles = StyleSheet.create({
   lockedTitle: { fontSize: 15, fontWeight: '600' as const, color: Colors.text },
   lockedSub: { fontSize: 13, color: Colors.textSecondary },
   lockedFieldText: { flex: 1, fontSize: 14, color: Colors.textSecondary },
+  // Subtle text-link row for "Issue as G714 (CCD)" — sits above the
+  // bottom action bar. Tertiary-action treatment so it's discoverable
+  // by GCs who know what a CCD is, but doesn't compete with the
+  // primary save/send actions.
+  ccdRow: {
+    position: 'absolute' as const,
+    bottom: 76, left: 0, right: 0,
+    paddingHorizontal: 20, paddingVertical: 8,
+    backgroundColor: Colors.surface,
+  },
+  ccdLink: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 6,
+    paddingVertical: 6,
+  },
+  ccdLinkText: {
+    flex: 1,
+    fontSize: 12,
+    color: Colors.textSecondary,
+    fontWeight: '500' as const,
+    lineHeight: 16,
+  },
   bottomBar: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: Colors.surface, borderTopWidth: 0.5, borderTopColor: Colors.borderLight, paddingHorizontal: 20, paddingTop: 12, flexDirection: 'row', gap: 10 },
   saveDraftBtn: { flex: 1, minHeight: 48, borderRadius: 14, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
   saveDraftBtnText: { fontSize: 14, fontWeight: '700' as const, color: Colors.text },
