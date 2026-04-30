@@ -361,7 +361,7 @@ export default function CloseoutBinderScreen() {
               Your binder will pull live data from the project so the homeowner gets a complete record:
             </Text>
             <View style={styles.previewList}>
-              <PreviewRow label="Finishes &amp; fixtures" value={`${selectionsCount} chosen`} />
+              <PreviewRow label="Finishes & fixtures" value={`${selectionsCount} chosen`} />
               <PreviewRow label="Subcontractor contacts" value={`${projectCommitmentsCount} commitments`} />
               <PreviewRow label="Warranties" value={`${projectWarrantiesCount} on file`} />
               <PreviewRow label="Maintenance schedule" value={`${maintenance.length} items`} />

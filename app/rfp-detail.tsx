@@ -277,7 +277,7 @@ export default function RfpDetailScreen() {
         {/* Drawings */}
         {rfp.drawing_urls && rfp.drawing_urls.length > 0 && (
           <View style={styles.card}>
-            <Text style={styles.cardLabel}>Drawings &amp; documents</Text>
+            <Text style={styles.cardLabel}>Drawings & documents</Text>
             <View style={styles.drawingList}>
               {rfp.drawing_urls.map(url => {
                 const name = url.split('/').pop()?.replace(/^\d+_/, '') ?? 'attachment';
@@ -297,7 +297,7 @@ export default function RfpDetailScreen() {
         <View style={styles.qaCard}>
           <View style={styles.qaHead}>
             <HelpCircle size={14} color={Colors.primary} />
-            <Text style={styles.qaTitle}>Questions &amp; answers</Text>
+            <Text style={styles.qaTitle}>Questions & answers</Text>
             {(questions?.length ?? 0) > 0 && (
               <View style={styles.qaCount}>
                 <Text style={styles.qaCountText}>{questions!.length}</Text>

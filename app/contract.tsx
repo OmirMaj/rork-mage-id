@@ -419,7 +419,7 @@ export default function ContractScreen() {
 
         {/* Terms */}
         <View style={styles.card}>
-          <Text style={styles.cardLabel}>Terms &amp; conditions</Text>
+          <Text style={styles.cardLabel}>Terms & conditions</Text>
           <TextInput
             style={[styles.input, styles.inputTermsMultiline, isLocked && styles.inputDisabled]}
             value={contract.termsText}
@@ -481,7 +481,7 @@ export default function ContractScreen() {
               activeOpacity={0.85}
             >
               <FileSignature size={16} color="#FFF" />
-              <Text style={styles.primaryBtnText}>Sign &amp; send</Text>
+              <Text style={styles.primaryBtnText}>Sign & send</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -634,7 +634,7 @@ function SignatureModal({ visible, onClose, onSign, signing, defaultName }: {
     <Modal visible={visible} animationType="slide" transparent>
       <View style={styles.modalOverlay}>
         <View style={styles.modalCard}>
-          <Text style={styles.modalTitle}>Sign &amp; send</Text>
+          <Text style={styles.modalTitle}>Sign & send</Text>
           <Text style={styles.modalBody}>
             Sign below + type your full legal name. The contract becomes binding when the
             homeowner counter-signs in their portal.
@@ -665,7 +665,7 @@ function SignatureModal({ visible, onClose, onSign, signing, defaultName }: {
               {signing ? <ActivityIndicator size="small" color="#FFF" /> : (
                 <>
                   <FileSignature size={14} color="#FFF" />
-                  <Text style={styles.modalConfirmText}>Sign &amp; send</Text>
+                  <Text style={styles.modalConfirmText}>Sign & send</Text>
                 </>
               )}
             </TouchableOpacity>

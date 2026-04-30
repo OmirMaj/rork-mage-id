@@ -237,6 +237,27 @@ Use current regional pricing where possible. Round reasonably. Keep it under 15 
   const progressWidth = `${((step + 1) / TOTAL_STEPS) * 100}%` as const;
 
   if (result) {
+    // Group line items by category and compute subtotals + percentages.
+    // Used for both the breakdown summary card AND the per-category
+    // sections below — flat list was the user's complaint ("doesn't give
+    // a good breakdown").
+    const sizeNum = Number(answers.sizeSqft) || 0;
+    const costPerSqft = sizeNum > 0 ? result.total / sizeNum : 0;
+    const groups = new Map<string, typeof result.lineItems>();
+    for (const li of result.lineItems) {
+      const cat = li.category || 'Other';
+      const arr = groups.get(cat) ?? [];
+      arr.push(li);
+      groups.set(cat, arr);
+    }
+    const sortedCategories = Array.from(groups.entries())
+      .map(([cat, items]) => ({
+        cat,
+        items,
+        subtotal: items.reduce((s, li) => s + li.total, 0),
+      }))
+      .sort((a, b) => b.subtotal - a.subtotal);
+
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <Stack.Screen options={{ title: 'Quick Estimate' }} />
@@ -252,28 +273,100 @@ Use current regional pricing where possible. Round reasonably. Keep it under 15 
               style={styles.resultTotal}
             />
             <Text style={styles.resultSubtitle}>{answers.projectType} · {answers.sizeSqft} sqft · {answers.location}</Text>
+            {costPerSqft > 0 ? (
+              <Text style={styles.resultCostPerSqft}>${costPerSqft.toFixed(0)}/sqft</Text>
+            ) : null}
           </View>
 
-          {result.summary ? <Text style={styles.resultBody}>{result.summary}</Text> : null}
-
-          <Text style={styles.sectionTitle}>Line Items</Text>
-          {result.lineItems.map((li, i) => (
-            <View key={i} style={styles.lineItem}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.lineCategory}>{li.category}</Text>
-                <Text style={styles.lineDesc}>{li.description}</Text>
-                <Text style={styles.lineMeta}>{li.quantity} {li.unit} × ${li.unitCost.toFixed(2)}</Text>
-              </View>
-              <Text style={styles.lineTotal}>${li.total.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
+          {/* At-a-glance stat tiles. Most pros ask "how much, what's the
+              cost/sqft, and how many categories" before they read the
+              detailed line items. Show that up front. */}
+          <View style={styles.statGrid}>
+            <View style={styles.statTile}>
+              <Text style={styles.statLabel}>Categories</Text>
+              <Text style={styles.statValue}>{sortedCategories.length}</Text>
             </View>
-          ))}
+            <View style={styles.statTile}>
+              <Text style={styles.statLabel}>Line items</Text>
+              <Text style={styles.statValue}>{result.lineItems.length}</Text>
+            </View>
+            <View style={styles.statTile}>
+              <Text style={styles.statLabel}>Contingency</Text>
+              <Text style={styles.statValue}>{result.subtotal > 0 ? `${Math.round(result.contingency / result.subtotal * 100)}%` : '—'}</Text>
+            </View>
+          </View>
 
-          <View style={styles.totalsBlock}>
-            <View style={styles.totalRow}><Text style={styles.totalLabel}>Subtotal</Text><Text style={styles.totalValue}>${result.subtotal.toLocaleString()}</Text></View>
+          {result.summary ? (
+            <View style={styles.summaryCard}>
+              <Text style={styles.summaryLabel}>Scope summary</Text>
+              <Text style={styles.summaryText}>{result.summary}</Text>
+            </View>
+          ) : null}
+
+          {/* Where the budget goes — visual category breakdown with
+              percentage bars. Lets the user (or homeowner reviewing
+              shoulder-to-shoulder) see distribution at a glance. */}
+          {result.total > 0 && sortedCategories.length > 0 ? (
+            <View style={styles.breakdownCard}>
+              <Text style={styles.breakdownTitle}>Where the budget goes</Text>
+              {sortedCategories.map(({ cat, subtotal }, i) => {
+                const pct = result.total > 0 ? (subtotal / result.total) * 100 : 0;
+                return (
+                  <View key={i} style={styles.breakdownRow}>
+                    <View style={styles.breakdownHead}>
+                      <Text style={styles.breakdownCat}>{cat}</Text>
+                      <Text style={styles.breakdownAmt}>
+                        ${subtotal.toLocaleString(undefined, { maximumFractionDigits: 0 })} <Text style={styles.breakdownPct}>· {pct.toFixed(1)}%</Text>
+                      </Text>
+                    </View>
+                    <View style={styles.breakdownBar}>
+                      <View style={[styles.breakdownBarFill, { width: `${Math.max(pct, 1)}%` }]} />
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          ) : null}
+
+          {/* Detailed line items, grouped by category, biggest first.
+              Each category card has its own subtotal + % so the GC can
+              still drill into specifics. */}
+          <Text style={styles.sectionTitle}>Detailed line items</Text>
+          {sortedCategories.map(({ cat, items, subtotal }, ci) => {
+            const pct = result.total > 0 ? (subtotal / result.total) * 100 : 0;
+            return (
+              <View key={ci} style={styles.categoryCard}>
+                <View style={styles.categoryHeader}>
+                  <Text style={styles.categoryName}>{cat}</Text>
+                  <View style={styles.categoryHeadRight}>
+                    <Text style={styles.categoryMeta}>{pct.toFixed(0)}% · {items.length} item{items.length === 1 ? '' : 's'}</Text>
+                    <Text style={styles.categoryTotal}>${subtotal.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
+                  </View>
+                </View>
+                {items.map((li, i) => (
+                  <View key={i} style={styles.lineItemNew}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.lineDesc}>{li.description}</Text>
+                      <Text style={styles.lineMeta}>{li.quantity} {li.unit} × ${li.unitCost.toFixed(2)}</Text>
+                    </View>
+                    <Text style={styles.lineTotal}>${li.total.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
+                  </View>
+                ))}
+              </View>
+            );
+          })}
+
+          <View style={styles.totalsBlockNew}>
+            <View style={styles.totalRow}><Text style={styles.totalLabel}>Line items subtotal</Text><Text style={styles.totalValue}>${result.subtotal.toLocaleString()}</Text></View>
             <View style={styles.totalRow}><Text style={styles.totalLabel}>Contingency</Text><Text style={styles.totalValue}>${result.contingency.toLocaleString()}</Text></View>
-            <View style={styles.totalRow}><Text style={styles.totalLabel}>Permits</Text><Text style={styles.totalValue}>${result.permits.toLocaleString()}</Text></View>
+            <View style={styles.totalRow}><Text style={styles.totalLabel}>Permits & fees</Text><Text style={styles.totalValue}>${result.permits.toLocaleString()}</Text></View>
             <View style={[styles.totalRow, styles.totalRowGrand]}>
-              <Text style={styles.grandLabel}>Total</Text>
+              <View>
+                <Text style={styles.grandLabel}>Estimated total</Text>
+                {costPerSqft > 0 ? (
+                  <Text style={styles.grandSubLabel}>${costPerSqft.toFixed(0)}/sqft · {sizeNum.toLocaleString()} sqft</Text>
+                ) : null}
+              </View>
               <Text style={styles.grandValue}>${result.total.toLocaleString()}</Text>
             </View>
           </View>
@@ -305,7 +398,7 @@ Use current regional pricing where possible. Round reasonably. Keep it under 15 
                 <>
                   <FileDown size={18} color="#FFF" />
                   <Text style={styles.resultPrimaryText}>
-                    {Platform.OS === 'web' ? 'Open PDF preview' : 'Download &amp; share PDF'}
+                    {Platform.OS === 'web' ? 'Open PDF preview' : 'Download & share PDF'}
                   </Text>
                 </>
               )}
@@ -643,7 +736,95 @@ const styles = StyleSheet.create({
     fontSize: 44, fontWeight: '800' as const, color: Colors.text, marginTop: 4,
   },
   resultSubtitle: { fontSize: 13, color: Colors.textMuted },
+  resultCostPerSqft: {
+    fontSize: 13, fontWeight: '700' as const, color: Colors.primary,
+    marginTop: 4, letterSpacing: 0.3,
+  },
   resultBody: { fontSize: 14, color: Colors.text, lineHeight: 21, marginBottom: 20 },
+  // At-a-glance stat tiles below hero
+  statGrid: {
+    flexDirection: 'row' as const, gap: 8,
+    marginBottom: 16,
+  },
+  statTile: {
+    flex: 1, backgroundColor: Colors.surface, borderRadius: 12,
+    paddingVertical: 12, paddingHorizontal: 10,
+    borderWidth: 1, borderColor: Colors.cardBorder,
+    alignItems: 'center' as const, gap: 4,
+  },
+  statLabel: {
+    fontSize: 10, fontWeight: '700' as const, color: Colors.textMuted,
+    letterSpacing: 0.6, textTransform: 'uppercase' as const,
+  },
+  statValue: { fontSize: 18, fontWeight: '800' as const, color: Colors.text },
+  // Scope summary card
+  summaryCard: {
+    backgroundColor: Colors.surface, borderRadius: 14, padding: 14,
+    borderWidth: 1, borderColor: Colors.cardBorder, marginBottom: 16, gap: 6,
+  },
+  summaryLabel: {
+    fontSize: 10, fontWeight: '800' as const, color: Colors.textMuted,
+    letterSpacing: 1, textTransform: 'uppercase' as const,
+  },
+  summaryText: { fontSize: 14, color: Colors.text, lineHeight: 21 },
+  // Where-the-budget-goes breakdown card
+  breakdownCard: {
+    backgroundColor: Colors.surface, borderRadius: 14, padding: 16,
+    borderWidth: 1, borderColor: Colors.cardBorder, marginBottom: 20,
+  },
+  breakdownTitle: {
+    fontSize: 11, fontWeight: '800' as const, color: Colors.textMuted,
+    letterSpacing: 1.4, textTransform: 'uppercase' as const, marginBottom: 12,
+  },
+  breakdownRow: { marginBottom: 10 },
+  breakdownHead: {
+    flexDirection: 'row' as const, justifyContent: 'space-between' as const,
+    marginBottom: 4,
+  },
+  breakdownCat: { fontSize: 13, fontWeight: '600' as const, color: Colors.text },
+  breakdownAmt: { fontSize: 13, fontWeight: '700' as const, color: Colors.text },
+  breakdownPct: { fontWeight: '500' as const, color: Colors.textMuted },
+  breakdownBar: {
+    height: 6, borderRadius: 3, overflow: 'hidden' as const,
+    backgroundColor: Colors.cardBorder,
+  },
+  breakdownBarFill: { height: '100%' as const, backgroundColor: Colors.primary, borderRadius: 3 },
+  // Per-category detailed cards
+  categoryCard: {
+    backgroundColor: Colors.surface, borderRadius: 14,
+    borderWidth: 1, borderColor: Colors.cardBorder,
+    marginBottom: 12, overflow: 'hidden' as const,
+  },
+  categoryHeader: {
+    flexDirection: 'row' as const, justifyContent: 'space-between' as const,
+    alignItems: 'center' as const,
+    paddingHorizontal: 14, paddingVertical: 12,
+    backgroundColor: Colors.background,
+    borderBottomWidth: 1, borderBottomColor: Colors.cardBorder,
+  },
+  categoryName: {
+    fontSize: 14, fontWeight: '800' as const, color: Colors.text,
+    letterSpacing: 0.2,
+  },
+  categoryHeadRight: { alignItems: 'flex-end' as const, gap: 2 },
+  categoryMeta: {
+    fontSize: 10, fontWeight: '700' as const, color: Colors.textMuted,
+    letterSpacing: 0.6, textTransform: 'uppercase' as const,
+  },
+  categoryTotal: { fontSize: 14, fontWeight: '800' as const, color: Colors.primary },
+  lineItemNew: {
+    flexDirection: 'row' as const, alignItems: 'center' as const,
+    paddingVertical: 10, paddingHorizontal: 14,
+    borderBottomWidth: 1, borderBottomColor: Colors.cardBorder, gap: 12,
+  },
+  totalsBlockNew: {
+    marginTop: 8, padding: 16, borderRadius: 14,
+    backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.cardBorder,
+  },
+  grandSubLabel: {
+    fontSize: 11, fontWeight: '600' as const, color: Colors.textMuted,
+    marginTop: 2, letterSpacing: 0.2,
+  },
   sectionTitle: {
     fontSize: 14, fontWeight: '700' as const, color: Colors.text,
     letterSpacing: 0.3, marginTop: 16, marginBottom: 10,

@@ -2,7 +2,7 @@ import { Platform } from 'react-native';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import type { CompanyBranding, Project, ChangeOrder, Invoice, DailyFieldReport, ScheduleTask, RFI, Submittal } from '@/types';
-import { pdfShell, pdfHeader, pdfTitle, pdfFooter, pdfTable, escHtml, fmtMoney, fmtDate, PDF_PALETTE } from './pdfDesign';
+import { pdfShell, pdfHeader, pdfTitle, pdfFooter, pdfTable, pdfStatGrid, escHtml, fmtMoney, fmtDate, PDF_PALETTE } from './pdfDesign';
 
 // Quick Estimate Wizard result shape — kept here as a local type so we
 // don't fight the wizard's local Zod inferred type.
@@ -36,7 +36,8 @@ function buildQuickEstimateHtml(
   const sizeNum = Number(answers.sizeSqft) || 0;
   const costPerSqft = sizeNum > 0 ? result.total / sizeNum : 0;
 
-  // Group line items by category for a cleaner table.
+  // Group line items by category — used for both the visual breakdown
+  // card AND the detailed line-item sections lower in the doc.
   const grouped = new Map<string, typeof result.lineItems>();
   for (const li of result.lineItems) {
     const cat = li.category || 'Other';
@@ -44,22 +45,67 @@ function buildQuickEstimateHtml(
     arr.push(li);
     grouped.set(cat, arr);
   }
-  const categories = Array.from(grouped.keys()).sort();
+  // Sort categories by spend (descending) — the GC and homeowner both
+  // want to see the biggest line items first.
+  const categories = Array.from(grouped.keys()).sort((a, b) => {
+    const ta = (grouped.get(a) ?? []).reduce((s, li) => s + li.total, 0);
+    const tb = (grouped.get(b) ?? []).reduce((s, li) => s + li.total, 0);
+    return tb - ta;
+  });
+
+  // ── Hero stat grid: total, cost/sqft, categories, line items ──
+  // Up-front, scannable. The homeowner sees the headline number; the GC
+  // sees that everything was actually itemized.
+  const itemCount = result.lineItems.length;
+  const heroStats: Array<{ label: string; value: string; accent?: 'amber' | 'success' | 'error' }> = [
+    { label: 'Estimated total', value: fmtMoney(result.total), accent: 'amber' },
+  ];
+  if (costPerSqft > 0) heroStats.push({ label: 'Cost / sqft', value: fmtMoney(costPerSqft, { decimals: 0 }) });
+  heroStats.push({ label: 'Categories', value: String(categories.length) });
+  heroStats.push({ label: 'Line items', value: String(itemCount) });
+
+  // ── Category breakdown card with horizontal bars ──
+  // Shows where the money goes at a glance — most pros' #1 question on
+  // a fresh estimate. Bars are CSS-based (no images) so they render
+  // crisp through expo-print's headless Chrome.
+  const categoryBreakdown = result.total > 0 ? `
+    <div class="no-break" style="margin:20px 0;padding:18px 20px;border-radius:14px;background:#FFF;border:1px solid ${PDF_PALETTE.bone}">
+      <div style="font-size:11px;font-weight:800;letter-spacing:1.4px;color:${PDF_PALETTE.textMuted};text-transform:uppercase;margin-bottom:14px">Where the budget goes</div>
+      ${categories.map(cat => {
+        const subtotal = (grouped.get(cat) ?? []).reduce((s, li) => s + li.total, 0);
+        const pct = result.total > 0 ? (subtotal / result.total) * 100 : 0;
+        return `
+          <div style="margin-bottom:10px">
+            <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
+              <span style="font-weight:600;color:${PDF_PALETTE.text}">${escHtml(cat)}</span>
+              <span class="num" style="color:${PDF_PALETTE.text2}"><span style="font-weight:700;color:${PDF_PALETTE.text}">${fmtMoney(subtotal)}</span> &middot; ${pct.toFixed(1)}%</span>
+            </div>
+            <div style="width:100%;height:6px;background:${PDF_PALETTE.bone2};border-radius:3px;overflow:hidden">
+              <div style="width:${Math.max(pct, 0.5).toFixed(2)}%;height:100%;background:${PDF_PALETTE.amber};border-radius:3px"></div>
+            </div>
+          </div>`;
+      }).join('')}
+    </div>
+  ` : '';
 
   const lineItemSections = categories.map(cat => {
     const items = grouped.get(cat)!;
     const subtotal = items.reduce((s, li) => s + li.total, 0);
+    const pct = result.total > 0 ? (subtotal / result.total) * 100 : 0;
     const rows = items.map(li => [
       escHtml(li.description),
       `<span class="num">${escHtml(li.quantity)} ${escHtml(li.unit)}</span>`,
       `<span class="num">${fmtMoney(li.unitCost, { decimals: 2 })}</span>`,
-      `<span class="num">${fmtMoney(li.total)}</span>`,
+      `<span class="num" style="font-weight:600">${fmtMoney(li.total)}</span>`,
     ]);
     return `
-      <div class="no-break" style="margin-bottom:18px">
+      <div class="no-break" style="margin-bottom:22px">
         <div style="display:flex;justify-content:space-between;align-items:baseline;border-bottom:2px solid ${PDF_PALETTE.ink};padding-bottom:6px;margin-bottom:6px">
           <div style="font-family:'Fraunces',Georgia,serif;font-size:15px;font-weight:700;color:${PDF_PALETTE.ink}">${escHtml(cat)}</div>
-          <div class="num" style="font-size:12px;font-weight:700;color:${PDF_PALETTE.ink}">${fmtMoney(subtotal)}</div>
+          <div style="display:flex;align-items:baseline;gap:10px">
+            <span style="font-size:10px;font-weight:700;letter-spacing:0.6px;color:${PDF_PALETTE.textMuted};text-transform:uppercase">${pct.toFixed(0)}% &middot; ${items.length} item${items.length === 1 ? '' : 's'}</span>
+            <span class="num" style="font-size:13px;font-weight:800;color:${PDF_PALETTE.ink}">${fmtMoney(subtotal)}</span>
+          </div>
         </div>
         ${pdfTable(
           [
@@ -73,18 +119,25 @@ function buildQuickEstimateHtml(
       </div>`;
   }).join('');
 
+  // ── Final totals block ──
+  // Subtotal stack + grand total in amber. Cost-per-sqft and total-as-pct-of-budget
+  // visible right next to the headline so the reader can sanity-check vs market norms.
+  const targetBudgetNum = Number(answers.targetBudget?.replace(/[^0-9.]/g, '')) || 0;
+  const overUnder = targetBudgetNum > 0 ? result.total - targetBudgetNum : 0;
+  const overUnderPct = targetBudgetNum > 0 ? (overUnder / targetBudgetNum) * 100 : 0;
   const totalsBlock = `
-    <div class="no-break" style="margin-top:8px;padding:18px 20px;border-radius:14px;background:${PDF_PALETTE.cream2};border:1px solid ${PDF_PALETTE.bone}">
-      <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12.5px"><span style="color:${PDF_PALETTE.text2}">Subtotal</span><span class="num" style="font-weight:600">${fmtMoney(result.subtotal)}</span></div>
+    <div class="no-break" style="margin-top:10px;padding:20px 22px;border-radius:14px;background:${PDF_PALETTE.cream2};border:1px solid ${PDF_PALETTE.bone}">
+      <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12.5px"><span style="color:${PDF_PALETTE.text2}">Line items subtotal</span><span class="num" style="font-weight:600">${fmtMoney(result.subtotal)}</span></div>
       <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12.5px"><span style="color:${PDF_PALETTE.text2}">Contingency</span><span class="num" style="font-weight:600">${fmtMoney(result.contingency)}</span></div>
-      <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12.5px"><span style="color:${PDF_PALETTE.text2}">Permits &amp; fees</span><span class="num" style="font-weight:600">${fmtMoney(result.permits)}</span></div>
-      <div style="height:1px;background:${PDF_PALETTE.bone};margin:10px 0"></div>
-      <div style="display:flex;justify-content:space-between;align-items:baseline">
+      <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12.5px"><span style="color:${PDF_PALETTE.text2}">Permits & fees</span><span class="num" style="font-weight:600">${fmtMoney(result.permits)}</span></div>
+      <div style="height:1px;background:${PDF_PALETTE.bone};margin:12px 0"></div>
+      <div style="display:flex;justify-content:space-between;align-items:flex-end">
         <div>
           <div style="font-size:11px;font-weight:700;letter-spacing:1px;color:${PDF_PALETTE.textMuted};text-transform:uppercase">Estimated total</div>
-          ${costPerSqft > 0 ? `<div style="font-size:11px;color:${PDF_PALETTE.textMuted};margin-top:2px">${fmtMoney(costPerSqft, { decimals: 0 })} / sqft</div>` : ''}
+          ${costPerSqft > 0 ? `<div style="font-size:12px;color:${PDF_PALETTE.text2};margin-top:4px;font-weight:600">${fmtMoney(costPerSqft, { decimals: 0 })} / sqft &middot; ${sizeNum.toLocaleString()} sqft</div>` : ''}
+          ${targetBudgetNum > 0 ? `<div style="font-size:11px;color:${overUnder > 0 ? PDF_PALETTE.error : PDF_PALETTE.success};margin-top:3px;font-weight:600">${overUnder > 0 ? '+' : ''}${fmtMoney(overUnder)} vs target (${overUnderPct > 0 ? '+' : ''}${overUnderPct.toFixed(1)}%)</div>` : ''}
         </div>
-        <div class="num" style="font-family:'Fraunces',Georgia,serif;font-size:30px;font-weight:800;color:${PDF_PALETTE.amber};letter-spacing:-0.5px">${fmtMoney(result.total)}</div>
+        <div class="num" style="font-family:'Fraunces',Georgia,serif;font-size:34px;font-weight:800;color:${PDF_PALETTE.amber};letter-spacing:-0.5px;line-height:1">${fmtMoney(result.total)}</div>
       </div>
     </div>`;
 
@@ -118,7 +171,10 @@ function buildQuickEstimateHtml(
       subtitle: answers.scope ? answers.scope.slice(0, 180) : undefined,
       meta,
     })}
+    <div style="margin-top:18px">${pdfStatGrid(heroStats)}</div>
     ${summaryBlock}
+    ${categoryBreakdown}
+    <div style="font-family:'Fraunces',Georgia,serif;font-size:18px;font-weight:700;color:${PDF_PALETTE.text};margin:24px 0 12px">Detailed line items</div>
     ${lineItemSections || `<div style="padding:20px;text-align:center;color:${PDF_PALETTE.textMuted};font-style:italic">No line items returned by the AI.</div>`}
     ${totalsBlock}
     ${notesBlock}

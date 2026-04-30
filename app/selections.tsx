@@ -168,7 +168,7 @@ export default function SelectionsScreen() {
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.eyebrow}>{project.name}</Text>
-          <Text style={styles.title}>Selections &amp; Allowances</Text>
+          <Text style={styles.title}>Selections & Allowances</Text>
         </View>
         <TouchableOpacity style={styles.addBtn} onPress={() => setAddModal(true)}>
           <Plus size={14} color="#FFF" />
