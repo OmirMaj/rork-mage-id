@@ -350,17 +350,26 @@ export default function ContractScreen() {
               !scheduleMatchesValue && { color: Colors.warning },
             ]}>
               {formatMoney(totalScheduled)}
-              {!scheduleMatchesValue && <Text style={styles.scheduleMismatch}>  · ≠ contract value</Text>}
             </Text>
           </View>
 
-          {!isLocked && !scheduleMatchesValue && (
-            <TouchableOpacity
-              style={styles.rebalanceBtn}
-              onPress={() => updateContract('paymentSchedule', defaultPaymentSchedule(contract.contractValue))}
-            >
-              <Text style={styles.rebalanceText}>Reset to default 25/25/25/25 schedule</Text>
-            </TouchableOpacity>
+          {/* Mismatch banner — moved out of the inline total so the
+              warning gets its own row instead of crashing into the dollar
+              amount. Reads more like a real "this is wrong" alert. */}
+          {!scheduleMatchesValue && (
+            <View style={styles.scheduleMismatchBanner}>
+              <Text style={styles.scheduleMismatchText}>
+                Total doesn't match contract value of {formatMoney(contract.contractValue)}
+              </Text>
+              {!isLocked && (
+                <TouchableOpacity
+                  style={styles.rebalanceBtn}
+                  onPress={() => updateContract('paymentSchedule', defaultPaymentSchedule(contract.contractValue))}
+                >
+                  <Text style={styles.rebalanceText}>Reset to 25/25/25/25</Text>
+                </TouchableOpacity>
+              )}
+            </View>
           )}
         </View>
 
@@ -547,57 +556,87 @@ function MilestoneRow({ milestone, locked, onChange, onRemove }: {
   const cfg =
     milestone.status === 'paid'     ? { bg: Colors.success + '15', color: Colors.success, label: 'PAID' } :
     milestone.status === 'invoiced' ? { bg: Colors.primary + '15', color: Colors.primary, label: 'INVOICED' } :
-    milestone.status === 'skipped'  ? { bg: Colors.background,     color: Colors.textMuted, label: 'SKIPPED' } :
-                                       { bg: Colors.background,    color: Colors.textMuted, label: 'PENDING' };
+    milestone.status === 'skipped'  ? { bg: Colors.fillSecondary,  color: Colors.textMuted, label: 'SKIPPED' } :
+                                       { bg: Colors.fillSecondary, color: Colors.textMuted, label: 'PENDING' };
+  const triggerLabel =
+    milestone.trigger === 'on_signing'   ? 'On signing'
+    : milestone.trigger === 'on_final'   ? 'On final completion'
+    : milestone.trigger === 'on_invoice' ? 'On invoice'
+    : milestone.trigger === 'on_date'    ? `On ${milestone.triggerDate ?? 'date'}`
+    : (milestone.triggerMilestone || 'On milestone');
+
   return (
-    <View style={styles.milestone}>
-      <View style={styles.milestoneTop}>
-        <TextInput
-          style={[styles.milestoneLabel, locked && styles.inputDisabled]}
-          value={milestone.label}
-          onChangeText={v => onChange({ label: v })}
-          editable={!locked}
-          placeholder="Milestone label"
-          placeholderTextColor={Colors.textMuted}
-        />
+    <View style={styles.milestoneCard}>
+      {/* Top row: status pill on left, trash on far right.
+          Pill sits OUTSIDE the input area so there's no overlap, no
+          cramped feeling. Trash is its own column with explicit width. */}
+      <View style={styles.milestoneHeader}>
         <View style={[styles.milestoneStatus, { backgroundColor: cfg.bg }]}>
           <Text style={[styles.milestoneStatusText, { color: cfg.color }]}>{cfg.label}</Text>
         </View>
+        <View style={{ flex: 1 }} />
         {!locked && (
-          <TouchableOpacity onPress={onRemove} hitSlop={6}>
+          <TouchableOpacity onPress={onRemove} hitSlop={8} style={styles.milestoneTrash}>
             <Trash2 size={14} color={Colors.error} />
           </TouchableOpacity>
         )}
       </View>
-      <View style={styles.milestoneBottom}>
-        <View style={styles.amountField}>
-          <DollarSign size={14} color={Colors.textMuted} />
+
+      {/* Label input — clearly bordered, full width, with a small caption
+          ABOVE so the user knows what they're editing. Replaces the
+          "text floating in a box" anti-pattern. */}
+      <Text style={styles.milestoneFieldLabel}>Milestone</Text>
+      <TextInput
+        style={[styles.milestoneLabelInput, locked && styles.inputDisabled]}
+        value={milestone.label}
+        onChangeText={v => onChange({ label: v })}
+        editable={!locked}
+        placeholder="e.g. 25% Deposit"
+        placeholderTextColor={Colors.textMuted}
+      />
+
+      {/* Amount + Trigger row — two columns with explicit flex so they
+          can't overlap. Amount is the bigger box (flex 1), trigger is
+          the smaller display column (flex 1.2 since text wraps). */}
+      <View style={styles.milestoneFieldsRow}>
+        <View style={styles.milestoneFieldCol}>
+          <Text style={styles.milestoneFieldLabel}>Amount</Text>
+          <View style={styles.milestoneAmountBox}>
+            <DollarSign size={14} color={Colors.textMuted} />
+            <TextInput
+              style={[styles.milestoneAmountInput, locked && styles.inputDisabled]}
+              value={String(milestone.amount ?? '')}
+              onChangeText={v => onChange({ amount: Number(v.replace(/[^0-9.]/g, '')) || 0 })}
+              keyboardType="numeric"
+              editable={!locked}
+              placeholder="0"
+              placeholderTextColor={Colors.textMuted}
+            />
+          </View>
+        </View>
+        <View style={styles.milestoneFieldCol}>
+          <Text style={styles.milestoneFieldLabel}>Trigger</Text>
+          <View style={styles.milestoneTriggerBox}>
+            <Text style={styles.milestoneTriggerText} numberOfLines={2}>
+              {triggerLabel}
+            </Text>
+          </View>
+        </View>
+      </View>
+
+      {/* Trigger description (shown only for 'on_milestone' type) — full
+          width, gets its own labelled input below the row above. */}
+      {milestone.trigger === 'on_milestone' && !locked && (
+        <>
+          <Text style={[styles.milestoneFieldLabel, { marginTop: 10 }]}>Trigger description</Text>
           <TextInput
-            style={[styles.milestoneAmount, locked && styles.inputDisabled]}
-            value={String(milestone.amount ?? '')}
-            onChangeText={v => onChange({ amount: Number(v.replace(/[^0-9.]/g, '')) || 0 })}
-            keyboardType="numeric"
-            editable={!locked}
-            placeholder="0"
+            style={styles.milestoneTriggerInput}
+            value={milestone.triggerMilestone ?? ''}
+            onChangeText={v => onChange({ triggerMilestone: v })}
+            placeholder="e.g. Foundation pour complete and inspected"
             placeholderTextColor={Colors.textMuted}
           />
-        </View>
-        <Text style={styles.milestoneTrigger}>
-          {milestone.trigger === 'on_signing'   ? 'On signing'
-          : milestone.trigger === 'on_final'    ? 'On final completion'
-          : milestone.trigger === 'on_invoice'  ? 'On invoice'
-          : milestone.trigger === 'on_date'     ? `On ${milestone.triggerDate ?? 'date'}`
-          : milestone.triggerMilestone || 'On milestone'}
-        </Text>
-      </View>
-      {milestone.trigger === 'on_milestone' && !locked && (
-        <TextInput
-          style={[styles.milestoneTriggerInput]}
-          value={milestone.triggerMilestone ?? ''}
-          onChangeText={v => onChange({ triggerMilestone: v })}
-          placeholder="Trigger description (e.g. Foundation pour complete)"
-          placeholderTextColor={Colors.textMuted}
-        />
+        </>
       )}
     </View>
   );
@@ -724,51 +763,135 @@ const styles = StyleSheet.create({
   },
   amountInput: { flex: 1, fontSize: 18, fontWeight: '800', color: Colors.text },
 
-  milestone: {
-    backgroundColor: Colors.background, borderRadius: 10,
-    borderWidth: 1, borderColor: Colors.border,
-    padding: 10, marginBottom: 8, gap: 8,
+  // ── Milestone row (Payment Schedule) ──
+  // Redesigned to remove the cramped/overlapping look. Each input has
+  // a small caption above it and a clearly bordered box. Amount + Trigger
+  // sit in a 2-column row with explicit flex so neither pushes into the
+  // other. Status pill moved to its own header row to stop crowding the
+  // label input.
+  milestoneCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    paddingTop: 12,
+    paddingBottom: 14,
+    paddingHorizontal: 14,
+    marginBottom: 10,
   },
-  milestoneTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  milestoneLabel: { flex: 1, fontSize: 13, fontWeight: '700', color: Colors.text, padding: 0 },
-  milestoneStatus: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 999 },
-  milestoneStatusText: { fontSize: 9, fontWeight: '800', letterSpacing: 0.5 },
-  milestoneBottom: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  milestoneAmount: { flex: 1, fontSize: 14, fontWeight: '700', color: Colors.text, padding: 0 },
-  milestoneTrigger: { fontSize: 11, color: Colors.textMuted, fontWeight: '600' },
+  milestoneHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+    gap: 8,
+  },
+  milestoneTrash: {
+    width: 28, height: 28, borderRadius: 8,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: Colors.errorLight,
+  },
+  milestoneStatus: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999 },
+  milestoneStatusText: { fontSize: 9, fontWeight: '800', letterSpacing: 0.6 },
+  milestoneFieldLabel: {
+    fontSize: 10, fontWeight: '800', color: Colors.textMuted,
+    letterSpacing: 0.7, textTransform: 'uppercase', marginBottom: 4,
+  },
+  milestoneLabelInput: {
+    backgroundColor: Colors.background,
+    borderWidth: 1, borderColor: Colors.border, borderRadius: 9,
+    paddingHorizontal: 12, paddingVertical: 10,
+    fontSize: 14, fontWeight: '600', color: Colors.text,
+    marginBottom: 12,
+  },
+  milestoneFieldsRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  milestoneFieldCol: { flex: 1, minWidth: 0 },
+  milestoneAmountBox: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: Colors.background,
+    borderWidth: 1, borderColor: Colors.border, borderRadius: 9,
+    paddingHorizontal: 12, paddingVertical: 10,
+    minHeight: 44,
+  },
+  milestoneAmountInput: {
+    flex: 1, fontSize: 15, fontWeight: '700', color: Colors.text,
+    padding: 0,
+    minHeight: 22,
+  },
+  milestoneTriggerBox: {
+    backgroundColor: Colors.fillSecondary,
+    borderWidth: 1, borderColor: Colors.border, borderRadius: 9,
+    paddingHorizontal: 12, paddingVertical: 10,
+    minHeight: 44,
+    justifyContent: 'center',
+  },
+  milestoneTriggerText: {
+    fontSize: 13, fontWeight: '600', color: Colors.text,
+    lineHeight: 17,
+  },
   milestoneTriggerInput: {
-    fontSize: 12, color: Colors.text,
-    backgroundColor: Colors.surface, borderRadius: 8,
-    paddingHorizontal: 10, paddingVertical: 6,
+    fontSize: 13, color: Colors.text,
+    backgroundColor: Colors.background, borderRadius: 9,
+    paddingHorizontal: 12, paddingVertical: 10,
     borderWidth: 1, borderColor: Colors.border,
+    minHeight: 44,
   },
 
   scheduleTotalRow: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingTop: 10, marginTop: 4,
+    paddingTop: 12, marginTop: 6,
     borderTopWidth: 1, borderTopColor: Colors.border,
   },
   scheduleTotalLabel: { fontSize: 12, fontWeight: '700', color: Colors.textMuted, letterSpacing: 0.4, textTransform: 'uppercase' },
-  scheduleTotalValue: { fontSize: 16, fontWeight: '800', color: Colors.text },
-  scheduleMismatch: { fontSize: 11, fontWeight: '600', color: Colors.warning },
-  rebalanceBtn: { paddingTop: 8, alignSelf: 'flex-start' },
-  rebalanceText: { fontSize: 12, color: Colors.primary, fontWeight: '700' },
+  scheduleTotalValue: { fontSize: 18, fontWeight: '800', color: Colors.text },
+  // Mismatch banner — its own row, amber tint, real "this is wrong" affordance
+  scheduleMismatchBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: Colors.warningLight,
+    borderRadius: 9,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginTop: 10,
+    gap: 10,
+  },
+  scheduleMismatchText: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.warning,
+    lineHeight: 16,
+  },
+  rebalanceBtn: {
+    backgroundColor: Colors.warning,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  rebalanceText: { fontSize: 11, color: '#FFF', fontWeight: '800', letterSpacing: 0.3 },
 
   allowanceRow: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: Colors.background, borderRadius: 10,
-    paddingHorizontal: 12, paddingVertical: 8, marginBottom: 6,
+    backgroundColor: Colors.surface, borderRadius: 10,
+    paddingHorizontal: 12, paddingVertical: 10, marginBottom: 8,
     borderWidth: 1, borderColor: Colors.border,
+    minHeight: 48,
   },
-  allowanceCategory: { flex: 1, fontSize: 13, color: Colors.text, padding: 0 },
+  allowanceCategory: {
+    flex: 1, fontSize: 14, color: Colors.text, padding: 0,
+    fontWeight: '600',
+  },
   allowanceAmountField: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
-    paddingHorizontal: 8, paddingVertical: 4,
-    backgroundColor: Colors.surface, borderRadius: 8,
+    paddingHorizontal: 10, paddingVertical: 8,
+    backgroundColor: Colors.background, borderRadius: 8,
     borderWidth: 1, borderColor: Colors.border,
-    minWidth: 100,
+    minWidth: 110,
   },
-  allowanceAmount: { fontSize: 13, fontWeight: '700', color: Colors.text, padding: 0, flex: 1 },
+  allowanceAmount: { fontSize: 14, fontWeight: '700', color: Colors.text, padding: 0, flex: 1 },
   allowanceEmpty: { fontSize: 12, color: Colors.textMuted, fontStyle: 'italic', textAlign: 'center', paddingVertical: 12 },
 
   sigBlock: {
