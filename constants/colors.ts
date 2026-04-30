@@ -68,7 +68,11 @@ export const Colors = {
   surfaceAlt: '#F2F2F7',
   surfaceElevated: '#FFFFFF',
   card: '#FFFFFF',
-  cardBorder: 'rgba(60,60,67,0.1)',
+  // Card outline. Bumped from rgba(60,60,67,0.1) (~10% gray) to solid
+  // black so cards on the home / summary / cash-flow / project surfaces
+  // read as crisply defined containers. Keep borderWidth: 1 in
+  // consumers — pure-black at 1px is sharp without being heavy.
+  cardBorder: '#000000',
 
   text: '#000000',
   textSecondary: 'rgba(60,60,67,0.6)',

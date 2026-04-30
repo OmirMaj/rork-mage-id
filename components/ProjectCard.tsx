@@ -195,13 +195,12 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: Colors.surface,
     borderRadius: 16,
-    // Bumped from a near-invisible 0.5px borderLight to a visible
-    // 1.5px ink-tinted border so projects feel like distinct, tactile
-    // cards instead of floating tiles. The deeper shadow + heavier
-    // border together give each project clear edges that read on light
-    // and dark mode.
-    borderWidth: 1.5,
-    borderColor: Colors.text + '14',
+    // Match Colors.cardBorder (solid black) used everywhere else —
+    // home tab statCards, summary tab cards, cash-flow cards. Pre-fix
+    // this card used a faint 8%-opacity ink border which read as a
+    // floating tile on white bg; now it's a crisp defined container.
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.10,

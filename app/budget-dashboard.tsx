@@ -263,6 +263,8 @@ const styles = StyleSheet.create({
     padding: 18,
     marginBottom: 20,
     gap: 6,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
   },
   projectName: {
     fontSize: 20,
@@ -307,6 +309,10 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
     borderRadius: 14,
     padding: 14,
+    // Black outline + colored left accent stripe (the borderLeft is
+    // overridden inline by the metric's category color).
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
     borderLeftWidth: 4,
     gap: 6,
   },
@@ -330,6 +336,8 @@ const styles = StyleSheet.create({
     padding: 16,
     alignItems: 'center',
     marginBottom: 24,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
   },
   chartLegend: {
     flexDirection: 'row',
@@ -357,6 +365,8 @@ const styles = StyleSheet.create({
     padding: 18,
     gap: 14,
     marginBottom: 20,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
   },
   forecastText: {
     fontSize: 14,

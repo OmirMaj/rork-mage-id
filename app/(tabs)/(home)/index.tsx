@@ -909,11 +909,11 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 14,
     alignItems: 'flex-start',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 2,
+    // Black outline matches every other card surface (summary tab,
+    // cash-flow, projects). Replaces the soft shadow — the crisp
+    // border is enough visual weight on its own and reads cleaner.
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
   },
   statCardMiddle: {
     backgroundColor: Colors.surface,
@@ -1077,6 +1077,9 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     padding: 24,
     gap: 16,
+    // Match the other home-screen cards.
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
   },
   nextStepTitle: {
     fontSize: 22,
