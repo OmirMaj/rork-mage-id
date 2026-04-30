@@ -839,15 +839,18 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 4,
+    paddingTop: 16,
+    paddingBottom: 8,
   },
+  // Bumped from small uppercase ("MAGE ID" tracking 0.3, 13px) to a
+  // proper brand wordmark — feels like the app is owned by the brand
+  // instead of just labeled by it. User asked to "make the app more
+  // exciting looking entirely"; the navbar is the first thing they see.
   navTitle: {
-    fontSize: 13,
-    fontWeight: '600' as const,
+    fontSize: 22,
+    fontWeight: '900' as const,
     color: Colors.primary,
-    letterSpacing: 0.3,
-    textTransform: 'uppercase' as const,
+    letterSpacing: -0.4,
   },
   addButton: {
     width: 40,

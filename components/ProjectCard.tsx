@@ -228,10 +228,13 @@ const styles = StyleSheet.create({
     gap: 3,
   },
   name: {
-    fontSize: 16,
-    fontWeight: '600' as const,
+    // Bumped from 16/600 → 17/800 with tighter tracking. Project name
+    // is the primary identifier on each card; it should feel anchored
+    // and confident, not whispered.
+    fontSize: 17,
+    fontWeight: '800' as const,
     color: Colors.text,
-    letterSpacing: -0.2,
+    letterSpacing: -0.3,
   },
   locationRow: {
     flexDirection: 'row',
@@ -281,13 +284,14 @@ const styles = StyleSheet.create({
     fontWeight: '400' as const,
   },
   metaValue: {
-    fontSize: 14,
-    fontWeight: '600' as const,
+    fontSize: 15,
+    fontWeight: '700' as const,
     color: Colors.text,
     letterSpacing: -0.2,
   },
   estimateHighlight: {
     color: Colors.primary,
+    fontWeight: '800' as const,
   },
   metaDivider: {
     width: 0.5,
