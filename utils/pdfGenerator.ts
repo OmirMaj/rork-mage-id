@@ -1620,12 +1620,24 @@ export function buildSubmittalEmailHtml(opts: {
           <h2 style="margin:0 0 6px;color:#111827;font-size:20px;">${escapeHtml(submittalTitle)}</h2>
           <p style="margin:0 0 24px;color:#6b7280;font-size:13px;">${escapeHtml(projectName)}${specSection ? ` &middot; Spec ${escapeHtml(specSection)}` : ''}</p>
           ${recipientName ? `<p style="margin:0 0 16px;color:#374151;">Hi ${escapeHtml(recipientName)},</p>` : ''}
-          ${message ? `<p style="margin:0 0 20px;color:#374151;line-height:1.5;">${escapeHtml(message)}</p>` : `<p style="margin:0 0 20px;color:#374151;line-height:1.5;">Please review the attached submittal package and let us know if you have any questions or revisions required.</p>`}
+          ${message ? `<p style="margin:0 0 20px;color:#374151;line-height:1.5;">${escapeHtml(message)}</p>` : `<p style="margin:0 0 20px;color:#374151;line-height:1.5;">Please review the attached submittal package and reply with your action code when ready.</p>`}
           <div style="background:#f9fafb;border-radius:8px;padding:14px 18px;margin:20px 0;">
             <p style="margin:0;color:#6b7280;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;">Current Status</p>
             <p style="margin:6px 0 0;color:${statusColor(status)};font-size:16px;font-weight:700;">${statusLabel(status)}</p>
           </div>
-          <p style="margin:20px 0 0;color:#9ca3af;font-size:12px;line-height:1.5;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="background:#f9fafb;border-radius:8px;margin:20px 0;">
+            <tr><td style="padding:18px 20px;">
+              <p style="margin:0 0 8px;color:#6b7280;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;font-weight:700;">Action codes</p>
+              <p style="margin:0 0 4px;color:#111827;font-size:13px;line-height:1.55;"><strong style="color:#16a34a;">Approved</strong> &middot; proceed as submitted</p>
+              <p style="margin:0 0 4px;color:#111827;font-size:13px;line-height:1.55;"><strong style="color:#0891b2;">Approved as Noted</strong> &middot; proceed with the noted comments</p>
+              <p style="margin:0 0 4px;color:#111827;font-size:13px;line-height:1.55;"><strong style="color:#d97706;">Revise &amp; Resubmit</strong> &middot; revise per comments and re-submit</p>
+              <p style="margin:0;color:#111827;font-size:13px;line-height:1.55;"><strong style="color:#dc2626;">Rejected</strong> &middot; not in compliance with contract documents</p>
+            </td></tr>
+          </table>
+          <p style="margin:24px 0 0;color:#374151;font-size:13px;line-height:1.55;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:12px 14px;">
+            <strong>How to respond:</strong> reply to this email with your action code (and any markups attached). Your response will be filed against Submittal #${submittalNumber} for this project.
+          </p>
+          <p style="margin:24px 0 0;color:#9ca3af;font-size:12px;line-height:1.5;">
             ${contactName ? `Contact: ${escapeHtml(contactName)}` : ''}
             ${contactEmail ? ` &middot; ${escapeHtml(contactEmail)}` : ''}
             ${contactPhone ? ` &middot; ${escapeHtml(contactPhone)}` : ''}

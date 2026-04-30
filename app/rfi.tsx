@@ -6,13 +6,14 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { Save, ChevronDown, Link2, X, CheckCircle2 } from 'lucide-react-native';
+import { Save, ChevronDown, Link2, X, CheckCircle2, Send } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import InlineVoiceFill from '@/components/InlineVoiceFill';
 import { parseRFIFromTranscript, mergeText, pickIfEmpty } from '@/utils/voiceFormParsers';
+import { sendEmail, buildRFIEmailHtml } from '@/utils/emailService';
 import type { RFIStatus, RFIPriority } from '@/types';
 
 const PRIORITY_OPTIONS: RFIPriority[] = ['low', 'normal', 'urgent'];
@@ -43,7 +44,7 @@ function RFIScreenInner() {
     prefillPhotoId?: string;
   }>();
   const ctx = useProjects();
-  const { getProject, getRFIsForProject, addRFI, updateRFI } = ctx;
+  const { getProject, getRFIsForProject, addRFI, updateRFI, settings } = ctx;
   const projectPhotos = (ctx as any).projectPhotos as Array<{ id: string; uri: string }> | undefined;
 
   const project = useMemo(() => getProject(projectId ?? ''), [projectId, getProject]);
@@ -76,6 +77,12 @@ function RFIScreenInner() {
   const [showPriorityPicker, setShowPriorityPicker] = useState(false);
   const [showStatusPicker, setShowStatusPicker] = useState(false);
   const [showTaskPicker, setShowTaskPicker] = useState(false);
+  // Send-to-Architect modal state
+  const [showSendModal, setShowSendModal] = useState(false);
+  const [sendEmail_To, setSendEmailTo] = useState('');
+  const [sendEmail_Name, setSendEmailName] = useState('');
+  const [sendEmail_Note, setSendEmailNote] = useState('');
+  const [sending, setSending] = useState(false);
 
   const scheduleTasks = useMemo(() => project?.schedule?.tasks ?? [], [project]);
   const linkedTask = useMemo(() => scheduleTasks.find(t => t.id === linkedTaskId), [scheduleTasks, linkedTaskId]);
@@ -128,6 +135,67 @@ function RFIScreenInner() {
   }, [subject, question, assignedTo, submittedBy, dateRequired, priority, status, linkedDrawing, response, existingRFI, projectId, addRFI, updateRFI, router, attachments]);
 
   const priorityColor = priority === 'urgent' ? Colors.error : priority === 'normal' ? Colors.primary : Colors.textSecondary;
+
+  // Open the "Send to Architect / Engineer" modal. Prefills the To-Name
+  // from the RFI's `assignedTo` field, so if the GC already noted who
+  // this is for, they don't have to retype.
+  const openSendModal = useCallback(() => {
+    if (!existingRFI) return;
+    setSendEmailName(assignedTo || '');
+    setSendEmailTo('');
+    setSendEmailNote('');
+    setShowSendModal(true);
+  }, [existingRFI, assignedTo]);
+
+  const handleSendToPro = useCallback(async () => {
+    if (!existingRFI || !project) return;
+    const to = sendEmail_To.trim();
+    if (!to || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
+      Alert.alert('Invalid email', 'Enter a valid recipient email address.');
+      return;
+    }
+    setSending(true);
+    try {
+      const html = buildRFIEmailHtml({
+        companyName: settings?.branding?.companyName ?? 'MAGE ID',
+        recipientName: sendEmail_Name.trim(),
+        projectName: project.name,
+        rfiNumber: existingRFI.number,
+        subject: existingRFI.subject,
+        question: existingRFI.question,
+        priority: existingRFI.priority,
+        dateRequired: existingRFI.dateRequired,
+        submittedBy: existingRFI.submittedBy,
+        linkedDrawing: existingRFI.linkedDrawing,
+        message: sendEmail_Note.trim() || undefined,
+        contactName: settings?.branding?.contactName,
+        contactEmail: settings?.branding?.email,
+        contactPhone: settings?.branding?.phone,
+      });
+      const subject = `RFI #${existingRFI.number}: ${existingRFI.subject} — ${project.name}`;
+      const result = await sendEmail({
+        to,
+        subject,
+        html,
+        replyTo: settings?.branding?.email,
+        attachments: existingRFI.attachments?.length ? existingRFI.attachments : undefined,
+      });
+      if (!result.success) {
+        Alert.alert('Send failed', result.error || 'Could not send the RFI. Try again.');
+        return;
+      }
+      // Mark the RFI as sent if it wasn't already — but DON'T auto-update
+      // status (the RFI is still open until the architect responds).
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert('RFI Sent', `Sent to ${to}. Their reply will come to your email${settings?.branding?.email ? ` (${settings.branding.email})` : ''}.`);
+      setShowSendModal(false);
+    } catch (err) {
+      console.error('[RFI] Send failed:', err);
+      Alert.alert('Send failed', err instanceof Error ? err.message : 'Could not send RFI.');
+    } finally {
+      setSending(false);
+    }
+  }, [existingRFI, project, sendEmail_To, sendEmail_Name, sendEmail_Note, settings]);
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
@@ -327,7 +395,80 @@ function RFIScreenInner() {
           <Save size={18} color="#fff" />
           <Text style={styles.saveBtnText}>{existingRFI ? 'Update RFI' : 'Create RFI'}</Text>
         </TouchableOpacity>
+
+        {/* Send-to-Architect/Engineer — only available for SAVED RFIs.
+            Opens a modal collecting the recipient email + optional note,
+            sends a formatted RFI email via the existing email service.
+            The architect's reply lands in the GC's inbox (replyTo). */}
+        {existingRFI && (
+          <TouchableOpacity
+            style={styles.sendToProBtn}
+            onPress={openSendModal}
+            activeOpacity={0.85}
+            testID="rfi-send-to-pro"
+          >
+            <Send size={16} color={Colors.primary} />
+            <Text style={styles.sendToProBtnText}>Send to Architect / Engineer</Text>
+          </TouchableOpacity>
+        )}
       </ScrollView>
+
+      {/* Send-to-Pro modal */}
+      <Modal visible={showSendModal} transparent animationType="fade" onRequestClose={() => setShowSendModal(false)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setShowSendModal(false)}>
+          <Pressable style={styles.sendCard} onPress={() => undefined}>
+            <View style={styles.sendCardHeader}>
+              <Text style={styles.sendCardTitle}>Send RFI #{existingRFI?.number}</Text>
+              <TouchableOpacity onPress={() => setShowSendModal(false)} hitSlop={8}>
+                <X size={20} color={Colors.textMuted} />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.sendCardHelper}>
+              They'll get a formatted email with the question. Their reply
+              comes back to your inbox — paste it into the Response field.
+            </Text>
+            <Text style={styles.sendFieldLabel}>Their email *</Text>
+            <TextInput
+              style={styles.sendInput}
+              value={sendEmail_To}
+              onChangeText={setSendEmailTo}
+              placeholder="architect@firm.com"
+              placeholderTextColor={Colors.textMuted}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            <Text style={styles.sendFieldLabel}>Their name (optional)</Text>
+            <TextInput
+              style={styles.sendInput}
+              value={sendEmail_Name}
+              onChangeText={setSendEmailName}
+              placeholder="e.g. Sarah Chen, AIA"
+              placeholderTextColor={Colors.textMuted}
+            />
+            <Text style={styles.sendFieldLabel}>Personal note (optional)</Text>
+            <TextInput
+              style={[styles.sendInput, styles.sendInputMulti]}
+              value={sendEmail_Note}
+              onChangeText={setSendEmailNote}
+              placeholder="Hey Sarah, need this back by Friday if possible…"
+              placeholderTextColor={Colors.textMuted}
+              multiline
+              textAlignVertical="top"
+            />
+            <TouchableOpacity
+              style={[styles.sendSubmitBtn, sending && { opacity: 0.6 }]}
+              onPress={handleSendToPro}
+              disabled={sending}
+              activeOpacity={0.85}
+              testID="rfi-send-submit"
+            >
+              <Send size={16} color="#fff" />
+              <Text style={styles.sendSubmitBtnText}>{sending ? 'Sending…' : 'Send RFI'}</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       {/* Task Picker Modal */}
       <Modal visible={showTaskPicker} transparent animationType="fade" onRequestClose={() => setShowTaskPicker(false)}>
@@ -468,6 +609,91 @@ const styles = StyleSheet.create({
   saveBtnText: {
     fontSize: 17,
     fontWeight: '600' as const,
+    color: '#fff',
+  },
+  // Send-to-Architect/Engineer button + modal
+  sendToProBtn: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    gap: 8,
+    backgroundColor: Colors.surface,
+    borderWidth: 1.5,
+    borderColor: Colors.primary + '40',
+    borderRadius: 14,
+    paddingVertical: 14,
+    marginTop: 12,
+  },
+  sendToProBtnText: {
+    fontSize: 15,
+    fontWeight: '700' as const,
+    color: Colors.primary,
+    letterSpacing: 0.2,
+  },
+  sendCard: {
+    width: '90%' as const,
+    maxWidth: 440,
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.18,
+    shadowRadius: 24,
+    elevation: 10,
+  },
+  sendCardHeader: {
+    flexDirection: 'row' as const,
+    justifyContent: 'space-between' as const,
+    alignItems: 'center' as const,
+    marginBottom: 8,
+  },
+  sendCardTitle: {
+    fontSize: 17,
+    fontWeight: '800' as const,
+    color: Colors.text,
+  },
+  sendCardHelper: {
+    fontSize: 12,
+    color: Colors.textMuted,
+    lineHeight: 17,
+    marginBottom: 14,
+  },
+  sendFieldLabel: {
+    fontSize: 11,
+    fontWeight: '800' as const,
+    color: Colors.textMuted,
+    letterSpacing: 0.7,
+    textTransform: 'uppercase' as const,
+    marginTop: 10,
+    marginBottom: 5,
+  },
+  sendInput: {
+    backgroundColor: Colors.background,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: Colors.text,
+  },
+  sendInputMulti: {
+    minHeight: 70,
+  },
+  sendSubmitBtn: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    gap: 8,
+    backgroundColor: Colors.primary,
+    borderRadius: 12,
+    paddingVertical: 14,
+    marginTop: 16,
+  },
+  sendSubmitBtnText: {
+    fontSize: 15,
+    fontWeight: '700' as const,
     color: '#fff',
   },
   linkedTaskBadge: {

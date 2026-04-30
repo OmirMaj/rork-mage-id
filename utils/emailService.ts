@@ -634,3 +634,102 @@ export function buildGenericDocumentEmailHtml(opts: {
 </body>
 </html>`;
 }
+
+// ─── RFI email (sent to architect / engineer for response) ──────────
+//
+// Frames the RFI as a request for information, with priority + due
+// date prominent so a busy architect can triage at a glance. Reply-to
+// is the GC's email so the architect's response lands in the GC's
+// inbox; the GC then files the response into the RFI in-app.
+//
+// Future iteration: include a per-RFI response link to a hosted form
+// at app.mageid.app/rfi-respond/[token] so responses sync back
+// automatically. For now, email reply is the v1 flow.
+export function buildRFIEmailHtml(opts: {
+  companyName: string;
+  recipientName: string;
+  projectName: string;
+  rfiNumber: number;
+  subject: string;
+  question: string;
+  priority: string;
+  dateRequired: string;
+  submittedBy?: string;
+  linkedDrawing?: string;
+  message?: string;
+  contactName?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+}): string {
+  const {
+    companyName, recipientName, projectName, rfiNumber,
+    subject, question, priority, dateRequired, submittedBy,
+    linkedDrawing, message, contactName, contactEmail, contactPhone,
+  } = opts;
+  const priorityColor = priority === 'urgent' ? '#dc2626' : priority === 'normal' ? '#2563eb' : '#6b7280';
+  const priorityBg    = priority === 'urgent' ? '#fef2f2' : priority === 'normal' ? '#eff6ff' : '#f3f4f6';
+  return `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background:#f4f5f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f5f7;padding:32px 16px;">
+    <tr><td align="center">
+      <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+        <tr><td style="background:#1a1a2e;padding:28px 32px;">
+          <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;">${companyName || 'MAGE ID'}</h1>
+          <p style="margin:6px 0 0;color:#a5a5b8;font-size:12px;letter-spacing:0.4px;">REQUEST FOR INFORMATION</p>
+        </td></tr>
+        <tr><td style="padding:32px;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:18px;">
+            <tr>
+              <td style="font-size:12px;color:#6b7280;text-transform:uppercase;letter-spacing:0.6px;font-weight:700;">RFI #${rfiNumber}</td>
+              <td align="right">
+                <span style="display:inline-block;background:${priorityBg};color:${priorityColor};padding:4px 10px;border-radius:999px;font-size:11px;font-weight:700;letter-spacing:0.4px;text-transform:uppercase;">${priority || 'normal'}</span>
+              </td>
+            </tr>
+          </table>
+          <h2 style="margin:0 0 8px;color:#111827;font-size:20px;line-height:1.3;">${subject}</h2>
+          <p style="margin:0 0 18px;color:#374151;font-size:14px;">Project: <strong>${projectName}</strong></p>
+          ${recipientName ? `<p style="margin:0 0 16px;color:#374151;font-size:14px;">Hi ${recipientName},</p>` : ''}
+          ${message ? `<p style="margin:0 0 18px;color:#374151;line-height:1.55;font-size:14px;">${message}</p>` : `<p style="margin:0 0 18px;color:#374151;line-height:1.55;font-size:14px;">We need your input on the question below — please reply to this email at your convenience.</p>`}
+          <table width="100%" cellpadding="0" cellspacing="0" style="background:#f9fafb;border-left:3px solid ${priorityColor};border-radius:6px;margin:20px 0;">
+            <tr><td style="padding:18px 20px;">
+              <p style="margin:0 0 6px;color:#6b7280;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;font-weight:700;">Question</p>
+              <p style="margin:0;color:#111827;font-size:14px;line-height:1.6;white-space:pre-wrap;">${question}</p>
+            </td></tr>
+          </table>
+          <table width="100%" cellpadding="0" cellspacing="0" style="margin:20px 0;">
+            ${dateRequired ? `<tr>
+              <td style="color:#6b7280;font-size:13px;padding:6px 0;">Response needed by</td>
+              <td align="right" style="color:#111827;font-size:13px;font-weight:600;padding:6px 0;">${new Date(dateRequired).toLocaleDateString('en-US', { weekday: 'short', month: 'long', day: 'numeric', year: 'numeric' })}</td>
+            </tr>` : ''}
+            ${submittedBy ? `<tr>
+              <td style="color:#6b7280;font-size:13px;padding:6px 0;">Submitted by</td>
+              <td align="right" style="color:#111827;font-size:13px;padding:6px 0;">${submittedBy}</td>
+            </tr>` : ''}
+            ${linkedDrawing ? `<tr>
+              <td style="color:#6b7280;font-size:13px;padding:6px 0;">Linked drawing</td>
+              <td align="right" style="color:#111827;font-size:13px;padding:6px 0;">${linkedDrawing}</td>
+            </tr>` : ''}
+          </table>
+          <p style="margin:24px 0 0;color:#374151;font-size:13px;line-height:1.55;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:12px 14px;">
+            <strong>How to respond:</strong> simply reply to this email. Your response will be filed against RFI #${rfiNumber} for this project.
+          </p>
+          <p style="margin:24px 0 0;color:#9ca3af;font-size:12px;line-height:1.5;">
+            ${contactName ? `Contact: ${contactName}` : ''}
+            ${contactEmail ? ` | ${contactEmail}` : ''}
+            ${contactPhone ? ` | ${contactPhone}` : ''}
+          </p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
+
+// Submittal email already lives in pdfGenerator.ts under the same name —
+// see buildSubmittalEmailHtml there. Upgraded the body in pdfGenerator
+// to include action codes + how-to-respond callout instead of duplicating
+// the function here.
