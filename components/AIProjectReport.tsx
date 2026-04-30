@@ -41,7 +41,7 @@ export default React.memo(function AIProjectReport({ project, invoices, changeOr
       return;
     }
 
-    const limit = await checkAILimit(subscriptionTier, 'smart');
+    const limit = await checkAILimit(subscriptionTier, 'smart', 'projectReport');
     if (!limit.allowed) {
       Alert.alert('AI Limit Reached', limit.message ?? 'Try again tomorrow.');
       return;
@@ -51,7 +51,7 @@ export default React.memo(function AIProjectReport({ project, invoices, changeOr
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
       const data = await generateProjectReport(project, invoices, changeOrders);
-      await recordAIUsage('smart');
+      await recordAIUsage('smart', 'projectReport');
       await setCachedResult(cacheKey, data);
       setResult(data);
       setShowModal(true);

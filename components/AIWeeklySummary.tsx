@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  ScrollView, Modal,
+  ScrollView, Modal, Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
@@ -9,6 +9,8 @@ import { Sparkles, X, TrendingUp, AlertTriangle, CheckCircle2, Share2, Wrench, T
 import { Colors } from '@/constants/colors';
 import ConstructionLoader from '@/components/ConstructionLoader';
 import { generateWeeklySummary, type WeeklySummaryResult } from '@/utils/aiService';
+import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
+import { useSubscription } from '@/contexts/SubscriptionContext';
 import type { Project } from '@/types';
 
 interface Props {
@@ -43,15 +45,28 @@ function formatCurrency(n: number): string {
 
 export default function AIWeeklySummary({ projects, visible, onClose }: Props) {
   const insets = useSafeAreaInsets();
+  const { tier: subscriptionTier } = useSubscription();
   const [result, setResult] = useState<WeeklySummaryResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  // Track whether the user was blocked by a paywall so the modal can show
+  // the upgrade message instead of just spinning forever.
+  const [paywallReason, setPaywallReason] = useState<string | null>(null);
 
   const handleGenerate = useCallback(async () => {
     if (isLoading || projects.length === 0) return;
+    // Weekly Full Analysis is Pro+ — large smart-tier prompt + 4500 tokens
+    // out is too expensive for free tier.
+    const limit = await checkAILimit(subscriptionTier, 'smart', 'weeklyAnalysis');
+    if (!limit.allowed) {
+      setPaywallReason(limit.message ?? 'Upgrade to unlock Full Analysis.');
+      return;
+    }
     setIsLoading(true);
+    setPaywallReason(null);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
       const data = await generateWeeklySummary(projects);
+      await recordAIUsage('smart', 'weeklyAnalysis');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setResult(data);
     } catch (err) {
@@ -59,13 +74,13 @@ export default function AIWeeklySummary({ projects, visible, onClose }: Props) {
     } finally {
       setIsLoading(false);
     }
-  }, [isLoading, projects]);
+  }, [isLoading, projects, subscriptionTier]);
 
   React.useEffect(() => {
-    if (visible && !result && !isLoading && projects.length > 0) {
+    if (visible && !result && !isLoading && !paywallReason && projects.length > 0) {
       handleGenerate();
     }
-  }, [visible, result, isLoading, projects.length, handleGenerate]);
+  }, [visible, result, isLoading, paywallReason, projects.length, handleGenerate]);
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
@@ -80,7 +95,13 @@ export default function AIWeeklySummary({ projects, visible, onClose }: Props) {
           </TouchableOpacity>
         </View>
 
-        {isLoading && !result ? (
+        {paywallReason ? (
+          <View style={styles.loadingState}>
+            <Sparkles size={40} color={Colors.primary} />
+            <Text style={[styles.headerTitle, { marginTop: 16, textAlign: 'center' }]}>Pro Feature</Text>
+            <Text style={[styles.loadingSubtext, { marginTop: 8, textAlign: 'center', paddingHorizontal: 24 }]}>{paywallReason}</Text>
+          </View>
+        ) : isLoading && !result ? (
           <View style={styles.loadingState}>
             <ConstructionLoader size="lg" label="Analyzing your portfolio..." />
             <Text style={styles.loadingSubtext}>Reviewing {projects.length} project(s)</Text>

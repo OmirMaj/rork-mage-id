@@ -56,7 +56,7 @@ export default React.memo(function AIInvoicePredictor({ invoice, projectName, al
       return;
     }
 
-    const limit = await checkAILimit(subscriptionTier, 'fast');
+    const limit = await checkAILimit(subscriptionTier, 'fast', 'invoicePrediction');
     if (!limit.allowed) return;
 
     setIsLoading(true);
@@ -77,7 +77,7 @@ export default React.memo(function AIInvoicePredictor({ invoice, projectName, al
         avgDaysLate,
         totalInvoices: paidInvoices.length,
       });
-      await recordAIUsage('fast');
+      await recordAIUsage('fast', 'invoicePrediction');
       await setCachedResult(cacheKey, data);
       setResult(data);
       if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);

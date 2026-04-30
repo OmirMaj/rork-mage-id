@@ -69,13 +69,13 @@ export default React.memo(function AIHomeBriefing({ projects, invoices, subscrip
       return;
     }
 
-    const limit = await checkAILimit(subscriptionTier, 'fast');
+    const limit = await checkAILimit(subscriptionTier, 'fast', 'homeBriefing');
     if (!limit.allowed) return;
 
     setIsLoading(true);
     try {
       const data = await generateHomeBriefing(projects, invoices);
-      await recordAIUsage('fast');
+      await recordAIUsage('fast', 'homeBriefing');
       await setCachedResult(cacheKey, data);
       setResult(data);
       if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);

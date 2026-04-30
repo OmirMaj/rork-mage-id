@@ -68,11 +68,11 @@ function DrawingAnalyzerInner() {
   const handlePick = useCallback(async () => {
     setError(null);
 
-    // Pre-flight rate-limit check. Pro Estimator counts as 'smart' (more
-    // expensive), Standard counts as 'fast'. The limiter caps daily use
-    // per the subscription tier.
+    // Pre-flight rate-limit check. Drawing Analysis is Pro+ only on free
+    // tier (PDFs through Gemini Pro vision are 5-10x cost of text). Pro
+    // Estimator counts as 'smart', Standard counts as 'fast'.
     const requestTier: 'fast' | 'smart' = pickedModel === 'gemini-2.5-pro' ? 'smart' : 'fast';
-    const limit = await checkAILimit(tier, requestTier);
+    const limit = await checkAILimit(tier, requestTier, 'drawingAnalysis');
     if (!limit.allowed) {
       setError(limit.message ?? 'Daily AI limit reached.');
       return;
@@ -117,7 +117,7 @@ function DrawingAnalyzerInner() {
       setStep('review');
       // Debit the rate limit ONLY after a successful run so failures
       // don't burn the user's daily quota.
-      void recordAIUsage(usedModel === 'gemini-2.5-pro' ? 'smart' : 'fast');
+      void recordAIUsage(usedModel === 'gemini-2.5-pro' ? 'smart' : 'fast', 'drawingAnalysis');
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e) {
       console.warn('[DrawingAnalyzer] failed', e);

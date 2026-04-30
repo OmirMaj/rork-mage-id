@@ -29,6 +29,8 @@ import { type PunchItem, type PunchItemPriority, type SubTrade } from '@/types';
 import { analyzePhotosForPunch, type AiPunchItem } from '@/utils/photoAnalyzer';
 import { stampPhotoLocation, type PhotoGeoStamp } from '@/utils/photoGeoStamp';
 import { sentenceCase, titleCase } from '@/utils/voiceFormParsers';
+import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
+import { useSubscription } from '@/contexts/SubscriptionContext';
 
 // Map the loose AI-trade string to the strict SubTrade enum used in
 // the data model. Expanded per code-review #8 to cover the trades
@@ -98,6 +100,7 @@ export default function AiPunchScreen() {
   const router = useRouter();
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
   const { getProject, getPhotosForProject, addPunchItem } = useProjects();
+  const { tier: subscriptionTier } = useSubscription();
 
   const project = useMemo(() => projectId ? getProject(projectId) : null, [projectId, getProject]);
   // Sort newest-first so the "Show recent" toggle label actually
@@ -183,6 +186,15 @@ export default function AiPunchScreen() {
       Alert.alert('Pick at least one photo first');
       return;
     }
+    // Photo Analysis is a Pro+ feature — vision API calls are 2-3x the cost
+    // of text. Free tier hits a clean upgrade prompt instead of running the
+    // analysis and silently eating the bill.
+    const limit = await checkAILimit(subscriptionTier, 'smart', 'photoAnalysis');
+    if (!limit.allowed) {
+      const title = limit.reason === 'pro_only' ? 'Pro Feature' : 'AI Limit Reached';
+      Alert.alert(title, limit.message ?? 'Rate limit reached.');
+      return;
+    }
     setBusy(true);
     setError(null);
     setNotice(null);
@@ -192,6 +204,7 @@ export default function AiPunchScreen() {
         projectName: project?.name,
         projectType: project?.type,
       });
+      await recordAIUsage('smart', 'photoAnalysis');
       // Items come back with photoIndex remapped to the caller's
       // original list — so pickedPhotos[item.photoIndex] is the
       // correct source even if some photos failed to encode.
@@ -227,7 +240,7 @@ export default function AiPunchScreen() {
     } finally {
       setBusy(false);
     }
-  }, [pickedPhotos, project]);
+  }, [pickedPhotos, project, subscriptionTier]);
 
   // ── Step 3: review + save ────────────────────────────────────
   const updateReviewItem = useCallback((id: string, updates: Partial<ReviewableItem>) => {

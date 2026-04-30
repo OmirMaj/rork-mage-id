@@ -170,7 +170,7 @@ export default function AICopilot() {
     if (!msgText || isLoading) return;
 
     const requestTier = detectRequestTier(msgText);
-    const limit = await checkAILimit(tier as any, requestTier);
+    const limit = await checkAILimit(tier as any, requestTier, 'copilot');
     if (!limit.allowed) {
       const limitMsg: CopilotMessage = {
         id: createMsgId(),
@@ -200,7 +200,7 @@ export default function AICopilot() {
         projects, bids, subcontractors, equipment, invoices, changeOrders
       );
       const response = await askCopilot(msgText, fullContext);
-      await recordAIUsage(requestTier);
+      await recordAIUsage(requestTier, 'copilot');
       void refreshUsage();
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

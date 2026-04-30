@@ -37,6 +37,8 @@ import { formatMoney } from '@/utils/formatters';
 import VoiceCaptureModal from '@/components/VoiceCaptureModal';
 import { parseBidFromTranscript } from '@/utils/voiceFormParsers';
 import { levelBids, type LevelingResult } from '@/utils/bidLevelingEngine';
+import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
+import { useSubscription } from '@/contexts/SubscriptionContext';
 
 const STATUS_COLORS: Record<BidPackageStatus, string> = {
   open: '#FF6A1A',
@@ -54,6 +56,7 @@ export default function BuyoutPackageScreen() {
     getBidsForPackage, addBidPackageBid, updateBidPackageBid, deleteBidPackageBid,
     awardBidPackage, getProject, prequalPackets, getSubcontractor,
   } = useProjects();
+  const { tier: subscriptionTier } = useSubscription();
 
   const pkg = useMemo(() => packageId ? getBidPackage(packageId) : null, [packageId, getBidPackage]);
   const bids = useMemo(() => packageId ? getBidsForPackage(packageId) : [], [packageId, getBidsForPackage]);
@@ -125,9 +128,18 @@ export default function BuyoutPackageScreen() {
       Alert.alert('Need 2+ bids', 'Add at least two bids before running AI leveling.');
       return;
     }
+    // Bid Leveling is a Pro+ feature — too compute-expensive to give away
+    // free, and it's the most "wow" feature for converting prospects.
+    const limit = await checkAILimit(subscriptionTier, 'smart', 'bidLeveling');
+    if (!limit.allowed) {
+      const title = limit.reason === 'pro_only' ? 'Pro Feature' : 'AI Limit Reached';
+      Alert.alert(title, limit.message ?? 'Rate limit reached.');
+      return;
+    }
     setLeveling(true);
     try {
       const result = await levelBids({ pkg, bids });
+      await recordAIUsage('smart', 'bidLeveling');
       setLevelingResult(result);
       // Persist each adjustment back to the bid records — but only when
       // the AI actually succeeded. confidence === 0 is the failure
@@ -154,7 +166,7 @@ export default function BuyoutPackageScreen() {
     } finally {
       setLeveling(false);
     }
-  }, [pkg, bids, updateBidPackageBid]);
+  }, [pkg, bids, updateBidPackageBid, subscriptionTier]);
 
   // ── Award a bid ─────────────────────────────────────────────
   // Prequal gate (industry must-have): when the bidder is a tracked

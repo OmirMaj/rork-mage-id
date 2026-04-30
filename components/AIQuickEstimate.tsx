@@ -142,12 +142,15 @@ export default React.memo(function AIQuickEstimate({
       return;
     }
 
-    // Quick Estimate is a 'fast' AI feature available on every tier — Free
-    // gets 10/day, Pro 75, Business 200. Was hardcoded to ('free','smart')
-    // which capped every user at the smart-tier 3/day limit.
-    const limit = await checkAILimit(tier, 'fast');
+    // Quick Estimate is gated as a high-value feature. Free tier gets 3
+    // lifetime trials (so they can DEMO the magic), then must upgrade to
+    // Pro. Pro/Business have it on the daily 'smart' quota.
+    const limit = await checkAILimit(tier, 'smart', 'quickEstimate');
     if (!limit.allowed) {
-      Alert.alert('AI Limit Reached', limit.message ?? 'Rate limit reached.');
+      const title = limit.reason === 'lifetime_cap' ? 'Free Trials Used'
+        : limit.reason === 'pro_only' ? 'Pro Feature'
+        : 'AI Limit Reached';
+      Alert.alert(title, limit.message ?? 'Rate limit reached.');
       return;
     }
 
@@ -163,7 +166,7 @@ export default React.memo(function AIQuickEstimate({
         quality,
         location,
       );
-      await recordAIUsage('fast');
+      await recordAIUsage('smart', 'quickEstimate');
       setResult(data);
       setStep('result');
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

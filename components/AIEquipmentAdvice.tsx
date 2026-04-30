@@ -41,7 +41,7 @@ export default React.memo(function AIEquipmentAdvice({ equipment, subscriptionTi
       return;
     }
 
-    const limit = await checkAILimit(subscriptionTier, 'fast');
+    const limit = await checkAILimit(subscriptionTier, 'fast', 'equipmentAdvice');
     if (!limit.allowed) {
       Alert.alert('AI Limit Reached', limit.message ?? 'Try again tomorrow.');
       return;
@@ -56,7 +56,7 @@ export default React.memo(function AIEquipmentAdvice({ equipment, subscriptionTi
         : 12;
 
       const data = await analyzeEquipmentRentVsBuy(equipment, Math.max(uniqueProjects, 2), avgDays);
-      await recordAIUsage('fast');
+      await recordAIUsage('fast', 'equipmentAdvice');
       await setCachedResult(cacheKey, data);
       setResult(data);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

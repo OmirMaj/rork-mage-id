@@ -36,7 +36,7 @@ export default React.memo(function AISubEvaluator({ sub, projectContext, subscri
       return;
     }
 
-    const limit = await checkAILimit(subscriptionTier, 'fast');
+    const limit = await checkAILimit(subscriptionTier, 'fast', 'subEvaluation');
     if (!limit.allowed) {
       Alert.alert('AI Limit Reached', limit.message ?? 'Try again tomorrow.');
       return;
@@ -46,7 +46,7 @@ export default React.memo(function AISubEvaluator({ sub, projectContext, subscri
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
       const data = await evaluateSubcontractor(sub, projectContext);
-      await recordAIUsage('fast');
+      await recordAIUsage('fast', 'subEvaluation');
       await setCachedResult(cacheKey, data);
       setResult(data);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
