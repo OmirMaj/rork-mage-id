@@ -37,11 +37,17 @@ interface VoiceRecorderProps {
   contextLine?: string;
   /** Project-specific example phrases the user can read aloud. */
   suggestions?: string[];
+  /**
+   * Topic checklist — when provided, the modal renders a numbered list
+   * of fields the user should cover during dictation. Pairs with the
+   * voice parser so a single dictation can fill the whole form.
+   */
+  topicChecklist?: Array<{ label: string; hint?: string }>;
 }
 
 export default function VoiceRecorder({
   onTranscriptReady, isLoading, isLocked, onLockedPress,
-  title, contextLine, suggestions,
+  title, contextLine, suggestions, topicChecklist,
 }: VoiceRecorderProps) {
   const [modalOpen, setModalOpen] = useState(false);
 
@@ -98,6 +104,7 @@ export default function VoiceRecorder({
         title={title}
         contextLine={contextLine}
         suggestions={suggestions}
+        topicChecklist={topicChecklist}
       />
     </>
   );

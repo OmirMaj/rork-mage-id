@@ -541,6 +541,20 @@ export default function DailyReportScreen() {
                 'Inspector signed off on electrical rough-in this morning',
                 'Delivered ten sheets of drywall and two doors',
               ]}
+              // Numbered topic checklist — visible to the GC while
+              // dictating so they cover every section in one pass.
+              // The voice parser will route each topic to the right
+              // field automatically; this is just to prevent skipped
+              // sections in long dictations.
+              topicChecklist={[
+                { label: 'Weather on site', hint: 'temp, conditions, wind — e.g. "55 and clear, light wind"' },
+                { label: 'Crew on site', hint: 'who showed up, how many, what trade — e.g. "4 framers from Smith Construction"' },
+                { label: 'Work performed today', hint: 'concrete tasks completed — be specific' },
+                { label: 'Materials delivered', hint: 'what arrived, from whom — e.g. "20 sheets of drywall from ABC Supply"' },
+                { label: 'Issues, delays, or RFIs', hint: 'anything blocking work or needing attention' },
+                { label: 'Safety incidents', hint: 'only if any — say "no incidents" if clean day' },
+                { label: "Tomorrow's plan", hint: 'what crews and tasks are scheduled (optional)' },
+              ]}
             />
           </View>
 

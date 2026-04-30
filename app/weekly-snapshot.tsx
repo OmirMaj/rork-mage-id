@@ -196,7 +196,13 @@ export default function WeeklySnapshotScreen() {
           </TouchableOpacity>
         ),
       }} />
-      <ScrollView contentContainerStyle={[styles.scroll, { paddingTop: insets.top + 56, paddingBottom: insets.bottom + 30 }]}>
+      {/*
+        The Stack.Screen above already renders a native nav header that
+        respects insets.top, so the previous `insets.top + 56` here was
+        adding a SECOND chunk of dead space (~110px on iOS) above the
+        hero card. Now we just add a small gap below the native header.
+      */}
+      <ScrollView contentContainerStyle={[styles.scroll, { paddingTop: 16, paddingBottom: insets.bottom + 30 }]}>
         <BlueprintReveal>
           <View style={styles.heroCard}>
             <Text style={styles.heroLabel}>{range.label}</Text>

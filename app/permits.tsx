@@ -189,7 +189,26 @@ export default function PermitsScreen() {
     ).length;
     const pending = permits.filter(p => ['applied', 'under_review'].includes(p.status)).length;
     const passed = permits.filter(p => ['approved', 'inspection_passed'].includes(p.status)).length;
-    return { totalFees, upcomingInspections, pending, passed };
+    const failed = permits.filter(p => p.status === 'inspection_failed').length;
+    const denied = permits.filter(p => p.status === 'denied').length;
+    return { totalFees, upcomingInspections, pending, passed, failed, denied };
+  }, [permits]);
+
+  // Surface the very next inspection so the GC sees it without scrolling.
+  // Sorted by inspectionDate ascending so we always show the closest one.
+  // Anything "scheduled in the past" is excluded (those need a status fix).
+  const nextInspection = useMemo(() => {
+    const upcoming = permits
+      .filter(p => p.status === 'inspection_scheduled' && p.inspectionDate)
+      .filter(p => new Date(p.inspectionDate!).getTime() > Date.now())
+      .sort((a, b) => new Date(a.inspectionDate!).getTime() - new Date(b.inspectionDate!).getTime());
+    return upcoming[0] ?? null;
+  }, [permits]);
+
+  // Failed-inspection alerts — these block work until reinspection so the
+  // GC needs to see them prominently. Same logic for denied permits.
+  const blockers = useMemo(() => {
+    return permits.filter(p => p.status === 'inspection_failed' || p.status === 'denied');
   }, [permits]);
 
   const openNewForm = useCallback(() => {
@@ -315,6 +334,67 @@ export default function PermitsScreen() {
         ),
       }} />
       <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 30 }} showsVerticalScrollIndicator={false}>
+        {/* Next-inspection hero — biggest visual on screen when there
+            is one. Calculates days countdown live so "tomorrow" shows
+            up amber. Tap to jump to the permit detail. */}
+        {nextInspection && (() => {
+          const days = Math.ceil((new Date(nextInspection.inspectionDate!).getTime() - Date.now()) / 86400000);
+          const dayLabel = days === 0 ? 'Today' : days === 1 ? 'Tomorrow' : `In ${days} days`;
+          const urgent = days <= 1;
+          const typeInfo = PERMIT_TYPE_INFO[nextInspection.type] ?? PERMIT_TYPE_INFO.other;
+          return (
+            <TouchableOpacity
+              style={[styles.nextInspectionCard, urgent && styles.nextInspectionUrgent]}
+              onPress={() => openEditForm(nextInspection)}
+              activeOpacity={0.85}
+              testID="next-inspection-hero"
+            >
+              <View style={styles.nextInspectionTop}>
+                <View style={[styles.nextInspectionBadge, { backgroundColor: urgent ? '#FFEBEE' : '#F3E5F5' }]}>
+                  <Calendar size={14} color={urgent ? '#C62828' : '#6A1B9A'} />
+                  <Text style={[styles.nextInspectionBadgeText, { color: urgent ? '#C62828' : '#6A1B9A' }]}>
+                    Next inspection · {dayLabel}
+                  </Text>
+                </View>
+                <Text style={styles.nextInspectionDate}>
+                  {new Date(nextInspection.inspectionDate!).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                </Text>
+              </View>
+              <Text style={styles.nextInspectionType}>{typeInfo.label} Inspection</Text>
+              <Text style={styles.nextInspectionProject} numberOfLines={1}>
+                {nextInspection.projectName} &middot; {nextInspection.jurisdiction}
+              </Text>
+              {nextInspection.permitNumber ? (
+                <Text style={styles.nextInspectionPermitNum}>Permit #{nextInspection.permitNumber}</Text>
+              ) : null}
+            </TouchableOpacity>
+          );
+        })()}
+
+        {/* Blockers — failed inspections + denied permits. These stop
+            work entirely so they go above stats. Each one is tappable
+            for fast follow-up. */}
+        {blockers.length > 0 && (
+          <View style={styles.blockersCard}>
+            <View style={styles.blockersHeader}>
+              <AlertTriangle size={14} color="#C62828" />
+              <Text style={styles.blockersTitle}>
+                {blockers.length} permit{blockers.length === 1 ? '' : 's'} blocking work
+              </Text>
+            </View>
+            {blockers.map(b => (
+              <TouchableOpacity key={b.id} style={styles.blockerRow} onPress={() => openEditForm(b)} activeOpacity={0.7}>
+                <Text style={styles.blockerName}>
+                  {(PERMIT_TYPE_INFO[b.type]?.label ?? b.type)} · {b.projectName}
+                </Text>
+                <Text style={styles.blockerStatus}>
+                  {b.status === 'inspection_failed' ? 'Failed inspection' : 'Permit denied'}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+
         <View style={styles.statsRow}>
           <View style={styles.statCard}>
             <View style={[styles.statIconWrap, { backgroundColor: Colors.primary + '14' }]}>
@@ -592,6 +672,118 @@ export default function PermitsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
+  // ── Next-inspection hero ──
+  nextInspectionCard: {
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 8,
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1.5,
+    borderColor: '#6A1B9A' + '30',
+    shadowColor: '#6A1B9A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  nextInspectionUrgent: {
+    borderColor: '#C62828' + '40',
+    shadowColor: '#C62828',
+    shadowOpacity: 0.12,
+  },
+  nextInspectionTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  nextInspectionBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+  },
+  nextInspectionBadgeText: {
+    fontSize: 11,
+    fontWeight: '800' as const,
+    letterSpacing: 0.4,
+    textTransform: 'uppercase' as const,
+  },
+  nextInspectionDate: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    fontWeight: '600' as const,
+  },
+  nextInspectionType: {
+    fontSize: 22,
+    fontWeight: '800' as const,
+    color: Colors.text,
+    letterSpacing: -0.4,
+    marginBottom: 4,
+  },
+  nextInspectionProject: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+    fontWeight: '600' as const,
+  },
+  nextInspectionPermitNum: {
+    fontSize: 11,
+    color: Colors.textMuted,
+    fontWeight: '600' as const,
+    marginTop: 4,
+    fontVariant: ['tabular-nums'],
+  },
+  // ── Blockers (failed/denied) ──
+  blockersCard: {
+    marginHorizontal: 16,
+    marginBottom: 8,
+    backgroundColor: '#FFEBEE',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: '#C62828' + '30',
+    gap: 8,
+  },
+  blockersHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  blockersTitle: {
+    fontSize: 12,
+    fontWeight: '800' as const,
+    color: '#C62828',
+    letterSpacing: 0.3,
+    textTransform: 'uppercase' as const,
+  },
+  blockerRow: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 6,
+  },
+  blockerName: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: '700' as const,
+    color: Colors.text,
+  },
+  blockerStatus: {
+    fontSize: 11,
+    fontWeight: '700' as const,
+    color: '#C62828',
+  },
   statsRow: {
     flexDirection: 'row',
     paddingHorizontal: 16,

@@ -142,6 +142,20 @@ function InvoiceInner() {
         }
       } catch {/* malformed JSON; fall through */}
     }
+    // Quick Invoice mode: seed ONE empty line item instead of dragging
+    // every estimate row in. Lets the GC type "$1,200 — final cleanup"
+    // and send without scrolling through 50 unrelated items.
+    if (invoiceType === 'quick') {
+      return [{
+        id: createId('ili'),
+        name: '',
+        description: '',
+        quantity: 1,
+        unit: 'lump',
+        unitPrice: 0,
+        total: 0,
+      }];
+    }
     if (!project) return [];
     const linked = project.linkedEstimate;
     if (linked && linked.items.length > 0) {
@@ -167,8 +181,18 @@ function InvoiceInner() {
         total: item.totalPrice,
       }));
     }
-    return [];
-  }, [existingInvoice, project]);
+    // No estimate, no prefill — start with one empty line. Beats
+    // an empty array which forces the user to find the "+" button.
+    return [{
+      id: createId('ili'),
+      name: '',
+      description: '',
+      quantity: 1,
+      unit: 'lump',
+      unitPrice: 0,
+      total: 0,
+    }];
+  }, [existingInvoice, project, invoiceType, prefillLines]);
 
   const [lineItems, setLineItems] = useState<InvoiceLineItem[]>(initialLineItems);
   const [paymentTerms, setPaymentTerms] = useState<PaymentTerms>(existingInvoice?.paymentTerms ?? 'net_30');

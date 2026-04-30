@@ -32,6 +32,14 @@ interface Props {
   contextLine?: string;
   /** Bulleted example phrases the user can read aloud. */
   suggestions?: string[];
+  /**
+   * Topic checklist — when provided, renders a "Cover all of these in
+   * your dictation" checklist BELOW the suggestion. Designed for forms
+   * with many fields (Daily Report, Project, etc.) so the user can see
+   * exactly what topics to talk about and won't leave fields blank.
+   * Each entry: { label, hint? } — hint is a short example/sub-text.
+   */
+  topicChecklist?: Array<{ label: string; hint?: string }>;
 }
 
 export default function VoiceCaptureModal({
@@ -39,6 +47,7 @@ export default function VoiceCaptureModal({
   title = 'Voice dictation',
   contextLine,
   suggestions = [],
+  topicChecklist,
 }: Props) {
   const [step, setStep] = useState<Step>('idle');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -295,6 +304,30 @@ export default function VoiceCaptureModal({
             </View>
           )}
 
+          {/* Topic checklist — visible only when caller passes one. Acts
+              as a teleprompter so the GC covers every field in a single
+              dictation pass. The AI parser maps the spoken content back
+              to these fields automatically; this just makes sure nothing
+              gets skipped. */}
+          {topicChecklist && topicChecklist.length > 0 && (
+            <View style={styles.checklistCard}>
+              <Text style={styles.checklistHeader}>Cover all of these</Text>
+              {topicChecklist.map((topic, i) => (
+                <View key={i} style={styles.checklistRow}>
+                  <View style={styles.checklistBullet}>
+                    <Text style={styles.checklistBulletText}>{i + 1}</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.checklistLabel}>{topic.label}</Text>
+                    {topic.hint ? (
+                      <Text style={styles.checklistHint}>{topic.hint}</Text>
+                    ) : null}
+                  </View>
+                </View>
+              ))}
+            </View>
+          )}
+
           {/* Recorder */}
           <View style={styles.recorderArea}>
             <Pressable
@@ -431,6 +464,52 @@ const styles = StyleSheet.create({
   suggestionDotActive: {
     backgroundColor: Colors.primary,
     width: 16,
+  },
+  checklistCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+    marginTop: 10,
+    gap: 10,
+  },
+  checklistHeader: {
+    fontSize: 12,
+    fontWeight: '800' as const,
+    color: Colors.textSecondary,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    marginBottom: 4,
+  },
+  checklistRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  checklistBullet: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: Colors.primary + '15',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checklistBulletText: {
+    fontSize: 11,
+    fontWeight: '800' as const,
+    color: Colors.primary,
+  },
+  checklistLabel: {
+    fontSize: 14,
+    fontWeight: '700' as const,
+    color: Colors.text,
+  },
+  checklistHint: {
+    fontSize: 12,
+    color: Colors.textMuted,
+    marginTop: 2,
+    lineHeight: 16,
   },
   recorderArea: {
     alignItems: 'center',

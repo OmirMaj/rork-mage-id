@@ -26,18 +26,23 @@ export interface PaymentPredictionResult {
   topAction: string;
 }
 
+// Every field has a default — if Gemini returns partial data, the
+// mageAI salvage path can rescue per-field instead of throwing the
+// whole forecast away. Previously a single missing `riskLevel` (or
+// the model returning a free-text level like "moderate") killed the
+// entire response and the user saw "Could not forecast payments."
 const predictionSchema = z.object({
   perInvoice: z.array(z.object({
-    invoiceId: z.string(),
-    onTimeProbability: z.number(),
-    daysToPay: z.number(),
-    riskLevel: z.enum(['low', 'medium', 'high']),
-    reasons: z.array(z.string()),
-    suggestedAction: z.string(),
-  })),
-  collectionRiskScore: z.number(),
-  headline: z.string(),
-  topAction: z.string(),
+    invoiceId: z.string().default(''),
+    onTimeProbability: z.number().default(50),
+    daysToPay: z.number().default(21),
+    riskLevel: z.enum(['low', 'medium', 'high']).catch('medium').default('medium'),
+    reasons: z.array(z.string()).default([]),
+    suggestedAction: z.string().default(''),
+  })).default([]),
+  collectionRiskScore: z.number().default(50),
+  headline: z.string().default(''),
+  topAction: z.string().default(''),
 });
 
 const predictionHint = {

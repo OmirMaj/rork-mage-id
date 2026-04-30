@@ -195,11 +195,18 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: Colors.surface,
     borderRadius: 16,
+    // Bumped from a near-invisible 0.5px borderLight to a visible
+    // 1.5px ink-tinted border so projects feel like distinct, tactile
+    // cards instead of floating tiles. The deeper shadow + heavier
+    // border together give each project clear edges that read on light
+    // and dark mode.
+    borderWidth: 1.5,
+    borderColor: Colors.text + '14',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.10,
+    shadowRadius: 12,
+    elevation: 5,
     overflow: 'hidden' as const,
   },
   topRow: {

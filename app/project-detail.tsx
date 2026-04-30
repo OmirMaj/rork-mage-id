@@ -20,7 +20,7 @@ import {
   Mail, MessageSquare, X, BarChart3, ArrowDownRight, Shield, Layers,
   FileText, ShoppingCart, UserPlus, Send, Share2, Eye, PenTool, Crown, Pencil,
   Plus, Receipt, ClipboardList, Repeat, CheckSquare, Camera, Globe, Link, Copy, Wallet, Archive, Activity,
-  HardHat, FolderOpen, Hammer, ScrollText, BookOpen, Footprints,
+  HardHat, FolderOpen, Hammer, ScrollText, BookOpen, Footprints, Zap,
 } from 'lucide-react-native';
 import { PROJECT_TYPES, type ProjectType, type ProjectCollaborator, type EntityRef, type ProjectPhoto, type PhotoMarkup } from '@/types';
 import Svg, { Path as SvgPath, Circle as SvgCircle, Line as SvgLine, Polygon as SvgPolygon, Text as SvgTextEl } from 'react-native-svg';
@@ -1300,29 +1300,49 @@ export default function ProjectDetailScreen() {
                   <Text style={[styles.tableHeaderText, { flex: 1 }]}>Markup</Text>
                   <Text style={[styles.tableHeaderText, { flex: 1, textAlign: 'right' as const }]}>Total</Text>
                 </View>
-                {linkedEstimate.items.map((item, idx) => (
-                  <View key={idx} style={[styles.tableRow, idx % 2 === 0 && styles.tableRowAlt]}>
-                    <View style={{ flex: 2 }}>
-                      <Text style={styles.tableCellName} numberOfLines={1}>{item.name}</Text>
-                      <Text style={styles.tableCellSub}>{item.category} · {item.supplier}</Text>
-                      {item.usesBulk && (
-                        <View style={styles.bulkBadge}>
-                          <TrendingDown size={10} color={Colors.success} />
-                          <Text style={styles.bulkBadgeText}>Bulk rate</Text>
-                        </View>
-                      )}
+                {linkedEstimate.items.map((item, idx) => {
+                  // Defensive coercion: legacy estimates (or rows persisted
+                  // before lineTotal/markup/quantity were canonical) can
+                  // arrive without these fields, which used to crash with
+                  // "Cannot read property 'toFixed' of undefined" the moment
+                  // the user opened the Estimate Items section.
+                  const safeName = item.name ?? 'Unnamed item';
+                  const safeCategory = item.category ?? '';
+                  const safeSupplier = item.supplier ?? '';
+                  const safeQty = typeof item.quantity === 'number' ? item.quantity : 0;
+                  const safeUnit = item.unit ?? 'ea';
+                  const safeMarkup = typeof item.markup === 'number' ? item.markup : 0;
+                  // Derive lineTotal if missing — quantity × (bulk or unit price) × (1+markup).
+                  const derivedTotal = safeQty *
+                    (item.usesBulk ? (item.bulkPrice ?? item.unitPrice ?? 0) : (item.unitPrice ?? 0)) *
+                    (1 + safeMarkup / 100);
+                  const safeTotal = typeof item.lineTotal === 'number' ? item.lineTotal : derivedTotal;
+                  return (
+                    <View key={idx} style={[styles.tableRow, idx % 2 === 0 && styles.tableRowAlt]}>
+                      <View style={{ flex: 2 }}>
+                        <Text style={styles.tableCellName} numberOfLines={1}>{safeName}</Text>
+                        <Text style={styles.tableCellSub}>
+                          {[safeCategory, safeSupplier].filter(Boolean).join(' · ') || '—'}
+                        </Text>
+                        {item.usesBulk && (
+                          <View style={styles.bulkBadge}>
+                            <TrendingDown size={10} color={Colors.success} />
+                            <Text style={styles.bulkBadgeText}>Bulk rate</Text>
+                          </View>
+                        )}
+                      </View>
+                      <Text style={[styles.tableCell, { flex: 1 }]}>
+                        {safeQty} {safeUnit}
+                      </Text>
+                      <Text style={[styles.tableCell, { flex: 1 }]}>
+                        {safeMarkup}%
+                      </Text>
+                      <Text style={[styles.tableCellBold, { flex: 1, textAlign: 'right' as const }]}>
+                        ${safeTotal.toFixed(2)}
+                      </Text>
                     </View>
-                    <Text style={[styles.tableCell, { flex: 1 }]}>
-                      {item.quantity} {item.unit}
-                    </Text>
-                    <Text style={[styles.tableCell, { flex: 1 }]}>
-                      {item.markup}%
-                    </Text>
-                    <Text style={[styles.tableCellBold, { flex: 1, textAlign: 'right' as const }]}>
-                      ${item.lineTotal.toFixed(2)}
-                    </Text>
-                  </View>
-                ))}
+                  );
+                })}
                 <View style={styles.linkedSummaryRow}>
                   <View style={styles.linkedSummaryItem}>
                     <Text style={styles.linkedSummaryLabel}>Base</Text>
@@ -1941,14 +1961,20 @@ export default function ProjectDetailScreen() {
                 );
               })}
               <View style={styles.invBtnRow}>
+                {/* Quick Invoice — skips bill-from-estimate entirely.
+                    Goes straight to /invoice with no prefill so the GC
+                    can type an amount + description and send. Fastest
+                    path for one-off bills (final cleanup, allowance
+                    overage, deposit on a sub) that don't need to draw
+                    against estimate line items. */}
                 <TouchableOpacity
                   style={[styles.coAddBtn, { flex: 1 }]}
-                  onPress={() => navigateFromTile({ pathname: '/bill-from-estimate' as any, params: { projectId: id, type: 'full' } })}
+                  onPress={() => navigateFromTile({ pathname: '/invoice' as any, params: { projectId: id, type: 'quick' } })}
                   activeOpacity={0.7}
-                  testID="add-full-invoice-btn"
+                  testID="add-quick-invoice-btn"
                 >
-                  <Receipt size={16} color={Colors.success} />
-                  <Text style={[styles.coAddBtnText, { color: Colors.success }]}>Full Invoice</Text>
+                  <Zap size={16} color={Colors.primary} />
+                  <Text style={[styles.coAddBtnText, { color: Colors.primary }]}>Quick</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.coAddBtn, { flex: 1 }]}
@@ -1957,7 +1983,16 @@ export default function ProjectDetailScreen() {
                   testID="add-progress-bill-btn"
                 >
                   <ClipboardList size={16} color={Colors.info} />
-                  <Text style={[styles.coAddBtnText, { color: Colors.info }]}>Progress Bill</Text>
+                  <Text style={[styles.coAddBtnText, { color: Colors.info }]}>Progress</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.coAddBtn, { flex: 1 }]}
+                  onPress={() => navigateFromTile({ pathname: '/bill-from-estimate' as any, params: { projectId: id, type: 'full' } })}
+                  activeOpacity={0.7}
+                  testID="add-full-invoice-btn"
+                >
+                  <Receipt size={16} color={Colors.success} />
+                  <Text style={[styles.coAddBtnText, { color: Colors.success }]}>Full</Text>
                 </TouchableOpacity>
               </View>
             </View>

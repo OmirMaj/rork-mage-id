@@ -284,7 +284,10 @@ export default function ReportInboxScreen() {
         ),
       }} />
 
-      <View style={[styles.filtersBar, { paddingTop: insets.top + 56 }]}>
+      {/* Native nav header (Stack.Screen above) already handles insets.top.
+          The previous insets.top + 56 added a redundant ~110px of space
+          below the header. Just give the filter bar a comfortable inset. */}
+      <View style={[styles.filtersBar, { paddingTop: 12 }]}>
         <FilterChipRow chips={kindChips} value={kindFilter} onChange={setKindFilter} />
         <FilterChipRow chips={statusChips} value={statusFilter} onChange={setStatusFilter} />
         {projects.length > 1 && (
