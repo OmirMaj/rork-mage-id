@@ -2003,17 +2003,32 @@
   .portal-footer a { color: var(--text); text-decoration: none; font-weight: 600; }
   .portal-footer a:hover { color: var(--amber-dark); }
 
-  /* ───────── Print styles for AIA ───────── */
+  /* ───────── Print styles for AIA (drawer-based) ─────────
+     Designed for printing AIA G702/G703 pay applications, which the
+     homeowner opens in a side drawer. We hide #sections so only the
+     drawer prints. These rules are scoped to NOT apply when the
+     closeout binder print path is active (body.printing-binder), since
+     the binder is rendered directly in #sections — hiding #sections
+     during binder print would result in a blank page. */
   @media print {
     body { background: #fff; }
-    .nav-wrap, .hero, .stats-bar, .portal-footer, #sections, .drawer-backdrop, .drawer-header, .drawer-footer, .drawer-close { display: none !important; }
-    .drawer {
+    body:not(.printing-binder) .nav-wrap,
+    body:not(.printing-binder) .hero,
+    body:not(.printing-binder) .stats-bar,
+    body:not(.printing-binder) .portal-footer,
+    body:not(.printing-binder) #sections,
+    body:not(.printing-binder) .drawer-backdrop,
+    body:not(.printing-binder) .drawer-header,
+    body:not(.printing-binder) .drawer-footer,
+    body:not(.printing-binder) .drawer-close { display: none !important; }
+    body:not(.printing-binder) .drawer {
       position: static; transform: none !important; max-width: none; width: 100%;
       box-shadow: none; background: #fff;
     }
-    .drawer-body { overflow: visible !important; padding: 0 !important; }
-    .detail-block { border: none; padding: 12px 0; margin: 0; }
-    .sov-table th, .sov-table td { font-size: 10px; padding: 6px 4px; }
+    body:not(.printing-binder) .drawer-body { overflow: visible !important; padding: 0 !important; }
+    body:not(.printing-binder) .detail-block { border: none; padding: 12px 0; margin: 0; }
+    body:not(.printing-binder) .sov-table th,
+    body:not(.printing-binder) .sov-table td { font-size: 10px; padding: 6px 4px; }
   }
 
   /* ───────── Fallback ───────── */
