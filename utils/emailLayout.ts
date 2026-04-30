@@ -246,13 +246,35 @@ function projectContextHtml(opts: ProjectContextOpts): string {
 
 const PORTAL_BASE_URL = 'https://mageid.app';
 
+// Mirrors supabase/functions/_shared/email.ts. Keep these in sync —
+// recipients should be able to use either link interchangeably.
+const UNSUB_SECRET = 'mage-id-unsub-2026-rotate-on-leak';
+
+export function buildUnsubscribeToken(email: string): string {
+  const data = email.toLowerCase().trim() + ':' + UNSUB_SECRET;
+  let h = 14695981039346656037n;
+  for (let i = 0; i < data.length; i++) {
+    h ^= BigInt(data.charCodeAt(i));
+    h = (h * 1099511628211n) & 0xFFFFFFFFFFFFFFFFn;
+  }
+  return h.toString(36).padStart(12, '0').slice(0, 12);
+}
+
 export function buildUnsubscribeUrl(opts: UnsubscribeOpts): string | null {
   if (opts.enabled === false) return null;
   if (!opts.recipientEmail) return null;
   const params = new URLSearchParams();
   params.set('e', opts.recipientEmail);
   if (opts.eventKey) params.set('k', opts.eventKey);
+  params.set('t', buildUnsubscribeToken(opts.recipientEmail));
   return `${PORTAL_BASE_URL}/unsubscribe?${params.toString()}`;
+}
+
+export function buildPreferencesUrl(email: string): string {
+  const params = new URLSearchParams();
+  params.set('e', email);
+  params.set('t', buildUnsubscribeToken(email));
+  return `${PORTAL_BASE_URL}/preferences?${params.toString()}`;
 }
 
 function footerHtml(opts: {
@@ -264,8 +286,9 @@ function footerHtml(opts: {
     : '';
 
   const unsubUrl = opts.unsubscribe ? buildUnsubscribeUrl(opts.unsubscribe) : null;
+  const prefsUrl = opts.unsubscribe?.recipientEmail ? buildPreferencesUrl(opts.unsubscribe.recipientEmail) : null;
   const unsubLine = unsubUrl
-    ? `<p style="margin:10px 0 0;font-family:${FONT_STACK};font-size:11px;color:${FOG};line-height:1.6;"><a href="${escapeHtml(unsubUrl)}" style="color:${FOG};text-decoration:underline;">Unsubscribe from these notifications</a> · <a href="${PORTAL_BASE_URL}/preferences" style="color:${FOG};text-decoration:underline;">manage email preferences</a></p>`
+    ? `<p style="margin:10px 0 0;font-family:${FONT_STACK};font-size:11px;color:${FOG};line-height:1.6;"><a href="${escapeHtml(unsubUrl)}" style="color:${FOG};text-decoration:underline;">Unsubscribe from these notifications</a>${prefsUrl ? ` · <a href="${escapeHtml(prefsUrl)}" style="color:${FOG};text-decoration:underline;">manage email preferences</a>` : ''}</p>`
     : '';
 
   return `

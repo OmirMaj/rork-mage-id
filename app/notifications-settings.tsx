@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import {
   ChevronLeft, MessageSquare, HandCoins, CheckCircle2, Inbox, Bell,
-  PenTool, ShoppingCart, HelpCircle, Hammer,
+  PenTool, ShoppingCart, HelpCircle, Hammer, Sunrise,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useAuth } from '@/contexts/AuthContext';
@@ -22,15 +22,31 @@ interface CategoryDef {
   key:
     | 'portal_message' | 'budget_proposal' | 'co_approval' | 'sub_invoice'
     | 'contract_signed' | 'selection_chosen'
-    | 'bid_question_asked' | 'rfp_awarded' | 'nearby_rfp_posted';
+    | 'bid_question_asked' | 'rfp_awarded' | 'nearby_rfp_posted'
+    | 'daily_digest';
   label: string;
   description: string;
   icon: React.ReactNode;
   /** Group label for the section header. */
-  group: 'client' | 'sub' | 'marketplace';
+  group: 'digest' | 'client' | 'sub' | 'marketplace';
+  /** When true, the toggle defaults OFF instead of ON. Used for opt-in
+   *  channels like the daily digest where users must actively subscribe. */
+  defaultOff?: boolean;
+  /** When true, only the email channel matters (no push variant). */
+  emailOnly?: boolean;
 }
 
 const CATEGORIES: CategoryDef[] = [
+  // ─── Daily digest (opt-in only) ───
+  {
+    key: 'daily_digest',
+    label: 'Daily digest',
+    description: 'A once-a-day recap of project activity (8 AM ET). Off by default.',
+    icon: <Sunrise size={18} color="#FF6A1A" />,
+    group: 'digest',
+    defaultOff: true,
+    emailOnly: true,
+  },
   // ─── Client → GC ───
   {
     key: 'portal_message',
@@ -100,6 +116,7 @@ const CATEGORIES: CategoryDef[] = [
 ];
 
 const GROUP_LABELS: Record<CategoryDef['group'], { title: string; subtitle: string }> = {
+  digest:      { title: 'Daily digest',         subtitle: 'A once-a-day wrap-up email. Sent in the morning, opt-in only.' },
   client:      { title: 'Client → You',         subtitle: 'When the homeowner does something on the portal.' },
   sub:         { title: 'Subcontractor → You',  subtitle: 'When a sub does something through their portal link.' },
   marketplace: { title: 'Marketplace',          subtitle: 'New RFPs nearby, awards, and pre-bid Q&A.' },
@@ -171,12 +188,21 @@ export default function NotificationsSettingsScreen() {
   }, [prefs, user?.id]);
 
   const isOn = useCallback((key: string, channel: 'push' | 'email'): boolean => {
+    const cat = CATEGORIES.find(c => c.key === key);
     const v = prefs[key]?.[channel];
+    if (cat?.defaultOff) {
+      // Opt-in: explicit `true` only. Anything else (undefined / false) = OFF.
+      return v === true;
+    }
     return v !== false; // default ON
   }, [prefs]);
 
   const allOn = useMemo(() => {
-    return CATEGORIES.every(c => isOn(c.key, 'push') && isOn(c.key, 'email'));
+    // Skip default-off categories from the "everything is on" check —
+    // they don't count toward "silenced" since silence is the default.
+    return CATEGORIES
+      .filter(c => !c.defaultOff)
+      .every(c => isOn(c.key, 'push') && isOn(c.key, 'email'));
   }, [isOn]);
 
   return (
@@ -215,7 +241,7 @@ export default function NotificationsSettingsScreen() {
             <ActivityIndicator size="small" color={Colors.primary} />
           </View>
         ) : (
-          (['client', 'sub', 'marketplace'] as CategoryDef['group'][]).map(group => {
+          (['digest', 'client', 'sub', 'marketplace'] as CategoryDef['group'][]).map(group => {
             const groupCats = CATEGORIES.filter(c => c.group === group);
             if (groupCats.length === 0) return null;
             const meta = GROUP_LABELS[group];
@@ -244,12 +270,16 @@ export default function NotificationsSettingsScreen() {
                         </View>
                       </View>
                       <View style={styles.toggle}>
-                        <Switch
-                          value={isOn(c.key, 'push')}
-                          onValueChange={v => toggle(c.key, 'push', v)}
-                          trackColor={{ false: Colors.border, true: Colors.primary }}
-                          thumbColor="#FFF"
-                        />
+                        {c.emailOnly ? (
+                          <Text style={styles.naLabel}>—</Text>
+                        ) : (
+                          <Switch
+                            value={isOn(c.key, 'push')}
+                            onValueChange={v => toggle(c.key, 'push', v)}
+                            trackColor={{ false: Colors.border, true: Colors.primary }}
+                            thumbColor="#FFF"
+                          />
+                        )}
                       </View>
                       <View style={styles.toggle}>
                         <Switch
@@ -329,6 +359,7 @@ const styles = StyleSheet.create({
   rowLabel: { fontSize: 14, fontWeight: '600', color: Colors.text },
   rowDesc: { fontSize: 12, color: Colors.textMuted, marginTop: 2, lineHeight: 16 },
   toggle: { width: 64, alignItems: 'center' },
+  naLabel: { fontSize: 18, color: Colors.textMuted, fontWeight: '600' },
   savingHint: {
     fontSize: 11, color: Colors.textMuted, marginTop: 8, fontStyle: 'italic', textAlign: 'right',
   },

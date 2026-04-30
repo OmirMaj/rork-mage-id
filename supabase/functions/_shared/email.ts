@@ -293,13 +293,60 @@ function projectContextHtml(opts: ProjectContextOpts): string {
 
 const PORTAL_BASE_URL = 'https://mageid.app';
 
+// Project-bound HMAC seed for unsubscribe / re-subscribe tokens. Not a
+// crypto secret in the strong sense — it lives in the deployed edge fn
+// code. Threat model: a script attacker could otherwise re-subscribe
+// arbitrary emails by guessing the URL, which would put unwanted mail
+// into their inboxes. The token gates re-subscribe specifically. Plain
+// unsubscribe doesn't require a token (it's user-protective).
+const UNSUB_SECRET = 'mage-id-unsub-2026-rotate-on-leak';
+
+/**
+ * FNV-1a 64-bit hash of `email:UNSUB_SECRET`, base36-encoded, 12 chars.
+ * Synchronous (Web Crypto is async-only and would force every caller of
+ * wrapEmailHtml to be async). Sufficient for our threat model — see
+ * UNSUB_SECRET note above. If you ever need real crypto here, derive a
+ * key from SUPABASE_JWT_SECRET via Web Crypto and make this async.
+ */
+export function buildUnsubscribeToken(email: string): string {
+  const data = email.toLowerCase().trim() + ':' + UNSUB_SECRET;
+  // FNV-1a 64-bit
+  let h = 14695981039346656037n;
+  for (let i = 0; i < data.length; i++) {
+    h ^= BigInt(data.charCodeAt(i));
+    h = (h * 1099511628211n) & 0xFFFFFFFFFFFFFFFFn;
+  }
+  return h.toString(36).padStart(12, '0').slice(0, 12);
+}
+
+export function verifyUnsubscribeToken(email: string, token: string): boolean {
+  if (!email || !token) return false;
+  const expected = buildUnsubscribeToken(email);
+  if (expected.length !== token.length) return false;
+  // Constant-time compare to avoid timing oracles.
+  let r = 0;
+  for (let i = 0; i < expected.length; i++) r |= expected.charCodeAt(i) ^ token.charCodeAt(i);
+  return r === 0;
+}
+
 export function buildUnsubscribeUrl(opts: UnsubscribeOpts): string | null {
   if (opts.enabled === false) return null;
   if (!opts.recipientEmail) return null;
   const params = new URLSearchParams();
   params.set('e', opts.recipientEmail);
   if (opts.eventKey) params.set('k', opts.eventKey);
+  // Token lets the recipient re-subscribe via /preferences without us
+  // exposing a privileged API. Plain unsubscribe ignores it (anyone may
+  // suppress an address) — re-subscribe verifies it.
+  params.set('t', buildUnsubscribeToken(opts.recipientEmail));
   return `${PORTAL_BASE_URL}/unsubscribe?${params.toString()}`;
+}
+
+export function buildPreferencesUrl(email: string): string {
+  const params = new URLSearchParams();
+  params.set('e', email);
+  params.set('t', buildUnsubscribeToken(email));
+  return `${PORTAL_BASE_URL}/preferences?${params.toString()}`;
 }
 
 function footerHtml(opts: {
@@ -311,8 +358,9 @@ function footerHtml(opts: {
     : '';
 
   const unsubUrl = opts.unsubscribe ? buildUnsubscribeUrl(opts.unsubscribe) : null;
+  const prefsUrl = opts.unsubscribe?.recipientEmail ? buildPreferencesUrl(opts.unsubscribe.recipientEmail) : null;
   const unsubLine = unsubUrl
-    ? `<p style="margin:10px 0 0;font-family:${FONT_STACK};font-size:11px;color:${FOG};line-height:1.6;"><a href="${escapeHtml(unsubUrl)}" style="color:${FOG};text-decoration:underline;">Unsubscribe from these notifications</a> · <a href="${PORTAL_BASE_URL}/preferences" style="color:${FOG};text-decoration:underline;">manage email preferences</a></p>`
+    ? `<p style="margin:10px 0 0;font-family:${FONT_STACK};font-size:11px;color:${FOG};line-height:1.6;"><a href="${escapeHtml(unsubUrl)}" style="color:${FOG};text-decoration:underline;">Unsubscribe from these notifications</a>${prefsUrl ? ` · <a href="${escapeHtml(prefsUrl)}" style="color:${FOG};text-decoration:underline;">manage email preferences</a>` : ''}</p>`
     : '';
 
   return `

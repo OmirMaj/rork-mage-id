@@ -79,6 +79,7 @@
     }
     .toggle input:checked + .slider { background: #1E8E4A; }
     .toggle input:checked + .slider::before { transform: translateX(18px); }
+    .toggle input:disabled + .slider { opacity: 0.5; cursor: not-allowed; }
     .target {
       display: inline-block; padding: 4px 10px; border-radius: 8px;
       background: #F4EFE6; border: 1px solid #E8DFCD;
@@ -93,10 +94,27 @@
       border-radius: 999px; font-size: 13px; font-weight: 600;
       opacity: 0; transition: opacity 0.18s;
       pointer-events: none;
+      max-width: 92vw;
+      text-align: center;
     }
     .toast.show { opacity: 1; }
+    .toast.danger { background: #C2410C; }
     .empty {
       text-align: center; padding: 28px 0; color: #9AA3AD; font-size: 14px;
+    }
+    .group-label {
+      margin: 18px 0 6px;
+      font-size: 11px; font-weight: 800; color: #9AA3AD;
+      letter-spacing: 1.4px; text-transform: uppercase;
+    }
+    .hidden { display: none; }
+    .no-token-note {
+      margin: 14px 0 0;
+      padding: 12px 14px;
+      background: #FFF7ED;
+      border: 1px solid #FED7AA;
+      border-radius: 10px;
+      font-size: 13px; color: #0B0D10; line-height: 1.5;
     }
   </style>
 </head>
@@ -109,16 +127,20 @@
     <div class="body">
       <p class="eyebrow">Notification settings</p>
       <h1>Tune what hits your inbox.</h1>
-      <p id="lede">For <span class="target" id="emailLabel">your address</span> — toggle a category off and we'll stop sending those emails. Critical account / contract emails always go through.</p>
+      <p id="lede">For <span class="target" id="emailLabel">your address</span> — toggle a category off and we'll stop sending those emails. Toggle back on to resume. Critical account / contract emails always go through.</p>
+
+      <div id="noTokenNote" class="no-token-note hidden">
+        We can't verify this preferences link was sent by us, so the toggles are read-only. To make changes, use the <strong>"manage email preferences"</strong> link in any recent MAGE ID email.
+      </div>
 
       <div id="rows">
-        <!-- Populated by JS based on EVENT_LABELS -->
+        <!-- Populated by JS -->
       </div>
 
       <div id="empty" class="empty hidden">No email address on the link. Use the preferences link from any of our emails.</div>
 
       <div class="footer">
-        Powered by <a href="https://mageid.app">MAGE ID</a>. Want to unsubscribe from everything? <a href="#" id="unsubAll">Turn off all categories</a>.
+        Powered by <a href="https://mageid.app">MAGE ID</a>. <a href="#" id="unsubAll">Turn off everything</a>.
       </div>
     </div>
   </main>
@@ -128,31 +150,51 @@
     (function () {
       var SUPABASE_URL = 'https://nteoqhcswappxxjlpvap.supabase.co';
       var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im50ZW9xaGNzd2FwcHh4amxwdmFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDgxOTUyMDQsImV4cCI6MjA2Mzc3MTIwNH0.lHIb5bkOMm5oGz03jCPZDQUUGiEr9NHK67Z2UbYUlUM';
-      var EVENT_KEYS = [
-        { key: 'portal_message', label: 'Portal messages', desc: 'When your client or contractor sends a message.' },
-        { key: 'budget_proposal', label: 'Budget proposals', desc: 'When a target budget is proposed for review.' },
-        { key: 'co_approval', label: 'Change orders', desc: 'When a CO is approved or declined.' },
-        { key: 'contract_signed', label: 'Contract signed', desc: 'When a contract is counter-signed.' },
-        { key: 'selection_chosen', label: 'Selections', desc: 'When the homeowner picks a fixture or finish.' },
-        { key: 'sub_invoice', label: 'Sub invoices', desc: 'When a sub submits or you act on an invoice.' },
-        { key: 'nearby_rfp_posted', label: 'New nearby RFPs', desc: 'When a homeowner posts a project in your area.' },
-        { key: 'rfp_awarded', label: 'Bid awarded', desc: 'When a homeowner picks your bid.' },
-        { key: 'bid_question_asked', label: 'Bid Q&A (asked)', desc: 'When a contractor asks about your RFP.' },
-        { key: 'bid_question_answered', label: 'Bid Q&A (answered)', desc: 'When the homeowner answers a question.' },
-        { key: 'closeout_binder', label: 'Closeout', desc: 'When the closeout binder is delivered.' },
-        { key: 'portal_invite', label: 'Portal invitations', desc: 'When you\'re invited to a project portal.' },
+      // Categories grouped for legibility. These match the eventKey
+      // strings the notify edge function uses when writing to
+      // email_unsubscribes.
+      var GROUPS = [
+        { label: 'Daily summary', items: [
+          { key: 'daily_digest', label: 'Daily digest', desc: 'A once-a-day recap of activity across your projects.' },
+        ]},
+        { label: 'Project activity', items: [
+          { key: 'portal_message', label: 'Portal messages', desc: 'When your client or contractor sends a message.' },
+          { key: 'budget_proposal', label: 'Budget proposals', desc: 'When a target budget is proposed.' },
+          { key: 'co_approval', label: 'Change orders', desc: 'When a CO is approved or declined.' },
+          { key: 'contract_signed', label: 'Contract signed', desc: 'When a contract is counter-signed.' },
+          { key: 'selection_chosen', label: 'Selections', desc: 'When the homeowner picks a fixture or finish.' },
+          { key: 'closeout_binder', label: 'Closeout', desc: 'When the closeout binder is delivered.' },
+        ]},
+        { label: 'Subs & invoicing', items: [
+          { key: 'sub_invoice', label: 'Sub invoices', desc: 'When a sub submits or you act on an invoice.' },
+        ]},
+        { label: 'Marketplace & RFPs', items: [
+          { key: 'nearby_rfp_posted', label: 'New nearby RFPs', desc: 'When a homeowner posts a project in your area.' },
+          { key: 'rfp_awarded', label: 'Bid awarded', desc: 'When a homeowner picks your bid.' },
+          { key: 'bid_question_asked', label: 'Bid Q&A · asked', desc: 'When a contractor asks about your RFP.' },
+          { key: 'bid_question_answered', label: 'Bid Q&A · answered', desc: 'When the homeowner answers a question.' },
+        ]},
+        { label: 'Onboarding', items: [
+          { key: 'portal_invite', label: 'Portal invitations', desc: 'When you\'re invited to a project portal.' },
+        ]},
       ];
+
+      // Daily digest defaults to OFF (opt-in only) — every other category
+      // defaults to ON. The toggle state on first load reflects whether
+      // the user has explicitly suppressed the category in our table.
+      var DEFAULT_OFF = new Set(['daily_digest']);
 
       function readQuery() {
         var p = new URLSearchParams(window.location.search);
-        return { email: p.get('e') || '' };
+        return { email: p.get('e') || '', token: p.get('t') || '' };
       }
 
-      function showToast(text) {
+      function showToast(text, danger) {
         var t = document.getElementById('toast');
         t.textContent = text;
-        t.classList.add('show');
-        setTimeout(function () { t.classList.remove('show'); }, 1600);
+        t.className = 'toast show' + (danger ? ' danger' : '');
+        clearTimeout(showToast._h);
+        showToast._h = setTimeout(function () { t.className = 'toast'; }, 1800);
       }
 
       var qs = readQuery();
@@ -164,8 +206,13 @@
       }
       document.getElementById('emailLabel').textContent = qs.email;
 
-      // Fetch current state — the GET endpoint of unsubscribe returns
-      // unsubscribed: bool for the (email, key) pair.
+      // No token = read-only mode. The toggles still render (so the user
+      // can SEE their current settings) but they're disabled.
+      var readOnly = !qs.token;
+      if (readOnly) {
+        document.getElementById('noTokenNote').classList.remove('hidden');
+      }
+
       function fetchSuppressed(eventKey) {
         var url = SUPABASE_URL + '/functions/v1/unsubscribe?e=' + encodeURIComponent(qs.email) + '&k=' + encodeURIComponent(eventKey);
         return fetch(url, {
@@ -174,80 +221,98 @@
         }).then(function (r) { return r.json(); }).then(function (d) { return !!(d && d.unsubscribed); });
       }
 
-      function setSuppressed(eventKey, on) {
-        // "On" toggle = subscribe (no row). Toggle off = unsubscribe (insert).
-        // Since we don't yet have a re-subscribe path on the public anon key,
-        // we keep things simple: this page CAN unsubscribe, but to re-enable
-        // a category the user has to email support. (Updating prefs back-on
-        // requires deleting a row, which is privileged.) The toggle UX still
-        // works: if they toggle ON, we'll attempt to delete via the same
-        // endpoint with method=DELETE; the edge function rejects it for
-        // anon callers, and we surface "email support to re-enable".
-        if (!on) {
-          var url = SUPABASE_URL + '/functions/v1/unsubscribe';
-          return fetch(url, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'apikey': SUPABASE_ANON_KEY,
-              'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
-            },
-            body: JSON.stringify({ email: qs.email, event_key: eventKey, source: 'preferences_page' }),
-          }).then(function (r) { return r.ok; });
-        } else {
-          // Re-subscribe path is not exposed publicly. Tell the user.
-          showToast('To turn back on, email support@mageid.app');
-          return Promise.resolve(false);
-        }
-      }
-
-      var rowsEl = document.getElementById('rows');
-      EVENT_KEYS.forEach(function (e) {
-        var row = document.createElement('div');
-        row.className = 'row';
-        row.innerHTML = '<div><div class="label">' + e.label + '</div><div class="desc">' + e.desc + '</div></div>' +
-          '<label class="toggle"><input type="checkbox" data-key="' + e.key + '" checked /><span class="slider"></span></label>';
-        rowsEl.appendChild(row);
-        var checkbox = row.querySelector('input');
-        fetchSuppressed(e.key).then(function (suppressed) {
-          checkbox.checked = !suppressed;
-        });
-        checkbox.addEventListener('change', function () {
-          var on = checkbox.checked;
-          setSuppressed(e.key, on).then(function (ok) {
-            if (!ok && !on) {
-              showToast('Could not save');
-              checkbox.checked = true;
-            } else if (ok && !on) {
-              showToast('Unsubscribed');
-            } else if (!ok && on) {
-              checkbox.checked = false;
-            }
-          });
-        });
-      });
-
-      document.getElementById('unsubAll').addEventListener('click', function (ev) {
-        ev.preventDefault();
-        if (!confirm('Turn off ALL email notifications for ' + qs.email + '?')) return;
+      function callApi(action, eventKey) {
         var url = SUPABASE_URL + '/functions/v1/unsubscribe';
-        fetch(url, {
+        return fetch(url, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'apikey': SUPABASE_ANON_KEY,
             'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
           },
-          body: JSON.stringify({ email: qs.email, event_key: null, source: 'preferences_page_all' }),
-        }).then(function (r) {
-          if (r.ok) {
-            showToast('All notifications off');
-            document.querySelectorAll('.toggle input').forEach(function (i) { i.checked = false; });
-          } else {
-            showToast('Could not save');
-          }
+          body: JSON.stringify({
+            email: qs.email,
+            event_key: eventKey,
+            action: action,
+            token: qs.token,
+            source: 'preferences_page',
+          }),
+        }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); });
+      }
+
+      var rowsEl = document.getElementById('rows');
+      var allCheckboxes = [];
+
+      GROUPS.forEach(function (group) {
+        var label = document.createElement('div');
+        label.className = 'group-label';
+        label.textContent = group.label;
+        rowsEl.appendChild(label);
+        group.items.forEach(function (e) {
+          var row = document.createElement('div');
+          row.className = 'row';
+          row.innerHTML = '<div><div class="label">' + e.label + '</div><div class="desc">' + e.desc + '</div></div>' +
+            '<label class="toggle"><input type="checkbox" data-key="' + e.key + '"' + (readOnly ? ' disabled' : '') + ' /><span class="slider"></span></label>';
+          rowsEl.appendChild(row);
+          var checkbox = row.querySelector('input');
+          allCheckboxes.push(checkbox);
+
+          // Initial state: query the suppression API.
+          fetchSuppressed(e.key).then(function (suppressed) {
+            // Default off (digest) means: suppressed by default. ON only
+            // when there's NO suppression row AND the user has actively
+            // resubscribed (which we can't track separately yet, so for
+            // V1 we leave digest toggled OFF unless the user clicks it).
+            if (DEFAULT_OFF.has(e.key)) {
+              checkbox.checked = !suppressed && false; // false until they opt in
+            } else {
+              checkbox.checked = !suppressed;
+            }
+          });
+
+          if (readOnly) return;
+
+          checkbox.addEventListener('change', function () {
+            var on = checkbox.checked;
+            var action = on ? 'resubscribe' : 'unsubscribe';
+            callApi(action, e.key).then(function (res) {
+              if (res.ok && res.data && res.data.ok) {
+                showToast(on ? 'Subscribed' : 'Unsubscribed');
+              } else {
+                checkbox.checked = !on; // revert
+                var msg = res.data && res.data.error === 'token_invalid'
+                  ? 'Open this page from a recent MAGE ID email to make changes.'
+                  : 'Could not save — try again.';
+                showToast(msg, true);
+              }
+            }).catch(function () {
+              checkbox.checked = !on;
+              showToast('Network error', true);
+            });
+          });
         });
       });
+
+      var $unsubAll = document.getElementById('unsubAll');
+      if (readOnly) {
+        $unsubAll.addEventListener('click', function (ev) {
+          ev.preventDefault();
+          showToast('Open this page from a recent email to make changes.', true);
+        });
+      } else {
+        $unsubAll.addEventListener('click', function (ev) {
+          ev.preventDefault();
+          if (!confirm('Turn off ALL email notifications for ' + qs.email + '?')) return;
+          callApi('unsubscribe', null).then(function (res) {
+            if (res.ok && res.data && res.data.ok) {
+              showToast('All notifications off');
+              allCheckboxes.forEach(function (i) { i.checked = false; });
+            } else {
+              showToast('Could not save', true);
+            }
+          });
+        });
+      }
     })();
   </script>
 </body>
