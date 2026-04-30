@@ -4136,7 +4136,25 @@
       w.style.display = 'block';
     }
 
-    // Stats bar — uses budget if shared; else falls back to invoice totals
+    // Stats bar — uses budget if shared; else falls back to invoice totals.
+    //
+    // Reconcile budget.contractValue with data.contract.contractValue when
+    // a signed contract is present: the contract is the source of truth
+    // once it's binding. Without this, we'd show the older estimate
+    // grandTotal that was captured into budget at snapshot time, which
+    // can be stale by the time a CO has been signed off and the contract
+    // value has moved up. Outstanding gets recomputed against the same
+    // basis so the position bar + the stat card agree.
+    if (sections.budget && data.contract && data.contract.contractValue && data.contract.status !== 'draft') {
+      var truth = Number(data.contract.contractValue) || 0;
+      if (truth > 0 && truth !== sections.budget.contractValue) {
+        var paidSoFar = Number(sections.budget.paidToDate) || 0;
+        sections.budget = Object.assign({}, sections.budget, {
+          contractValue: truth,
+          outstanding: Math.max(0, truth - paidSoFar),
+        });
+      }
+    }
     if (sections.budget || sections.invoices || sections.aiaPayApps) {
       renderStats(sections.budget, sections.invoices, sections.aiaPayApps);
     } else {
