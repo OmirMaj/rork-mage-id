@@ -1704,11 +1704,10 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     overflow: 'hidden' as const,
     marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    elevation: 1,
+    // Black outline matches every other card surface across the app.
+    // Drops the soft shadow — the defined edge carries enough weight.
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
   },
   row: {
     flexDirection: 'row',

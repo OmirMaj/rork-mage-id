@@ -808,8 +808,8 @@ const styles = StyleSheet.create({
   list: { padding: 16, paddingBottom: 100 },
   bidCard: {
     backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 12,
-    borderWidth: 1, borderColor: Colors.borderLight,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 1,
+    // Black outline matches every other card across the app.
+    borderWidth: 1, borderColor: Colors.cardBorder,
   },
   bidHeader: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginBottom: 10 },
   setAsideBadge: { backgroundColor: '#E8F5E9', paddingHorizontal: 9, paddingVertical: 4, borderRadius: 6 },

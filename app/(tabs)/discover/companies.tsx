@@ -313,7 +313,8 @@ const styles = StyleSheet.create({
   list: { padding: 16, paddingBottom: 100 },
   card: {
     backgroundColor: Colors.surface, borderRadius: 14, marginBottom: 12, overflow: 'hidden' as const,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3,
+    // Black outline matches every other card across the app.
+    borderWidth: 1, borderColor: Colors.cardBorder,
   },
   companyPhoto: { width: '100%', height: 140 },
   cardTop: { flexDirection: 'row', alignItems: 'center', padding: 16, paddingBottom: 8 },

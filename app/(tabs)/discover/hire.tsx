@@ -304,7 +304,8 @@ const styles = StyleSheet.create({
   list: { padding: 16, paddingBottom: 100 },
   card: {
     backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 12,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3,
+    // Black outline matches every other card across the app.
+    borderWidth: 1, borderColor: Colors.cardBorder,
   },
   cardTopRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
   tradeBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },

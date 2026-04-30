@@ -509,13 +509,10 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     borderRadius: 16,
     backgroundColor: Colors.surface,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    elevation: 2,
+    // Black outline matches the rest of the app's card surfaces.
+    // Drops the shadow — the defined edge carries enough weight.
     borderWidth: 1,
-    borderColor: Colors.borderLight,
+    borderColor: Colors.cardBorder,
   },
   navCardInner: {
     flexDirection: 'row',

@@ -742,11 +742,9 @@ const s = StyleSheet.create({
     borderRadius: 14,
     padding: 14,
     gap: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    elevation: 2,
+    // Black outline matches every other card across the app.
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
   },
   templateIconWrap: {
     width: 44, height: 44, borderRadius: 12,
@@ -765,6 +763,9 @@ const s = StyleSheet.create({
     borderRadius: 14,
     padding: 14,
     gap: 12,
+    // Black outline matches every other card across the app.
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
   },
   existingIconWrap: {
     width: 44, height: 44, borderRadius: 12,
