@@ -230,6 +230,226 @@
     height: 100%; background: var(--amber); border-radius: 2px;
     transition: width 1s cubic-bezier(0.16, 1, 0.3, 1);
   }
+  /* Premium stat card variant — adds subtle gradient + slightly
+     bolder typography. Stat cards already exist; this is additive
+     class that opts into the upgraded look without breaking other
+     callers. */
+  .stat-card-premium .stat-value {
+    font-variant-numeric: tabular-nums;
+    transition: color 200ms ease;
+  }
+  .stat-card-premium {
+    transition: transform 200ms ease, box-shadow 200ms ease;
+  }
+  .stat-card-premium:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+  }
+
+  /* ───────── Spend-vs-Contract bar ─────────
+     Stacks PAID + OUTSTANDING + REMAINING segments into a single
+     horizontal bar. Segments grow in from 0 width on mount. Feels
+     like the contract bar a builder shows on a project board. */
+  .spend-card {
+    grid-column: 1 / -1; /* span full row in stats grid */
+    padding: 18px 20px;
+    background: linear-gradient(135deg, #FFFFFF 0%, var(--cream-2, #FAF7F0) 100%);
+    border: 1px solid var(--bone, #E8DFCD);
+    border-radius: 14px;
+    margin-top: 4px;
+    box-shadow: var(--shadow-sm);
+  }
+  .spend-card-head {
+    display: flex; justify-content: space-between; align-items: baseline;
+    margin-bottom: 12px; flex-wrap: wrap; gap: 6px;
+  }
+  .spend-eyebrow {
+    font-size: 10px; font-weight: 800;
+    letter-spacing: 1.2px; color: var(--text-muted, #8B9099);
+    text-transform: uppercase;
+  }
+  .spend-headline {
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 18px; font-weight: 700; color: var(--text, #0B0D10);
+    letter-spacing: -0.2px;
+  }
+  .spend-of { font-weight: 500; color: var(--text-muted, #8B9099); font-style: italic; }
+  .spend-bar {
+    display: flex;
+    height: 16px;
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--bone-2, #F1EAD9);
+    box-shadow: inset 0 1px 2px rgba(11,13,16,0.04);
+  }
+  .spend-seg {
+    height: 100%;
+    transition: width 1100ms cubic-bezier(0.22, 1, 0.36, 1);
+    position: relative;
+    overflow: hidden;
+  }
+  .spend-seg-paid { background: linear-gradient(180deg, #1E8E4A 0%, #166B38 100%); }
+  .spend-seg-out  { background: linear-gradient(180deg, #FF6A1A 0%, #E5570F 100%); }
+  .spend-seg-rem  { background: linear-gradient(180deg, #C5BBA8 0%, #A89F8C 100%); }
+  .spend-seg-label {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 800;
+    color: rgba(255,255,255,0.95);
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.25);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: clip;
+  }
+  .spend-legend {
+    display: flex; flex-wrap: wrap; gap: 14px; margin-top: 10px;
+    font-size: 12px; color: var(--text-2, #4A5159);
+  }
+  .spend-legend-item { display: inline-flex; align-items: center; gap: 6px; font-weight: 500; }
+  .spend-legend-item strong { color: var(--text, #0B0D10); margin-left: 2px; font-variant-numeric: tabular-nums; }
+  .spend-dot { width: 10px; height: 10px; border-radius: 3px; }
+  .spend-dot-paid { background: linear-gradient(180deg, #1E8E4A, #166B38); }
+  .spend-dot-out  { background: linear-gradient(180deg, #FF6A1A, #E5570F); }
+  .spend-dot-rem  { background: linear-gradient(180deg, #C5BBA8, #A89F8C); }
+
+  /* ───────── Recent activity feed ─────────
+     One row per event with an icon + title + time-ago. Rows fade in
+     with a stagger so the feed feels alive on first paint. */
+  .activity-feed { display: flex; flex-direction: column; gap: 4px; }
+  .activity-row {
+    display: flex; align-items: flex-start; gap: 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--bone-2, #F1EAD9);
+    opacity: 0;
+    animation: activityFadeIn 500ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+  .activity-row:last-child { border-bottom: 0; }
+  .activity-icon {
+    width: 32px; height: 32px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .activity-icon-photo     { background: rgba(30,91,198,0.10); color: #1E5BC6; }
+  .activity-icon-dfr       { background: rgba(30,142,74,0.10); color: #1E8E4A; }
+  .activity-icon-co        { background: rgba(194,106,0,0.10); color: #C26A00; }
+  .activity-icon-invoice   { background: rgba(255,106,26,0.12); color: #FF6A1A; }
+  .activity-icon-selection { background: rgba(120,87,200,0.10); color: #6644AB; }
+  .activity-body { flex: 1; min-width: 0; }
+  .activity-title-row {
+    display: flex; justify-content: space-between; align-items: baseline;
+    gap: 10px;
+  }
+  .activity-title {
+    font-size: 14px; font-weight: 700; color: var(--text, #0B0D10);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    flex: 1;
+  }
+  .activity-amount {
+    font-size: 13px; font-weight: 800; color: var(--amber, #FF6A1A);
+    flex-shrink: 0;
+  }
+  .activity-detail {
+    font-size: 12px; color: var(--text-2, #4A5159); margin-top: 2px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .activity-time {
+    font-size: 11px; color: var(--text-muted, #8B9099); margin-top: 4px;
+    font-weight: 500;
+  }
+  .activity-thumb {
+    width: 56px; height: 56px; border-radius: 8px; object-fit: cover;
+    flex-shrink: 0; box-shadow: var(--shadow-sm);
+  }
+  @keyframes activityFadeIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ───────── Selection swatches ─────────
+     Bigger preview image at top of each option card. Tap-to-zoom via
+     the lightbox overlay. */
+  .sel-swatch {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    background: var(--bone-2, #F1EAD9);
+    overflow: hidden;
+    border-radius: 12px 12px 0 0;
+    cursor: zoom-in;
+  }
+  .sel-swatch img {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    transition: transform 400ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .sel-swatch:hover img { transform: scale(1.04); }
+  .sel-swatch-zoom {
+    position: absolute; top: 8px; right: 8px;
+    width: 28px; height: 28px;
+    background: rgba(11,13,16,0.55);
+    color: #fff;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 700;
+    backdrop-filter: blur(8px);
+    opacity: 0;
+    transition: opacity 200ms ease;
+  }
+  .sel-swatch:hover .sel-swatch-zoom { opacity: 1; }
+  .sel-swatch-empty {
+    cursor: default;
+    background: linear-gradient(135deg, var(--bone, #E8DFCD) 0%, var(--bone-2, #F1EAD9) 100%);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .sel-swatch-empty span {
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 48px; font-weight: 700;
+    color: rgba(11,13,16,0.25);
+  }
+  .sel-opt-body { padding: 14px; }
+
+  /* ───────── Lightbox overlay (used by photos + sel-swatch zoom) ─────────
+     Mounted as a single fixed div on first use; image swaps on each
+     open. Tap anywhere outside the image to dismiss. */
+  .lightbox {
+    position: fixed; inset: 0;
+    background: rgba(11,13,16,0.92);
+    z-index: 2000;
+    display: none;
+    align-items: center; justify-content: center;
+    padding: 24px;
+    opacity: 0;
+    transition: opacity 200ms ease;
+  }
+  .lightbox.show { display: flex; opacity: 1; }
+  .lightbox img {
+    max-width: 100%;
+    max-height: 100%;
+    border-radius: 12px;
+    box-shadow: 0 24px 60px rgba(0,0,0,0.5);
+    animation: lightboxIn 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .lightbox-close {
+    position: absolute; top: 18px; right: 18px;
+    width: 40px; height: 40px;
+    background: rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.18);
+    border-radius: 999px;
+    color: #fff; font-size: 18px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    backdrop-filter: blur(10px);
+  }
+  @keyframes lightboxIn {
+    from { transform: scale(0.94); opacity: 0; }
+    to   { transform: scale(1);    opacity: 1; }
+  }
 
   @media (max-width: 720px) {
     .hero { padding: 22px 16px 84px; }
@@ -1148,6 +1368,34 @@
   }
   @media (min-width: 480px) { .photo-grid { grid-template-columns: repeat(3, 1fr); gap: 12px; } }
   @media (min-width: 720px) { .photo-grid { grid-template-columns: repeat(4, 1fr); } }
+  /* Premium photo-wall — masonry layout via CSS columns. Each photo
+     renders at its natural aspect ratio, so the wall feels organic
+     instead of a uniform grid. tall/wide hint classes nudge a few
+     photos to longer or wider crops for visual rhythm. */
+  .photo-wall {
+    column-count: 2;
+    column-gap: 10px;
+  }
+  @media (min-width: 480px) { .photo-wall { column-count: 3; column-gap: 12px; } }
+  @media (min-width: 900px) { .photo-wall { column-count: 4; } }
+  .photo-wall .photo {
+    break-inside: avoid;
+    margin: 0 0 10px;
+    aspect-ratio: auto;
+    opacity: 0;
+    transform: translateY(8px);
+    animation: photoFadeIn 500ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .photo-wall .photo img {
+    aspect-ratio: 4 / 3;
+    width: 100%;
+    height: auto;
+  }
+  .photo-wall .photo.photo-tall img { aspect-ratio: 3 / 4; }
+  .photo-wall .photo.photo-wide img { aspect-ratio: 16 / 9; }
+  @keyframes photoFadeIn {
+    to { opacity: 1; transform: translateY(0); }
+  }
   .photo {
     aspect-ratio: 1;
     border-radius: var(--radius-md);
@@ -1816,6 +2064,8 @@
     invoicesSectionTitle: 'Invoices',
     invoicesSectionSubtitle: 'Click any invoice to view line items and pay online',
     paymentAppsTitle: 'Pay Applications',
+    activitySectionTitle: 'Recent activity',
+    activitySectionSubtitle: 'The latest from your project, in order',
     scheduleSectionTitle: 'Schedule',
     scheduleSectionSubtitle: 'Live progress against the construction schedule',
     changeOrdersTitle: 'Change Orders',
@@ -1901,6 +2151,7 @@
     print:     '<polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>',
     shield:    '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
     award:     '<circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/>',
+    sparkle:   '<path d="M12 2v6m0 8v6M4.93 4.93l4.24 4.24m5.66 5.66l4.24 4.24M2 12h6m8 0h6M4.93 19.07l4.24-4.24m5.66-5.66l4.24-4.24"/>',
     inbox:     '<polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>',
     trending:  '<polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/>',
     arrowRight:'<line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>',
@@ -2008,6 +2259,129 @@
         '<div class="section-body">'+body+'</div>' +
       '</section>'
     );
+  }
+
+  // ───── Recent activity feed ─────
+  // Aggregates the last ~15 events from photos, daily reports, change
+  // orders, invoices, selections, and milestone tasks into a
+  // chronological feed. The homeowner sees "what just happened" at a
+  // glance — saves them scrolling through every section.
+  function buildActivityFeed(data) {
+    var sections = data.sections || {};
+    var events = [];
+
+    // Photos — most recent uploads bubble up
+    (sections.photos || []).forEach(function (p) {
+      var ts = p.timestamp || p.createdAt || p.uploadedAt;
+      if (!ts) return;
+      events.push({
+        kind: 'photo',
+        ts: ts,
+        title: 'Photo added' + (p.caption ? ': ' + p.caption : ''),
+        body: p.locationLabel || p.location || '',
+        thumbUrl: p.url,
+      });
+    });
+
+    // Daily reports
+    (sections.dailyReports || []).forEach(function (d) {
+      events.push({
+        kind: 'dfr',
+        ts: d.date || d.createdAt,
+        title: 'Daily report',
+        body: (d.workSummary || d.summary || '').slice(0, 140),
+      });
+    });
+
+    // Change orders — surfaces approval state
+    (sections.changeOrders || []).forEach(function (c) {
+      var label = c.status === 'approved' ? 'Change order approved'
+                : c.status === 'submitted' ? 'Change order sent for approval'
+                : 'Change order ' + (c.status || 'updated');
+      events.push({
+        kind: 'co',
+        ts: c.updatedAt || c.createdAt || c.dateSubmitted,
+        title: label + ' #' + (c.number || ''),
+        body: (c.description || '').slice(0, 140),
+        amount: c.changeAmount,
+      });
+    });
+
+    // Invoices — submission events
+    (sections.invoices || []).forEach(function (i) {
+      var label = i.status === 'paid' ? 'Invoice paid'
+                : i.status === 'sent' ? 'Invoice sent'
+                : 'Invoice updated';
+      events.push({
+        kind: 'invoice',
+        ts: i.dateSubmitted || i.dueDate,
+        title: label + ' #' + (i.number || ''),
+        body: '',
+        amount: i.total,
+      });
+    });
+
+    // Selections — chosen options
+    (data.selections || []).forEach(function (cat) {
+      (cat.options || []).filter(function (o) { return o.isChosen; }).forEach(function (o) {
+        events.push({
+          kind: 'selection',
+          ts: o.chosenAt || cat.updatedAt,
+          title: 'Selection chosen — ' + (cat.category || ''),
+          body: o.productName || '',
+          amount: o.total,
+        });
+      });
+    });
+
+    // Drop events without timestamps, sort newest first, take top 15.
+    events = events.filter(function (e) {
+      var t = new Date(e.ts).getTime();
+      return Number.isFinite(t) && t > 0;
+    });
+    events.sort(function (a, b) {
+      return new Date(b.ts).getTime() - new Date(a.ts).getTime();
+    });
+    return events.slice(0, 15);
+  }
+
+  function renderActivityFeed(events) {
+    if (!events || !events.length) return '';
+    return '<div class="activity-feed">' +
+      events.map(function (e, idx) {
+        var icon = activityIconHtml(e.kind);
+        var amount = (e.amount != null && Number.isFinite(e.amount))
+          ? '<span class="activity-amount num">' + fmtMoney(e.amount) + '</span>'
+          : '';
+        var thumb = e.thumbUrl
+          ? '<img class="activity-thumb" loading="lazy" src="' + esc(e.thumbUrl) + '" alt=""/>'
+          : '';
+        return '<div class="activity-row" style="animation-delay:' + (idx * 60) + 'ms">' +
+                 '<div class="activity-icon activity-icon-' + e.kind + '">' + icon + '</div>' +
+                 '<div class="activity-body">' +
+                   '<div class="activity-title-row">' +
+                     '<span class="activity-title">' + esc(e.title) + '</span>' +
+                     amount +
+                   '</div>' +
+                   (e.body ? '<div class="activity-detail">' + esc(e.body) + '</div>' : '') +
+                   '<div class="activity-time">' + esc(timeAgo(e.ts)) + '</div>' +
+                 '</div>' +
+                 thumb +
+               '</div>';
+      }).join('') +
+    '</div>';
+  }
+
+  function activityIconHtml(kind) {
+    // Tiny inline SVGs — don't rely on the icon registry so this
+    // function is self-contained and won't break if the registry
+    // refactors later.
+    if (kind === 'photo')     return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>';
+    if (kind === 'dfr')       return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg>';
+    if (kind === 'co')        return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 3 18 7 22 7 22 3"/><polyline points="2 21 6 17 2 17 2 21"/><line x1="6" y1="17" x2="22" y2="3"/></svg>';
+    if (kind === 'invoice')   return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>';
+    if (kind === 'selection') return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+    return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg>';
   }
 
   // ───── Premium animated Gantt (replaces flat task list) ─────
@@ -2273,17 +2647,31 @@
           o.supplier ? escapeHtml(o.supplier) : '',
           o.leadTimeDays != null ? (o.leadTimeDays + 'd lead') : '',
         ].filter(Boolean).join(' · ');
+        // Swatch / preview image at top of each card. Tap-to-zoom via
+        // the photo lightbox (we wire any .sel-swatch click into the
+        // same image overlay used for photos). No image → render a
+        // placeholder with the first letter of the product so cards
+        // don't collapse.
+        var swatchHtml = o.imageUrl
+          ? '<div class="sel-swatch" data-zoom="' + escapeHtml(o.imageUrl) + '">' +
+              '<img loading="lazy" src="' + escapeHtml(o.imageUrl) + '" alt="' + escapeHtml(o.productName) + '"/>' +
+              '<div class="sel-swatch-zoom">⤢</div>' +
+            '</div>'
+          : '<div class="sel-swatch sel-swatch-empty"><span>' + escapeHtml(o.productName.charAt(0).toUpperCase()) + '</span></div>';
         return '' +
           '<div class="sel-opt' + (o.isChosen ? ' sel-opt-chosen' : '') + '" data-action="choose-selection" data-category-id="' + escapeHtml(c.id) + '" data-option-id="' + escapeHtml(o.id) + '">' +
-            '<div class="sel-opt-head">' +
-              '<span class="sel-tier" style="color:' + tierColor + ';background:' + tierColor + '15">' + tier + '</span>' +
-              '<span class="sel-total">' + fmtMoney(o.total) + '</span>' +
+            swatchHtml +
+            '<div class="sel-opt-body">' +
+              '<div class="sel-opt-head">' +
+                '<span class="sel-tier" style="color:' + tierColor + ';background:' + tierColor + '15">' + tier + '</span>' +
+                '<span class="sel-total">' + fmtMoney(o.total) + '</span>' +
+              '</div>' +
+              '<div class="sel-name">' + escapeHtml(o.productName) + '</div>' +
+              (metaHtml ? '<div class="sel-meta">' + metaHtml + '</div>' : '') +
+              (o.description ? '<div class="sel-desc">' + escapeHtml(o.description) + '</div>' : '') +
+              (highlightsHtml ? '<div class="sel-highlights">' + highlightsHtml + '</div>' : '') +
+              (o.isChosen ? '<div class="sel-chosen-pill">' + escapeHtml(t('selectionsYourPick')) + '</div>' : '<div class="sel-pick-cta">' + escapeHtml(t('selectionsTapToChoose')) + '</div>') +
             '</div>' +
-            '<div class="sel-name">' + escapeHtml(o.productName) + '</div>' +
-            (metaHtml ? '<div class="sel-meta">' + metaHtml + '</div>' : '') +
-            (o.description ? '<div class="sel-desc">' + escapeHtml(o.description) + '</div>' : '') +
-            (highlightsHtml ? '<div class="sel-highlights">' + highlightsHtml + '</div>' : '') +
-            (o.isChosen ? '<div class="sel-chosen-pill">' + escapeHtml(t('selectionsYourPick')) + '</div>' : '<div class="sel-pick-cta">' + escapeHtml(t('selectionsTapToChoose')) + '</div>') +
           '</div>';
       }).join('');
       return '' +
@@ -2719,12 +3107,23 @@
 
   function renderPhotos(photos) {
     if (!photos || !photos.length) return emptyState('No photos shared yet.');
+    // Masonry-style grid via CSS column-count. Each photo gets a
+    // randomized "tall / standard / wide" hint so the wall feels
+    // organic instead of a uniform grid. Hint is deterministic per
+    // index so re-renders don't reflow.
     var grid = photos.map(function (p, idx) {
       var cap = p.caption ? '<div class="photo-caption">'+esc(p.caption)+'</div>' : '';
       var badge = (p.markup && p.markup.length) ? '<span class="photo-markup-badge" title="Has markup">✏️</span>' : '';
-      return '<div class="photo" data-photo="'+idx+'"><img loading="lazy" src="'+esc(p.url)+'" alt="'+esc(p.caption||'')+'"/>'+badge+cap+'</div>';
+      // Hash idx to a tall (1 in 3) / wide (1 in 4) / default ratio
+      var sizeClass = (idx % 7 === 0) ? ' photo-tall' : (idx % 5 === 0) ? ' photo-wide' : '';
+      var animDelay = (idx * 35);
+      return '<figure class="photo'+sizeClass+'" data-photo="'+idx+'" style="animation-delay:'+animDelay+'ms">' +
+               '<img loading="lazy" src="'+esc(p.url)+'" alt="'+esc(p.caption||'')+'"/>' +
+               badge +
+               cap +
+             '</figure>';
     }).join('');
-    return '<div class="photo-grid">'+grid+'</div>';
+    return '<div class="photo-wall">'+grid+'</div>';
   }
 
   // Build an SVG string from a list of normalized markup primitives.
@@ -3318,42 +3717,139 @@
     if (!grid) return;
     var stats = [];
 
+    // Capture raw numeric values alongside the formatted string so
+    // we can animate count-up. Strings without numericValue render
+    // immediately (the dash fallback, percentage, etc).
     if (budget) {
-      stats.push({ label: 'Contract value', value: fmtMoney(budget.contractValue), sub: '' });
-      stats.push({ label: 'Paid to date', value: fmtMoney(budget.paidToDate), sub: '', amber: false });
-      stats.push({ label: 'Outstanding', value: fmtMoney(budget.outstanding), sub: '', amber: budget.outstanding > 0 });
-      stats.push({ label: 'Project complete', value: (budget.pctComplete != null ? budget.pctComplete + '%' : '—'), sub: '', progress: budget.pctComplete });
+      stats.push({ label: 'Contract value', value: fmtMoney(budget.contractValue), numericValue: budget.contractValue || 0, money: true, sub: '' });
+      stats.push({ label: 'Paid to date',  value: fmtMoney(budget.paidToDate),    numericValue: budget.paidToDate || 0,    money: true, sub: '' });
+      stats.push({ label: 'Outstanding',   value: fmtMoney(budget.outstanding),   numericValue: budget.outstanding || 0,   money: true, amber: budget.outstanding > 0, sub: '' });
+      stats.push({ label: 'Project complete', value: (budget.pctComplete != null ? budget.pctComplete + '%' : '—'), numericValue: budget.pctComplete, percent: true, sub: '', progress: budget.pctComplete });
     } else {
-      // Fallback summary if budget not shared but invoices/AIA are.
       var totalInv = (invoices || []).reduce(function (s, i) { return s + (i.total || 0); }, 0);
       var paidInv = (invoices || []).reduce(function (s, i) { return s + ((i.amountPaid != null ? i.amountPaid : (i.status === 'paid' ? i.total : 0))); }, 0);
       var bal = Math.max(0, totalInv - paidInv);
-      stats.push({ label: 'Invoiced', value: fmtMoney(totalInv) });
-      stats.push({ label: 'Paid', value: fmtMoney(paidInv) });
-      stats.push({ label: 'Balance', value: fmtMoney(bal), amber: bal > 0 });
-      stats.push({ label: 'Pay applications', value: String((aia || []).length) });
+      stats.push({ label: 'Invoiced', value: fmtMoney(totalInv), numericValue: totalInv, money: true });
+      stats.push({ label: 'Paid', value: fmtMoney(paidInv), numericValue: paidInv, money: true });
+      stats.push({ label: 'Balance', value: fmtMoney(bal), numericValue: bal, money: true, amber: bal > 0 });
+      stats.push({ label: 'Pay applications', value: String((aia || []).length), numericValue: (aia || []).length });
     }
 
-    grid.innerHTML = stats.map(function (s) {
+    // Build the stat grid with animated count-up containers.
+    var statsHtml = stats.map(function (s, idx) {
       var prog = (s.progress != null)
-        ? '<div class="stat-progress"><div class="stat-progress-fill" style="width:0"></div></div>'
+        ? '<div class="stat-progress"><div class="stat-progress-fill" style="width:0" data-progress="'+s.progress+'"></div></div>'
         : (s.sub ? '<div class="stat-sub">'+esc(s.sub)+'</div>' : '');
+      var dataAttrs =
+        ' data-counter="1"' +
+        ' data-target="'+(s.numericValue != null ? s.numericValue : '')+'"' +
+        ' data-fmt="'+(s.money ? 'money' : (s.percent ? 'percent' : 'plain'))+'"' +
+        ' data-delay="'+(idx * 90)+'"';
       return (
-        '<div class="stat-card">' +
+        '<div class="stat-card stat-card-premium">' +
           '<div class="stat-label">'+esc(s.label)+'</div>' +
-          '<div class="stat-value '+(s.amber ? 'amber' : '')+' num">'+esc(s.value)+'</div>' +
+          '<div class="stat-value '+(s.amber ? 'amber' : '')+' num"'+dataAttrs+'>'+esc(s.value)+'</div>' +
           prog +
         '</div>'
       );
     }).join('');
 
-    // Animate progress bars after a tick so the transition kicks in.
+    // Spend-vs-Contract horizontal bar — premium "where does the
+    // money stand right now" visual. Renders only when budget is
+    // shared (the main case). Stacks PAID + OUTSTANDING + REMAINING
+    // segments into a single bar that animates in.
+    var spendBarHtml = '';
+    if (budget && budget.contractValue > 0) {
+      var paid = Math.max(0, budget.paidToDate || 0);
+      var outstanding = Math.max(0, budget.outstanding || 0);
+      var contract = Math.max(paid + outstanding, budget.contractValue);
+      var paidPct = (paid / contract) * 100;
+      var outPct  = (outstanding / contract) * 100;
+      var remPct  = Math.max(0, 100 - paidPct - outPct);
+      spendBarHtml =
+        '<div class="spend-card">' +
+          '<div class="spend-card-head">' +
+            '<div class="spend-eyebrow">CONTRACT POSITION</div>' +
+            '<div class="spend-headline num">' + fmtMoney(paid) + ' <span class="spend-of">of</span> ' + fmtMoney(contract) + '</div>' +
+          '</div>' +
+          '<div class="spend-bar">' +
+            '<div class="spend-seg spend-seg-paid" style="width:0"      data-spend="paid"        data-target="'+paidPct.toFixed(2)+'">' +
+              '<span class="spend-seg-label">Paid</span>' +
+            '</div>' +
+            '<div class="spend-seg spend-seg-out"  style="width:0"      data-spend="out"         data-target="'+outPct.toFixed(2)+'">' +
+              '<span class="spend-seg-label">Outstanding</span>' +
+            '</div>' +
+            '<div class="spend-seg spend-seg-rem"  style="width:0"      data-spend="rem"         data-target="'+remPct.toFixed(2)+'">' +
+              '<span class="spend-seg-label">Remaining</span>' +
+            '</div>' +
+          '</div>' +
+          '<div class="spend-legend">' +
+            '<span class="spend-legend-item"><span class="spend-dot spend-dot-paid"></span>Paid <strong>' + fmtMoney(paid) + '</strong></span>' +
+            '<span class="spend-legend-item"><span class="spend-dot spend-dot-out"></span>Outstanding <strong>' + fmtMoney(outstanding) + '</strong></span>' +
+            '<span class="spend-legend-item"><span class="spend-dot spend-dot-rem"></span>Remaining <strong>' + fmtMoney(Math.max(0, contract - paid - outstanding)) + '</strong></span>' +
+          '</div>' +
+        '</div>';
+    }
+
+    grid.innerHTML = statsHtml + spendBarHtml;
+
+    // Animate the progress bars + the spend-vs-contract segments after
+    // a tick so the CSS transition kicks in.
     if (budget && budget.pctComplete != null) {
       setTimeout(function () {
         var fills = grid.querySelectorAll('.stat-progress-fill');
-        fills.forEach(function (f) { f.style.width = budget.pctComplete + '%'; });
+        fills.forEach(function (f) {
+          var p = f.getAttribute('data-progress');
+          if (p) f.style.width = p + '%';
+        });
       }, 80);
     }
+    // Spend bar segments grow in
+    setTimeout(function () {
+      grid.querySelectorAll('.spend-seg').forEach(function (seg) {
+        var pct = seg.getAttribute('data-target');
+        if (pct) seg.style.width = pct + '%';
+      });
+    }, 120);
+
+    // Animated count-up on every stat value with a numeric target.
+    grid.querySelectorAll('[data-counter="1"]').forEach(function (el) {
+      var raw = parseFloat(el.getAttribute('data-target') || '');
+      if (!Number.isFinite(raw)) return;
+      var fmt = el.getAttribute('data-fmt') || 'plain';
+      var delay = parseInt(el.getAttribute('data-delay') || '0', 10);
+      animateCount(el, raw, fmt, delay);
+    });
+  }
+
+  // Tween a numeric value from 0 → target over ~900ms with ease-out
+  // cubic. Handles money / percent / plain formats. Used by the stat
+  // grid for the premium "numbers tick up on first paint" feel.
+  function animateCount(el, target, fmt, delay) {
+    var start = 0;
+    var duration = 900;
+    var startTime = null;
+    function frame(ts) {
+      if (startTime === null) startTime = ts;
+      var elapsed = ts - startTime;
+      var progress = Math.min(1, elapsed / duration);
+      // ease-out cubic
+      var eased = 1 - Math.pow(1 - progress, 3);
+      var v = start + (target - start) * eased;
+      el.textContent = formatCounted(v, fmt);
+      if (progress < 1) {
+        requestAnimationFrame(frame);
+      } else {
+        // Snap to the exact final formatted value to avoid floating-point smear.
+        el.textContent = formatCounted(target, fmt);
+      }
+    }
+    setTimeout(function () { requestAnimationFrame(frame); }, delay || 0);
+  }
+  function formatCounted(v, fmt) {
+    if (fmt === 'money') return fmtMoney(v);
+    if (fmt === 'percent') return Math.round(v) + '%';
+    return Math.round(v).toString();
   }
 
   // ───────── Nav ─────────
@@ -3491,6 +3987,18 @@
     } else if (data.contract && data.contract.status === 'signed') {
       addSection('contract', 'dollar', t('contractSectionTitle'),
         t('contractSectionSubtitleSigned'), null, renderContractCard(data.contract));
+    }
+
+    // Recent activity feed — aggregates the last ~15 events across
+    // photos, daily reports, change orders, invoices, selections so
+    // the homeowner sees "what just happened" without scrolling
+    // through every section. Built deterministically from snapshot
+    // data; only renders when there's at least 1 event.
+    var activityFeed = buildActivityFeed(data);
+    if (activityFeed.length > 0) {
+      addSection('activity', 'sparkle', t('activitySectionTitle') || 'Recent activity',
+        t('activitySectionSubtitle') || 'The latest from your project, in order',
+        activityFeed.length, renderActivityFeed(activityFeed));
     }
 
     // Selections — homeowner picks fixtures, finishes, materials within
@@ -3757,6 +4265,20 @@
     function closeLightbox() { document.getElementById('lightbox').classList.remove('open'); }
     document.getElementById('lightbox').addEventListener('click', closeLightbox);
     document.getElementById('lightbox-close').addEventListener('click', closeLightbox);
+
+    // Selection swatches → lightbox. Same overlay as photos. We don't
+    // have markup data for selections, so the SVG layer is hidden.
+    document.querySelectorAll('[data-zoom]').forEach(function (el) {
+      el.addEventListener('click', function (e) {
+        e.stopPropagation(); // don't trigger the parent .sel-opt's choose-selection
+        var url = el.getAttribute('data-zoom');
+        if (!url) return;
+        document.getElementById('lightbox-img').src = url;
+        var svg = document.getElementById('lightbox-svg');
+        if (svg) { svg.innerHTML = ''; svg.style.display = 'none'; }
+        document.getElementById('lightbox').classList.add('open');
+      });
+    });
 
     document.getElementById('portal').style.display = 'block';
   }

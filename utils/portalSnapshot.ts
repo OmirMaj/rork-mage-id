@@ -163,6 +163,8 @@ export interface PortalSnapshot {
       leadTimeDays?: number;
       supplier?: string;
       productUrl?: string;
+      /** Product image URL — surfaced as a swatch in the portal selections grid. */
+      imageUrl?: string;
       highlights: string[];
       isChosen: boolean;
     }>;
@@ -828,6 +830,7 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
               leadTimeDays: o.leadTimeDays,
               supplier: o.supplier,
               productUrl: o.productUrl,
+              imageUrl: o.imageUrl,
               highlights: o.highlights,
               isChosen: o.isChosen,
             })),
