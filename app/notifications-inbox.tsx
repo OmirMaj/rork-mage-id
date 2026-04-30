@@ -7,16 +7,33 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   ChevronLeft, Bell, MessageSquare, HandCoins, CheckCircle2, Inbox,
   Trash2, X, CheckCheck, Settings,
+  PenTool, ShoppingCart, Hammer, HelpCircle, Trophy, Package,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useNotificationFeed, type NotificationFeedItem } from '@/hooks/useNotificationFeed';
 
+// Friendly metadata for every event that can land in the inbox. Keep
+// the eyebrow labels SHORT (≤16 chars) so they fit on narrow screens
+// without truncating. Tints are pale-pastel so they read as a tag,
+// not a button.
 const EVENT_META: Record<string, { icon: React.ReactNode; tint: string; label: string }> = {
-  portal_message: { icon: <MessageSquare size={16} color="#007AFF" />, tint: '#E7F0FA', label: 'Client message' },
-  budget_proposal: { icon: <HandCoins size={16} color="#FF6A1A" />, tint: '#FFF1E6', label: 'Budget proposal' },
-  co_approval: { icon: <CheckCircle2 size={16} color="#1E8E4A" />, tint: '#E8F5ED', label: 'CO decision' },
-  sub_invoice_submitted: { icon: <Inbox size={16} color="#AF52DE" />, tint: '#F4ECFA', label: 'Sub invoice' },
-  sub_invoice_reviewed: { icon: <Inbox size={16} color="#AF52DE" />, tint: '#F4ECFA', label: 'Sub invoice update' },
+  // Client → GC
+  portal_message:        { icon: <MessageSquare size={16} color="#007AFF" />, tint: '#E7F0FA', label: 'Client message' },
+  budget_proposal:       { icon: <HandCoins   size={16} color="#FF6A1A" />, tint: '#FFF1E6', label: 'Budget proposal' },
+  co_approval:           { icon: <CheckCircle2 size={16} color="#1E8E4A" />, tint: '#E8F5ED', label: 'Change order' },
+  contract_signed:       { icon: <PenTool     size={16} color="#1E8E4A" />, tint: '#E8F5ED', label: 'Contract signed' },
+  selection_chosen:      { icon: <ShoppingCart size={16} color="#FF6A1A" />, tint: '#FFF1E6', label: 'Selection picked' },
+  closeout_binder_sent:  { icon: <Package     size={16} color="#1E8E4A" />, tint: '#E8F5ED', label: 'Closeout delivered' },
+
+  // Sub → GC
+  sub_invoice_submitted: { icon: <Inbox       size={16} color="#AF52DE" />, tint: '#F4ECFA', label: 'Sub invoice' },
+  sub_invoice_reviewed:  { icon: <Inbox       size={16} color="#AF52DE" />, tint: '#F4ECFA', label: 'Invoice update' },
+
+  // Marketplace
+  nearby_rfp_posted:     { icon: <Hammer      size={16} color="#5856D6" />, tint: '#EFEFFA', label: 'New project nearby' },
+  rfp_awarded:           { icon: <Trophy      size={16} color="#1E8E4A" />, tint: '#E8F5ED', label: 'You won the bid' },
+  bid_question_asked:    { icon: <HelpCircle  size={16} color="#5856D6" />, tint: '#EFEFFA', label: 'Pre-bid question' },
+  bid_question_answered: { icon: <HelpCircle  size={16} color="#5856D6" />, tint: '#EFEFFA', label: 'Bid Q&A' },
 };
 
 function fmtAgo(iso: string): string {
@@ -31,39 +48,153 @@ function fmtAgo(iso: string): string {
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
+// Format a number as a clean "$1,234" or "$4.2M" string. Money values
+// shown in notification bodies prefer compact form so they don't wrap.
+function fmtMoney(raw: unknown): string {
+  const n = typeof raw === 'string' ? parseFloat(raw) : Number(raw ?? 0);
+  if (!isFinite(n) || n <= 0) return '';
+  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(n >= 10_000_000 ? 0 : 1)}M`;
+  if (n >= 1_000) return `$${Math.round(n / 1_000)}K`;
+  return `$${n.toLocaleString('en-US')}`;
+}
+
 function summarize(item: NotificationFeedItem): { title: string; body: string } {
   const p = item.payload as Record<string, unknown>;
-  const projectName = (p.project_name as string) || 'project';
+  const projectName = (p.project_name as string) || (p.projectName as string) || 'your project';
+
   switch (item.eventType) {
-    case 'portal_message':
+    case 'portal_message': {
+      const author = (p.author_name as string) || 'A client';
       return {
-        title: `${(p.author_name as string) || 'Client'} sent a message`,
+        title: `${author} sent a message`,
         body: String(p.body || '').slice(0, 160),
       };
-    case 'budget_proposal':
+    }
+    case 'budget_proposal': {
+      const proposer = (p.proposer_name as string) || 'A client';
+      const amount = fmtMoney(p.amount);
       return {
-        title: `${(p.proposer_name as string) || 'Client'} proposed a budget`,
-        body: `$${Number(p.amount || 0).toLocaleString()} for ${projectName}${p.note ? ` — "${String(p.note).slice(0, 80)}"` : ''}`,
-      };
-    case 'co_approval': {
-      const decision = String(p.decision || 'updated');
-      return {
-        title: `Change order ${decision} by ${(p.signer_name as string) || 'client'}`,
-        body: `Synced to your CO record automatically.`,
+        title: `${proposer} proposed ${amount || 'a target budget'}`,
+        body: amount
+          ? `${projectName}${p.note ? ` — "${String(p.note).slice(0, 80)}"` : ''}`
+          : projectName,
       };
     }
-    case 'sub_invoice_submitted':
+    case 'co_approval': {
+      const decision = String(p.decision || 'updated');
+      const signer = (p.signer_name as string) || 'your client';
+      const verb = decision === 'approved' ? 'approved' : decision === 'declined' ? 'declined' : 'reviewed';
+      const coNum = (p.co_number as string) || '';
+      const amount = fmtMoney(p.co_amount);
       return {
-        title: `${(p.submitted_by_name as string) || 'Sub'} submitted invoice #${p.invoice_number}`,
-        body: `$${Number(p.amount || 0).toLocaleString()} — pending your review`,
+        title: coNum
+          ? `${signer} ${verb} CO #${coNum}`
+          : `${signer} ${verb} a change order`,
+        body: amount
+          ? `${amount} change · ${projectName}`
+          : `Synced to your CO record automatically.`,
       };
-    case 'sub_invoice_reviewed':
+    }
+    case 'contract_signed': {
+      const signer = (p.signer_name as string) || 'Your client';
+      const amount = fmtMoney(p.contract_value);
       return {
-        title: `Invoice #${p.invoice_number} ${String(p.status || 'updated')}`,
-        body: `Sub has been notified by email.`,
+        title: `${signer} signed the contract`,
+        body: amount
+          ? `${amount} · ${projectName}. Pull the signed PDF in MAGE ID.`
+          : `${projectName}. Pull the signed PDF in MAGE ID.`,
       };
+    }
+    case 'selection_chosen': {
+      const product = (p.product_name as string) || 'an option';
+      const category = (p.category as string) || '';
+      const brand = (p.brand as string) || '';
+      const cost = fmtMoney(p.total_cost);
+      const overBudget = !!p.over_budget;
+      return {
+        title: category
+          ? `Picked ${product} for ${category}`
+          : `Selection picked: ${product}`,
+        body: [
+          brand,
+          cost ? (overBudget ? `${cost} · over allowance` : cost) : '',
+          projectName,
+        ].filter(Boolean).join(' · '),
+      };
+    }
+    case 'closeout_binder_sent': {
+      const homeowner = (p.homeowner_name as string) || 'your client';
+      return {
+        title: `Closeout binder delivered`,
+        body: `${homeowner === 'there' ? 'The homeowner' : homeowner} now has the full closeout for ${projectName}.`,
+      };
+    }
+    case 'sub_invoice_submitted': {
+      const submitter = (p.submitted_by_name as string) || 'A sub';
+      const num = (p.invoice_number as string) || '';
+      const amount = fmtMoney(p.amount);
+      return {
+        title: num
+          ? `${submitter} submitted invoice #${num}`
+          : `${submitter} submitted an invoice`,
+        body: amount ? `${amount} — pending your review` : 'Pending your review.',
+      };
+    }
+    case 'sub_invoice_reviewed': {
+      const num = (p.invoice_number as string) || '';
+      const status = String(p.status || 'updated');
+      return {
+        title: num
+          ? `Invoice #${num} ${status}`
+          : `Invoice ${status}`,
+        body: 'Sub has been notified by email.',
+      };
+    }
+    case 'nearby_rfp_posted': {
+      const rfpTitle = (p.title as string) || 'A new project';
+      const city = (p.city as string) || '';
+      const state = (p.state as string) || '';
+      const loc = [city, state].filter(Boolean).join(', ');
+      const minB = fmtMoney(p.budget_min);
+      const maxB = fmtMoney(p.budget_max);
+      const budgetLine = (minB || maxB) ? `${minB || '—'} – ${maxB || '—'}` : '';
+      return {
+        title: rfpTitle,
+        body: [loc, budgetLine].filter(Boolean).join(' · ') || 'New nearby project posted.',
+      };
+    }
+    case 'rfp_awarded': {
+      const winnerProject = (p.project_name as string) || 'a project';
+      const value = fmtMoney(p.contract_value);
+      return {
+        title: `You won the bid for ${winnerProject}`,
+        body: value ? `${value} contract value` : `Open the project to see drawings and start the kickoff.`,
+      };
+    }
+    case 'bid_question_asked': {
+      const asker = (p.asker_name as string) || 'A bidder';
+      const q = String(p.question || '').slice(0, 140);
+      return {
+        title: `${asker} asked a question on your RFP`,
+        body: q ? `"${q}"` : 'Tap to answer — every bidder will see it.',
+      };
+    }
+    case 'bid_question_answered': {
+      const rfpTitle = (p.rfp_title as string) || 'an RFP you bid on';
+      return {
+        title: `Answer posted on ${rfpTitle}`,
+        body: 'Re-read the scope and update your bid before the deadline.',
+      };
+    }
     default:
-      return { title: item.eventType, body: '' };
+      // Unknown / new event type — fall back to a humanized version of
+      // the event_type so the user never sees "selection_chosen" raw.
+      return {
+        title: item.eventType
+          .replace(/_/g, ' ')
+          .replace(/\b\w/g, (c) => c.toUpperCase()),
+        body: '',
+      };
   }
 }
 

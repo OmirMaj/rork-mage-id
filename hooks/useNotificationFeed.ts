@@ -58,6 +58,11 @@ export function useNotificationFeed() {
         .from('notification_outbox')
         .select('id, event_type, source_table, source_id, payload, created_at, read_at, push_status, email_status')
         .eq('recipient_user_id', user!.id)
+        // Hide internal audit-log markers — they're not user-facing.
+        // daily_digest_sent records WHEN we sent a digest (used for
+        // idempotency in the cron); the user already received the
+        // email, no need to also see it in their notification list.
+        .not('event_type', 'in', '(daily_digest_sent)')
         .order('created_at', { ascending: false })
         .limit(80);
       if (error) {
