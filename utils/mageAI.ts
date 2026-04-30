@@ -144,16 +144,16 @@ export async function mageAI(params: MageAIParams): Promise<MageAIResult> {
         if (cacheKey) await setCache(cacheKey, result, cacheHours);
         return result;
       }
-      console.warn("[mageAI] Zod validation failed, merging with defaults:", primary.error?.issues?.slice(0, 3));
-      // Build a safe shape: start from schema defaults, overlay whatever keys parsed
+      console.warn("[mageAI] Zod validation failed, salvaging per-field:", primary.error?.issues?.slice(0, 3));
+      // Build a safe shape from schema defaults — used for any field we can't salvage.
       const fallback = schema.safeParse({});
       const safeShape = fallback.success ? fallback.data : {};
-      const merged = typeof j.data === 'object' && j.data !== null
-        ? { ...safeShape, ...j.data }
-        : safeShape;
-      // One more pass through safeParse so nested defaults apply to the merged shape too
-      const finalParse = schema.safeParse(merged);
-      const finalData = finalParse.success ? finalParse.data : safeShape;
+      // Per-field salvage: if the whole-object parse failed, try each field
+      // independently. One bad field (e.g. `quantity: "10"` as a string instead
+      // of a number) used to wipe the WHOLE result. With per-field salvage,
+      // good fields survive and the UI gets real data; bad fields fall back
+      // to defaults for that field only.
+      const finalData = salvageAgainstSchema(schema, candidate, safeShape);
       clearTimeout(timer);
       // Flag `errorKind: 'validation'` so the UI can show a "partial result" banner —
       // the data is still usable (defaults filled the gaps) but the caller should
@@ -205,6 +205,191 @@ export async function mageAIFast(prompt: string, schema?: any, cacheKey?: string
 
 export async function mageAISmart(prompt: string, schema?: any, cacheKey?: string) {
   return mageAI({ prompt, schema, tier: "smart", maxTokens: 2000, cacheKey });
+}
+
+/**
+ * Coerce a value against a Zod schema, doing common-sense type repairs that
+ * Gemini frequently mis-emits. Tried in order of safety:
+ *
+ *   1. Direct safeParse — if it works, no repair needed
+ *   2. If schema is a number and value is a numeric string ("10", "8.50"),
+ *      coerce to Number and try again
+ *   3. If schema is a string and value is a number, coerce to String
+ *   4. If schema is a boolean and value is "true"/"false", coerce
+ *
+ * Returns either the parsed (possibly-coerced) value, or `undefined` to
+ * signal "give up and use the default."
+ */
+function tryCoerceField(schema: any, value: unknown): { ok: true; value: unknown } | { ok: false } {
+  if (value === undefined) return { ok: false };
+  // 1. Direct parse
+  const direct = schema.safeParse?.(value);
+  if (direct?.success) return { ok: true, value: direct.data };
+
+  // 2. Inspect the inner type for coercion
+  const def = schema._def;
+  if (!def) return { ok: false };
+  // Unwrap optional / default / nullable / pipe to find the underlying primitive.
+  let inner: any = schema;
+  let depth = 0;
+  while (inner?._def && depth < 6) {
+    const t = inner._def.typeName ?? inner._def.type;
+    if (t === 'ZodOptional' || t === 'optional' ||
+        t === 'ZodNullable' || t === 'nullable' ||
+        t === 'ZodDefault'  || t === 'default'  ||
+        t === 'ZodReadonly' || t === 'readonly') {
+      inner = inner._def.innerType ?? inner._def.type;
+      depth++;
+    } else if (t === 'ZodPipe' || t === 'pipe') {
+      inner = inner._def.in ?? inner._def.left ?? inner;
+      depth++;
+    } else {
+      break;
+    }
+  }
+  const innerType = inner?._def?.typeName ?? inner?._def?.type;
+
+  // 3. Coerce string → number
+  if ((innerType === 'ZodNumber' || innerType === 'number') && typeof value === 'string') {
+    const trimmed = value.trim();
+    if (trimmed && /^-?\d+(\.\d+)?$/.test(trimmed)) {
+      const n = Number(trimmed);
+      if (!Number.isNaN(n)) {
+        const r = schema.safeParse(n);
+        if (r.success) return { ok: true, value: r.data };
+      }
+    }
+  }
+  // 4. Coerce number → string
+  if ((innerType === 'ZodString' || innerType === 'string') && typeof value === 'number') {
+    const r = schema.safeParse(String(value));
+    if (r.success) return { ok: true, value: r.data };
+  }
+  // 5. Coerce string → boolean
+  if ((innerType === 'ZodBoolean' || innerType === 'boolean') && typeof value === 'string') {
+    const lower = value.toLowerCase().trim();
+    if (lower === 'true' || lower === 'false') {
+      const r = schema.safeParse(lower === 'true');
+      if (r.success) return { ok: true, value: r.data };
+    }
+  }
+  return { ok: false };
+}
+
+/**
+ * Per-field salvage when the whole-object parse fails. Walks the top-level
+ * object schema and tries each field independently, including arrays of
+ * sub-objects. One bad field (e.g. `materials[3].quantity: "10"` as a
+ * string) doesn't tank the entire result anymore — good fields survive,
+ * bad fields fall back to defaults FOR THAT FIELD ONLY.
+ *
+ * This was the deeper root cause of "AI Quick Estimate gives 0":
+ *   - Round 1 fix (stripNulls) handled `notes: null`
+ *   - Round 2 fix (this) handles `quantity: "5"` and other type mismatches
+ *
+ * If the schema isn't a ZodObject (e.g. it's a top-level array), or shape
+ * introspection fails, falls back to the safeShape.
+ */
+function salvageAgainstSchema(schema: any, data: unknown, safeShape: any): any {
+  const def = schema?._def;
+  const t = def?.typeName ?? def?.type;
+  if (t !== 'ZodObject' && t !== 'object') return safeShape;
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return safeShape;
+
+  const shape = typeof def.shape === 'function' ? def.shape() : def.shape;
+  if (!shape) return safeShape;
+
+  const out: Record<string, unknown> = { ...(safeShape as Record<string, unknown>) };
+  const dataObj = data as Record<string, unknown>;
+
+  for (const key of Object.keys(shape)) {
+    const fieldSchema = shape[key];
+    const value = dataObj[key];
+    if (value === undefined) continue;          // safeShape default already there
+
+    // Direct parse + light coercion
+    const coerced = tryCoerceField(fieldSchema, value);
+    if (coerced.ok) {
+      out[key] = coerced.value;
+      continue;
+    }
+
+    // Array fields: salvage element-by-element
+    const fieldDef = fieldSchema._def;
+    let arrInner: any = null;
+    {
+      let unwrapped = fieldSchema;
+      let depth = 0;
+      while (unwrapped?._def && depth < 6) {
+        const tt = unwrapped._def.typeName ?? unwrapped._def.type;
+        if (tt === 'ZodOptional' || tt === 'optional' ||
+            tt === 'ZodNullable' || tt === 'nullable' ||
+            tt === 'ZodDefault'  || tt === 'default') {
+          unwrapped = unwrapped._def.innerType ?? unwrapped._def.type;
+          depth++;
+        } else if (tt === 'ZodArray' || tt === 'array') {
+          arrInner = unwrapped._def.element ?? unwrapped._def.type;
+          break;
+        } else {
+          break;
+        }
+      }
+    }
+    if (Array.isArray(value) && arrInner) {
+      const salvagedArr: unknown[] = [];
+      for (const elem of value) {
+        const elemCoerced = tryCoerceField(arrInner, elem);
+        if (elemCoerced.ok) {
+          salvagedArr.push(elemCoerced.value);
+          continue;
+        }
+        // Element is an object that didn't parse — recurse into it
+        const elemDef = arrInner._def;
+        const elemT = elemDef?.typeName ?? elemDef?.type;
+        if ((elemT === 'ZodObject' || elemT === 'object') && elem && typeof elem === 'object') {
+          const elemFallback = arrInner.safeParse({});
+          const elemBase = elemFallback.success ? elemFallback.data : {};
+          const repairedElem = salvageAgainstSchema(arrInner, elem, elemBase);
+          // Re-parse to ensure nested defaults apply
+          const finalElem = arrInner.safeParse(repairedElem);
+          salvagedArr.push(finalElem.success ? finalElem.data : repairedElem);
+        }
+        // Non-object array elements that fail parse are dropped
+      }
+      out[key] = salvagedArr;
+      continue;
+    }
+
+    // Object fields: recurse. The schema may be wrapped in ZodDefault /
+    // ZodOptional / ZodNullable (from `z.object({...}).default({...})`),
+    // so unwrap until we find the actual ZodObject before deciding whether
+    // to recurse.
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      let unwrappedSchema: any = fieldSchema;
+      let depth = 0;
+      while (unwrappedSchema?._def && depth < 6) {
+        const tt = unwrappedSchema._def.typeName ?? unwrappedSchema._def.type;
+        if (tt === 'ZodOptional' || tt === 'optional' ||
+            tt === 'ZodNullable' || tt === 'nullable' ||
+            tt === 'ZodDefault'  || tt === 'default'  ||
+            tt === 'ZodReadonly' || tt === 'readonly') {
+          unwrappedSchema = unwrappedSchema._def.innerType ?? unwrappedSchema._def.type;
+          depth++;
+        } else {
+          break;
+        }
+      }
+      const innerT = unwrappedSchema?._def?.typeName ?? unwrappedSchema?._def?.type;
+      if (innerT === 'ZodObject' || innerT === 'object') {
+        const subFallback = fieldSchema.safeParse({});
+        const subBase = subFallback.success ? subFallback.data : {};
+        out[key] = salvageAgainstSchema(unwrappedSchema, value, subBase);
+        continue;
+      }
+    }
+    // Give up on this field — keep the default already in `out` from safeShape
+  }
+  return out;
 }
 
 /**

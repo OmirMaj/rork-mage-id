@@ -169,8 +169,14 @@ export default React.memo(function AIQuickEstimate({
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       console.log('[AI Quick Estimate] Success:', data.materials.length, 'materials');
     } catch (err) {
+      // Surface the real error message so users + console can see WHY it
+      // failed (timeout, no connection, edge function 5xx, etc) — was
+      // previously masked behind a generic "Failed to generate estimate."
+      // When user reports "AI doesn't give info anymore," the real
+      // message in the banner is the fastest way to triage.
       console.error('[AI Quick Estimate] Error:', err);
-      setError('Failed to generate estimate. Please try again.');
+      const reason = err instanceof Error && err.message ? err.message : 'Please try again.';
+      setError(`Couldn't generate estimate. ${reason}`);
       setStep('input');
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     }

@@ -1102,30 +1102,52 @@ Generate 8-15 material line items with real quantities and 2025 market pricing (
     tier: 'smart',
     maxTokens: 8000,
   });
+  // Build the placeholder/stub once — used both when the call fails AND when
+  // the call "succeeds" but with an empty-shaped response (validation cascade
+  // wiped the data, or Gemini returned `{materials: [], labor: []}` for an
+  // unparseable description). Better to show editable starter rows than a
+  // $0 modal that looks broken.
+  const stub: AIQuickEstimateResult = {
+    projectSummary: `Estimate for ${projectType || 'construction'} project — ${description.substring(0, 80)}`,
+    materials: [
+      { name: 'General Materials', category: 'hardware', unit: 'lot', quantity: 1, unitPrice: 5000, supplier: 'TBD' },
+      { name: 'Lumber', category: 'lumber', unit: 'bf', quantity: 500, unitPrice: 1.20, supplier: 'Home Depot' },
+      { name: 'Concrete', category: 'concrete', unit: 'cy', quantity: 10, unitPrice: 140, supplier: 'Local Supplier' },
+    ],
+    labor: [
+      { trade: 'General Laborer', hourlyRate: 45, hours: 80, crew: 'General crew' },
+      { trade: 'Carpenter', hourlyRate: 75, hours: 40, crew: 'Framing crew' },
+    ],
+    assemblies: [],
+    additionalCosts: { permits: 500, dumpsterRental: 400, equipmentRental: 300, cleanup: 200, contingencyPercent: 10, overheadPercent: 12 },
+    estimatedDuration: 'To be determined',
+    costPerSqFt: squareFootage > 0 ? Math.round(8000 / squareFootage) : 0,
+    confidenceScore: 30,
+    warnings: ['AI estimate unavailable — this is a placeholder. Please edit with actual quantities and pricing.'],
+    savingsTips: ['Get at least 3 contractor bids', 'Buy materials in bulk where possible'],
+  };
+
   if (!aiResult.success) {
     console.warn('[AI Quick Estimate] AI failed, returning stub:', aiResult.error);
-    // Return a starter estimate the user can edit rather than crashing
-    return {
-      projectSummary: `Estimate for ${projectType || 'construction'} project — ${description.substring(0, 80)}`,
-      materials: [
-        { name: 'General Materials', category: 'hardware', unit: 'lot', quantity: 1, unitPrice: 5000, supplier: 'TBD' },
-        { name: 'Lumber', category: 'lumber', unit: 'bf', quantity: 500, unitPrice: 1.20, supplier: 'Home Depot' },
-        { name: 'Concrete', category: 'concrete', unit: 'cy', quantity: 10, unitPrice: 140, supplier: 'Local Supplier' },
-      ],
-      labor: [
-        { trade: 'General Laborer', hourlyRate: 45, hours: 80, crew: 'General crew' },
-        { trade: 'Carpenter', hourlyRate: 75, hours: 40, crew: 'Framing crew' },
-      ],
-      assemblies: [],
-      additionalCosts: { permits: 500, dumpsterRental: 400, equipmentRental: 300, cleanup: 200, contingencyPercent: 10, overheadPercent: 12 },
-      estimatedDuration: 'To be determined',
-      costPerSqFt: squareFootage > 0 ? Math.round(8000 / squareFootage) : 0,
-      confidenceScore: 30,
-      warnings: ['AI estimate unavailable — this is a placeholder. Please edit with actual quantities and pricing.'],
-      savingsTips: ['Get at least 3 contractor bids', 'Buy materials in bulk where possible'],
-    };
+    return stub;
   }
   const result = aiResult.data;
+
+  // Empty-shape guard: even when mageAI's salvage path "succeeds," it can
+  // return all-empty arrays if EVERY field of EVERY row failed validation
+  // and didn't recover. In that case the modal would open with $0 and look
+  // broken. Detect "empty-shape" and return the stub so the user gets
+  // something editable + a clear "AI estimate unavailable" warning instead
+  // of a confusing zero state.
+  const hasUsableData =
+    (result.materials?.length ?? 0) > 0 ||
+    (result.labor?.length ?? 0) > 0 ||
+    (result.assemblies?.length ?? 0) > 0;
+  if (!hasUsableData) {
+    console.warn('[AI Quick Estimate] AI returned empty result, falling back to stub');
+    return { ...stub, projectSummary: result.projectSummary || stub.projectSummary };
+  }
+
   console.log('[AI Quick Estimate] Generated:', result.materials.length, 'materials,', result.labor.length, 'labor,', result.assemblies.length, 'assemblies');
   return result;
 }
