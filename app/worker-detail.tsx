@@ -8,6 +8,7 @@ import * as Haptics from 'expo-haptics';
 import { Colors } from '@/constants/colors';
 import { useHire } from '@/contexts/HireContext';
 import { getTradeLabel } from '@/constants/trades';
+import { buildMailtoUrl, mailSignOff } from '@/utils/mailtoComposer';
 import type { AvailabilityStatus } from '@/types';
 
 const AVAILABILITY_LABELS: Record<AvailabilityStatus, string> = {
@@ -150,7 +151,11 @@ export default function WorkerDetailScreen() {
             <Text style={styles.messageBtnText}>Message {worker.name.split(' ')[0]}</Text>
           </TouchableOpacity>
           <View style={styles.contactRow}>
-            <TouchableOpacity style={styles.contactBtn} onPress={() => void Linking.openURL(`mailto:${worker.contactEmail}`)}>
+            <TouchableOpacity style={styles.contactBtn} onPress={() => void Linking.openURL(buildMailtoUrl({
+              to: worker.contactEmail,
+              subject: `Quick question — ${worker.name}`,
+              body: [`Hi ${worker.name.split(' ')[0]},`, '', '', ...mailSignOff()],
+            }))}>
               <Mail size={16} color={Colors.primary} />
               <Text style={styles.contactBtnText}>Email</Text>
             </TouchableOpacity>

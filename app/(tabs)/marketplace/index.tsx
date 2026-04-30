@@ -67,7 +67,7 @@ export default function MarketplaceScreen() {
   const handleContactSupplier = useCallback((supplier: Supplier, method: 'email' | 'phone' | 'website') => {
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (method === 'email') {
-      const url = `mailto:${supplier.email}?subject=Inquiry from Tertiary - ${supplier.companyName}`;
+      const url = `mailto:${supplier.email}?subject=Inquiry from MAGE ID —${supplier.companyName}`;
       Linking.openURL(url).catch(() => Alert.alert('Error', 'Could not open email client.'));
     } else if (method === 'phone') {
       Linking.openURL(`tel:${supplier.phone}`).catch(() => Alert.alert('Error', 'Could not open phone.'));
@@ -88,8 +88,8 @@ export default function MarketplaceScreen() {
     const unitPrice = usesBulk ? listing.bulkPrice : listing.price;
     const total = unitPrice * qty;
 
-    const subject = `Tertiary Quote Request - ${listing.name}`;
-    const body = `Hi ${supplier.contactName},\n\nI'd like to request a quote for:\n\nItem: ${listing.name}\nQuantity: ${qty} ${listing.unit}\nUnit Price: $${unitPrice.toFixed(2)}${usesBulk ? ' (bulk rate)' : ''}\nEstimated Total: $${total.toFixed(2)}\n\nPlease confirm availability and delivery timeline.\n\nThank you,\nSent via Tertiary`;
+    const subject = `Quote request —${listing.name}`;
+    const body = `Hi ${supplier.contactName},\n\nI'd like to request a quote for:\n\nItem: ${listing.name}\nQuantity: ${qty} ${listing.unit}\nUnit Price: $${unitPrice.toFixed(2)}${usesBulk ? ' (bulk rate)' : ''}\nEstimated Total: $${total.toFixed(2)}\n\nPlease confirm availability and delivery timeline.\n\nThank you,\nSent via MAGE ID`;
     const url = `mailto:${supplier.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     Linking.openURL(url).catch(() => Alert.alert('Error', 'Could not open email client.'));
     setSelectedListing(null);

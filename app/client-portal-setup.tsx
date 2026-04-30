@@ -17,7 +17,7 @@ import { useProjects } from '@/contexts/ProjectContext';
 import type { ClientPortalSettings, ClientPortalInvite } from '@/types';
 import { generateUUID } from '@/utils/generateId';
 import { sendEmailNative, sendEmail } from '@/utils/emailService';
-import { wrapEmailHtml, emailButton } from '@/utils/emailLayout';
+import { wrapEmailHtml, emailQuote } from '@/utils/emailLayout';
 import {
   buildPortalSnapshot, buildPortalUrl, buildShortPortalUrl, estimateSnapshotSizeKb,
 } from '@/utils/portalSnapshot';
@@ -398,28 +398,31 @@ export default function ClientPortalSetupScreen() {
     const recipientFirstName = invite.name?.split(' ')[0];
     const subject = `Your project portal — ${projectName}`;
     const passcodeLine = portal.requirePasscode && portal.passcode
-      ? `<p style="margin:0 0 16px;color:#374151;font-size:14px;line-height:1.6;"><strong style="color:#111827;">Passcode (required to view):</strong> <span style="font-family:monospace;font-size:18px;color:#FF6A1A;letter-spacing:2px;">${portal.passcode}</span><br/><span style="color:#6B7280;font-size:12px;">Keep this private — it protects your portal.</span></p>`
+      ? `<p style="margin:14px 0 0;padding:12px 14px;background:#F4EFE6;border:1px solid #E8DFCD;border-radius:10px;color:#0B0D10;font-size:14px;line-height:1.6;"><strong>Passcode:</strong> <span style="font-family:monospace;font-size:18px;color:#FF6A1A;letter-spacing:2px;">${portal.passcode}</span><br/><span style="color:#9AA3AD;font-size:12px;">Keep this private — it protects your portal.</span></p>`
       : '';
     const welcomeBlock = portal.welcomeMessage
-      ? `<blockquote style="margin:0 0 20px;padding:14px 16px;background:#F4EFE6;border-left:3px solid #FF6A1A;border-radius:6px;color:#374151;font-size:14px;line-height:1.6;font-style:italic;">${(portal.welcomeMessage || '').replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c] as string))}</blockquote>`
+      ? emailQuote(portal.welcomeMessage)
       : '';
     const bodyHtml = `
-      <p style="margin:0 0 18px;color:#374151;font-size:15px;line-height:1.6;">We've set up a private portal where you can follow along with the project in real time — daily updates, photos, budget, schedule, contract, and any decisions that need your sign-off.</p>
       ${welcomeBlock}
-      ${emailButton('Open my project portal', link)}
+      <p style="margin:0 0 8px;">We've set up a private portal where you can follow along with the project in real time — daily updates, photos, budget, schedule, contract, and any decisions that need your sign-off.</p>
       ${passcodeLine}
-      <p style="margin:16px 0 0;color:#6B7280;font-size:12px;line-height:1.5;">No app to install. Open the link on your phone or computer — that's it. The portal stays at this URL for the life of the project.</p>
+      <p style="margin:18px 0 0;color:#9AA3AD;font-size:12px;line-height:1.55;">No app to install. Open the link on your phone or computer — that's it. The portal stays at this URL for the life of the project.</p>
     `;
     const html = wrapEmailHtml({
+      preheader: `Your live portal for ${projectName} — daily photos, schedule, decisions, and the contract.`,
+      eyebrow: 'Project portal',
+      title: `${projectName}`,
+      subtitle: `Hi ${recipientFirstName ?? 'there'} — your live project view is ready.`,
+      bodyHtml,
+      cta: { label: 'Open my project portal', href: link },
       companyName,
       logoUri: settings?.branding?.logoUri,
-      recipientName: recipientFirstName,
-      eyebrow: 'Project portal',
-      title: `${projectName} — your live project view`,
-      bodyHtml,
+      project: { name: projectName },
       contactName: settings?.branding?.contactName ?? settings?.branding?.companyName,
       contactEmail: settings?.branding?.email,
       contactPhone: settings?.branding?.phone,
+      unsubscribe: { recipientEmail: invite.email, eventKey: 'portal_invite', enabled: true },
     });
 
     const result = await sendEmail({
@@ -427,6 +430,8 @@ export default function ClientPortalSetupScreen() {
       subject,
       html,
       replyTo: settings?.branding?.email,
+      fromCompanyName: companyName,
+      unsubscribe: { recipientEmail: invite.email, eventKey: 'portal_invite', enabled: true },
     });
 
     if (result.success) {

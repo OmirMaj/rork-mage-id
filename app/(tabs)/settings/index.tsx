@@ -65,7 +65,7 @@ const FAQ_ITEMS: { q: string; a: string }[] = [
   },
   {
     q: 'How do I cancel or change my subscription?',
-    a: 'Subscriptions are billed through Apple or Google. Manage them in your device\u2019s Subscriptions settings. If you run into issues, email support@mageid.com and we\u2019ll sort it out.',
+    a: 'Subscriptions are billed through Apple or Google. Manage them in your device\u2019s Subscriptions settings. If you run into issues, email support@mageid.app and we\u2019ll sort it out.',
   },
   {
     q: 'Does MAGE ID replace a lawyer or licensed inspector?',
@@ -73,7 +73,7 @@ const FAQ_ITEMS: { q: string; a: string }[] = [
   },
   {
     q: 'Where do I send feedback or feature requests?',
-    a: 'We read every note \u2014 email support@mageid.com or tap Contact Support above. Shipping fast is how we build, so your feedback directly shapes the roadmap.',
+    a: 'We read every note \u2014 email support@mageid.app or tap Contact Support above. Shipping fast is how we build, so your feedback directly shapes the roadmap.',
   },
 ];
 
@@ -1157,7 +1157,7 @@ export default function SettingsScreen() {
                     if (plan.id === 'free') {
                       Alert.alert(
                         'Contact Support',
-                        'To downgrade to Free, manage your subscription in the App Store (Settings → Apple ID → Subscriptions) or contact support@mageid.com.',
+                        'To downgrade to Free, manage your subscription in the App Store (Settings → Apple ID → Subscriptions) or contact support@mageid.app.',
                       );
                       return;
                     }
@@ -1218,8 +1218,18 @@ export default function SettingsScreen() {
           <TouchableOpacity
             style={styles.row}
             onPress={() => {
-              Linking.openURL('mailto:support@mageid.com?subject=MAGE%20ID%20Support').catch(() =>
-                Alert.alert('Could not open mail', 'Email us at support@mageid.com')
+              // Pre-fill body with platform context so the support team
+              // doesn't have to ping back asking which device / version.
+              const bodyLines = [
+                '',
+                '',
+                '---',
+                `Sent from MAGE ID · ${Platform.OS}${Platform.OS === 'ios' || Platform.OS === 'android' ? ' ' + Platform.Version : ''}`,
+              ];
+              const body = encodeURIComponent(bodyLines.join('\n'));
+              const url = `mailto:support@mageid.app?subject=MAGE%20ID%20Support&body=${body}`;
+              Linking.openURL(url).catch(() =>
+                Alert.alert('Could not open mail', 'Email us at support@mageid.app')
               );
             }}
             activeOpacity={0.6}

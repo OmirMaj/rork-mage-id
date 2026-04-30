@@ -40,6 +40,19 @@
   to = "/builders/index.html"
   status = 200
 
+# Email preferences + unsubscribe — backed by the `unsubscribe` edge
+# function. The static pages read ?e=email&k=event_key from the
+# List-Unsubscribe URL we put in every transactional email's footer.
+[[redirects]]
+  from = "/unsubscribe"
+  to = "/unsubscribe/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/preferences"
+  to = "/preferences/index.html"
+  status = 200
+
 [[redirects]]
   from = "/*"
   to = "/index.html"

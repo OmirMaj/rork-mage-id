@@ -4,6 +4,7 @@ import {
 } from 'react-native';
 import ConstructionLoader from '@/components/ConstructionLoader';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
+import { buildMailtoUrl, mailSignOff } from '@/utils/mailtoComposer';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { MapPin, Clock, DollarSign, Shield, ExternalLink, Mail, Building2, ChevronRight, Globe, Heart, Bookmark, Phone, FileText, Tag, Calendar, Users, ChevronDown } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
@@ -315,7 +316,18 @@ export default function BidDetailScreen() {
                 <View style={[styles.contactCard, { marginTop: 12 }]}>
                   {postedBy ? <Text style={styles.postedLabel}>Posted by: {postedBy}</Text> : null}
                   <View style={styles.contactActions}>
-                    {contactEmail ? <TouchableOpacity style={styles.contactBtn} onPress={() => void Linking.openURL(`mailto:${contactEmail}`)}><Mail size={16} color="#FFF" /><Text style={styles.contactBtnText}>Email</Text></TouchableOpacity> : null}
+                    {contactEmail ? <TouchableOpacity style={styles.contactBtn} onPress={() => void Linking.openURL(buildMailtoUrl({
+                    to: contactEmail!,
+                    subject: `Question about RFP — ${title}`,
+                    body: [
+                      postedBy ? `Hi ${postedBy.split(' ')[0]},` : 'Hi,',
+                      '',
+                      `I'm reviewing the bid package for "${title}" and have a quick question before submitting.`,
+                      '',
+                      '',
+                      ...mailSignOff(),
+                    ],
+                  }))}><Mail size={16} color="#FFF" /><Text style={styles.contactBtnText}>Email</Text></TouchableOpacity> : null}
                     {contactPhone ? <TouchableOpacity style={[styles.contactBtn, { backgroundColor: Colors.success }]} onPress={() => void Linking.openURL(`tel:${contactPhone}`)}><Phone size={16} color="#FFF" /><Text style={styles.contactBtnText}>Call</Text></TouchableOpacity> : null}
                   </View>
                   {sourceUrl ? <TouchableOpacity style={styles.sourceLink} onPress={() => void Linking.openURL(sourceUrl)}><Globe size={14} color={Colors.primary} /><Text style={styles.sourceLinkText}>{sourceName || 'View on Portal'}</Text><ExternalLink size={12} color={Colors.primary} /></TouchableOpacity> : null}
@@ -531,7 +543,18 @@ export default function BidDetailScreen() {
               {postedDate ? <Text style={styles.postedDate}>Posted: {formatDate(postedDate)}</Text> : null}
               <View style={styles.contactActions}>
                 {contactEmail ? (
-                  <TouchableOpacity style={styles.contactBtn} onPress={() => void Linking.openURL(`mailto:${contactEmail}`)}>
+                  <TouchableOpacity style={styles.contactBtn} onPress={() => void Linking.openURL(buildMailtoUrl({
+                    to: contactEmail!,
+                    subject: `Question about RFP — ${title}`,
+                    body: [
+                      postedBy ? `Hi ${postedBy.split(' ')[0]},` : 'Hi,',
+                      '',
+                      `I'm reviewing the bid package for "${title}" and have a quick question before submitting.`,
+                      '',
+                      '',
+                      ...mailSignOff(),
+                    ],
+                  }))}>
                     <Mail size={16} color="#FFF" />
                     <Text style={styles.contactBtnText}>Email</Text>
                   </TouchableOpacity>

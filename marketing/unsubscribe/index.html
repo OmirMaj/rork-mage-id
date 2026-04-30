@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Unsubscribe · MAGE ID</title>
+  <meta name="robots" content="noindex" />
+  <meta name="theme-color" content="#0B0D10" />
+  <style>
+    /* Match the email/portal language: ink + amber + cream. Same fonts.
+       Static page so we keep it in pure CSS — no React, no build. */
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      background: #F4EFE6;
+      color: #0B0D10;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      min-height: 100dvh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 32px 16px;
+    }
+    .card {
+      background: #FFFFFF;
+      border: 1px solid #E8DFCD;
+      border-radius: 18px;
+      max-width: 520px;
+      width: 100%;
+      overflow: hidden;
+    }
+    .head {
+      background: #0B0D10;
+      color: #FFF;
+      padding: 22px 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .head .name { font-size: 18px; font-weight: 800; letter-spacing: -0.3px; }
+    .head .chip {
+      display: inline-block;
+      padding: 5px 11px;
+      border-radius: 999px;
+      background: #FF6A1A;
+      color: #0B0D10;
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 1.4px;
+      text-transform: uppercase;
+    }
+    .body { padding: 32px 28px 28px; }
+    .eyebrow {
+      margin: 0 0 12px;
+      font-size: 11px;
+      font-weight: 800;
+      color: #FF6A1A;
+      letter-spacing: 1.6px;
+      text-transform: uppercase;
+    }
+    h1 {
+      margin: 0 0 12px;
+      font-family: Georgia, 'Times New Roman', serif;
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      line-height: 1.18;
+    }
+    p { margin: 0 0 14px; font-size: 15px; line-height: 1.55; color: #4A5159; }
+    .target {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 8px;
+      background: #F4EFE6;
+      border: 1px solid #E8DFCD;
+      font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+      font-size: 13px;
+      color: #0B0D10;
+    }
+    .actions { display: flex; flex-direction: column; gap: 10px; margin-top: 18px; }
+    button {
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 15px;
+      font-weight: 700;
+      padding: 14px 22px;
+      border-radius: 12px;
+      border: 0;
+      transition: transform 0.12s ease, opacity 0.12s ease;
+    }
+    button:active { transform: scale(0.985); }
+    button[disabled] { opacity: 0.55; cursor: default; }
+    .btn-primary { background: #0B0D10; color: #FFF; }
+    .btn-secondary { background: transparent; color: #0B0D10; border: 1.5px solid #0B0D10; }
+    .footer { margin-top: 26px; font-size: 12px; color: #9AA3AD; }
+    .footer a { color: #4A5159; text-decoration: underline; }
+    .ok { color: #1E8E4A; font-weight: 700; }
+    .err { color: #C2410C; font-weight: 700; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <main class="card" role="main">
+    <div class="head">
+      <div class="name">MAGE&nbsp;ID</div>
+      <div class="chip">Email preferences</div>
+    </div>
+    <div class="body">
+      <p class="eyebrow" id="eyebrow">Unsubscribe</p>
+      <h1 id="title">Unsubscribe from these emails?</h1>
+      <p id="lede">
+        We'll stop sending <span id="categoryLabel">these notifications</span> to <span class="target" id="emailLabel">your address</span>.
+      </p>
+
+      <div class="actions" id="actionsBlock">
+        <button class="btn-primary" id="confirmBtn" type="button">Confirm unsubscribe</button>
+        <button class="btn-secondary" id="cancelBtn" type="button">Keep me subscribed</button>
+      </div>
+
+      <div id="successBlock" class="hidden">
+        <p class="ok">You're unsubscribed.</p>
+        <p>Your <span id="successCategory">notifications</span> have been turned off for <span class="target" id="successEmail">your address</span>. You'll still receive critical account or contract emails — anything time-sensitive that we wouldn't suppress for legal reasons.</p>
+        <p>Changed your mind? Reply to any past email and we'll restore your subscription, or write <a href="mailto:support@mageid.app">support@mageid.app</a>.</p>
+      </div>
+
+      <div id="errorBlock" class="hidden">
+        <p class="err">Something went wrong.</p>
+        <p>We couldn't process the unsubscribe right now. Please try again, or email <a href="mailto:support@mageid.app?subject=Unsubscribe">support@mageid.app</a> and we'll handle it manually.</p>
+      </div>
+
+      <div class="footer">
+        Powered by <a href="https://mageid.app">MAGE ID</a> — the operating system for general contractors.
+      </div>
+    </div>
+  </main>
+
+  <script>
+    // Static unsubscribe page. Reads ?e=email&k=event_key, lets the user
+    // confirm, then POSTs to the `unsubscribe` edge function. Idempotent
+    // (the DB has a unique constraint on (email, event_key)).
+    (function () {
+      var SUPABASE_URL = 'https://nteoqhcswappxxjlpvap.supabase.co';
+      var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im50ZW9xaGNzd2FwcHh4amxwdmFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDgxOTUyMDQsImV4cCI6MjA2Mzc3MTIwNH0.lHIb5bkOMm5oGz03jCPZDQUUGiEr9NHK67Z2UbYUlUM';
+      var EVENT_LABELS = {
+        portal_message: 'message notifications',
+        budget_proposal: 'budget proposal alerts',
+        co_approval: 'change-order approval alerts',
+        sub_invoice: 'sub-invoice alerts',
+        nearby_rfp_posted: 'new-project nearby alerts',
+        rfp_awarded: 'bid-awarded alerts',
+        contract_signed: 'contract-signed alerts',
+        selection_chosen: 'selection alerts',
+        bid_question_asked: 'bid Q&A alerts',
+        bid_question_answered: 'bid Q&A alerts',
+        closeout_binder: 'closeout binder alerts',
+        portal_invite: 'portal invitation emails',
+      };
+
+      function readQuery() {
+        var p = new URLSearchParams(window.location.search);
+        return { email: p.get('e') || '', key: p.get('k') || '' };
+      }
+
+      var $eyebrow = document.getElementById('eyebrow');
+      var $title = document.getElementById('title');
+      var $lede = document.getElementById('lede');
+      var $emailLabel = document.getElementById('emailLabel');
+      var $categoryLabel = document.getElementById('categoryLabel');
+      var $confirmBtn = document.getElementById('confirmBtn');
+      var $cancelBtn = document.getElementById('cancelBtn');
+      var $actionsBlock = document.getElementById('actionsBlock');
+      var $successBlock = document.getElementById('successBlock');
+      var $errorBlock = document.getElementById('errorBlock');
+      var $successCategory = document.getElementById('successCategory');
+      var $successEmail = document.getElementById('successEmail');
+
+      var qs = readQuery();
+      if (!qs.email) {
+        $title.textContent = 'No email on the link';
+        $lede.textContent = 'This unsubscribe link is missing the email address. Please use the link from a recent email, or contact support.';
+        $actionsBlock.classList.add('hidden');
+        return;
+      }
+
+      $emailLabel.textContent = qs.email;
+      var label = (qs.key && EVENT_LABELS[qs.key]) ? EVENT_LABELS[qs.key] : 'these notifications';
+      $categoryLabel.textContent = label;
+      $successCategory.textContent = label;
+      $successEmail.textContent = qs.email;
+
+      $cancelBtn.addEventListener('click', function () {
+        window.location.href = 'https://mageid.app';
+      });
+
+      $confirmBtn.addEventListener('click', function () {
+        $confirmBtn.disabled = true;
+        $cancelBtn.disabled = true;
+        $confirmBtn.textContent = 'Processing…';
+        var url = SUPABASE_URL + '/functions/v1/unsubscribe';
+        fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
+          },
+          body: JSON.stringify({ email: qs.email, event_key: qs.key || null, source: 'one_click' }),
+        }).then(function (r) {
+          if (!r.ok) throw new Error('http_' + r.status);
+          return r.json();
+        }).then(function (data) {
+          if (data && data.ok) {
+            $eyebrow.textContent = 'Done';
+            $title.textContent = "You're unsubscribed.";
+            $lede.classList.add('hidden');
+            $actionsBlock.classList.add('hidden');
+            $successBlock.classList.remove('hidden');
+          } else {
+            throw new Error(data && data.error || 'unknown');
+          }
+        }).catch(function () {
+          $confirmBtn.disabled = false;
+          $cancelBtn.disabled = false;
+          $confirmBtn.textContent = 'Try again';
+          $errorBlock.classList.remove('hidden');
+        });
+      });
+    })();
+  </script>
+</body>
+</html>

@@ -1,31 +1,42 @@
 // send-email
 //
-// Deno edge function that sends transactional email via Resend.
+// Generic Resend relay. The app calls this from the client whenever it
+// needs to send a transactional email composed locally (invoices, COs,
+// daily reports, estimates, RFIs, portal-setup). The notify function
+// handles system-generated event emails on its own; this one is for
+// "GC composed an email and wants us to send it from a verified domain"
+// so it lands in inboxes instead of spam.
 //
-// Why a server-side function instead of doing this from the app:
-//   - Resend requires an authenticated API call from a trusted origin.
-//   - The app was previously opening `mailto:` via expo-mail-composer, which
-//     meant email went out from the user's personal inbox. That failed SPF/DKIM
-//     for the mageid.app domain and clients' spam filters ate it.
-//   - By routing through here, every email sends FROM a verified mageid.app
-//     address with proper DKIM signatures. Deliverability goes from "in spam
-//     or bounced" to "in the inbox."
+// 2026-04 redesign — now goes through ../_shared/email.ts:resendSend so
+// every email gets:
+//   - Personalized FROM ("{Company} via MAGE ID <noreply@mageid.app>")
+//   - List-Unsubscribe + List-Unsubscribe-Post headers (Gmail bulk-sender
+//     compliance, Feb 2024)
+//   - Auto-generated plaintext fallback (deliverability + a11y)
+//   - Reply-to defaulting to the GC's email when client provides it
 //
-// Secrets required (set via Supabase dashboard → Edge Functions → Secrets):
-//   RESEND_API_KEY  — from resend.com/api-keys
+// Secrets:
+//   RESEND_API_KEY — from resend.com/api-keys
 //
 // Request body:
 //   {
 //     to: string | string[],
 //     subject: string,
 //     html: string,
+//     text?: string,                     // plaintext override; auto-generated otherwise
 //     replyTo?: string,
-//     from?: string,              // optional override — default below
+//     from?: string,                     // legacy: full FROM string override
+//     fromCompanyName?: string,          // preferred: just the company name; we wrap to "X via MAGE ID"
 //     attachments?: Array<{
 //       filename: string,
-//       content: string,          // base64-encoded
+//       content: string,                 // base64
 //       contentType?: string,
 //     }>,
+//     unsubscribe?: {                    // drives List-Unsubscribe headers
+//       recipientEmail?: string,
+//       eventKey?: string,
+//       enabled?: boolean,
+//     },
 //   }
 //
 // Response:
@@ -33,14 +44,9 @@
 //   { success: false, error: "<reason>" }
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
+import { resendSend, htmlToPlaintext, buildFromAddress, buildUnsubscribeUrl, type UnsubscribeOpts } from "../_shared/email.ts";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") || "";
-const RESEND_ENDPOINT = "https://api.resend.com/emails";
-
-// Default FROM. Can be overridden per-request via body.from so a white-labeled
-// GC could send as their own branded sender down the road (requires their
-// own verified domain — out of scope for MVP).
-const DEFAULT_FROM = 'MAGE ID <noreply@mageid.app>';
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -57,7 +63,7 @@ function jsonResponse(body: unknown, status = 200): Response {
 
 interface Attachment {
   filename: string;
-  content: string;       // base64
+  content: string;
   contentType?: string;
 }
 
@@ -65,20 +71,67 @@ interface SendEmailBody {
   to: string | string[];
   subject: string;
   html: string;
+  text?: string;
   replyTo?: string;
   from?: string;
+  fromCompanyName?: string;
   attachments?: Attachment[];
+  unsubscribe?: UnsubscribeOpts;
+}
+
+// resendSend in _shared/email.ts handles single-recipient sends with full
+// header + plaintext support but doesn't accept attachments. For the
+// attachment path we still construct the Resend payload directly here so
+// we keep one consistent set of headers / FROM / plaintext logic but
+// thread attachments through.
+async function sendWithAttachments(opts: {
+  to: string;
+  subject: string;
+  html: string;
+  text: string;
+  replyTo?: string;
+  from: string;
+  attachments: Attachment[];
+  unsubscribeHeaders: Record<string, string>;
+}): Promise<{ ok: boolean; resp: unknown }> {
+  const payload: Record<string, unknown> = {
+    from: opts.from,
+    to: [opts.to],
+    subject: opts.subject,
+    html: opts.html,
+    text: opts.text,
+    attachments: opts.attachments.map((a) => ({
+      filename: a.filename,
+      content: a.content,
+      ...(a.contentType ? { content_type: a.contentType } : {}),
+    })),
+  };
+  if (opts.replyTo) payload.reply_to = opts.replyTo;
+  const headers = { ...opts.unsubscribeHeaders, 'X-Entity-Ref-ID': `mageid-${Date.now()}` };
+  if (Object.keys(headers).length > 0) payload.headers = headers;
+  try {
+    const r = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+    const resp = await r.json().catch(() => ({}));
+    return { ok: r.ok, resp };
+  } catch (e) {
+    return { ok: false, resp: { error: String(e) } };
+  }
 }
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: CORS_HEADERS });
   }
-
   if (req.method !== "POST") {
     return jsonResponse({ success: false, error: "Method not allowed" }, 405);
   }
-
   if (!RESEND_API_KEY) {
     console.error("[send-email] RESEND_API_KEY not set in edge function secrets");
     return jsonResponse({ success: false, error: "Email service not configured" }, 500);
@@ -91,8 +144,6 @@ serve(async (req) => {
     return jsonResponse({ success: false, error: "Invalid JSON body" }, 400);
   }
 
-  // Validate required fields. We're strict here because a malformed payload
-  // to Resend costs a round-trip and a confusing error.
   if (!body.to || (Array.isArray(body.to) && body.to.length === 0)) {
     return jsonResponse({ success: false, error: "Missing recipient (to)" }, 400);
   }
@@ -103,61 +154,74 @@ serve(async (req) => {
     return jsonResponse({ success: false, error: "Missing html body" }, 400);
   }
 
-  // Build Resend payload. Resend accepts the same keys we already use with
-  // one exception: it wants `reply_to` not `replyTo`.
-  const resendPayload: Record<string, unknown> = {
-    from: body.from || DEFAULT_FROM,
-    to: Array.isArray(body.to) ? body.to : [body.to],
-    subject: body.subject,
-    html: body.html,
-  };
+  const recipients = Array.isArray(body.to) ? body.to : [body.to];
+  const text = body.text ?? htmlToPlaintext(body.html);
+  const fromAddress = body.from ?? buildFromAddress(body.fromCompanyName);
 
-  if (body.replyTo) resendPayload.reply_to = body.replyTo;
-  if (body.attachments && body.attachments.length > 0) {
-    resendPayload.attachments = body.attachments.map((a) => ({
-      filename: a.filename,
-      content: a.content,
-      // content_type is optional; Resend infers from filename if omitted.
-      ...(a.contentType ? { content_type: a.contentType } : {}),
-    }));
+  // Send to each recipient. Resend supports multi-recipient on `to` but
+  // that exposes each recipient's address to the others — never what we
+  // want. Loop instead.
+  const results: Array<{ to: string; ok: boolean; id?: string; error?: string }> = [];
+  for (const to of recipients) {
+    if (body.attachments && body.attachments.length > 0) {
+      // Build unsubscribe headers for this recipient.
+      const unsubHeaders: Record<string, string> = {};
+      if (body.unsubscribe?.enabled !== false && (body.unsubscribe?.recipientEmail || to)) {
+        const u = { ...body.unsubscribe, recipientEmail: body.unsubscribe?.recipientEmail ?? to };
+        const url = buildUnsubscribeUrl(u);
+        if (url) {
+          unsubHeaders['List-Unsubscribe'] = `<${url}>, <mailto:unsubscribe@mageid.app?subject=Unsubscribe%20${encodeURIComponent(u.eventKey ?? '')}>`;
+          unsubHeaders['List-Unsubscribe-Post'] = 'List-Unsubscribe=One-Click';
+        }
+      }
+      const r = await sendWithAttachments({
+        to,
+        subject: body.subject,
+        html: body.html,
+        text,
+        replyTo: body.replyTo,
+        from: fromAddress,
+        attachments: body.attachments,
+        unsubscribeHeaders: unsubHeaders,
+      });
+      const id = (r.resp as { id?: string } | null)?.id;
+      const error = (r.resp as { message?: string; error?: string } | null);
+      if (!r.ok) {
+        console.error("[send-email] Resend rejected:", r.resp);
+        results.push({ to, ok: false, error: error?.message || error?.error || 'Resend error' });
+      } else {
+        results.push({ to, ok: true, id });
+      }
+    } else {
+      const r = await resendSend(RESEND_API_KEY, {
+        to,
+        subject: body.subject,
+        html: body.html,
+        text,
+        replyTo: body.replyTo,
+        fromCompanyName: body.fromCompanyName,
+        fromOverride: body.from,
+        unsubscribe: body.unsubscribe?.enabled === false ? undefined : { ...body.unsubscribe, recipientEmail: body.unsubscribe?.recipientEmail ?? to },
+      });
+      const id = (r.resp as { id?: string } | null)?.id;
+      const error = (r.resp as { message?: string; error?: string } | null);
+      if (!r.ok) {
+        console.error("[send-email] Resend rejected:", r.resp);
+        results.push({ to, ok: false, error: error?.message || error?.error || 'Resend error' });
+      } else {
+        results.push({ to, ok: true, id });
+      }
+    }
   }
 
-  try {
-    const resendRes = await fetch(RESEND_ENDPOINT, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${RESEND_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(resendPayload),
-    });
-
-    const text = await resendRes.text();
-    let parsed: Record<string, unknown> = {};
-    try {
-      parsed = text ? JSON.parse(text) : {};
-    } catch {
-      // Non-JSON body — keep the raw text so we can surface it for debugging.
-      parsed = { raw: text.substring(0, 500) };
-    }
-
-    if (!resendRes.ok) {
-      console.error("[send-email] Resend rejected:", resendRes.status, text.substring(0, 400));
-      const message =
-        (parsed.message as string) ||
-        (parsed.error as string) ||
-        `Resend ${resendRes.status}`;
-      return jsonResponse({ success: false, error: message }, 502);
-    }
-
-    const id = (parsed.id as string) || null;
-    console.log("[send-email] Sent", id, "to", body.to);
-    return jsonResponse({ success: true, id });
-  } catch (err) {
-    console.error("[send-email] Network error:", err);
-    return jsonResponse(
-      { success: false, error: "Network error reaching Resend: " + String(err) },
-      500,
-    );
+  const allOk = results.every((r) => r.ok);
+  if (!allOk) {
+    const firstErr = results.find((r) => !r.ok);
+    return jsonResponse({ success: false, error: firstErr?.error || 'One or more sends failed', results }, 502);
   }
+  // For a single-recipient send (the common case), return the message id at top level for backward compat.
+  if (results.length === 1) {
+    return jsonResponse({ success: true, id: results[0].id });
+  }
+  return jsonResponse({ success: true, results });
 });

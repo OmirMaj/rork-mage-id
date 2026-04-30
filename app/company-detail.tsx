@@ -9,6 +9,7 @@ import { Colors } from '@/constants/colors';
 import { useCompanies } from '@/contexts/CompaniesContext';
 import { useBids } from '@/contexts/BidsContext';
 import { CERTIFICATIONS, CERT_COLORS } from '@/constants/certifications';
+import { buildMailtoUrl, mailSignOff } from '@/utils/mailtoComposer';
 import type { BidCategory } from '@/types';
 
 const BID_CATEGORY_LABELS: Record<BidCategory, string> = {
@@ -161,7 +162,11 @@ export default function CompanyDetailScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Contact</Text>
           <View style={styles.contactActions}>
-            <TouchableOpacity style={styles.contactBtn} onPress={() => void Linking.openURL(`mailto:${company.contactEmail}`)}>
+            <TouchableOpacity style={styles.contactBtn} onPress={() => void Linking.openURL(buildMailtoUrl({
+              to: company.contactEmail,
+              subject: `Quick question — ${company.companyName}`,
+              body: [`Hi ${company.companyName},`, '', '', ...mailSignOff()],
+            }))}>
               <Mail size={16} color="#FFF" />
               <Text style={styles.contactBtnText}>Email</Text>
             </TouchableOpacity>

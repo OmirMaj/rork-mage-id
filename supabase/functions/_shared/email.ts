@@ -1,14 +1,15 @@
-// emailLayout.ts — shared HTML scaffolding for every transactional email
-// composed inside the app (the GC manually sends an invoice, CO, daily
-// report, etc.). Mirrors supabase/functions/_shared/email.ts EXACTLY so
-// system-generated and user-composed emails look identical in the inbox.
+// _shared/email.ts — the ONE place every transactional email is built.
 //
-// Why HTML strings instead of MJML / React Email: Resend serves us a raw
-// `html` field, recipients open in everything from Apple Mail to Gmail
-// to Outlook 2016. The safest path is hand-built table layouts (yes,
-// tables — every email client supports them) with inline styles. Every
-// premium SaaS email you've seen in 2024+ is still tables under the
-// hood; they just look modern because typography + spacing are generous.
+// Why this file exists: pre-2026-04 we had two systems — utils/emailLayout.ts
+// in the app (polished but unused) and an inlined wrapHtml() in notify
+// (used by all 14 events but watered-down). They drifted. The notify one
+// had no preheader, no project context, no photos, no stat cards, generic
+// CTAs. This file consolidates everything. Both notify and send-email
+// import from here so there's exactly one design.
+//
+// Deno-friendly (no Node-specific APIs, no relative-path imports past
+// .. once). Pure functions, no I/O. Each helper returns an HTML string
+// ready to drop into bodyHtml.
 //
 // Design language matches the marketing site + portal:
 //   ink         #0B0D10   — header, primary buttons, body text
@@ -17,6 +18,25 @@
 //   sand        #E8DFCD   — card border, dividers
 //   fog         #9AA3AD   — meta text, footer
 //   stone       #4A5159   — body copy
+//
+// Tables + inline styles only — Outlook on Windows strips <style> blocks.
+//
+// Every email goes through wrapEmailHtml() which provides the shell:
+//   - Preheader (hidden inbox preview)
+//   - Header bar (company name + MAGE ID badge)
+//   - Optional project context strip (name + location + thumb)
+//   - Body card (eyebrow + title + bodyHtml + CTA)
+//   - Footer (sent-by line + reply note + unsubscribe link)
+//
+// Helpers exported for body composition:
+//   emailButton, emailSecondaryButton  — CTAs
+//   emailStatRow, emailStatCard         — money/data summaries
+//   emailHero                           — milestone moments (signed, awarded)
+//   emailQuote                          — blockquoted message bodies
+//   emailProductCard                    — selection card with image
+//   emailDivider, emailMetaLine         — small atoms
+//   htmlToPlaintext                     — plaintext fallback generation
+//   escapeHtml                          — XSS guard
 
 const INK = '#0B0D10';
 const AMBER = '#FF6A1A';
@@ -27,53 +47,55 @@ const STONE = '#4A5159';
 const PAPER = '#FFFFFF';
 
 const FONT_STACK = `-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif`;
+// Georgia-style serif for hero / display text. We're cautious — most
+// premium SaaS emails (Linear, Stripe, Mercury) lean SANS for body and
+// SERIF only for big numbers / hero titles.
 const FONT_DISPLAY = `Georgia,'Times New Roman',serif`;
 
 export interface ProjectContextOpts {
+  /** Project name shown bold in the strip. */
   name?: string;
+  /** Address / location line, lighter weight. */
   location?: string;
+  /** Optional hero photo URL — square thumbnail on the right. */
   photoUrl?: string;
 }
 
 export interface UnsubscribeOpts {
+  /** Recipient email — used to encode the unsub URL. */
   recipientEmail?: string;
+  /** Event-prefs key (e.g. "portal_message"). Lets the recipient
+   *  unsubscribe from this category specifically rather than all. */
   eventKey?: string;
+  /** When false, don't show an unsubscribe footer at all (e.g. pure
+   *  account / security mail). Defaults to true for everything else. */
   enabled?: boolean;
 }
 
 export interface EmailWrapOpts {
-  /** Inbox preview text. Falls back to subtitle/title if omitted. */
-  preheader?: string;
+  /** Goes in the inbox preview — first 100ish chars matter most. */
+  preheader: string;
   /** Small uppercase chip above the title. */
   eyebrow?: string;
-  /** Big serif title. */
+  /** Big bold title. */
   title: string;
   /** Sub-line under the title — optional one-sentence framing. */
   subtitle?: string;
-  /** Composed body HTML. */
+  /** The composed body — usually a stack of helpers. */
   bodyHtml: string;
-  /** Primary CTA button. */
+  /** Primary CTA button. Most emails have one. */
   cta?: { label: string; href: string };
   /** Optional secondary action under the primary. */
   secondaryCta?: { label: string; href: string };
   /** Sender's company name shown in header (e.g. "Smith Builders"). */
   companyName?: string;
-  /** Optional logo URL — small square thumbnail in the header. */
-  logoUri?: string;
-  /** Recipient name; if provided, body opens with "Hi <name>,". Legacy
-   *  field — prefer composing into bodyHtml directly. */
-  recipientName?: string;
-  /** Project context strip — shown right under header when provided. */
+  /** Project context strip. Shown right under header when provided. */
   project?: ProjectContextOpts;
-  /** Sender's name/email/phone for the "Sent by" footer line. */
+  /** Sender's name + email + phone for the "Sent by" footer line. */
   sender?: { name?: string; email?: string; phone?: string };
-  /** Legacy fields — folded into sender if `sender` not provided. */
-  contactName?: string;
-  contactEmail?: string;
-  contactPhone?: string;
   /** Override accent color — used for milestone hero treatment. */
   accent?: string;
-  /** Unsubscribe context — drives footer link. */
+  /** Unsubscribe context — drives footer link + List-Unsubscribe header. */
   unsubscribe?: UnsubscribeOpts;
 }
 
@@ -89,6 +111,7 @@ export function escapeHtml(text: string | number | null | undefined): string {
     .replace(/'/g, '&#39;');
 }
 
+/** A primary CTA button. Big, ink-filled, white text, 44px tap target. */
 export function emailButton(label: string, href: string, accent: string = INK): string {
   return `
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:24px auto 8px;">
@@ -98,6 +121,7 @@ export function emailButton(label: string, href: string, accent: string = INK): 
     </table>`;
 }
 
+/** Outline secondary button, smaller. */
 export function emailSecondaryButton(label: string, href: string): string {
   return `
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:6px auto 8px;">
@@ -107,6 +131,7 @@ export function emailSecondaryButton(label: string, href: string): string {
     </table>`;
 }
 
+/** A row inside a stat card. Use emphasize for the totals row. */
 export function emailStatRow(label: string, value: string, opts?: { valueColor?: string; emphasize?: boolean }): string {
   const color = opts?.valueColor ?? INK;
   const size = opts?.emphasize ? '20px' : '14px';
@@ -118,6 +143,7 @@ export function emailStatRow(label: string, value: string, opts?: { valueColor?:
     </tr>`;
 }
 
+/** Boxed pale-cream card wrapping a stack of stat rows. */
 export function emailStatCard(rowsHtml: string): string {
   return `
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${CREAM};border:1px solid ${SAND};border-radius:14px;margin:18px 0;">
@@ -129,23 +155,36 @@ export function emailStatCard(rowsHtml: string): string {
     </table>`;
 }
 
+/** Italic blockquote — used for portal messages, scope excerpts, Q&A. */
 export function emailQuote(text: string): string {
   return `<blockquote style="margin:0 0 16px;padding:14px 18px;background:${CREAM};border-left:3px solid ${AMBER};border-radius:8px;font-family:${FONT_STACK};font-style:italic;color:${INK};font-size:15px;line-height:1.55;">${escapeHtml(text)}</blockquote>`;
 }
 
+/** Small uppercase line for meta info (timestamps, IDs). */
 export function emailMetaLine(text: string): string {
   return `<p style="margin:6px 0 0;font-family:${FONT_STACK};font-size:11px;color:${FOG};letter-spacing:1.2px;text-transform:uppercase;font-weight:700;">${escapeHtml(text)}</p>`;
 }
 
+/** Hairline divider. */
 export function emailDivider(): string {
   return `<div style="height:1px;background:${SAND};margin:22px 0;"></div>`;
 }
 
+/**
+ * Hero block — for milestone emails. Big serif number/title, optional
+ * photo, optional accent strip. Use sparingly: contract signed, RFP
+ * awarded, project closeout.
+ */
 export function emailHero(opts: {
+  /** Top tiny label, e.g. "CONTRACT SIGNED". */
   kicker?: string;
+  /** Big serif headline. Usually a number or short phrase. */
   bigText: string;
+  /** Lighter sub-headline. */
   subText?: string;
+  /** Optional photo above the text — wide aspect, 600x240ish. */
   photoUrl?: string;
+  /** Accent color for the kicker + photo border glow. */
   accent?: string;
 }): string {
   const accent = opts.accent ?? AMBER;
@@ -169,6 +208,10 @@ export function emailHero(opts: {
     </table>`;
 }
 
+/**
+ * Selection product card — image + name + brand + category + price.
+ * Used by selection_chosen email. Image is square, left-aligned.
+ */
 export function emailProductCard(opts: {
   imageUrl?: string;
   productName: string;
@@ -207,6 +250,10 @@ export function emailProductCard(opts: {
     </table>`;
 }
 
+/**
+ * Photo strip — up to 3 thumbnails in a row. Used in DFR / closeout
+ * recap. Skips silently if zero URLs.
+ */
 export function emailPhotoStrip(urls: string[]): string {
   const cells = urls.slice(0, 3).map((u) =>
     `<td width="33%" style="padding:0 4px;"><img src="${escapeHtml(u)}" width="180" height="120" alt="" style="display:block;width:100%;height:auto;border-radius:8px;border:1px solid ${SAND};object-fit:cover;" /></td>`,
@@ -289,32 +336,16 @@ export function wrapEmailHtml(opts: EmailWrapOpts): string {
     ? `<p style="margin:10px 0 0;font-family:${FONT_STACK};font-size:16px;color:${STONE};line-height:1.55;">${escapeHtml(opts.subtitle)}</p>`
     : '';
 
-  // Legacy "Hi {name}," intro — for callers that haven't migrated to the
-  // new subtitle/bodyHtml composition. Folds into the body cell.
-  const greetingHtml = opts.recipientName
-    ? `<p style="margin:0 0 14px;font-family:${FONT_STACK};font-size:15px;color:${STONE};">Hi ${escapeHtml(opts.recipientName)},</p>`
-    : '';
-
-  // Fold legacy contact* fields into sender if the new field isn't given.
-  const sender = opts.sender ?? (
-    (opts.contactName || opts.contactEmail || opts.contactPhone)
-      ? { name: opts.contactName, email: opts.contactEmail, phone: opts.contactPhone }
-      : undefined
-  );
-
   const ctaHtml = opts.cta ? emailButton(opts.cta.label, opts.cta.href, INK) : '';
   const secondaryHtml = opts.secondaryCta ? emailSecondaryButton(opts.secondaryCta.label, opts.secondaryCta.href) : '';
 
+  // Header — ink bg, company name on the left, "via MAGE ID" subtitle.
   const companyName = opts.companyName ?? 'MAGE ID';
   const isCobranded = !!opts.companyName && opts.companyName !== 'MAGE ID';
-  const logoCell = opts.logoUri
-    ? `<td width="34" valign="middle" style="padding-right:10px;"><img src="${escapeHtml(opts.logoUri)}" alt="" width="34" height="34" style="display:block;width:34px;height:34px;border-radius:8px;" /></td>`
-    : '';
   const headerHtml = `
     <tr><td style="background:${INK};padding:22px 32px;">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
         <tr>
-          ${logoCell}
           <td valign="middle">
             <p style="margin:0;font-family:${FONT_STACK};font-size:18px;font-weight:800;color:#FFFFFF;letter-spacing:-0.3px;line-height:1.1;">${escapeHtml(companyName)}</p>
             ${isCobranded ? `<p style="margin:3px 0 0;font-family:${FONT_STACK};font-size:11px;color:#9AA3AD;letter-spacing:1.4px;text-transform:uppercase;font-weight:700;">via MAGE ID</p>` : ''}
@@ -327,7 +358,6 @@ export function wrapEmailHtml(opts: EmailWrapOpts): string {
     </td></tr>`;
 
   const projectStrip = opts.project ? projectContextHtml(opts.project) : '';
-  const preheader = opts.preheader ?? opts.subtitle ?? opts.title;
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -339,7 +369,8 @@ export function wrapEmailHtml(opts: EmailWrapOpts): string {
   <title>${escapeHtml(opts.title)}</title>
 </head>
 <body style="margin:0;padding:0;background:${CREAM};font-family:${FONT_STACK};color:${INK};">
-  <div style="display:none;max-height:0;overflow:hidden;font-size:1px;line-height:1px;color:${CREAM};opacity:0;">${escapeHtml(preheader)}</div>
+  <!-- Preheader: hidden inbox preview text -->
+  <div style="display:none;max-height:0;overflow:hidden;font-size:1px;line-height:1px;color:${CREAM};opacity:0;">${escapeHtml(opts.preheader)}</div>
   <div style="display:none;max-height:0;overflow:hidden;font-size:1px;line-height:1px;color:${CREAM};opacity:0;">&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;</div>
 
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${CREAM};padding:32px 16px;">
@@ -353,12 +384,11 @@ export function wrapEmailHtml(opts: EmailWrapOpts): string {
           ${subtitleHtml}
         </td></tr>
         <tr><td style="padding:18px 32px 28px;font-family:${FONT_STACK};font-size:15px;line-height:1.6;color:${STONE};">
-          ${greetingHtml}
           ${opts.bodyHtml}
           ${ctaHtml}
           ${secondaryHtml}
         </td></tr>
-        ${footerHtml({ sender, unsubscribe: opts.unsubscribe })}
+        ${footerHtml({ sender: opts.sender, unsubscribe: opts.unsubscribe })}
       </table>
     </td></tr>
   </table>
@@ -367,22 +397,35 @@ export function wrapEmailHtml(opts: EmailWrapOpts): string {
 }
 
 // ─── Plaintext fallback ──────────────────────────────────────────────
+//
+// Resend auto-fills `text` from `html` if you omit it, but their version
+// is messy (preserves all whitespace, drops links). We pass our own so
+// recipients on plaintext-only clients (and accessibility tools) get a
+// readable version. Algorithm: drop the head, decode entities, replace
+// block elements with newlines, replace links with "label (url)", strip
+// remaining tags, collapse whitespace.
 
 export function htmlToPlaintext(html: string): string {
   let s = html;
+  // Drop everything before <body> (head, doctype, etc.)
   const bodyOpen = s.search(/<body\b[^>]*>/i);
   if (bodyOpen >= 0) {
     s = s.replace(/^[\s\S]*?<body\b[^>]*>/i, '');
     s = s.replace(/<\/body>[\s\S]*$/i, '');
   }
+  // Drop hidden preheader divs (display:none).
   s = s.replace(/<div[^>]*display:\s*none[^>]*>[\s\S]*?<\/div>/gi, '');
+  // <a href="...">label</a> → "label (url)"
   s = s.replace(/<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi, (_, href, label) => {
     const cleaned = String(label).replace(/<[^>]+>/g, '').trim();
     return cleaned ? `${cleaned} (${href})` : String(href);
   });
+  // Block-level tags → newlines
   s = s.replace(/<\/(p|div|tr|h\d|li|blockquote|table)>/gi, '\n');
   s = s.replace(/<br\s*\/?>/gi, '\n');
+  // Strip remaining tags
   s = s.replace(/<[^>]+>/g, '');
+  // Decode the entities we emit.
   s = s
     .replace(/&nbsp;/g, ' ')
     .replace(/&amp;/g, '&')
@@ -391,16 +434,115 @@ export function htmlToPlaintext(html: string): string {
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
     .replace(/&zwnj;/g, '');
+  // Collapse whitespace
   s = s.replace(/[ \t]+/g, ' ');
   s = s.replace(/\n{3,}/g, '\n\n');
   s = s.split('\n').map((l) => l.trim()).join('\n').trim();
   return s;
 }
 
-// ─── Money formatter (re-exported for builders) ──────────────────────
+// ─── FROM helpers ────────────────────────────────────────────────────
+
+/**
+ * Build a personalized FROM header. Resend wants `Display Name <addr>`.
+ * Display name with commas / quotes must be RFC-2822 quoted. We strip the
+ * worst-offender characters rather than escape — sender display names
+ * don't need apostrophes or weird punctuation, and a clean name reads
+ * better in inboxes.
+ */
+export function buildFromAddress(companyName: string | null | undefined, fallback = 'MAGE ID <noreply@mageid.app>'): string {
+  if (!companyName) return fallback;
+  const cleaned = String(companyName)
+    .replace(/[<>"\\]/g, '')
+    .replace(/[,;]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 60);
+  if (!cleaned || cleaned.toLowerCase() === 'mage id') return fallback;
+  return `${cleaned} via MAGE ID <noreply@mageid.app>`;
+}
+
+// ─── Resend send() with full headers ─────────────────────────────────
+
+export interface SendOpts {
+  to: string;
+  subject: string;
+  html: string;
+  /** Auto-generated from html if omitted. */
+  text?: string;
+  replyTo?: string;
+  /** Display name for the FROM. Helper appends "via MAGE ID <addr>". */
+  fromCompanyName?: string;
+  /** Pre-built FROM string — bypasses fromCompanyName. */
+  fromOverride?: string;
+  /** Unsubscribe context — drives List-Unsubscribe headers (Gmail
+   *  Feb-2024 bulk-sender requirement). */
+  unsubscribe?: UnsubscribeOpts;
+}
+
+/**
+ * Hit Resend with the full set of headers we want on every send.
+ * Returns { ok, resp } so the caller can log to outbox.
+ */
+export async function resendSend(apiKey: string, opts: SendOpts): Promise<{ ok: boolean; resp: unknown }> {
+  if (!apiKey) return { ok: false, resp: { error: 'no_api_key' } };
+  const text = opts.text ?? htmlToPlaintext(opts.html);
+  const from = opts.fromOverride ?? buildFromAddress(opts.fromCompanyName);
+
+  const headers: Record<string, string> = {};
+  const unsubUrl = opts.unsubscribe ? buildUnsubscribeUrl(opts.unsubscribe) : null;
+  if (unsubUrl) {
+    // RFC 8058 + RFC 2369. Gmail also accepts a mailto: option as a
+    // fallback for clients that don't do POST one-click.
+    headers['List-Unsubscribe'] = `<${unsubUrl}>, <mailto:unsubscribe@mageid.app?subject=Unsubscribe%20${encodeURIComponent(opts.unsubscribe?.eventKey ?? '')}>`;
+    headers['List-Unsubscribe-Post'] = 'List-Unsubscribe=One-Click';
+  }
+  // Help downstream filters group + categorize.
+  headers['X-Entity-Ref-ID'] = `mageid-${Date.now()}`;
+
+  const payload: Record<string, unknown> = {
+    from,
+    to: [opts.to],
+    subject: opts.subject,
+    html: opts.html,
+    text,
+  };
+  if (opts.replyTo) payload.reply_to = opts.replyTo;
+  if (Object.keys(headers).length > 0) payload.headers = headers;
+
+  try {
+    const r = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+    const resp = await r.json().catch(() => ({}));
+    return { ok: r.ok, resp };
+  } catch (e) {
+    return { ok: false, resp: { error: String(e) } };
+  }
+}
+
+// ─── Money formatter ─────────────────────────────────────────────────
 
 export function fmtMoney(n: number | string | null | undefined): string {
   const v = typeof n === 'string' ? parseFloat(n) : (n ?? 0);
   if (isNaN(v)) return '—';
   return '$' + Math.round(v).toLocaleString('en-US');
 }
+
+// ─── Subject-line emoji helpers ──────────────────────────────────────
+// Email clients render emoji inconsistently. Use sparingly: milestones
+// only, and never as the FIRST char (some inbox previews crop it).
+export const EMOJI = {
+  approved: '✓',
+  declined: '✗',
+  paid: '✓',
+  signed: '✓',
+  awarded: '🏆',
+  celebrate: '🎉',
+  binder: '📦',
+} as const;

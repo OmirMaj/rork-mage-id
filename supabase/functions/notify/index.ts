@@ -6,6 +6,12 @@
 //   - Expo Push (for the GC, when we have a push_token in profiles)
 //   - Resend (for everyone — always sent unless the user opts out)
 //
+// 2026-04 round-1 redesign — emails now go through the shared template
+// at ../_shared/email.ts, so notify + send-email + every future edge
+// function share ONE design language. Adds personalized FROM, reply-to,
+// List-Unsubscribe headers, plaintext fallback, project context strip,
+// stat cards, hero milestones, and deep-linked CTAs.
+//
 // Secrets required:
 //   RESEND_API_KEY                — from resend.com
 //   SERVICE_ROLE_KEY              — Supabase service role key (so we can
@@ -18,41 +24,47 @@
 //     'budget_proposal'            — client → GC
 //     'co_approval'                — client → GC
 //     'sub_invoice_submitted'      — sub → GC
-//     'sub_invoice_reviewed'       — GC → sub (optional, future)
-//     'gc_message'                 — GC → client (optional, future)
+//     'sub_invoice_reviewed'       — GC → sub
 //     'nearby_rfp_posted'          — system → contractor (marketplace fan-out)
 //     'rfp_awarded'                — homeowner → contractor (winner notice)
 //     'contract_signed'            — homeowner counter-signs contract → GC
 //     'selection_chosen'           — homeowner picks a selection option → GC
 //     'bid_question_asked'         — contractor asks pre-bid question → RFP poster
 //     'bid_question_answered'      — RFP poster answers → all bidders
-//     'closeout_binder_sent'       — GC delivers binder → homeowner
-//   source_table, source_id        — for outbox dedup + back-reference
-//   payload                        — the row that triggered the event,
-//                                    plus anything the trigger wants to
-//                                    pass through (project_name, etc.)
+//     'closeout_binder_sent'       — GC delivers binder → homeowner + GC summary
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
+import {
+  wrapEmailHtml,
+  emailStatCard,
+  emailStatRow,
+  emailQuote,
+  emailHero,
+  emailProductCard,
+  emailDivider,
+  resendSend,
+  fmtMoney,
+  escapeHtml,
+  EMOJI,
+  type ProjectContextOpts,
+  type UnsubscribeOpts,
+} from "../_shared/email.ts";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") || "";
-// Supabase auto-injects SUPABASE_SERVICE_ROLE_KEY into every edge function
-// runtime. Fall back to a manually set SERVICE_ROLE_KEY if someone prefers
-// that name in their secrets.
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SERVICE_ROLE_KEY") || "";
 const EXPO_ACCESS_TOKEN = Deno.env.get("EXPO_ACCESS_TOKEN") || "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "https://nteoqhcswappxxjlpvap.supabase.co";
 
-const RESEND_ENDPOINT = "https://api.resend.com/emails";
 const EXPO_PUSH_ENDPOINT = "https://exp.host/--/api/v2/push/send";
 const PORTAL_BASE = "https://mageid.app/portal";
+const SUB_PORTAL_BASE = "https://mageid.app/sub-portal";
+const APP_BASE = "https://app.mageid.app";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
-
-const DEFAULT_FROM = 'MAGE ID <noreply@mageid.app>';
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -76,6 +88,12 @@ interface ProfileRow {
   phone: string | null;
   push_token: string | null;
   notification_preferences: Record<string, unknown> | null;
+}
+
+interface ProjectRow {
+  id?: string;
+  name?: string;
+  location?: string;
 }
 
 // ─── Supabase REST helpers ────────────────────────────────────────────
@@ -115,15 +133,56 @@ async function getProfile(userId: string): Promise<ProfileRow | null> {
   return rows[0] ?? null;
 }
 
-async function getProjectName(projectId: string): Promise<string> {
+/**
+ * Wrap resendSend with a suppression check. The direct-send branches
+ * (sub_invoice_reviewed, bid_question_answered, closeout-homeowner)
+ * use this instead of calling resendSend straight, so we honor the
+ * unsubscribe table everywhere.
+ */
+async function sendIfNotSuppressed(opts: Parameters<typeof resendSend>[1] & { eventKey: string }): Promise<{ ok: boolean; resp: unknown; suppressed?: boolean }> {
+  const suppressed = await isUnsubscribed(opts.to, opts.eventKey);
+  if (suppressed) return { ok: false, resp: { suppressed: true }, suppressed: true };
+  return resendSend(RESEND_API_KEY, opts);
+}
+
+/**
+ * Honor the List-Unsubscribe table. Returns true if the recipient has
+ * opted out of this event_key (or globally). Failures are non-fatal —
+ * we'd rather send a duplicate than block legitimate notifications if
+ * the suppression check itself errors.
+ */
+async function isUnsubscribed(email: string | null | undefined, eventKey: string): Promise<boolean> {
+  if (!email) return false;
   try {
-    const rows = await sbGet(`projects?id=eq.${projectId}&select=name`) as { name: string }[];
-    return rows[0]?.name ?? 'your project';
-  } catch { return 'your project'; }
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/is_email_unsubscribed`, {
+      method: 'POST',
+      headers: {
+        'apikey': SERVICE_ROLE_KEY,
+        'Authorization': `Bearer ${SERVICE_ROLE_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ p_email: email.toLowerCase(), p_event_key: eventKey }),
+    });
+    if (!r.ok) return false;
+    const v = await r.json();
+    return v === true;
+  } catch {
+    return false;
+  }
+}
+
+async function getProjectContext(projectId: string | null): Promise<ProjectRow & { name: string }> {
+  if (!projectId) return { name: 'your project' };
+  try {
+    const rows = await sbGet(`projects?id=eq.${projectId}&select=id,name,location`) as ProjectRow[];
+    const r = rows[0] ?? {};
+    return { id: r.id, name: r.name ?? 'your project', location: r.location };
+  } catch {
+    return { name: 'your project' };
+  }
 }
 
 // ─── Preference check ─────────────────────────────────────────────────
-// Per-event opt-in flags. Default ON if the user hasn't set anything.
 function prefAllows(prefs: Record<string, unknown> | null | undefined, key: string, channel: 'push' | 'email'): boolean {
   if (!prefs) return true;
   const evt = (prefs as Record<string, Record<string, unknown>>)[key];
@@ -133,7 +192,7 @@ function prefAllows(prefs: Record<string, unknown> | null | undefined, key: stri
   return true;
 }
 
-// ─── Senders ──────────────────────────────────────────────────────────
+// ─── Push sender (email goes through shared resendSend) ──────────────
 async function sendPush(token: string, title: string, body: string, data?: Record<string, unknown>): Promise<{ ok: boolean; resp?: unknown }> {
   if (!token) return { ok: false };
   try {
@@ -145,7 +204,6 @@ async function sendPush(token: string, title: string, body: string, data?: Recor
       body: JSON.stringify({
         to: token, title, body, data: data ?? {},
         sound: "default", priority: "high",
-        // Auto-bump the iOS badge by 1; the app calls clearBadge on focus.
         badge: 1,
         _displayInForeground: true,
       }),
@@ -157,108 +215,23 @@ async function sendPush(token: string, title: string, body: string, data?: Recor
   }
 }
 
-async function sendEmail(opts: { to: string; subject: string; html: string; replyTo?: string }): Promise<{ ok: boolean; resp?: unknown }> {
-  if (!RESEND_API_KEY) return { ok: false, resp: { error: 'no key' } };
-  try {
-    const r = await fetch(RESEND_ENDPOINT, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${RESEND_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        from: DEFAULT_FROM,
-        to: [opts.to],
-        subject: opts.subject,
-        html: opts.html,
-        reply_to: opts.replyTo,
-      }),
-    });
-    const resp = await r.json().catch(() => ({}));
-    return { ok: r.ok, resp };
-  } catch (e) {
-    return { ok: false, resp: { error: String(e) } };
-  }
-}
-
-// ─── Email template (lightweight inlined version of emailLayout) ────
-// We can't import the app's emailLayout from here, so we inline a tiny
-// version that produces the same look. Keep it small — Outlook does what
-// Outlook does.
-function wrapHtml(opts: { title: string; eyebrow?: string; bodyHtml: string; cta?: { label: string; href: string } }): string {
-  const ctaHtml = opts.cta
-    ? `<table cellpadding="0" cellspacing="0" border="0" role="presentation" style="margin:24px 0 8px"><tr><td bgcolor="#FF6A1A" style="border-radius:10px;"><a href="${opts.cta.href}" target="_blank" style="display:inline-block;padding:14px 22px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:15px;font-weight:700;color:#ffffff;text-decoration:none;">${opts.cta.label}</a></td></tr></table>`
-    : '';
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"/></head>
-<body style="margin:0;padding:0;background:#F4EFE6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#0B0D10;">
-<table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation" style="background:#F4EFE6;padding:32px 16px;">
-  <tr><td align="center">
-    <table width="600" cellpadding="0" cellspacing="0" border="0" role="presentation" style="max-width:600px;background:#FFFFFF;border-radius:18px;border:1px solid #E8DFCD;overflow:hidden;">
-      <tr><td style="padding:32px 36px 8px;">
-        <div style="display:inline-block;padding:6px 12px;border-radius:999px;background:#0B0D10;color:#FF6A1A;font-weight:700;font-size:11px;letter-spacing:1.4px;text-transform:uppercase;">${opts.eyebrow ?? 'MAGE ID'}</div>
-      </td></tr>
-      <tr><td style="padding:8px 36px 28px;">
-        <h1 style="font-family:Georgia,serif;font-size:28px;line-height:1.18;font-weight:700;letter-spacing:-0.02em;margin:0 0 16px;">${opts.title}</h1>
-        <div style="font-size:15px;line-height:1.6;color:#4A5159;">${opts.bodyHtml}</div>
-        ${ctaHtml}
-      </td></tr>
-      <tr><td style="padding:18px 36px 28px;border-top:1px solid #F1EAD9;font-size:12px;color:#8B9099;">
-        Sent automatically by MAGE ID. <a href="https://mageid.app" style="color:#0B0D10;text-decoration:none;font-weight:600;">mageid.app</a>
-      </td></tr>
-    </table>
-  </td></tr>
-</table></body></html>`;
-}
-
-function esc(s: string | undefined | null): string {
-  if (s == null) return '';
-  return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
-}
-
-function fmtMoney(n: number | string | null | undefined): string {
-  const v = typeof n === 'string' ? parseFloat(n) : (n ?? 0);
-  if (isNaN(v)) return '—';
-  return '$' + v.toLocaleString(undefined, { maximumFractionDigits: 0 });
-}
-
-// ─── Anon-callable event allowlist ────────────────────────────────────
-//
-// Events that legitimately fire from unauthenticated contexts (the
-// static homeowner / sub portal HTML, or the app calling notify with
-// only the anon key). For these we accept the request but always
-// re-derive `gc_user_id` server-side from `portal_id` so an attacker
-// can't pretend to be acting for an arbitrary GC.
-//
-// Everything NOT on this list MUST come from a trusted caller (DB
-// trigger via service_role, or an authenticated app session). When
-// a non-allowed event is received with only an anon `apikey`, we
-// reject with 401.
+// ─── Anon allowlist + rate limit ──────────────────────────────────────
 const ANON_ALLOWED_EVENTS = new Set([
-  'contract_signed',         // homeowner counter-signs
-  'selection_chosen',        // homeowner picks a tile / fixture
-  'bid_question_asked',      // contractor asks pre-bid Q
-  'bid_question_answered',   // homeowner answers
-  'closeout_binder_sent',    // GC delivers binder (also called from app)
+  'contract_signed',
+  'selection_chosen',
+  'bid_question_asked',
+  'bid_question_answered',
+  'closeout_binder_sent',
 ]);
 
-// ─── Per-portal rate limit ────────────────────────────────────────────
-//
-// Caps anon-triggered notifications per portal at 30/hour. Realistic
-// homeowner / sub usage is well under this; a flood is almost certainly
-// abusive. We count rows in notification_outbox where source_id matches
-// portal_id within the last hour.
 async function exceedsRateLimit(portalId: string | null): Promise<boolean> {
   if (!portalId) return false;
   const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-  // Rate-limit query: look in notification_outbox for any row where the
-  // bundled payload references this portal_id within the last hour.
-  // Filter on `payload->>portal_id` directly so we catch any kind of
-  // event regardless of how source_id was populated.
   const url = `${SUPABASE_URL}/rest/v1/notification_outbox?payload->>portal_id=eq.${encodeURIComponent(portalId)}&created_at=gte.${encodeURIComponent(since)}&select=id`;
   const r = await fetch(url, {
     headers: { 'apikey': SERVICE_ROLE_KEY, 'Authorization': `Bearer ${SERVICE_ROLE_KEY}`, 'Range-Unit': 'items', 'Range': '0-30', 'Prefer': 'count=exact' },
   }).catch(() => null);
-  if (!r || !r.ok) return false;     // fail open — don't break legit traffic if outbox lookup fails
+  if (!r || !r.ok) return false;
   const contentRange = r.headers.get('content-range') ?? '';
   const total = parseInt(contentRange.split('/')[1] ?? '0', 10);
   return total >= 30;
@@ -270,29 +243,17 @@ async function dispatch(req: NotifyRequest, isAnonCaller: boolean): Promise<unkn
   const portalId = (payload.portal_id as string) ?? (payload.portalId as string) ?? null;
   const subPortalId = (payload.sub_portal_id as string) ?? null;
 
-  // Anon callers can only fire allowlisted events. Service-role / app
-  // sessions bypass this check.
   if (isAnonCaller && !ANON_ALLOWED_EVENTS.has(event)) {
     return { ok: false, reason: 'event_not_anon_allowed', event };
   }
-
-  // Anon callers also get rate-limited per portal_id.
   if (isAnonCaller && portalId && await exceedsRateLimit(portalId)) {
     return { ok: false, reason: 'rate_limited', portal_id: portalId };
   }
-
-  // For anon callers: never trust client-supplied gc_user_id /
-  // contractor_user_id. Always re-derive from portal_id below.
   if (isAnonCaller) {
     delete (payload as Record<string, unknown>).gc_user_id;
     delete (payload as Record<string, unknown>).contractor_user_id;
   }
 
-  // Find the GC owner. Direct projects.user_id when we already know the
-  // project, else look up via gc_for_portal / gc_for_sub_portal.
-  // Marketplace events (nearby_rfp_posted, rfp_awarded) target a
-  // contractor directly via contractor_user_id — same shape as gc_user_id
-  // since contractors ARE GCs in our schema.
   let gcUserId: string | null = (payload.gc_user_id as string)
     ?? (payload.contractor_user_id as string)
     ?? null;
@@ -306,34 +267,66 @@ async function dispatch(req: NotifyRequest, isAnonCaller: boolean): Promise<unkn
     const rows = await sbGet(`rpc/gc_for_sub_portal?p_portal_id=${encodeURIComponent(subPortalId)}`).catch(() => null);
     if (typeof rows === 'string') gcUserId = rows;
   }
-  if (!gcUserId) {
-    // Last resort: read project owner directly.
-    if (projectId) {
-      const rows = await sbGet(`projects?id=eq.${projectId}&select=user_id`) as { user_id: string }[];
-      gcUserId = rows[0]?.user_id ?? null;
-    }
+  if (!gcUserId && projectId) {
+    const rows = await sbGet(`projects?id=eq.${projectId}&select=user_id`) as { user_id: string }[];
+    gcUserId = rows[0]?.user_id ?? null;
   }
-
-  if (!gcUserId) {
-    return { ok: false, reason: 'no_gc_resolved', event };
-  }
+  if (!gcUserId) return { ok: false, reason: 'no_gc_resolved', event };
 
   const gc = await getProfile(gcUserId);
   if (!gc) return { ok: false, reason: 'no_gc_profile' };
 
-  const projectName = projectId ? await getProjectName(projectId) : ((payload.project_name as string) || 'your project');
-  const portalLink = portalId ? `${PORTAL_BASE}/${portalId}` : 'https://app.mageid.app';
+  const projectCtx = projectId
+    ? await getProjectContext(projectId)
+    : { name: (payload.project_name as string) || 'your project', location: undefined };
+  const projectName = projectCtx.name;
 
+  const portalLink = portalId ? `${PORTAL_BASE}/${portalId}` : APP_BASE;
+  const subPortalLink = subPortalId ? `${SUB_PORTAL_BASE}/${subPortalId}` : null;
+
+  // Reusable email "shell" args populated for every dispatch.
+  const sharedEmail = {
+    companyName: gc.company_name ?? undefined,
+    sender: {
+      name: gc.contact_name ?? gc.company_name ?? undefined,
+      email: gc.email ?? undefined,
+      phone: gc.phone ?? undefined,
+    },
+    project: projectId
+      ? { name: projectCtx.name, location: projectCtx.location } as ProjectContextOpts
+      : undefined,
+  };
+
+  // Helper to fire a (push optional + email) for a recipient. Caller
+  // passes the fully-built email shell; we wrap with wrapEmailHtml,
+  // call resendSend (which adds plaintext, headers, FROM), and log
+  // outcome to notification_outbox.
   const dispatchOne = async (kind: 'gc' | 'client' | 'sub', spec: {
-    title: string;
-    body: string;
-    emailSubject: string;
-    emailHtml: string;
+    /** Event-prefs key. */
+    prefKey: string;
+    /** Push title (also email subject if no override). */
+    pushTitle: string;
+    /** Push body. */
+    pushBody: string;
     pushData?: Record<string, unknown>;
     pushToken?: string | null;
+    /** Recipient email. */
     email?: string | null;
+    /** Where replies go. Defaults to GC email when undefined. */
     replyTo?: string;
-    prefKey: string;
+    /** Email subject — usually different (and tighter) than push title. */
+    emailSubject: string;
+    /** wrapEmailHtml inputs. We add the shell defaults around it. */
+    emailWrap: {
+      preheader: string;
+      eyebrow?: string;
+      title: string;
+      subtitle?: string;
+      bodyHtml: string;
+      cta?: { label: string; href: string };
+      secondaryCta?: { label: string; href: string };
+      accent?: string;
+    };
   }) => {
     let pushStatus: string | null = null;
     let pushResp: unknown = null;
@@ -344,14 +337,40 @@ async function dispatch(req: NotifyRequest, isAnonCaller: boolean): Promise<unkn
     const allowEmail = prefAllows(gc.notification_preferences, spec.prefKey, 'email');
 
     if (allowPush && spec.pushToken) {
-      const r = await sendPush(spec.pushToken, spec.title, spec.body, spec.pushData);
+      const r = await sendPush(spec.pushToken, spec.pushTitle, spec.pushBody, spec.pushData);
       pushStatus = r.ok ? 'sent' : 'failed';
       pushResp = r.resp;
     }
     if (allowEmail && spec.email) {
-      const r = await sendEmail({ to: spec.email, subject: spec.emailSubject, html: spec.emailHtml, replyTo: spec.replyTo });
-      emailStatus = r.ok ? 'sent' : 'failed';
-      emailResp = r.resp;
+      // Honor the global unsubscribe table before sending. If they hit
+      // List-Unsubscribe (or unsubscribed via the prefs page), skip and
+      // log to outbox so we have an audit trail.
+      const suppressed = await isUnsubscribed(spec.email, spec.prefKey);
+      if (suppressed) {
+        emailStatus = 'suppressed_unsubscribed';
+      } else {
+        const unsubscribe: UnsubscribeOpts = {
+          recipientEmail: spec.email,
+          eventKey: spec.prefKey,
+          enabled: true,
+        };
+        const html = wrapEmailHtml({
+          ...spec.emailWrap,
+          ...sharedEmail,
+          unsubscribe,
+        });
+        const replyTo = spec.replyTo ?? (kind === 'gc' ? undefined : (gc.email ?? undefined));
+        const r = await resendSend(RESEND_API_KEY, {
+          to: spec.email,
+          subject: spec.emailSubject,
+          html,
+          fromCompanyName: gc.company_name ?? undefined,
+          replyTo,
+          unsubscribe,
+        });
+        emailStatus = r.ok ? 'sent' : 'failed';
+        emailResp = r.resp;
+      }
     }
 
     await sbInsert('notification_outbox', {
@@ -371,158 +390,194 @@ async function dispatch(req: NotifyRequest, isAnonCaller: boolean): Promise<unkn
     }).catch((e) => console.log('[notify] outbox insert failed', e));
   };
 
+  // Project deep-link helper (when we have a projectId).
+  const projectDeepLink = (route: string): string =>
+    projectId ? `${APP_BASE}/${route}?projectId=${encodeURIComponent(projectId)}` : APP_BASE;
+
   // ─── Per-event branches ───
   switch (event) {
     case 'portal_message': {
-      // Client sent the GC a portal message
       const body = (payload.body as string) ?? '';
       const author = (payload.author_name as string) || 'your client';
+      const trimmed = body.length > 220 ? body.slice(0, 220) + '…' : body;
       await dispatchOne('gc', {
         prefKey: 'portal_message',
-        title: `New message · ${projectName}`,
-        body: `${author}: ${body.slice(0, 140)}`,
+        pushTitle: `New message · ${projectName}`,
+        pushBody: `${author}: ${body.slice(0, 140)}`,
         pushData: { projectId, portalId, kind: 'portal_message' },
         pushToken: gc.push_token,
         email: gc.email,
-        replyTo: undefined,
-        emailSubject: `New message from ${author} — ${projectName}`,
-        emailHtml: wrapHtml({
+        emailSubject: `${author} sent a message · ${projectName}`,
+        emailWrap: {
+          preheader: `${author}: ${body.slice(0, 100)}`,
           eyebrow: 'New portal message',
-          title: `${esc(author)} sent you a message`,
-          bodyHtml: `<p style="margin:0 0 14px"><strong>Project:</strong> ${esc(projectName)}</p><blockquote style="margin:0;padding:14px 16px;background:#F4EFE6;border-left:3px solid #FF6A1A;border-radius:6px;font-style:italic;">${esc(body)}</blockquote>`,
-          cta: { label: 'Open MAGE ID', href: 'https://app.mageid.app' },
-        }),
+          title: `${author} sent you a message`,
+          subtitle: `Reply through MAGE ID — your client sees it instantly in their portal.`,
+          bodyHtml: emailQuote(trimmed),
+          cta: { label: 'Reply in MAGE ID', href: projectDeepLink('client-messages') },
+          secondaryCta: portalId ? { label: 'View their portal', href: portalLink } : undefined,
+        },
       });
       break;
     }
+
     case 'budget_proposal': {
       const amount = payload.amount as number | string;
       const proposer = (payload.proposer_name as string) || 'your client';
       const note = (payload.note as string) || '';
       await dispatchOne('gc', {
         prefKey: 'budget_proposal',
-        title: `Budget proposed · ${projectName}`,
-        body: `${proposer}: ${fmtMoney(amount)}`,
+        pushTitle: `Budget proposed · ${projectName}`,
+        pushBody: `${proposer}: ${fmtMoney(amount)}`,
         pushData: { projectId, portalId, kind: 'budget_proposal' },
         pushToken: gc.push_token,
         email: gc.email,
-        emailSubject: `${proposer} proposed a budget — ${projectName}`,
-        emailHtml: wrapHtml({
+        emailSubject: `Budget proposed: ${fmtMoney(amount)} · ${projectName}`,
+        emailWrap: {
+          preheader: `${proposer} suggested ${fmtMoney(amount)} for ${projectName}.`,
           eyebrow: 'Budget proposal',
-          title: `${esc(proposer)} suggested ${esc(fmtMoney(amount))} as a target budget`,
-          bodyHtml: `<p style="margin:0 0 14px"><strong>Project:</strong> ${esc(projectName)}</p>${note ? `<blockquote style="margin:0 0 14px;padding:14px 16px;background:#F4EFE6;border-left:3px solid #FF6A1A;border-radius:6px;font-style:italic;">${esc(note)}</blockquote>` : ''}<p style="margin:0">Open the client portal setup to accept it as the project's target budget, or message back to negotiate.</p>`,
-          cta: { label: 'Review in MAGE ID', href: 'https://app.mageid.app' },
-        }),
+          title: `${proposer} suggested ${fmtMoney(amount)}`,
+          subtitle: 'Accept it as the project target, counter back, or just message — you decide.',
+          bodyHtml: `${emailStatCard(emailStatRow('Proposed budget', fmtMoney(amount), { emphasize: true }))}${note ? emailQuote(note) : ''}`,
+          cta: { label: 'Open the project', href: projectDeepLink('project-detail') },
+        },
       });
       break;
     }
+
     case 'co_approval': {
       const decision = (payload.decision as string) ?? 'approved';
       const signerName = (payload.signer_name as string) || 'your client';
       const coId = (payload.change_order_id as string) || '';
+      const coNumber = (payload.co_number as string) || coId.slice(0, 8);
+      const coAmount = payload.co_amount as number | string | undefined;
+      const isApproved = decision === 'approved';
+      const symbol = isApproved ? EMOJI.approved : EMOJI.declined;
       await dispatchOne('gc', {
         prefKey: 'co_approval',
-        title: decision === 'approved' ? `CO approved · ${projectName}` : `CO declined · ${projectName}`,
-        body: `${signerName} ${decision === 'approved' ? 'approved' : 'declined'} a change order`,
+        pushTitle: `${isApproved ? 'CO approved' : 'CO declined'} · ${projectName}`,
+        pushBody: `${signerName} ${isApproved ? 'approved' : 'declined'} CO #${coNumber}${coAmount ? ` (${fmtMoney(coAmount)})` : ''}`,
         pushData: { projectId, portalId, kind: 'co_approval', changeOrderId: coId },
         pushToken: gc.push_token,
         email: gc.email,
-        emailSubject: `${signerName} ${decision === 'approved' ? 'approved' : 'declined'} a change order — ${projectName}`,
-        emailHtml: wrapHtml({
-          eyebrow: decision === 'approved' ? 'CO approved' : 'CO declined',
-          title: `${esc(signerName)} ${decision === 'approved' ? 'approved' : 'declined'} change order #${esc(coId.slice(0, 8))}`,
-          bodyHtml: `<p style="margin:0 0 14px"><strong>Project:</strong> ${esc(projectName)}</p><p style="margin:0">Sync the decision to your CO record next time you're in MAGE ID — the approval is logged and time-stamped.</p>`,
-          cta: { label: 'View in MAGE ID', href: 'https://app.mageid.app' },
-        }),
+        emailSubject: `${symbol} CO #${coNumber} ${isApproved ? 'approved' : 'declined'}${coAmount ? ` · ${fmtMoney(coAmount)}` : ''}`,
+        emailWrap: {
+          preheader: `${signerName} ${isApproved ? 'approved' : 'declined'} change order #${coNumber}.`,
+          eyebrow: isApproved ? 'Change order approved' : 'Change order declined',
+          title: isApproved
+            ? `${signerName} approved CO #${coNumber}`
+            : `${signerName} declined CO #${coNumber}`,
+          subtitle: isApproved
+            ? 'Approval is logged and time-stamped — proceed with the work.'
+            : 'Reach out to clarify, then revise and re-issue if appropriate.',
+          bodyHtml: coAmount
+            ? emailStatCard(`${emailStatRow('Change order', `#${escapeHtml(coNumber)}`)}${emailStatRow('Amount', fmtMoney(coAmount), { emphasize: true, valueColor: isApproved ? '#1E8E4A' : '#C2410C' })}${emailStatRow('Decision', isApproved ? 'Approved' : 'Declined')}`)
+            : emailStatCard(`${emailStatRow('Change order', `#${escapeHtml(coNumber)}`)}${emailStatRow('Decision', isApproved ? 'Approved' : 'Declined', { emphasize: true })}`),
+          cta: { label: 'View change order', href: projectDeepLink('change-order') },
+        },
       });
       break;
     }
+
     case 'sub_invoice_submitted': {
       const num = (payload.invoice_number as string) || '';
       const amount = payload.amount as number | string;
       const submitter = (payload.submitted_by_name as string) || 'sub';
+      const lineCount = payload.line_count as number | undefined;
       await dispatchOne('gc', {
         prefKey: 'sub_invoice',
-        title: `Sub invoice · ${fmtMoney(amount)}`,
-        body: `${submitter} submitted invoice #${num}`,
+        pushTitle: `Sub invoice · ${fmtMoney(amount)}`,
+        pushBody: `${submitter} submitted invoice #${num}`,
         pushData: { projectId, kind: 'sub_invoice', subPortalId },
         pushToken: gc.push_token,
         email: gc.email,
-        emailSubject: `${submitter} submitted invoice #${num} — ${fmtMoney(amount)}`,
-        emailHtml: wrapHtml({
+        emailSubject: `New invoice: ${fmtMoney(amount)} from ${submitter}`,
+        emailWrap: {
+          preheader: `${submitter} submitted invoice #${num} for ${fmtMoney(amount)}.`,
           eyebrow: 'Sub invoice submitted',
-          title: `${esc(submitter)} submitted invoice #${esc(num)}`,
-          bodyHtml: `<p style="margin:0 0 6px"><strong>Amount:</strong> ${esc(fmtMoney(amount))}</p><p style="margin:0 0 14px"><strong>Project:</strong> ${esc(projectName)}</p><p style="margin:0">Review and approve from the sub-portal screen — once approved, you can mark it paid and the sub sees the status update on their next portal visit.</p>`,
-          cta: { label: 'Review in MAGE ID', href: 'https://app.mageid.app' },
-        }),
+          title: `${submitter} sent invoice #${num}`,
+          subtitle: 'Review the lines, approve, and mark paid when the wire clears.',
+          bodyHtml: emailStatCard(`${emailStatRow('Invoice', `#${escapeHtml(num)}`)}${emailStatRow('From', escapeHtml(submitter))}${lineCount ? emailStatRow('Line items', String(lineCount)) : ''}${emailStatRow('Total due', fmtMoney(amount), { emphasize: true })}`),
+          cta: { label: 'Review invoice', href: projectDeepLink('sub-portals') },
+        },
       });
       break;
     }
+
     case 'sub_invoice_reviewed': {
       // Sub-bound notification when the GC takes action on their invoice.
       const num = (payload.invoice_number as string) || '';
       const amount = payload.amount as number | string;
       const newStatus = (payload.status as string) || 'updated';
-      const submitter = (payload.submitted_by_name as string) || 'sub';
+      const submitter = (payload.submitted_by_name as string) || 'there';
       const submitterEmail = (payload.submitted_by_email as string) || null;
       const notesFromGc = (payload.notes_from_gc as string) || '';
       const company = gc.company_name || gc.contact_name || 'Your contractor';
       if (!submitterEmail) {
-        // Sub didn't leave an email — nothing to do.
         await sbInsert('notification_outbox', {
           event_type: event,
           source_table: source_table ?? null,
           source_id: source_id ?? null,
           recipient_kind: 'sub',
-          recipient_user_id: null,
-          recipient_email: null,
-          push_status: null,
           email_status: 'skipped_no_email',
           payload,
         }).catch(() => {});
         break;
       }
-      const verb =
-        newStatus === 'approved' ? 'approved'
-        : newStatus === 'paid' ? 'marked as paid'
-        : 'updated';
-      const subject =
-        newStatus === 'paid'
-          ? `Invoice #${num} paid · ${fmtMoney(amount)}`
-          : `Invoice #${num} ${verb} · ${fmtMoney(amount)}`;
-      const eyebrow = newStatus === 'paid' ? 'Invoice paid' : (newStatus === 'approved' ? 'Invoice approved' : (newStatus === 'rejected' ? 'Invoice update' : 'Invoice update'));
-      const title = newStatus === 'paid'
-        ? `${esc(company)} just paid invoice #${esc(num)}`
-        : newStatus === 'approved'
-          ? `${esc(company)} approved invoice #${esc(num)}`
-          : newStatus === 'rejected'
-            ? `${esc(company)} sent back invoice #${esc(num)}`
-            : `${esc(company)} updated invoice #${esc(num)}`;
-      const bodyHtml = `<p style="margin:0 0 6px"><strong>Amount:</strong> ${esc(fmtMoney(amount))}</p><p style="margin:0 0 14px"><strong>Project:</strong> ${esc(projectName)}</p>${notesFromGc ? `<blockquote style="margin:0 0 14px;padding:14px 16px;background:#F4EFE6;border-left:3px solid #FF6A1A;border-radius:6px;font-style:italic;">${esc(notesFromGc)}</blockquote>` : ''}<p style="margin:0">${newStatus === 'paid' ? 'Payment is on its way — check your bank for the deposit.' : newStatus === 'approved' ? 'You\'ll get another note once payment is on its way.' : newStatus === 'rejected' ? 'Reach out for clarification or revise and resubmit through your portal.' : ''}</p>`;
-      const r = await sendEmail({
+      const statusMap: Record<string, { eyebrow: string; title: string; subtitle: string; symbol: string; accent?: string }> = {
+        paid: { eyebrow: 'Invoice paid', title: `${company} paid invoice #${num}`, subtitle: 'Payment is on its way — check your bank for the deposit. We sent this on their behalf.', symbol: EMOJI.paid, accent: '#1E8E4A' },
+        approved: { eyebrow: 'Invoice approved', title: `${company} approved invoice #${num}`, subtitle: "You'll get another note once payment is on its way.", symbol: EMOJI.approved },
+        rejected: { eyebrow: 'Invoice update', title: `${company} sent back invoice #${num}`, subtitle: 'Reach out for clarification or revise and resubmit through your portal.', symbol: EMOJI.declined, accent: '#C2410C' },
+      };
+      const meta = statusMap[newStatus] ?? { eyebrow: 'Invoice update', title: `${company} updated invoice #${num}`, subtitle: '', symbol: '' };
+      const subject = newStatus === 'paid'
+        ? `${meta.symbol} Paid: ${fmtMoney(amount)} · invoice #${num}`
+        : `Invoice #${num} ${newStatus} · ${fmtMoney(amount)}`;
+
+      const html = wrapEmailHtml({
+        preheader: `${company} ${newStatus === 'paid' ? 'just paid' : newStatus} invoice #${num} for ${fmtMoney(amount)}.`,
+        eyebrow: meta.eyebrow,
+        title: `Hi ${submitter},`,
+        subtitle: meta.title,
+        bodyHtml: `
+          ${emailStatCard(`${emailStatRow('Invoice', `#${escapeHtml(num)}`)}${emailStatRow('Project', escapeHtml(projectName))}${emailStatRow(newStatus === 'paid' ? 'Paid' : 'Amount', fmtMoney(amount), { emphasize: true, valueColor: meta.accent ?? undefined })}`)}
+          ${notesFromGc ? emailQuote(notesFromGc) : ''}
+          <p style="margin:0;">${escapeHtml(meta.subtitle)}</p>
+        `,
+        cta: subPortalLink ? { label: 'View in your sub portal', href: subPortalLink } : { label: 'Open MAGE ID', href: APP_BASE },
+        accent: meta.accent,
+        companyName: gc.company_name ?? undefined,
+        sender: {
+          name: gc.contact_name ?? gc.company_name ?? undefined,
+          email: gc.email ?? undefined,
+          phone: gc.phone ?? undefined,
+        },
+        unsubscribe: { recipientEmail: submitterEmail, eventKey: 'sub_invoice', enabled: true },
+      });
+      const r = await sendIfNotSuppressed({
         to: submitterEmail,
         subject,
-        html: wrapHtml({ eyebrow, title, bodyHtml }),
+        html,
+        fromCompanyName: gc.company_name ?? undefined,
         replyTo: gc.email ?? undefined,
+        unsubscribe: { recipientEmail: submitterEmail, eventKey: 'sub_invoice', enabled: true },
+        eventKey: 'sub_invoice',
       });
       await sbInsert('notification_outbox', {
         event_type: event,
         source_table: source_table ?? null,
         source_id: source_id ?? null,
         recipient_kind: 'sub',
-        recipient_user_id: null,
         recipient_email: submitterEmail,
-        push_status: null,
-        email_status: r.ok ? 'sent' : 'failed',
+        email_status: r.suppressed ? 'suppressed_unsubscribed' : (r.ok ? 'sent' : 'failed'),
         email_response: r.resp,
         payload,
         delivered_at: r.ok ? new Date().toISOString() : null,
       }).catch(() => {});
       break;
     }
+
     case 'nearby_rfp_posted': {
-      // System fan-out: a homeowner posted an RFP whose location matches
-      // this contractor's service area. Push + email them.
       const rfpId = (payload.rfp_id as string) ?? '';
       const title = (payload.title as string) || 'A new project';
       const city = (payload.city as string) || '';
@@ -532,181 +587,184 @@ async function dispatch(req: NotifyRequest, isAnonCaller: boolean): Promise<unkn
       const budgetMax = payload.budget_max as number | null;
       const cityState = [city, state].filter(Boolean).join(', ');
       const budgetLine = (budgetMin || budgetMax)
-        ? `${budgetMin ? fmtMoney(budgetMin) : '?'} – ${budgetMax ? fmtMoney(budgetMax) : '?'}`
-        : 'Budget not specified';
-      const detailUrl = `https://app.mageid.app/rfp-detail?bidId=${encodeURIComponent(rfpId)}`;
+        ? `${budgetMin ? fmtMoney(budgetMin) : '—'} – ${budgetMax ? fmtMoney(budgetMax) : '—'}`
+        : 'Budget TBD';
+      const detailUrl = `${APP_BASE}/rfp-detail?bidId=${encodeURIComponent(rfpId)}`;
       await dispatchOne('gc', {
         prefKey: 'nearby_rfp_posted',
-        title: `New project nearby · ${cityState || 'your area'}`,
-        body: `${title}${scope ? ' — ' + scope.slice(0, 100) : ''}`,
+        pushTitle: `New project nearby · ${cityState || 'your area'}`,
+        pushBody: `${title}${scope ? ' — ' + scope.slice(0, 100) : ''}`,
         pushData: { rfpId, kind: 'nearby_rfp_posted' },
         pushToken: gc.push_token,
         email: gc.email,
-        emailSubject: `New ${cityState ? cityState + ' ' : ''}project — ${title}`,
-        emailHtml: wrapHtml({
+        emailSubject: `New ${cityState ? cityState + ' ' : ''}project: ${title}`,
+        emailWrap: {
+          preheader: `${cityState ? cityState + ' · ' : ''}${budgetLine}. ${scope.slice(0, 80)}`,
           eyebrow: 'New project nearby',
-          title: esc(title),
-          bodyHtml: `
-            <p style="margin:0 0 6px"><strong>Location:</strong> ${esc(cityState || 'Pending')}</p>
-            <p style="margin:0 0 14px"><strong>Budget:</strong> ${esc(budgetLine)}</p>
-            ${scope ? `<blockquote style="margin:0 0 14px;padding:14px 16px;background:#F4EFE6;border-left:3px solid #FF6A1A;border-radius:6px;font-style:italic;">${esc(scope)}</blockquote>` : ''}
-            <p style="margin:0">Open the project to see drawings, photos, and the full scope. Submit your estimate before the bid deadline.</p>`,
+          title,
+          subtitle: 'Open it to see drawings, photos, and the full scope. Bid before the deadline closes.',
+          bodyHtml: `${emailStatCard(`${emailStatRow('Location', cityState || 'Pending')}${emailStatRow('Budget', budgetLine, { emphasize: true })}`)}${scope ? emailQuote(scope) : ''}`,
           cta: { label: 'View project', href: detailUrl },
-        }),
+        },
       });
       break;
     }
+
     case 'rfp_awarded': {
-      // Homeowner awarded the RFP to this contractor. The award-rfp edge
-      // function has already created the project + client portal in their
-      // account; this is just the notification that it happened.
       const projectName = (payload.project_name as string) || 'a project';
       const newProjectId = (payload.project_id as string) || '';
+      const heroPhoto = (payload.hero_photo_url as string) || undefined;
+      const contractValue = payload.contract_value as number | string | undefined;
+      const newProjectLink = newProjectId ? `${APP_BASE}/project-detail?projectId=${encodeURIComponent(newProjectId)}` : APP_BASE;
       await dispatchOne('gc', {
         prefKey: 'rfp_awarded',
-        title: `🎉 You won the bid · ${projectName}`,
-        body: `The homeowner picked you. Project is set up in your MAGE ID — open to see drawings, scope, and start the kickoff message.`,
+        pushTitle: `🎉 You won the bid · ${projectName}`,
+        pushBody: `The homeowner picked you. Project is set up — open to start the kickoff message.`,
         pushData: { projectId: newProjectId, kind: 'rfp_awarded' },
         pushToken: gc.push_token,
         email: gc.email,
-        emailSubject: `You were awarded ${projectName}`,
-        emailHtml: wrapHtml({
+        emailSubject: `${EMOJI.celebrate} You won the bid · ${projectName}`,
+        emailWrap: {
+          preheader: `Congrats — the homeowner picked you for ${projectName}.`,
+          accent: '#1E8E4A',
           eyebrow: 'Bid awarded',
-          title: `You won the bid for ${esc(projectName)}`,
+          title: 'You won.',
+          subtitle: `The homeowner just awarded ${projectName} to you. We've set up the project in MAGE ID with their drawings, photos, scope, and a live portal between the two of you.`,
           bodyHtml: `
-            <p style="margin:0 0 14px">The homeowner just awarded the project to you. Your MAGE ID account already has a new project loaded with the drawings, photos, scope, and budget they shared — plus a live client portal between you and them.</p>
-            <p style="margin:0 0 14px"><strong>Next step:</strong> open the project, review what they posted, and send a kickoff message through the portal so they know you're on it.</p>
-            <p style="margin:0;color:#8B9099;font-size:13px">Other bidders were politely declined automatically — you don't need to do anything on that side.</p>`,
-          cta: { label: 'Open the project', href: 'https://app.mageid.app' },
-        }),
+            ${emailHero({ kicker: 'Project awarded', bigText: projectName, subText: contractValue ? `${fmtMoney(contractValue)} contract value` : undefined, photoUrl: heroPhoto, accent: '#1E8E4A' })}
+            <p style="margin:0 0 12px;"><strong>What's next:</strong> open the project, review what the homeowner posted, and send a kickoff message through the portal so they know you're on it.</p>
+            <p style="margin:0;color:#9AA3AD;font-size:13px;">Other bidders were politely declined automatically — you don't need to do anything on that side.</p>
+          `,
+          cta: { label: 'Open the project', href: newProjectLink },
+        },
       });
       break;
     }
+
     case 'contract_signed': {
-      // Homeowner counter-signed the contract from the static portal.
-      // Notify the GC so they can pull the signed PDF and start the job.
       const signerName = (payload.signer_name as string) || 'your client';
       const contractValue = payload.contract_value as number | string | null;
       const contractTitle = (payload.contract_title as string) || 'the construction agreement';
       await dispatchOne('gc', {
         prefKey: 'contract_signed',
-        title: `✍️ Contract signed · ${projectName}`,
-        body: `${signerName} signed ${contractTitle}${contractValue ? ` (${fmtMoney(contractValue)})` : ''}`,
+        pushTitle: `${EMOJI.signed} Contract signed · ${projectName}`,
+        pushBody: `${signerName} signed ${contractTitle}${contractValue ? ` (${fmtMoney(contractValue)})` : ''}`,
         pushData: { projectId, portalId, kind: 'contract_signed' },
         pushToken: gc.push_token,
         email: gc.email,
-        emailSubject: `${signerName} signed the contract — ${projectName}`,
-        emailHtml: wrapHtml({
+        emailSubject: `${EMOJI.signed} Contract signed · ${projectName}${contractValue ? ` · ${fmtMoney(contractValue)}` : ''}`,
+        emailWrap: {
+          preheader: `${signerName} just signed ${contractTitle}${contractValue ? ` for ${fmtMoney(contractValue)}` : ''}.`,
           eyebrow: 'Contract signed',
-          title: `${esc(signerName)} just signed ${esc(contractTitle)}`,
+          title: 'Signed and binding.',
+          subtitle: `${signerName} just counter-signed ${contractTitle}. The agreement is now in effect — start the work with confidence.`,
+          accent: '#1E8E4A',
           bodyHtml: `
-            <p style="margin:0 0 6px"><strong>Project:</strong> ${esc(projectName)}</p>
-            ${contractValue ? `<p style="margin:0 0 14px"><strong>Contract value:</strong> ${esc(fmtMoney(contractValue))}</p>` : ''}
-            <p style="margin:0 0 14px">The agreement is now binding. The signed PDF is in MAGE ID under this project's Contract section — pull it for your records and start the work.</p>
-            <p style="margin:0;color:#8B9099;font-size:13px">A copy is also stored in the homeowner's portal so they can reference it any time.</p>`,
-          cta: { label: 'View signed contract', href: 'https://app.mageid.app' },
-        }),
+            ${contractValue ? emailHero({ kicker: 'Contract value', bigText: fmtMoney(contractValue), subText: `Signed by ${signerName}`, accent: '#1E8E4A' }) : ''}
+            ${emailStatCard(`${emailStatRow('Project', escapeHtml(projectName))}${emailStatRow('Signed by', escapeHtml(signerName))}${contractValue ? emailStatRow('Contract value', fmtMoney(contractValue), { emphasize: true, valueColor: '#1E8E4A' }) : ''}${emailStatRow('Signed at', new Date().toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }))}`)}
+            <p style="margin:0;">The signed PDF is in MAGE ID under this project's Contract section — pull it for your records. A copy lives in the homeowner's portal too, so they can reference it any time.</p>
+          `,
+          cta: { label: 'View signed contract', href: projectDeepLink('contract') },
+          secondaryCta: portalId ? { label: 'Open client portal', href: portalLink } : undefined,
+        },
       });
       break;
     }
 
     case 'selection_chosen': {
-      // Homeowner picked an option from the portal's Selections section.
-      // Notify the GC so they can place the order / lock in the spec.
       const category = (payload.category as string) || 'a selection';
       const productName = (payload.product_name as string) || 'an option';
       const brand = (payload.brand as string) || '';
       const totalCost = payload.total_cost as number | string | null;
       const overBudget = !!payload.over_budget;
-      const detail = brand ? `${productName} · ${brand}` : productName;
+      const productImage = (payload.product_image_url as string) || undefined;
       await dispatchOne('gc', {
         prefKey: 'selection_chosen',
-        title: overBudget ? `Selection chosen (over budget) · ${projectName}` : `Selection chosen · ${projectName}`,
-        body: `${category}: ${detail}${totalCost ? ` — ${fmtMoney(totalCost)}` : ''}`,
+        pushTitle: overBudget ? `Selection (over allowance) · ${projectName}` : `Selection chosen · ${projectName}`,
+        pushBody: `${category}: ${productName}${brand ? ' · ' + brand : ''}${totalCost ? ` — ${fmtMoney(totalCost)}` : ''}`,
         pushData: { projectId, portalId, kind: 'selection_chosen' },
         pushToken: gc.push_token,
         email: gc.email,
-        emailSubject: `Selection picked for ${esc(category)} — ${projectName}`,
-        emailHtml: wrapHtml({
-          eyebrow: overBudget ? 'Selection chosen (over budget)' : 'Selection chosen',
-          title: `Your client picked ${esc(productName)} for ${esc(category)}`,
+        emailSubject: `Selection: ${productName} for ${category}${overBudget ? ' (over allowance)' : ''}`,
+        emailWrap: {
+          preheader: `Your client picked ${productName}${brand ? ' by ' + brand : ''} for ${category}.`,
+          eyebrow: overBudget ? 'Selection chosen · over allowance' : 'Selection chosen',
+          title: `Picked: ${productName}`,
+          subtitle: 'Place the order, lock the spec, and the choice will sync into MAGE ID under Selections.',
           bodyHtml: `
-            <p style="margin:0 0 6px"><strong>Category:</strong> ${esc(category)}</p>
-            <p style="margin:0 0 6px"><strong>Product:</strong> ${esc(detail)}</p>
-            ${totalCost ? `<p style="margin:0 0 14px"><strong>Total:</strong> ${esc(fmtMoney(totalCost))}${overBudget ? ' <span style="color:#C26A00;font-weight:700">(over allowance)</span>' : ''}</p>` : ''}
-            <p style="margin:0">Order it / lock the spec. The choice is also recorded in MAGE ID under this project's Selections.</p>`,
-          cta: { label: 'View in MAGE ID', href: 'https://app.mageid.app' },
-        }),
+            ${emailProductCard({ imageUrl: productImage, productName, brand, category, price: totalCost ? fmtMoney(totalCost) : undefined, overBudget })}
+          `,
+          cta: { label: 'View in MAGE ID', href: projectDeepLink('selections') },
+          secondaryCta: portalId ? { label: 'Open client portal', href: portalLink } : undefined,
+        },
       });
       break;
     }
 
     case 'bid_question_asked': {
-      // A contractor asked a pre-bid question on an RFP. Notify the
-      // homeowner who posted the RFP so they can answer once and
-      // every bidder benefits.
       const askerName = (payload.asker_name as string) || 'A bidder';
       const question = (payload.question as string) || '';
       const rfpId = (payload.rfp_id as string) || (payload.bid_id as string) || '';
       const rfpTitle = (payload.rfp_title as string) || projectName || 'your RFP';
       const homeownerEmail = (payload.homeowner_email as string) || gc.email;
       const homeownerToken = (payload.homeowner_push_token as string) || gc.push_token;
-      const detailUrl = rfpId ? `https://app.mageid.app/rfp-detail?bidId=${encodeURIComponent(rfpId)}` : 'https://app.mageid.app';
+      const detailUrl = rfpId ? `${APP_BASE}/rfp-detail?bidId=${encodeURIComponent(rfpId)}` : APP_BASE;
       await dispatchOne('gc', {
         prefKey: 'bid_question_asked',
-        title: `New bid question · ${rfpTitle}`,
-        body: `${askerName}: ${question.slice(0, 140)}`,
+        pushTitle: `New bid question · ${rfpTitle}`,
+        pushBody: `${askerName}: ${question.slice(0, 140)}`,
         pushData: { rfpId, kind: 'bid_question_asked' },
         pushToken: homeownerToken,
         email: homeownerEmail,
-        emailSubject: `${askerName} asked a question about ${rfpTitle}`,
-        emailHtml: wrapHtml({
+        emailSubject: `${askerName} asked about ${rfpTitle}`,
+        emailWrap: {
+          preheader: `${askerName}: ${question.slice(0, 100)}`,
           eyebrow: 'New question on your RFP',
-          title: `${esc(askerName)} asked:`,
-          bodyHtml: `
-            <blockquote style="margin:0 0 14px;padding:14px 16px;background:#F4EFE6;border-left:3px solid #FF6A1A;border-radius:6px;font-style:italic;">${esc(question)}</blockquote>
-            <p style="margin:0 0 14px"><strong>RFP:</strong> ${esc(rfpTitle)}</p>
-            <p style="margin:0">Answer once and every bidder sees the same response — clearer scope means more accurate bids.</p>`,
+          title: `${askerName} asked:`,
+          subtitle: 'Answer once — every bidder sees the same response so your scope stays clean.',
+          bodyHtml: `${emailQuote(question)}<p style="margin:0;"><strong>RFP:</strong> ${escapeHtml(rfpTitle)}</p>`,
           cta: { label: 'Answer in MAGE ID', href: detailUrl },
-        }),
+        },
       });
       break;
     }
 
     case 'bid_question_answered': {
-      // The RFP owner posted an answer to a pre-bid question. Notify
-      // every bidder who had submitted on this RFP — they should re-read
-      // the scope before finalizing their number.
       const rfpId = (payload.rfp_id as string) || (payload.bid_id as string) || '';
       const rfpTitle = (payload.rfp_title as string) || projectName || 'an RFP you bid on';
       const question = (payload.question as string) || '';
       const answer = (payload.answer as string) || '';
-      const detailUrl = rfpId ? `https://app.mageid.app/rfp-detail?bidId=${encodeURIComponent(rfpId)}` : 'https://app.mageid.app';
-      // Recipients are pre-resolved by the trigger / app: array of
-      // contractor profile rows with email + push_token.
+      const detailUrl = rfpId ? `${APP_BASE}/rfp-detail?bidId=${encodeURIComponent(rfpId)}` : APP_BASE;
       const recipients = (payload.bidder_recipients as Array<{ email?: string; push_token?: string; user_id?: string }> | undefined) ?? [];
       for (const r of recipients) {
         const pushTok = r.push_token ?? null;
         const em = r.email ?? null;
         if (!em && !pushTok) continue;
-        // Fire each independently — log to outbox per recipient.
         if (pushTok) {
           await sendPush(pushTok, `Answer posted · ${rfpTitle}`, `${question.slice(0, 80)}…`, { rfpId, kind: 'bid_question_answered' });
         }
         if (em) {
-          await sendEmail({
+          const html = wrapEmailHtml({
+            preheader: `Q: ${question.slice(0, 60)} · A: ${answer.slice(0, 60)}`,
+            eyebrow: 'Pre-bid Q&A',
+            title: 'A question was answered',
+            subtitle: `If this changes your scope or pricing, update your bid before the deadline.`,
+            bodyHtml: `
+              <p style="margin:0 0 6px;"><strong>Q:</strong> ${escapeHtml(question)}</p>
+              ${emailQuote(answer)}
+              <p style="margin:0;"><strong>RFP:</strong> ${escapeHtml(rfpTitle)}</p>
+            `,
+            cta: { label: 'View RFP', href: detailUrl },
+            companyName: gc.company_name ?? undefined,
+            unsubscribe: { recipientEmail: em, eventKey: 'bid_question_answered', enabled: true },
+          });
+          await sendIfNotSuppressed({
             to: em,
             subject: `Answer posted on ${rfpTitle}`,
-            html: wrapHtml({
-              eyebrow: 'Pre-bid Q&A',
-              title: 'A question on the RFP was answered',
-              bodyHtml: `
-                <p style="margin:0 0 6px"><strong>Q:</strong> ${esc(question)}</p>
-                <p style="margin:0 0 14px"><strong>A:</strong> ${esc(answer)}</p>
-                <p style="margin:0 0 14px"><strong>RFP:</strong> ${esc(rfpTitle)}</p>
-                <p style="margin:0">If this changes your scope or pricing, update your bid before the deadline.</p>`,
-              cta: { label: 'View RFP', href: detailUrl },
-            }),
+            html,
+            fromCompanyName: gc.company_name ?? undefined,
+            unsubscribe: { recipientEmail: em, eventKey: 'bid_question_answered', enabled: true },
+            eventKey: 'bid_question_answered',
           });
         }
         await sbInsert('notification_outbox', {
@@ -726,67 +784,105 @@ async function dispatch(req: NotifyRequest, isAnonCaller: boolean): Promise<unkn
     }
 
     case 'closeout_binder_sent': {
-      // GC delivered the closeout binder. Notify the homeowner — the
-      // binder lives in their portal under the Closeout section.
       const binderId = (payload.binder_id as string) || '';
       const homeownerEmail = (payload.homeowner_email as string) || null;
       const homeownerName = (payload.homeowner_name as string) || 'there';
-      const portalLink2 = portalId ? `${PORTAL_BASE}/${portalId}` : 'https://app.mageid.app';
+      const finalCost = payload.final_cost as number | string | undefined;
+      const photoCount = payload.photo_count as number | undefined;
+      const warrantyCount = payload.warranty_count as number | undefined;
+      const heroPhoto = (payload.hero_photo_url as string) || undefined;
+      const portalLink2 = portalId ? `${PORTAL_BASE}/${portalId}` : APP_BASE;
       const company = gc.company_name || gc.contact_name || 'Your contractor';
-      // No push for homeowner — we don't have their token. Email only.
+
+      // Homeowner-bound — the warm hand-off email.
       if (homeownerEmail) {
-        const r = await sendEmail({
+        const html = wrapEmailHtml({
+          preheader: `${company} sent you the closeout binder for ${projectName} — it's all in your portal.`,
+          eyebrow: 'Closeout binder delivered',
+          title: `Hi ${homeownerName} — your home's owner's manual.`,
+          subtitle: `${company} just delivered the closeout binder for ${projectName}. Every paint color, fixture brand, sub contact, warranty, and maintenance reminder you'll need for the life of the home — all in your portal.`,
+          accent: '#1E8E4A',
+          bodyHtml: `
+            ${emailHero({ kicker: 'Project complete', bigText: projectName, subText: finalCost ? `Final cost: ${fmtMoney(finalCost)}` : undefined, photoUrl: heroPhoto, accent: '#1E8E4A' })}
+            ${emailStatCard(`${photoCount ? emailStatRow('Project photos', String(photoCount)) : ''}${warrantyCount ? emailStatRow('Warranties on file', String(warrantyCount)) : ''}${finalCost ? emailStatRow('Final cost', fmtMoney(finalCost), { emphasize: true }) : ''}`)}
+            <p style="margin:0 0 14px;">Open your portal and tap <strong>Closeout Binder</strong>. Read it on your phone, or hit Print to save a PDF you can keep forever.</p>
+            <p style="margin:0;color:#9AA3AD;font-size:13px;">Bookmark this email — your portal lives at the link below and doesn't expire.</p>
+          `,
+          cta: { label: 'Open my portal', href: portalLink2 },
+          companyName: gc.company_name ?? undefined,
+          sender: {
+            name: gc.contact_name ?? gc.company_name ?? undefined,
+            email: gc.email ?? undefined,
+            phone: gc.phone ?? undefined,
+          },
+          project: { name: projectName, location: projectCtx.location },
+          unsubscribe: { recipientEmail: homeownerEmail, eventKey: 'closeout_binder', enabled: true },
+        });
+        const r = await sendIfNotSuppressed({
           to: homeownerEmail,
-          subject: `Your closeout binder is ready — ${projectName}`,
-          html: wrapHtml({
-            eyebrow: 'Closeout binder delivered',
-            title: `Hi ${esc(homeownerName)} — here's everything you need.`,
-            bodyHtml: `
-              <p style="margin:0 0 14px">${esc(company)} just sent you the closeout binder for <strong>${esc(projectName)}</strong>. It has every paint color, fixture brand, sub contact, warranty, and maintenance reminder you'll need for the life of the home.</p>
-              <p style="margin:0 0 14px">Open your portal and tap the <strong>Closeout Binder</strong> section. From there you can read it on your phone, or hit Print to save a PDF copy you can keep forever.</p>
-              <p style="margin:0;color:#8B9099;font-size:13px">Bookmark this email — your portal lives at the link below and doesn't expire.</p>`,
-            cta: { label: 'Open my portal', href: portalLink2 },
-          }),
+          subject: `${EMOJI.binder} Your closeout binder is ready · ${projectName}`,
+          html,
+          fromCompanyName: gc.company_name ?? undefined,
           replyTo: gc.email ?? undefined,
+          unsubscribe: { recipientEmail: homeownerEmail, eventKey: 'closeout_binder', enabled: true },
+          eventKey: 'closeout_binder',
         });
         await sbInsert('notification_outbox', {
           event_type: event,
           source_table: source_table ?? null,
           source_id: source_id ?? null,
           recipient_kind: 'client',
-          recipient_user_id: null,
           recipient_email: homeownerEmail,
-          push_status: null,
-          email_status: r.ok ? 'sent' : 'failed',
+          email_status: r.suppressed ? 'suppressed_unsubscribed' : (r.ok ? 'sent' : 'failed'),
           email_response: r.resp,
           payload,
           delivered_at: r.ok ? new Date().toISOString() : null,
         }).catch(() => {});
       } else {
-        // Log the skip so we know the binder was marked sent but the
-        // notification was a no-op due to missing email.
         await sbInsert('notification_outbox', {
           event_type: event,
           source_table: source_table ?? null,
           source_id: source_id ?? null,
           recipient_kind: 'client',
-          recipient_user_id: null,
-          recipient_email: null,
-          push_status: null,
           email_status: 'skipped_no_email',
           payload,
         }).catch(() => {});
       }
-      // Also log for the GC (no email — just an audit trail).
+
+      // GC-bound — the "delivery confirmed" email. Round-1 #3: previously
+      // a no-op. Now the GC gets a celebratory recap of what they shipped.
+      if (gc.email) {
+        await dispatchOne('gc', {
+          prefKey: 'closeout_binder',
+          pushTitle: `📦 Closeout delivered · ${projectName}`,
+          pushBody: `Binder sent${homeownerName ? ' to ' + homeownerName : ''}. Project complete.`,
+          pushData: { projectId, kind: 'closeout_binder_sent_confirmation', binderId },
+          pushToken: gc.push_token,
+          email: gc.email,
+          emailSubject: `${EMOJI.binder} Closeout delivered · ${projectName}`,
+          emailWrap: {
+            preheader: `Closeout binder for ${projectName} sent${homeownerName !== 'there' ? ` to ${homeownerName}` : ''}. Nice work.`,
+            accent: '#1E8E4A',
+            eyebrow: 'Project closed out',
+            title: 'Binder delivered. Project complete.',
+            subtitle: `${homeownerName !== 'there' ? `${homeownerName} now has` : 'The homeowner now has'} the full closeout package — every spec, warranty, and maintenance reminder for ${projectName}. Nice work.`,
+            bodyHtml: `
+              ${emailStatCard(`${emailStatRow('Project', escapeHtml(projectName))}${photoCount ? emailStatRow('Photos delivered', String(photoCount)) : ''}${warrantyCount ? emailStatRow('Warranties packaged', String(warrantyCount)) : ''}${finalCost ? emailStatRow('Final cost', fmtMoney(finalCost), { emphasize: true }) : ''}`)}
+              <p style="margin:0;">Their warranty walk reminder is set for 11 months from substantial completion — we'll surface it on your home tab when it's time.</p>
+            `,
+            cta: { label: 'View binder', href: projectDeepLink('closeout-binder') },
+            secondaryCta: portalId ? { label: 'See homeowner portal', href: portalLink2 } : undefined,
+          },
+        });
+      }
+
+      // GC audit log row.
       await sbInsert('notification_outbox', {
         event_type: event,
         source_table: source_table ?? null,
         source_id: binderId || (source_id ?? null),
         recipient_kind: 'gc',
         recipient_user_id: gcUserId,
-        recipient_email: null,
-        push_status: null,
-        email_status: null,
         payload,
       }).catch(() => {});
       break;
@@ -807,14 +903,6 @@ serve(async (req) => {
     const body = await req.json() as NotifyRequest;
     if (!body || !body.event) return jsonResponse({ error: "Missing event" }, 400);
 
-    // Distinguish caller trust level. The Authorization header is
-    // either:
-    //   (a) Bearer <service_role_key> — DB triggers, fully trusted
-    //   (b) Bearer <user_jwt>          — authenticated app session
-    //   (c) Bearer <anon_key>          — static portal HTML, untrusted
-    // We treat (a) and (b) as authenticated. Only (c) — where the
-    // bearer token equals the public anon key — gets the anon
-    // restriction (allowlist + rate limit + payload sanitization).
     const auth = req.headers.get('Authorization') || req.headers.get('authorization') || '';
     const bearer = auth.replace(/^Bearer\s+/i, '').trim();
     const anonKey = Deno.env.get('SUPABASE_ANON_KEY') || '';

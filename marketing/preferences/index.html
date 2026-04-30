@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Email preferences · MAGE ID</title>
+  <meta name="robots" content="noindex" />
+  <meta name="theme-color" content="#0B0D10" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      background: #F4EFE6;
+      color: #0B0D10;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      min-height: 100dvh;
+      padding: 32px 16px;
+    }
+    .card {
+      background: #FFFFFF;
+      border: 1px solid #E8DFCD;
+      border-radius: 18px;
+      max-width: 560px;
+      margin: 0 auto;
+      overflow: hidden;
+    }
+    .head {
+      background: #0B0D10;
+      color: #FFF;
+      padding: 22px 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .head .name { font-size: 18px; font-weight: 800; letter-spacing: -0.3px; }
+    .head .chip {
+      display: inline-block; padding: 5px 11px; border-radius: 999px;
+      background: #FF6A1A; color: #0B0D10;
+      font-size: 10px; font-weight: 800; letter-spacing: 1.4px; text-transform: uppercase;
+    }
+    .body { padding: 32px 28px 28px; }
+    .eyebrow {
+      margin: 0 0 12px;
+      font-size: 11px; font-weight: 800; color: #FF6A1A;
+      letter-spacing: 1.6px; text-transform: uppercase;
+    }
+    h1 {
+      margin: 0 0 12px;
+      font-family: Georgia, 'Times New Roman', serif;
+      font-size: 28px; font-weight: 700; letter-spacing: -0.5px; line-height: 1.18;
+    }
+    p { margin: 0 0 14px; font-size: 15px; line-height: 1.55; color: #4A5159; }
+    .row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 0;
+      border-bottom: 1px solid #F1EAD9;
+    }
+    .row:last-child { border-bottom: 0; }
+    .row .label { font-size: 14px; font-weight: 600; color: #0B0D10; }
+    .row .desc { font-size: 12px; color: #9AA3AD; }
+    /* iOS-style toggle */
+    .toggle {
+      position: relative; display: inline-block;
+      width: 46px; height: 28px; flex-shrink: 0;
+    }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+    .slider {
+      position: absolute; cursor: pointer;
+      inset: 0; background: #E8DFCD;
+      border-radius: 999px; transition: 0.18s;
+    }
+    .slider::before {
+      content: ""; position: absolute;
+      width: 22px; height: 22px;
+      left: 3px; top: 3px;
+      background: #FFF; border-radius: 50%;
+      transition: 0.18s;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+    }
+    .toggle input:checked + .slider { background: #1E8E4A; }
+    .toggle input:checked + .slider::before { transform: translateX(18px); }
+    .target {
+      display: inline-block; padding: 4px 10px; border-radius: 8px;
+      background: #F4EFE6; border: 1px solid #E8DFCD;
+      font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+      font-size: 13px; color: #0B0D10;
+    }
+    .footer { margin-top: 26px; font-size: 12px; color: #9AA3AD; }
+    .footer a { color: #4A5159; text-decoration: underline; }
+    .toast {
+      position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%);
+      background: #0B0D10; color: #FFF; padding: 10px 18px;
+      border-radius: 999px; font-size: 13px; font-weight: 600;
+      opacity: 0; transition: opacity 0.18s;
+      pointer-events: none;
+    }
+    .toast.show { opacity: 1; }
+    .empty {
+      text-align: center; padding: 28px 0; color: #9AA3AD; font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <main class="card" role="main">
+    <div class="head">
+      <div class="name">MAGE&nbsp;ID</div>
+      <div class="chip">Email preferences</div>
+    </div>
+    <div class="body">
+      <p class="eyebrow">Notification settings</p>
+      <h1>Tune what hits your inbox.</h1>
+      <p id="lede">For <span class="target" id="emailLabel">your address</span> — toggle a category off and we'll stop sending those emails. Critical account / contract emails always go through.</p>
+
+      <div id="rows">
+        <!-- Populated by JS based on EVENT_LABELS -->
+      </div>
+
+      <div id="empty" class="empty hidden">No email address on the link. Use the preferences link from any of our emails.</div>
+
+      <div class="footer">
+        Powered by <a href="https://mageid.app">MAGE ID</a>. Want to unsubscribe from everything? <a href="#" id="unsubAll">Turn off all categories</a>.
+      </div>
+    </div>
+  </main>
+  <div class="toast" id="toast">Saved</div>
+
+  <script>
+    (function () {
+      var SUPABASE_URL = 'https://nteoqhcswappxxjlpvap.supabase.co';
+      var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im50ZW9xaGNzd2FwcHh4amxwdmFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDgxOTUyMDQsImV4cCI6MjA2Mzc3MTIwNH0.lHIb5bkOMm5oGz03jCPZDQUUGiEr9NHK67Z2UbYUlUM';
+      var EVENT_KEYS = [
+        { key: 'portal_message', label: 'Portal messages', desc: 'When your client or contractor sends a message.' },
+        { key: 'budget_proposal', label: 'Budget proposals', desc: 'When a target budget is proposed for review.' },
+        { key: 'co_approval', label: 'Change orders', desc: 'When a CO is approved or declined.' },
+        { key: 'contract_signed', label: 'Contract signed', desc: 'When a contract is counter-signed.' },
+        { key: 'selection_chosen', label: 'Selections', desc: 'When the homeowner picks a fixture or finish.' },
+        { key: 'sub_invoice', label: 'Sub invoices', desc: 'When a sub submits or you act on an invoice.' },
+        { key: 'nearby_rfp_posted', label: 'New nearby RFPs', desc: 'When a homeowner posts a project in your area.' },
+        { key: 'rfp_awarded', label: 'Bid awarded', desc: 'When a homeowner picks your bid.' },
+        { key: 'bid_question_asked', label: 'Bid Q&A (asked)', desc: 'When a contractor asks about your RFP.' },
+        { key: 'bid_question_answered', label: 'Bid Q&A (answered)', desc: 'When the homeowner answers a question.' },
+        { key: 'closeout_binder', label: 'Closeout', desc: 'When the closeout binder is delivered.' },
+        { key: 'portal_invite', label: 'Portal invitations', desc: 'When you\'re invited to a project portal.' },
+      ];
+
+      function readQuery() {
+        var p = new URLSearchParams(window.location.search);
+        return { email: p.get('e') || '' };
+      }
+
+      function showToast(text) {
+        var t = document.getElementById('toast');
+        t.textContent = text;
+        t.classList.add('show');
+        setTimeout(function () { t.classList.remove('show'); }, 1600);
+      }
+
+      var qs = readQuery();
+      if (!qs.email) {
+        document.getElementById('rows').classList.add('hidden');
+        document.getElementById('empty').classList.remove('hidden');
+        document.querySelector('#lede').classList.add('hidden');
+        return;
+      }
+      document.getElementById('emailLabel').textContent = qs.email;
+
+      // Fetch current state — the GET endpoint of unsubscribe returns
+      // unsubscribed: bool for the (email, key) pair.
+      function fetchSuppressed(eventKey) {
+        var url = SUPABASE_URL + '/functions/v1/unsubscribe?e=' + encodeURIComponent(qs.email) + '&k=' + encodeURIComponent(eventKey);
+        return fetch(url, {
+          method: 'GET',
+          headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY },
+        }).then(function (r) { return r.json(); }).then(function (d) { return !!(d && d.unsubscribed); });
+      }
+
+      function setSuppressed(eventKey, on) {
+        // "On" toggle = subscribe (no row). Toggle off = unsubscribe (insert).
+        // Since we don't yet have a re-subscribe path on the public anon key,
+        // we keep things simple: this page CAN unsubscribe, but to re-enable
+        // a category the user has to email support. (Updating prefs back-on
+        // requires deleting a row, which is privileged.) The toggle UX still
+        // works: if they toggle ON, we'll attempt to delete via the same
+        // endpoint with method=DELETE; the edge function rejects it for
+        // anon callers, and we surface "email support to re-enable".
+        if (!on) {
+          var url = SUPABASE_URL + '/functions/v1/unsubscribe';
+          return fetch(url, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': SUPABASE_ANON_KEY,
+              'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
+            },
+            body: JSON.stringify({ email: qs.email, event_key: eventKey, source: 'preferences_page' }),
+          }).then(function (r) { return r.ok; });
+        } else {
+          // Re-subscribe path is not exposed publicly. Tell the user.
+          showToast('To turn back on, email support@mageid.app');
+          return Promise.resolve(false);
+        }
+      }
+
+      var rowsEl = document.getElementById('rows');
+      EVENT_KEYS.forEach(function (e) {
+        var row = document.createElement('div');
+        row.className = 'row';
+        row.innerHTML = '<div><div class="label">' + e.label + '</div><div class="desc">' + e.desc + '</div></div>' +
+          '<label class="toggle"><input type="checkbox" data-key="' + e.key + '" checked /><span class="slider"></span></label>';
+        rowsEl.appendChild(row);
+        var checkbox = row.querySelector('input');
+        fetchSuppressed(e.key).then(function (suppressed) {
+          checkbox.checked = !suppressed;
+        });
+        checkbox.addEventListener('change', function () {
+          var on = checkbox.checked;
+          setSuppressed(e.key, on).then(function (ok) {
+            if (!ok && !on) {
+              showToast('Could not save');
+              checkbox.checked = true;
+            } else if (ok && !on) {
+              showToast('Unsubscribed');
+            } else if (!ok && on) {
+              checkbox.checked = false;
+            }
+          });
+        });
+      });
+
+      document.getElementById('unsubAll').addEventListener('click', function (ev) {
+        ev.preventDefault();
+        if (!confirm('Turn off ALL email notifications for ' + qs.email + '?')) return;
+        var url = SUPABASE_URL + '/functions/v1/unsubscribe';
+        fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
+          },
+          body: JSON.stringify({ email: qs.email, event_key: null, source: 'preferences_page_all' }),
+        }).then(function (r) {
+          if (r.ok) {
+            showToast('All notifications off');
+            document.querySelectorAll('.toggle input').forEach(function (i) { i.checked = false; });
+          } else {
+            showToast('Could not save');
+          }
+        });
+      });
+    })();
+  </script>
+</body>
+</html>

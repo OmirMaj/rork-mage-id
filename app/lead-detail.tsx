@@ -31,6 +31,7 @@ import {
 import InlineVoiceFill from '@/components/InlineVoiceFill';
 import VoiceCaptureModal from '@/components/VoiceCaptureModal';
 import { parseLeadFromTranscript, pickIfEmpty, titleCase } from '@/utils/voiceFormParsers';
+import { buildMailtoUrl, mailSignOff } from '@/utils/mailtoComposer';
 
 export default function LeadDetailScreen() {
   const insets = useSafeAreaInsets();
@@ -167,7 +168,21 @@ export default function LeadDetailScreen() {
               )}
               {!!existing.email && (
                 <TouchableOpacity style={styles.quickBtn} activeOpacity={0.85}
-                  onPress={() => Linking.openURL(`mailto:${existing.email}`)}>
+                  onPress={() => Linking.openURL(buildMailtoUrl({
+                    to: existing.email!,
+                    subject: existing.projectType
+                      ? `Following up on your ${existing.projectType.toLowerCase()} project`
+                      : `Following up on your project inquiry`,
+                    body: [
+                      `Hi ${(existing.name || '').split(' ')[0] || 'there'},`,
+                      '',
+                      `Thanks for reaching out${existing.source && existing.source !== 'other' ? ` via ${existing.source}` : ''}. I wanted to follow up on the ${existing.projectType ? existing.projectType.toLowerCase() : 'project'} you mentioned${existing.address ? ` at ${existing.address}` : ''}.`,
+                      '',
+                      `When works for a quick call to walk through the scope?`,
+                      '',
+                      ...mailSignOff(),
+                    ],
+                  }))}>
                   <Mail size={16} color={Colors.text} />
                   <Text style={styles.quickBtnText}>Email</Text>
                 </TouchableOpacity>

@@ -2,7 +2,15 @@ import * as MailComposer from 'expo-mail-composer';
 import * as FileSystem from 'expo-file-system/legacy';
 import { Platform } from 'react-native';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
-import { wrapEmailHtml, emailButton } from '@/utils/emailLayout';
+import {
+  wrapEmailHtml,
+  emailStatRow,
+  emailStatCard,
+  emailQuote,
+  emailDivider,
+  fmtMoney,
+  type UnsubscribeOpts,
+} from '@/utils/emailLayout';
 
 export interface SendEmailParams {
   to: string;
@@ -13,7 +21,12 @@ export interface SendEmailParams {
 
 export interface SendEmailWithAttachmentsParams extends SendEmailParams {
   attachments?: string[]; // local file URIs
-  from?: string;          // override default FROM if needed
+  /** Legacy: full FROM string override. Prefer fromCompanyName. */
+  from?: string;
+  /** Just the company name — server wraps it as "X via MAGE ID <noreply@…>". */
+  fromCompanyName?: string;
+  /** Drives List-Unsubscribe headers on the send. */
+  unsubscribe?: UnsubscribeOpts;
 }
 
 interface SendEmailResponse {
@@ -90,6 +103,8 @@ async function sendViaResend(params: SendEmailWithAttachmentsParams): Promise<Se
         html: params.html,
         replyTo: params.replyTo,
         from: params.from,
+        fromCompanyName: params.fromCompanyName,
+        unsubscribe: params.unsubscribe,
         attachments,
       },
     });
@@ -211,15 +226,10 @@ export async function sendEmail(params: SendEmailWithAttachmentsParams): Promise
 
 
 /**
- * Welcome email — sent the moment a user signs up. Job:
- *   1. Confirm their account is created.
- *   2. Quickly explain what MAGE ID does (5 features, scannable list).
- *   3. Push them to install the mobile app for the full experience.
- *   4. Offer a clear "where to get help" line so they don't bounce on
- *      the first hurdle.
- *
- * Designed to land in their inbox within seconds of signup so the
- * first-touch impression is "this thing is alive and looks legit."
+ * Welcome email — sent the moment a user signs up. Lands within seconds
+ * of signup so the first-touch impression is "this thing is alive and
+ * looks legit." Five features in a tight list, App Store CTA, support
+ * line. Uses the unified wrapEmailHtml so it matches every other email.
  */
 export function buildWelcomeEmailHtml(opts: {
   recipientName?: string;
@@ -237,68 +247,44 @@ export function buildWelcomeEmailHtml(opts: {
   } = opts;
 
   const features = [
-    { icon: '🏗', title: 'Estimates that calculate themselves', body: 'Live material pricing, regional cost adjustments, bulk-discount math, AI-generated quick estimates from a photo or a few prompts.' },
-    { icon: '📋', title: 'Daily field reports in 60 seconds', body: 'Voice-record what happened on site, AI parses it into weather + manpower + work performed + materials + issues. Photos auto-geotag.' },
-    { icon: '💰', title: 'Get paid in-app', body: 'One-tap "Pay" button on every invoice. Money lands in your bank in 1–2 business days. No more chasing checks.' },
-    { icon: '📐', title: 'Plans, RFIs, change orders, submittals', body: 'Full document workflow on your phone. Pin notes/photos to plan markups. Auto-export RFI logs and closeout packets to PDF.' },
-    { icon: '📊', title: 'Cash flow forecaster', body: 'See exactly when you\'ll be in the red weeks before it happens. Never get blindsided by a slow A/R again.' },
+    { icon: '🏗', title: 'Estimates that calculate themselves', body: 'Live material pricing, regional cost adjustments, AI quick estimates from a photo.' },
+    { icon: '📋', title: 'Daily field reports in 60 seconds', body: 'Voice-record what happened on site; AI parses weather, manpower, work performed, issues.' },
+    { icon: '💰', title: 'Get paid in-app', body: 'One-tap Pay button on every invoice. Money lands in your bank in 1–2 business days.' },
+    { icon: '📐', title: 'Plans, RFIs, COs, submittals', body: 'Full document workflow on your phone. Auto-export RFI logs and closeout packets to PDF.' },
+    { icon: '📊', title: 'Cash flow forecaster', body: 'See when you\'ll be in the red weeks before it happens. No more A/R blindsides.' },
   ];
-
   const featuresHtml = features.map(f => `
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 14px;">
       <tr>
-        <td valign="top" style="padding-right:14px;font-size:22px;line-height:1;">${f.icon}</td>
+        <td valign="top" style="padding-right:14px;font-size:20px;line-height:1;">${f.icon}</td>
         <td valign="top">
-          <p style="margin:0 0 4px;font-size:15px;font-weight:700;color:#111827;letter-spacing:-0.2px;">${f.title}</p>
-          <p style="margin:0;font-size:13px;color:#4B5563;line-height:1.5;">${f.body}</p>
+          <p style="margin:0 0 3px;font-size:14px;font-weight:700;color:#0B0D10;letter-spacing:-0.2px;">${f.title}</p>
+          <p style="margin:0;font-size:13px;color:#4A5159;line-height:1.5;">${f.body}</p>
         </td>
       </tr>
-    </table>
-  `).join('');
+    </table>`).join('');
 
   const bodyHtml = `
-    <p style="margin:0 0 18px;color:#374151;font-size:15px;line-height:1.6;">
-      Welcome to MAGE ID — the operating system for general contractors. Your account is live.
-      Here's what you can do right now:
+    ${featuresHtml}
+    ${emailDivider()}
+    <p style="margin:0 0 8px;color:#4A5159;font-size:14px;line-height:1.55;">
+      <strong>Get the full experience on mobile.</strong> The app is where you'll spend most of your day — voice reports, photos with GPS, in-app payments — all offline-first.
     </p>
-
-    <div style="margin:24px 0 8px;">
-      ${featuresHtml}
-    </div>
-
-    <p style="margin:24px 0 0;color:#374151;font-size:14px;line-height:1.55;">
-      <strong>Get the full experience on mobile.</strong> The app is where you'll spend most of your
-      day — voice reports on the jobsite, photos with GPS, in-app payments — all of it works
-      offline and syncs the moment you're back on signal.
+    <p style="margin:18px 0 0;color:#4A5159;font-size:13px;line-height:1.55;">
+      On Android? <a href="${androidAppUrl}" style="color:#FF6A1A;text-decoration:none;font-weight:600;">Google Play</a> &middot; or <a href="${webAppUrl}" style="color:#FF6A1A;text-decoration:none;font-weight:600;">use the web app</a>.
     </p>
-
-    ${emailButton('Open in App Store', iosAppUrl)}
-
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 0;">
-      <tr>
-        <td align="center" style="font-size:12px;color:#6b7280;">
-          On Android? <a href="${androidAppUrl}" style="color:#FF6A1A;text-decoration:none;font-weight:600;">Get it on Google Play</a>
-          &nbsp;·&nbsp;
-          <a href="${webAppUrl}" style="color:#FF6A1A;text-decoration:none;font-weight:600;">Use the web version</a>
-        </td>
-      </tr>
-    </table>
-
-    <hr style="border:none;border-top:1px solid #EEE;margin:32px 0 20px;" />
-
-    <p style="margin:0;color:#6b7280;font-size:13px;line-height:1.55;">
-      Stuck on anything? Just reply to this email or write
-      <a href="mailto:${supportEmail}" style="color:#FF6A1A;text-decoration:none;font-weight:600;">${supportEmail}</a>
-      — a real person reads every message.
-    </p>
-  `;
+    <p style="margin:18px 0 0;color:#9AA3AD;font-size:12px;line-height:1.55;">
+      Stuck on anything? Reply to this email or write <a href="mailto:${supportEmail}" style="color:#FF6A1A;text-decoration:none;font-weight:600;">${supportEmail}</a> — a real person reads every message.
+    </p>`;
 
   return wrapEmailHtml({
-    companyName: 'MAGE ID',
-    recipientName,
-    eyebrow: 'WELCOME',
-    title: recipientName ? `Welcome to MAGE ID, ${recipientName}` : 'Welcome to MAGE ID',
+    preheader: 'Your MAGE ID account is live. Here\'s what you can do today.',
+    eyebrow: 'Welcome',
+    title: recipientName ? `Welcome, ${recipientName}.` : 'Welcome.',
+    subtitle: 'Your MAGE ID account is live — the operating system for general contractors. Here\'s what you can do right now.',
     bodyHtml,
+    cta: { label: 'Open in App Store', href: iosAppUrl },
+    companyName: 'MAGE ID',
   });
 }
 
@@ -324,66 +310,32 @@ export function buildInvoiceEmailHtml(opts: {
     contactName, contactEmail, contactPhone, payLinkUrl,
   } = opts;
 
-  return `
-<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
-<body style="margin:0;padding:0;background:#f4f5f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f5f7;padding:32px 16px;">
-    <tr><td align="center">
-      <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
-        <tr><td style="background:#1a1a2e;padding:28px 32px;">
-          <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;">${companyName || 'MAGE ID'}</h1>
-        </td></tr>
-        <tr><td style="padding:32px;">
-          <p style="margin:0 0 8px;color:#6b7280;font-size:13px;text-transform:uppercase;letter-spacing:0.5px;">Invoice #${invoiceNumber}</p>
-          <h2 style="margin:0 0 24px;color:#111827;font-size:20px;">${projectName}</h2>
-          ${recipientName ? `<p style="margin:0 0 16px;color:#374151;">Hi ${recipientName},</p>` : ''}
-          ${message ? `<p style="margin:0 0 20px;color:#374151;line-height:1.5;">${message}</p>` : ''}
-          <table width="100%" cellpadding="0" cellspacing="0" style="background:#f9fafb;border-radius:8px;margin:20px 0;">
-            <tr><td style="padding:20px;">
-              <table width="100%">
-                <tr>
-                  <td style="color:#6b7280;font-size:13px;padding:4px 0;">Amount Due</td>
-                  <td align="right" style="color:#111827;font-size:18px;font-weight:700;padding:4px 0;">$${totalDue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                </tr>
-                <tr>
-                  <td style="color:#6b7280;font-size:13px;padding:4px 0;">Due Date</td>
-                  <td align="right" style="color:#111827;font-size:14px;padding:4px 0;">${new Date(dueDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</td>
-                </tr>
-                <tr>
-                  <td style="color:#6b7280;font-size:13px;padding:4px 0;">Payment Terms</td>
-                  <td align="right" style="color:#111827;font-size:14px;padding:4px 0;">${paymentTerms}</td>
-                </tr>
-              </table>
-            </td></tr>
-          </table>
-          ${payLinkUrl ? `
-          <table width="100%" cellpadding="0" cellspacing="0" style="margin:24px 0;">
-            <tr><td align="center">
-              <a href="${payLinkUrl}" target="_blank" style="display:inline-block;background:#10b981;color:#ffffff;text-decoration:none;font-weight:700;font-size:16px;padding:16px 36px;border-radius:10px;box-shadow:0 4px 12px rgba(16,185,129,0.25);">
-                Pay Securely — $${totalDue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </a>
-            </td></tr>
-            <tr><td align="center" style="padding-top:10px;">
-              <p style="margin:0;color:#9ca3af;font-size:11px;">
-                Powered by Stripe · Secure card &amp; bank payment
-              </p>
-            </td></tr>
-          </table>
-          ` : ''}
-          <p style="margin:20px 0 0;color:#9ca3af;font-size:12px;line-height:1.5;">
-            This invoice was generated using MAGE ID.
-            ${contactName ? `<br/>Contact: ${contactName}` : ''}
-            ${contactEmail ? ` | ${contactEmail}` : ''}
-            ${contactPhone ? ` | ${contactPhone}` : ''}
-          </p>
-        </td></tr>
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>`;
+  const formattedDue = new Date(dueDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  const stats = `
+    ${emailStatRow('Project', projectName)}
+    ${emailStatRow('Due date', formattedDue)}
+    ${emailStatRow('Terms', paymentTerms)}
+    ${emailStatRow('Amount due', fmtMoney(totalDue), { emphasize: true })}
+  `;
+
+  const bodyHtml = `
+    ${recipientName ? `<p style="margin:0 0 14px;">Hi ${recipientName},</p>` : ''}
+    ${message ? emailQuote(message) : '<p style="margin:0 0 6px;">A new invoice is ready for review and payment.</p>'}
+    ${emailStatCard(stats)}
+    ${payLinkUrl ? `<p style="margin:6px 0 0;text-align:center;color:#9AA3AD;font-size:11px;">Powered by Stripe · secure card &amp; bank payment</p>` : '<p style="margin:0 0 6px;color:#4A5159;font-size:13px;">Pay by check, ACH, or whatever method we agreed to. Reply to this email if you have any questions about the invoice.</p>'}
+  `;
+
+  return wrapEmailHtml({
+    preheader: `Invoice #${invoiceNumber} for ${projectName} — ${fmtMoney(totalDue)} due ${formattedDue}.`,
+    eyebrow: `Invoice #${invoiceNumber}`,
+    title: `${fmtMoney(totalDue)} due`,
+    subtitle: `Invoice #${invoiceNumber} for ${projectName}.`,
+    bodyHtml,
+    cta: payLinkUrl ? { label: `Pay securely · ${fmtMoney(totalDue)}`, href: payLinkUrl } : undefined,
+    companyName,
+    project: { name: projectName },
+    contactName, contactEmail, contactPhone,
+  });
 }
 
 export function buildChangeOrderEmailHtml(opts: {
@@ -404,53 +356,34 @@ export function buildChangeOrderEmailHtml(opts: {
     contactName, contactEmail,
   } = opts;
 
-  const amountColor = changeAmount >= 0 ? '#dc2626' : '#16a34a';
+  const amountColor = changeAmount >= 0 ? '#C2410C' : '#1E8E4A';
   const amountPrefix = changeAmount >= 0 ? '+' : '';
+  const formattedChange = `${amountPrefix}${fmtMoney(Math.abs(changeAmount))}`;
 
-  return `
-<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
-<body style="margin:0;padding:0;background:#f4f5f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f5f7;padding:32px 16px;">
-    <tr><td align="center">
-      <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
-        <tr><td style="background:#1a1a2e;padding:28px 32px;">
-          <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;">${companyName || 'MAGE ID'}</h1>
-        </td></tr>
-        <tr><td style="padding:32px;">
-          <p style="margin:0 0 8px;color:#6b7280;font-size:13px;text-transform:uppercase;letter-spacing:0.5px;">Change Order #${coNumber}</p>
-          <h2 style="margin:0 0 24px;color:#111827;font-size:20px;">${projectName}</h2>
-          ${recipientName ? `<p style="margin:0 0 16px;color:#374151;">Hi ${recipientName},</p>` : ''}
-          <p style="margin:0 0 16px;color:#374151;line-height:1.5;">A change order has been submitted for your review and approval.</p>
-          ${message ? `<p style="margin:0 0 20px;color:#374151;line-height:1.5;">${message}</p>` : ''}
-          <table width="100%" cellpadding="0" cellspacing="0" style="background:#f9fafb;border-radius:8px;margin:20px 0;">
-            <tr><td style="padding:20px;">
-              <p style="margin:0 0 12px;color:#374151;font-size:14px;font-weight:600;">Description</p>
-              <p style="margin:0 0 16px;color:#6b7280;font-size:14px;line-height:1.5;">${description}</p>
-              <table width="100%">
-                <tr>
-                  <td style="color:#6b7280;font-size:13px;padding:4px 0;">Change Amount</td>
-                  <td align="right" style="color:${amountColor};font-size:16px;font-weight:700;padding:4px 0;">${amountPrefix}$${Math.abs(changeAmount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                </tr>
-                <tr>
-                  <td style="color:#6b7280;font-size:13px;padding:4px 0;">New Contract Total</td>
-                  <td align="right" style="color:#111827;font-size:16px;font-weight:700;padding:4px 0;">$${newContractTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                </tr>
-              </table>
-            </td></tr>
-          </table>
-          <p style="margin:20px 0 0;color:#9ca3af;font-size:12px;line-height:1.5;">
-            This change order was generated using MAGE ID.
-            ${contactName ? `<br/>Contact: ${contactName}` : ''}
-            ${contactEmail ? ` | ${contactEmail}` : ''}
-          </p>
-        </td></tr>
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>`;
+  const bodyHtml = `
+    ${recipientName ? `<p style="margin:0 0 14px;">Hi ${recipientName},</p>` : ''}
+    ${message ? emailQuote(message) : '<p style="margin:0 0 6px;">A change order is up for your review and approval.</p>'}
+    <p style="margin:14px 0 6px;font-weight:700;color:#0B0D10;">What's changing</p>
+    <p style="margin:0 0 4px;color:#4A5159;line-height:1.55;">${description}</p>
+    ${emailStatCard(`
+      ${emailStatRow('Change order', `#${coNumber}`)}
+      ${emailStatRow('Project', projectName)}
+      ${emailStatRow('Change amount', formattedChange, { emphasize: true, valueColor: amountColor })}
+      ${emailStatRow('New contract total', fmtMoney(newContractTotal), { emphasize: true })}
+    `)}
+    <p style="margin:0;color:#4A5159;font-size:13px;">Reply to this email with your decision, or open the project portal to approve in one tap.</p>
+  `;
+
+  return wrapEmailHtml({
+    preheader: `Change order #${coNumber} for ${projectName}: ${formattedChange}.`,
+    eyebrow: `Change Order #${coNumber}`,
+    title: `${formattedChange} change request`,
+    subtitle: `Change order #${coNumber} for ${projectName}.`,
+    bodyHtml,
+    companyName,
+    project: { name: projectName },
+    contactName, contactEmail,
+  });
 }
 
 export function buildDailyReportEmailHtml(opts: {
@@ -473,60 +406,35 @@ export function buildDailyReportEmailHtml(opts: {
     issuesAndDelays, message, contactName, contactEmail,
   } = opts;
 
-  return `
-<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
-<body style="margin:0;padding:0;background:#f4f5f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f5f7;padding:32px 16px;">
-    <tr><td align="center">
-      <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
-        <tr><td style="background:#1a1a2e;padding:28px 32px;">
-          <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;">${companyName || 'MAGE ID'}</h1>
-        </td></tr>
-        <tr><td style="padding:32px;">
-          <p style="margin:0 0 8px;color:#6b7280;font-size:13px;text-transform:uppercase;letter-spacing:0.5px;">Daily Field Report</p>
-          <h2 style="margin:0 0 4px;color:#111827;font-size:20px;">${projectName}</h2>
-          <p style="margin:0 0 24px;color:#6b7280;font-size:14px;">${new Date(date).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</p>
-          ${recipientName ? `<p style="margin:0 0 16px;color:#374151;">Hi ${recipientName},</p>` : ''}
-          ${message ? `<p style="margin:0 0 20px;color:#374151;line-height:1.5;">${message}</p>` : ''}
-          <table width="100%" cellpadding="0" cellspacing="0" style="background:#f9fafb;border-radius:8px;margin:20px 0;">
-            <tr><td style="padding:20px;">
-              <table width="100%">
-                <tr>
-                  <td style="color:#6b7280;font-size:13px;padding:4px 0;">Weather</td>
-                  <td align="right" style="color:#111827;font-size:14px;padding:4px 0;">${weather.condition} (${weather.tempHigh}°/${weather.tempLow}°F)</td>
-                </tr>
-                <tr>
-                  <td style="color:#6b7280;font-size:13px;padding:4px 0;">Manpower</td>
-                  <td align="right" style="color:#111827;font-size:14px;padding:4px 0;">${totalManpower} workers</td>
-                </tr>
-                <tr>
-                  <td style="color:#6b7280;font-size:13px;padding:4px 0;">Man-Hours</td>
-                  <td align="right" style="color:#111827;font-size:14px;padding:4px 0;">${totalManHours} hrs</td>
-                </tr>
-              </table>
-            </td></tr>
-          </table>
-          ${workPerformed ? `
-          <p style="margin:16px 0 8px;color:#374151;font-size:14px;font-weight:600;">Work Performed</p>
-          <p style="margin:0 0 16px;color:#6b7280;font-size:14px;line-height:1.5;white-space:pre-wrap;">${workPerformed}</p>
-          ` : ''}
-          ${issuesAndDelays ? `
-          <p style="margin:16px 0 8px;color:#dc2626;font-size:14px;font-weight:600;">Issues & Delays</p>
-          <p style="margin:0 0 16px;color:#6b7280;font-size:14px;line-height:1.5;white-space:pre-wrap;">${issuesAndDelays}</p>
-          ` : ''}
-          <p style="margin:20px 0 0;color:#9ca3af;font-size:12px;line-height:1.5;">
-            This report was generated using MAGE ID.
-            ${contactName ? `<br/>Contact: ${contactName}` : ''}
-            ${contactEmail ? ` | ${contactEmail}` : ''}
-          </p>
-        </td></tr>
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>`;
+  const formatted = new Date(date).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+  const bodyHtml = `
+    ${recipientName ? `<p style="margin:0 0 14px;">Hi ${recipientName},</p>` : ''}
+    ${message ? emailQuote(message) : '<p style="margin:0 0 6px;">Today\'s field report is below.</p>'}
+    ${emailStatCard(`
+      ${emailStatRow('Weather', `${weather.condition} · ${weather.tempHigh}° / ${weather.tempLow}°F`)}
+      ${emailStatRow('Manpower', `${totalManpower} workers`)}
+      ${emailStatRow('Man-hours', `${totalManHours} hrs`, { emphasize: true })}
+    `)}
+    ${workPerformed ? `
+      <p style="margin:18px 0 6px;font-weight:700;color:#0B0D10;">Work performed</p>
+      <p style="margin:0 0 14px;color:#4A5159;line-height:1.55;white-space:pre-wrap;">${workPerformed}</p>
+    ` : ''}
+    ${issuesAndDelays ? `
+      <p style="margin:18px 0 6px;font-weight:700;color:#C2410C;">Issues &amp; delays</p>
+      <p style="margin:0 0 14px;color:#4A5159;line-height:1.55;white-space:pre-wrap;">${issuesAndDelays}</p>
+    ` : ''}
+  `;
+
+  return wrapEmailHtml({
+    preheader: `${formatted} · ${weather.condition} · ${totalManpower} workers · ${totalManHours} man-hours.`,
+    eyebrow: 'Daily Field Report',
+    title: formatted,
+    subtitle: `Today's report for ${projectName}.`,
+    bodyHtml,
+    companyName,
+    project: { name: projectName },
+    contactName, contactEmail,
+  });
 }
 
 export function buildEstimateEmailHtml(opts: {
@@ -545,49 +453,27 @@ export function buildEstimateEmailHtml(opts: {
     itemCount, message, contactName, contactEmail, contactPhone,
   } = opts;
 
-  return `
-<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
-<body style="margin:0;padding:0;background:#f4f5f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f5f7;padding:32px 16px;">
-    <tr><td align="center">
-      <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
-        <tr><td style="background:#1a1a2e;padding:28px 32px;">
-          <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;">${companyName || 'MAGE ID'}</h1>
-        </td></tr>
-        <tr><td style="padding:32px;">
-          <p style="margin:0 0 8px;color:#6b7280;font-size:13px;text-transform:uppercase;letter-spacing:0.5px;">Estimate</p>
-          <h2 style="margin:0 0 24px;color:#111827;font-size:20px;">${projectName}</h2>
-          ${recipientName ? `<p style="margin:0 0 16px;color:#374151;">Hi ${recipientName},</p>` : ''}
-          <p style="margin:0 0 16px;color:#374151;line-height:1.5;">Please find the estimate details below.</p>
-          ${message ? `<p style="margin:0 0 20px;color:#374151;line-height:1.5;">${message}</p>` : ''}
-          <table width="100%" cellpadding="0" cellspacing="0" style="background:#f9fafb;border-radius:8px;margin:20px 0;">
-            <tr><td style="padding:20px;">
-              <table width="100%">
-                <tr>
-                  <td style="color:#6b7280;font-size:13px;padding:4px 0;">Line Items</td>
-                  <td align="right" style="color:#111827;font-size:14px;padding:4px 0;">${itemCount} items</td>
-                </tr>
-                <tr>
-                  <td style="color:#6b7280;font-size:13px;padding:4px 0;">Estimated Total</td>
-                  <td align="right" style="color:#111827;font-size:18px;font-weight:700;padding:4px 0;">$${grandTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                </tr>
-              </table>
-            </td></tr>
-          </table>
-          <p style="margin:20px 0 0;color:#9ca3af;font-size:12px;line-height:1.5;">
-            This estimate was generated using MAGE ID.
-            ${contactName ? `<br/>Contact: ${contactName}` : ''}
-            ${contactEmail ? ` | ${contactEmail}` : ''}
-            ${contactPhone ? ` | ${contactPhone}` : ''}
-          </p>
-        </td></tr>
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>`;
+  const bodyHtml = `
+    ${recipientName ? `<p style="margin:0 0 14px;">Hi ${recipientName},</p>` : ''}
+    ${message ? emailQuote(message) : '<p style="margin:0 0 6px;">Estimate attached. Summary below.</p>'}
+    ${emailStatCard(`
+      ${emailStatRow('Project', projectName)}
+      ${emailStatRow('Line items', `${itemCount} items`)}
+      ${emailStatRow('Estimated total', fmtMoney(grandTotal), { emphasize: true })}
+    `)}
+    <p style="margin:0;color:#4A5159;font-size:13px;">Reply with questions, or let me know when you'd like to walk through the numbers together.</p>
+  `;
+
+  return wrapEmailHtml({
+    preheader: `Estimate for ${projectName} — ${fmtMoney(grandTotal)} across ${itemCount} items.`,
+    eyebrow: 'Estimate',
+    title: fmtMoney(grandTotal),
+    subtitle: `Estimate for ${projectName}.`,
+    bodyHtml,
+    companyName,
+    project: { name: projectName },
+    contactName, contactEmail, contactPhone,
+  });
 }
 
 export function buildGenericDocumentEmailHtml(opts: {
@@ -605,34 +491,23 @@ export function buildGenericDocumentEmailHtml(opts: {
     fileName, message, contactName, contactEmail,
   } = opts;
 
-  return `
-<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
-<body style="margin:0;padding:0;background:#f4f5f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f5f7;padding:32px 16px;">
-    <tr><td align="center">
-      <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
-        <tr><td style="background:#1a1a2e;padding:28px 32px;">
-          <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;">${companyName || 'MAGE ID'}</h1>
-        </td></tr>
-        <tr><td style="padding:32px;">
-          <p style="margin:0 0 8px;color:#6b7280;font-size:13px;text-transform:uppercase;letter-spacing:0.5px;">${documentType}</p>
-          <h2 style="margin:0 0 24px;color:#111827;font-size:20px;">${projectName}</h2>
-          ${recipientName ? `<p style="margin:0 0 16px;color:#374151;">Hi ${recipientName},</p>` : ''}
-          <p style="margin:0 0 16px;color:#374151;line-height:1.5;">Please find the attached document: <strong>${fileName}</strong></p>
-          ${message ? `<p style="margin:0 0 20px;color:#374151;line-height:1.5;">${message}</p>` : ''}
-          <p style="margin:20px 0 0;color:#9ca3af;font-size:12px;line-height:1.5;">
-            This document was sent using MAGE ID.
-            ${contactName ? `<br/>Contact: ${contactName}` : ''}
-            ${contactEmail ? ` | ${contactEmail}` : ''}
-          </p>
-        </td></tr>
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>`;
+  const bodyHtml = `
+    ${recipientName ? `<p style="margin:0 0 14px;">Hi ${recipientName},</p>` : ''}
+    <p style="margin:0 0 12px;">Attached: <strong>${fileName}</strong>.</p>
+    ${message ? emailQuote(message) : ''}
+    <p style="margin:0;color:#4A5159;font-size:13px;">Let me know if you have any questions.</p>
+  `;
+
+  return wrapEmailHtml({
+    preheader: `${documentType} for ${projectName} — ${fileName}`,
+    eyebrow: documentType,
+    title: documentType,
+    subtitle: `For ${projectName}.`,
+    bodyHtml,
+    companyName,
+    project: { name: projectName },
+    contactName, contactEmail,
+  });
 }
 
 // ─── RFI email (sent to architect / engineer for response) ──────────
@@ -669,81 +544,38 @@ export function buildRFIEmailHtml(opts: {
     linkedDrawing, message, contactName, contactEmail, contactPhone,
     replyPortalUrl,
   } = opts;
-  const priorityColor = priority === 'urgent' ? '#dc2626' : priority === 'normal' ? '#2563eb' : '#6b7280';
-  const priorityBg    = priority === 'urgent' ? '#fef2f2' : priority === 'normal' ? '#eff6ff' : '#f3f4f6';
-  return `
-<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
-<body style="margin:0;padding:0;background:#f4f5f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f5f7;padding:32px 16px;">
-    <tr><td align="center">
-      <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
-        <tr><td style="background:#1a1a2e;padding:28px 32px;">
-          <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;">${companyName || 'MAGE ID'}</h1>
-          <p style="margin:6px 0 0;color:#a5a5b8;font-size:12px;letter-spacing:0.4px;">REQUEST FOR INFORMATION</p>
-        </td></tr>
-        <tr><td style="padding:32px;">
-          <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:18px;">
-            <tr>
-              <td style="font-size:12px;color:#6b7280;text-transform:uppercase;letter-spacing:0.6px;font-weight:700;">RFI #${rfiNumber}</td>
-              <td align="right">
-                <span style="display:inline-block;background:${priorityBg};color:${priorityColor};padding:4px 10px;border-radius:999px;font-size:11px;font-weight:700;letter-spacing:0.4px;text-transform:uppercase;">${priority || 'normal'}</span>
-              </td>
-            </tr>
-          </table>
-          <h2 style="margin:0 0 8px;color:#111827;font-size:20px;line-height:1.3;">${subject}</h2>
-          <p style="margin:0 0 18px;color:#374151;font-size:14px;">Project: <strong>${projectName}</strong></p>
-          ${recipientName ? `<p style="margin:0 0 16px;color:#374151;font-size:14px;">Hi ${recipientName},</p>` : ''}
-          ${message ? `<p style="margin:0 0 18px;color:#374151;line-height:1.55;font-size:14px;">${message}</p>` : `<p style="margin:0 0 18px;color:#374151;line-height:1.55;font-size:14px;">We need your input on the question below — please reply to this email at your convenience.</p>`}
-          <table width="100%" cellpadding="0" cellspacing="0" style="background:#f9fafb;border-left:3px solid ${priorityColor};border-radius:6px;margin:20px 0;">
-            <tr><td style="padding:18px 20px;">
-              <p style="margin:0 0 6px;color:#6b7280;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;font-weight:700;">Question</p>
-              <p style="margin:0;color:#111827;font-size:14px;line-height:1.6;white-space:pre-wrap;">${question}</p>
-            </td></tr>
-          </table>
-          <table width="100%" cellpadding="0" cellspacing="0" style="margin:20px 0;">
-            ${dateRequired ? `<tr>
-              <td style="color:#6b7280;font-size:13px;padding:6px 0;">Response needed by</td>
-              <td align="right" style="color:#111827;font-size:13px;font-weight:600;padding:6px 0;">${new Date(dateRequired).toLocaleDateString('en-US', { weekday: 'short', month: 'long', day: 'numeric', year: 'numeric' })}</td>
-            </tr>` : ''}
-            ${submittedBy ? `<tr>
-              <td style="color:#6b7280;font-size:13px;padding:6px 0;">Submitted by</td>
-              <td align="right" style="color:#111827;font-size:13px;padding:6px 0;">${submittedBy}</td>
-            </tr>` : ''}
-            ${linkedDrawing ? `<tr>
-              <td style="color:#6b7280;font-size:13px;padding:6px 0;">Linked drawing</td>
-              <td align="right" style="color:#111827;font-size:13px;padding:6px 0;">${linkedDrawing}</td>
-            </tr>` : ''}
-          </table>
-          ${replyPortalUrl ? `
-          <table width="100%" cellpadding="0" cellspacing="0" style="margin:24px 0 12px;">
-            <tr><td align="center">
-              <a href="${replyPortalUrl}" target="_blank" style="display:inline-block;background:#FF6A1A;color:#ffffff;text-decoration:none;font-weight:800;font-size:16px;padding:16px 32px;border-radius:12px;box-shadow:0 6px 18px rgba(255,106,26,0.35);letter-spacing:0.2px;">
-                Open Reply Portal &rarr;
-              </a>
-            </td></tr>
-            <tr><td align="center" style="padding-top:8px;">
-              <p style="margin:0;color:#9ca3af;font-size:11px;">One-tap response form &middot; no login required</p>
-            </td></tr>
-          </table>
-          <p style="margin:18px 0 0;color:#374151;font-size:13px;line-height:1.55;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:12px 14px;">
-            <strong>Two ways to respond:</strong> tap the button above for the response form, or simply reply to this email — either way, your response is filed against RFI #${rfiNumber}.
-          </p>` : `
-          <p style="margin:24px 0 0;color:#374151;font-size:13px;line-height:1.55;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:12px 14px;">
-            <strong>How to respond:</strong> simply reply to this email. Your response will be filed against RFI #${rfiNumber} for this project.
-          </p>`}
-          <p style="margin:24px 0 0;color:#9ca3af;font-size:12px;line-height:1.5;">
-            ${contactName ? `Contact: ${contactName}` : ''}
-            ${contactEmail ? ` | ${contactEmail}` : ''}
-            ${contactPhone ? ` | ${contactPhone}` : ''}
-          </p>
-        </td></tr>
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>`;
+  const priorityAccent = priority === 'urgent' ? '#C2410C' : priority === 'normal' ? '#1E5BC6' : '#6B7280';
+  const formattedDue = dateRequired ? new Date(dateRequired).toLocaleDateString('en-US', { weekday: 'short', month: 'long', day: 'numeric', year: 'numeric' }) : '';
+
+  const stats: string[] = [];
+  stats.push(emailStatRow('Priority', (priority || 'normal').toUpperCase(), { valueColor: priorityAccent }));
+  if (formattedDue) stats.push(emailStatRow('Response needed by', formattedDue, { emphasize: priority === 'urgent' }));
+  if (submittedBy) stats.push(emailStatRow('Submitted by', submittedBy));
+  if (linkedDrawing) stats.push(emailStatRow('Linked drawing', linkedDrawing));
+
+  const bodyHtml = `
+    ${recipientName ? `<p style="margin:0 0 14px;">Hi ${recipientName},</p>` : ''}
+    ${message ? `<p style="margin:0 0 14px;color:#4A5159;line-height:1.55;">${message}</p>` : '<p style="margin:0 0 14px;color:#4A5159;line-height:1.55;">We need your input on the question below — please reply at your convenience.</p>'}
+    <p style="margin:14px 0 6px;font-weight:700;color:#0B0D10;">Question</p>
+    ${emailQuote(question)}
+    ${emailStatCard(stats.join(''))}
+    <p style="margin:0;padding:12px 14px;background:#FFF7ED;border:1px solid #FED7AA;border-radius:10px;color:#0B0D10;font-size:13px;line-height:1.55;">
+      <strong>${replyPortalUrl ? 'Two ways to respond:' : 'How to respond:'}</strong> ${replyPortalUrl ? 'tap the button above for a one-tap response form, or simply reply to this email.' : 'simply reply to this email.'} Either way, your response is filed against RFI #${rfiNumber}.
+    </p>
+  `;
+
+  return wrapEmailHtml({
+    preheader: `RFI #${rfiNumber}: ${subject}${formattedDue ? ` — needed by ${formattedDue}` : ''}.`,
+    eyebrow: `RFI #${rfiNumber} · ${(priority || 'normal').toUpperCase()}`,
+    title: subject,
+    subtitle: `Request for information on ${projectName}.`,
+    accent: priorityAccent,
+    bodyHtml,
+    cta: replyPortalUrl ? { label: 'Open reply portal', href: replyPortalUrl } : undefined,
+    companyName,
+    project: { name: projectName },
+    contactName, contactEmail, contactPhone,
+  });
 }
 
 // Submittal email already lives in pdfGenerator.ts under the same name —
