@@ -258,13 +258,35 @@ Use current regional pricing where possible. Round reasonably. Keep it under 15 
       }))
       .sort((a, b) => b.subtotal - a.subtotal);
 
+    // Estimate metadata for the in-app preview, mirroring what the PDF
+    // generator stamps on the client-facing doc. The estimate # changes
+    // every regenerate — that's intentional, the GC will see the same
+    // number on the PDF they share.
+    const validUntilDate = (() => {
+      const d = new Date();
+      d.setDate(d.getDate() + 30);
+      return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+    })();
+    const todayLabel = new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+
+    // Payment terms preview — same defaults as the PDF (25/65/10).
+    const depositAmt = result.total * 0.25;
+    const progressAmt = result.total * 0.65;
+    const completionAmt = result.total * 0.10;
+
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
-        <Stack.Screen options={{ title: 'Quick Estimate' }} />
+        <Stack.Screen options={{ title: 'Estimate' }} />
         <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 100 }}>
+          {/* "Client preview" banner — reminds the GC that what they see
+              IS what the homeowner sees. Soft contextual cue at the top. */}
+          <View style={styles.previewBanner}>
+            <Text style={styles.previewBannerText}>This is the estimate your client will see</Text>
+          </View>
+
           <View style={styles.resultHero}>
             <CheckCircle2 size={28} color={Colors.success} />
-            <Text style={styles.resultHeroTitle}>Estimate Ready</Text>
+            <Text style={styles.resultHeroTitle}>Construction Estimate</Text>
             <TapeRollNumber
               value={result.total}
               prefix="$"
@@ -272,43 +294,73 @@ Use current regional pricing where possible. Round reasonably. Keep it under 15 
               duration={1100}
               style={styles.resultTotal}
             />
-            <Text style={styles.resultSubtitle}>{answers.projectType} · {answers.sizeSqft} sqft · {answers.location}</Text>
+            <Text style={styles.resultSubtitle}>{answers.projectType}{answers.sizeSqft ? ` · ${answers.sizeSqft} sqft` : ''}{answers.location ? ` · ${answers.location}` : ''}</Text>
             {costPerSqft > 0 ? (
-              <Text style={styles.resultCostPerSqft}>${costPerSqft.toFixed(0)}/sqft</Text>
+              <Text style={styles.resultCostPerSqft}>${costPerSqft.toFixed(0)} per sqft</Text>
             ) : null}
           </View>
 
-          {/* At-a-glance stat tiles. Most pros ask "how much, what's the
-              cost/sqft, and how many categories" before they read the
-              detailed line items. Show that up front. */}
+          {/* Estimate metadata — prepared / valid / location. Same row
+              that prints at the top of the PDF. */}
+          <View style={styles.metaCard}>
+            <View style={styles.metaCol}>
+              <Text style={styles.metaLabel}>Prepared on</Text>
+              <Text style={styles.metaValue}>{todayLabel}</Text>
+            </View>
+            <View style={styles.metaCol}>
+              <Text style={styles.metaLabel}>Valid until</Text>
+              <Text style={[styles.metaValue, { color: Colors.primary }]}>{validUntilDate}</Text>
+            </View>
+            <View style={styles.metaCol}>
+              <Text style={styles.metaLabel}>Quality</Text>
+              <Text style={styles.metaValue}>{QUALITY_LABELS[answers.quality]}</Text>
+            </View>
+          </View>
+
+          {/* At-a-glance stat tiles — labels updated to client-friendly
+              language. "Categories" / "Line items" was internal jargon. */}
           <View style={styles.statGrid}>
-            <View style={styles.statTile}>
-              <Text style={styles.statLabel}>Categories</Text>
-              <Text style={styles.statValue}>{sortedCategories.length}</Text>
-            </View>
-            <View style={styles.statTile}>
-              <Text style={styles.statLabel}>Line items</Text>
-              <Text style={styles.statValue}>{result.lineItems.length}</Text>
-            </View>
+            {sizeNum > 0 ? (
+              <View style={styles.statTile}>
+                <Text style={styles.statLabel}>Project size</Text>
+                <Text style={styles.statValue}>{sizeNum.toLocaleString()}</Text>
+                <Text style={styles.statUnit}>sqft</Text>
+              </View>
+            ) : null}
+            {answers.timelineWeeks ? (
+              <View style={styles.statTile}>
+                <Text style={styles.statLabel}>Timeline</Text>
+                <Text style={styles.statValue}>{answers.timelineWeeks}</Text>
+                <Text style={styles.statUnit}>weeks</Text>
+              </View>
+            ) : null}
             <View style={styles.statTile}>
               <Text style={styles.statLabel}>Contingency</Text>
               <Text style={styles.statValue}>{result.subtotal > 0 ? `${Math.round(result.contingency / result.subtotal * 100)}%` : '—'}</Text>
+              <Text style={styles.statUnit}>buffer</Text>
             </View>
           </View>
 
           {result.summary ? (
             <View style={styles.summaryCard}>
-              <Text style={styles.summaryLabel}>Scope summary</Text>
+              <Text style={styles.summaryLabel}>Scope of Work</Text>
               <Text style={styles.summaryText}>{result.summary}</Text>
+              {answers.scope && answers.scope !== result.summary ? (
+                <Text style={styles.summaryNote}>{answers.scope}</Text>
+              ) : null}
+              {answers.specialRequirements ? (
+                <View style={styles.specialReq}>
+                  <Text style={styles.specialReqLabel}>Special requirements</Text>
+                  <Text style={styles.specialReqText}>{answers.specialRequirements}</Text>
+                </View>
+              ) : null}
             </View>
           ) : null}
 
-          {/* Where the budget goes — visual category breakdown with
-              percentage bars. Lets the user (or homeowner reviewing
-              shoulder-to-shoulder) see distribution at a glance. */}
+          {/* Cost Distribution — same layout as the PDF, percentage bars. */}
           {result.total > 0 && sortedCategories.length > 0 ? (
             <View style={styles.breakdownCard}>
-              <Text style={styles.breakdownTitle}>Where the budget goes</Text>
+              <Text style={styles.breakdownTitle}>Cost Distribution</Text>
               {sortedCategories.map(({ cat, subtotal }, i) => {
                 const pct = result.total > 0 ? (subtotal / result.total) * 100 : 0;
                 return (
@@ -331,7 +383,7 @@ Use current regional pricing where possible. Round reasonably. Keep it under 15 
           {/* Detailed line items, grouped by category, biggest first.
               Each category card has its own subtotal + % so the GC can
               still drill into specifics. */}
-          <Text style={styles.sectionTitle}>Detailed line items</Text>
+          <Text style={styles.sectionTitle}>Detailed Line Items</Text>
           {sortedCategories.map(({ cat, items, subtotal }, ci) => {
             const pct = result.total > 0 ? (subtotal / result.total) * 100 : 0;
             return (
@@ -371,9 +423,76 @@ Use current regional pricing where possible. Round reasonably. Keep it under 15 
             </View>
           </View>
 
+          {/* What's Included — derived from category list (so it's
+              honest — these are the categories actually estimated). */}
+          {sortedCategories.length > 0 ? (
+            <View style={styles.includedCard}>
+              <Text style={styles.sectionTitle}>What's Included</Text>
+              <View style={styles.includedChips}>
+                {sortedCategories.map(({ cat }, i) => (
+                  <View key={i} style={styles.includedChip}>
+                    <Text style={styles.includedChipText}>{cat}</Text>
+                  </View>
+                ))}
+              </View>
+              <Text style={styles.includedFootnote}>
+                All labor, materials, equipment, supervision, and required permits for the categories above as detailed in the line items.
+              </Text>
+            </View>
+          ) : null}
+
+          {/* What's Not Included — boilerplate residential exclusions.
+              These prevent 90% of "I thought that was included" disputes.
+              Same list as the PDF. */}
+          <View style={styles.excludedCard}>
+            <Text style={styles.sectionTitle}>What's Not Included</Text>
+            <Text style={styles.excludedItem}>• Architectural / engineering / design fees</Text>
+            <Text style={styles.excludedItem}>• HOA, city, or third-party plan-review fees beyond standard permits</Text>
+            <Text style={styles.excludedItem}>• Asbestos, lead, mold, or other hazardous-material abatement</Text>
+            <Text style={styles.excludedItem}>• Unforeseen conditions discovered after demolition begins</Text>
+            <Text style={styles.excludedItem}>• Landscaping, fencing, or exterior work outside the stated scope</Text>
+            <Text style={styles.excludedItem}>• Owner-supplied materials or fixtures (handled separately)</Text>
+            <Text style={styles.excludedItem}>• Sales tax (where required) · Financing costs · Insurance riders</Text>
+          </View>
+
+          {/* Payment Terms — 25/65/10 deposit / progress / final. Same
+              defaults as the PDF. Future: let GC override per-project. */}
+          <View style={styles.paymentCard}>
+            <Text style={styles.sectionTitle}>Payment Terms</Text>
+            <View style={styles.paymentRow}>
+              <View style={styles.paymentRowLeft}>
+                <Text style={styles.paymentRowTitle}>Deposit (25%)</Text>
+                <Text style={styles.paymentRowDesc}>Due upon signed agreement, before work begins</Text>
+              </View>
+              <Text style={styles.paymentRowAmt}>${depositAmt.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
+            </View>
+            <View style={styles.paymentRow}>
+              <View style={styles.paymentRowLeft}>
+                <Text style={styles.paymentRowTitle}>Progress (65%)</Text>
+                <Text style={styles.paymentRowDesc}>Billed against documented progress per contract schedule</Text>
+              </View>
+              <Text style={styles.paymentRowAmt}>${progressAmt.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
+            </View>
+            <View style={[styles.paymentRow, { borderBottomWidth: 0 }]}>
+              <View style={styles.paymentRowLeft}>
+                <Text style={styles.paymentRowTitle}>Final (10%)</Text>
+                <Text style={styles.paymentRowDesc}>Due at substantial completion, after walk-through and punch list</Text>
+              </View>
+              <Text style={styles.paymentRowAmt}>${completionAmt.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
+            </View>
+          </View>
+
+          {/* Acceptance / Next Steps — soft CTA to the client. */}
+          <View style={styles.acceptanceCard}>
+            <Text style={styles.acceptanceTitle}>Ready to move forward?</Text>
+            <Text style={styles.acceptanceBody}>
+              To proceed, the client replies with approval and we'll prepare a formal contract reflecting the scope and terms above. Final pricing is locked once the contract is signed and the deposit received.
+            </Text>
+          </View>
+
           {result.notes.length > 0 && (
             <View style={styles.notesBlock}>
-              <Text style={styles.sectionTitle}>Notes</Text>
+              <Text style={styles.sectionTitle}>Project Notes</Text>
               {result.notes.map((n, i) => (
                 <Text key={i} style={styles.noteRow}>• {n}</Text>
               ))}
@@ -381,7 +500,7 @@ Use current regional pricing where possible. Round reasonably. Keep it under 15 
           )}
 
           <Text style={styles.disclaimer}>
-            AI-generated starting point. Review with actual supplier and sub quotes before committing.
+            This is a project estimate, not a fixed-price quote, unless explicitly stated in a signed agreement. Quantities, unit prices, and materials are subject to change based on field conditions, market pricing, and design revisions.
           </Text>
 
           <View style={styles.resultActions}>
@@ -824,6 +943,160 @@ const styles = StyleSheet.create({
   grandSubLabel: {
     fontSize: 11, fontWeight: '600' as const, color: Colors.textMuted,
     marginTop: 2, letterSpacing: 0.2,
+  },
+  // "Client preview" banner at top of result screen
+  previewBanner: {
+    backgroundColor: Colors.primary + '12',
+    borderColor: Colors.primary + '30',
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    marginBottom: 16,
+    alignItems: 'center' as const,
+  },
+  previewBannerText: {
+    fontSize: 12,
+    fontWeight: '700' as const,
+    color: Colors.primary,
+    letterSpacing: 0.4,
+    textTransform: 'uppercase' as const,
+  },
+  // Estimate metadata row (Prepared / Valid until / Quality)
+  metaCard: {
+    flexDirection: 'row' as const,
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+    marginBottom: 16,
+    gap: 16,
+  },
+  metaCol: { flex: 1 },
+  metaLabel: {
+    fontSize: 9,
+    fontWeight: '800' as const,
+    color: Colors.textMuted,
+    letterSpacing: 1,
+    textTransform: 'uppercase' as const,
+    marginBottom: 4,
+  },
+  metaValue: {
+    fontSize: 13,
+    fontWeight: '700' as const,
+    color: Colors.text,
+  },
+  // Stat tile unit (e.g. "sqft", "weeks") below the value
+  statUnit: {
+    fontSize: 10,
+    fontWeight: '600' as const,
+    color: Colors.textMuted,
+    marginTop: 1,
+  },
+  // Scope summary extras
+  summaryNote: {
+    fontSize: 13,
+    color: Colors.textMuted,
+    fontStyle: 'italic' as const,
+    lineHeight: 20,
+    marginTop: 8,
+  },
+  specialReq: {
+    backgroundColor: Colors.background,
+    borderRadius: 8,
+    padding: 10,
+    marginTop: 10,
+  },
+  specialReqLabel: {
+    fontSize: 10,
+    fontWeight: '800' as const,
+    color: Colors.textMuted,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase' as const,
+    marginBottom: 4,
+  },
+  specialReqText: { fontSize: 13, color: Colors.text, lineHeight: 19 },
+  // Inclusions card
+  includedCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+    marginTop: 8,
+    marginBottom: 12,
+  },
+  includedChips: {
+    flexDirection: 'row' as const,
+    flexWrap: 'wrap' as const,
+    gap: 6,
+    marginTop: 4,
+    marginBottom: 10,
+  },
+  includedChip: {
+    backgroundColor: '#E8F5E9',
+    borderRadius: 999,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+  },
+  includedChipText: { fontSize: 11, fontWeight: '700' as const, color: '#1B5E20' },
+  includedFootnote: { fontSize: 12, color: Colors.textMuted, lineHeight: 18 },
+  // Exclusions card
+  excludedCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+    marginBottom: 12,
+  },
+  excludedItem: {
+    fontSize: 12, color: Colors.textMuted, lineHeight: 22, paddingLeft: 4,
+  },
+  // Payment terms card
+  paymentCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 14,
+    paddingTop: 4,
+    paddingBottom: 4,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+    marginBottom: 12,
+  },
+  paymentRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'space-between' as const,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.cardBorder,
+    gap: 12,
+  },
+  paymentRowLeft: { flex: 1 },
+  paymentRowTitle: { fontSize: 13, fontWeight: '700' as const, color: Colors.text },
+  paymentRowDesc: { fontSize: 11, color: Colors.textMuted, marginTop: 2, lineHeight: 16 },
+  paymentRowAmt: { fontSize: 14, fontWeight: '800' as const, color: Colors.primary },
+  // Acceptance / next-steps card
+  acceptanceCard: {
+    backgroundColor: '#0F1216',
+    borderRadius: 14,
+    padding: 18,
+    marginTop: 8,
+    marginBottom: 16,
+  },
+  acceptanceTitle: {
+    fontSize: 16,
+    fontWeight: '800' as const,
+    color: Colors.primary,
+    marginBottom: 8,
+  },
+  acceptanceBody: {
+    fontSize: 13,
+    color: '#E8E5DD',
+    lineHeight: 20,
   },
   sectionTitle: {
     fontSize: 14, fontWeight: '700' as const, color: Colors.text,

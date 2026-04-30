@@ -2,7 +2,7 @@ import { Platform } from 'react-native';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import type { CompanyBranding, Project, ChangeOrder, Invoice, DailyFieldReport, ScheduleTask, RFI, Submittal } from '@/types';
-import { pdfShell, pdfHeader, pdfTitle, pdfFooter, pdfTable, pdfStatGrid, escHtml, fmtMoney, fmtDate, PDF_PALETTE } from './pdfDesign';
+import { pdfShell, pdfHeader, pdfTitle, pdfFooter, pdfTable, pdfStatGrid, escHtml, fmtMoney, fmtDate, PDF_PALETTE, PDF_DISCLAIMERS } from './pdfDesign';
 
 // Quick Estimate Wizard result shape — kept here as a local type so we
 // don't fight the wizard's local Zod inferred type.
@@ -27,6 +27,19 @@ export interface QuickEstimateAnswersForPdf {
   targetBudget: string;
 }
 
+// Generate a client-friendly estimate number from today's date + a short
+// random suffix. Format: EST-YYYYMMDD-XXXX (e.g. EST-20260429-A4F2). The
+// date prefix makes it sortable in a contractor's filing system; the
+// random suffix avoids collisions when generating multiple in one day.
+function generateEstimateNumber(): string {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  const suffix = Math.random().toString(36).slice(2, 6).toUpperCase();
+  return `EST-${yyyy}${mm}${dd}-${suffix}`;
+}
+
 function buildQuickEstimateHtml(
   result: QuickEstimateResultForPdf,
   answers: QuickEstimateAnswersForPdf,
@@ -36,8 +49,19 @@ function buildQuickEstimateHtml(
   const sizeNum = Number(answers.sizeSqft) || 0;
   const costPerSqft = sizeNum > 0 ? result.total / sizeNum : 0;
 
-  // Group line items by category — used for both the visual breakdown
-  // card AND the detailed line-item sections lower in the doc.
+  // Estimate metadata — every professional estimate has these. The number
+  // gives the client a reference for follow-up, "valid until" creates
+  // urgency and honesty (prices ARE only good for a window).
+  const estimateNumber = generateEstimateNumber();
+  const today = new Date();
+  const validUntil = new Date(today);
+  validUntil.setDate(validUntil.getDate() + 30);
+  const preparedDate = fmtDate(today.toISOString());
+  const validUntilDate = fmtDate(validUntil.toISOString());
+
+  // Group line items by category — sorted by spend descending. Most-spend
+  // first matches what a homeowner naturally wants to scan ("what costs
+  // the most?").
   const grouped = new Map<string, typeof result.lineItems>();
   for (const li of result.lineItems) {
     const cat = li.category || 'Other';
@@ -45,32 +69,75 @@ function buildQuickEstimateHtml(
     arr.push(li);
     grouped.set(cat, arr);
   }
-  // Sort categories by spend (descending) — the GC and homeowner both
-  // want to see the biggest line items first.
   const categories = Array.from(grouped.keys()).sort((a, b) => {
     const ta = (grouped.get(a) ?? []).reduce((s, li) => s + li.total, 0);
     const tb = (grouped.get(b) ?? []).reduce((s, li) => s + li.total, 0);
     return tb - ta;
   });
 
-  // ── Hero stat grid: total, cost/sqft, categories, line items ──
-  // Up-front, scannable. The homeowner sees the headline number; the GC
-  // sees that everything was actually itemized.
-  const itemCount = result.lineItems.length;
+  // ── HERO STATS — what a client wants to see in 3 seconds ──
+  // Replaced internal-facing labels ("Categories", "Line items") with the
+  // four metrics a homeowner and a contractor actually compare on:
+  // total, cost-per-sqft, project size, timeline. "Line items: 23" tells
+  // the client nothing useful.
   const heroStats: Array<{ label: string; value: string; accent?: 'amber' | 'success' | 'error' }> = [
     { label: 'Estimated total', value: fmtMoney(result.total), accent: 'amber' },
   ];
-  if (costPerSqft > 0) heroStats.push({ label: 'Cost / sqft', value: fmtMoney(costPerSqft, { decimals: 0 }) });
-  heroStats.push({ label: 'Categories', value: String(categories.length) });
-  heroStats.push({ label: 'Line items', value: String(itemCount) });
+  if (costPerSqft > 0) heroStats.push({ label: 'Cost per sqft', value: fmtMoney(costPerSqft, { decimals: 0 }) });
+  if (sizeNum > 0) heroStats.push({ label: 'Project size', value: `${sizeNum.toLocaleString()} sqft` });
+  if (answers.timelineWeeks) heroStats.push({ label: 'Estimated timeline', value: `${answers.timelineWeeks} weeks` });
+  // If we don't have size/timeline, fall back to quality + line item count
+  // so the grid still has 4 cells.
+  while (heroStats.length < 4) {
+    if (heroStats.length === 2) heroStats.push({ label: 'Quality tier', value: qualityLabel });
+    else if (heroStats.length === 3) heroStats.push({ label: 'Categories', value: String(categories.length) });
+    else break;
+  }
 
-  // ── Category breakdown card with horizontal bars ──
-  // Shows where the money goes at a glance — most pros' #1 question on
-  // a fresh estimate. Bars are CSS-based (no images) so they render
-  // crisp through expo-print's headless Chrome.
+  // ── PROJECT INFO BLOCK — formal estimate metadata ──
+  // Mirrors how a real construction estimate identifies itself: estimate
+  // number, prepared date, validity. "Prepared for" is left soft — most
+  // GCs send the same PDF to the client by email so the recipient is
+  // implicit.
+  const projectInfoBlock = `
+    <div class="no-break" style="display:flex;gap:20px;margin:18px 0 24px;padding:16px 18px;border:1px solid ${PDF_PALETTE.bone};border-radius:12px;background:${PDF_PALETTE.cream2}">
+      <div style="flex:1">
+        <div style="font-size:9px;font-weight:800;letter-spacing:1.1px;color:${PDF_PALETTE.textMuted};text-transform:uppercase">Estimate #</div>
+        <div class="num" style="font-size:13px;font-weight:700;color:${PDF_PALETTE.text};margin-top:3px;letter-spacing:0.4px">${escHtml(estimateNumber)}</div>
+      </div>
+      <div style="flex:1">
+        <div style="font-size:9px;font-weight:800;letter-spacing:1.1px;color:${PDF_PALETTE.textMuted};text-transform:uppercase">Prepared on</div>
+        <div style="font-size:13px;font-weight:700;color:${PDF_PALETTE.text};margin-top:3px">${escHtml(preparedDate)}</div>
+      </div>
+      <div style="flex:1">
+        <div style="font-size:9px;font-weight:800;letter-spacing:1.1px;color:${PDF_PALETTE.textMuted};text-transform:uppercase">Valid until</div>
+        <div style="font-size:13px;font-weight:700;color:${PDF_PALETTE.amberDark};margin-top:3px">${escHtml(validUntilDate)}</div>
+      </div>
+      ${answers.location ? `<div style="flex:1.5">
+        <div style="font-size:9px;font-weight:800;letter-spacing:1.1px;color:${PDF_PALETTE.textMuted};text-transform:uppercase">Project location</div>
+        <div style="font-size:13px;font-weight:700;color:${PDF_PALETTE.text};margin-top:3px">${escHtml(answers.location)}</div>
+      </div>` : ''}
+    </div>`;
+
+  // ── SCOPE OF WORK ──
+  // Plain-language description of what's being built. Critical for a
+  // client estimate — if there's a dispute later, "what was promised"
+  // starts here. The AI's summary becomes the lead paragraph; the GC's
+  // own scope text (from the wizard) is the second paragraph because
+  // it's the human-authored ground truth.
+  const scopeBlock = (result.summary || answers.scope) ? `
+    <div class="no-break" style="margin-bottom:24px">
+      <div style="font-family:'Fraunces',Georgia,serif;font-size:16px;font-weight:700;color:${PDF_PALETTE.text};margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid ${PDF_PALETTE.bone2}">Scope of Work</div>
+      ${result.summary ? `<div style="font-size:13px;color:${PDF_PALETTE.text};line-height:1.65;margin-bottom:${answers.scope ? '10px' : '0'}">${escHtml(result.summary)}</div>` : ''}
+      ${answers.scope && answers.scope !== result.summary ? `<div style="font-size:13px;color:${PDF_PALETTE.text2};line-height:1.65;font-style:italic">${escHtml(answers.scope)}</div>` : ''}
+      ${answers.specialRequirements ? `<div style="font-size:12px;color:${PDF_PALETTE.text2};line-height:1.6;margin-top:10px;padding:10px 12px;background:${PDF_PALETTE.bone2}40;border-radius:8px"><strong style="color:${PDF_PALETTE.text}">Special requirements:</strong> ${escHtml(answers.specialRequirements)}</div>` : ''}
+    </div>
+  ` : '';
+
+  // ── COST DISTRIBUTION CARD with horizontal bars ──
   const categoryBreakdown = result.total > 0 ? `
-    <div class="no-break" style="margin:20px 0;padding:18px 20px;border-radius:14px;background:#FFF;border:1px solid ${PDF_PALETTE.bone}">
-      <div style="font-size:11px;font-weight:800;letter-spacing:1.4px;color:${PDF_PALETTE.textMuted};text-transform:uppercase;margin-bottom:14px">Where the budget goes</div>
+    <div class="no-break" style="margin:0 0 24px;padding:18px 20px;border-radius:14px;background:#FFF;border:1px solid ${PDF_PALETTE.bone}">
+      <div style="font-family:'Fraunces',Georgia,serif;font-size:16px;font-weight:700;color:${PDF_PALETTE.text};margin-bottom:14px">Cost Distribution</div>
       ${categories.map(cat => {
         const subtotal = (grouped.get(cat) ?? []).reduce((s, li) => s + li.total, 0);
         const pct = result.total > 0 ? (subtotal / result.total) * 100 : 0;
@@ -88,6 +155,7 @@ function buildQuickEstimateHtml(
     </div>
   ` : '';
 
+  // ── DETAILED LINE ITEMS — by category ──
   const lineItemSections = categories.map(cat => {
     const items = grouped.get(cat)!;
     const subtotal = items.reduce((s, li) => s + li.total, 0);
@@ -119,72 +187,151 @@ function buildQuickEstimateHtml(
       </div>`;
   }).join('');
 
-  // ── Final totals block ──
-  // Subtotal stack + grand total in amber. Cost-per-sqft and total-as-pct-of-budget
-  // visible right next to the headline so the reader can sanity-check vs market norms.
-  const targetBudgetNum = Number(answers.targetBudget?.replace(/[^0-9.]/g, '')) || 0;
-  const overUnder = targetBudgetNum > 0 ? result.total - targetBudgetNum : 0;
-  const overUnderPct = targetBudgetNum > 0 ? (overUnder / targetBudgetNum) * 100 : 0;
+  // ── TOTALS BLOCK ──
+  // Big and clear. No "vs target" — that's an internal data point;
+  // showing it on the client copy looks like the GC pre-judging their
+  // own number. (We can add it back as an in-app preview field if the
+  // GC wants to know.)
   const totalsBlock = `
-    <div class="no-break" style="margin-top:10px;padding:20px 22px;border-radius:14px;background:${PDF_PALETTE.cream2};border:1px solid ${PDF_PALETTE.bone}">
+    <div class="no-break" style="margin-top:10px;padding:22px 24px;border-radius:14px;background:${PDF_PALETTE.cream2};border:1px solid ${PDF_PALETTE.bone}">
       <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12.5px"><span style="color:${PDF_PALETTE.text2}">Line items subtotal</span><span class="num" style="font-weight:600">${fmtMoney(result.subtotal)}</span></div>
       <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12.5px"><span style="color:${PDF_PALETTE.text2}">Contingency</span><span class="num" style="font-weight:600">${fmtMoney(result.contingency)}</span></div>
       <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12.5px"><span style="color:${PDF_PALETTE.text2}">Permits & fees</span><span class="num" style="font-weight:600">${fmtMoney(result.permits)}</span></div>
-      <div style="height:1px;background:${PDF_PALETTE.bone};margin:12px 0"></div>
+      <div style="height:1px;background:${PDF_PALETTE.bone};margin:14px 0"></div>
       <div style="display:flex;justify-content:space-between;align-items:flex-end">
         <div>
           <div style="font-size:11px;font-weight:700;letter-spacing:1px;color:${PDF_PALETTE.textMuted};text-transform:uppercase">Estimated total</div>
-          ${costPerSqft > 0 ? `<div style="font-size:12px;color:${PDF_PALETTE.text2};margin-top:4px;font-weight:600">${fmtMoney(costPerSqft, { decimals: 0 })} / sqft &middot; ${sizeNum.toLocaleString()} sqft</div>` : ''}
-          ${targetBudgetNum > 0 ? `<div style="font-size:11px;color:${overUnder > 0 ? PDF_PALETTE.error : PDF_PALETTE.success};margin-top:3px;font-weight:600">${overUnder > 0 ? '+' : ''}${fmtMoney(overUnder)} vs target (${overUnderPct > 0 ? '+' : ''}${overUnderPct.toFixed(1)}%)</div>` : ''}
+          ${costPerSqft > 0 ? `<div style="font-size:12px;color:${PDF_PALETTE.text2};margin-top:4px;font-weight:600">${fmtMoney(costPerSqft, { decimals: 0 })} per sqft &middot; ${sizeNum.toLocaleString()} sqft total</div>` : ''}
         </div>
-        <div class="num" style="font-family:'Fraunces',Georgia,serif;font-size:34px;font-weight:800;color:${PDF_PALETTE.amber};letter-spacing:-0.5px;line-height:1">${fmtMoney(result.total)}</div>
+        <div class="num" style="font-family:'Fraunces',Georgia,serif;font-size:36px;font-weight:800;color:${PDF_PALETTE.amber};letter-spacing:-0.5px;line-height:1">${fmtMoney(result.total)}</div>
       </div>
     </div>`;
 
+  // ── INCLUSIONS / EXCLUSIONS ──
+  // Inclusions are derived from the actual category list (so it's
+  // honest — these are what we estimated). Exclusions are the standard
+  // residential boilerplate that catches 90% of "I thought that was
+  // included!" disputes. The GC can edit either by hand if they print
+  // and mark up the PDF, but the defaults reflect what most contractors
+  // include in their fine print.
+  const inclusionsBlock = categories.length > 0 ? `
+    <div class="no-break" style="margin-top:24px">
+      <div style="font-family:'Fraunces',Georgia,serif;font-size:16px;font-weight:700;color:${PDF_PALETTE.text};margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid ${PDF_PALETTE.bone2}">What's Included</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px 10px">
+        ${categories.map(cat => `<span style="display:inline-block;padding:4px 10px;border-radius:999px;background:${PDF_PALETTE.successTint};color:${PDF_PALETTE.success};font-size:11px;font-weight:600">${escHtml(cat)}</span>`).join('')}
+      </div>
+      <div style="font-size:11px;color:${PDF_PALETTE.text2};line-height:1.6;margin-top:10px">
+        All labor, materials, equipment, supervision, and required permits for the categories above as detailed in the line items.
+      </div>
+    </div>
+  ` : '';
+
+  const exclusionsBlock = `
+    <div class="no-break" style="margin-top:18px">
+      <div style="font-family:'Fraunces',Georgia,serif;font-size:16px;font-weight:700;color:${PDF_PALETTE.text};margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid ${PDF_PALETTE.bone2}">What's Not Included</div>
+      <div style="font-size:11.5px;color:${PDF_PALETTE.text2};line-height:1.7;padding-left:4px">
+        &bull; Architectural / engineering / design fees<br/>
+        &bull; HOA, city, or third-party plan-review fees beyond standard permits<br/>
+        &bull; Asbestos, lead, mold, or other hazardous-material abatement<br/>
+        &bull; Unforeseen conditions discovered after demolition begins<br/>
+        &bull; Landscaping, fencing, or exterior work outside the stated scope<br/>
+        &bull; Owner-supplied materials or fixtures (handled separately)<br/>
+        &bull; Sales tax (included where required by law) &middot; Financing costs &middot; Insurance riders
+      </div>
+    </div>`;
+
+  // ── PAYMENT TERMS ──
+  // Industry-standard residential remodel terms. The GC can override by
+  // editing the PDF or, eventually, by adjusting in settings. The terms
+  // shown reduce ambiguity for the homeowner ("when do I owe what?")
+  // which dramatically reduces collection issues.
+  const depositPct = 25;
+  const completionPct = 10;
+  const progressPct = 100 - depositPct - completionPct;
+  const depositAmt = result.total * depositPct / 100;
+  const progressAmt = result.total * progressPct / 100;
+  const completionAmt = result.total * completionPct / 100;
+  const paymentTermsBlock = `
+    <div class="no-break" style="margin-top:24px">
+      <div style="font-family:'Fraunces',Georgia,serif;font-size:16px;font-weight:700;color:${PDF_PALETTE.text};margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid ${PDF_PALETTE.bone2}">Payment Terms</div>
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <tr style="background:${PDF_PALETTE.cream2}">
+          <td style="padding:10px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-weight:600;color:${PDF_PALETTE.text}">Deposit (${depositPct}%)</td>
+          <td style="padding:10px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};color:${PDF_PALETTE.text2}">Due upon signed agreement, before work begins</td>
+          <td class="num" style="padding:10px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};text-align:right;font-weight:700;color:${PDF_PALETTE.text}">${fmtMoney(depositAmt)}</td>
+        </tr>
+        <tr>
+          <td style="padding:10px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};font-weight:600;color:${PDF_PALETTE.text}">Progress (${progressPct}%)</td>
+          <td style="padding:10px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};color:${PDF_PALETTE.text2}">Billed against documented progress per contract schedule</td>
+          <td class="num" style="padding:10px 12px;border-bottom:1px solid ${PDF_PALETTE.bone};text-align:right;font-weight:700;color:${PDF_PALETTE.text}">${fmtMoney(progressAmt)}</td>
+        </tr>
+        <tr style="background:${PDF_PALETTE.cream2}">
+          <td style="padding:10px 12px;font-weight:600;color:${PDF_PALETTE.text}">Final (${completionPct}%)</td>
+          <td style="padding:10px 12px;color:${PDF_PALETTE.text2}">Due at substantial completion, after walk-through and punch list</td>
+          <td class="num" style="padding:10px 12px;text-align:right;font-weight:700;color:${PDF_PALETTE.text}">${fmtMoney(completionAmt)}</td>
+        </tr>
+      </table>
+    </div>`;
+
+  // ── ACCEPTANCE / NEXT STEPS ──
+  // Soft call-to-action. Doesn't bind the client — that's what the
+  // contract is for — but tells them what to do next. Includes the
+  // contractor's contact line so the client can reach back without
+  // hunting through the document.
+  const contactLine = [
+    branding.contactName,
+    branding.phone,
+    branding.email,
+  ].filter(Boolean).join(' &middot; ');
+  const acceptanceBlock = `
+    <div class="no-break" style="margin-top:28px;padding:20px 22px;border-radius:14px;background:${PDF_PALETTE.ink};color:${PDF_PALETTE.cream2}">
+      <div style="font-family:'Fraunces',Georgia,serif;font-size:16px;font-weight:700;color:${PDF_PALETTE.amber};margin-bottom:8px">Ready to move forward?</div>
+      <div style="font-size:12.5px;line-height:1.65;color:${PDF_PALETTE.cream2};margin-bottom:12px">
+        To proceed, please reply to this estimate with your approval, and we'll prepare a formal contract reflecting the scope and terms above. Final pricing is locked once the contract is signed and the deposit received.
+      </div>
+      ${contactLine ? `<div style="font-size:11px;color:${PDF_PALETTE.bone2};border-top:1px solid #FFFFFF20;padding-top:10px;margin-top:10px">Questions? Contact ${contactLine}</div>` : ''}
+    </div>`;
+
+  // ── NOTES (kept, but only if the AI returned any) ──
   const notesBlock = result.notes.length === 0 ? '' : `
     <div class="no-break" style="margin-top:18px;padding:14px 16px;border-radius:10px;background:${PDF_PALETTE.amberTint};border:1px solid ${PDF_PALETTE.amber}40">
-      <div style="font-size:10px;font-weight:800;letter-spacing:1px;color:${PDF_PALETTE.amber};text-transform:uppercase;margin-bottom:8px">Notes</div>
+      <div style="font-size:10px;font-weight:800;letter-spacing:1px;color:${PDF_PALETTE.amber};text-transform:uppercase;margin-bottom:8px">Project Notes</div>
       ${result.notes.map(n => `<div style="font-size:12px;color:${PDF_PALETTE.text};margin-bottom:4px;line-height:1.55">• ${escHtml(n)}</div>`).join('')}
     </div>`;
 
-  const summaryBlock = !result.summary ? '' : `
-    <div style="font-size:13px;color:${PDF_PALETTE.text2};line-height:1.6;margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid ${PDF_PALETTE.bone}">
-      ${escHtml(result.summary)}
-    </div>`;
-
-  const meta = [
-    answers.projectType ? { label: 'Project type', value: answers.projectType } : null,
-    sizeNum > 0 ? { label: 'Size', value: `${sizeNum.toLocaleString()} sqft` } : null,
-    answers.location ? { label: 'Location', value: answers.location } : null,
-    { label: 'Quality', value: qualityLabel },
-    answers.timelineWeeks ? { label: 'Timeline', value: `${answers.timelineWeeks} wks` } : null,
-    { label: 'Generated', value: fmtDate(new Date().toISOString()) },
-  ].filter(Boolean) as Array<{ label: string; value: string }>;
-
-  const disclaimer = 'AI-assisted starting estimate. Verify quantities, regional pricing, and sub bids against this baseline before issuing a contract or quote.';
-
+  // ── BODY ASSEMBLY ──
+  // Title eyebrow is "Construction Estimate" (not "Quick Estimate") —
+  // "Quick" telegraphs "rushed/cheap" to a client. The doc title in the
+  // browser/print preview is also de-AI'd.
+  // Disclaimer uses the centralized PDF_DISCLAIMERS.estimate copy, which
+  // is professional and frames the doc as an estimate (not a quote)
+  // without hinting that AI was involved.
   const bodyHtml = `
     ${pdfHeader(branding)}
     ${pdfTitle({
-      eyebrow: 'Quick Estimate',
-      title: answers.projectType || 'Construction estimate',
-      subtitle: answers.scope ? answers.scope.slice(0, 180) : undefined,
-      meta,
+      eyebrow: 'Construction Estimate',
+      title: answers.projectType || 'Project Estimate',
+      meta: [], // moved into projectInfoBlock below for a more formal layout
     })}
-    <div style="margin-top:18px">${pdfStatGrid(heroStats)}</div>
-    ${summaryBlock}
+    ${projectInfoBlock}
+    <div style="margin-top:8px">${pdfStatGrid(heroStats)}</div>
+    ${scopeBlock}
     ${categoryBreakdown}
-    <div style="font-family:'Fraunces',Georgia,serif;font-size:18px;font-weight:700;color:${PDF_PALETTE.text};margin:24px 0 12px">Detailed line items</div>
-    ${lineItemSections || `<div style="padding:20px;text-align:center;color:${PDF_PALETTE.textMuted};font-style:italic">No line items returned by the AI.</div>`}
+    <div style="font-family:'Fraunces',Georgia,serif;font-size:18px;font-weight:700;color:${PDF_PALETTE.text};margin:24px 0 12px;padding-bottom:6px;border-bottom:1px solid ${PDF_PALETTE.bone2}">Detailed Line Items</div>
+    ${lineItemSections || `<div style="padding:20px;text-align:center;color:${PDF_PALETTE.textMuted};font-style:italic">No line items provided.</div>`}
     ${totalsBlock}
+    ${inclusionsBlock}
+    ${exclusionsBlock}
+    ${paymentTermsBlock}
     ${notesBlock}
-    ${pdfFooter(branding, undefined, disclaimer)}
+    ${acceptanceBlock}
+    ${pdfFooter(branding, branding.licenseNumber ? `License #${escHtml(branding.licenseNumber)}` : undefined, PDF_DISCLAIMERS.estimate)}
   `;
 
   return pdfShell({
     bodyHtml,
     branding,
-    title: `Quick Estimate — ${answers.projectType || 'Construction'}`,
+    title: `Estimate ${estimateNumber} — ${answers.projectType || 'Construction'}`,
   });
 }
 
