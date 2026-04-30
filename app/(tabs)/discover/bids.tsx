@@ -1,15 +1,47 @@
-import React, { useState, useCallback, useRef, useMemo } from 'react';
+// app/(tabs)/discover/bids.tsx — Public Bids feed.
+//
+// Pulls from the cached_bids table (Supabase), which a backend SAM.gov
+// scraper populates daily. As of 2026-04 the cache holds ~1,380 rows;
+// ~389 are NAICS 23xxxx (construction). The rest are electronics, IT,
+// metalwork — surfaced raw they buried the bids the user actually
+// wants. The filters here cut that noise.
+//
+// 2026-04-30 audit fixes shipped:
+//   - DB column is `response_deadline`, not `deadline` — the previous
+//     mapping silently showed "No deadline" on every card.
+//   - department is null in 100% of rows; estimated_value in ~99% —
+//     hide the meta when null instead of rendering "Department not
+//     listed" / "$0".
+//   - City casing inconsistent in source ("MECHANICSBURG" vs
+//     "Mechanicsburg") — title-case for display + dedupe.
+//   - Set-aside strings can run 60+ chars ("Service-Disabled Veteran-
+//     Owned Small Business Set Aside") — abbreviated for the badge.
+//   - Construction-only toggle, default ON, filters NAICS 23xxxx.
+//   - Keyword search across title + city + state + solicitation #.
+//   - Sort by Deadline / Posted / Distance / Value.
+//   - User's last-picked state persists to AsyncStorage so the State
+//     filter remembers across sessions.
+//
+// Data fields (cached_bids → CachedBid):
+//   id, title, department, response_deadline, posted_date,
+//   estimated_value, city, state, latitude, longitude, source_url,
+//   set_aside, naics_code, solicitation_number, fetched_at
+
+import React, { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
-  Animated, ScrollView, Linking, Platform, Modal,
+  Animated, ScrollView, Linking, Platform, Modal, TextInput,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { MapPin, Clock, DollarSign, ArrowLeft, Navigation, AlertCircle, Crosshair, ChevronDown, X, Filter, Building } from 'lucide-react-native';
+import {
+  MapPin, Clock, ArrowLeft, Navigation, AlertCircle, Crosshair,
+  ChevronDown, X, Filter, Building, Search, Hammer, ArrowUpDown,
+} from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useQuery } from '@tanstack/react-query';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Colors } from '@/constants/colors';
-import ConstructionLoader from '@/components/ConstructionLoader';
 import MageRefreshControl from '@/components/MageRefreshControl';
 import { SkeletonRow } from '@/components/Skeleton';
 import { supabase } from '@/lib/supabase';
@@ -18,21 +50,27 @@ import { US_STATES } from '@/constants/states';
 
 interface CachedBid {
   id: string;
-  title: string;
-  department: string;
-  deadline: string;
-  estimated_value: number;
-  city: string;
-  state: string;
-  latitude: number;
-  longitude: number;
-  source_url: string;
+  title: string | null;
+  department: string | null;
+  response_deadline: string | null;
+  posted_date: string | null;
+  estimated_value: number | null;
+  city: string | null;
+  state: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  source_url: string | null;
   set_aside: string | null;
+  naics_code: string | null;
+  solicitation_number: string | null;
   fetched_at: string;
 }
 
 interface BidWithDistance extends CachedBid {
   distance: number | null;
+  /** Pre-computed "looks like construction" so we don't re-evaluate
+   *  on every filter pass. NAICS 23xxxx is the construction sector. */
+  isConstruction: boolean;
 }
 
 interface NearbyCity {
@@ -42,51 +80,118 @@ interface NearbyCity {
   count: number;
 }
 
+type SortKey = 'deadline' | 'posted' | 'distance' | 'value';
+type LocationMode = 'all' | 'nearby' | 'state' | 'city';
+
 const RADIUS_OPTIONS = [10, 25, 50, 100, 250] as const;
 
+// Pretty short labels mapped from SAM.gov's verbose set-aside strings.
+// We match by substring so the cache's free-form text still groups.
 const SET_ASIDE_TYPES = [
-  'Small Business', 'MWBE', 'SDVOSB', 'HUBZone', '8(a)', 'WOSB', 'None',
+  { label: 'Small Business', match: ['small business set-aside', 'sba', 'sbsa'] },
+  { label: 'Veteran (SDVOSB)', match: ['service-disabled veteran', 'sdvosb'] },
+  { label: 'Veteran (VOSB)',   match: ['veteran-owned small business', 'vosb'] },
+  { label: 'Women (WOSB)',     match: ['women-owned small business', 'wosb'] },
+  { label: '8(a)',             match: ['8(a)'] },
+  { label: 'HUBZone',          match: ['hubzone'] },
+  { label: 'MWBE',             match: ['mwbe', 'minority'] },
+  { label: 'No Set-Aside',     match: ['no set aside', 'no set-aside'] },
 ] as const;
 
+const SORT_OPTIONS: Array<{ key: SortKey; label: string }> = [
+  { key: 'deadline', label: 'Deadline' },
+  { key: 'posted',   label: 'Newest' },
+  { key: 'distance', label: 'Nearest' },
+  { key: 'value',    label: 'Value' },
+];
+
+const STATE_STORAGE_KEY = 'bids_home_state';
+const LOCATION_MODE_STORAGE_KEY = 'bids_location_mode';
+const CONSTRUCTION_ONLY_STORAGE_KEY = 'bids_construction_only';
+
+// ─── Display helpers ─────────────────────────────────────────────────
+
+/** Title-case a city. Source data is mixed CASE / Mixed Case / lowercase. */
+function prettyCity(city: string | null | undefined): string {
+  if (!city) return '';
+  return city.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/** Short label for a set-aside string. Returns '' when the original
+ *  is "no set aside" / null so the badge can render an "Open" pill. */
+function prettySetAside(raw: string | null | undefined): string {
+  if (!raw) return '';
+  const lower = raw.toLowerCase();
+  for (const t of SET_ASIDE_TYPES) {
+    if (t.match.some((m) => lower.includes(m))) {
+      return t.label === 'No Set-Aside' ? '' : t.label;
+    }
+  }
+  // Unknown — truncate so the badge doesn't blow out.
+  return raw.length > 22 ? raw.slice(0, 20).trim() + '…' : raw;
+}
+
 function formatCurrency(amount: number | null | undefined): string {
-  if (amount == null) return 'Not specified';
-  if (amount >= 1000000) return `$${(amount / 1000000).toFixed(1)}M`;
+  if (amount == null || amount <= 0) return '';
+  if (amount >= 1_000_000) return `$${(amount / 1_000_000).toFixed(amount >= 10_000_000 ? 0 : 1)}M`;
+  if (amount >= 1_000) return `$${Math.round(amount / 1_000)}K`;
   return `$${amount.toLocaleString()}`;
 }
 
-function getDeadlineInfo(deadline: string | null | undefined): { text: string; color: string; bgColor: string } {
-  if (!deadline) return { text: 'No deadline', color: '#9E9E9E', bgColor: '#F5F5F5' };
-  const diff = new Date(deadline).getTime() - Date.now();
-  if (isNaN(diff)) return { text: 'No deadline', color: '#9E9E9E', bgColor: '#F5F5F5' };
-  if (diff <= 0) return { text: 'Expired', color: '#9E9E9E', bgColor: '#F5F5F5' };
-  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-  if (days < 3) return { text: `${days}d ${Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))}h left`, color: '#D32F2F', bgColor: '#FFEBEE' };
-  if (days <= 7) return { text: `${days} days left`, color: '#F57F17', bgColor: '#FFF8E1' };
-  if (days > 30) return { text: `${Math.floor(days / 30)}mo ${days % 30}d left`, color: '#2E7D32', bgColor: '#E8F5E9' };
-  return { text: `${days} days left`, color: '#2E7D32', bgColor: '#E8F5E9' };
+function getDeadlineInfo(deadline: string | null | undefined): { text: string; color: string; bgColor: string; sortableMs: number } {
+  if (!deadline) return { text: 'No deadline', color: '#9E9E9E', bgColor: '#F5F5F5', sortableMs: Number.MAX_SAFE_INTEGER };
+  const ms = new Date(deadline).getTime() - Date.now();
+  if (isNaN(ms)) return { text: 'No deadline', color: '#9E9E9E', bgColor: '#F5F5F5', sortableMs: Number.MAX_SAFE_INTEGER };
+  if (ms <= 0) return { text: 'Expired', color: '#9E9E9E', bgColor: '#F5F5F5', sortableMs: Number.MAX_SAFE_INTEGER - 1 };
+  const days = Math.floor(ms / (1000 * 60 * 60 * 24));
+  if (days < 3) return { text: `${days}d ${Math.floor((ms % 86_400_000) / 3_600_000)}h left`, color: '#D32F2F', bgColor: '#FFEBEE', sortableMs: ms };
+  if (days <= 7) return { text: `${days} days left`, color: '#F57F17', bgColor: '#FFF8E1', sortableMs: ms };
+  if (days > 30) return { text: `${Math.floor(days / 30)}mo ${days % 30}d left`, color: '#2E7D32', bgColor: '#E8F5E9', sortableMs: ms };
+  return { text: `${days} days left`, color: '#2E7D32', bgColor: '#E8F5E9', sortableMs: ms };
 }
+
+/** Some SAM.gov titles arrive with leading "Z--" or trailing letter
+ *  codes that exist for federal cataloguing — strip them so the human
+ *  reads the actual subject. */
+function cleanTitle(t: string | null | undefined): string {
+  if (!t) return 'Untitled bid';
+  return t.replace(/^[A-Z]--\s*/, '').replace(/\s+/g, ' ').trim();
+}
+
+// ─── Bid card ────────────────────────────────────────────────────────
 
 function BidCard({ bid, onPress }: { bid: BidWithDistance; onPress: () => void }) {
   const scaleAnim = useRef(new Animated.Value(1)).current;
-  const deadlineInfo = getDeadlineInfo(bid.deadline);
+  const deadlineInfo = getDeadlineInfo(bid.response_deadline);
+  const setAsideLabel = prettySetAside(bid.set_aside);
+  const valueLabel = formatCurrency(bid.estimated_value);
+  const cityLabel = prettyCity(bid.city);
+  const stateLabel = bid.state ? bid.state.toUpperCase() : '';
+  const locationLabel = cityLabel && stateLabel ? `${cityLabel}, ${stateLabel}` : (cityLabel || stateLabel || 'Location TBD');
 
   return (
     <Animated.View style={[styles.bidCard, { transform: [{ scale: scaleAnim }] }]}>
       <TouchableOpacity
         onPress={onPress}
-        onPressIn={() => Animated.spring(scaleAnim, { toValue: 0.97, useNativeDriver: true, speed: 50 }).start()}
+        onPressIn={() => Animated.spring(scaleAnim, { toValue: 0.98, useNativeDriver: true, speed: 50 }).start()}
         onPressOut={() => Animated.spring(scaleAnim, { toValue: 1, useNativeDriver: true, speed: 50 }).start()}
         activeOpacity={1}
         testID={`cached-bid-${bid.id}`}
       >
         <View style={styles.bidHeader}>
-          {bid.set_aside ? (
+          {setAsideLabel ? (
             <View style={styles.setAsideBadge}>
-              <Text style={styles.setAsideText}>{bid.set_aside}</Text>
+              <Text style={styles.setAsideText} numberOfLines={1}>{setAsideLabel}</Text>
             </View>
           ) : (
             <View style={styles.openBadge}>
-              <Text style={styles.openBadgeText}>Open</Text>
+              <Text style={styles.openBadgeText}>OPEN</Text>
+            </View>
+          )}
+          {bid.isConstruction && (
+            <View style={styles.constructionBadge}>
+              <Hammer size={10} color="#3D2A0F" />
+              <Text style={styles.constructionText}>Construction</Text>
             </View>
           )}
           <View style={[styles.countdownBadge, { backgroundColor: deadlineInfo.bgColor }]}>
@@ -95,39 +200,43 @@ function BidCard({ bid, onPress }: { bid: BidWithDistance; onPress: () => void }
           </View>
         </View>
 
-        <Text style={styles.bidTitle} numberOfLines={2}>{bid.title ?? 'Untitled Bid'}</Text>
-        <Text style={styles.bidDepartment} numberOfLines={1}>{bid.department ?? 'Department not listed'}</Text>
+        <Text style={styles.bidTitle} numberOfLines={3}>{cleanTitle(bid.title)}</Text>
+
+        {bid.department ? (
+          <Text style={styles.bidDepartment} numberOfLines={1}>{bid.department}</Text>
+        ) : null}
 
         <View style={styles.bidMeta}>
           <View style={styles.metaItem}>
             <MapPin size={13} color={Colors.textSecondary} />
-            <Text style={styles.metaText}>{bid.city && bid.state ? `${bid.city}, ${bid.state}` : bid.city || bid.state || 'Location not available'}</Text>
+            <Text style={styles.metaText} numberOfLines={1}>{locationLabel}</Text>
           </View>
-          <View style={styles.metaItem}>
-            <DollarSign size={13} color={Colors.primary} />
-            <Text style={[styles.metaText, { color: Colors.primary, fontWeight: '600' as const }]}>
-              {formatCurrency(bid.estimated_value)}
-            </Text>
-          </View>
+          {bid.distance !== null && (
+            <View style={styles.distanceTag}>
+              <Navigation size={10} color={Colors.info} />
+              <Text style={styles.distanceTagText}>{bid.distance} mi</Text>
+            </View>
+          )}
+          {valueLabel ? (
+            <View style={styles.valueTag}>
+              <Text style={styles.valueTagText}>{valueLabel}</Text>
+            </View>
+          ) : null}
         </View>
 
         <View style={styles.bidFooter}>
           <View style={styles.footerLeft}>
-            {bid.distance !== null && (
-              <View style={styles.distanceBadge}>
-                <Navigation size={11} color={Colors.info} />
-                <Text style={styles.distanceText}>{bid.distance} mi</Text>
-              </View>
-            )}
-            {bid.city ? (
-              <View style={styles.cityBadge}>
-                <Building size={10} color={Colors.textSecondary} />
-                <Text style={styles.cityBadgeText}>{bid.city}</Text>
-              </View>
+            {bid.naics_code ? (
+              <Text style={styles.naicsTag}>NAICS {bid.naics_code}</Text>
+            ) : null}
+            {bid.solicitation_number ? (
+              <Text style={styles.solTag} numberOfLines={1}>#{bid.solicitation_number}</Text>
             ) : null}
           </View>
           <Text style={styles.deadlineDate}>
-            {bid.deadline ? `Due: ${new Date(bid.deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : 'No deadline'}
+            {bid.response_deadline
+              ? `Due ${new Date(bid.response_deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+              : ''}
           </Text>
         </View>
       </TouchableOpacity>
@@ -135,133 +244,191 @@ function BidCard({ bid, onPress }: { bid: BidWithDistance; onPress: () => void }
   );
 }
 
+// ─── Screen ──────────────────────────────────────────────────────────
+
 export default function CachedBidsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { location } = useUserLocation();
+
+  // Filter state
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [constructionOnly, setConstructionOnly] = useState<boolean>(true);
   const [selectedRadius, setSelectedRadius] = useState<number | null>(null);
   const [selectedSetAside, setSelectedSetAside] = useState<string | undefined>();
   const [selectedState, setSelectedState] = useState<string | null>(null);
   const [selectedCity, setSelectedCity] = useState<string | null>(null);
-  const [locationMode, setLocationMode] = useState<'all' | 'nearby' | 'state' | 'city'>('all');
+  const [locationMode, setLocationMode] = useState<LocationMode>('all');
+  const [sortBy, setSortBy] = useState<SortKey>('deadline');
+
+  // Modals
   const [showStateList, setShowStateList] = useState(false);
   const [showSetAsideDropdown, setShowSetAsideDropdown] = useState(false);
+  const [showSortDropdown, setShowSortDropdown] = useState(false);
+
+  // Hydrate persisted filter state on mount. Don't block the first
+  // render — defaults keep the screen usable while AsyncStorage warms.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [savedState, savedMode, savedConstruction] = await Promise.all([
+          AsyncStorage.getItem(STATE_STORAGE_KEY),
+          AsyncStorage.getItem(LOCATION_MODE_STORAGE_KEY),
+          AsyncStorage.getItem(CONSTRUCTION_ONLY_STORAGE_KEY),
+        ]);
+        if (cancelled) return;
+        if (savedState) setSelectedState(savedState);
+        if (savedMode === 'state' || savedMode === 'all' || savedMode === 'nearby' || savedMode === 'city') {
+          setLocationMode(savedMode as LocationMode);
+        } else if (savedState) {
+          // Implied: if a state is saved, default to state mode.
+          setLocationMode('state');
+        }
+        if (savedConstruction === '0') setConstructionOnly(false);
+      } catch (e) {
+        console.log('[CachedBids] failed to hydrate filters', e);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Persist when state/mode/construction toggle change.
+  useEffect(() => {
+    if (selectedState) AsyncStorage.setItem(STATE_STORAGE_KEY, selectedState).catch(() => {});
+    AsyncStorage.setItem(LOCATION_MODE_STORAGE_KEY, locationMode).catch(() => {});
+    AsyncStorage.setItem(CONSTRUCTION_ONLY_STORAGE_KEY, constructionOnly ? '1' : '0').catch(() => {});
+  }, [selectedState, locationMode, constructionOnly]);
 
   const { data: bids, isLoading, refetch, isRefetching, error: bidsQueryError } = useQuery({
     queryKey: ['cached_bids'],
-    queryFn: async () => {
-      console.log('[CachedBids] === START FETCH ===');
+    queryFn: async (): Promise<CachedBid[]> => {
       try {
-        const { data, error, status, statusText } = await supabase
+        const { data, error } = await supabase
           .from('cached_bids')
-          .select('*')
-          .order('fetched_at', { ascending: false });
-        console.log('[CachedBids] Response status:', status, statusText);
-        console.log('[CachedBids] Error:', error ? JSON.stringify(error) : 'none');
-        console.log('[CachedBids] Data count:', data?.length ?? 'null');
+          .select('id,title,department,response_deadline,posted_date,estimated_value,city,state,latitude,longitude,source_url,set_aside,naics_code,solicitation_number,fetched_at')
+          .order('response_deadline', { ascending: true, nullsFirst: false })
+          .limit(2000);
         if (error) {
-          console.log('[CachedBids] Supabase error, returning empty:', error.message);
+          console.log('[CachedBids] supabase error:', error.message);
           return [];
         }
         return (data ?? []) as CachedBid[];
-      } catch (err: any) {
-        console.log('[CachedBids] Network/fetch error:', err?.message);
+      } catch (err) {
+        console.log('[CachedBids] network/fetch error:', String(err));
         return [];
       }
     },
     retry: 1,
   });
 
-  const bidsWithDistance = useMemo<BidWithDistance[]>(() => {
+  const bidsWithMeta = useMemo<BidWithDistance[]>(() => {
     if (!bids) return [];
-    return bids.map(bid => ({
+    return bids.map((bid): BidWithDistance => ({
       ...bid,
-      distance: location && bid.latitude && bid.longitude
+      distance: location && bid.latitude != null && bid.longitude != null
         ? getDistanceMiles(location.latitude, location.longitude, bid.latitude, bid.longitude)
         : null,
+      isConstruction: !!(bid.naics_code && bid.naics_code.startsWith('23')),
     }));
   }, [bids, location]);
 
   const nearbyCities = useMemo<NearbyCity[]>(() => {
-    if (!bidsWithDistance.length) return [];
+    if (!bidsWithMeta.length) return [];
     const cityMap = new Map<string, { city: string; state: string; distance: number; count: number }>();
-    for (const bid of bidsWithDistance) {
+    for (const bid of bidsWithMeta) {
       if (!bid.city) continue;
-      const key = `${bid.city}_${bid.state ?? ''}`.toLowerCase();
+      const cleanedCity = prettyCity(bid.city);
+      const cleanedState = (bid.state ?? '').toUpperCase();
+      const key = `${cleanedCity}_${cleanedState}`;
       const existing = cityMap.get(key);
       if (existing) {
         existing.count += 1;
-        if (bid.distance !== null && bid.distance < existing.distance) {
-          existing.distance = bid.distance;
-        }
+        if (bid.distance !== null && bid.distance < existing.distance) existing.distance = bid.distance;
       } else {
-        cityMap.set(key, {
-          city: bid.city,
-          state: bid.state ?? '',
-          distance: bid.distance ?? 99999,
-          count: 1,
-        });
+        cityMap.set(key, { city: cleanedCity, state: cleanedState, distance: bid.distance ?? 99999, count: 1 });
       }
     }
     return Array.from(cityMap.values())
       .sort((a, b) => a.distance - b.distance)
-      .slice(0, 20);
-  }, [bidsWithDistance]);
+      .slice(0, 24);
+  }, [bidsWithMeta]);
 
   const filteredBids = useMemo(() => {
-    let result = bidsWithDistance;
+    let result = bidsWithMeta;
+
+    if (constructionOnly) result = result.filter((b) => b.isConstruction);
 
     if (selectedSetAside) {
-      if (selectedSetAside === 'None') {
-        result = result.filter(b => !b.set_aside);
-      } else {
-        result = result.filter(b => b.set_aside?.toLowerCase().includes(selectedSetAside.toLowerCase()));
+      const wanted = SET_ASIDE_TYPES.find((s) => s.label === selectedSetAside);
+      if (selectedSetAside === 'Open / No Set-Aside') {
+        result = result.filter((b) => {
+          const lbl = prettySetAside(b.set_aside);
+          return !lbl;
+        });
+      } else if (wanted) {
+        result = result.filter((b) => prettySetAside(b.set_aside) === wanted.label);
       }
     }
 
     if (locationMode === 'nearby' && location && selectedRadius !== null) {
-      result = result.filter(b => b.distance === null || b.distance <= selectedRadius);
+      result = result.filter((b) => b.distance !== null && b.distance <= selectedRadius);
     }
-
     if (locationMode === 'state' && selectedState) {
-      result = result.filter(b => b.state?.toUpperCase() === selectedState.toUpperCase());
+      result = result.filter((b) => (b.state ?? '').toUpperCase() === selectedState.toUpperCase());
     }
-
     if (locationMode === 'city' && selectedCity) {
-      result = result.filter(b => b.city?.toLowerCase() === selectedCity.toLowerCase());
+      const wanted = selectedCity.toLowerCase();
+      result = result.filter((b) => (b.city ?? '').toLowerCase() === wanted);
     }
 
-    if (location) {
-      result.sort((a, b) => (a.distance ?? 99999) - (b.distance ?? 99999));
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      result = result.filter((b) =>
+        (b.title ?? '').toLowerCase().includes(q)
+        || (b.city ?? '').toLowerCase().includes(q)
+        || (b.state ?? '').toLowerCase().includes(q)
+        || (b.solicitation_number ?? '').toLowerCase().includes(q)
+        || (b.naics_code ?? '').toLowerCase().includes(q)
+        || (b.department ?? '').toLowerCase().includes(q)
+      );
     }
 
-    return result;
-  }, [bidsWithDistance, selectedRadius, selectedSetAside, location, locationMode, selectedState, selectedCity]);
+    // Sort
+    const sorted = [...result];
+    if (sortBy === 'deadline') {
+      sorted.sort((a, b) => {
+        const at = getDeadlineInfo(a.response_deadline).sortableMs;
+        const bt = getDeadlineInfo(b.response_deadline).sortableMs;
+        return at - bt;
+      });
+    } else if (sortBy === 'posted') {
+      sorted.sort((a, b) => {
+        const at = a.posted_date ? new Date(a.posted_date).getTime() : 0;
+        const bt = b.posted_date ? new Date(b.posted_date).getTime() : 0;
+        return bt - at;
+      });
+    } else if (sortBy === 'distance') {
+      sorted.sort((a, b) => (a.distance ?? 99999) - (b.distance ?? 99999));
+    } else if (sortBy === 'value') {
+      sorted.sort((a, b) => (b.estimated_value ?? 0) - (a.estimated_value ?? 0));
+    }
+    return sorted;
+  }, [bidsWithMeta, constructionOnly, selectedSetAside, locationMode, selectedRadius, selectedState, selectedCity, searchQuery, location, sortBy]);
 
   const handleBidPress = useCallback((bid: CachedBid) => {
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (bid.source_url) {
-      Linking.openURL(bid.source_url).catch(() => {
-        console.log('[CachedBids] Failed to open URL:', bid.source_url);
-      });
+      Linking.openURL(bid.source_url).catch(() => {});
     }
   }, []);
 
-  const handleLocationModeChange = useCallback((mode: 'all' | 'nearby' | 'state' | 'city') => {
+  const handleLocationModeChange = useCallback((mode: LocationMode) => {
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
     setLocationMode(mode);
-    if (mode === 'nearby' && selectedRadius === null) {
-      setSelectedRadius(50);
-    }
-    if (mode !== 'state') {
-      setShowStateList(false);
-    }
-    if (mode === 'state') {
-      setShowStateList(true);
-    }
-    if (mode !== 'city') {
-      setSelectedCity(null);
-    }
+    if (mode === 'nearby' && selectedRadius === null) setSelectedRadius(50);
+    if (mode === 'state') setShowStateList(true); else setShowStateList(false);
+    if (mode !== 'city') setSelectedCity(null);
   }, [selectedRadius]);
 
   const handleSetAsideSelect = useCallback((value: string | undefined) => {
@@ -270,11 +437,29 @@ export default function CachedBidsScreen() {
     setShowSetAsideDropdown(false);
   }, []);
 
+  const handleSortSelect = useCallback((key: SortKey) => {
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+    setSortBy(key);
+    setShowSortDropdown(false);
+  }, []);
+
+  const clearAllFilters = useCallback(() => {
+    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setSearchQuery('');
+    setSelectedSetAside(undefined);
+    setSelectedRadius(null);
+    setSelectedCity(null);
+    setLocationMode('all');
+    setSortBy('deadline');
+  }, []);
+
   const renderBid = useCallback(({ item }: { item: BidWithDistance }) => (
     <BidCard bid={item} onPress={() => handleBidPress(item)} />
   ), [handleBidPress]);
 
-  const loading = isLoading;
+  const totalCount = bidsWithMeta.length;
+  const filteredCount = filteredBids.length;
+  const sortLabel = SORT_OPTIONS.find((s) => s.key === sortBy)?.label ?? 'Sort';
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -283,133 +468,206 @@ export default function CachedBidsScreen() {
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
             <ArrowLeft size={20} color={Colors.text} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Public Bids</Text>
-          <View style={styles.countPill}>
-            <Text style={styles.countPillText}>{filteredBids.length}</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.headerTitle}>Public Bids</Text>
+            <Text style={styles.headerSubtitle}>
+              {filteredCount === totalCount
+                ? `${totalCount.toLocaleString()} active`
+                : `${filteredCount.toLocaleString()} of ${totalCount.toLocaleString()}`}
+              {' · SAM.gov'}
+            </Text>
           </View>
+          <TouchableOpacity
+            style={styles.sortBtn}
+            onPress={() => { setShowSortDropdown(true); if (Platform.OS !== 'web') void Haptics.selectionAsync(); }}
+            activeOpacity={0.7}
+          >
+            <ArrowUpDown size={14} color={Colors.text} />
+            <Text style={styles.sortBtnText}>{sortLabel}</Text>
+          </TouchableOpacity>
         </View>
 
-        <View style={styles.filterRow}>
-          <View style={styles.filterBlock}>
-            <Text style={styles.filterSectionLabel}>LOCATION</Text>
-            <View style={styles.locationRow}>
-              <TouchableOpacity
-                style={[styles.locationChip, locationMode === 'all' && styles.locationChipActive]}
-                onPress={() => handleLocationModeChange('all')}
-              >
-                <Text style={[styles.locationChipText, locationMode === 'all' && styles.locationChipTextActive]}>All</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.locationChip, locationMode === 'nearby' && styles.locationChipActive]}
-                onPress={() => handleLocationModeChange('nearby')}
-              >
-                <Crosshair size={12} color={locationMode === 'nearby' ? '#FFF' : Colors.textSecondary} />
-                <Text style={[styles.locationChipText, locationMode === 'nearby' && styles.locationChipTextActive]}>Near Me</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.locationChip, locationMode === 'city' && styles.locationChipActive]}
-                onPress={() => handleLocationModeChange('city')}
-              >
-                <Building size={12} color={locationMode === 'city' ? '#FFF' : Colors.textSecondary} />
-                <Text style={[styles.locationChipText, locationMode === 'city' && styles.locationChipTextActive]}>City</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.locationChip, locationMode === 'state' && styles.locationChipActive]}
-                onPress={() => handleLocationModeChange('state')}
-              >
-                <ChevronDown size={12} color={locationMode === 'state' ? '#FFF' : Colors.textSecondary} />
-                <Text style={[styles.locationChipText, locationMode === 'state' && styles.locationChipTextActive]}>
-                  {selectedState ? selectedState : 'State'}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          <View style={styles.filterBlock}>
-            <Text style={styles.filterSectionLabel}>SET-ASIDE</Text>
-            <TouchableOpacity
-              style={styles.dropdownButton}
-              onPress={() => { setShowSetAsideDropdown(true); if (Platform.OS !== 'web') void Haptics.selectionAsync(); }}
-            >
-              <Filter size={13} color={selectedSetAside ? Colors.primary : Colors.textSecondary} />
-              <Text style={[styles.dropdownButtonText, selectedSetAside && styles.dropdownButtonTextActive]}>
-                {selectedSetAside ?? 'All Types'}
-              </Text>
-              <ChevronDown size={14} color={Colors.textSecondary} />
+        {/* Search box */}
+        <View style={styles.searchWrap}>
+          <Search size={15} color={Colors.textMuted} />
+          <TextInput
+            style={styles.searchInput}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholder="Search title, city, NAICS, solicitation #"
+            placeholderTextColor={Colors.textMuted}
+            autoCorrect={false}
+            autoCapitalize="none"
+            returnKeyType="search"
+          />
+          {searchQuery ? (
+            <TouchableOpacity onPress={() => setSearchQuery('')}>
+              <X size={15} color={Colors.textMuted} />
             </TouchableOpacity>
-          </View>
+          ) : null}
         </View>
 
+        {/* Filter pill row 1: Construction toggle + Set-Aside */}
+        <View style={styles.pillRow}>
+          <TouchableOpacity
+            style={[styles.pill, constructionOnly && styles.pillActive]}
+            onPress={() => { setConstructionOnly(!constructionOnly); if (Platform.OS !== 'web') void Haptics.selectionAsync(); }}
+            activeOpacity={0.85}
+          >
+            <Hammer size={12} color={constructionOnly ? '#FFF' : Colors.textSecondary} />
+            <Text style={[styles.pillText, constructionOnly && styles.pillTextActive]}>Construction</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.pill, selectedSetAside ? styles.pillActive : null]}
+            onPress={() => { setShowSetAsideDropdown(true); if (Platform.OS !== 'web') void Haptics.selectionAsync(); }}
+            activeOpacity={0.85}
+          >
+            <Filter size={12} color={selectedSetAside ? '#FFF' : Colors.textSecondary} />
+            <Text style={[styles.pillText, selectedSetAside ? styles.pillTextActive : null]} numberOfLines={1}>
+              {selectedSetAside ?? 'Set-aside'}
+            </Text>
+            <ChevronDown size={12} color={selectedSetAside ? '#FFF' : Colors.textSecondary} />
+          </TouchableOpacity>
+        </View>
+
+        {/* Filter pill row 2: Location modes */}
+        <View style={styles.pillRow}>
+          <TouchableOpacity
+            style={[styles.pill, locationMode === 'all' && styles.pillActive]}
+            onPress={() => handleLocationModeChange('all')}
+            activeOpacity={0.85}
+          >
+            <Text style={[styles.pillText, locationMode === 'all' && styles.pillTextActive]}>All US</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.pill, locationMode === 'nearby' && styles.pillActive]}
+            onPress={() => handleLocationModeChange('nearby')}
+            activeOpacity={0.85}
+          >
+            <Crosshair size={12} color={locationMode === 'nearby' ? '#FFF' : Colors.textSecondary} />
+            <Text style={[styles.pillText, locationMode === 'nearby' && styles.pillTextActive]}>Near me</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.pill, locationMode === 'city' && styles.pillActive]}
+            onPress={() => handleLocationModeChange('city')}
+            activeOpacity={0.85}
+          >
+            <Building size={12} color={locationMode === 'city' ? '#FFF' : Colors.textSecondary} />
+            <Text style={[styles.pillText, locationMode === 'city' && styles.pillTextActive]}>City</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.pill, locationMode === 'state' && styles.pillActive]}
+            onPress={() => handleLocationModeChange('state')}
+            activeOpacity={0.85}
+          >
+            <Text style={[styles.pillText, locationMode === 'state' && styles.pillTextActive]}>
+              {selectedState ?? 'State'}
+            </Text>
+            <ChevronDown size={12} color={locationMode === 'state' ? '#FFF' : Colors.textSecondary} />
+          </TouchableOpacity>
+        </View>
+
+        {/* Sub-filter (radius / city / state list) — only one shows at a time */}
         {locationMode === 'nearby' && (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow}>
-            {RADIUS_OPTIONS.map(r => (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.subFilterRow} contentContainerStyle={styles.subFilterRowInner}>
+            {RADIUS_OPTIONS.map((r) => (
               <TouchableOpacity
                 key={r}
-                style={[styles.chip, selectedRadius === r && styles.chipActive]}
+                style={[styles.subChip, selectedRadius === r && styles.subChipActive]}
                 onPress={() => { setSelectedRadius(r); if (Platform.OS !== 'web') void Haptics.selectionAsync(); }}
               >
-                <Text style={[styles.chipText, selectedRadius === r && styles.chipTextActive]}>{r} mi</Text>
+                <Text style={[styles.subChipText, selectedRadius === r && styles.subChipTextActive]}>{r} mi</Text>
               </TouchableOpacity>
             ))}
           </ScrollView>
         )}
 
         {locationMode === 'city' && nearbyCities.length > 0 && (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow}>
-            {nearbyCities.map(c => (
-              <TouchableOpacity
-                key={`${c.city}_${c.state}`}
-                style={[styles.cityChip, selectedCity?.toLowerCase() === c.city.toLowerCase() && styles.chipActive]}
-                onPress={() => {
-                  setSelectedCity(selectedCity?.toLowerCase() === c.city.toLowerCase() ? null : c.city);
-                  if (Platform.OS !== 'web') void Haptics.selectionAsync();
-                }}
-              >
-                <Text style={[styles.cityChipText, selectedCity?.toLowerCase() === c.city.toLowerCase() && styles.chipTextActive]} numberOfLines={1}>
-                  {c.city}{c.state ? `, ${c.state}` : ''}
-                </Text>
-                {c.distance < 99999 && (
-                  <Text style={[styles.cityChipMeta, selectedCity?.toLowerCase() === c.city.toLowerCase() && { color: 'rgba(255,255,255,0.7)' }]}>
-                    {c.distance}mi · {c.count}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.subFilterRow} contentContainerStyle={styles.subFilterRowInner}>
+            {nearbyCities.map((c) => {
+              const active = selectedCity?.toLowerCase() === c.city.toLowerCase();
+              return (
+                <TouchableOpacity
+                  key={`${c.city}_${c.state}`}
+                  style={[styles.cityChip, active && styles.subChipActive]}
+                  onPress={() => {
+                    setSelectedCity(active ? null : c.city);
+                    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+                  }}
+                >
+                  <Text style={[styles.cityChipName, active && styles.subChipTextActive]} numberOfLines={1}>
+                    {c.city}{c.state ? `, ${c.state}` : ''}
                   </Text>
-                )}
-              </TouchableOpacity>
-            ))}
+                  <Text style={[styles.cityChipMeta, active && { color: 'rgba(255,255,255,0.78)' }]}>
+                    {c.distance < 99999 ? `${c.distance}mi · ` : ''}{c.count} bid{c.count === 1 ? '' : 's'}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </ScrollView>
         )}
 
         {locationMode === 'state' && showStateList && (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow}>
-            {US_STATES.map(s => (
-              <TouchableOpacity
-                key={s.abbr}
-                style={[styles.stateChip, selectedState === s.abbr && styles.chipActive]}
-                onPress={() => {
-                  setSelectedState(selectedState === s.abbr ? null : s.abbr);
-                  if (Platform.OS !== 'web') void Haptics.selectionAsync();
-                }}
-              >
-                <Text style={[styles.chipText, selectedState === s.abbr && styles.chipTextActive]}>{s.abbr}</Text>
-              </TouchableOpacity>
-            ))}
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.subFilterRow} contentContainerStyle={styles.subFilterRowInner}>
+            {US_STATES.map((s) => {
+              const active = selectedState === s.abbr;
+              return (
+                <TouchableOpacity
+                  key={s.abbr}
+                  style={[styles.subChip, active && styles.subChipActive]}
+                  onPress={() => {
+                    setSelectedState(active ? null : s.abbr);
+                    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+                  }}
+                >
+                  <Text style={[styles.subChipText, active && styles.subChipTextActive]}>{s.abbr}</Text>
+                </TouchableOpacity>
+              );
+            })}
           </ScrollView>
         )}
       </View>
 
+      {/* Sort dropdown */}
+      <Modal
+        visible={showSortDropdown}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowSortDropdown(false)}
+      >
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowSortDropdown(false)}>
+          <View style={styles.dropdownModal}>
+            <View style={styles.dropdownHeader}>
+              <Text style={styles.dropdownTitle}>Sort by</Text>
+              <TouchableOpacity onPress={() => setShowSortDropdown(false)}>
+                <X size={20} color={Colors.text} />
+              </TouchableOpacity>
+            </View>
+            {SORT_OPTIONS.map((opt) => (
+              <TouchableOpacity
+                key={opt.key}
+                style={[styles.dropdownItem, sortBy === opt.key && styles.dropdownItemActive]}
+                onPress={() => handleSortSelect(opt.key)}
+              >
+                <Text style={[styles.dropdownItemText, sortBy === opt.key && styles.dropdownItemTextActive]}>{opt.label}</Text>
+                {sortBy === opt.key && <View style={styles.dropdownCheck} />}
+              </TouchableOpacity>
+            ))}
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Set-Aside dropdown */}
       <Modal
         visible={showSetAsideDropdown}
         transparent
         animationType="fade"
         onRequestClose={() => setShowSetAsideDropdown(false)}
       >
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setShowSetAsideDropdown(false)}
-        >
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowSetAsideDropdown(false)}>
           <View style={styles.dropdownModal}>
             <View style={styles.dropdownHeader}>
-              <Text style={styles.dropdownTitle}>Set-Aside Type</Text>
+              <Text style={styles.dropdownTitle}>Set-aside type</Text>
               <TouchableOpacity onPress={() => setShowSetAsideDropdown(false)}>
                 <X size={20} color={Colors.text} />
               </TouchableOpacity>
@@ -418,19 +676,26 @@ export default function CachedBidsScreen() {
               style={[styles.dropdownItem, !selectedSetAside && styles.dropdownItemActive]}
               onPress={() => handleSetAsideSelect(undefined)}
             >
-              <Text style={[styles.dropdownItemText, !selectedSetAside && styles.dropdownItemTextActive]}>All Types</Text>
+              <Text style={[styles.dropdownItemText, !selectedSetAside && styles.dropdownItemTextActive]}>All types</Text>
               {!selectedSetAside && <View style={styles.dropdownCheck} />}
             </TouchableOpacity>
-            {SET_ASIDE_TYPES.map(sa => (
+            {SET_ASIDE_TYPES.filter((s) => s.label !== 'No Set-Aside').map((sa) => (
               <TouchableOpacity
-                key={sa}
-                style={[styles.dropdownItem, selectedSetAside === sa && styles.dropdownItemActive]}
-                onPress={() => handleSetAsideSelect(selectedSetAside === sa ? undefined : sa)}
+                key={sa.label}
+                style={[styles.dropdownItem, selectedSetAside === sa.label && styles.dropdownItemActive]}
+                onPress={() => handleSetAsideSelect(selectedSetAside === sa.label ? undefined : sa.label)}
               >
-                <Text style={[styles.dropdownItemText, selectedSetAside === sa && styles.dropdownItemTextActive]}>{sa}</Text>
-                {selectedSetAside === sa && <View style={styles.dropdownCheck} />}
+                <Text style={[styles.dropdownItemText, selectedSetAside === sa.label && styles.dropdownItemTextActive]}>{sa.label}</Text>
+                {selectedSetAside === sa.label && <View style={styles.dropdownCheck} />}
               </TouchableOpacity>
             ))}
+            <TouchableOpacity
+              style={[styles.dropdownItem, selectedSetAside === 'Open / No Set-Aside' && styles.dropdownItemActive]}
+              onPress={() => handleSetAsideSelect(selectedSetAside === 'Open / No Set-Aside' ? undefined : 'Open / No Set-Aside')}
+            >
+              <Text style={[styles.dropdownItemText, selectedSetAside === 'Open / No Set-Aside' && styles.dropdownItemTextActive]}>Open / No set-aside</Text>
+              {selectedSetAside === 'Open / No Set-Aside' && <View style={styles.dropdownCheck} />}
+            </TouchableOpacity>
           </View>
         </TouchableOpacity>
       </Modal>
@@ -438,23 +703,21 @@ export default function CachedBidsScreen() {
       {bidsQueryError ? (
         <View style={styles.loadingContainer}>
           <AlertCircle size={40} color="#D32F2F" />
-          <Text style={styles.emptyTitle}>Query Error</Text>
+          <Text style={styles.emptyTitle}>Couldn't load bids</Text>
           <Text style={styles.emptySubtitle}>{bidsQueryError.message}</Text>
           <TouchableOpacity onPress={() => { void refetch(); }} style={styles.retryButton}>
             <Text style={styles.retryButtonText}>Retry</Text>
           </TouchableOpacity>
         </View>
-      ) : loading ? (
+      ) : isLoading ? (
         <View>
-          {/* Skeleton rows replace the centered loader — preserves the
-              list rhythm so content fades in rather than punches through. */}
-          {[0, 1, 2, 3, 4, 5].map(i => <SkeletonRow key={i} />)}
+          {[0, 1, 2, 3, 4, 5].map((i) => <SkeletonRow key={i} />)}
         </View>
       ) : (
         <FlatList
           data={filteredBids}
           renderItem={renderBid}
-          keyExtractor={item => item.id}
+          keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
           refreshControl={
@@ -463,10 +726,15 @@ export default function CachedBidsScreen() {
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <AlertCircle size={40} color={Colors.textMuted} />
-              <Text style={styles.emptyTitle}>No bids found</Text>
+              <Text style={styles.emptyTitle}>No bids match these filters</Text>
               <Text style={styles.emptySubtitle}>
-                Try changing your location or removing filters
+                {totalCount > 0
+                  ? `${totalCount.toLocaleString()} bids in the cache. Loosen your filters to see more.`
+                  : 'The SAM.gov sync is still warming up. Pull to refresh.'}
               </Text>
+              <TouchableOpacity onPress={clearAllFilters} style={styles.retryButton}>
+                <Text style={styles.retryButtonText}>Clear all filters</Text>
+              </TouchableOpacity>
             </View>
           }
         />
@@ -477,87 +745,142 @@ export default function CachedBidsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
+
+  // ─── Header
   header: { backgroundColor: Colors.surface, borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight, paddingHorizontal: 16, paddingBottom: 12 },
-  headerTop: { flexDirection: 'row', alignItems: 'center', marginBottom: 10, marginTop: 8, gap: 12 },
+  headerTop: { flexDirection: 'row', alignItems: 'center', marginBottom: 12, marginTop: 8, gap: 12 },
   backBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { flex: 1, fontSize: 24, fontWeight: '800' as const, color: Colors.text, letterSpacing: -0.5 },
-  countPill: { backgroundColor: Colors.primary + '15', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
-  countPillText: { fontSize: 13, fontWeight: '700' as const, color: Colors.primary },
-  filterRow: { flexDirection: 'row', gap: 12, marginBottom: 4 },
-  filterBlock: { flex: 1 },
-  filterSectionLabel: { fontSize: 11, fontWeight: '600' as const, color: Colors.textMuted, letterSpacing: 0.5, marginBottom: 6 },
-  locationRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 5 },
-  locationChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 16, backgroundColor: Colors.background },
-  locationChipActive: { backgroundColor: Colors.primary },
-  locationChipText: { fontSize: 12, color: Colors.textSecondary, fontWeight: '500' as const },
-  locationChipTextActive: { color: '#FFF' },
-  dropdownButton: {
-    flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8,
-    borderRadius: 10, backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.borderLight,
+  headerTitle: { fontSize: 22, fontWeight: '800' as const, color: Colors.text, letterSpacing: -0.5 },
+  headerSubtitle: { fontSize: 12, color: Colors.textMuted, marginTop: 1, fontWeight: '500' as const },
+  sortBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 12, paddingVertical: 8,
+    backgroundColor: Colors.fillTertiary, borderRadius: 10,
   },
-  dropdownButtonText: { flex: 1, fontSize: 13, color: Colors.textSecondary, fontWeight: '500' as const },
-  dropdownButtonTextActive: { color: Colors.primary, fontWeight: '600' as const },
-  chipRow: { flexDirection: 'row', marginTop: 8, marginBottom: 4 },
-  chip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 18, backgroundColor: Colors.background, marginRight: 6 },
-  chipActive: { backgroundColor: Colors.primary },
-  chipText: { fontSize: 13, color: Colors.textSecondary, fontWeight: '500' as const },
-  chipTextActive: { color: '#FFF' },
+  sortBtnText: { fontSize: 13, color: Colors.text, fontWeight: '600' as const },
+
+  // ─── Search
+  searchWrap: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: Colors.fillTertiary, borderRadius: 12,
+    paddingHorizontal: 12, paddingVertical: Platform.OS === 'ios' ? 9 : 4,
+    marginBottom: 10,
+  },
+  searchInput: {
+    flex: 1, fontSize: 14, color: Colors.text,
+    paddingVertical: Platform.OS === 'ios' ? 0 : 6,
+  },
+
+  // ─── Pill rows (top-level filters)
+  pillRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 },
+  pill: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    paddingHorizontal: 12, paddingVertical: 7,
+    borderRadius: 999,
+    backgroundColor: Colors.fillTertiary,
+    borderWidth: 1, borderColor: 'transparent',
+  },
+  pillActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  pillText: { fontSize: 12.5, color: Colors.textSecondary, fontWeight: '600' as const, letterSpacing: -0.1 },
+  pillTextActive: { color: '#FFF' },
+
+  // ─── Sub-filter row (radius / city / state chips)
+  subFilterRow: { marginBottom: 4 },
+  subFilterRowInner: { paddingRight: 16, gap: 6 },
+  subChip: {
+    paddingHorizontal: 12, paddingVertical: 7,
+    borderRadius: 999,
+    backgroundColor: Colors.fillTertiary,
+  },
+  subChipActive: { backgroundColor: Colors.primary },
+  subChipText: { fontSize: 12.5, color: Colors.textSecondary, fontWeight: '600' as const },
+  subChipTextActive: { color: '#FFF' },
   cityChip: {
-    paddingHorizontal: 12, paddingVertical: 6, borderRadius: 18,
-    backgroundColor: Colors.background, marginRight: 6, alignItems: 'center',
+    paddingHorizontal: 12, paddingVertical: 7,
+    borderRadius: 14,
+    backgroundColor: Colors.fillTertiary,
+    minWidth: 110,
   },
-  cityChipText: { fontSize: 12, color: Colors.textSecondary, fontWeight: '600' as const },
-  cityChipMeta: { fontSize: 10, color: Colors.textMuted, marginTop: 1 },
-  stateChip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 18, backgroundColor: Colors.background, marginRight: 6 },
+  cityChipName: { fontSize: 12.5, color: Colors.text, fontWeight: '700' as const },
+  cityChipMeta: { fontSize: 10.5, color: Colors.textMuted, marginTop: 1 },
+
+  // ─── Cards
   list: { padding: 16, paddingBottom: 100 },
   bidCard: {
     backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 12,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3,
+    borderWidth: 1, borderColor: Colors.borderLight,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 1,
   },
-  bidHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  setAsideBadge: { backgroundColor: '#E8F5E9', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
-  setAsideText: { fontSize: 11, fontWeight: '700' as const, color: '#2E7D32', textTransform: 'uppercase' as const },
-  openBadge: { backgroundColor: '#E3F2FD', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
-  openBadgeText: { fontSize: 11, fontWeight: '700' as const, color: '#1565C0', textTransform: 'uppercase' as const },
-  countdownBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
-  countdownText: { fontSize: 11, fontWeight: '600' as const },
-  bidTitle: { fontSize: 16, fontWeight: '700' as const, color: Colors.text, marginBottom: 4, lineHeight: 22 },
-  bidDepartment: { fontSize: 13, color: Colors.textSecondary, marginBottom: 10 },
-  bidMeta: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
-  metaItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  metaText: { fontSize: 13, color: Colors.textSecondary },
-  bidFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 6, paddingTop: 8, borderTopWidth: 0.5, borderTopColor: Colors.borderLight },
-  footerLeft: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  distanceBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: Colors.infoLight, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
-  distanceText: { fontSize: 12, fontWeight: '600' as const, color: Colors.info },
-  cityBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: Colors.fillSecondary, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6 },
-  cityBadgeText: { fontSize: 11, fontWeight: '500' as const, color: Colors.textSecondary },
-  deadlineDate: { fontSize: 12, color: Colors.textMuted },
-  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
-  loadingText: { fontSize: 14, color: Colors.textSecondary },
-  emptyContainer: { alignItems: 'center', paddingTop: 60, gap: 8 },
-  emptyTitle: { fontSize: 18, fontWeight: '700' as const, color: Colors.text },
-  emptySubtitle: { fontSize: 14, color: Colors.textSecondary, textAlign: 'center' as const, paddingHorizontal: 32 },
-  retryButton: { marginTop: 12, backgroundColor: Colors.primary, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10 },
-  retryButtonText: { color: '#FFF', fontWeight: '600' as const },
-  modalOverlay: {
-    flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', alignItems: 'center',
+  bidHeader: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginBottom: 10 },
+  setAsideBadge: { backgroundColor: '#E8F5E9', paddingHorizontal: 9, paddingVertical: 4, borderRadius: 6 },
+  setAsideText: { fontSize: 11, fontWeight: '800' as const, color: '#1E5128', letterSpacing: 0.2 },
+  openBadge: { backgroundColor: '#E3F2FD', paddingHorizontal: 9, paddingVertical: 4, borderRadius: 6 },
+  openBadgeText: { fontSize: 11, fontWeight: '800' as const, color: '#0D47A1', letterSpacing: 0.6 },
+  constructionBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: '#FFF4E0', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6,
   },
+  constructionText: { fontSize: 10.5, fontWeight: '800' as const, color: '#3D2A0F', letterSpacing: 0.2 },
+  countdownBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 9, paddingVertical: 4, borderRadius: 6,
+    marginLeft: 'auto' as const,
+  },
+  countdownText: { fontSize: 11, fontWeight: '700' as const },
+
+  bidTitle: { fontSize: 16, fontWeight: '700' as const, color: Colors.text, marginBottom: 4, lineHeight: 21, letterSpacing: -0.2 },
+  bidDepartment: { fontSize: 12.5, color: Colors.textSecondary, marginBottom: 8, fontWeight: '500' as const },
+
+  bidMeta: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginTop: 6 },
+  metaItem: { flexDirection: 'row', alignItems: 'center', gap: 4, flex: 1, minWidth: 0 },
+  metaText: { fontSize: 13, color: Colors.textSecondary, fontWeight: '500' as const, flexShrink: 1 },
+  distanceTag: {
+    flexDirection: 'row', alignItems: 'center', gap: 3,
+    backgroundColor: Colors.infoLight, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6,
+  },
+  distanceTagText: { fontSize: 11.5, fontWeight: '700' as const, color: Colors.info },
+  valueTag: {
+    backgroundColor: Colors.primary + '14', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6,
+  },
+  valueTagText: { fontSize: 11.5, fontWeight: '800' as const, color: Colors.primary },
+
+  bidFooter: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    marginTop: 12, paddingTop: 10,
+    borderTopWidth: 0.5, borderTopColor: Colors.borderLight,
+    gap: 8,
+  },
+  footerLeft: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 },
+  naicsTag: { fontSize: 10.5, color: Colors.textMuted, fontWeight: '700' as const, letterSpacing: 0.4 },
+  solTag: { fontSize: 10.5, color: Colors.textMuted, fontWeight: '500' as const, fontVariant: ['tabular-nums' as const], maxWidth: 120 },
+  deadlineDate: { fontSize: 11.5, color: Colors.textMuted, fontWeight: '600' as const },
+
+  // ─── States
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12, paddingHorizontal: 32 },
+  emptyContainer: { alignItems: 'center', paddingTop: 60, gap: 8, paddingHorizontal: 32 },
+  emptyTitle: { fontSize: 18, fontWeight: '700' as const, color: Colors.text, marginTop: 6 },
+  emptySubtitle: { fontSize: 14, color: Colors.textSecondary, textAlign: 'center' as const, lineHeight: 20 },
+  retryButton: { marginTop: 14, backgroundColor: Colors.primary, paddingHorizontal: 22, paddingVertical: 11, borderRadius: 10 },
+  retryButtonText: { color: '#FFF', fontWeight: '700' as const, fontSize: 14 },
+
+  // ─── Modal (sort + set-aside)
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.42)', justifyContent: 'center', alignItems: 'center' },
   dropdownModal: {
-    width: '80%', backgroundColor: Colors.surface, borderRadius: 16, paddingVertical: 8, maxHeight: 400,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.15, shadowRadius: 20, elevation: 10,
+    width: '82%', backgroundColor: Colors.surface, borderRadius: 16, paddingVertical: 8, maxHeight: 460,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.18, shadowRadius: 22, elevation: 12,
   },
   dropdownHeader: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight,
+    paddingHorizontal: 20, paddingVertical: 14,
+    borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight,
   },
   dropdownTitle: { fontSize: 17, fontWeight: '700' as const, color: Colors.text },
   dropdownItem: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 20, paddingVertical: 14,
   },
-  dropdownItemActive: { backgroundColor: Colors.primary + '08' },
-  dropdownItemText: { fontSize: 15, color: Colors.text, fontWeight: '400' as const },
-  dropdownItemTextActive: { color: Colors.primary, fontWeight: '600' as const },
+  dropdownItemActive: { backgroundColor: Colors.primary + '0E' },
+  dropdownItemText: { fontSize: 15, color: Colors.text, fontWeight: '500' as const },
+  dropdownItemTextActive: { color: Colors.primary, fontWeight: '700' as const },
   dropdownCheck: { width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.primary },
 });

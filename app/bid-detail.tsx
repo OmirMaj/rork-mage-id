@@ -32,7 +32,10 @@ interface CachedBidDetail {
   id: string;
   title: string;
   department?: string;
-  deadline: string;
+  /** Legacy alias kept so the rest of this file's existing reads
+   *  compile. Prefer response_deadline — that's the DB column. */
+  deadline?: string;
+  response_deadline?: string;
   estimated_value: number;
   city: string;
   state: string;
@@ -203,7 +206,14 @@ export default function BidDetailScreen() {
   const state = cachedBid?.state ?? localBid?.state ?? '';
   const estimatedValue = cachedBid?.estimated_value ?? localBid?.estimatedValue ?? 0;
   const bondRequired = cachedBid?.bond_required ?? localBid?.bondRequired ?? 0;
-  const deadline = cachedBid?.deadline ?? localBid?.deadline ?? '';
+  // The cached_bids table column is `response_deadline`. Old code used
+  // `cachedBid.deadline` which silently resolved to undefined and made
+  // every detail page show "No deadline". Read both field names so any
+  // older callers passing the alias still work.
+  const deadline = (cachedBid as { response_deadline?: string; deadline?: string } | null)?.response_deadline
+    ?? cachedBid?.deadline
+    ?? localBid?.deadline
+    ?? '';
   const bidType = cachedBid?.bid_type ?? localBid?.bidType ?? '';
   const category = cachedBid?.category ?? localBid?.category ?? '';
   const contactEmail = cachedBid?.contact_email ?? localBid?.contactEmail ?? '';
