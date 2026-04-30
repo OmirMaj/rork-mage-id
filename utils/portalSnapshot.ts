@@ -660,6 +660,11 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
   // Reused across messages, CO approvals, and budget proposals.
   const apiConfig = (supabaseUrl && supabaseAnonKey) ? {
     portalId: portal.portalId,
+    // Project id enables server-side routing for portal-originated
+    // events (reactions, comments, etc.). The GC user_id is derived
+    // server-side from portal_id by the notify edge function (gates
+    // anon writes correctly).
+    projectId: project.id,
     inviteId: invite?.id,
     supabaseUrl,
     supabaseAnonKey,

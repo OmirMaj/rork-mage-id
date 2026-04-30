@@ -15,6 +15,7 @@ import { NotificationProvider } from "@/contexts/NotificationContext";
 import { SearchProvider, useSearch } from "@/contexts/SearchContext";
 import UniversalSearch from "@/components/UniversalSearch";
 import { NailItToastHost } from "@/components/animations/NailItToast";
+import { ConfettiHost } from "@/components/animations/Confetti";
 import { Colors, setCustomColors } from "@/constants/colors";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -837,6 +838,7 @@ export default function RootLayout() {
                             <UniversalSearch />
                             <SearchHotkeyListener />
                             <NailItToastHost />
+                            <ConfettiHost />
                           </SearchProvider>
                         </NotificationProvider>
                       </HireProvider>

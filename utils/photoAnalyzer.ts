@@ -126,7 +126,7 @@ interface AnalyzeMeta {
   skippedIndexes: number[];
 }
 
-async function callAnalyzePhotos<T>(opts: BaseOpts & { task: 'punch' | 'dfr' }, attempt = 0): Promise<{ data: T; meta: AnalyzeMeta }> {
+async function callAnalyzePhotos<T>(opts: BaseOpts & { task: 'punch' | 'dfr' | 'caption' | 'coi' }, attempt = 0): Promise<{ data: T; meta: AnalyzeMeta }> {
   if (!opts.photoUrls || opts.photoUrls.length === 0) {
     throw new Error('No photos to analyze.');
   }
@@ -224,4 +224,39 @@ export async function analyzePhotosForPunch(opts: BaseOpts): Promise<{ items: Ai
 export async function analyzePhotosForDfr(opts: BaseOpts): Promise<{ summary: AiDfrSummary; meta: AnalyzeMeta }> {
   const { data, meta } = await callAnalyzePhotos<AiDfrSummary>({ ...opts, task: 'dfr' });
   return { summary: data, meta };
+}
+
+// AI-generated photo caption — single-photo helper used when the GC
+// uploads a photo and wants a one-line description suggested. Returns
+// the caption string or null if the analyzer isn't available. Falls
+// back gracefully so the upload always succeeds.
+export interface AiCaptionResult {
+  caption: string;
+  /** "what" the AI saw in the photo, useful for tags / search. */
+  subjects: string[];
+  /** Suggested location label (e.g. "Master Bath"). May be empty. */
+  location: string;
+}
+
+export async function captionPhoto(opts: { photoUrl: string; projectName?: string; projectType?: string }): Promise<AiCaptionResult | null> {
+  try {
+    const { data } = await callAnalyzePhotos<AiCaptionResult>({
+      photoUrls: [opts.photoUrl],
+      projectName: opts.projectName,
+      projectType: opts.projectType,
+      task: 'caption',  // server may not yet support 'caption'; fall back below
+    });
+    if (!data || typeof data !== 'object') return null;
+    if (typeof data.caption !== 'string' || !data.caption) return null;
+    return {
+      caption: data.caption,
+      subjects: Array.isArray(data.subjects) ? data.subjects : [],
+      location: typeof data.location === 'string' ? data.location : '',
+    };
+  } catch (err) {
+    // Server may not support task='caption' yet — silently fall back so
+    // the caller keeps the photo without a caption rather than crashing.
+    console.log('[photoAnalyzer] captionPhoto unavailable:', err);
+    return null;
+  }
 }

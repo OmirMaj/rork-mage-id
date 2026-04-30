@@ -39,6 +39,7 @@ import { prefetchProjectPlans } from '@/utils/planPrefetch';
 import HardHatTap from '@/components/animations/HardHatTap';
 import TapeRollNumber from '@/components/animations/TapeRollNumber';
 import BlueprintReveal from '@/components/animations/BlueprintReveal';
+import { fireConfetti } from '@/components/animations/Confetti';
 import ConcretePour from '@/components/animations/ConcretePour';
 import { nailIt } from '@/components/animations/NailItToast';
 import FilterChipRow, { type FilterChip } from '@/components/FilterChipRow';
@@ -1829,6 +1830,9 @@ export default function ProjectDetailScreen() {
                         status: 'approved',
                         scheduleImpactApplied: shouldApplyImpact ? true : co.scheduleImpactApplied,
                       });
+                      // 🎉 Burst — change orders are real money/scope
+                      // events; the GC celebrates each approval.
+                      fireConfetti({ count: 35 });
                       if (shouldApplyImpact && project?.schedule) {
                         const nextSchedule = {
                           ...project.schedule,

@@ -35,6 +35,7 @@ import { formatMoney } from '@/utils/formatters';
 import { statusPillStyle } from '@/utils/statusPill';
 import { syncAllowancesToSelections } from '@/utils/selectionsEngine';
 import SignaturePad from '@/components/SignaturePad';
+import { fireConfetti } from '@/components/animations/Confetti';
 import type { ProjectContract, PaymentMilestone, ContractAllowance } from '@/types';
 
 export default function ContractScreen() {
@@ -207,6 +208,12 @@ export default function ContractScreen() {
       }
       const refreshed = await fetchActiveContract(saved.projectId);
       if (refreshed) setContract(refreshed);
+
+      // 🎉 Milestone! Fire a celebratory confetti burst when the GC
+      // signs and sends. The homeowner counter-signing also fires one
+      // (handled separately on the portal side). Tiny bit of joy in
+      // an otherwise paperwork-heavy moment.
+      fireConfetti({ count: 50 });
 
       // Connector: auto-create SelectionCategory rows from contract
       // allowances so the GC doesn't have to re-type the same data into
