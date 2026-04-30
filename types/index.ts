@@ -645,6 +645,14 @@ export interface LinkedEstimateItem {
   lineTotal: number;
   supplier: string;
   /**
+   * CSI MasterFormat 2020 division number ("03" for Concrete, "26" for
+   * Electrical, etc.). Used to group estimate items into a real Schedule
+   * of Values, organize bid packages, and label submittals. Auto-classified
+   * from item description on save when not explicitly set. Optional —
+   * legacy items may have it null until they're touched.
+   */
+  csiDivision?: string;
+  /**
    * Allowance items are placeholder line items the GC carried in the
    * estimate before the homeowner finalized a selection (tile, fixtures,
    * appliances). At buyout, the GC awards a sub against the actual
@@ -2115,6 +2123,176 @@ export interface ProjectDocument {
   signedAt?: string;
   fileUrl?: string;
   notes?: string;
+}
+
+// ─── Certificate of Insurance (COI) vault ──────────────────────────
+//
+// Per-subcontractor insurance certificates the GC collects before the
+// sub mobilizes. Tracked here so the GC can answer "are all my subs
+// insured today?" without rifling through email attachments.
+//
+// AI validator (Gemini Vision via the analyze-photos edge function)
+// extracts the structured fields from an uploaded image and flags
+// missing endorsements that would block a pay app on a real project.
+
+export type COICoverageType = 'general_liability' | 'auto' | 'workers_comp' | 'umbrella' | 'professional' | 'pollution' | 'other';
+
+export interface COICoverage {
+  type: COICoverageType;
+  carrierName?: string;
+  policyNumber?: string;
+  effectiveDate?: string;     // ISO
+  expiresAt?: string;          // ISO
+  /** Each-occurrence limit, in dollars. */
+  eachOccurrence?: number;
+  /** General aggregate, in dollars. */
+  generalAggregate?: number;
+}
+
+export interface COIValidationResult {
+  /** Date the COI was last validated by the AI / GC. */
+  validatedAt: string;
+  /** Overall pass / fail / warn — drives the row badge. */
+  overallStatus: 'pass' | 'warn' | 'fail';
+  /**
+   * Per-check findings. Examples:
+   *   - "additional_insured_missing"   — critical
+   *   - "waiver_subrogation_missing"   — critical on most prime contracts
+   *   - "gl_limit_below_required"      — warn
+   *   - "expires_within_30_days"       — warn
+   *   - "expired"                      — critical
+   */
+  issues: Array<{
+    code: string;
+    severity: 'critical' | 'warning' | 'info';
+    message: string;
+  }>;
+  /** When AI extracted the data, confidence 0-100. */
+  confidence?: number;
+}
+
+export interface CertificateOfInsurance {
+  id: string;
+  subcontractorId: string;
+  /** Optional project association — when set, the COI is "for this project."
+   *  When null, the COI is the sub's general blanket COI on file. */
+  projectId?: string;
+  /** Local file URI of the COI scan. Required. */
+  fileUri: string;
+  /** When the GC uploaded it. */
+  uploadedAt: string;
+  /** AI/manual validation snapshot. May be re-run after upload. */
+  validation?: COIValidationResult;
+  /** Coverages extracted from the document (manual or AI). */
+  coverages?: COICoverage[];
+  /** Free-text notes the GC added. */
+  notes?: string;
+}
+
+// ─── OAC Meeting (Owner-Architect-Contractor weekly) ───────────────
+//
+// The CM-led weekly project meeting where owner, architect, and contractor
+// review safety, schedule, RFIs, submittals, change orders, and action
+// items. Industry standard cadence: weekly during construction. Minutes
+// must be issued within 24 hours per most contracts.
+//
+// Lives as its own type (not bolted onto a Communication record) so we
+// can render structured agenda items, capture voice → AI minutes, and
+// track action items across meetings.
+
+export type OACAttendeeRole = 'owner' | 'architect' | 'engineer' | 'gc' | 'sub' | 'inspector' | 'other';
+
+export interface OACAttendee {
+  id: string;
+  name: string;
+  email?: string;
+  company?: string;
+  role: OACAttendeeRole;
+  /** True when checked in / present at the meeting. */
+  attended?: boolean;
+}
+
+export type OACAgendaSection =
+  | 'safety'
+  | 'schedule'
+  | 'rfis'
+  | 'submittals'
+  | 'change_orders'
+  | 'budget'
+  | 'decisions'
+  | 'action_items'
+  | 'open_discussion'
+  | 'next_meeting';
+
+export interface OACAgendaItem {
+  id: string;
+  section: OACAgendaSection;
+  /** Short heading — e.g. "RFI #14 — kitchen island beam (overdue 5 days)" */
+  title: string;
+  /** Detail rendered as a sub-line; AI-generated when section is auto-built. */
+  detail?: string;
+  /** Status drives a colored chip in the UI. */
+  status?: 'info' | 'warn' | 'urgent' | 'done';
+  /** When this references a specific RFI / Submittal / CO / Task, the id is here. */
+  referenceId?: string;
+  referenceType?: 'rfi' | 'submittal' | 'change_order' | 'task' | 'punch';
+  /** GC's own note added during the meeting — survives across regenerations of the agenda. */
+  manualNote?: string;
+  /** Marked true after discussion. Drives "X of Y items covered" in the meeting screen. */
+  covered?: boolean;
+}
+
+export interface OACActionItem {
+  id: string;
+  description: string;
+  ballInCourt: string;        // Person/company who owes the action
+  dueBy?: string;              // ISO date
+  status: 'open' | 'in_progress' | 'done';
+  createdAt: string;
+  closedAt?: string;
+  /** Origin meeting — used to attribute who/when raised the action. */
+  meetingId?: string;
+}
+
+export type OACMeetingStatus = 'draft' | 'scheduled' | 'in_progress' | 'concluded' | 'distributed';
+
+export interface OACMeeting {
+  id: string;
+  projectId: string;
+  /** Sequential meeting number for the project — week 1, week 2, etc. */
+  number: number;
+  scheduledAt: string;          // ISO when meeting starts
+  durationMinutes?: number;
+  location?: string;            // "Site trailer" / "Zoom" / "Owner's office"
+  attendees: OACAttendee[];
+  /**
+   * Agenda items, ordered. Auto-built by the AI when meeting is created;
+   * GC can edit, add manual items, or regenerate. Survives across
+   * regenerations: items with a manualNote are preserved.
+   */
+  agenda: OACAgendaItem[];
+  /**
+   * Open action items for this meeting. NEW action items added during the
+   * meeting land here; closed ones are kept for audit but stop nagging.
+   */
+  actionItems: OACActionItem[];
+  /**
+   * Raw transcript captured during the meeting via voice recorder.
+   * Used as input to AI minutes generation; preserved as audit material.
+   */
+  transcript?: string;
+  /**
+   * AI-generated meeting minutes — a clean narrative organized by agenda
+   * section. GC reviews + edits, then taps "Distribute" to email out.
+   */
+  minutes?: string;
+  status: OACMeetingStatus;
+  /** When the GC distributed minutes to attendees. */
+  distributedAt?: string;
+  /** Email subjects/recipients touched in the most recent distribution. */
+  distributionLog?: Array<{ recipient: string; sentAt: string; ok: boolean; error?: string }>;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export type PermitStatus = 'applied' | 'under_review' | 'approved' | 'denied' | 'expired' | 'inspection_scheduled' | 'inspection_passed' | 'inspection_failed';

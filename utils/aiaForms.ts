@@ -591,6 +591,188 @@ export async function generateG714PDF(data: G714Data, branding: CompanyBranding)
   await renderAndShare(html, `G714 CCD #${data.ccdNumber} — ${data.projectName}`);
 }
 
+// ─── A401 — Standard Form of Agreement Between Contractor and Subcontractor ─
+//
+// Used at buyout to document the prime-sub relationship: scope, contract
+// sum, schedule, retainage, lien-waiver requirements, insurance + bond
+// reqs, and standard exhibits. Issued by the GC after award and signed
+// by both parties before NTP.
+//
+// AIA's exact contract language is copyrighted; we replicate the FIELD
+// STRUCTURE that A401 + ConsensusDocs 750 share, with our own neutral
+// language. The contractor is expected to plug in any project-specific
+// terms (warranties, indemnification, dispute resolution venue, etc.)
+// in the "Special Conditions" field.
+
+export interface A401Data {
+  /** Sequential subcontract number for the project. */
+  subcontractNumber: number;
+  agreementDate: string;       // ISO
+
+  // Parties
+  contractorName: string;
+  contractorAddress?: string;
+  subcontractorName: string;
+  subcontractorAddress?: string;
+  subcontractorLicense?: string;
+  ownerName: string;
+  architectName?: string;
+
+  // Project
+  projectName: string;
+  projectAddress?: string;
+  primeContractDate?: string;
+
+  // Scope + value
+  scopeDescription: string;     // narrative scope
+  csiDivision?: string;          // "03" / "23" / "26" etc.
+  contractSum: number;
+  retainagePercent: number;     // typically 5-10
+  paymentTerms: string;          // e.g. "Net 30 from approved pay app"
+
+  // Schedule
+  startDate?: string;
+  substantialCompletionDate?: string;
+  liquidatedDamagesPerDay?: number;
+
+  // Insurance / bonds
+  insuranceRequirements?: string; // e.g. "GL $1M / $2M agg, Auto $1M, WC stat, Umbrella $5M"
+  bondsRequired?: 'none' | 'payment' | 'performance' | 'both';
+
+  // Lien waivers
+  lienWaiverRequired?: boolean;
+
+  // Exhibits attached (filenames or names)
+  exhibits?: string[];
+
+  // Free-form addendum
+  specialConditions?: string;
+}
+
+function bondsLabel(b?: A401Data['bondsRequired']): string {
+  switch (b) {
+    case 'payment':     return 'Payment bond required';
+    case 'performance': return 'Performance bond required';
+    case 'both':        return 'Performance and payment bonds required';
+    case 'none':
+    default:            return 'No bonds required';
+  }
+}
+
+function buildA401Html(data: A401Data, branding: CompanyBranding): string {
+  const exhibitsList = (data.exhibits ?? []).filter(Boolean);
+  return pageShell(`Subcontract #${data.subcontractNumber} — ${data.projectName}`, `
+    ${header(branding, 'Standard Subcontract Agreement', `Subcontract #${data.subcontractNumber}`, 'Document A401 — styled')}
+
+    <h2>Parties</h2>
+    <div class="row">
+      ${field('Contractor', data.contractorName)}
+      ${field('Subcontractor', data.subcontractorName)}
+    </div>
+    <div class="row">
+      ${field('Contractor address', data.contractorAddress || '')}
+      ${field('Subcontractor address', data.subcontractorAddress || '')}
+    </div>
+    <div class="row">
+      ${field('Owner', data.ownerName)}
+      ${field('Architect', data.architectName || '')}
+      ${field("Sub's license #", data.subcontractorLicense || '')}
+    </div>
+
+    <h2>Project</h2>
+    <div class="row">
+      ${field('Project name', data.projectName)}
+      ${field('Project address', data.projectAddress || '')}
+    </div>
+    <div class="row">
+      ${field('Prime contract date', fmtDate(data.primeContractDate))}
+      ${field('Subcontract date', fmtDate(data.agreementDate))}
+    </div>
+
+    <h2>Article 1 — Scope of Work</h2>
+    ${data.csiDivision ? `<p class="small">CSI Division ${escapeHtml(data.csiDivision)}</p>` : ''}
+    <div class="field-value" style="white-space:pre-wrap;min-height:80px;font-size:12px;">${escapeHtml(data.scopeDescription)}</div>
+    <p class="small" style="margin-top:8px;">
+      The Subcontractor shall furnish all labor, materials, equipment, supervision, and incidentals necessary to perform the
+      work described above and as further detailed in the contract documents and exhibits attached.
+    </p>
+
+    <h2>Article 2 — The Subcontract Sum</h2>
+    <p>
+      The Contractor shall pay the Subcontractor the Subcontract Sum of <strong>${fmtMoney(data.contractSum)}</strong> for performance of the work,
+      subject to additions and deductions for changes as set forth in the contract documents.
+    </p>
+    <div class="row">
+      ${field('Retainage', `${data.retainagePercent}% of each progress payment`)}
+      ${field('Payment terms', data.paymentTerms)}
+    </div>
+
+    <h2>Article 3 — Schedule</h2>
+    <div class="row">
+      ${field('Start date', fmtDate(data.startDate))}
+      ${field('Substantial completion', fmtDate(data.substantialCompletionDate))}
+    </div>
+    ${data.liquidatedDamagesPerDay != null && data.liquidatedDamagesPerDay > 0 ? `
+      <p>
+        <strong>Liquidated damages:</strong> ${fmtMoney(data.liquidatedDamagesPerDay)} per calendar day for each day the work is not substantially complete past the agreed date, in lieu of actual damages.
+      </p>` : ''}
+
+    <h2>Article 4 — Insurance and Bonds</h2>
+    <p style="font-size:11px;line-height:1.55;">
+      The Subcontractor shall maintain insurance as required by the prime contract and provide a Certificate of Insurance
+      naming the Contractor and Owner as additional insureds, with waiver of subrogation, before commencing any work.
+      ${data.insuranceRequirements ? `Required coverages: <strong>${escapeHtml(data.insuranceRequirements)}</strong>.` : ''}
+    </p>
+    <p style="font-size:11px;">${escapeHtml(bondsLabel(data.bondsRequired))}.</p>
+
+    <h2>Article 5 — Lien Waivers</h2>
+    <p style="font-size:11px;">
+      ${data.lienWaiverRequired === false
+        ? 'Lien waivers are not required for this subcontract.'
+        : 'The Subcontractor shall provide a conditional lien waiver with each application for payment and an unconditional lien waiver upon receipt of payment for the previous period. Final payment is conditioned upon final unconditional waivers from the Subcontractor and any tier-2 suppliers / sub-subcontractors.'}
+    </p>
+
+    <h2>Article 6 — Contract Documents</h2>
+    <p style="font-size:11px;">
+      The contract documents consist of this Agreement, the prime contract between the Owner and Contractor (as it relates
+      to this work), the drawings and specifications, addenda issued before execution, and the following exhibits:
+    </p>
+    ${exhibitsList.length === 0
+      ? `<p style="font-style:italic;color:#777;font-size:11px;">No exhibits attached at execution.</p>`
+      : `<ul style="margin:6px 0 0;padding-left:18px;font-size:11px;">${exhibitsList.map(e => `<li>${escapeHtml(e)}</li>`).join('')}</ul>`}
+
+    ${data.specialConditions ? `
+      <h2>Article 7 — Special Conditions</h2>
+      <div class="field-value" style="white-space:pre-wrap;min-height:60px;font-size:11px;">${escapeHtml(data.specialConditions)}</div>
+    ` : ''}
+
+    <h2>Article 8 — Standard Provisions</h2>
+    <p style="font-size:10.5px;line-height:1.55;color:#333;">
+      Unless modified by Special Conditions above, the Subcontractor agrees to be bound to the Contractor by all the terms
+      of the prime contract that apply to this work, and assumes toward the Contractor all obligations the Contractor
+      assumes toward the Owner. Time is of the essence. Changes shall be authorized in writing only. Disputes will be
+      resolved per the prime contract dispute resolution provisions.
+    </p>
+
+    <div class="stamp">
+      <strong>Execution:</strong> Both parties sign below to indicate agreement. Insurance certificates and bonds (if required)
+      must be on file with the Contractor before the Subcontractor commences work on site.
+    </div>
+
+    ${signatures(
+      'Contractor — by authorized representative · date',
+      'Subcontractor — by authorized representative · date',
+    )}
+
+    ${disclaimer()}
+  `);
+}
+
+export async function generateA401PDF(data: A401Data, branding: CompanyBranding): Promise<void> {
+  const html = buildA401Html(data, branding);
+  await renderAndShare(html, `Subcontract #${data.subcontractNumber} — ${data.projectName}`);
+}
+
 // ─── Render + share helper (shared across forms) ────────────────────
 
 async function renderAndShare(html: string, title: string): Promise<void> {

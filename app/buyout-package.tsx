@@ -26,8 +26,9 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
   Plus, Mic, Sparkles, X, Save, Trophy, AlertTriangle, CheckCircle2,
-  Trash2, ChevronDown, ChevronUp, Briefcase, ArrowRight,
+  Trash2, ChevronDown, ChevronUp, Briefcase, ArrowRight, FileDown,
 } from 'lucide-react-native';
+import { generateA401PDF, type A401Data } from '@/utils/aiaForms';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import {
@@ -55,6 +56,7 @@ export default function BuyoutPackageScreen() {
     getBidPackage, updateBidPackage, deleteBidPackage,
     getBidsForPackage, addBidPackageBid, updateBidPackageBid, deleteBidPackageBid,
     awardBidPackage, getProject, prequalPackets, getSubcontractor,
+    settings,
   } = useProjects();
   const { tier: subscriptionTier } = useSubscription();
 
@@ -225,6 +227,63 @@ export default function BuyoutPackageScreen() {
       ],
     );
   }, [pkg, awardBidPackage, getSubcontractor, prequalPackets, allowanceItems]);
+
+  // Generate A401-styled subcontract PDF for the awarded sub. Pulls
+  // scope, contract sum, and CSI division from the bid package; pulls
+  // sub info from the awarded bid; pulls GC info from settings.branding.
+  // The GC fills in any missing pieces (start date, retainage % override,
+  // insurance reqs) by editing the form on the GC's letterhead.
+  const handleGenerateSubcontract = useCallback(async () => {
+    if (!pkg || !pkg.awardedBidId || !project) return;
+    const winningBid = bids.find(b => b.id === pkg.awardedBidId);
+    if (!winningBid) {
+      Alert.alert('No awarded bid', 'Award a bid before generating the subcontract.');
+      return;
+    }
+    const branding = settings?.branding ?? { companyName: 'MAGE ID', address: '', phone: '', email: '', licenseNumber: '', tagline: '', contactName: '' };
+    const ownerName = (project.clientPortal?.invites?.[0]?.name) ?? (project as { owner?: string }).owner ?? 'Owner';
+    try {
+      const data: A401Data = {
+        subcontractNumber: 1, // future: track subcontracts per package; sequential per project
+        agreementDate: new Date().toISOString(),
+        contractorName: branding.companyName,
+        contractorAddress: branding.address,
+        subcontractorName: winningBid.vendorName ?? 'Subcontractor',
+        subcontractorAddress: undefined,
+        subcontractorLicense: undefined,
+        ownerName,
+        architectName: undefined,
+        projectName: project.name,
+        projectAddress: (project as { location?: string }).location ?? '',
+        primeContractDate: undefined,
+        scopeDescription: pkg.scopeDescription || pkg.name || 'Per attached scope',
+        csiDivision: pkg.csiDivision,
+        contractSum: winningBid.amount ?? 0,
+        retainagePercent: 10,
+        paymentTerms: 'Net 30 from approved monthly pay application',
+        startDate: undefined,
+        substantialCompletionDate: undefined,
+        liquidatedDamagesPerDay: undefined,
+        insuranceRequirements: 'GL $1M / $2M agg, Auto $1M, WC statutory, Umbrella $2M; Owner + Contractor named additional insured w/ waiver of subrogation',
+        bondsRequired: 'none',
+        lienWaiverRequired: true,
+        exhibits: [
+          'Exhibit A — Scope of work + drawings list',
+          'Exhibit B — Schedule of values',
+          'Exhibit C — Project schedule (current baseline)',
+          'Exhibit D — Insurance requirements (signed COI)',
+          'Exhibit E — Lien waiver templates (conditional/unconditional)',
+          'Exhibit F — Safety plan acknowledgment',
+        ],
+        specialConditions: undefined,
+      };
+      await generateA401PDF(data, branding);
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (err) {
+      console.error('[Buyout] A401 generate failed:', err);
+      Alert.alert('Could not generate subcontract', err instanceof Error ? err.message : 'Try again.');
+    }
+  }, [pkg, bids, project, settings]);
 
   const handleDeletePackage = useCallback(() => {
     if (!pkg) return;
@@ -531,6 +590,24 @@ export default function BuyoutPackageScreen() {
                 <Briefcase size={16} color={Colors.primary} />
                 <Text style={styles.openCommitmentText}>Open project · view this commitment</Text>
                 <ChevronUp size={16} color={Colors.primary} style={{ transform: [{ rotate: '90deg' }] }} />
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* Generate A401 subcontract — available once the package is
+              awarded. Pre-fills from the awarded bid + project + GC
+              branding. The PDF is the GC's deliverable to the sub for
+              countersignature before NTP. */}
+          {pkg.status === 'awarded' && pkg.awardedBidId && (
+            <View style={styles.section}>
+              <TouchableOpacity
+                style={styles.openCommitmentBtn}
+                onPress={handleGenerateSubcontract}
+                activeOpacity={0.85}
+                testID="generate-a401"
+              >
+                <FileDown size={16} color={Colors.primary} />
+                <Text style={styles.openCommitmentText}>Generate A401-style subcontract PDF</Text>
               </TouchableOpacity>
             </View>
           )}

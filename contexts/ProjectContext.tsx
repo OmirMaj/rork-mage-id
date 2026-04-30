@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import createContextHook from '@nkzw/create-context-hook';
-import type { Project, ProjectType, AppSettings, CompanyBranding, ProjectCollaborator, ChangeOrder, Invoice, DailyFieldReport, Subcontractor, PunchItem, ProjectPhoto, PriceAlert, Contact, CommunicationEvent, RFI, Submittal, SubmittalReviewCycle, Equipment, EquipmentUtilizationEntry, PDFNamingSettings, Warranty, WarrantyClaim, PortalMessage, Commitment, PrequalPacket, PlanSheet, DrawingPin, PlanCalibration, PlanMarkup, Permit, SavedAIAPayApp, SubPortalLink, Lead, LeadStage, LeadTouch, BidPackage, BidPackageBid, BidPackageStatus, BuyoutBidStatus } from '@/types';
+import type { Project, ProjectType, AppSettings, CompanyBranding, ProjectCollaborator, ChangeOrder, Invoice, DailyFieldReport, Subcontractor, PunchItem, ProjectPhoto, PriceAlert, Contact, CommunicationEvent, RFI, Submittal, SubmittalReviewCycle, Equipment, EquipmentUtilizationEntry, PDFNamingSettings, Warranty, WarrantyClaim, PortalMessage, Commitment, PrequalPacket, PlanSheet, DrawingPin, PlanCalibration, PlanMarkup, Permit, SavedAIAPayApp, SubPortalLink, Lead, LeadStage, LeadTouch, BidPackage, BidPackageBid, BidPackageStatus, BuyoutBidStatus, OACMeeting, CertificateOfInsurance } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { supabaseWrite } from '@/utils/offlineQueue';
@@ -25,6 +25,8 @@ const CONTACTS_KEY = 'tertiary_contacts';
 const COMM_EVENTS_KEY = 'tertiary_comm_events';
 const RFIS_KEY = 'tertiary_rfis';
 const SUBMITTALS_KEY = 'tertiary_submittals';
+const OAC_MEETINGS_KEY = 'tertiary_oac_meetings';
+const COIS_KEY = 'tertiary_cois';
 const EQUIPMENT_KEY = 'tertiary_equipment';
 const WARRANTIES_KEY = 'tertiary_warranties';
 const PORTAL_MESSAGES_KEY = 'tertiary_portal_messages';
@@ -99,6 +101,8 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
   const [commEvents, setCommEvents] = useState<CommunicationEvent[]>([]);
   const [rfis, setRfis] = useState<RFI[]>([]);
   const [submittals, setSubmittals] = useState<Submittal[]>([]);
+  const [oacMeetings, setOacMeetings] = useState<OACMeeting[]>([]);
+  const [cois, setCois] = useState<CertificateOfInsurance[]>([]);
   const [equipment, setEquipment] = useState<Equipment[]>([]);
   const [warranties, setWarranties] = useState<Warranty[]>([]);
   const [permits, setPermits] = useState<Permit[]>([]);
@@ -579,6 +583,18 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
     },
   });
 
+  // OAC Meetings — local-only for now (no Supabase mirror). Lives in
+  // tertiary_oac_meetings AsyncStorage key. Add server sync later if
+  // cross-device meetings become a need.
+  const oacMeetingsQuery = useQuery({
+    queryKey: ['oac_meetings', userId],
+    queryFn: async () => loadLocal<OACMeeting[]>(OAC_MEETINGS_KEY, []),
+  });
+  const coisQuery = useQuery({
+    queryKey: ['cois', userId],
+    queryFn: async () => loadLocal<CertificateOfInsurance[]>(COIS_KEY, []),
+  });
+
   const equipmentQuery = useQuery({
     queryKey: ['equipment', userId],
     queryFn: async () => {
@@ -652,6 +668,8 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
   useEffect(() => { if (commEventsQuery.data) setCommEvents(commEventsQuery.data); }, [commEventsQuery.data]);
   useEffect(() => { if (rfisQuery.data) setRfis(rfisQuery.data); }, [rfisQuery.data]);
   useEffect(() => { if (submittalsQuery.data) setSubmittals(submittalsQuery.data); }, [submittalsQuery.data]);
+  useEffect(() => { if (oacMeetingsQuery.data) setOacMeetings(oacMeetingsQuery.data); }, [oacMeetingsQuery.data]);
+  useEffect(() => { if (coisQuery.data) setCois(coisQuery.data); }, [coisQuery.data]);
   useEffect(() => { if (equipmentQuery.data) setEquipment(equipmentQuery.data); }, [equipmentQuery.data]);
 
   // Permits — local-only persistence for now. The marketing claim is "track
@@ -814,6 +832,14 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
   const saveSubmittalsMutation = useMutation({
     mutationFn: async (updated: Submittal[]) => { await saveLocal(SUBMITTALS_KEY, updated); return updated; },
     onSuccess: (data) => { queryClient.setQueryData(['submittals', userId], data); },
+  });
+  const saveOACMeetingsMutation = useMutation({
+    mutationFn: async (updated: OACMeeting[]) => { await saveLocal(OAC_MEETINGS_KEY, updated); return updated; },
+    onSuccess: (data) => { queryClient.setQueryData(['oac_meetings', userId], data); },
+  });
+  const saveCOIsMutation = useMutation({
+    mutationFn: async (updated: CertificateOfInsurance[]) => { await saveLocal(COIS_KEY, updated); return updated; },
+    onSuccess: (data) => { queryClient.setQueryData(['cois', userId], data); },
   });
   const saveEquipmentMutation = useMutation({
     mutationFn: async (updated: Equipment[]) => { await saveLocal(EQUIPMENT_KEY, updated); return updated; },
@@ -1911,6 +1937,54 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
     updateSubmittal(submittalId, { reviewCycles: [...sub.reviewCycles, newCycle], currentStatus: cycle.status });
   }, [submittals, updateSubmittal]);
 
+  // ─── OAC Meetings (local-only persistence) ─────────────────────
+  const addOACMeeting = useCallback((meeting: OACMeeting) => {
+    const updated = [...oacMeetings, meeting];
+    setOacMeetings(updated);
+    saveOACMeetingsMutation.mutate(updated);
+  }, [oacMeetings, saveOACMeetingsMutation]);
+
+  const updateOACMeeting = useCallback((id: string, patch: Partial<OACMeeting>) => {
+    const updated = oacMeetings.map(m => m.id === id ? { ...m, ...patch, updatedAt: new Date().toISOString() } : m);
+    setOacMeetings(updated);
+    saveOACMeetingsMutation.mutate(updated);
+  }, [oacMeetings, saveOACMeetingsMutation]);
+
+  const deleteOACMeeting = useCallback((id: string) => {
+    const updated = oacMeetings.filter(m => m.id !== id);
+    setOacMeetings(updated);
+    saveOACMeetingsMutation.mutate(updated);
+  }, [oacMeetings, saveOACMeetingsMutation]);
+
+  const getOACMeetingsForProject = useCallback(
+    (projectId: string) => oacMeetings.filter(m => m.projectId === projectId).sort((a, b) => b.number - a.number),
+    [oacMeetings],
+  );
+
+  // ─── COI vault ──────────────────────────────────────────────────
+  const addCOI = useCallback((coi: CertificateOfInsurance) => {
+    const updated = [...cois, coi];
+    setCois(updated);
+    saveCOIsMutation.mutate(updated);
+  }, [cois, saveCOIsMutation]);
+
+  const updateCOI = useCallback((id: string, patch: Partial<CertificateOfInsurance>) => {
+    const updated = cois.map(c => c.id === id ? { ...c, ...patch } : c);
+    setCois(updated);
+    saveCOIsMutation.mutate(updated);
+  }, [cois, saveCOIsMutation]);
+
+  const deleteCOI = useCallback((id: string) => {
+    const updated = cois.filter(c => c.id !== id);
+    setCois(updated);
+    saveCOIsMutation.mutate(updated);
+  }, [cois, saveCOIsMutation]);
+
+  const getCOIsForSub = useCallback(
+    (subId: string) => cois.filter(c => c.subcontractorId === subId),
+    [cois],
+  );
+
   const addEquipment = useCallback((equip: Omit<Equipment, 'id' | 'createdAt'>) => {
     const now = new Date().toISOString();
     const newEquip: Equipment = { ...equip, id: generateUUID(), createdAt: now };
@@ -2323,6 +2397,8 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
     aiaPayApps, addAIAPayApp, deleteAIAPayApp, getAIAPayAppsForProject,
     subPortalLinks, upsertSubPortalLink, deleteSubPortalLink, getSubPortalLinkFor, getSubPortalLinksForProject,
     submittals, addSubmittal, updateSubmittal, deleteSubmittal, getSubmittalsForProject, addReviewCycle,
+    oacMeetings, addOACMeeting, updateOACMeeting, deleteOACMeeting, getOACMeetingsForProject,
+    cois, addCOI, updateCOI, deleteCOI, getCOIsForSub,
     equipment, addEquipment, updateEquipment, deleteEquipment, logUtilization, getEquipmentForProject, getEquipmentCostForProject,
     warranties, addWarranty, updateWarranty, deleteWarranty, getWarrantiesForProject, addWarrantyClaim,
     portalMessages, addPortalMessage, markPortalMessagesRead, getPortalMessagesForProject, getUnreadPortalMessageCount, getTotalUnreadPortalCountForGc,
@@ -2330,5 +2406,5 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
     drawingPins, addDrawingPin, updateDrawingPin, deleteDrawingPin, getPinsForPlan, getPinsForPhoto,
     planMarkups, addPlanMarkup, deletePlanMarkup, getMarkupsForPlan,
     planCalibrations, upsertPlanCalibration, getCalibrationForPlan,
-  }), [sortedProjects, settings, hasSeenOnboarding, completeOnboarding, projectsQuery.isLoading, settingsQuery.isLoading, onboardingQuery.isLoading, addProject, updateProject, deleteProject, getProject, updateSettings, addCollaborator, removeCollaborator, changeOrders, addChangeOrder, updateChangeOrder, getChangeOrdersForProject, addInvoice, updateInvoice, getInvoicesForProject, getTotalOutstandingBalance, invoices, commitments, addCommitment, updateCommitment, deleteCommitment, getCommitmentsForProject, prequalPackets, upsertPrequalPacket, deletePrequalPacket, getPrequalPacketForSub, getPrequalPacketByToken, dailyReports, addDailyReport, updateDailyReport, getDailyReportsForProject, subcontractors, addSubcontractor, updateSubcontractor, deleteSubcontractor, getSubcontractor, leads, addLead, updateLead, deleteLead, getLead, getLeadsByStage, addLeadTouch, convertLeadToProject, bidPackages, bidPackageBids, addBidPackage, updateBidPackage, deleteBidPackage, getBidPackagesForProject, getBidPackage, addBidPackageBid, updateBidPackageBid, deleteBidPackageBid, getBidsForPackage, awardBidPackage, punchItems, addPunchItem, updatePunchItem, deletePunchItem, getPunchItemsForProject, projectPhotos, addProjectPhoto, updateProjectPhoto, deleteProjectPhoto, getPhotosForProject, priceAlerts, addPriceAlert, updatePriceAlert, deletePriceAlert, contacts, addContact, updateContact, deleteContact, getContact, commEvents, addCommEvent, getCommEventsForProject, rfis, addRFI, updateRFI, deleteRFI, getRFIsForProject, permits, addPermit, updatePermit, deletePermit, getPermitsForProject, aiaPayApps, addAIAPayApp, deleteAIAPayApp, getAIAPayAppsForProject, subPortalLinks, upsertSubPortalLink, deleteSubPortalLink, getSubPortalLinkFor, getSubPortalLinksForProject, submittals, addSubmittal, updateSubmittal, deleteSubmittal, getSubmittalsForProject, addReviewCycle, equipment, addEquipment, updateEquipment, deleteEquipment, logUtilization, getEquipmentForProject, getEquipmentCostForProject, warranties, addWarranty, updateWarranty, deleteWarranty, getWarrantiesForProject, addWarrantyClaim, portalMessages, addPortalMessage, markPortalMessagesRead, getPortalMessagesForProject, getUnreadPortalMessageCount, getTotalUnreadPortalCountForGc, planSheets, addPlanSheet, updatePlanSheet, deletePlanSheet, getPlanSheetsForProject, getPlanSheet, drawingPins, addDrawingPin, updateDrawingPin, deleteDrawingPin, getPinsForPlan, getPinsForPhoto, planMarkups, addPlanMarkup, deletePlanMarkup, getMarkupsForPlan, planCalibrations, upsertPlanCalibration, getCalibrationForPlan]);
+  }), [sortedProjects, settings, hasSeenOnboarding, completeOnboarding, projectsQuery.isLoading, settingsQuery.isLoading, onboardingQuery.isLoading, addProject, updateProject, deleteProject, getProject, updateSettings, addCollaborator, removeCollaborator, changeOrders, addChangeOrder, updateChangeOrder, getChangeOrdersForProject, addInvoice, updateInvoice, getInvoicesForProject, getTotalOutstandingBalance, invoices, commitments, addCommitment, updateCommitment, deleteCommitment, getCommitmentsForProject, prequalPackets, upsertPrequalPacket, deletePrequalPacket, getPrequalPacketForSub, getPrequalPacketByToken, dailyReports, addDailyReport, updateDailyReport, getDailyReportsForProject, subcontractors, addSubcontractor, updateSubcontractor, deleteSubcontractor, getSubcontractor, leads, addLead, updateLead, deleteLead, getLead, getLeadsByStage, addLeadTouch, convertLeadToProject, bidPackages, bidPackageBids, addBidPackage, updateBidPackage, deleteBidPackage, getBidPackagesForProject, getBidPackage, addBidPackageBid, updateBidPackageBid, deleteBidPackageBid, getBidsForPackage, awardBidPackage, punchItems, addPunchItem, updatePunchItem, deletePunchItem, getPunchItemsForProject, projectPhotos, addProjectPhoto, updateProjectPhoto, deleteProjectPhoto, getPhotosForProject, priceAlerts, addPriceAlert, updatePriceAlert, deletePriceAlert, contacts, addContact, updateContact, deleteContact, getContact, commEvents, addCommEvent, getCommEventsForProject, rfis, addRFI, updateRFI, deleteRFI, getRFIsForProject, permits, addPermit, updatePermit, deletePermit, getPermitsForProject, aiaPayApps, addAIAPayApp, deleteAIAPayApp, getAIAPayAppsForProject, subPortalLinks, upsertSubPortalLink, deleteSubPortalLink, getSubPortalLinkFor, getSubPortalLinksForProject, submittals, addSubmittal, updateSubmittal, deleteSubmittal, getSubmittalsForProject, addReviewCycle, oacMeetings, addOACMeeting, updateOACMeeting, deleteOACMeeting, getOACMeetingsForProject, cois, addCOI, updateCOI, deleteCOI, getCOIsForSub, equipment, addEquipment, updateEquipment, deleteEquipment, logUtilization, getEquipmentForProject, getEquipmentCostForProject, warranties, addWarranty, updateWarranty, deleteWarranty, getWarrantiesForProject, addWarrantyClaim, portalMessages, addPortalMessage, markPortalMessagesRead, getPortalMessagesForProject, getUnreadPortalMessageCount, getTotalUnreadPortalCountForGc, planSheets, addPlanSheet, updatePlanSheet, deletePlanSheet, getPlanSheetsForProject, getPlanSheet, drawingPins, addDrawingPin, updateDrawingPin, deleteDrawingPin, getPinsForPlan, getPinsForPhoto, planMarkups, addPlanMarkup, deletePlanMarkup, getMarkupsForPlan, planCalibrations, upsertPlanCalibration, getCalibrationForPlan]);
 });

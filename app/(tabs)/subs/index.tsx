@@ -273,6 +273,28 @@ export default function SubsScreen() {
               <ChevronRight size={16} color={Colors.textMuted} />
             </TouchableOpacity>
 
+            {/* COI Vault — central place to upload + validate every sub's
+                Certificate of Insurance. AI flags missing endorsements.
+                Lives here (vs in each sub's detail) so the GC can audit
+                "are all my subs insured today?" at a glance. */}
+            <TouchableOpacity
+              style={styles.prequalBanner}
+              onPress={() => router.push('/coi-vault' as never)}
+              activeOpacity={0.8}
+              testID="open-coi-vault"
+            >
+              <View style={styles.prequalIcon}>
+                <ShieldCheck size={18} color={Colors.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.prequalTitle}>COI vault</Text>
+                <Text style={styles.prequalSub}>
+                  Upload Certificates of Insurance — AI checks expirations + endorsements
+                </Text>
+              </View>
+              <ChevronRight size={16} color={Colors.textMuted} />
+            </TouchableOpacity>
+
             {stats.total > 0 && (
               <View style={styles.statsRow}>
                 <View style={[styles.statCard, { borderLeftColor: Colors.success }]}>

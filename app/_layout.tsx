@@ -430,6 +430,24 @@ function RootLayoutNav() {
         }}
       />
       <Stack.Screen
+        name="oac-meeting"
+        options={{
+          title: "OAC Meetings",
+          headerStyle: { backgroundColor: Colors.background },
+          headerTintColor: Colors.primary,
+          headerTitleStyle: { fontWeight: '700', color: Colors.text },
+        }}
+      />
+      <Stack.Screen
+        name="coi-vault"
+        options={{
+          title: "COI Vault",
+          headerStyle: { backgroundColor: Colors.background },
+          headerTintColor: Colors.primary,
+          headerTitleStyle: { fontWeight: '700', color: Colors.text },
+        }}
+      />
+      <Stack.Screen
         name="budget-dashboard"
         options={{
           title: "Budget Dashboard",

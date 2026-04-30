@@ -59,7 +59,7 @@ import { buildPortalSnapshot } from '@/utils/portalSnapshot';
 const PROJECT_DETAIL_SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://nteoqhcswappxxjlpvap.supabase.co';
 const PROJECT_DETAIL_SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im50ZW9xaGNzd2FwcHh4amxwdmFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzMTU0MDMsImV4cCI6MjA4OTg5MTQwM30.xpz7yWhignppH-3dYD-EV4AvB4cugr7-881GKdOFado';
 
-type SectionKey = 'linkedEstimate' | 'materials' | 'labor' | 'summary' | 'schedule' | 'notes' | 'collaborators' | 'changeOrders' | 'invoices' | 'dailyReports' | 'punchList' | 'rfis' | 'submittals' | 'budget' | 'photos' | 'clientPortal' | 'communications' | 'activity' | 'calendar' | 'plans' | 'permits' | 'contract' | 'selections' | 'lienWaivers' | 'closeoutBinder' | 'handover';
+type SectionKey = 'linkedEstimate' | 'materials' | 'labor' | 'summary' | 'schedule' | 'notes' | 'collaborators' | 'changeOrders' | 'invoices' | 'dailyReports' | 'punchList' | 'rfis' | 'submittals' | 'oacMeetings' | 'budget' | 'photos' | 'clientPortal' | 'communications' | 'activity' | 'calendar' | 'plans' | 'permits' | 'contract' | 'selections' | 'lienWaivers' | 'closeoutBinder' | 'handover';
 
 /** Tile group keys for the collapsible section grouping. */
 type TileGroupKey = 'field' | 'money' | 'docs' | 'people';
@@ -76,7 +76,9 @@ export default function ProjectDetailScreen() {
   const router = useRouter();
   const { navigateTo } = useEntityNavigation();
   const { id } = useLocalSearchParams<{ id: string }>();
+  const ctx = useProjects() as any;
   const { getProject, deleteProject, updateProject, settings, addCollaborator, removeCollaborator, getChangeOrdersForProject, getInvoicesForProject, getDailyReportsForProject, updateChangeOrder, getPunchItemsForProject, getPhotosForProject, getCommEventsForProject, addCommEvent, getRFIsForProject, getSubmittalsForProject, getWarrantiesForProject, getPlanSheetsForProject, getPermitsForProject, invoices: allInvoices, changeOrders: allChangeOrders } = useProjects();
+  const getOACMeetingsForProject = ctx.getOACMeetingsForProject;
   const { tier } = useSubscription();
 
   const changeOrders = useMemo(() => getChangeOrdersForProject(id ?? ''), [id, getChangeOrdersForProject]);
@@ -87,6 +89,7 @@ export default function ProjectDetailScreen() {
   const commEvents = useMemo(() => getCommEventsForProject(id ?? ''), [id, getCommEventsForProject]);
   const projectRFIs = useMemo(() => getRFIsForProject(id ?? ''), [id, getRFIsForProject]);
   const projectSubmittals = useMemo(() => getSubmittalsForProject(id ?? ''), [id, getSubmittalsForProject]);
+  const projectOACMeetings = useMemo(() => (getOACMeetingsForProject?.(id ?? '') ?? []), [id, getOACMeetingsForProject]);
   const projectWarranties = useMemo(() => getWarrantiesForProject(id ?? ''), [id, getWarrantiesForProject]);
   const projectPlans = useMemo(() => getPlanSheetsForProject(id ?? ''), [id, getPlanSheetsForProject]);
   const projectPermits = useMemo(() => getPermitsForProject(id ?? ''), [id, getPermitsForProject]);
@@ -256,6 +259,7 @@ export default function ProjectDetailScreen() {
     punchList: true,
     rfis: true,
     submittals: true,
+    oacMeetings: false,
     budget: true,
     photos: true,
     clientPortal: false,
@@ -1120,6 +1124,7 @@ export default function ProjectDetailScreen() {
             { key: 'punchList', label: 'Punch List', icon: CheckSquare, color: Colors.accent, count: punchItems.length },
             { key: 'rfis', label: 'RFIs', icon: FileText, color: Colors.info, count: projectRFIs.length },
             { key: 'submittals', label: 'Submittals', icon: FileText, color: '#5856D6', count: projectSubmittals.length },
+            { key: 'oacMeetings', label: 'OAC Meetings', icon: Users, color: '#0891b2', count: projectOACMeetings.length },
             { key: 'permits', label: 'Permits', icon: Shield, color: '#FF9500', count: projectPermits.length },
             ...(hasAnyEstimate ? [{ key: 'budget' as SectionKey, label: 'Financial Health', icon: DollarSign, color: Colors.success, count: null as number | null }] : []),
             { key: 'photos', label: 'Photos', icon: Camera, color: Colors.info, count: projectPhotos.length },
@@ -1134,7 +1139,7 @@ export default function ProjectDetailScreen() {
             { key: 'field', label: 'Field Ops', icon: HardHat, color: Colors.primary, tileKeys: ['dailyReports', 'punchList', 'photos', 'plans', 'schedule'] },
             { key: 'money', label: 'Money', icon: DollarSign, color: Colors.success, tileKeys: ['contract', 'selections', 'linkedEstimate', 'changeOrders', 'invoices', 'lienWaivers', 'closeoutBinder', 'handover', 'budget'] },
             { key: 'docs', label: 'Documentation', icon: FolderOpen, color: Colors.info, tileKeys: ['rfis', 'submittals', 'permits', 'activity', 'calendar'] },
-            { key: 'people', label: 'People & Communication', icon: Users, color: '#5856D6', tileKeys: ['collaborators', 'clientPortal', 'communications'] },
+            { key: 'people', label: 'People & Communication', icon: Users, color: '#5856D6', tileKeys: ['collaborators', 'clientPortal', 'oacMeetings', 'communications'] },
           ];
 
           const tileByKey = new Map<SectionKey, Tile>(allTiles.map(t => [t.key, t]));
@@ -1156,6 +1161,7 @@ export default function ProjectDetailScreen() {
                   if (tile.key === 'lienWaivers') { router.push({ pathname: '/lien-waivers' as any, params: { projectId: id } }); return; }
                   if (tile.key === 'closeoutBinder') { router.push({ pathname: '/closeout-binder' as any, params: { projectId: id } }); return; }
                   if (tile.key === 'handover') { router.push({ pathname: '/handover' as any, params: { projectId: id } }); return; }
+                  if (tile.key === 'oacMeetings') { router.push({ pathname: '/oac-meeting' as any, params: { projectId: id } }); return; }
                   setActiveTile(tile.key);
                 }}
                 testID={`section-tile-${tile.key}`}
