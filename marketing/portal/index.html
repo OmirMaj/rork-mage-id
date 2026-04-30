@@ -2725,25 +2725,25 @@
     if (c.status === 'signed') {
       return '' +
         '<div class="open-book"><div class="ob-summary">' +
-          '<div class="ob-row"><span>' + escapeHtml(t('contractStatusSigned')) + '</span><strong style="color:#1E8E4A">✓</strong></div>' +
-          '<div class="ob-row"><span>' + escapeHtml(t('contractTitleLabel')) + '</span><strong>' + escapeHtml(c.title) + '</strong></div>' +
-          '<div class="ob-row ob-row-total"><span>' + escapeHtml(t('contractValueLabel')) + '</span><strong>' + amount + '</strong></div>' +
+          '<div class="ob-row"><span>' + esc(t('contractStatusSigned')) + '</span><strong style="color:#1E8E4A">✓</strong></div>' +
+          '<div class="ob-row"><span>' + esc(t('contractTitleLabel')) + '</span><strong>' + esc(c.title) + '</strong></div>' +
+          '<div class="ob-row ob-row-total"><span>' + esc(t('contractValueLabel')) + '</span><strong>' + amount + '</strong></div>' +
         '</div>' +
-        '<div class="ob-disclaimer">' + escapeHtml(t('contractSignedDisclaimer')) + '</div>' +
+        '<div class="ob-disclaimer">' + esc(t('contractSignedDisclaimer')) + '</div>' +
         '</div>';
     }
     // Status === 'sent' & needs signature.
     return '' +
       '<div class="open-book">' +
         '<div class="ob-summary">' +
-          '<div class="ob-row"><span>' + escapeHtml(t('contractTitleLabel')) + '</span><strong>' + escapeHtml(c.title) + '</strong></div>' +
-          '<div class="ob-row ob-row-total"><span>' + escapeHtml(t('contractValueLabel')) + '</span><strong>' + amount + '</strong></div>' +
+          '<div class="ob-row"><span>' + esc(t('contractTitleLabel')) + '</span><strong>' + esc(c.title) + '</strong></div>' +
+          '<div class="ob-row ob-row-total"><span>' + esc(t('contractValueLabel')) + '</span><strong>' + amount + '</strong></div>' +
         '</div>' +
-        '<p style="font-size:13px;color:#4A5159;line-height:1.6;margin:10px 0">' + escapeHtml(t('contractSignerExplainer')) + '</p>' +
+        '<p style="font-size:13px;color:#4A5159;line-height:1.6;margin:10px 0">' + esc(t('contractSignerExplainer')) + '</p>' +
         '<div class="contract-sign">' +
-          '<input type="text" id="contract-name-' + escapeHtml(c.id) + '" placeholder="' + escapeHtml(t('contractSignNamePlaceholder')) + '" style="width:100%;padding:12px 14px;border:1px solid #E8DFCD;border-radius:10px;font-size:15px;font-weight:600;color:#0B0D10;margin-bottom:8px" />' +
-          '<button type="button" class="btn-primary" data-action="sign-contract" data-contract-id="' + escapeHtml(c.id) + '" style="width:100%;padding:14px;background:#FF6A1A;color:#fff;border:none;border-radius:10px;font-weight:800;font-size:15px;cursor:pointer">' + escapeHtml(t('contractSignButton')) + '</button>' +
-          '<p style="font-size:11px;color:#8B9099;margin-top:10px;line-height:1.5">' + escapeHtml(t('contractFinePrint')) + '</p>' +
+          '<input type="text" id="contract-name-' + esc(c.id) + '" placeholder="' + esc(t('contractSignNamePlaceholder')) + '" style="width:100%;padding:12px 14px;border:1px solid #E8DFCD;border-radius:10px;font-size:15px;font-weight:600;color:#0B0D10;margin-bottom:8px" />' +
+          '<button type="button" class="btn-primary" data-action="sign-contract" data-contract-id="' + esc(c.id) + '" style="width:100%;padding:14px;background:#FF6A1A;color:#fff;border:none;border-radius:10px;font-weight:800;font-size:15px;cursor:pointer">' + esc(t('contractSignButton')) + '</button>' +
+          '<p style="font-size:11px;color:#8B9099;margin-top:10px;line-height:1.5">' + esc(t('contractFinePrint')) + '</p>' +
         '</div>' +
       '</div>';
   }
@@ -2755,9 +2755,9 @@
       var chosen = c.options.find(function (o) { return o.isChosen; });
       var statusBadge = chosen
         ? (c.status === 'exceeded'
-            ? '<div class="sel-status sel-status-over">' + escapeHtml(t('selectionsOverBudget')) + '</div>'
-            : '<div class="sel-status sel-status-chosen">' + escapeHtml(t('selectionsChosen')) + '</div>')
-        : '<div class="sel-status sel-status-pending">' + escapeHtml(t('selectionsPickOne')) + '</div>';
+            ? '<div class="sel-status sel-status-over">' + esc(t('selectionsOverBudget')) + '</div>'
+            : '<div class="sel-status sel-status-chosen">' + esc(t('selectionsChosen')) + '</div>')
+        : '<div class="sel-status sel-status-pending">' + esc(t('selectionsPickOne')) + '</div>';
       var optionsHtml = c.options.map(function (o) {
         var tierBucket = o.total <= c.budget * 0.75 ? 'budget'
                        : o.total <= c.budget * 1.05 ? 'ontarget'
@@ -2767,11 +2767,11 @@
                  :                              t('selectionsTierPremium');
         var tierColor = tierBucket === 'budget' ? '#1E8E4A' : tierBucket === 'ontarget' ? '#FF6A1A' : '#C26A00';
         var highlightsHtml = (o.highlights || []).slice(0, 3).map(function (h) {
-          return '<span class="sel-highlight">' + escapeHtml(h) + '</span>';
+          return '<span class="sel-highlight">' + esc(h) + '</span>';
         }).join('');
         var metaHtml = [
-          o.brand ? escapeHtml(o.brand) : '',
-          o.supplier ? escapeHtml(o.supplier) : '',
+          o.brand ? esc(o.brand) : '',
+          o.supplier ? esc(o.supplier) : '',
           o.leadTimeDays != null ? (o.leadTimeDays + 'd lead') : '',
         ].filter(Boolean).join(' · ');
         // Swatch / preview image at top of each card. Tap-to-zoom via
@@ -2780,24 +2780,24 @@
         // placeholder with the first letter of the product so cards
         // don't collapse.
         var swatchHtml = o.imageUrl
-          ? '<div class="sel-swatch" data-zoom="' + escapeHtml(o.imageUrl) + '">' +
-              '<img loading="lazy" src="' + escapeHtml(o.imageUrl) + '" alt="' + escapeHtml(o.productName) + '"/>' +
+          ? '<div class="sel-swatch" data-zoom="' + esc(o.imageUrl) + '">' +
+              '<img loading="lazy" src="' + esc(o.imageUrl) + '" alt="' + esc(o.productName) + '"/>' +
               '<div class="sel-swatch-zoom">⤢</div>' +
             '</div>'
-          : '<div class="sel-swatch sel-swatch-empty"><span>' + escapeHtml(o.productName.charAt(0).toUpperCase()) + '</span></div>';
+          : '<div class="sel-swatch sel-swatch-empty"><span>' + esc(o.productName.charAt(0).toUpperCase()) + '</span></div>';
         return '' +
-          '<div class="sel-opt' + (o.isChosen ? ' sel-opt-chosen' : '') + '" data-action="choose-selection" data-category-id="' + escapeHtml(c.id) + '" data-option-id="' + escapeHtml(o.id) + '">' +
+          '<div class="sel-opt' + (o.isChosen ? ' sel-opt-chosen' : '') + '" data-action="choose-selection" data-category-id="' + esc(c.id) + '" data-option-id="' + esc(o.id) + '">' +
             swatchHtml +
             '<div class="sel-opt-body">' +
               '<div class="sel-opt-head">' +
                 '<span class="sel-tier" style="color:' + tierColor + ';background:' + tierColor + '15">' + tier + '</span>' +
                 '<span class="sel-total">' + fmtMoney(o.total) + '</span>' +
               '</div>' +
-              '<div class="sel-name">' + escapeHtml(o.productName) + '</div>' +
+              '<div class="sel-name">' + esc(o.productName) + '</div>' +
               (metaHtml ? '<div class="sel-meta">' + metaHtml + '</div>' : '') +
-              (o.description ? '<div class="sel-desc">' + escapeHtml(o.description) + '</div>' : '') +
+              (o.description ? '<div class="sel-desc">' + esc(o.description) + '</div>' : '') +
               (highlightsHtml ? '<div class="sel-highlights">' + highlightsHtml + '</div>' : '') +
-              (o.isChosen ? '<div class="sel-chosen-pill">' + escapeHtml(t('selectionsYourPick')) + '</div>' : '<div class="sel-pick-cta">' + escapeHtml(t('selectionsTapToChoose')) + '</div>') +
+              (o.isChosen ? '<div class="sel-chosen-pill">' + esc(t('selectionsYourPick')) + '</div>' : '<div class="sel-pick-cta">' + esc(t('selectionsTapToChoose')) + '</div>') +
             '</div>' +
           '</div>';
       }).join('');
@@ -2805,11 +2805,11 @@
         '<div class="sel-cat">' +
           '<div class="sel-cat-head">' +
             '<div>' +
-              '<div class="sel-cat-name">' + escapeHtml(c.category) + '</div>' +
-              (c.styleBrief ? '<div class="sel-cat-brief">' + escapeHtml(c.styleBrief) + '</div>' : '') +
+              '<div class="sel-cat-name">' + esc(c.category) + '</div>' +
+              (c.styleBrief ? '<div class="sel-cat-brief">' + esc(c.styleBrief) + '</div>' : '') +
             '</div>' +
             '<div class="sel-cat-budget">' +
-              '<div class="sel-cat-budget-label">' + escapeHtml(t('selectionsAllowance')) + '</div>' +
+              '<div class="sel-cat-budget-label">' + esc(t('selectionsAllowance')) + '</div>' +
               '<div class="sel-cat-budget-value">' + fmtMoney(c.budget) + '</div>' +
             '</div>' +
           '</div>' +
@@ -2994,19 +2994,19 @@
       return d.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
     }
     var finishesRows = (c.finishes || []).map(function (f) {
-      var detail = [f.brand ? escapeHtml(f.brand) : '', f.sku ? 'SKU ' + escapeHtml(f.sku) : ''].filter(Boolean).join(' · ');
+      var detail = [f.brand ? esc(f.brand) : '', f.sku ? 'SKU ' + esc(f.sku) : ''].filter(Boolean).join(' · ');
       return '' +
         '<tr>' +
-          '<td class="co-cat">' + escapeHtml(f.category) + '</td>' +
-          '<td><strong>' + escapeHtml(f.productName) + '</strong>' + (detail ? '<div class="co-meta">' + detail + '</div>' : '') + '</td>' +
-          '<td>' + (f.supplier ? escapeHtml(f.supplier) : '—') + '</td>' +
+          '<td class="co-cat">' + esc(f.category) + '</td>' +
+          '<td><strong>' + esc(f.productName) + '</strong>' + (detail ? '<div class="co-meta">' + detail + '</div>' : '') + '</td>' +
+          '<td>' + (f.supplier ? esc(f.supplier) : '—') + '</td>' +
         '</tr>';
     }).join('');
     var warrantyRows = (c.warranties || []).map(function (w) {
       return '' +
         '<tr>' +
-          '<td><strong>' + escapeHtml(w.title) + '</strong></td>' +
-          '<td>' + (w.provider ? escapeHtml(w.provider) : '—') + '</td>' +
+          '<td><strong>' + esc(w.title) + '</strong></td>' +
+          '<td>' + (w.provider ? esc(w.provider) : '—') + '</td>' +
           '<td>' + (w.durationMonths ? w.durationMonths + ' mo' : '—') + '</td>' +
           '<td>' + (w.endDate ? fmtIsoDate(w.endDate) : '—') + '</td>' +
         '</tr>';
@@ -3014,28 +3014,28 @@
     var maintRows = (c.maintenance || []).map(function (m) {
       return '' +
         '<tr>' +
-          '<td><strong>' + escapeHtml(m.task) + '</strong>' + (m.notes ? '<div class="co-meta">' + escapeHtml(m.notes) + '</div>' : '') + '</td>' +
-          '<td>' + escapeHtml(m.frequency) + '</td>' +
+          '<td><strong>' + esc(m.task) + '</strong>' + (m.notes ? '<div class="co-meta">' + esc(m.notes) + '</div>' : '') + '</td>' +
+          '<td>' + esc(m.frequency) + '</td>' +
           '<td>' + (m.nextDate ? fmtIsoDate(m.nextDate) : '—') + '</td>' +
         '</tr>';
     }).join('');
     var contactRows = (c.tradeContacts || []).map(function (tc) {
       return '' +
         '<tr>' +
-          '<td><strong>' + escapeHtml(tc.company) + '</strong></td>' +
-          '<td>' + (tc.scope ? escapeHtml(tc.scope) : '—') + '</td>' +
-          '<td>' + (tc.phase ? escapeHtml(tc.phase) : '—') + '</td>' +
+          '<td><strong>' + esc(tc.company) + '</strong></td>' +
+          '<td>' + (tc.scope ? esc(tc.scope) : '—') + '</td>' +
+          '<td>' + (tc.phase ? esc(tc.phase) : '—') + '</td>' +
         '</tr>';
     }).join('');
     var noteHtml = c.noteFromContractor
-      ? '<div class="co-note"><div class="co-note-eyebrow">' + escapeHtml(t('closeoutNoteEyebrow')) + '</div><div class="co-note-body">' + escapeHtml(c.noteFromContractor).replace(/\n/g, '<br/>') + '</div></div>'
+      ? '<div class="co-note"><div class="co-note-eyebrow">' + esc(t('closeoutNoteEyebrow')) + '</div><div class="co-note-body">' + esc(c.noteFromContractor).replace(/\n/g, '<br/>') + '</div></div>'
       : '';
     var emergencyHtml = '' +
       '<div class="co-emergency">' +
-        '<div class="co-emergency-title">' + escapeHtml(t('closeoutEmergencyTitle')) + '</div>' +
+        '<div class="co-emergency-title">' + esc(t('closeoutEmergencyTitle')) + '</div>' +
         '<ol class="co-emergency-list">' +
-          (c.emergencyEmail ? '<li><strong>' + escapeHtml(c.emergencyEmail) + '</strong></li>' : '') +
-          (c.emergencyPhone ? '<li><strong>' + escapeHtml(c.emergencyPhone) + '</strong></li>' : '') +
+          (c.emergencyEmail ? '<li><strong>' + esc(c.emergencyEmail) + '</strong></li>' : '') +
+          (c.emergencyPhone ? '<li><strong>' + esc(c.emergencyPhone) + '</strong></li>' : '') +
         '</ol>' +
       '</div>';
     var completionLine = c.completionDate
@@ -3044,16 +3044,16 @@
     return '' +
       '<div class="closeout">' +
         '<div class="co-actions">' +
-          '<button type="button" class="btn-primary" data-action="print-binder">' + escapeHtml(t('closeoutPrint')) + '</button>' +
-          '<span class="co-status-pill">' + (c.status === 'sent' ? escapeHtml(t('closeoutDelivered')) : escapeHtml(t('closeoutFinalized'))) + '</span>' +
+          '<button type="button" class="btn-primary" data-action="print-binder">' + esc(t('closeoutPrint')) + '</button>' +
+          '<span class="co-status-pill">' + (c.status === 'sent' ? esc(t('closeoutDelivered')) : esc(t('closeoutFinalized'))) + '</span>' +
         '</div>' +
         '<div class="closeout-printable">' +
           completionLine +
           noteHtml +
-          (finishesRows ? '<h3 class="co-h3">' + escapeHtml(t('closeoutFinishesTitle')) + '</h3><table class="co-table"><tbody>' + finishesRows + '</tbody></table>' : '') +
-          (warrantyRows ? '<h3 class="co-h3">' + escapeHtml(t('closeoutWarrantiesTitle')) + '</h3><table class="co-table"><tbody>' + warrantyRows + '</tbody></table>' : '') +
-          (maintRows ? '<h3 class="co-h3">' + escapeHtml(t('closeoutMaintenanceTitle')) + '</h3><table class="co-table"><tbody>' + maintRows + '</tbody></table>' : '') +
-          (contactRows ? '<h3 class="co-h3">' + escapeHtml(t('closeoutContactsTitle')) + '</h3><table class="co-table"><tbody>' + contactRows + '</tbody></table>' : '') +
+          (finishesRows ? '<h3 class="co-h3">' + esc(t('closeoutFinishesTitle')) + '</h3><table class="co-table"><tbody>' + finishesRows + '</tbody></table>' : '') +
+          (warrantyRows ? '<h3 class="co-h3">' + esc(t('closeoutWarrantiesTitle')) + '</h3><table class="co-table"><tbody>' + warrantyRows + '</tbody></table>' : '') +
+          (maintRows ? '<h3 class="co-h3">' + esc(t('closeoutMaintenanceTitle')) + '</h3><table class="co-table"><tbody>' + maintRows + '</tbody></table>' : '') +
+          (contactRows ? '<h3 class="co-h3">' + esc(t('closeoutContactsTitle')) + '</h3><table class="co-table"><tbody>' + contactRows + '</tbody></table>' : '') +
           emergencyHtml +
         '</div>' +
       '</div>';
@@ -3097,7 +3097,7 @@
       return '' +
         '<div class="ob-phase">' +
           '<div class="ob-phase-head">' +
-            '<div class="ob-phase-name">' + escapeHtml(p.name) + '</div>' +
+            '<div class="ob-phase-name">' + esc(p.name) + '</div>' +
             '<div class="ob-phase-amount">' + fmtMoney(p.actual) + ' <span style="color:#8B9099;font-weight:500">/ ' + fmtMoney(p.budget) + '</span></div>' +
           '</div>' +
           '<div class="ob-bar"><div class="ob-bar-fill" style="width:' + Math.min(100, pct) + '%;background:' + barColor + '"></div></div>' +
@@ -4152,9 +4152,9 @@
         var lu = data.latestUpdate;
         var company = (data.company && data.company.name) ? data.company.name : 'your contractor';
         luEl.innerHTML = '' +
-          '<div class="lu-eyebrow">' + escapeHtml(t('latestUpdateEyebrow', { company: company })) + '</div>' +
-          '<div class="lu-date">' + escapeHtml(lu.dateLabel) + '</div>' +
-          '<div class="lu-body">' + escapeHtml(lu.summary).replace(/\n+/g, '<br/>') + '</div>';
+          '<div class="lu-eyebrow">' + esc(t('latestUpdateEyebrow', { company: company })) + '</div>' +
+          '<div class="lu-date">' + esc(lu.dateLabel) + '</div>' +
+          '<div class="lu-body">' + esc(lu.summary).replace(/\n+/g, '<br/>') + '</div>';
         luEl.style.display = 'block';
       } else {
         luEl.style.display = 'none';
