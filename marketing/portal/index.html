@@ -490,6 +490,302 @@
   }
   .task-row .row-title .pill { white-space: nowrap; }
 
+  /* ───────── Premium Animated Gantt ─────────
+     Renders the schedule as a real timeline. Each task is a colored bar
+     positioned by date with a progress fill, animated in from the left
+     on first paint. Critical path gets thicker amber border + tinted
+     bar. Milestones render as diamonds. Today marker is a vertical dashed
+     line with a small flag. Phases are grouped sub-headers. */
+  .gantt-container {
+    background: #FFFFFF;
+    border: 1px solid var(--bone, #E8DFCD);
+    border-radius: 14px;
+    padding: 18px 18px 14px;
+    box-shadow: 0 4px 14px rgba(11,13,16,0.05);
+    overflow: hidden;
+  }
+  .gantt-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--bone-2, #F1EAD9);
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .gantt-header-label {
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 1.2px;
+    color: var(--text-muted, #8B9099);
+    text-transform: uppercase;
+  }
+  .gantt-header-dates {
+    margin-top: 4px;
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 16px;
+    color: var(--text, #0B0D10);
+  }
+  .gantt-header-right {
+    display: flex;
+    gap: 14px;
+  }
+  .gantt-stat {
+    text-align: center;
+    padding: 6px 12px;
+    background: var(--cream-2, #FAF7F0);
+    border-radius: 10px;
+    border: 1px solid var(--bone-2, #F1EAD9);
+  }
+  .gantt-stat-value {
+    display: block;
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 18px;
+    font-weight: 800;
+    color: var(--text, #0B0D10);
+    line-height: 1;
+  }
+  .gantt-stat-label {
+    display: block;
+    font-size: 9px;
+    color: var(--text-muted, #8B9099);
+    text-transform: uppercase;
+    letter-spacing: 0.7px;
+    margin-top: 3px;
+    font-weight: 700;
+  }
+  /* Month ruler — top of the timeline. Each month is positioned
+     proportionally to the project length, so a 6-month project shows
+     6 month labels evenly spaced. */
+  .gantt-ruler {
+    position: relative;
+    height: 24px;
+    margin-bottom: 12px;
+    background: var(--cream-2, #FAF7F0);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .gantt-ruler-month {
+    position: absolute;
+    top: 0;
+    height: 24px;
+    line-height: 24px;
+    border-right: 1px solid var(--bone-2, #F1EAD9);
+    padding-left: 8px;
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--text-2, #4A5159);
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    box-sizing: border-box;
+  }
+  .gantt-ruler-month:last-child { border-right: none; }
+
+  .gantt-today {
+    position: absolute;
+    top: -4px;
+    bottom: -8px;
+    width: 0;
+    border-left: 2px dashed var(--amber, #FF6A1A);
+    z-index: 5;
+    pointer-events: none;
+  }
+  .gantt-today-flag {
+    position: absolute;
+    top: -10px;
+    left: -22px;
+    background: var(--amber, #FF6A1A);
+    color: #fff;
+    font-size: 9px;
+    font-weight: 800;
+    padding: 2px 6px;
+    border-radius: 4px;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    box-shadow: 0 2px 6px rgba(255,106,26,0.4);
+  }
+
+  .gantt-tasks {
+    position: relative;
+  }
+  .gantt-phase-header {
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 1.2px;
+    color: var(--amber, #FF6A1A);
+    text-transform: uppercase;
+    margin: 14px 0 6px;
+    padding: 4px 0;
+    border-bottom: 1px solid var(--bone-2, #F1EAD9);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .gantt-phase-count {
+    background: var(--amber-tint, #FFF1E6);
+    color: var(--amber, #FF6A1A);
+    padding: 1px 6px;
+    border-radius: 999px;
+    font-size: 9px;
+  }
+
+  .gantt-task {
+    display: grid;
+    grid-template-columns: minmax(160px, 28%) 1fr;
+    align-items: center;
+    gap: 12px;
+    padding: 4px 0;
+    min-height: 32px;
+  }
+  .gantt-task-name {
+    min-width: 0;
+  }
+  .gantt-task-title {
+    display: block;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text, #0B0D10);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .gantt-task-meta {
+    display: block;
+    font-size: 10px;
+    color: var(--text-muted, #8B9099);
+    margin-top: 2px;
+    font-variant-numeric: tabular-nums;
+  }
+  .gantt-track {
+    position: relative;
+    height: 24px;
+    background: var(--cream-2, #FAF7F0);
+    border-radius: 4px;
+    overflow: visible;
+  }
+  /* Today line repeated inside each track for vertical alignment */
+  .gantt-track::after {
+    content: '';
+    position: absolute;
+    top: 0; bottom: 0;
+    left: var(--today-pct, 0%);
+    width: 0;
+    border-left: 1px dashed rgba(255,106,26,0.25);
+    pointer-events: none;
+  }
+
+  /* Default bar */
+  .gantt-bar {
+    position: absolute;
+    top: 4px;
+    bottom: 4px;
+    background: linear-gradient(180deg, #6B7280 0%, #4B5563 100%);
+    border-radius: 4px;
+    overflow: hidden;
+    transform-origin: left center;
+    animation: ganttBarSlide 700ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    box-shadow: 0 1px 3px rgba(11,13,16,0.12);
+    cursor: default;
+  }
+  .gantt-bar-fill {
+    position: absolute;
+    top: 0; left: 0; bottom: 0;
+    background: linear-gradient(180deg, rgba(255,255,255,0.30) 0%, rgba(255,255,255,0.10) 100%);
+    transform-origin: left center;
+    animation: ganttFillGrow 1000ms cubic-bezier(0.22, 1, 0.36, 1) both 200ms;
+  }
+  .gantt-bar-label {
+    position: absolute;
+    top: 50%;
+    left: 6px;
+    transform: translateY(-50%);
+    font-size: 10px;
+    font-weight: 800;
+    color: rgba(255,255,255,0.95);
+    text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+    font-variant-numeric: tabular-nums;
+    pointer-events: none;
+    white-space: nowrap;
+  }
+  /* Critical path bar — amber tint with thicker border */
+  .gantt-bar-critical {
+    background: linear-gradient(180deg, #FF6A1A 0%, #E5570F 100%);
+    box-shadow: 0 2px 8px rgba(255,106,26,0.35);
+  }
+  /* Done bar — green tint */
+  .gantt-bar-done {
+    background: linear-gradient(180deg, #34C759 0%, #1E8E4A 100%);
+    box-shadow: 0 1px 4px rgba(30,142,74,0.25);
+  }
+  /* Milestone diamond */
+  .gantt-milestone {
+    position: absolute;
+    top: 50%;
+    width: 18px;
+    height: 18px;
+    background: linear-gradient(135deg, #FF6A1A 0%, #C26A00 100%);
+    transform: translateY(-50%) rotate(45deg);
+    border-radius: 2px;
+    box-shadow: 0 2px 8px rgba(255,106,26,0.5);
+    animation: ganttMilestonePop 600ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  }
+  .gantt-bar-milestone { /* fallback when bar treatment is wanted */
+    background: linear-gradient(180deg, #FF6A1A 0%, #C26A00 100%);
+  }
+
+  /* Legend at bottom */
+  .gantt-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    padding: 12px 0 4px;
+    border-top: 1px solid var(--bone-2, #F1EAD9);
+    margin-top: 14px;
+    font-size: 11px;
+    color: var(--text-2, #4A5159);
+  }
+  .gantt-legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 600;
+  }
+  .gantt-legend-swatch {
+    display: inline-block;
+    width: 16px;
+    height: 8px;
+    border-radius: 3px;
+  }
+  .gantt-legend-swatch-default { background: linear-gradient(180deg, #6B7280, #4B5563); }
+  .gantt-legend-swatch-critical { background: linear-gradient(180deg, #FF6A1A, #E5570F); }
+  .gantt-legend-swatch-done { background: linear-gradient(180deg, #34C759, #1E8E4A); }
+
+  @keyframes ganttBarSlide {
+    from { transform: scaleX(0); opacity: 0.4; }
+    to   { transform: scaleX(1); opacity: 1; }
+  }
+  @keyframes ganttFillGrow {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+  @keyframes ganttMilestonePop {
+    from { transform: translateY(-50%) rotate(45deg) scale(0); opacity: 0; }
+    to   { transform: translateY(-50%) rotate(45deg) scale(1); opacity: 1; }
+  }
+
+  /* Mobile compaction — switch to a denser layout under 480px */
+  @media (max-width: 480px) {
+    .gantt-task {
+      grid-template-columns: minmax(120px, 38%) 1fr;
+      gap: 8px;
+    }
+    .gantt-task-title { font-size: 12px; }
+    .gantt-task-meta { font-size: 9px; }
+    .gantt-track { height: 20px; }
+    .gantt-bar-label { font-size: 9px; }
+  }
+
   /* ───────── Selections ───────── */
   .sel-cat {
     background: #FFFFFF;
@@ -1714,26 +2010,208 @@
     );
   }
 
-  function renderSchedule(tasks) {
+  // ───── Premium animated Gantt (replaces flat task list) ─────
+  //
+  // Shows a real timeline view: month ruler at top, today's date marker,
+  // and one row per task with a colored bar positioned by date. Bars
+  // animate in from the left on first render. Critical-path tasks get
+  // a thicker border + amber tint. Milestones render as diamonds.
+  //
+  // Falls back to the simple list when the snapshot didn't include
+  // schedule.startDate (older projects).
+
+  function addWorkingDays(start, days, dpw) {
+    // Skip Sat/Sun when working days/week is 5. Mirrors the in-app
+    // scheduleEngine helper. dpw=7 means calendar days.
+    var d = new Date(start);
+    if (!dpw || dpw >= 7) {
+      d.setDate(d.getDate() + days);
+      return d;
+    }
+    var added = 0;
+    while (added < days) {
+      d.setDate(d.getDate() + 1);
+      var day = d.getDay();
+      var isSkip = dpw === 5 ? (day === 0 || day === 6) : (day === 0);
+      if (!isSkip) added++;
+    }
+    return d;
+  }
+
+  function fmtMonthShort(d) {
+    return d.toLocaleDateString(undefined, { month: 'short' });
+  }
+  function fmtDayShort(d) {
+    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  }
+
+  function renderSchedule(scheduleSection) {
+    var tasks = scheduleSection && scheduleSection.tasks ? scheduleSection.tasks : null;
     if (!tasks || !tasks.length) return emptyState('No schedule shared yet.');
-    return tasks.slice(0, 50).map(function (t) {
-      var done = t.progress >= 100 || ['completed','done','complete','closed'].indexOf(String(t.status||'').toLowerCase()) > -1;
-      var pill = t.isCriticalPath
-        ? '<span class="pill pill-error">Critical</span>'
-        : t.isMilestone
-          ? '<span class="pill pill-amber">Milestone</span>'
-          : '<span class="pill '+statusPillClass(t.status)+'">'+esc(statusLabel(t.status))+'</span>';
-      return (
-        '<div class="row task-row">' +
-          '<div class="row-main">' +
-            '<div class="row-title">'+esc(t.title)+pill+'</div>' +
-            '<div class="row-meta">'+esc(t.phase || '—')+(t.durationDays ? ' · '+t.durationDays+' day' + (t.durationDays === 1 ? '' : 's') : '')+'</div>' +
-            '<div class="task-progress"><div class="task-progress-fill '+(done ? 'done' : '')+'" style="width:'+(t.progress||0)+'%"></div></div>' +
+
+    var startISO = scheduleSection.startDate;
+    var dpw = scheduleSection.workingDaysPerWeek || 5;
+
+    // If we don't have a start anchor, fall back to the legacy list view.
+    if (!startISO) {
+      return tasks.slice(0, 50).map(function (t) {
+        var done = t.progress >= 100 || ['completed','done','complete','closed'].indexOf(String(t.status||'').toLowerCase()) > -1;
+        var pill = t.isCriticalPath
+          ? '<span class="pill pill-error">Critical</span>'
+          : t.isMilestone
+            ? '<span class="pill pill-amber">Milestone</span>'
+            : '<span class="pill '+statusPillClass(t.status)+'">'+esc(statusLabel(t.status))+'</span>';
+        return (
+          '<div class="row task-row">' +
+            '<div class="row-main">' +
+              '<div class="row-title">'+esc(t.title)+pill+'</div>' +
+              '<div class="row-meta">'+esc(t.phase || '—')+(t.durationDays ? ' · '+t.durationDays+' day' + (t.durationDays === 1 ? '' : 's') : '')+'</div>' +
+              '<div class="task-progress"><div class="task-progress-fill '+(done ? 'done' : '')+'" style="width:'+(t.progress||0)+'%"></div></div>' +
+            '</div>' +
+            '<div class="row-value num">'+esc(t.progress != null ? t.progress + '%' : '—')+'</div>' +
+          '</div>'
+        );
+      }).join('');
+    }
+
+    var projectStart = new Date(startISO);
+    if (isNaN(projectStart.getTime())) return emptyState('Schedule data unavailable.');
+
+    // Compute end date = max(startDay + durationDays) across tasks
+    var maxEndDay = 0;
+    tasks.forEach(function (t) {
+      var endDay = (t.startDay || 0) + (t.durationDays || 0);
+      if (endDay > maxEndDay) maxEndDay = endDay;
+    });
+    var projectEnd = addWorkingDays(projectStart, maxEndDay, dpw);
+    var totalCalendarDays = Math.max(1, Math.ceil((projectEnd - projectStart) / 86400000));
+
+    // Build month ruler
+    var rulerMonths = [];
+    var cursor = new Date(projectStart);
+    cursor.setDate(1);
+    while (cursor < projectEnd) {
+      var monthStart = new Date(cursor);
+      var nextMonth = new Date(cursor);
+      nextMonth.setMonth(nextMonth.getMonth() + 1);
+      var visibleStart = monthStart < projectStart ? projectStart : monthStart;
+      var visibleEnd = nextMonth > projectEnd ? projectEnd : nextMonth;
+      var widthPct = ((visibleEnd - visibleStart) / 86400000) / totalCalendarDays * 100;
+      var leftPct  = ((visibleStart - projectStart) / 86400000) / totalCalendarDays * 100;
+      rulerMonths.push({
+        label: fmtMonthShort(monthStart) + " '" + (monthStart.getFullYear() % 100),
+        leftPct: leftPct, widthPct: widthPct,
+      });
+      cursor = nextMonth;
+    }
+
+    // Today marker
+    var now = new Date();
+    var todayLeftPct = null;
+    if (now >= projectStart && now <= projectEnd) {
+      todayLeftPct = ((now - projectStart) / 86400000) / totalCalendarDays * 100;
+    }
+
+    // Group tasks by phase for premium grouped layout
+    var phaseGroups = {};
+    var phaseOrder = [];
+    tasks.forEach(function (t) {
+      var phase = t.phase || 'General';
+      if (!phaseGroups[phase]) {
+        phaseGroups[phase] = [];
+        phaseOrder.push(phase);
+      }
+      phaseGroups[phase].push(t);
+    });
+
+    // Header summary card
+    var headerHtml =
+      '<div class="gantt-header">' +
+        '<div class="gantt-header-left">' +
+          '<div class="gantt-header-label">PROJECT TIMELINE</div>' +
+          '<div class="gantt-header-dates">' +
+            '<span><strong>' + esc(fmtDayShort(projectStart)) + '</strong> &rarr; <strong>' + esc(fmtDayShort(projectEnd)) + '</strong></span>' +
           '</div>' +
-          '<div class="row-value num">'+esc(t.progress != null ? t.progress + '%' : '—')+'</div>' +
-        '</div>'
-      );
+        '</div>' +
+        '<div class="gantt-header-right">' +
+          '<div class="gantt-stat"><span class="gantt-stat-value">' + tasks.length + '</span><span class="gantt-stat-label">Tasks</span></div>' +
+          '<div class="gantt-stat"><span class="gantt-stat-value">' + maxEndDay + '</span><span class="gantt-stat-label">Working days</span></div>' +
+        '</div>' +
+      '</div>';
+
+    // Month ruler
+    var rulerHtml = '<div class="gantt-ruler">' +
+      rulerMonths.map(function (m) {
+        return '<div class="gantt-ruler-month" style="left:' + m.leftPct.toFixed(2) + '%;width:' + m.widthPct.toFixed(2) + '%">' + esc(m.label) + '</div>';
+      }).join('') +
+      (todayLeftPct != null
+        ? '<div class="gantt-today" style="left:' + todayLeftPct.toFixed(2) + '%"><span class="gantt-today-flag">Today</span></div>'
+        : '') +
+    '</div>';
+
+    // Tasks grouped by phase
+    var tasksHtml = phaseOrder.map(function (phase) {
+      var phaseHtml = phaseGroups[phase].map(function (t, idx) {
+        var taskStart = addWorkingDays(projectStart, t.startDay || 0, dpw);
+        var taskEnd = addWorkingDays(taskStart, t.durationDays || 0, dpw);
+        var leftPct = ((taskStart - projectStart) / 86400000) / totalCalendarDays * 100;
+        var widthPct = Math.max(0.5, ((taskEnd - taskStart) / 86400000) / totalCalendarDays * 100);
+        var progress = Math.max(0, Math.min(100, t.progress || 0));
+        var done = progress >= 100 || ['completed','done','complete','closed'].indexOf(String(t.status||'').toLowerCase()) > -1;
+        var critical = !!t.isCriticalPath;
+        var milestone = !!t.isMilestone;
+        var animDelay = idx * 40; // stagger entry
+        var dateLabel = fmtDayShort(taskStart) + ' &rarr; ' + fmtDayShort(taskEnd);
+        var barClass = 'gantt-bar' +
+          (critical ? ' gantt-bar-critical' : '') +
+          (milestone ? ' gantt-bar-milestone' : '') +
+          (done ? ' gantt-bar-done' : '');
+
+        if (milestone) {
+          return '' +
+            '<div class="gantt-task">' +
+              '<div class="gantt-task-name">' +
+                '<span class="gantt-task-title">' + esc(t.title) + '</span>' +
+                '<span class="gantt-task-meta">' + esc(fmtDayShort(taskStart)) + ' · milestone</span>' +
+              '</div>' +
+              '<div class="gantt-track">' +
+                '<div class="gantt-milestone" style="left:' + leftPct.toFixed(2) + '%;animation-delay:' + animDelay + 'ms"></div>' +
+              '</div>' +
+            '</div>';
+        }
+
+        return '' +
+          '<div class="gantt-task">' +
+            '<div class="gantt-task-name">' +
+              '<span class="gantt-task-title">' + esc(t.title) + '</span>' +
+              '<span class="gantt-task-meta">' + dateLabel + ' · ' + (t.durationDays || 0) + 'd · ' + progress + '%</span>' +
+            '</div>' +
+            '<div class="gantt-track">' +
+              '<div class="' + barClass + '" style="left:' + leftPct.toFixed(2) + '%;width:' + widthPct.toFixed(2) + '%;animation-delay:' + animDelay + 'ms">' +
+                '<div class="gantt-bar-fill" style="width:' + progress + '%"></div>' +
+                '<span class="gantt-bar-label">' + progress + '%</span>' +
+              '</div>' +
+            '</div>' +
+          '</div>';
+      }).join('');
+
+      return '' +
+        '<div class="gantt-phase-header">' + esc(phase) + ' <span class="gantt-phase-count">' + phaseGroups[phase].length + '</span></div>' +
+        phaseHtml;
     }).join('');
+
+    return '' +
+      '<div class="gantt-container">' +
+        headerHtml +
+        rulerHtml +
+        '<div class="gantt-tasks">' + tasksHtml + '</div>' +
+        '<div class="gantt-legend">' +
+          '<span class="gantt-legend-item"><span class="gantt-legend-swatch gantt-legend-swatch-default"></span>In progress</span>' +
+          '<span class="gantt-legend-item"><span class="gantt-legend-swatch gantt-legend-swatch-critical"></span>Critical path</span>' +
+          '<span class="gantt-legend-item"><span class="gantt-legend-swatch gantt-legend-swatch-done"></span>Complete</span>' +
+          '<span class="gantt-legend-item">◆ Milestone</span>' +
+        '</div>' +
+      '</div>';
   }
 
   // ───── Contract ─────
@@ -3041,7 +3519,7 @@
       addSection('paymentApps', 'fileText', t('paymentAppsTitle'), 'AIA G702 / G703', sections.aiaPayApps.length, renderAIA(sections.aiaPayApps));
     }
     if (sections.schedule && sections.schedule.tasks && sections.schedule.tasks.length) {
-      addSection('schedule', 'calendar', t('scheduleSectionTitle'), t('scheduleSectionSubtitle'), sections.schedule.tasks.length, renderSchedule(sections.schedule.tasks));
+      addSection('schedule', 'calendar', t('scheduleSectionTitle'), t('scheduleSectionSubtitle'), sections.schedule.tasks.length, renderSchedule(sections.schedule));
     }
     if (sections.changeOrders && sections.changeOrders.length) {
       addSection('changeOrders', 'diff', t('changeOrdersTitle'), data.coApprovalEnabled ? t('changeOrdersSubtitleApprove') : t('changeOrdersSubtitle'), sections.changeOrders.length, renderChangeOrders(sections.changeOrders, !!data.coApprovalEnabled));

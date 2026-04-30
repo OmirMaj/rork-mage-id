@@ -226,10 +226,19 @@ export interface PortalSnapshot {
     targetBudget?: { amount: number; setBy: 'client' | 'gc'; note?: string };
   };
   sections: {
-    schedule?: { tasks: Array<{
-      id: string; title: string; phase?: string; progress: number;
-      status: string; durationDays: number; isMilestone?: boolean; isCriticalPath?: boolean;
-    }> };
+    schedule?: {
+      // Project-start anchor — required for Gantt date math (startDay → ISO date)
+      startDate?: string;
+      workingDaysPerWeek?: number;
+      totalDurationDays?: number;
+      tasks: Array<{
+        id: string; title: string; phase?: string; progress: number;
+        status: string; durationDays: number;
+        // Working-day offset from startDate. Used to position Gantt bars.
+        startDay?: number;
+        isMilestone?: boolean; isCriticalPath?: boolean;
+      }>;
+    };
     budget?: {
       contractValue: number; paidToDate: number; outstanding: number;
       pctComplete: number; nextMilestone?: string;
@@ -380,9 +389,14 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
 
   const sections: PortalSnapshot['sections'] = {};
 
-  // Schedule
+  // Schedule — includes anchors (project start date + working days) +
+  // per-task startDay so the portal can render a real Gantt with dates
+  // instead of a flat task list.
   if (portal.showSchedule && project.schedule?.tasks?.length) {
     sections.schedule = {
+      startDate: project.schedule.startDate,
+      workingDaysPerWeek: project.schedule.workingDaysPerWeek,
+      totalDurationDays: project.schedule.totalDurationDays,
       tasks: project.schedule.tasks.map(t => ({
         id: t.id,
         title: t.title,
@@ -390,6 +404,7 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
         progress: t.progress ?? 0,
         status: t.status,
         durationDays: t.durationDays ?? 0,
+        startDay: t.startDay ?? 0,
         isMilestone: t.isMilestone,
         isCriticalPath: t.isCriticalPath,
       })),

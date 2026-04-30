@@ -586,13 +586,66 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
   // OAC Meetings — local-only for now (no Supabase mirror). Lives in
   // tertiary_oac_meetings AsyncStorage key. Add server sync later if
   // cross-device meetings become a need.
+  // OAC Meetings — server-synced. Reads from Supabase first, falls back
+  // to local AsyncStorage when offline. Writes go through supabaseWrite
+  // for offline-queue support.
   const oacMeetingsQuery = useQuery({
     queryKey: ['oac_meetings', userId],
-    queryFn: async () => loadLocal<OACMeeting[]>(OAC_MEETINGS_KEY, []),
+    queryFn: async () => {
+      if (canSync) {
+        try {
+          const { data, error } = await supabase.from('oac_meetings').select('*').order('scheduled_at', { ascending: false });
+          if (!error && data) {
+            const mapped = data.map((r: Record<string, unknown>) => ({
+              id: r.id as string,
+              projectId: r.project_id as string,
+              number: Number(r.number),
+              scheduledAt: r.scheduled_at as string,
+              durationMinutes: r.duration_minutes as number | undefined,
+              location: r.location as string | undefined,
+              attendees: (r.attendees as OACMeeting['attendees']) ?? [],
+              agenda: (r.agenda as OACMeeting['agenda']) ?? [],
+              actionItems: (r.action_items as OACMeeting['actionItems']) ?? [],
+              transcript: r.transcript as string | undefined,
+              minutes: r.minutes as string | undefined,
+              status: (r.status as OACMeeting['status']) ?? 'draft',
+              distributedAt: r.distributed_at as string | undefined,
+              distributionLog: r.distribution_log as OACMeeting['distributionLog'],
+              createdAt: r.created_at as string,
+              updatedAt: r.updated_at as string,
+            })) as OACMeeting[];
+            await saveLocal(OAC_MEETINGS_KEY, mapped);
+            return mapped;
+          }
+        } catch { /* fallback */ }
+      }
+      return loadLocal<OACMeeting[]>(OAC_MEETINGS_KEY, []);
+    },
   });
   const coisQuery = useQuery({
     queryKey: ['cois', userId],
-    queryFn: async () => loadLocal<CertificateOfInsurance[]>(COIS_KEY, []),
+    queryFn: async () => {
+      if (canSync) {
+        try {
+          const { data, error } = await supabase.from('cois').select('*').order('uploaded_at', { ascending: false });
+          if (!error && data) {
+            const mapped = data.map((r: Record<string, unknown>) => ({
+              id: r.id as string,
+              subcontractorId: r.subcontractor_id as string,
+              projectId: r.project_id as string | undefined,
+              fileUri: r.file_uri as string,
+              uploadedAt: r.uploaded_at as string,
+              validation: r.validation as CertificateOfInsurance['validation'],
+              coverages: (r.coverages as CertificateOfInsurance['coverages']) ?? [],
+              notes: r.notes as string | undefined,
+            })) as CertificateOfInsurance[];
+            await saveLocal(COIS_KEY, mapped);
+            return mapped;
+          }
+        } catch { /* fallback */ }
+      }
+      return loadLocal<CertificateOfInsurance[]>(COIS_KEY, []);
+    },
   });
 
   const equipmentQuery = useQuery({
@@ -1937,48 +1990,86 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
     updateSubmittal(submittalId, { reviewCycles: [...sub.reviewCycles, newCycle], currentStatus: cycle.status });
   }, [submittals, updateSubmittal]);
 
-  // ─── OAC Meetings (local-only persistence) ─────────────────────
+  // ─── OAC Meetings (server-synced) ──────────────────────────────
+  // Snake/camel mapping helper for the supabase write payload — keeps
+  // the inline write calls compact and easy to read.
+  const oacMeetingToRow = useCallback((m: OACMeeting) => ({
+    id: m.id, user_id: userId, project_id: m.projectId, number: m.number,
+    scheduled_at: m.scheduledAt, duration_minutes: m.durationMinutes,
+    location: m.location,
+    attendees: m.attendees as unknown,
+    agenda: m.agenda as unknown,
+    action_items: m.actionItems as unknown,
+    transcript: m.transcript, minutes: m.minutes, status: m.status,
+    distributed_at: m.distributedAt,
+    distribution_log: m.distributionLog as unknown,
+    created_at: m.createdAt, updated_at: m.updatedAt,
+  }), [userId]);
+
   const addOACMeeting = useCallback((meeting: OACMeeting) => {
     const updated = [...oacMeetings, meeting];
     setOacMeetings(updated);
     saveOACMeetingsMutation.mutate(updated);
-  }, [oacMeetings, saveOACMeetingsMutation]);
+    if (canSync) void supabaseWrite('oac_meetings', 'insert', oacMeetingToRow(meeting));
+  }, [oacMeetings, saveOACMeetingsMutation, canSync, oacMeetingToRow]);
 
   const updateOACMeeting = useCallback((id: string, patch: Partial<OACMeeting>) => {
     const updated = oacMeetings.map(m => m.id === id ? { ...m, ...patch, updatedAt: new Date().toISOString() } : m);
     setOacMeetings(updated);
     saveOACMeetingsMutation.mutate(updated);
-  }, [oacMeetings, saveOACMeetingsMutation]);
+    const merged = updated.find(m => m.id === id);
+    if (merged && canSync) {
+      void supabaseWrite('oac_meetings', 'update', oacMeetingToRow(merged));
+    }
+  }, [oacMeetings, saveOACMeetingsMutation, canSync, oacMeetingToRow]);
 
   const deleteOACMeeting = useCallback((id: string) => {
     const updated = oacMeetings.filter(m => m.id !== id);
     setOacMeetings(updated);
     saveOACMeetingsMutation.mutate(updated);
-  }, [oacMeetings, saveOACMeetingsMutation]);
+    if (canSync) void supabaseWrite('oac_meetings', 'delete', { id });
+  }, [oacMeetings, saveOACMeetingsMutation, canSync]);
 
   const getOACMeetingsForProject = useCallback(
     (projectId: string) => oacMeetings.filter(m => m.projectId === projectId).sort((a, b) => b.number - a.number),
     [oacMeetings],
   );
 
-  // ─── COI vault ──────────────────────────────────────────────────
+  // ─── COI vault (server-synced) ─────────────────────────────────
+  const coiToRow = useCallback((c: CertificateOfInsurance) => ({
+    id: c.id, user_id: userId,
+    subcontractor_id: c.subcontractorId,
+    project_id: c.projectId,
+    file_uri: c.fileUri,
+    uploaded_at: c.uploadedAt,
+    validation: c.validation as unknown,
+    coverages: (c.coverages ?? []) as unknown,
+    notes: c.notes,
+  }), [userId]);
+
   const addCOI = useCallback((coi: CertificateOfInsurance) => {
     const updated = [...cois, coi];
     setCois(updated);
     saveCOIsMutation.mutate(updated);
-  }, [cois, saveCOIsMutation]);
+    if (canSync) void supabaseWrite('cois', 'insert', coiToRow(coi));
+  }, [cois, saveCOIsMutation, canSync, coiToRow]);
 
   const updateCOI = useCallback((id: string, patch: Partial<CertificateOfInsurance>) => {
     const updated = cois.map(c => c.id === id ? { ...c, ...patch } : c);
     setCois(updated);
     saveCOIsMutation.mutate(updated);
-  }, [cois, saveCOIsMutation]);
+    const merged = updated.find(c => c.id === id);
+    if (merged && canSync) {
+      void supabaseWrite('cois', 'update', coiToRow(merged));
+    }
+  }, [cois, saveCOIsMutation, canSync, coiToRow]);
 
   const deleteCOI = useCallback((id: string) => {
     const updated = cois.filter(c => c.id !== id);
     setCois(updated);
     saveCOIsMutation.mutate(updated);
-  }, [cois, saveCOIsMutation]);
+    if (canSync) void supabaseWrite('cois', 'delete', { id });
+  }, [cois, saveCOIsMutation, canSync]);
 
   const getCOIsForSub = useCallback(
     (subId: string) => cois.filter(c => c.subcontractorId === subId),
