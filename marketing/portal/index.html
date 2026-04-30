@@ -1105,6 +1105,40 @@
   .gantt-legend-swatch-default { background: linear-gradient(180deg, #6B7280, #4B5563); }
   .gantt-legend-swatch-critical { background: linear-gradient(180deg, #FF6A1A, #E5570F); }
   .gantt-legend-swatch-done { background: linear-gradient(180deg, #34C759, #1E8E4A); }
+  .gantt-legend-note { color: #9AA3AD; font-style: italic; }
+
+  /* ───────── Schedule view toggle (Gantt ↔ List) ─────────
+     Lets the homeowner pick how they want to read the schedule.
+     Pills sit at the top of the section; clicks flip a class on the
+     wrapper, CSS shows the active view. */
+  .sched-views { padding: 4px 0 8px; }
+  .sched-toggle {
+    display: inline-flex;
+    background: var(--cream-2, #ECE4D2);
+    border: 1px solid var(--bone, #E8DFCD);
+    border-radius: 999px;
+    padding: 4px;
+    gap: 2px;
+    margin-bottom: 14px;
+  }
+  .sched-toggle-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 16px;
+    border: 0; background: transparent;
+    color: #4A5159; font-weight: 700; font-size: 13px; font-family: inherit;
+    border-radius: 999px; cursor: pointer;
+    transition: background 0.18s ease, color 0.18s ease;
+    letter-spacing: -0.1px;
+  }
+  .sched-toggle-btn .icn { width: 14px; height: 14px; }
+  .sched-toggle-btn:hover { color: #0B0D10; }
+  .sched-views.view-gantt .sched-toggle-btn[data-view="gantt"],
+  .sched-views.view-list  .sched-toggle-btn[data-view="list"] {
+    background: #0B0D10; color: #FFFFFF;
+    box-shadow: 0 1px 4px rgba(11,13,16,0.18);
+  }
+  .sched-views.view-gantt .sched-view-list,
+  .sched-views.view-list  .sched-view-gantt { display: none; }
 
   @keyframes ganttBarSlide {
     from { transform: scaleX(0); opacity: 0.4; }
@@ -2565,12 +2599,12 @@
     var tasks = scheduleSection && scheduleSection.tasks ? scheduleSection.tasks : null;
     if (!tasks || !tasks.length) return emptyState('No schedule shared yet.');
 
-    var startISO = scheduleSection.startDate;
     var dpw = scheduleSection.workingDaysPerWeek || 5;
 
-    // If we don't have a start anchor, fall back to the legacy list view.
-    if (!startISO) {
-      return tasks.slice(0, 50).map(function (t) {
+    // The flat list view — every task with progress + pill. Always
+    // built so users can flip into "Compact list" from the Gantt view.
+    function renderList() {
+      return tasks.slice(0, 80).map(function (t) {
         var done = t.progress >= 100 || ['completed','done','complete','closed'].indexOf(String(t.status||'').toLowerCase()) > -1;
         var pill = t.isCriticalPath
           ? '<span class="pill pill-error">Critical</span>'
@@ -2590,8 +2624,25 @@
       }).join('');
     }
 
+    // Anchor the Gantt to a real date. If the snapshot didn't ship a
+    // startDate (older projects, or the GC hasn't set one), fall back
+    // to today so the timeline still renders. Better to show something
+    // approximate than nothing — the user can still read durations and
+    // sequencing relative to "now".
+    var startISO = scheduleSection.startDate;
+    var inferredStart = false;
+    if (!startISO) {
+      var today = new Date();
+      today.setHours(0,0,0,0);
+      startISO = today.toISOString();
+      inferredStart = true;
+    }
+
     var projectStart = new Date(startISO);
-    if (isNaN(projectStart.getTime())) return emptyState('Schedule data unavailable.');
+    if (isNaN(projectStart.getTime())) {
+      // Last-ditch fallback — build only the list view.
+      return wrapScheduleViews(renderList(), '', /*defaultGantt*/ false);
+    }
 
     // Compute end date = max(startDay + durationDays) across tasks
     var maxEndDay = 0;
@@ -2716,7 +2767,7 @@
         phaseHtml;
     }).join('');
 
-    return '' +
+    var ganttHtml =
       '<div class="gantt-container">' +
         headerHtml +
         rulerHtml +
@@ -2726,7 +2777,46 @@
           '<span class="gantt-legend-item"><span class="gantt-legend-swatch gantt-legend-swatch-critical"></span>Critical path</span>' +
           '<span class="gantt-legend-item"><span class="gantt-legend-swatch gantt-legend-swatch-done"></span>Complete</span>' +
           '<span class="gantt-legend-item">◆ Milestone</span>' +
+          (inferredStart ? '<span class="gantt-legend-item gantt-legend-note">Start date inferred from today</span>' : '') +
         '</div>' +
+      '</div>';
+
+    return wrapScheduleViews(renderList(), ganttHtml, /*defaultGantt*/ true);
+  }
+
+  // Wraps the two schedule views (list + Gantt) inside a toggle UI.
+  // The toggle pills sit above both views; clicking flips a class on
+  // the wrapper, and CSS shows the active view. Persists choice in
+  // localStorage so the homeowner's preference sticks across reloads.
+  function wrapScheduleViews(listHtml, ganttHtml, defaultGantt) {
+    var hasGantt = !!ganttHtml;
+    var hasList = !!listHtml;
+    if (!hasGantt && !hasList) return emptyState('No schedule shared yet.');
+    if (!hasGantt) return listHtml; // list-only fallback
+    if (!hasList) return ganttHtml; // gantt-only (shouldn't happen, but safe)
+
+    // Read saved preference. Default to Gantt when both are available
+    // and the caller didn't override.
+    var saved = null;
+    try { saved = localStorage.getItem('portal_schedule_view'); } catch (e) {}
+    var initial = saved === 'list' || saved === 'gantt'
+      ? saved
+      : (defaultGantt ? 'gantt' : 'list');
+
+    return '' +
+      '<div class="sched-views view-' + initial + '">' +
+        '<div class="sched-toggle" role="tablist" aria-label="Schedule view">' +
+          '<button type="button" class="sched-toggle-btn" data-action="schedule-view" data-view="gantt" role="tab" aria-selected="' + (initial === 'gantt') + '">' +
+            '<svg class="icn" viewBox="0 0 24 24"><rect x="3" y="5" width="9" height="3" rx="1.5"/><rect x="6" y="11" width="12" height="3" rx="1.5"/><rect x="3" y="17" width="7" height="3" rx="1.5"/></svg>' +
+            'Gantt' +
+          '</button>' +
+          '<button type="button" class="sched-toggle-btn" data-action="schedule-view" data-view="list" role="tab" aria-selected="' + (initial === 'list') + '">' +
+            '<svg class="icn" viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="3.5" cy="6" r="1.5"/><circle cx="3.5" cy="12" r="1.5"/><circle cx="3.5" cy="18" r="1.5"/></svg>' +
+            'List' +
+          '</button>' +
+        '</div>' +
+        '<div class="sched-view sched-view-gantt">' + ganttHtml + '</div>' +
+        '<div class="sched-view sched-view-list">' + listHtml + '</div>' +
       '</div>';
   }
 
@@ -3084,6 +3174,26 @@
       window.print();
       setTimeout(function () { document.body.classList.remove('printing-binder'); }, 100);
     }, 50);
+  });
+
+  // Schedule view toggle — flips between Gantt + List inside the Schedule
+  // section. Class on the .sched-views wrapper drives CSS visibility.
+  // Persist the choice in localStorage so the homeowner's preference
+  // sticks across reloads.
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest && e.target.closest('[data-action="schedule-view"]');
+    if (!btn) return;
+    var view = btn.getAttribute('data-view');
+    if (view !== 'gantt' && view !== 'list') return;
+    var wrapper = btn.closest('.sched-views');
+    if (!wrapper) return;
+    wrapper.classList.remove('view-gantt', 'view-list');
+    wrapper.classList.add('view-' + view);
+    // Update aria-selected for accessibility.
+    Array.prototype.forEach.call(wrapper.querySelectorAll('[data-action="schedule-view"]'), function (b) {
+      b.setAttribute('aria-selected', String(b.getAttribute('data-view') === view));
+    });
+    try { localStorage.setItem('portal_schedule_view', view); } catch (err) {}
   });
 
   // Open Book / GMP — clients see the full cost picture: budget vs.
