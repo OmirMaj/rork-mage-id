@@ -156,6 +156,15 @@ function RFIScreenInner() {
     }
     setSending(true);
     try {
+      // Build the architect reply portal URL — embeds the RFI's
+      // share_token so the portal can fetch + respond via SECURITY
+      // DEFINER RPCs without an account. Falls back to email-only
+      // reply if the token isn't available yet (older RFIs).
+      // Portal lives on the marketing site (mageid.app/architect/), not the
+      // app domain — it's a static HTML page that hits Supabase RPCs directly.
+      const replyPortalUrl = existingRFI.shareToken
+        ? `https://mageid.app/architect/?token=${existingRFI.shareToken}&type=rfi`
+        : undefined;
       const html = buildRFIEmailHtml({
         companyName: settings?.branding?.companyName ?? 'MAGE ID',
         recipientName: sendEmail_Name.trim(),
@@ -171,6 +180,7 @@ function RFIScreenInner() {
         contactName: settings?.branding?.contactName,
         contactEmail: settings?.branding?.email,
         contactPhone: settings?.branding?.phone,
+        replyPortalUrl,
       });
       const subject = `RFI #${existingRFI.number}: ${existingRFI.subject} — ${project.name}`;
       const result = await sendEmail({

@@ -27,6 +27,14 @@
   to = "/sub-portal/index.html"
   status = 200
 
+# Architect / Engineer reply portal — receives ?token=<uuid>&type=rfi|submittal
+# query params from emailed reply links. The static page reads the token,
+# fetches the doc via SECURITY DEFINER RPC, and lets the reviewer respond.
+[[redirects]]
+  from = "/architect/*"
+  to = "/architect/index.html"
+  status = 200
+
 [[redirects]]
   from = "/builders/*"
   to = "/builders/index.html"

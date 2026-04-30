@@ -16,22 +16,45 @@ import { useSmartInbox } from '@/hooks/useSmartInbox';
 function TabIcon({
   Icon, color, focused,
 }: { Icon: React.ComponentType<{ size: number; color: string; strokeWidth: number }>; color: string; focused: boolean }) {
-  const dot = useRef(new Animated.Value(focused ? 1 : 0)).current;
+  // Two animated values now: a pill that fades behind the icon when
+  // active, and a tiny scale bounce on transition. Together they make
+  // the active state feel premium ("pill morphs in") instead of just
+  // a color change.
+  const focus = useRef(new Animated.Value(focused ? 1 : 0)).current;
+  const bounce = useRef(new Animated.Value(1)).current;
   useEffect(() => {
-    Animated.timing(dot, {
+    Animated.timing(focus, {
       toValue: focused ? 1 : 0,
-      duration: 200,
+      duration: 220,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
     }).start();
-  }, [focused, dot]);
+    if (focused) {
+      Animated.sequence([
+        Animated.timing(bounce, { toValue: 1.08, duration: 130, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+        Animated.spring(bounce, { toValue: 1, speed: 40, bounciness: 6, useNativeDriver: true }),
+      ]).start();
+    }
+  }, [focused, focus, bounce]);
   return (
     <View style={tabIconStyles.wrap}>
-      <Icon size={23} color={color} strokeWidth={focused ? 2.2 : 1.8} />
+      <Animated.View
+        style={[
+          tabIconStyles.pill,
+          {
+            backgroundColor: color + '1A', // 10% tint of the active color
+            opacity: focus,
+            transform: [{ scale: focus.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] }) }],
+          },
+        ]}
+      />
+      <Animated.View style={{ transform: [{ scale: bounce }] }}>
+        <Icon size={23} color={color} strokeWidth={focused ? 2.4 : 1.8} />
+      </Animated.View>
       <Animated.View
         style={[
           tabIconStyles.dot,
-          { backgroundColor: color, opacity: dot, transform: [{ scale: dot }] },
+          { backgroundColor: color, opacity: focus, transform: [{ scale: focus }] },
         ]}
       />
     </View>
@@ -39,8 +62,23 @@ function TabIcon({
 }
 
 const tabIconStyles = StyleSheet.create({
-  wrap: { alignItems: 'center' as const, justifyContent: 'center' as const, gap: 3 },
-  dot: { width: 4, height: 4, borderRadius: 2, marginTop: 2 },
+  wrap: {
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    gap: 3,
+    position: 'relative' as const,
+    minHeight: 36,
+  },
+  // The faint pill behind the icon — gives the active tab clear weight
+  // beyond just color change. Sits behind the icon (zIndex via order).
+  pill: {
+    position: 'absolute' as const,
+    width: 56,
+    height: 32,
+    borderRadius: 16,
+    top: -4,
+  },
+  dot: { width: 5, height: 5, borderRadius: 2.5, marginTop: 2 },
 });
 
 export default function TabLayout() {

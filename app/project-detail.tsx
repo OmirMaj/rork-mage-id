@@ -3173,8 +3173,32 @@ const styles = StyleSheet.create({
   smallStatLabel: { fontSize: 11, color: 'rgba(255,255,255,0.6)', fontWeight: '500' as const, marginBottom: 2 },
   smallStatValue: { fontSize: 14, fontWeight: '700' as const, color: Colors.textOnPrimary },
   section: { marginHorizontal: 20, marginTop: 18 },
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.card, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: Colors.cardBorder, gap: 10 },
-  sectionTitle: { flex: 1, fontSize: 16, fontWeight: '700' as const, color: Colors.text },
+  // Section headers across project-detail. Bumped border weight 1 → 1.5px
+  // and ink-tinted color so each section reads as its own card with a
+  // clear edge. Title size 16 → 17 with -0.3 tracking and 800 weight to
+  // match the new project-card typography.
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.card,
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 1.5,
+    borderColor: Colors.text + '12',
+    gap: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  sectionTitle: {
+    flex: 1,
+    fontSize: 17,
+    fontWeight: '800' as const,
+    color: Colors.text,
+    letterSpacing: -0.3,
+  },
   tableContainer: { backgroundColor: Colors.card, borderRadius: 12, marginTop: 8, borderWidth: 1, borderColor: Colors.cardBorder, overflow: 'hidden' },
   tableHeader: { flexDirection: 'row', backgroundColor: Colors.surfaceAlt, paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.borderLight },
   tableHeaderText: { fontSize: 12, fontWeight: '600' as const, color: Colors.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.5 },

@@ -539,7 +539,8 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
               dateResponded: r.date_responded as string | undefined, response: r.response as string | undefined,
               status: (r.status as RFI['status']) ?? 'open', priority: (r.priority as RFI['priority']) ?? 'normal',
               linkedDrawing: r.linked_drawing as string | undefined, linkedTaskId: r.linked_task_id as string | undefined,
-              attachments: (r.attachments as string[]) ?? [], createdAt: r.created_at as string, updatedAt: r.updated_at as string,
+              attachments: (r.attachments as string[]) ?? [], shareToken: r.share_token as string | undefined,
+              createdAt: r.created_at as string, updatedAt: r.updated_at as string,
             })) as RFI[];
             await saveLocal(RFIS_KEY, mapped);
             return mapped;
@@ -563,7 +564,8 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
               submittedBy: (r.submitted_by as string) ?? '', submittedDate: r.submitted_date as string,
               requiredDate: r.required_date as string, reviewCycles: (r.review_cycles as Submittal['reviewCycles']) ?? [],
               currentStatus: (r.current_status as Submittal['currentStatus']) ?? 'pending',
-              attachments: (r.attachments as string[]) ?? [], createdAt: r.created_at as string, updatedAt: r.updated_at as string,
+              attachments: (r.attachments as string[]) ?? [], shareToken: r.share_token as string | undefined,
+              createdAt: r.created_at as string, updatedAt: r.updated_at as string,
             })) as Submittal[];
             await saveLocal(SUBMITTALS_KEY, mapped);
             return mapped;

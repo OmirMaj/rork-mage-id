@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="theme-color" content="#0B0D10" />
+<meta name="robots" content="noindex" />
+<title>Reviewer Portal — MAGE ID</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,700;0,9..144,800;1,9..144,500;1,9..144,800&display=swap" rel="stylesheet" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230B0D10'/%3E%3Ctext x='50' y='66' font-family='Inter,system-ui' font-size='52' font-weight='900' text-anchor='middle' fill='%23FF6A1A'%3EM%3C/text%3E%3C/svg%3E" />
+<style>
+  :root {
+    --ink: #0B0D10; --ink-2: #1A1D22; --amber: #FF6A1A; --amber-dark: #E5570F;
+    --amber-tint: #FFF1E6; --cream: #F4EFE6; --cream-2: #FAF7F0;
+    --surface: #FFFFFF; --bone: #E8DFCD; --bone-2: #F1EAD9;
+    --text: #0B0D10; --text-2: #4A5159; --text-muted: #8B9099;
+    --success: #1E8E4A; --success-tint: #E8F5ED;
+    --warning: #C26A00; --warning-tint: #FFF4E0;
+    --error: #C0392B; --error-tint: #FBEAE7;
+    --info: #1E5BC6; --info-tint: #E7EEFA;
+    --shadow-sm: 0 1px 2px rgba(11,13,16,0.04), 0 1px 3px rgba(11,13,16,0.06);
+    --shadow-md: 0 4px 12px rgba(11,13,16,0.06), 0 2px 4px rgba(11,13,16,0.04);
+    --shadow-lg: 0 24px 48px -16px rgba(11,13,16,0.18), 0 8px 16px -8px rgba(11,13,16,0.08);
+    --shadow-amber: 0 8px 24px -6px rgba(255,106,26,0.4);
+    --radius-md: 12px; --radius-lg: 16px; --radius-xl: 24px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html { scroll-behavior: smooth; -webkit-font-smoothing: antialiased; }
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--cream); color: var(--text);
+    line-height: 1.55; font-size: 15px; min-height: 100vh;
+    font-feature-settings: 'cv11', 'ss01', 'ss03';
+  }
+  .num { font-variant-numeric: tabular-nums; }
+
+  .container {
+    max-width: 720px; margin: 0 auto; padding: 24px 18px 60px;
+  }
+  .header {
+    display: flex; align-items: center; gap: 12px; padding: 8px 0 20px;
+  }
+  .logo {
+    width: 40px; height: 40px; border-radius: 11px;
+    background: var(--ink); color: var(--amber);
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Fraunces', Georgia, serif;
+    font-weight: 800; font-size: 22px;
+  }
+  .brand {
+    font-family: 'Fraunces', Georgia, serif;
+    font-weight: 700; font-size: 18px; color: var(--text);
+  }
+  .brand-sub {
+    font-size: 11px; color: var(--text-muted); font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.6px; margin-top: 1px;
+  }
+
+  .doc-card {
+    background: var(--surface); border-radius: var(--radius-xl);
+    padding: 28px 24px; box-shadow: var(--shadow-md);
+    border: 1px solid var(--bone-2); margin-bottom: 18px;
+  }
+  .doc-eyebrow {
+    display: inline-block; padding: 5px 11px; border-radius: 999px;
+    background: var(--ink); color: var(--amber);
+    font-size: 10px; font-weight: 800; letter-spacing: 1.2px;
+    text-transform: uppercase; margin-bottom: 14px;
+  }
+  .doc-number {
+    font-size: 12px; color: var(--text-muted); font-weight: 700;
+    letter-spacing: 0.5px; margin-bottom: 6px; text-transform: uppercase;
+  }
+  .doc-title {
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 24px; font-weight: 700; line-height: 1.2;
+    letter-spacing: -0.02em; color: var(--text); margin-bottom: 6px;
+  }
+  .doc-project {
+    font-size: 14px; color: var(--text-2); font-weight: 600;
+    margin-bottom: 4px;
+  }
+  .doc-meta-row {
+    display: flex; flex-wrap: wrap; gap: 16px;
+    padding: 14px 0 0; margin-top: 14px; border-top: 1px solid var(--bone-2);
+    font-size: 12px;
+  }
+  .doc-meta-item { min-width: 0; }
+  .doc-meta-label {
+    font-size: 9px; color: var(--text-muted); font-weight: 800;
+    text-transform: uppercase; letter-spacing: 0.8px;
+  }
+  .doc-meta-value {
+    font-size: 13px; color: var(--text); font-weight: 700;
+    margin-top: 2px;
+  }
+
+  .priority-pill {
+    display: inline-block; padding: 4px 10px; border-radius: 999px;
+    font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.4px;
+  }
+  .priority-urgent { background: var(--error-tint); color: var(--error); }
+  .priority-normal { background: var(--info-tint); color: var(--info); }
+  .priority-low    { background: #F2F4F7;            color: var(--text-muted); }
+
+  .question-card {
+    background: var(--cream-2); border-left: 3px solid var(--amber);
+    border-radius: 10px; padding: 16px 18px; margin: 18px 0 8px;
+  }
+  .question-label {
+    font-size: 10px; font-weight: 800; color: var(--text-muted);
+    text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px;
+  }
+  .question-body {
+    font-size: 15px; color: var(--text); line-height: 1.6;
+    white-space: pre-wrap;
+  }
+
+  .section-title {
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 18px; font-weight: 700; color: var(--text);
+    margin: 24px 0 12px; padding-bottom: 6px;
+    border-bottom: 1px solid var(--bone-2);
+  }
+
+  .form-group {
+    margin-bottom: 16px;
+  }
+  .form-label {
+    display: block; font-size: 11px; font-weight: 800;
+    color: var(--text-2); text-transform: uppercase; letter-spacing: 0.7px;
+    margin-bottom: 6px;
+  }
+  .form-input, .form-textarea, .form-select {
+    width: 100%; background: var(--surface);
+    border: 1.5px solid var(--bone); border-radius: 10px;
+    padding: 12px 14px; font-size: 15px; color: var(--text);
+    font-family: inherit; transition: border-color 120ms ease;
+  }
+  .form-input:focus, .form-textarea:focus, .form-select:focus {
+    outline: none; border-color: var(--amber);
+  }
+  .form-textarea { min-height: 140px; resize: vertical; line-height: 1.55; }
+  .form-row {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+  }
+  @media (max-width: 480px) {
+    .form-row { grid-template-columns: 1fr; }
+  }
+
+  .action-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+    margin-bottom: 16px;
+  }
+  @media (max-width: 480px) {
+    .action-grid { grid-template-columns: 1fr; }
+  }
+  .action-card {
+    border: 1.5px solid var(--bone); border-radius: 12px;
+    padding: 14px; cursor: pointer; transition: all 150ms ease;
+    background: var(--surface); user-select: none;
+  }
+  .action-card:hover { border-color: var(--amber); }
+  .action-card.selected {
+    border-color: var(--amber); background: var(--amber-tint);
+    box-shadow: var(--shadow-amber);
+  }
+  .action-card .name {
+    font-size: 13px; font-weight: 800; margin-bottom: 3px; color: var(--text);
+  }
+  .action-card .desc {
+    font-size: 11px; color: var(--text-muted); line-height: 1.45;
+  }
+  .action-card[data-code="approved"]            .name { color: var(--success); }
+  .action-card[data-code="approved_as_noted"]   .name { color: var(--info); }
+  .action-card[data-code="revise_resubmit"]     .name { color: var(--warning); }
+  .action-card[data-code="rejected"]            .name { color: var(--error); }
+
+  .submit-btn {
+    width: 100%; background: var(--amber); color: #fff;
+    border: none; border-radius: 12px; padding: 16px;
+    font-size: 16px; font-weight: 800; cursor: pointer;
+    box-shadow: var(--shadow-amber); transition: all 150ms ease;
+    font-family: inherit; letter-spacing: 0.2px;
+  }
+  .submit-btn:hover:not(:disabled) { background: var(--amber-dark); transform: translateY(-1px); }
+  .submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .helper-banner {
+    background: var(--amber-tint); border: 1px solid rgba(255,106,26,0.25);
+    border-radius: 10px; padding: 12px 14px; margin-top: 14px;
+    font-size: 12px; color: var(--text-2); line-height: 1.55;
+  }
+
+  .empty-state, .error-state {
+    background: var(--surface); border-radius: var(--radius-xl);
+    padding: 48px 24px; text-align: center; border: 1px solid var(--bone-2);
+    box-shadow: var(--shadow-md);
+  }
+  .error-state { background: var(--error-tint); border-color: rgba(192,57,43,0.25); }
+  .empty-icon {
+    width: 56px; height: 56px; border-radius: 16px;
+    background: var(--ink); color: var(--amber);
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 28px; margin-bottom: 14px;
+  }
+  .empty-title {
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 22px; font-weight: 700; margin-bottom: 8px;
+  }
+  .empty-body {
+    font-size: 14px; color: var(--text-2); line-height: 1.55;
+    max-width: 360px; margin: 0 auto;
+  }
+
+  .success-state {
+    background: var(--success-tint); border: 1px solid rgba(30,142,74,0.25);
+    border-radius: var(--radius-xl); padding: 40px 24px; text-align: center;
+  }
+  .success-icon {
+    width: 56px; height: 56px; border-radius: 50%;
+    background: var(--success); color: #fff;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 28px; margin-bottom: 14px;
+  }
+
+  .footer {
+    text-align: center; padding: 32px 16px 16px;
+    font-size: 11px; color: var(--text-muted);
+  }
+  .footer a { color: var(--text-2); text-decoration: none; font-weight: 600; }
+
+  .loader {
+    display: inline-block; width: 24px; height: 24px;
+    border: 3px solid rgba(255,255,255,0.3); border-top-color: #fff;
+    border-radius: 50%; animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .skeleton {
+    height: 200px; background: linear-gradient(90deg, var(--bone-2) 0%, var(--cream-2) 50%, var(--bone-2) 100%);
+    background-size: 200% 100%; animation: shimmer 1.6s infinite;
+    border-radius: var(--radius-xl);
+  }
+  @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+  /* Existing-response badge — shown when an answer was already submitted. */
+  .existing-pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--success-tint); color: var(--success);
+    padding: 5px 11px; border-radius: 999px;
+    font-size: 11px; font-weight: 700; letter-spacing: 0.3px;
+  }
+</style>
+</head>
+<body>
+
+<div class="container" id="app">
+  <div class="header">
+    <div class="logo">M</div>
+    <div>
+      <div class="brand">MAGE ID</div>
+      <div class="brand-sub">Reviewer Portal</div>
+    </div>
+  </div>
+
+  <div id="content">
+    <div class="skeleton"></div>
+  </div>
+
+  <div class="footer">
+    Powered by <a href="https://mageid.app" target="_blank" rel="noopener">MAGE ID</a> &middot; Construction Project Management
+  </div>
+</div>
+
+<script>
+  // ── Configuration ───────────────────────────────────────────────
+  // Public Supabase project URL + anon key. The anon key is intended
+  // for client-side use; security comes from the SECURITY DEFINER
+  // RPCs and token validation, NOT from key secrecy.
+  var SUPABASE_URL = 'https://nteoqhcswappxxjlpvap.supabase.co';
+  var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im50ZW9xaGNzd2FwcHh4amxwdmFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzMTU0MDMsImV4cCI6MjA4OTg5MTQwM30.xpz7yWhignppH-3dYD-EV4AvB4cugr7-881GKdOFado';
+
+  // ── URL params ──────────────────────────────────────────────────
+  function getParam(name) {
+    var url = new URL(window.location.href);
+    return url.searchParams.get(name);
+  }
+  var TOKEN = getParam('token');
+  var DOC_TYPE = (getParam('type') || '').toLowerCase(); // 'rfi' or 'submittal'
+
+  // ── Helpers ─────────────────────────────────────────────────────
+  function escHtml(str) {
+    if (str == null) return '';
+    return String(str)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+  function fmtDate(iso) {
+    if (!iso) return '—';
+    try {
+      var d = new Date(iso);
+      if (isNaN(d.getTime())) return iso;
+      return d.toLocaleDateString('en-US', { weekday: 'short', month: 'long', day: 'numeric', year: 'numeric' });
+    } catch (e) { return iso; }
+  }
+
+  function rpc(fnName, args) {
+    return fetch(SUPABASE_URL + '/rest/v1/rpc/' + fnName, {
+      method: 'POST',
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(args || {}),
+    }).then(function (r) {
+      if (!r.ok) {
+        return r.text().then(function (t) {
+          throw new Error('Server returned ' + r.status + ': ' + (t || ''));
+        });
+      }
+      return r.json();
+    });
+  }
+
+  // ── Renderers ───────────────────────────────────────────────────
+  function renderError(msg) {
+    document.getElementById('content').innerHTML =
+      '<div class="error-state">' +
+        '<div class="empty-icon" style="background:var(--error);color:#fff;">⚠</div>' +
+        '<div class="empty-title">Link not valid</div>' +
+        '<div class="empty-body">' + escHtml(msg || 'This link is invalid or expired. Ask the contractor to send you a new one.') + '</div>' +
+      '</div>';
+  }
+
+  function renderSuccess(name) {
+    document.getElementById('content').innerHTML =
+      '<div class="success-state">' +
+        '<div class="success-icon">✓</div>' +
+        '<div class="empty-title">Response sent</div>' +
+        '<div class="empty-body">' +
+          'Thanks' + (name ? ', ' + escHtml(name) : '') + '. Your response has been filed against this document and the contractor has been notified.' +
+        '</div>' +
+      '</div>';
+  }
+
+  function renderRFI(rfi) {
+    var attCount = Array.isArray(rfi.attachments) ? rfi.attachments.length : 0;
+    var priorityClass = 'priority-' + (rfi.priority || 'normal');
+    var existingNotice = rfi.has_existing_response
+      ? '<div style="margin-top:14px;"><span class="existing-pill">✓ A response was already filed for this RFI</span><div style="font-size:12px;color:var(--text-muted);margin-top:8px;line-height:1.5;">You can still submit a new one. Each response is recorded with a timestamp; the contractor will see all of them in chronological order.</div></div>'
+      : '';
+
+    var html = '' +
+      '<div class="doc-card">' +
+        '<span class="doc-eyebrow">Request for Information</span>' +
+        '<div class="doc-number">RFI #' + escHtml(rfi.number) + '</div>' +
+        '<div class="doc-title">' + escHtml(rfi.subject) + '</div>' +
+        '<div class="doc-project">' + escHtml(rfi.project_name) + (rfi.project_location ? ' · ' + escHtml(rfi.project_location) : '') + '</div>' +
+        '<div class="doc-meta-row">' +
+          '<div class="doc-meta-item"><div class="doc-meta-label">Priority</div>' +
+            '<div class="doc-meta-value"><span class="priority-pill ' + priorityClass + '">' + escHtml(rfi.priority || 'normal') + '</span></div>' +
+          '</div>' +
+          '<div class="doc-meta-item"><div class="doc-meta-label">Response needed by</div>' +
+            '<div class="doc-meta-value">' + escHtml(fmtDate(rfi.date_required)) + '</div></div>' +
+          (rfi.submitted_by ? '<div class="doc-meta-item"><div class="doc-meta-label">Submitted by</div><div class="doc-meta-value">' + escHtml(rfi.submitted_by) + '</div></div>' : '') +
+          (rfi.linked_drawing ? '<div class="doc-meta-item"><div class="doc-meta-label">Linked drawing</div><div class="doc-meta-value">' + escHtml(rfi.linked_drawing) + '</div></div>' : '') +
+        '</div>' +
+        existingNotice +
+        '<div class="question-card">' +
+          '<div class="question-label">Question</div>' +
+          '<div class="question-body">' + escHtml(rfi.question || '') + '</div>' +
+        '</div>' +
+        (attCount > 0 ? '<div style="font-size:12px;color:var(--text-muted);margin-top:10px;">📎 ' + attCount + ' attachment' + (attCount === 1 ? '' : 's') + ' included with the original</div>' : '') +
+      '</div>' +
+      buildResponseForm('rfi', rfi);
+
+    document.getElementById('content').innerHTML = html;
+    wireForm();
+  }
+
+  function renderSubmittal(sub) {
+    var attCount = Array.isArray(sub.attachments) ? sub.attachments.length : 0;
+    var cycles = Array.isArray(sub.review_cycles) ? sub.review_cycles : [];
+    var cycleNum = cycles.length + 1;
+
+    var html = '' +
+      '<div class="doc-card">' +
+        '<span class="doc-eyebrow">Submittal for Review</span>' +
+        '<div class="doc-number">Submittal #' + escHtml(sub.number) + (cycleNum > 1 ? ' · Cycle ' + cycleNum : '') + '</div>' +
+        '<div class="doc-title">' + escHtml(sub.title) + '</div>' +
+        '<div class="doc-project">' + escHtml(sub.project_name) + (sub.spec_section ? ' · Spec ' + escHtml(sub.spec_section) : '') + '</div>' +
+        '<div class="doc-meta-row">' +
+          '<div class="doc-meta-item"><div class="doc-meta-label">Review by</div>' +
+            '<div class="doc-meta-value">' + escHtml(fmtDate(sub.required_date)) + '</div></div>' +
+          (sub.submitted_by ? '<div class="doc-meta-item"><div class="doc-meta-label">Submitted by</div><div class="doc-meta-value">' + escHtml(sub.submitted_by) + '</div></div>' : '') +
+          '<div class="doc-meta-item"><div class="doc-meta-label">Current status</div>' +
+            '<div class="doc-meta-value">' + escHtml((sub.current_status || 'pending').replace(/_/g, ' ')) + '</div></div>' +
+        '</div>' +
+        (attCount > 0 ? '<div style="font-size:12px;color:var(--text-muted);margin-top:14px;">📎 ' + attCount + ' attachment' + (attCount === 1 ? '' : 's') + ' included with the original</div>' : '') +
+      '</div>' +
+      buildResponseForm('submittal', sub);
+
+    document.getElementById('content').innerHTML = html;
+    wireForm();
+  }
+
+  function buildResponseForm(docType, doc) {
+    var actionBlock = '';
+    if (docType === 'submittal') {
+      actionBlock =
+        '<div class="form-group">' +
+          '<label class="form-label">Action code *</label>' +
+          '<div class="action-grid">' +
+            '<div class="action-card" data-code="approved" tabindex="0"><div class="name">Approved</div><div class="desc">Proceed as submitted</div></div>' +
+            '<div class="action-card" data-code="approved_as_noted" tabindex="0"><div class="name">Approved as Noted</div><div class="desc">Proceed with comments</div></div>' +
+            '<div class="action-card" data-code="revise_resubmit" tabindex="0"><div class="name">Revise &amp; Resubmit</div><div class="desc">Revise per comments</div></div>' +
+            '<div class="action-card" data-code="rejected" tabindex="0"><div class="name">Rejected</div><div class="desc">Not in compliance</div></div>' +
+          '</div>' +
+        '</div>';
+    }
+
+    return '' +
+      '<form id="response-form" class="doc-card">' +
+        '<div class="section-title">Your Response</div>' +
+        actionBlock +
+        '<div class="form-group">' +
+          '<label class="form-label" for="response-body">' +
+            (docType === 'rfi' ? 'Answer *' : 'Comments') +
+          '</label>' +
+          '<textarea id="response-body" class="form-textarea" required placeholder="' + (docType === 'rfi' ? 'Type your response here…' : 'Add review comments and direction…') + '"></textarea>' +
+        '</div>' +
+        '<div class="form-row">' +
+          '<div class="form-group">' +
+            '<label class="form-label" for="responder-name">Your name</label>' +
+            '<input id="responder-name" class="form-input" type="text" placeholder="e.g. Sarah Chen" />' +
+          '</div>' +
+          '<div class="form-group">' +
+            '<label class="form-label" for="responder-email">Your email</label>' +
+            '<input id="responder-email" class="form-input" type="email" placeholder="you@firm.com" />' +
+          '</div>' +
+        '</div>' +
+        '<div class="form-group">' +
+          '<label class="form-label" for="responder-role">Your role</label>' +
+          '<select id="responder-role" class="form-select">' +
+            '<option value="architect">Architect</option>' +
+            '<option value="engineer">Engineer</option>' +
+            '<option value="inspector">Inspector</option>' +
+            '<option value="owner">Owner / Owner Rep</option>' +
+            '<option value="other">Other</option>' +
+          '</select>' +
+        '</div>' +
+        '<button id="submit-btn" class="submit-btn" type="submit">' +
+          (docType === 'rfi' ? 'Send Response' : 'Submit Review') +
+        '</button>' +
+        '<div class="helper-banner">' +
+          (docType === 'rfi'
+            ? 'Your response is filed against this RFI in the contractor\'s app the moment you submit. They\'ll get a notification.'
+            : 'Your action code + comments become Cycle ' + escHtml(String((doc.review_cycles && doc.review_cycles.length || 0) + 1)) + ' on this submittal. The contractor will see your response immediately.') +
+        '</div>' +
+      '</form>';
+  }
+
+  // ── Form wiring ─────────────────────────────────────────────────
+  var selectedActionCode = null;
+
+  function wireForm() {
+    // Action card selection (submittals only)
+    document.querySelectorAll('.action-card').forEach(function (card) {
+      card.addEventListener('click', function () {
+        document.querySelectorAll('.action-card').forEach(function (c) { c.classList.remove('selected'); });
+        card.classList.add('selected');
+        selectedActionCode = card.getAttribute('data-code');
+      });
+    });
+
+    var form = document.getElementById('response-form');
+    if (!form) return;
+
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var body = (document.getElementById('response-body').value || '').trim();
+      var name = (document.getElementById('responder-name').value || '').trim();
+      var email = (document.getElementById('responder-email').value || '').trim();
+      var role = (document.getElementById('responder-role').value || '').trim();
+
+      if (body.length < 2) {
+        alert('Please enter a response.');
+        return;
+      }
+      if (DOC_TYPE === 'submittal' && !selectedActionCode) {
+        alert('Please pick an action code.');
+        return;
+      }
+
+      var btn = document.getElementById('submit-btn');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="loader"></span>';
+
+      rpc('submit_pro_response', {
+        p_token: TOKEN,
+        p_doc_type: DOC_TYPE,
+        p_responder_name: name,
+        p_responder_email: email,
+        p_responder_role: role,
+        p_response_body: body,
+        p_action_code: DOC_TYPE === 'submittal' ? selectedActionCode : null,
+      }).then(function (result) {
+        if (!result || !result.success) {
+          throw new Error((result && result.error) || 'Submit failed.');
+        }
+        renderSuccess(name);
+      }).catch(function (err) {
+        btn.disabled = false;
+        btn.textContent = DOC_TYPE === 'rfi' ? 'Send Response' : 'Submit Review';
+        alert('Could not submit response. ' + (err.message || ''));
+      });
+    });
+  }
+
+  // ── Boot ────────────────────────────────────────────────────────
+  function boot() {
+    if (!TOKEN) {
+      renderError('No token in the URL. Ask the contractor to resend the link.');
+      return;
+    }
+    if (DOC_TYPE !== 'rfi' && DOC_TYPE !== 'submittal') {
+      renderError('Invalid document type. Ask the contractor to resend the link.');
+      return;
+    }
+
+    var fetchFn = DOC_TYPE === 'rfi' ? 'get_rfi_by_token' : 'get_submittal_by_token';
+    rpc(fetchFn, { p_token: TOKEN })
+      .then(function (data) {
+        if (!data || data.error) {
+          renderError(data && data.error || 'Could not load this document.');
+          return;
+        }
+        if (DOC_TYPE === 'rfi') renderRFI(data);
+        else renderSubmittal(data);
+      })
+      .catch(function (err) {
+        console.error('[ArchitectPortal] Fetch failed:', err);
+        renderError('Could not reach the server. Check your connection and try again.');
+      });
+  }
+
+  boot();
+</script>
+</body>
+</html>

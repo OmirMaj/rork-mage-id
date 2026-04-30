@@ -1746,6 +1746,14 @@ export interface RFI {
   linkedDrawing?: string;
   linkedTaskId?: string;
   attachments: string[];
+  /**
+   * Per-RFI UUID used to authorize the architect/engineer reply portal.
+   * Embedded in the email link as `?token=<uuid>&type=rfi`. The portal
+   * uses SECURITY DEFINER RPCs that match on this token, so anon users
+   * can only access the RFI tied to their token — not enumerate others.
+   * Stamped server-side on insert via the table's column default.
+   */
+  shareToken?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -1773,6 +1781,8 @@ export interface Submittal {
   reviewCycles: SubmittalReviewCycle[];
   currentStatus: SubmittalStatus;
   attachments: string[];
+  /** Per-submittal UUID for the architect reply portal. See RFI.shareToken. */
+  shareToken?: string;
   createdAt: string;
   updatedAt: string;
 }

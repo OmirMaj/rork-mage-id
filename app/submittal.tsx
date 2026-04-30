@@ -113,6 +113,14 @@ function SubmittalScreenInner() {
     setSending(true);
     try {
       const branding = settings?.branding ?? { companyName: '', contactName: '', email: '', phone: '', address: '', licenseNumber: '', tagline: '' };
+      // Architect reply portal URL — embeds the submittal's share_token
+      // so the reviewer can pick an action code + leave comments and
+      // those become a new review cycle without manual GC paste.
+      // Portal lives on the marketing site (mageid.app/architect/), not the
+      // app domain — it's a static HTML page that hits Supabase RPCs directly.
+      const replyPortalUrl = existingSubmittal.shareToken
+        ? `https://mageid.app/architect/?token=${existingSubmittal.shareToken}&type=submittal`
+        : undefined;
       const html = buildSubmittalEmailHtml({
         companyName: branding.companyName,
         recipientName: emailRecipientName.trim() || undefined,
@@ -125,6 +133,7 @@ function SubmittalScreenInner() {
         contactName: branding.contactName,
         contactEmail: branding.email,
         contactPhone: branding.phone,
+        replyPortalUrl,
       });
       const result = await sendEmail({
         to: emailRecipient.trim(),

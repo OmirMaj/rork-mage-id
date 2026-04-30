@@ -407,17 +407,26 @@ const styles = StyleSheet.create({
   savingsRow: { marginTop: 10, backgroundColor: Colors.successLight, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 5 },
   savingsRowText: { fontSize: 12, fontWeight: '600' as const, color: Colors.success },
   savingsRowAmount: { fontWeight: '800' as const, color: Colors.success },
+  // Upgrade CTA — beefed shadow + bigger height + heavier weight so it
+  // feels like THE primary action on the screen. Colored shadow uses the
+  // tier color (set inline on the button) tinted to ~30% so the button
+  // glows softly without looking like a sticker.
   upgradeBtn: {
     width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 15,
-    borderRadius: 12,
+    gap: 10,
+    paddingVertical: 18,
+    borderRadius: 14,
     marginBottom: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.18,
+    shadowRadius: 18,
+    elevation: 6,
   },
-  upgradeBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' as const },
+  upgradeBtnText: { color: '#fff', fontSize: 17, fontWeight: '800' as const, letterSpacing: 0.2 },
   notNowBtn: { paddingVertical: 12 },
   notNowText: { fontSize: 14, color: Colors.textSecondary, fontWeight: '500' as const },
   trustRow: {

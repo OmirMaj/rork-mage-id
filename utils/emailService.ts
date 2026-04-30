@@ -638,13 +638,13 @@ export function buildGenericDocumentEmailHtml(opts: {
 // ─── RFI email (sent to architect / engineer for response) ──────────
 //
 // Frames the RFI as a request for information, with priority + due
-// date prominent so a busy architect can triage at a glance. Reply-to
-// is the GC's email so the architect's response lands in the GC's
-// inbox; the GC then files the response into the RFI in-app.
+// date prominent so a busy architect can triage at a glance.
 //
-// Future iteration: include a per-RFI response link to a hosted form
-// at app.mageid.app/rfi-respond/[token] so responses sync back
-// automatically. For now, email reply is the v1 flow.
+// When `replyPortalUrl` is provided (built from the RFI's share_token),
+// the email shows a primary CTA that opens the architect reply portal —
+// the architect responds in-browser and the response syncs directly
+// into the RFI in the GC's app (no manual paste). Email reply still
+// works via replyTo as a fallback.
 export function buildRFIEmailHtml(opts: {
   companyName: string;
   recipientName: string;
@@ -660,11 +660,14 @@ export function buildRFIEmailHtml(opts: {
   contactName?: string;
   contactEmail?: string;
   contactPhone?: string;
+  /** Architect reply portal URL — rendered as the primary CTA when set. */
+  replyPortalUrl?: string;
 }): string {
   const {
     companyName, recipientName, projectName, rfiNumber,
     subject, question, priority, dateRequired, submittedBy,
     linkedDrawing, message, contactName, contactEmail, contactPhone,
+    replyPortalUrl,
   } = opts;
   const priorityColor = priority === 'urgent' ? '#dc2626' : priority === 'normal' ? '#2563eb' : '#6b7280';
   const priorityBg    = priority === 'urgent' ? '#fef2f2' : priority === 'normal' ? '#eff6ff' : '#f3f4f6';
@@ -713,9 +716,23 @@ export function buildRFIEmailHtml(opts: {
               <td align="right" style="color:#111827;font-size:13px;padding:6px 0;">${linkedDrawing}</td>
             </tr>` : ''}
           </table>
+          ${replyPortalUrl ? `
+          <table width="100%" cellpadding="0" cellspacing="0" style="margin:24px 0 12px;">
+            <tr><td align="center">
+              <a href="${replyPortalUrl}" target="_blank" style="display:inline-block;background:#FF6A1A;color:#ffffff;text-decoration:none;font-weight:800;font-size:16px;padding:16px 32px;border-radius:12px;box-shadow:0 6px 18px rgba(255,106,26,0.35);letter-spacing:0.2px;">
+                Open Reply Portal &rarr;
+              </a>
+            </td></tr>
+            <tr><td align="center" style="padding-top:8px;">
+              <p style="margin:0;color:#9ca3af;font-size:11px;">One-tap response form &middot; no login required</p>
+            </td></tr>
+          </table>
+          <p style="margin:18px 0 0;color:#374151;font-size:13px;line-height:1.55;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:12px 14px;">
+            <strong>Two ways to respond:</strong> tap the button above for the response form, or simply reply to this email — either way, your response is filed against RFI #${rfiNumber}.
+          </p>` : `
           <p style="margin:24px 0 0;color:#374151;font-size:13px;line-height:1.55;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:12px 14px;">
             <strong>How to respond:</strong> simply reply to this email. Your response will be filed against RFI #${rfiNumber} for this project.
-          </p>
+          </p>`}
           <p style="margin:24px 0 0;color:#9ca3af;font-size:12px;line-height:1.5;">
             ${contactName ? `Contact: ${contactName}` : ''}
             ${contactEmail ? ` | ${contactEmail}` : ''}
