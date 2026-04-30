@@ -153,10 +153,11 @@
       // Categories grouped for legibility. These match the eventKey
       // strings the notify edge function uses when writing to
       // email_unsubscribes.
+      // Daily digest opt-in lives in the GC app (Settings → Notifications)
+      // because it's GC-only AND its truth is in profiles.notification_preferences,
+      // not the public email_unsubscribes table. Excluding it here keeps
+      // the prefs page coherent for homeowners + subs.
       var GROUPS = [
-        { label: 'Daily summary', items: [
-          { key: 'daily_digest', label: 'Daily digest', desc: 'A once-a-day recap of activity across your projects.' },
-        ]},
         { label: 'Project activity', items: [
           { key: 'portal_message', label: 'Portal messages', desc: 'When your client or contractor sends a message.' },
           { key: 'budget_proposal', label: 'Budget proposals', desc: 'When a target budget is proposed.' },
@@ -179,10 +180,9 @@
         ]},
       ];
 
-      // Daily digest defaults to OFF (opt-in only) — every other category
-      // defaults to ON. The toggle state on first load reflects whether
-      // the user has explicitly suppressed the category in our table.
-      var DEFAULT_OFF = new Set(['daily_digest']);
+      // All categories on this page default ON; "no row in suppressions
+      // table" = ON, "row exists" = OFF.
+      var DEFAULT_OFF = new Set();
 
       function readQuery() {
         var p = new URLSearchParams(window.location.search);
@@ -259,15 +259,7 @@
 
           // Initial state: query the suppression API.
           fetchSuppressed(e.key).then(function (suppressed) {
-            // Default off (digest) means: suppressed by default. ON only
-            // when there's NO suppression row AND the user has actively
-            // resubscribed (which we can't track separately yet, so for
-            // V1 we leave digest toggled OFF unless the user clicks it).
-            if (DEFAULT_OFF.has(e.key)) {
-              checkbox.checked = !suppressed && false; // false until they opt in
-            } else {
-              checkbox.checked = !suppressed;
-            }
+            checkbox.checked = !suppressed;
           });
 
           if (readOnly) return;
