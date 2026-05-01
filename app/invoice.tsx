@@ -383,9 +383,11 @@ function InvoiceInner() {
 
       const result = await sendEmail({
         to: sendRecipientEmail.trim(),
-        subject: `${branding.companyName || 'MAGE ID'} - Invoice #${existingInvoice?.number ?? nextInvoiceNumber} - ${project?.name ?? 'Project'}`,
+        subject: `Invoice #${existingInvoice?.number ?? nextInvoiceNumber}: ${(() => { const v = totalDue; if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`; if (v >= 1_000) return `$${Math.round(v / 1_000)}K`; return `$${v.toLocaleString('en-US')}`; })()} due · ${project?.name ?? 'Project'}`,
         html,
         replyTo: branding.email || undefined,
+        fromCompanyName: branding.companyName || undefined,
+        unsubscribe: { recipientEmail: sendRecipientEmail.trim(), eventKey: 'invoice', enabled: true },
       });
 
       if (!result.success) {
@@ -465,10 +467,12 @@ function InvoiceInner() {
 
       const result = await sendEmail({
         to: options.recipient.trim(),
-        subject: `${branding.companyName || 'MAGE ID'} - Invoice #${existingInvoice.number} - ${project.name}`,
+        subject: `Invoice #${existingInvoice.number}: ${(() => { const v = existingInvoice.totalDue ?? 0; if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`; if (v >= 1_000) return `$${Math.round(v / 1_000)}K`; return `$${v.toLocaleString('en-US')}`; })()} due · ${project.name}`,
         html: emailHtml,
         replyTo: branding.email || undefined,
         attachments: pdfUri ? [pdfUri] : undefined,
+        fromCompanyName: branding.companyName || undefined,
+        unsubscribe: { recipientEmail: options.recipient.trim(), eventKey: 'invoice', enabled: true },
       });
 
       if (result.success) {

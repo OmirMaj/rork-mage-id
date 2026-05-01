@@ -16,6 +16,7 @@ import {
   UserPlus, Gavel,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import { generateUUID } from '@/utils/generateId';
 import { useProjects } from '@/contexts/ProjectContext';
 import ProjectCard from '@/components/ProjectCard';
 import AIWeeklySummary from '@/components/AIWeeklySummary';
@@ -172,7 +173,12 @@ export default function HomeScreen() {
       return;
     }
     const now = new Date().toISOString();
-    const id = `project-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    // MUST be a real UUID — projects.id is uuid in Supabase. Pre-fix this
+    // used `project-{timestamp}-{rand}`, which Postgres rejected on upsert.
+    // The error was caught silently in supabaseWrite, so the row only
+    // existed in local AsyncStorage; on the next refetch the project
+    // disappeared because the server didn't have it.
+    const id = generateUUID();
     const newProject: Project = {
       id,
       name,

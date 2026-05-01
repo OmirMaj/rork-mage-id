@@ -851,10 +851,12 @@ export default function EstimateScreen() {
 
       const result = await sendEmail({
         to: options.recipient.trim(),
-        subject: `${branding.companyName || 'MAGE ID'} - Estimate - ${options.fileName || 'Project'}`,
+        subject: `Estimate: ${(() => { const v = grandTotal ?? 0; if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`; if (v >= 1_000) return `$${Math.round(v / 1_000)}K`; return `$${v.toLocaleString('en-US')}`; })()} · ${options.fileName || 'Project'}`,
         html: emailHtml,
         replyTo: branding.email || undefined,
         attachments: pdfUri ? [pdfUri] : undefined,
+        fromCompanyName: branding.companyName || undefined,
+        unsubscribe: { recipientEmail: options.recipient.trim(), eventKey: 'estimate', enabled: true },
       });
 
       if (result.success) {

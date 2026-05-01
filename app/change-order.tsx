@@ -391,11 +391,27 @@ function ChangeOrderInner() {
         contactEmail: branding.email,
       });
 
+      // Subject: tight, scannable. Inbox preview shows the dollar swing
+      // up front so the homeowner knows before opening. Drops the
+      // "{Company} - " prefix because the FROM personalization (handled
+      // server-side via fromCompanyName) already shows the company.
+      const coNum = existingCO?.number ?? nextCoNumber;
+      const sign = changeAmount >= 0 ? '+' : '−';
+      const moneyShort = (() => {
+        const v = Math.abs(changeAmount);
+        if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(v >= 10_000_000 ? 0 : 1)}M`;
+        if (v >= 1_000) return `$${Math.round(v / 1_000)}K`;
+        return `$${v.toLocaleString('en-US')}`;
+      })();
+      const subject = `Change order #${coNum}: ${sign}${moneyShort} · ${project?.name ?? 'Project'}`;
+
       const result = await sendEmail({
         to: sendRecipientEmail.trim(),
-        subject: `${branding.companyName || 'MAGE ID'} - Change Order #${existingCO?.number ?? nextCoNumber} - ${project?.name ?? 'Project'}`,
+        subject,
         html,
         replyTo: branding.email || undefined,
+        fromCompanyName: branding.companyName || undefined,
+        unsubscribe: { recipientEmail: sendRecipientEmail.trim(), eventKey: 'co_approval', enabled: true },
       });
 
       if (!result.success) {

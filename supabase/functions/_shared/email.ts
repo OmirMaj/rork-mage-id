@@ -464,9 +464,16 @@ export function htmlToPlaintext(html: string): string {
   // Drop hidden preheader divs (display:none).
   s = s.replace(/<div[^>]*display:\s*none[^>]*>[\s\S]*?<\/div>/gi, '');
   // <a href="...">label</a> → "label (url)"
+  // URL-encode raw `=` chars in the href before emitting it. SMTP wraps
+  // long plaintext lines using quoted-printable, where `=` is the escape
+  // character; long URLs with `?key=val` get split mid-`=` and downstream
+  // decoders mangle "=5f24..." → "_24..." (because `=5f` is QP for `_`).
+  // Encoding `=` to `%3D` sidesteps the collision; modern mail clients
+  // and browsers handle %3D in URL params transparently.
   s = s.replace(/<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi, (_, href, label) => {
+    const safeHref = String(href).replace(/=/g, '%3D');
     const cleaned = String(label).replace(/<[^>]+>/g, '').trim();
-    return cleaned ? `${cleaned} (${href})` : String(href);
+    return cleaned ? `${cleaned} (${safeHref})` : safeHref;
   });
   // Block-level tags → newlines
   s = s.replace(/<\/(p|div|tr|h\d|li|blockquote|table)>/gi, '\n');

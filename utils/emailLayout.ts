@@ -399,9 +399,14 @@ export function htmlToPlaintext(html: string): string {
     s = s.replace(/<\/body>[\s\S]*$/i, '');
   }
   s = s.replace(/<div[^>]*display:\s*none[^>]*>[\s\S]*?<\/div>/gi, '');
+  // URL-encode raw `=` chars in plaintext hrefs. SMTP wraps long
+  // plaintext lines via quoted-printable, where `=` is the escape
+  // character; URLs with `?key=val` get mangled when QP soft-wraps
+  // mid-`=`. Encoding to `%3D` sidesteps the collision.
   s = s.replace(/<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi, (_, href, label) => {
+    const safeHref = String(href).replace(/=/g, '%3D');
     const cleaned = String(label).replace(/<[^>]+>/g, '').trim();
-    return cleaned ? `${cleaned} (${href})` : String(href);
+    return cleaned ? `${cleaned} (${safeHref})` : safeHref;
   });
   s = s.replace(/<\/(p|div|tr|h\d|li|blockquote|table)>/gi, '\n');
   s = s.replace(/<br\s*\/?>/gi, '\n');

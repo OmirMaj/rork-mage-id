@@ -436,9 +436,11 @@ export default function DailyReportScreen() {
 
       const result = await sendEmail({
         to: sendRecipientEmail.trim(),
-        subject: `${branding.companyName || 'MAGE ID'} - Daily Report - ${project?.name ?? 'Project'} - ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`,
+        subject: `Daily report · ${new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} · ${project?.name ?? 'Project'}`,
         html,
         replyTo: branding.email || undefined,
+        fromCompanyName: branding.companyName || undefined,
+        unsubscribe: { recipientEmail: sendRecipientEmail.trim(), eventKey: 'daily_report', enabled: true },
       });
 
       if (!result.success) {

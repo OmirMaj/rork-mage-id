@@ -135,11 +135,15 @@ function SubmittalScreenInner() {
         contactPhone: branding.phone,
         replyPortalUrl,
       });
+      // Tight subject — FROM personalization (server-side) carries the
+      // company name, so we don't repeat it in the subject.
       const result = await sendEmail({
         to: emailRecipient.trim(),
-        subject: `${branding.companyName || 'MAGE ID'} - Submittal #${existingSubmittal.number} - ${existingSubmittal.title}`,
+        subject: `Submittal #${existingSubmittal.number}: ${existingSubmittal.title}`,
         html,
         replyTo: branding.email || undefined,
+        fromCompanyName: branding.companyName || undefined,
+        unsubscribe: { recipientEmail: emailRecipient.trim(), eventKey: 'submittal', enabled: true },
       });
       if (!result.success) {
         if (result.error === 'cancelled') return;
