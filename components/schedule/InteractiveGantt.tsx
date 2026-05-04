@@ -599,41 +599,49 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
         }
 
         const stub = 12;
-        // Bezier-curve dependency routing — replaces the old MS-Project-style
-        // right-angle (HVHV) elbows with smooth S-curves for the common case
-        // where the successor sits to the right of the predecessor. The bars
-        // exit horizontally then ease vertically to the next row, which reads
-        // far cleaner on a dense schedule than a 90° turn. Backward / crossing
-        // dependencies (rare, usually a re-plan) still fall back to the
-        // orthogonal detour because Beziers crossing back over their origin
-        // get visually noisy.
+        // MS-Project-style L-shape dependency routing — clean right-angle
+        // elbows with one or two corners depending on geometry. The Bezier
+        // curve experiment read smooth on paper but felt "wavy" against the
+        // straight bars in practice; user feedback was that it should mirror
+        // the classic Project / P6 connector that contractors already know.
+        //   • Forward FS (succ to the right of pred end): pred-right →
+        //     horizontal stub → vertical to succ row → horizontal to succ
+        //     left edge. Two corners, stair-step L.
+        //   • Same row + adjacent (succ starts right when pred ends): just
+        //     a short horizontal line, no corners.
+        //   • Backward / crossing / FF / SS / SF: orthogonal detour over
+        //     the top so the line doesn't cut through the predecessor row.
         const x1End = x1 + exitDir * stub;
         const x2End = x2 - enterDir * stub;
         const yDetour = Math.min(pred.y, succ.y) - 10;
-        // Tip offset — shrink the line so the arrowhead sits flush against the
-        // bar edge instead of overlapping it.
+        // Tip offset — shrink the line so the arrowhead sits flush against
+        // the bar edge instead of overlapping it.
         const tipOff = enterDir === 1 ? -3 : 3;
         const tipX = x2 + tipOff;
         let d: string;
         if (exitDir === 1 && enterDir === 1) {
           // FS — predecessor finish → successor start. Common case.
-          if (x2End >= x1End) {
-            // Forward: single smooth S. Control points pull horizontally from
-            // each anchor by ~40% of the horizontal span, so the curve enters
-            // and exits perpendicular to the bar edges.
-            const dx = Math.max(stub, (tipX - x1) * 0.5);
-            d = `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${tipX - dx} ${y2}, ${tipX} ${y2}`;
+          if (Math.abs(y1 - y2) < 1) {
+            // Same row, just walk over horizontally.
+            d = `M ${x1} ${y1} H ${tipX}`;
+          } else if (x2End >= x1End) {
+            // Forward stair-step: pick the midpoint between the two stubs
+            // for the vertical segment so the corner sits centered between
+            // the bars rather than glued to one of them.
+            const midX = (x1End + x2End) / 2;
+            d = `M ${x1} ${y1} H ${midX} V ${y2} H ${tipX}`;
           } else {
-            // Backward: keep orthogonal detour (curve would loop back on itself).
+            // Backward: detour over the top so the path doesn't cut through
+            // the predecessor row.
             d = `M ${x1} ${y1} H ${x1End} V ${yDetour} H ${x2End} V ${y2} H ${tipX}`;
           }
         } else if (exitDir === -1 && enterDir === 1) {
-          // SS — heading backward before forward; orthogonal reads cleaner.
+          // SS — heading backward before forward; detour over the top.
           d = `M ${x1} ${y1} H ${x1End} V ${yDetour} H ${x2End} V ${y2} H ${tipX}`;
         } else if (exitDir === 1 && enterDir === -1) {
-          // FF — both exit/enter on right edges. Smooth C-curve.
-          const dx = Math.max(stub, Math.abs(tipX - x1) * 0.5);
-          d = `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${tipX + dx} ${y2}, ${tipX} ${y2}`;
+          // FF — both exit/enter on right edges. Stair-step downward.
+          const midX = Math.max(x1End, x2End) + stub;
+          d = `M ${x1} ${y1} H ${midX} V ${y2} H ${tipX}`;
         } else {
           // SF — uncommon. Orthogonal detour.
           d = `M ${x1} ${y1} H ${x1End} V ${yDetour} H ${x2End} V ${y2} H ${tipX}`;
