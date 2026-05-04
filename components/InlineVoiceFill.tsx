@@ -32,6 +32,8 @@ import {
 import { Mic, Sparkles, AlertCircle } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import VoiceCaptureModal from './VoiceCaptureModal';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 interface Props {
   /** Modal title (e.g. "Dictate this RFI"). */
@@ -140,7 +142,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     backgroundColor: Colors.primary + '12',
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     paddingVertical: 10,
     paddingHorizontal: 14,
     borderWidth: 1,
@@ -152,7 +154,7 @@ const styles = StyleSheet.create({
     opacity: 0.85,
   },
   btnText: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
     color: Colors.primary,
   },
@@ -161,7 +163,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     backgroundColor: Colors.success + '12',
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
     padding: 10,
     marginBottom: 8,
     borderWidth: 1,
@@ -169,7 +171,7 @@ const styles = StyleSheet.create({
   },
   successText: {
     flex: 1,
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     color: Colors.text,
   },
   errorCard: {
@@ -177,7 +179,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     backgroundColor: Colors.error + '12',
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
     padding: 10,
     marginBottom: 8,
     borderWidth: 1,
@@ -185,7 +187,7 @@ const styles = StyleSheet.create({
   },
   errorText: {
     flex: 1,
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     color: Colors.text,
   },
 });

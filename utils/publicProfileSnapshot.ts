@@ -42,11 +42,11 @@ export interface PublicProfileSnapshot {
     quote: string;
     author?: string;
   };
-  photos: Array<{
+  photos: {
     url: string;
     caption?: string;
     timestamp?: string;
-  }>;
+  }[];
 }
 
 interface BuildOpts {

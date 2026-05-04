@@ -7,10 +7,12 @@ import { Sparkles, CalendarDays, DollarSign, ArrowRight, Zap } from 'lucide-reac
 import { Colors } from '@/constants/colors';
 import { analyzeChangeOrderImpact, type ChangeOrderImpactResult } from '@/utils/aiService';
 import type { ProjectSchedule } from '@/types';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 interface Props {
   changeDescription: string;
-  lineItems: Array<{ name: string; quantity: number; unitPrice: number; total: number }>;
+  lineItems: { name: string; quantity: number; unitPrice: number; total: number }[];
   schedule: ProjectSchedule | null;
 }
 
@@ -161,7 +163,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 20,
     backgroundColor: `${Colors.primary}08`,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     borderWidth: 1,
     borderColor: `${Colors.primary}20`,
     marginVertical: 8,
@@ -170,13 +172,13 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   triggerText: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     fontWeight: '600' as const,
     color: Colors.primary,
   },
   card: {
     backgroundColor: Colors.surface,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     padding: 16,
     marginVertical: 8,
     borderWidth: 0.5,
@@ -194,7 +196,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   headerTitle: {
-    fontSize: 15,
+    fontSize: Type.subhead.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
   },
@@ -211,7 +213,7 @@ const styles = StyleSheet.create({
   section: {
     padding: 12,
     backgroundColor: Colors.fillSecondary,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
     gap: 6,
   },
   sectionHeader: {
@@ -220,12 +222,12 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   sectionTitle: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
   },
   impactValue: {
-    fontSize: 22,
+    fontSize: Type.title2.fontSize,
     fontWeight: '800' as const,
     color: Colors.error,
   },
@@ -236,12 +238,12 @@ const styles = StyleSheet.create({
     marginLeft: 4,
   },
   taskText: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: Colors.textSecondary,
     flex: 1,
   },
   endDate: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
     color: Colors.text,
     marginTop: 4,
@@ -256,44 +258,44 @@ const styles = StyleSheet.create({
     minWidth: '45%',
     padding: 8,
     backgroundColor: Colors.surface,
-    borderRadius: 8,
+    borderRadius: Tokens.radius.sm,
     alignItems: 'center',
   },
   costLabel: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     color: Colors.textMuted,
   },
   costValue: {
-    fontSize: 16,
+    fontSize: Type.callout.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
   },
   effectText: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: Colors.textSecondary,
   },
   recTitle: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '700' as const,
     color: Colors.primary,
   },
   recText: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: Colors.text,
     lineHeight: 19,
   },
   compRow: {
     padding: 8,
     backgroundColor: Colors.surface,
-    borderRadius: 8,
+    borderRadius: Tokens.radius.sm,
     gap: 2,
   },
   compDesc: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: Colors.text,
   },
   compMeta: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     color: Colors.textSecondary,
   },
   reanalyzeBtn: {
@@ -301,7 +303,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   reanalyzeText: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: Colors.primary,
     fontWeight: '600' as const,
   },

@@ -19,6 +19,8 @@ import Svg, { Path } from 'react-native-svg';
 import { Colors } from '@/constants/colors';
 import { useAuth } from '@/contexts/AuthContext';
 import ConfirmEmailModal from '@/components/ConfirmEmailModal';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 export default function SignupScreen() {
   const insets = useSafeAreaInsets();
@@ -151,13 +153,12 @@ export default function SignupScreen() {
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => router.back()}
-          activeOpacity={0.7}
-        >
-          <ChevronLeft size={24} color="#FFFFFF" strokeWidth={2} />
+          activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Back">
+          <ChevronLeft size={24} color={Colors.surface} strokeWidth={2} />
         </TouchableOpacity>
         <View style={styles.logoRow}>
           <View style={styles.logoCircle}>
-            <HardHat size={28} color="#FFFFFF" strokeWidth={1.8} />
+            <HardHat size={28} color={Colors.surface} strokeWidth={1.8} />
           </View>
           <View>
             <Text style={styles.brandName}>MAGE ID</Text>
@@ -196,10 +197,10 @@ export default function SignupScreen() {
                 testID="signup-apple-top"
               >
                 {isAppleLoading ? (
-                  <ActivityIndicator color="#FFFFFF" size="small" />
+                  <ActivityIndicator color={Colors.surface} size="small" />
                 ) : (
                   <>
-                    <Svg width={20} height={20} viewBox="0 0 24 24" fill="#FFFFFF">
+                    <Svg width={20} height={20} viewBox="0 0 24 24" fill={Colors.surface}>
                       <Path d="M17.05 20.28c-.98.95-2.05.88-3.08.4-1.09-.5-2.08-.48-3.24 0-1.44.62-2.2.44-3.06-.4C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z" />
                     </Svg>
                     <Text style={styles.appleAuthButtonText}>Sign up with Apple</Text>
@@ -334,11 +335,11 @@ export default function SignupScreen() {
               testID="signup-submit"
             >
               {isSubmitting ? (
-                <ActivityIndicator color="#FFFFFF" size="small" />
+                <ActivityIndicator color={Colors.surface} size="small" />
               ) : (
                 <>
                   <Text style={styles.signupButtonText}>Create Account</Text>
-                  <ArrowRight size={18} color="#FFFFFF" strokeWidth={2.5} />
+                  <ArrowRight size={18} color={Colors.surface} strokeWidth={2.5} />
                 </>
               )}
             </TouchableOpacity>
@@ -384,7 +385,7 @@ const styles = StyleSheet.create({
   backButton: {
     width: 40,
     height: 40,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     backgroundColor: 'rgba(255,255,255,0.15)',
     alignItems: 'center',
     justifyContent: 'center',
@@ -398,7 +399,7 @@ const styles = StyleSheet.create({
   logoCircle: {
     width: 52,
     height: 52,
-    borderRadius: 16,
+    borderRadius: Tokens.radius.panel,
     backgroundColor: 'rgba(255,255,255,0.18)',
     alignItems: 'center',
     justifyContent: 'center',
@@ -408,11 +409,11 @@ const styles = StyleSheet.create({
   brandName: {
     fontSize: 24,
     fontWeight: '800' as const,
-    color: '#FFFFFF',
+    color: Colors.surface,
     letterSpacing: -0.5,
   },
   brandTagline: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     fontWeight: '500' as const,
     color: 'rgba(255,255,255,0.7)',
     marginTop: 2,
@@ -426,14 +427,14 @@ const styles = StyleSheet.create({
   },
   errorBanner: {
     backgroundColor: Colors.errorLight,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     padding: 14,
     marginBottom: 20,
     borderWidth: 1,
     borderColor: 'rgba(255,59,48,0.15)',
   },
   errorBannerText: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     color: Colors.error,
     fontWeight: '500' as const,
     textAlign: 'center',
@@ -442,7 +443,7 @@ const styles = StyleSheet.create({
     marginBottom: 18,
   },
   inputLabel: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     fontWeight: '600' as const,
     color: Colors.text,
     marginBottom: 8,
@@ -452,7 +453,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.surface,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     paddingHorizontal: 14,
     paddingVertical: 14,
     gap: 10,
@@ -461,7 +462,7 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    fontSize: 16,
+    fontSize: Type.callout.fontSize,
     color: Colors.text,
     fontWeight: '400' as const,
   },
@@ -470,7 +471,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: Colors.primary,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     paddingVertical: 16,
     gap: 8,
     marginTop: 8,
@@ -479,9 +480,9 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   signupButtonText: {
-    fontSize: 17,
+    fontSize: Type.body.fontSize,
     fontWeight: '700' as const,
-    color: '#FFFFFF',
+    color: Colors.surface,
   },
   loginRow: {
     flexDirection: 'row',
@@ -491,11 +492,11 @@ const styles = StyleSheet.create({
     marginTop: 28,
   },
   loginPrompt: {
-    fontSize: 15,
+    fontSize: Type.subhead.fontSize,
     color: Colors.textSecondary,
   },
   loginLink: {
-    fontSize: 15,
+    fontSize: Type.subhead.fontSize,
     fontWeight: '600' as const,
     color: Colors.primary,
   },
@@ -512,7 +513,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.borderLight,
   },
   dividerText: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: Colors.textMuted,
     fontWeight: '500' as const,
   },
@@ -526,7 +527,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 10,
     paddingVertical: 16,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     borderWidth: 1.5,
   },
   appleAuthButton: {
@@ -534,16 +535,16 @@ const styles = StyleSheet.create({
     borderColor: '#000000',
   },
   appleAuthButtonText: {
-    fontSize: 16,
+    fontSize: Type.callout.fontSize,
     fontWeight: '700' as const,
-    color: '#FFFFFF',
+    color: Colors.surface,
   },
   googleAuthButton: {
     backgroundColor: Colors.surface,
     borderColor: Colors.borderLight,
   },
   googleAuthButtonText: {
-    fontSize: 16,
+    fontSize: Type.callout.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
   },
@@ -558,13 +559,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 10,
     paddingVertical: 14,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     borderWidth: 1.5,
     borderColor: Colors.borderLight,
     backgroundColor: Colors.surface,
   },
   socialButtonText: {
-    fontSize: 15,
+    fontSize: Type.subhead.fontSize,
     fontWeight: '600' as const,
     color: Colors.text,
   },
@@ -573,8 +574,8 @@ const styles = StyleSheet.create({
     borderColor: '#000000',
   },
   appleSocialButtonText: {
-    fontSize: 15,
+    fontSize: Type.subhead.fontSize,
     fontWeight: '600' as const,
-    color: '#FFFFFF',
+    color: Colors.surface,
   },
 });

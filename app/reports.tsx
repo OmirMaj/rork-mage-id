@@ -30,6 +30,8 @@ import {
 import { shareWIPReport, shareProfitReport, shareARAgingReport } from '@/utils/financialReportPdf';
 import { formatMoney } from '@/utils/formatters';
 import type { CompanyBranding } from '@/types';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 type Tab = 'wip' | 'profit' | 'aging';
 
@@ -93,7 +95,7 @@ export default function ReportsScreen() {
       <Stack.Screen options={{ headerShown: false }} />
 
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={8}>
+        <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
           <ChevronLeft size={26} color={Colors.primary} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
@@ -398,7 +400,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1, borderBottomColor: Colors.border,
   },
   eyebrow: { fontSize: 10, fontWeight: '800', color: Colors.primary, letterSpacing: 1.4, textTransform: 'uppercase' },
-  title:   { fontSize: 22, fontWeight: '800', color: Colors.text, letterSpacing: -0.4, marginTop: 2 },
+  title:   { fontSize: Type.title2.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.4, marginTop: 2 },
 
   tabRow: {
     flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingVertical: 12,
@@ -411,11 +413,11 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,
   },
   tabBtnActive: { backgroundColor: Colors.primary + '12', borderColor: Colors.primary },
-  tabBtnText:   { fontSize: 13, fontWeight: '700', color: Colors.textMuted },
+  tabBtnText:   { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.textMuted },
   tabBtnTextActive: { color: Colors.primary },
 
   summaryCard: {
-    backgroundColor: Colors.card, borderRadius: 14, padding: 16,
+    backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 16,
     borderWidth: 1, borderColor: Colors.border, marginBottom: 14, gap: 10,
   },
   summaryHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
@@ -423,52 +425,52 @@ const styles = StyleSheet.create({
   summaryGrid:  { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   summaryStatItem: { width: '47%', paddingVertical: 4 },
   summaryStatLabel: { fontSize: 10, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 4 },
-  summaryStatValue: { fontSize: 18, fontWeight: '800', color: Colors.text, letterSpacing: -0.3 },
+  summaryStatValue: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.3 },
 
   profitHero: { flexDirection: 'row', alignItems: 'baseline', gap: 12, marginTop: 4 },
-  profitHeroAmount: { fontSize: 28, fontWeight: '800', color: Colors.text, letterSpacing: -0.6 },
-  profitHeroPct:    { fontSize: 16, fontWeight: '800' },
-  profitHeroSub:    { fontSize: 12, color: Colors.textMuted, marginTop: 2 },
+  profitHeroAmount: { fontSize: Type.title1.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.6 },
+  profitHeroPct:    { fontSize: Type.callout.fontSize, fontWeight: '800' },
+  profitHeroSub:    { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2 },
 
   bandRow: { flexDirection: 'row', gap: 8, marginBottom: 10 },
   band:    { flexDirection: 'row', alignItems: 'center', gap: 4 },
   bandDot: { width: 8, height: 8, borderRadius: 4 },
-  bandText:{ fontSize: 11, color: Colors.textMuted, fontWeight: '600' },
+  bandText:{ fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontWeight: '600' },
 
   agingHeroAmount: { fontSize: 26, fontWeight: '800', color: Colors.error, letterSpacing: -0.6, marginTop: 4 },
   bucketRow: { flexDirection: 'row', gap: 6, marginTop: 8 },
-  bucket:    { flex: 1, padding: 8, borderRadius: 8, backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border },
+  bucket:    { flex: 1, padding: 8, borderRadius: Tokens.radius.sm, backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border },
   bucketLabel: { fontSize: 9, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.5, textTransform: 'uppercase' },
-  bucketValue: { fontSize: 12, fontWeight: '800', marginTop: 3, letterSpacing: -0.2 },
-  bucketPill:  { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },
+  bucketValue: { fontSize: Type.caption1.fontSize, fontWeight: '800', marginTop: 3, letterSpacing: -0.2 },
+  bucketPill:  { paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.full },
   bucketPillMuted: { backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border },
   bucketPillWarn:  { backgroundColor: Colors.warning + '15' },
   bucketPillBad:   { backgroundColor: Colors.error   + '15' },
   bucketPillText:  { fontSize: 10, fontWeight: '800', letterSpacing: 0.4, color: Colors.text },
 
   row: {
-    backgroundColor: Colors.card, borderRadius: 12, padding: 14,
+    backgroundColor: Colors.card, borderRadius: Tokens.radius.card, padding: 14,
     borderWidth: 1, borderColor: Colors.border, marginBottom: 10,
   },
   rowHead: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
-  rowTitle: { flex: 1, fontSize: 14, fontWeight: '800', color: Colors.text, letterSpacing: -0.2 },
-  marginPill: { paddingHorizontal: 9, paddingVertical: 3, borderRadius: 999 },
-  marginPillText: { fontSize: 11, fontWeight: '800', letterSpacing: 0.3 },
+  rowTitle: { flex: 1, fontSize: Type.bodyCompact.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.2 },
+  marginPill: { paddingHorizontal: 9, paddingVertical: 3, borderRadius: Tokens.radius.full },
+  marginPillText: { fontSize: Type.caption2.fontSize, fontWeight: '800', letterSpacing: 0.3 },
   healthDot: { width: 10, height: 10, borderRadius: 5 },
 
   kvGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   kv: { width: '48%', flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 },
-  kvKey: { fontSize: 11, color: Colors.textMuted, fontWeight: '600' },
-  kvVal: { fontSize: 12, color: Colors.text, fontWeight: '600' },
-  kvValBold: { fontWeight: '800', fontSize: 13 },
+  kvKey: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontWeight: '600' },
+  kvVal: { fontSize: Type.caption1.fontSize, color: Colors.text, fontWeight: '600' },
+  kvValBold: { fontWeight: '800', fontSize: Type.footnote.fontSize },
 
   emptyCard: {
-    backgroundColor: Colors.card, borderRadius: 14, padding: 28,
+    backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 28,
     alignItems: 'center', gap: 8, marginTop: 22,
     borderWidth: 1, borderColor: Colors.border,
   },
-  emptyTitle: { fontSize: 16, fontWeight: '800', color: Colors.text, marginTop: 4 },
-  emptyBody:  { fontSize: 13, color: Colors.textMuted, textAlign: 'center', lineHeight: 19, maxWidth: 320 },
+  emptyTitle: { fontSize: Type.callout.fontSize, fontWeight: '800', color: Colors.text, marginTop: 4 },
+  emptyBody:  { fontSize: Type.footnote.fontSize, color: Colors.textMuted, textAlign: 'center', lineHeight: 19, maxWidth: 320 },
 
   actionBar: {
     flexDirection: 'row', gap: 10, paddingHorizontal: 16, paddingTop: 12,
@@ -479,12 +481,12 @@ const styles = StyleSheet.create({
     paddingVertical: 13, paddingHorizontal: 16, borderRadius: 11,
     backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,
   },
-  actionBtnSecondaryText: { fontSize: 13, fontWeight: '700', color: Colors.text },
+  actionBtnSecondaryText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.text },
   actionBtnPrimary: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     paddingVertical: 14, borderRadius: 11, backgroundColor: Colors.primary,
     shadowColor: Colors.primary, shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.28, shadowRadius: 10, elevation: 4,
   },
-  actionBtnPrimaryText: { fontSize: 14, fontWeight: '800', color: '#FFF', letterSpacing: 0.2 },
+  actionBtnPrimaryText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800', color: '#FFF', letterSpacing: 0.2 },
 });

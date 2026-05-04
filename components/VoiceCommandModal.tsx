@@ -13,6 +13,8 @@ import {
 import { Colors } from '@/constants/colors';
 import ConstructionLoader from '@/components/ConstructionLoader';
 import type { ScheduleTask } from '@/types';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 import {
   parseVoiceCommand,
   parseBatchVoiceCommand,
@@ -482,9 +484,7 @@ export default function VoiceCommandModal({
                   <Text style={s.aiBadgeText}>AI</Text>
                 </View>
               </View>
-              <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                <X size={20} color={Colors.textMuted} />
-              </TouchableOpacity>
+              <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={Colors.textMuted} /></TouchableOpacity>
             </View>
 
             <ScrollView
@@ -508,8 +508,7 @@ export default function VoiceCommandModal({
                   onPress={() => processCommand(inputText)}
                   disabled={!inputText.trim()}
                   activeOpacity={0.7}
-                  testID="voice-send-btn"
-                >
+                  testID="voice-send-btn" accessibilityRole="button" accessibilityLabel="Send">
                   <Send size={18} color={inputText.trim() ? '#fff' : Colors.textMuted} />
                 </TouchableOpacity>
               </View>
@@ -561,7 +560,7 @@ const s = StyleSheet.create({
     gap: 8,
   },
   headerTitle: {
-    fontSize: 17,
+    fontSize: Type.body.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
   },
@@ -572,7 +571,7 @@ const s = StyleSheet.create({
     backgroundColor: Colors.primary + '12',
     paddingHorizontal: 6,
     paddingVertical: 2,
-    borderRadius: 6,
+    borderRadius: Tokens.radius.xs,
   },
   aiBadgeText: {
     fontSize: 10,
@@ -591,11 +590,11 @@ const s = StyleSheet.create({
   },
   textInput: {
     backgroundColor: Colors.surfaceAlt,
-    borderRadius: 16,
+    borderRadius: Tokens.radius.panel,
     paddingHorizontal: 16,
     paddingTop: 14,
     paddingBottom: 14,
-    fontSize: 17,
+    fontSize: Type.body.fontSize,
     color: Colors.text,
     minHeight: 80,
     textAlignVertical: 'top',
@@ -610,11 +609,11 @@ const s = StyleSheet.create({
     paddingHorizontal: 4,
   },
   inputHintText: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     color: Colors.textMuted,
   },
   sectionLabel: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '700' as const,
     color: Colors.textSecondary,
     marginBottom: 8,
@@ -639,7 +638,7 @@ const s = StyleSheet.create({
     borderColor: Colors.cardBorder,
   },
   chipText: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '500' as const,
     color: Colors.text,
   },
@@ -677,16 +676,16 @@ const s = StyleSheet.create({
     justifyContent: 'center',
   },
   stateTitle: {
-    fontSize: 20,
+    fontSize: Type.title3.fontSize,
     fontWeight: '800' as const,
     color: Colors.text,
   },
   stateSubtitle: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     color: Colors.textSecondary,
   },
   stateMessage: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     color: Colors.textSecondary,
     textAlign: 'center',
     lineHeight: 20,
@@ -703,11 +702,11 @@ const s = StyleSheet.create({
     gap: 6,
     paddingHorizontal: 20,
     paddingVertical: 12,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     backgroundColor: Colors.fillTertiary,
   },
   undoBtnText: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     fontWeight: '600' as const,
     color: Colors.primary,
   },
@@ -717,11 +716,11 @@ const s = StyleSheet.create({
     gap: 6,
     paddingHorizontal: 20,
     paddingVertical: 12,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     backgroundColor: Colors.primary,
   },
   newCmdBtnText: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     fontWeight: '600' as const,
     color: '#fff',
   },
@@ -737,10 +736,10 @@ const s = StyleSheet.create({
     backgroundColor: Colors.surfaceAlt,
     paddingHorizontal: 14,
     paddingVertical: 10,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
   },
   batchItemText: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     fontWeight: '500' as const,
     color: Colors.text,
     flex: 1,
@@ -748,19 +747,19 @@ const s = StyleSheet.create({
   helpSection: {
     alignSelf: 'stretch',
     backgroundColor: Colors.surfaceAlt,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     padding: 16,
     gap: 6,
     marginHorizontal: 12,
   },
   helpTitle: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '700' as const,
     color: Colors.textSecondary,
     marginBottom: 2,
   },
   helpExample: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     color: Colors.text,
     lineHeight: 22,
   },
@@ -776,7 +775,7 @@ const s = StyleSheet.create({
     backgroundColor: Colors.surfaceAlt,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
   },
@@ -790,12 +789,12 @@ const s = StyleSheet.create({
     gap: 2,
   },
   clarifyTaskName: {
-    fontSize: 15,
+    fontSize: Type.subhead.fontSize,
     fontWeight: '600' as const,
     color: Colors.text,
   },
   clarifyTaskMeta: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     color: Colors.textSecondary,
   },
   bottomBar: {
@@ -826,16 +825,16 @@ const histStyles = StyleSheet.create({
     gap: 8,
     paddingVertical: 8,
     paddingHorizontal: 10,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
     backgroundColor: Colors.surfaceAlt,
   },
   historyText: {
     flex: 1,
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: Colors.text,
   },
   historyTime: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     color: Colors.textMuted,
   },
 });

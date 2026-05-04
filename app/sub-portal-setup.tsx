@@ -20,6 +20,8 @@ import {
 } from '@/utils/subPortalSnapshot';
 import { formatMoney } from '@/utils/formatters';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 const SUB_PORTAL_BASE_URL = 'https://mageid.app/sub-portal';
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL
@@ -173,7 +175,7 @@ export default function SubPortalSetupScreen() {
         options={{
           title: 'Sub Portal',
           headerLeft: () => (
-            <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }}>
+            <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }} accessibilityRole="button" accessibilityLabel="Back">
               <ChevronLeft size={24} color={Colors.primary} />
             </TouchableOpacity>
           ),
@@ -420,10 +422,10 @@ export default function SubPortalSetupScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 20 },
-  loadingText: { color: Colors.textMuted, fontSize: 14 },
+  loadingText: { color: Colors.textMuted, fontSize: Type.bodyCompact.fontSize },
 
   hero: {
-    margin: 16, padding: 18, borderRadius: 16,
+    margin: 16, padding: 18, borderRadius: Tokens.radius.panel,
     backgroundColor: Colors.primary + '0D',
     borderWidth: 1, borderColor: Colors.primary + '20',
   },
@@ -434,114 +436,114 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   heroEyebrow: {
-    fontSize: 11, fontWeight: '700', letterSpacing: 1.5,
+    fontSize: Type.caption2.fontSize, fontWeight: '700', letterSpacing: 1.5,
     color: Colors.primary, textTransform: 'uppercase', marginBottom: 4,
   },
-  heroTitle: { fontSize: 22, fontWeight: '800', color: Colors.text, marginBottom: 4 },
-  heroMeta: { fontSize: 13, color: Colors.textMuted },
+  heroTitle: { fontSize: Type.title2.fontSize, fontWeight: '800', color: Colors.text, marginBottom: 4 },
+  heroMeta: { fontSize: Type.footnote.fontSize, color: Colors.textMuted },
   heroStats: { flexDirection: 'row', gap: 12, marginTop: 14 },
-  heroStat: { flex: 1, padding: 12, borderRadius: 10, backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border },
-  heroStatLabel: { fontSize: 11, color: Colors.textMuted, fontWeight: '700', letterSpacing: 0.4, textTransform: 'uppercase', marginBottom: 4 },
-  heroStatValue: { fontSize: 17, fontWeight: '800', color: Colors.text },
+  heroStat: { flex: 1, padding: 12, borderRadius: Tokens.radius.md, backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border },
+  heroStatLabel: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontWeight: '700', letterSpacing: 0.4, textTransform: 'uppercase', marginBottom: 4 },
+  heroStatValue: { fontSize: Type.body.fontSize, fontWeight: '800', color: Colors.text },
 
   section: { marginHorizontal: 16, marginBottom: 22 },
   sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
-  sectionTitle: { fontSize: 16, fontWeight: '700', color: Colors.text },
-  sectionSubtitle: { fontSize: 13, color: Colors.textMuted, marginTop: 2, marginBottom: 12, lineHeight: 18 },
+  sectionTitle: { fontSize: Type.callout.fontSize, fontWeight: '700', color: Colors.text },
+  sectionSubtitle: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, marginTop: 2, marginBottom: 12, lineHeight: 18 },
 
   linkBox: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: Colors.card, borderRadius: 10,
+    backgroundColor: Colors.card, borderRadius: Tokens.radius.md,
     paddingHorizontal: 12, paddingVertical: 12,
     borderWidth: 1, borderColor: Colors.border,
     marginBottom: 10,
   },
-  linkText: { flex: 1, fontSize: 12, color: Colors.text },
+  linkText: { flex: 1, fontSize: Type.caption1.fontSize, color: Colors.text },
   shareRow: { flexDirection: 'row', gap: 8 },
   shareBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-    paddingVertical: 12, borderRadius: 10,
+    paddingVertical: 12, borderRadius: Tokens.radius.md,
     backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,
   },
   shareBtnPrimary: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  shareBtnText: { fontSize: 14, fontWeight: '700', color: Colors.text },
-  lastShared: { fontSize: 11, color: Colors.textMuted, marginTop: 8 },
+  shareBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
+  lastShared: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 8 },
 
   togglesCard: {
-    backgroundColor: Colors.card, borderRadius: 12,
+    backgroundColor: Colors.card, borderRadius: Tokens.radius.card,
     borderWidth: 1, borderColor: Colors.border, overflow: 'hidden',
   },
   toggleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 13 },
   toggleRowBorder: { borderBottomWidth: 1, borderBottomColor: Colors.border },
   toggleLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
   toggleLabels: { flex: 1 },
-  toggleLabel: { fontSize: 14, fontWeight: '600', color: Colors.text },
-  toggleDesc: { fontSize: 12, color: Colors.textMuted, marginTop: 1 },
+  toggleLabel: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600', color: Colors.text },
+  toggleDesc: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 1 },
   passcodeRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 13 },
-  passcodeLabel: { fontSize: 13, color: Colors.text, fontWeight: '600' },
+  passcodeLabel: { fontSize: Type.footnote.fontSize, color: Colors.text, fontWeight: '600' },
   passcodeInput: {
-    backgroundColor: Colors.background, borderRadius: 8,
+    backgroundColor: Colors.background, borderRadius: Tokens.radius.sm,
     borderWidth: 1, borderColor: Colors.border,
     paddingHorizontal: 12, paddingVertical: 8,
-    fontSize: 18, fontWeight: '700', letterSpacing: 4,
+    fontSize: Type.subheadline.fontSize, fontWeight: '700', letterSpacing: 4,
     minWidth: 100, textAlign: 'center',
     color: Colors.text,
   },
 
   cardList: { gap: 10 },
   commitCard: {
-    padding: 14, borderRadius: 12,
+    padding: 14, borderRadius: Tokens.radius.card,
     backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,
   },
   commitHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 10 },
-  commitNumPill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, backgroundColor: Colors.primary + '15' },
-  commitNumText: { fontSize: 11, fontWeight: '700', color: Colors.primary },
-  commitDesc: { flex: 1, fontSize: 14, fontWeight: '600', color: Colors.text, lineHeight: 19 },
+  commitNumPill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.xs, backgroundColor: Colors.primary + '15' },
+  commitNumText: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.primary },
+  commitDesc: { flex: 1, fontSize: Type.bodyCompact.fontSize, fontWeight: '600', color: Colors.text, lineHeight: 19 },
   commitFoot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  commitAmount: { fontSize: 16, fontWeight: '800', color: Colors.text },
-  commitStatus: { fontSize: 11, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.4 },
+  commitAmount: { fontSize: Type.callout.fontSize, fontWeight: '800', color: Colors.text },
+  commitStatus: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.4 },
 
   emptyCard: {
     alignItems: 'center', padding: 26,
-    backgroundColor: Colors.card, borderRadius: 12,
+    backgroundColor: Colors.card, borderRadius: Tokens.radius.card,
     borderWidth: 1, borderColor: Colors.border, borderStyle: 'dashed',
     gap: 6,
   },
-  emptyText: { fontSize: 14, fontWeight: '600', color: Colors.text },
-  emptySub: { fontSize: 12, color: Colors.textMuted, textAlign: 'center', lineHeight: 17 },
+  emptyText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600', color: Colors.text },
+  emptySub: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, textAlign: 'center', lineHeight: 17 },
 
-  pendingBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: Colors.primary + '15' },
-  pendingBadgeText: { fontSize: 11, fontWeight: '700', color: Colors.primary },
+  pendingBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: Tokens.radius.full, backgroundColor: Colors.primary + '15' },
+  pendingBadgeText: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.primary },
 
   invoiceCard: {
-    padding: 14, borderRadius: 12,
+    padding: 14, borderRadius: Tokens.radius.card,
     backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,
   },
   invoiceHead: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, marginBottom: 8 },
-  invoiceNum: { fontSize: 14, fontWeight: '700', color: Colors.text },
-  invoiceMeta: { fontSize: 12, color: Colors.textMuted, marginTop: 2 },
-  invoiceAmount: { fontSize: 22, fontWeight: '800', color: Colors.text, marginVertical: 4 },
-  invoiceRet: { fontSize: 12, color: Colors.textMuted, marginBottom: 4 },
-  invoiceDesc: { fontSize: 13, color: Colors.text, lineHeight: 18, marginVertical: 6 },
+  invoiceNum: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
+  invoiceMeta: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2 },
+  invoiceAmount: { fontSize: Type.title2.fontSize, fontWeight: '800', color: Colors.text, marginVertical: 4 },
+  invoiceRet: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginBottom: 4 },
+  invoiceDesc: { fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 18, marginVertical: 6 },
   invoiceLines: { marginTop: 8, gap: 4, paddingTop: 8, borderTopWidth: 1, borderTopColor: Colors.border },
   invoiceLine: { flexDirection: 'row', justifyContent: 'space-between', gap: 10 },
-  invoiceLineDesc: { flex: 1, fontSize: 12, color: Colors.textMuted },
-  invoiceLineAmt: { fontSize: 12, fontWeight: '700', color: Colors.text },
+  invoiceLineDesc: { flex: 1, fontSize: Type.caption1.fontSize, color: Colors.textMuted },
+  invoiceLineAmt: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: Colors.text },
 
-  statusPill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },
+  statusPill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.full },
   statusPillText: { fontSize: 10, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.6 },
 
   invoiceCtas: { flexDirection: 'row', gap: 8, marginTop: 12 },
   invCtaApprove: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-    paddingVertical: 11, borderRadius: 10,
+    paddingVertical: 11, borderRadius: Tokens.radius.md,
     backgroundColor: Colors.primary,
   },
   invCtaReject: {
     paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingVertical: 11, borderRadius: 10,
+    paddingVertical: 11, borderRadius: Tokens.radius.md,
     backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,
   },
-  invCtaText: { fontSize: 13, fontWeight: '700', color: Colors.text },
-  invoiceNotes: { marginTop: 10, fontSize: 12, color: Colors.textMuted, fontStyle: 'italic', lineHeight: 17 },
+  invCtaText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.text },
+  invoiceNotes: { marginTop: 10, fontSize: Type.caption1.fontSize, color: Colors.textMuted, fontStyle: 'italic', lineHeight: 17 },
 });

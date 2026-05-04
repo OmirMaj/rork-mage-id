@@ -6,6 +6,8 @@ import { useRouter } from 'expo-router';
 import type { CashFlowWeek } from '@/utils/cashFlowEngine';
 import { formatCurrency } from '@/utils/cashFlowEngine';
 import type { Invoice } from '@/types';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 export interface CashFlowAlert {
   id: string;
@@ -119,7 +121,7 @@ const AlertCard = React.memo(function AlertCard({
         <Text style={[styles.alertTitle, { color: config.iconColor }]} numberOfLines={1}>
           {alert.title}
         </Text>
-        <TouchableOpacity onPress={() => onDismiss(alert.id)} style={styles.dismissBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+        <TouchableOpacity onPress={() => onDismiss(alert.id)} style={styles.dismissBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel="Close">
           <X size={14} color={Colors.textMuted} />
         </TouchableOpacity>
       </View>
@@ -172,7 +174,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   alertCard: {
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     padding: 14,
     borderWidth: 1,
     gap: 6,
@@ -184,19 +186,19 @@ const styles = StyleSheet.create({
   },
   alertTitle: {
     flex: 1,
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     fontWeight: '700' as const,
   },
   dismissBtn: {
     width: 24,
     height: 24,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     backgroundColor: 'rgba(0,0,0,0.06)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   alertMessage: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: Colors.textSecondary,
     lineHeight: 18,
     paddingLeft: 26,
@@ -209,7 +211,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   alertActionText: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
   },
 });

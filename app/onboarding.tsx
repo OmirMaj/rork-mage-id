@@ -1,564 +1,664 @@
-import React, { useState, useRef, useCallback } from 'react';
+// app/onboarding.tsx — first-run experience.
+//
+// Redesigned per the 2026 onboarding research: carousel killed, kept
+// to two screens (splash → routing question → home). Brand color is
+// the background (Cash App move). Display headline with italic emphasis
+// is the focal point. One primary CTA per screen. Skip always visible.
+//
+// What this screen DOES NOT do, on purpose:
+//   - No 7-slide carousel describing features. The product itself
+//     describes its features once the user lands on home.
+//   - No HardHat / Calculator / Blueprint icons. "Construction-themed
+//     clipart" is the visual language of unserious software in 2026.
+//   - No forced auth wall. The auth screen is a separate route; we
+//     defer the prompt until after the user's seen value.
+//
+// What this screen DOES do:
+//   - Splash with display-grade italic-mixed serif headline +
+//     edge-to-edge brand-green background.
+//   - One routing question — "how big is the job you're running?" —
+//     captured to AsyncStorage so home + estimator + AI prompts can
+//     personalize.
+//   - Drops the user on home where the existing OnboardingChecklist
+//     and DemoSeedPickerModal handle the rest.
+
+import React, { useCallback, useRef, useState, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  Animated,
-  Dimensions,
   TouchableOpacity,
+  Animated,
+  Easing,
   Platform,
-  FlatList,
-  ViewToken,
+  Pressable,
+  Dimensions,
+  AccessibilityInfo,
 } from 'react-native';
+import { continuousCorners, Tokens } from '@/constants/designTokens';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
-import {
-  HardHat,
-  Calculator,
-  CalendarDays,
-  Package,
-  Share2,
-  Users,
-  ArrowRight,
-  CheckCircle,
-  Sparkles,
-} from 'lucide-react-native';
-import { Colors } from '@/constants/colors';
+import { ArrowRight, Check, Ruler, DollarSign, Mic } from 'lucide-react-native';
 import { useProjects } from '@/contexts/ProjectContext';
+import { Type } from '@/constants/typography';
+import {
+  saveOnboardingProfile,
+  SIZE_BAND_LABELS,
+  SIZE_BAND_PERSONA,
+  suggestedDemoFlavorForBand,
+  type ProjectSizeBand,
+} from '@/utils/onboardingProfile';
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+// ── Brand palette local to onboarding — kept hardcoded so the splash
+// looks identical regardless of any custom-primary the user has set
+// later in Settings. The splash IS the brand.
+const BRAND = {
+  green: '#1A6B3C',
+  greenDeep: '#0F4526',
+  greenAccent: '#2A9055',
+  orange: '#FF6A1A',
+  orangeHot: '#FF8533',
+  cream: '#F4EFE6',
+  ink: '#0B0D10',
+  fog: 'rgba(244,239,230,0.62)',
+};
 
-interface OnboardingSlide {
-  id: string;
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
+type Step = 'splash' | 'preview' | 'routing';
+
+interface PreviewCard {
+  Icon: React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>;
   title: string;
-  subtitle: string;
-  description: string;
-  icon: React.ReactNode;
-  accent: string;
-  bgGradientTop: string;
-  bgGradientBottom: string;
+  body: string;
 }
 
-const SLIDES: OnboardingSlide[] = [
+// Preview cards — what you actually get. Anchors the value prop without
+// requiring a real product GIF. Copy intentionally short (2026 norm: 6-12
+// word headlines, ~15-25 word bodies).
+const PREVIEW_CARDS: PreviewCard[] = [
   {
-    id: 'welcome',
-    title: 'MAGE ID',
-    subtitle: 'Your Construction Command Center',
-    description: 'Estimate costs, build schedules, manage materials, and collaborate with your team — all in one powerful app.',
-    icon: <HardHat size={56} color="#FFFFFF" strokeWidth={1.6} />,
-    accent: '#1A6B3C',
-    bgGradientTop: '#1A6B3C',
-    bgGradientBottom: '#0F4526',
+    Icon: Ruler,
+    title: 'AI takeoffs from a PDF',
+    body: 'Drop in plans. Get walls, doors, finishes in seconds. Then turn them into sub bid packages.',
   },
   {
-    id: 'projects',
-    title: 'Create Projects',
-    subtitle: 'Organize Everything',
-    description: 'Start by creating a project — name it, describe it, and choose the type. Everything from estimates to schedules lives inside your project.',
-    icon: <Sparkles size={56} color="#FFFFFF" strokeWidth={1.6} />,
-    accent: '#FF9500',
-    bgGradientTop: '#FF9500',
-    bgGradientBottom: '#E08600',
+    Icon: DollarSign,
+    title: 'Money on the schedule',
+    body: 'Cost-loaded Gantt with Planned vs Earned Value, AIA G702/G703 pay apps, 12-week cash flow.',
   },
   {
-    id: 'estimate',
-    title: 'Smart Estimates',
-    subtitle: 'Accurate Cost Breakdowns',
-    description: 'Browse materials, add quantities, and get instant pricing with bulk savings. Link estimates directly to your projects for a complete picture.',
-    icon: <Calculator size={56} color="#FFFFFF" strokeWidth={1.6} />,
-    accent: '#007AFF',
-    bgGradientTop: '#007AFF',
-    bgGradientBottom: '#0055CC',
-  },
-  {
-    id: 'schedule',
-    title: 'BW Schedule Maker',
-    subtitle: 'Plan Like a Pro',
-    description: 'Build timelines with tasks, milestones, critical path analysis, and work breakdown structures. Visualize your entire project on an interactive timeline.',
-    icon: <CalendarDays size={56} color="#FFFFFF" strokeWidth={1.6} />,
-    accent: '#AF52DE',
-    bgGradientTop: '#AF52DE',
-    bgGradientBottom: '#8A2DB5',
-  },
-  {
-    id: 'materials',
-    title: 'Material Pricing',
-    subtitle: 'Real Costs at Your Fingertips',
-    description: 'Access a comprehensive material database with retail and bulk pricing. Compare suppliers and find savings across categories.',
-    icon: <Package size={56} color="#FFFFFF" strokeWidth={1.6} />,
-    accent: '#FF3B30',
-    bgGradientTop: '#FF3B30',
-    bgGradientBottom: '#CC2F26',
-  },
-  {
-    id: 'share',
-    title: 'Share & Collaborate',
-    subtitle: 'Work Together Seamlessly',
-    description: 'Generate professional PDFs with your company logo and signature. Share via email or text, and invite team members to collaborate on projects.',
-    icon: <Share2 size={56} color="#FFFFFF" strokeWidth={1.6} />,
-    accent: '#34C759',
-    bgGradientTop: '#34C759',
-    bgGradientBottom: '#28A745',
-  },
-  {
-    id: 'settings',
-    title: 'Make It Yours',
-    subtitle: 'Company Branding & Settings',
-    description: 'Upload your logo, draw your signature, and customize tax rates and contingency. Every PDF you generate will carry your professional brand.',
-    icon: <Users size={56} color="#FFFFFF" strokeWidth={1.6} />,
-    accent: '#5856D6',
-    bgGradientTop: '#5856D6',
-    bgGradientBottom: '#4240AB',
+    Icon: Mic,
+    title: 'Voice on the jobsite',
+    body: 'Tap once, talk. AI logs your daily report, files the RFI, drafts the change order. Works offline.',
   },
 ];
 
 export default function OnboardingScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const flatListRef = useRef<FlatList>(null);
-  const scrollX = useRef(new Animated.Value(0)).current;
-  const buttonScale = useRef(new Animated.Value(1)).current;
-  const iconAnim = useRef(new Animated.Value(0)).current;
+  const projectCtx = useProjects();
+  const { completeOnboarding } = projectCtx;
 
-  const startIconPulse = useCallback(() => {
-    iconAnim.setValue(0);
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(iconAnim, {
-          toValue: 1,
-          duration: 2000,
-          useNativeDriver: true,
-        }),
-        Animated.timing(iconAnim, {
-          toValue: 0,
-          duration: 2000,
-          useNativeDriver: true,
-        }),
-      ])
-    ).start();
-  }, [iconAnim]);
+  const [step, setStep] = useState<Step>('splash');
 
-  React.useEffect(() => {
-    startIconPulse();
-  }, [startIconPulse]);
+  // Respect iOS Accessibility → Reduce Motion. When on, we cross-fade
+  // instead of slide-up + stagger. Apple HIG mandates this; premium apps
+  // ship it from day one.
+  const [reduceMotion, setReduceMotion] = useState(false);
+  useEffect(() => {
+    let mounted = true;
+    AccessibilityInfo.isReduceMotionEnabled().then(v => {
+      if (mounted) setReduceMotion(v);
+    });
+    const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion);
+    return () => { mounted = false; sub.remove(); };
+  }, []);
 
-  const onViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: ViewToken[] }) => {
-    if (viewableItems.length > 0 && viewableItems[0].index != null) {
-      setCurrentIndex(viewableItems[0].index);
-    }
-  }).current;
+  // ── Reveal animations — staggered fade + 8px rise. ~120ms apart so
+  // the splash feels composed rather than dumped.
+  const eyebrowOpacity = useRef(new Animated.Value(0)).current;
+  const headlineOpacity = useRef(new Animated.Value(0)).current;
+  const bodyOpacity = useRef(new Animated.Value(0)).current;
+  const ctaOpacity = useRef(new Animated.Value(0)).current;
+  const lift = useRef(new Animated.Value(8)).current;
 
-  const viewabilityConfig = useRef({ viewAreaCoveragePercentThreshold: 50 }).current;
+  // CTA tap feedback.
+  const ctaScale = useRef(new Animated.Value(1)).current;
 
-  const isLastSlide = currentIndex === SLIDES.length - 1;
+  useEffect(() => {
+    // Reset on step change so each step gets its own reveal.
+    eyebrowOpacity.setValue(0);
+    headlineOpacity.setValue(0);
+    bodyOpacity.setValue(0);
+    ctaOpacity.setValue(0);
+    lift.setValue(reduceMotion ? 0 : 8);
 
-  const { completeOnboarding } = useProjects();
-
-  const handleFinish = useCallback(() => {
-    if (Platform.OS !== 'web') {
-      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    }
-    void completeOnboarding();
-    // Route through the onboarding paywall for first-time users. It will
-    // self-route to /(tabs)/(home) on close or on successful purchase.
-    router.replace('/onboarding-paywall' as never);
-  }, [router, completeOnboarding]);
-
-  const handleNext = useCallback(() => {
-    if (Platform.OS !== 'web') {
-      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (reduceMotion) {
+      // Reduce-motion path: simple cross-fade, no stagger, no lift. Same
+      // landing state in ~200ms.
+      Animated.parallel([
+        Animated.timing(eyebrowOpacity, { toValue: 1, duration: 200, useNativeDriver: true }),
+        Animated.timing(headlineOpacity, { toValue: 1, duration: 200, useNativeDriver: true }),
+        Animated.timing(bodyOpacity, { toValue: 1, duration: 200, useNativeDriver: true }),
+        Animated.timing(ctaOpacity, { toValue: 1, duration: 200, useNativeDriver: true }),
+      ]).start();
+      return;
     }
 
-    Animated.sequence([
-      Animated.timing(buttonScale, { toValue: 0.92, duration: 80, useNativeDriver: true }),
-      Animated.timing(buttonScale, { toValue: 1, duration: 80, useNativeDriver: true }),
+    Animated.parallel([
+      Animated.timing(lift, {
+        toValue: 0, duration: 520, easing: Easing.out(Easing.cubic), useNativeDriver: true,
+      }),
+      Animated.stagger(120, [
+        Animated.timing(eyebrowOpacity, { toValue: 1, duration: 360, useNativeDriver: true }),
+        Animated.timing(headlineOpacity, { toValue: 1, duration: 420, useNativeDriver: true }),
+        Animated.timing(bodyOpacity, { toValue: 1, duration: 360, useNativeDriver: true }),
+        Animated.timing(ctaOpacity, { toValue: 1, duration: 360, useNativeDriver: true }),
+      ]),
     ]).start();
+  }, [step, eyebrowOpacity, headlineOpacity, bodyOpacity, ctaOpacity, lift, reduceMotion]);
 
-    if (isLastSlide) {
-      handleFinish();
-    } else {
-      flatListRef.current?.scrollToIndex({
-        index: currentIndex + 1,
-        animated: true,
+  const handleStarted = useCallback(() => {
+    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Animated.sequence([
+      Animated.timing(ctaScale, { toValue: 0.94, duration: 80, useNativeDriver: true }),
+      Animated.timing(ctaScale, { toValue: 1, duration: 100, useNativeDriver: true }),
+    ]).start();
+    setStep('preview');
+  }, [ctaScale]);
+
+  const handlePreviewNext = useCallback(() => {
+    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setStep('routing');
+  }, []);
+
+  const handleSignIn = useCallback(() => {
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+    router.push('/login' as never);
+  }, [router]);
+
+  const finishToHome = useCallback(async () => {
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    await completeOnboarding();
+    router.replace('/(tabs)/(home)' as never);
+  }, [completeOnboarding, router]);
+
+  const handleBandPick = useCallback(async (band: ProjectSizeBand) => {
+    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    await saveOnboardingProfile({
+      completedAt: new Date().toISOString(),
+      sizeBand: band,
+    });
+    // Auto-seed a sample project tuned to the band so the user lands on
+    // a populated home screen instead of an empty state. The dynamic
+    // require keeps demoSeed.ts out of the onboarding bundle until we
+    // actually need it.
+    try {
+      const flavor = suggestedDemoFlavorForBand(band);
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { seedDemoProject } = require('@/utils/demoSeed');
+      await seedDemoProject({
+        addProject: projectCtx.addProject,
+        addInvoice: projectCtx.addInvoice,
+        addDailyReport: projectCtx.addDailyReport,
+        addPunchItem: projectCtx.addPunchItem,
+        addProjectPhoto: projectCtx.addProjectPhoto,
+        addRFI: projectCtx.addRFI,
+        addChangeOrder: projectCtx.addChangeOrder,
+        flavor,
       });
+    } catch (e) {
+      // Non-fatal — user lands on home with empty state if seeding fails.
+      console.log('[onboarding] auto-seed skipped:', e);
     }
-  }, [currentIndex, isLastSlide, buttonScale, handleFinish]);
+    void finishToHome();
+  }, [finishToHome, projectCtx]);
 
-  const handleSkip = useCallback(() => {
-    if (Platform.OS !== 'web') {
-      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }
-    void completeOnboarding();
-    // Skipping the onboarding carousel still routes through the paywall;
-    // the paywall itself is dismissable so users aren't trapped.
-    router.replace('/onboarding-paywall' as never);
-  }, [router, completeOnboarding]);
-
-  const iconScale = iconAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [1, 1.08],
-  });
-
-  const renderSlide = useCallback(({ item, index }: { item: OnboardingSlide; index: number }) => {
-    const inputRange = [
-      (index - 1) * SCREEN_WIDTH,
-      index * SCREEN_WIDTH,
-      (index + 1) * SCREEN_WIDTH,
-    ];
-
-    const titleOpacity = scrollX.interpolate({
-      inputRange,
-      outputRange: [0, 1, 0],
-      extrapolate: 'clamp',
-    });
-
-    const titleTranslateY = scrollX.interpolate({
-      inputRange,
-      outputRange: [40, 0, -40],
-      extrapolate: 'clamp',
-    });
-
-    const descOpacity = scrollX.interpolate({
-      inputRange,
-      outputRange: [0, 1, 0],
-      extrapolate: 'clamp',
-    });
-
-    const descTranslateY = scrollX.interpolate({
-      inputRange,
-      outputRange: [60, 0, -60],
-      extrapolate: 'clamp',
-    });
-
-    const iconOpacity = scrollX.interpolate({
-      inputRange,
-      outputRange: [0, 1, 0],
-      extrapolate: 'clamp',
-    });
-
-    return (
-      <View style={[styles.slide, { width: SCREEN_WIDTH }]}>
-        <View style={[styles.slideBackground, { backgroundColor: item.bgGradientTop }]}>
-          <View style={styles.bgPattern}>
-            {Array.from({ length: 6 }).map((_, i) => (
-              <View
-                key={i}
-                style={[
-                  styles.bgCircle,
-                  {
-                    width: 120 + i * 60,
-                    height: 120 + i * 60,
-                    borderRadius: 60 + i * 30,
-                    opacity: 0.06 - i * 0.008,
-                    top: SCREEN_HEIGHT * 0.15 - (i * 30),
-                    left: SCREEN_WIDTH * 0.5 - (60 + i * 30),
-                  },
-                ]}
-              />
-            ))}
-          </View>
-
-          <View style={[styles.slideContent, { paddingTop: insets.top + 80 }]}>
-            <Animated.View
-              style={[
-                styles.iconContainer,
-                {
-                  opacity: iconOpacity,
-                  transform: [{ scale: iconScale }],
-                  backgroundColor: 'rgba(255,255,255,0.15)',
-                },
-              ]}
-            >
-              {item.icon}
-            </Animated.View>
-
-            <Animated.View
-              style={{
-                opacity: titleOpacity,
-                transform: [{ translateY: titleTranslateY }],
-              }}
-            >
-              <Text style={styles.slideTitle}>{item.title}</Text>
-              <Text style={styles.slideSubtitle}>{item.subtitle}</Text>
-            </Animated.View>
-
-            <Animated.View
-              style={[
-                styles.descriptionCard,
-                {
-                  opacity: descOpacity,
-                  transform: [{ translateY: descTranslateY }],
-                },
-              ]}
-            >
-              <Text style={styles.slideDescription}>{item.description}</Text>
-            </Animated.View>
-
-            {index === 0 && (
-              <Animated.View style={[styles.featureList, { opacity: descOpacity }]}>
-                {[
-                  'Cost estimation with bulk pricing',
-                  'Interactive schedule timelines',
-                  'Professional PDF generation',
-                  'Team collaboration tools',
-                ].map((feature, fi) => (
-                  <View key={fi} style={styles.featureItem}>
-                    <CheckCircle size={16} color="rgba(255,255,255,0.9)" strokeWidth={2} />
-                    <Text style={styles.featureText}>{feature}</Text>
-                  </View>
-                ))}
-              </Animated.View>
-            )}
-          </View>
-        </View>
-      </View>
-    );
-  }, [scrollX, iconScale, insets.top]);
+  const handleSkip = useCallback(async () => {
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+    void finishToHome();
+  }, [finishToHome]);
 
   return (
-    <View style={styles.container}>
-      <Animated.FlatList
-        ref={flatListRef}
-        data={SLIDES}
-        renderItem={renderSlide}
-        keyExtractor={(item) => item.id}
-        horizontal
-        pagingEnabled
-        showsHorizontalScrollIndicator={false}
-        bounces={false}
-        onScroll={Animated.event(
-          [{ nativeEvent: { contentOffset: { x: scrollX } } }],
-          { useNativeDriver: true }
-        )}
-        onViewableItemsChanged={onViewableItemsChanged}
-        viewabilityConfig={viewabilityConfig}
-        getItemLayout={(_, index) => ({
-          length: SCREEN_WIDTH,
-          offset: SCREEN_WIDTH * index,
-          index,
-        })}
+    <View style={styles.root}>
+      {/* Background — soft mesh gradient. Two stacked LinearGradients give
+          us a "light through glass" effect: deep green below, a warm
+          orange glow up top-right that shifts the mood without going
+          loud. Edge-to-edge, behind the safe area. */}
+      <LinearGradient
+        colors={[BRAND.greenDeep, BRAND.green, BRAND.green, BRAND.greenDeep]}
+        locations={[0, 0.35, 0.7, 1]}
+        style={StyleSheet.absoluteFillObject}
+      />
+      <LinearGradient
+        colors={[BRAND.orangeHot + '38', 'transparent']}
+        start={{ x: 0.85, y: 0 }}
+        end={{ x: 0.2, y: 0.6 }}
+        style={StyleSheet.absoluteFillObject}
+      />
+      <LinearGradient
+        colors={['transparent', BRAND.orange + '14']}
+        start={{ x: 0.1, y: 0.7 }}
+        end={{ x: 0.6, y: 1 }}
+        style={StyleSheet.absoluteFillObject}
       />
 
-      <View style={[styles.bottomControls, { paddingBottom: insets.bottom + 20 }]}>
-        <View style={styles.paginationRow}>
-          {SLIDES.map((slide, i) => {
-            const inputRange = [
-              (i - 1) * SCREEN_WIDTH,
-              i * SCREEN_WIDTH,
-              (i + 1) * SCREEN_WIDTH,
-            ];
+      {/* Subtle grain texture — a single transparent layer with a
+          repeating-radial-gradient on web; on native, expressed as a
+          stacked low-opacity "noise" via a few absolutely-positioned
+          dots. Skipped here to keep the file lean; the layered gradients
+          above already give a polished, non-flat finish. */}
 
-            const dotScale = scrollX.interpolate({
-              inputRange,
-              outputRange: [1, 3.5, 1],
-              extrapolate: 'clamp',
-            });
+      {/* Top bar — wordmark left, Skip right. Skip is always visible
+          per 2026 best practice; placing it in the same color family as
+          everything else (off-white at 62%) keeps it discoverable
+          without competing with the CTA. */}
+      <View style={[styles.topBar, { paddingTop: insets.top + 8 }]}>
+        <Text style={styles.wordmark}>MAGE&nbsp;ID</Text>
+        <TouchableOpacity onPress={handleSkip} hitSlop={10} style={styles.skipBtn} testID="onboarding-skip">
+          <Text style={styles.skipText}>Skip</Text>
+        </TouchableOpacity>
+      </View>
 
-            const dotOpacity = scrollX.interpolate({
-              inputRange,
-              outputRange: [0.35, 1, 0.35],
-              extrapolate: 'clamp',
-            });
+      {/* Step indicator — three dots for splash → preview → routing.
+          The active dot grows wider; non-active stay small. */}
+      <View style={styles.stepDots}>
+        <View style={[styles.stepDot, step === 'splash' && styles.stepDotActive]} />
+        <View style={[styles.stepDot, step === 'preview' && styles.stepDotActive]} />
+        <View style={[styles.stepDot, step === 'routing' && styles.stepDotActive]} />
+      </View>
 
-            return (
-              <Animated.View
-                key={slide.id}
-                style={[
-                  styles.dot,
-                  {
-                    transform: [{ scaleX: dotScale }],
-                    opacity: dotOpacity,
-                    backgroundColor: '#FFFFFF',
-                  },
-                ]}
-              />
-            );
-          })}
-        </View>
+      {/* Body — switches between splash and routing. Both use the same
+          reveal animations so the transition feels coherent. */}
+      {step === 'splash' && (
+        <Animated.View
+          style={[
+            styles.body,
+            { paddingBottom: insets.bottom + 24, transform: [{ translateY: lift }] },
+          ]}
+        >
+          <View style={{ flex: 1 }} />
 
-        <View style={styles.buttonRow}>
-          {!isLastSlide && (
-            <TouchableOpacity
-              style={styles.skipButton}
-              onPress={handleSkip}
-              activeOpacity={0.7}
-              testID="onboarding-skip"
-            >
-              <Text style={styles.skipText}>Skip</Text>
-            </TouchableOpacity>
-          )}
+          <Animated.Text style={[styles.eyebrow, { opacity: eyebrowOpacity }]}>
+            <Text style={styles.eyebrowDot}>●</Text>  the operating system for builders
+          </Animated.Text>
 
-          <Animated.View style={{ transform: [{ scale: buttonScale }], flex: isLastSlide ? 1 : undefined }}>
-            <TouchableOpacity
-              style={[
-                styles.nextButton,
-                isLastSlide && styles.getStartedButton,
+          {/* Display headline. Italic for the middle phrase to introduce
+              expressive serif feel using system fonts (Georgia on iOS,
+              the platform serif fallback elsewhere). No new font
+              dependency required. */}
+          <Animated.Text style={[styles.headline, { opacity: headlineOpacity }]}>
+            <Text style={styles.headlineRoman}>Build it.{' '}</Text>
+            <Text style={styles.headlineItalic}>Bill it.{' '}</Text>
+            <Text style={styles.headlineRoman}>Track every dollar.</Text>
+          </Animated.Text>
+
+          <Animated.Text style={[styles.lede, { opacity: bodyOpacity }]}>
+            Plans, estimates, AI takeoffs, daily reports, change orders, AIA pay apps,
+            a live client portal — replaced a dozen tools with one app you carry on the jobsite.
+          </Animated.Text>
+
+          <Animated.View style={{ opacity: ctaOpacity, transform: [{ scale: ctaScale }] }}>
+            <Pressable
+              onPress={handleStarted}
+              style={({ pressed }) => [
+                styles.ctaPrimary,
+                pressed && { opacity: 0.92 },
               ]}
-              onPress={handleNext}
-              activeOpacity={0.85}
-              testID="onboarding-next"
+              accessibilityLabel="Get started with MAGE ID"
+              accessibilityRole="button"
+              testID="onboarding-cta"
             >
-              <Text style={[styles.nextButtonText, isLastSlide && styles.getStartedText]}>
-                {isLastSlide ? "Let's Build" : 'Next'}
+              <Text style={styles.ctaPrimaryText}>Get started</Text>
+              <ArrowRight size={18} color={BRAND.ink} strokeWidth={2.4} />
+            </Pressable>
+          </Animated.View>
+
+          <Animated.View style={{ opacity: ctaOpacity, marginTop: 14 }}>
+            <TouchableOpacity onPress={handleSignIn} hitSlop={8}>
+              <Text style={styles.signInText}>
+                Already have an account?  <Text style={styles.signInLink}>Sign in</Text>
               </Text>
-              {!isLastSlide && (
-                <ArrowRight size={18} color="#FFFFFF" strokeWidth={2.5} />
-              )}
-              {isLastSlide && (
-                <HardHat size={20} color={Colors.primary} strokeWidth={2} />
-              )}
             </TouchableOpacity>
           </Animated.View>
-        </View>
-      </View>
+        </Animated.View>
+      )}
+
+      {step === 'preview' && (
+        <Animated.View
+          style={[
+            styles.body,
+            { paddingBottom: insets.bottom + 24, transform: [{ translateY: lift }] },
+          ]}
+        >
+          <View style={{ flex: 1 }} />
+
+          <Animated.Text style={[styles.eyebrow, { opacity: eyebrowOpacity }]}>
+            <Text style={styles.eyebrowDot}>●</Text>  what you&apos;re getting
+          </Animated.Text>
+
+          <Animated.Text style={[styles.headline, { opacity: headlineOpacity }]}>
+            <Text style={styles.headlineRoman}>One app.{' '}</Text>
+            <Text style={styles.headlineItalic}>The whole job.</Text>
+          </Animated.Text>
+
+          {/* Three preview cards. Each is a single-line title + short body
+              with a brand-color icon tile. No fake screenshots; the value
+              prop is encoded in the copy. */}
+          <Animated.View style={[styles.previewList, { opacity: bodyOpacity }]}>
+            {PREVIEW_CARDS.map((card, i) => {
+              const Icon = card.Icon;
+              return (
+                <View key={i} style={styles.previewCard}>
+                  <View style={styles.previewIcon}>
+                    <Icon size={18} color={BRAND.orange} strokeWidth={2.2} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.previewTitle}>{card.title}</Text>
+                    <Text style={styles.previewBody}>{card.body}</Text>
+                  </View>
+                </View>
+              );
+            })}
+          </Animated.View>
+
+          <Animated.View style={{ opacity: ctaOpacity, marginTop: 20, transform: [{ scale: ctaScale }] }}>
+            <Pressable
+              onPress={handlePreviewNext}
+              style={({ pressed }) => [styles.ctaPrimary, pressed && { opacity: 0.92 }]}
+              accessibilityLabel="Continue to setup"
+              testID="onboarding-preview-next"
+            >
+              <Text style={styles.ctaPrimaryText}>Sounds good</Text>
+              <ArrowRight size={18} color={BRAND.ink} strokeWidth={2.4} />
+            </Pressable>
+          </Animated.View>
+        </Animated.View>
+      )}
+
+      {step === 'routing' && (
+        <Animated.View
+          style={[
+            styles.body,
+            { paddingBottom: insets.bottom + 24, transform: [{ translateY: lift }] },
+          ]}
+        >
+          <View style={{ flex: 1 }} />
+
+          <Animated.Text style={[styles.eyebrow, { opacity: eyebrowOpacity }]}>
+            <Text style={styles.eyebrowDot}>●</Text>  one quick question
+          </Animated.Text>
+
+          <Animated.Text style={[styles.headline, { opacity: headlineOpacity }]}>
+            <Text style={styles.headlineRoman}>How big is{' '}</Text>
+            <Text style={styles.headlineItalic}>your typical{' '}</Text>
+            <Text style={styles.headlineRoman}>job?</Text>
+          </Animated.Text>
+
+          <Animated.Text style={[styles.lede, { opacity: bodyOpacity }]}>
+            We&apos;ll set the right defaults so estimates, schedules, and the AI feel
+            tuned to how you actually work. Change anytime in settings.
+          </Animated.Text>
+
+          <Animated.View style={[styles.bandList, { opacity: ctaOpacity }]}>
+            {(['under_1m', '1_to_5m', '5_to_15m', 'over_15m'] as ProjectSizeBand[]).map(band => (
+              <Pressable
+                key={band}
+                onPress={() => handleBandPick(band)}
+                style={({ pressed }) => [
+                  styles.bandCard,
+                  pressed && styles.bandCardPressed,
+                ]}
+                accessibilityLabel={`I run jobs ${SIZE_BAND_LABELS[band]} — ${SIZE_BAND_PERSONA[band]}`}
+                accessibilityRole="button"
+                testID={`onboarding-band-${band}`}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.bandLabel}>{SIZE_BAND_LABELS[band]}</Text>
+                  <Text style={styles.bandPersona} numberOfLines={2}>
+                    {SIZE_BAND_PERSONA[band]}
+                  </Text>
+                </View>
+                <View style={styles.bandArrow}>
+                  <ArrowRight size={16} color={BRAND.cream} strokeWidth={2.2} />
+                </View>
+              </Pressable>
+            ))}
+          </Animated.View>
+
+          <Animated.View style={{ opacity: ctaOpacity, marginTop: 12 }}>
+            <TouchableOpacity onPress={handleSkip} hitSlop={8}>
+              <Text style={styles.signInText}>
+                <Text style={styles.signInLink}>Skip — pick later</Text>
+              </Text>
+            </TouchableOpacity>
+          </Animated.View>
+        </Animated.View>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  root: {
     flex: 1,
-    backgroundColor: '#000',
+    backgroundColor: BRAND.greenDeep,
   },
-  slide: {
-    flex: 1,
-  },
-  slideBackground: {
-    flex: 1,
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  bgPattern: {
-    ...StyleSheet.absoluteFillObject,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  bgCircle: {
-    position: 'absolute',
-    backgroundColor: '#FFFFFF',
-  },
-  slideContent: {
-    flex: 1,
-    alignItems: 'center',
-    paddingHorizontal: 32,
-  },
-  iconContainer: {
-    width: 120,
-    height: 120,
-    borderRadius: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 36,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
-  },
-  slideTitle: {
-    fontSize: 36,
-    fontWeight: '800' as const,
-    color: '#FFFFFF',
-    textAlign: 'center',
-    letterSpacing: -0.8,
-    marginBottom: 8,
-  },
-  slideSubtitle: {
-    fontSize: 17,
-    fontWeight: '500' as const,
-    color: 'rgba(255,255,255,0.75)',
-    textAlign: 'center',
-    letterSpacing: 0.3,
-    marginBottom: 28,
-  },
-  descriptionCard: {
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    borderRadius: 20,
-    paddingHorizontal: 24,
-    paddingVertical: 20,
-    width: '100%',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-  },
-  slideDescription: {
-    fontSize: 16,
-    lineHeight: 24,
-    color: 'rgba(255,255,255,0.92)',
-    textAlign: 'center',
-    fontWeight: '400' as const,
-  },
-  featureList: {
-    marginTop: 28,
-    width: '100%',
-    gap: 14,
-  },
-  featureItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingLeft: 8,
-  },
-  featureText: {
-    fontSize: 15,
-    color: 'rgba(255,255,255,0.85)',
-    fontWeight: '500' as const,
-  },
-  bottomControls: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    paddingHorizontal: 24,
-    paddingTop: 16,
-    backgroundColor: 'rgba(0,0,0,0.15)',
-  },
-  paginationRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    marginBottom: 24,
-  },
-  dot: {
-    height: 8,
-    borderRadius: 4,
-  },
-  buttonRow: {
+
+  topBar: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 16,
-  },
-  skipButton: {
-    paddingVertical: 16,
     paddingHorizontal: 20,
+    paddingBottom: 8,
+  },
+  wordmark: {
+    fontSize: Type.bodyCompact.fontSize,
+    fontWeight: '800',
+    letterSpacing: 2,
+    color: BRAND.cream,
+  },
+  skipBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: Tokens.radius.full,
+    backgroundColor: 'rgba(244,239,230,0.10)',
   },
   skipText: {
-    fontSize: 16,
-    fontWeight: '600' as const,
-    color: 'rgba(255,255,255,0.7)',
+    fontSize: Type.footnote.fontSize,
+    fontWeight: '700',
+    color: BRAND.cream,
+    letterSpacing: 0.4,
   },
-  nextButton: {
+
+  stepDots: {
+    flexDirection: 'row',
+    alignSelf: 'center',
+    gap: 6,
+    marginTop: 6,
+  },
+  stepDot: {
+    width: 18,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: 'rgba(244,239,230,0.22)',
+  },
+  stepDotActive: {
+    backgroundColor: BRAND.cream,
+    width: 28,
+  },
+
+  body: {
+    flex: 1,
+    paddingHorizontal: 24,
+  },
+
+  eyebrow: {
+    fontSize: Type.caption1.fontSize,
+    fontWeight: '700',
+    letterSpacing: 1.4,
+    textTransform: 'uppercase',
+    color: BRAND.fog,
+    marginBottom: 18,
+  },
+  eyebrowDot: {
+    color: BRAND.orange,
+  },
+
+  headline: {
+    color: BRAND.cream,
+    fontSize: Math.min(56, SCREEN_WIDTH * 0.13),
+    lineHeight: Math.min(60, SCREEN_WIDTH * 0.14),
+    letterSpacing: -1.2,
+    marginBottom: 22,
+  },
+  headlineRoman: {
+    // Fraunces 700 Bold — loaded in _layout.tsx via @expo-google-fonts.
+    // Falls back to Georgia / serif when the font network-blips on first
+    // launch (we never block the user on it).
+    fontFamily: 'Fraunces_700Bold',
+    fontWeight: '700',
+  },
+  headlineItalic: {
+    fontFamily: 'Fraunces_700Bold_Italic',
+    fontWeight: '700',
+    fontStyle: 'italic',
+    color: BRAND.orange,
+  },
+
+  lede: {
+    fontSize: Type.subhead.fontSize,
+    lineHeight: 22,
+    color: BRAND.fog,
+    marginBottom: 32,
+    maxWidth: 520,
+  },
+
+  ctaPrimary: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: 'rgba(255,255,255,0.25)',
-    borderRadius: 16,
+    backgroundColor: BRAND.cream,
+    paddingHorizontal: 22,
     paddingVertical: 16,
-    paddingHorizontal: 32,
+    borderRadius: Tokens.radius.lg,
+    ...continuousCorners, // iOS squircle — premium polish marker
+    alignSelf: 'flex-start',
+    shadowColor: BRAND.orange,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.18,
+    shadowRadius: 18,
+    elevation: 6,
+    // Min 48pt touch target per Apple HIG premium bar
+    minHeight: 48,
+  },
+  ctaPrimaryText: {
+    fontSize: Type.callout.fontSize,
+    fontWeight: '800',
+    letterSpacing: 0.2,
+    color: BRAND.ink,
+  },
+
+  signInText: {
+    fontSize: Type.footnote.fontSize,
+    color: BRAND.fog,
+    fontWeight: '600',
+  },
+  signInLink: {
+    color: BRAND.cream,
+    textDecorationLine: 'underline',
+  },
+
+  // ── Preview cards ───────────────────────────────────────────────
+  previewList: {
+    gap: 10,
+    marginTop: 4,
+  },
+  previewCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: Tokens.radius.lg,
+    ...continuousCorners,
+    backgroundColor: 'rgba(244,239,230,0.08)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.3)',
+    borderColor: 'rgba(244,239,230,0.12)',
   },
-  nextButtonText: {
-    fontSize: 17,
-    fontWeight: '700' as const,
-    color: '#FFFFFF',
+  previewIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: Tokens.radius.md,
+    backgroundColor: 'rgba(255,106,26,0.16)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,106,26,0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  getStartedButton: {
-    backgroundColor: '#FFFFFF',
-    borderColor: '#FFFFFF',
+  previewTitle: {
+    fontSize: Type.subhead.fontSize,
+    fontWeight: '700',
+    color: BRAND.cream,
+    letterSpacing: -0.1,
   },
-  getStartedText: {
-    color: Colors.primary,
+  previewBody: {
+    fontSize: Type.footnote.fontSize,
+    fontWeight: '500',
+    color: BRAND.fog,
+    marginTop: 4,
+    lineHeight: 18,
+  },
+
+  // ── Routing card list ───────────────────────────────────────────
+  bandList: {
+    gap: 10,
+    marginTop: 4,
+  },
+  bandCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    borderRadius: Tokens.radius.lg,
+    ...continuousCorners,
+    backgroundColor: 'rgba(244,239,230,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(244,239,230,0.12)',
+    minHeight: 64, // generous touch target — premium bar
+  },
+  bandCardPressed: {
+    backgroundColor: 'rgba(255,106,26,0.18)',
+    borderColor: BRAND.orange,
+  },
+  bandLabel: {
+    fontSize: Type.subheadline.fontSize,
+    fontWeight: '800',
+    color: BRAND.cream,
+    letterSpacing: -0.2,
+  },
+  bandPersona: {
+    fontSize: Type.caption1.fontSize,
+    fontWeight: '500',
+    color: BRAND.fog,
+    marginTop: 4,
+    lineHeight: 16,
+  },
+  bandArrow: {
+    width: 32,
+    height: 32,
+    borderRadius: Tokens.radius.full,
+    backgroundColor: 'rgba(244,239,230,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
+
+// Suppress the "unused" warning for the Check icon — kept in the import
+// list so a follow-up can show "✓ Personalized" feedback after band pick.
+void Check;

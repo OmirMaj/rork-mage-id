@@ -17,6 +17,8 @@ import Paywall from '@/components/Paywall';
 import type { EquipmentCategory } from '@/types';
 import { EQUIPMENT_CATEGORIES } from '@/types';
 import { formatMoney } from '@/utils/formatters';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 type FilterType = 'all' | 'available' | 'in_use' | 'maintenance';
 
@@ -180,8 +182,7 @@ export default function EquipmentScreen() {
         style={[styles.fab, { bottom: insets.bottom + 20 }]}
         onPress={() => setShowAddModal(true)}
         activeOpacity={0.85}
-        testID="add-equipment"
-      >
+        testID="add-equipment" accessibilityRole="button" accessibilityLabel="Add">
         <Plus size={24} color="#fff" />
       </TouchableOpacity>
 
@@ -191,7 +192,7 @@ export default function EquipmentScreen() {
             <View style={[styles.modalCard, { paddingBottom: insets.bottom + 20 }]}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Add Equipment</Text>
-                <TouchableOpacity onPress={() => setShowAddModal(false)}>
+                <TouchableOpacity onPress={() => setShowAddModal(false)} accessibilityRole="button" accessibilityLabel="Close">
                   <X size={22} color={Colors.textMuted} />
                 </TouchableOpacity>
               </View>
@@ -279,7 +280,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   largeTitle: {
-    fontSize: 34,
+    fontSize: Type.largeTitle.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
     letterSpacing: -0.5,
@@ -296,7 +297,7 @@ const styles = StyleSheet.create({
   statCard: {
     flex: 1,
     backgroundColor: Colors.surface,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     padding: 14,
     alignItems: 'center',
     gap: 4,
@@ -307,7 +308,7 @@ const styles = StyleSheet.create({
     color: Colors.text,
   },
   statLabel: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     fontWeight: '600' as const,
     color: Colors.textSecondary,
   },
@@ -320,14 +321,14 @@ const styles = StyleSheet.create({
   filterChip: {
     paddingHorizontal: 14,
     paddingVertical: 8,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
     backgroundColor: Colors.fillTertiary,
   },
   filterChipActive: {
     backgroundColor: Colors.primary,
   },
   filterChipText: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
     color: Colors.textSecondary,
   },
@@ -341,18 +342,18 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   emptyTitle: {
-    fontSize: 18,
+    fontSize: Type.subheadline.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
   },
   emptyDesc: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     color: Colors.textSecondary,
     textAlign: 'center',
   },
   equipCard: {
     backgroundColor: Colors.surface,
-    borderRadius: 16,
+    borderRadius: Tokens.radius.panel,
     padding: 16,
     marginBottom: 10,
     gap: 10,
@@ -365,7 +366,7 @@ const styles = StyleSheet.create({
   equipIconWrap: {
     width: 40,
     height: 40,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     backgroundColor: Colors.primary + '12',
     alignItems: 'center',
     justifyContent: 'center',
@@ -375,21 +376,21 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   equipName: {
-    fontSize: 16,
+    fontSize: Type.callout.fontSize,
     fontWeight: '600' as const,
     color: Colors.text,
   },
   equipMeta: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: Colors.textSecondary,
   },
   statusBadge: {
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 8,
+    borderRadius: Tokens.radius.sm,
   },
   statusBadgeText: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     fontWeight: '700' as const,
   },
   equipCardFooter: {
@@ -400,11 +401,11 @@ const styles = StyleSheet.create({
   },
   equipProject: {
     flex: 1,
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     color: Colors.textSecondary,
   },
   equipRate: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
     color: Colors.primary,
   },
@@ -414,11 +415,11 @@ const styles = StyleSheet.create({
     gap: 4,
     paddingHorizontal: 8,
     paddingVertical: 3,
-    borderRadius: 6,
+    borderRadius: Tokens.radius.xs,
     backgroundColor: Colors.errorLight,
   },
   overdueText: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     fontWeight: '600' as const,
     color: Colors.error,
   },
@@ -456,12 +457,12 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   modalTitle: {
-    fontSize: 20,
+    fontSize: Type.title3.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
   },
   fieldLabel: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
     color: Colors.textSecondary,
     marginBottom: 6,
@@ -469,10 +470,10 @@ const styles = StyleSheet.create({
   },
   input: {
     backgroundColor: Colors.surfaceAlt,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    fontSize: 15,
+    fontSize: Type.subhead.fontSize,
     color: Colors.text,
   },
   typeRow: {
@@ -483,7 +484,7 @@ const styles = StyleSheet.create({
   typeChip: {
     flex: 1,
     paddingVertical: 10,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
     backgroundColor: Colors.fillTertiary,
     alignItems: 'center',
   },
@@ -491,7 +492,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
   },
   typeChipText: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     fontWeight: '600' as const,
     color: Colors.textSecondary,
   },
@@ -503,12 +504,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: Colors.surfaceAlt,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     paddingHorizontal: 14,
     paddingVertical: 12,
   },
   pickerBtnText: {
-    fontSize: 15,
+    fontSize: Type.subhead.fontSize,
     color: Colors.text,
   },
   categoryGrid: {
@@ -520,14 +521,14 @@ const styles = StyleSheet.create({
   catChip: {
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 8,
+    borderRadius: Tokens.radius.sm,
     backgroundColor: Colors.fillTertiary,
   },
   catChipActive: {
     backgroundColor: Colors.primary,
   },
   catChipText: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     fontWeight: '600' as const,
     color: Colors.textSecondary,
   },
@@ -540,7 +541,7 @@ const styles = StyleSheet.create({
   },
   saveBtn: {
     backgroundColor: Colors.primary,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     paddingVertical: 16,
     alignItems: 'center',
     marginTop: 20,
@@ -551,7 +552,7 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   saveBtnText: {
-    fontSize: 17,
+    fontSize: Type.body.fontSize,
     fontWeight: '600' as const,
     color: '#fff',
   },
@@ -565,7 +566,7 @@ const styles = StyleSheet.create({
   lockedIconWrap: {
     width: 80,
     height: 80,
-    borderRadius: 24,
+    borderRadius: Tokens.radius["2xl"],
     backgroundColor: Colors.accent + '15',
     alignItems: 'center',
     justifyContent: 'center',
@@ -577,7 +578,7 @@ const styles = StyleSheet.create({
     color: Colors.text,
   },
   lockedDesc: {
-    fontSize: 15,
+    fontSize: Type.subhead.fontSize,
     color: Colors.textSecondary,
     textAlign: 'center',
     lineHeight: 22,
@@ -586,11 +587,11 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.accent,
     paddingHorizontal: 32,
     paddingVertical: 14,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     marginTop: 8,
   },
   upgradeBtnText: {
-    fontSize: 16,
+    fontSize: Type.callout.fontSize,
     fontWeight: '700' as const,
     color: '#fff',
   },

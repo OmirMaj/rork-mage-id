@@ -12,6 +12,8 @@ import {
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import type { Invoice, InvoiceLineItem, LinkedEstimateItem, MaterialLineItem } from '@/types';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 /**
  * Bill from Estimate — generates a progress/full invoice from a project's
@@ -529,24 +531,24 @@ export default function BillFromEstimateScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   center: { justifyContent: 'center', alignItems: 'center', padding: 24 },
-  notFoundText: { fontSize: 16, color: Colors.textSecondary, marginBottom: 12 },
-  backBtn: { backgroundColor: Colors.primary, paddingHorizontal: 20, paddingVertical: 10, borderRadius: 10 },
+  notFoundText: { fontSize: Type.callout.fontSize, color: Colors.textSecondary, marginBottom: 12 },
+  backBtn: { backgroundColor: Colors.primary, paddingHorizontal: 20, paddingVertical: 10, borderRadius: Tokens.radius.md },
   backBtnText: { color: Colors.textOnPrimary, fontWeight: '600' as const },
 
   hero: {
     backgroundColor: Colors.surface,
-    borderRadius: 16,
+    borderRadius: Tokens.radius.panel,
     padding: 16,
     gap: 10,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
   },
-  heroLabel: { fontSize: 12, color: Colors.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.5 },
-  heroTitle: { fontSize: 20, fontWeight: '700' as const, color: Colors.text },
+  heroLabel: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.5 },
+  heroTitle: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: Colors.text },
   heroRow: { flexDirection: 'row', gap: 10, marginTop: 4 },
-  heroMetric: { flex: 1, backgroundColor: Colors.surfaceAlt, padding: 10, borderRadius: 10 },
+  heroMetric: { flex: 1, backgroundColor: Colors.surfaceAlt, padding: 10, borderRadius: Tokens.radius.md },
   heroMetricLabel: { fontSize: 10, color: Colors.textMuted, textTransform: 'uppercase' as const, marginBottom: 3 },
-  heroMetricValue: { fontSize: 15, fontWeight: '700' as const, color: Colors.text },
+  heroMetricValue: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text },
   progressTrack: {
     height: 6,
     backgroundColor: Colors.surfaceAlt,
@@ -557,17 +559,17 @@ const styles = StyleSheet.create({
   progressFill: { height: '100%', backgroundColor: Colors.info, borderRadius: 3 },
 
   presetRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  presetLabel: { fontSize: 13, color: Colors.textMuted, fontWeight: '600' as const, marginRight: 4 },
+  presetLabel: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, fontWeight: '600' as const, marginRight: 4 },
   presetBtn: {
     flex: 1,
     backgroundColor: Colors.surface,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
     paddingVertical: 10,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: Colors.cardBorder,
   },
-  presetBtnText: { fontSize: 13, color: Colors.primary, fontWeight: '700' as const },
+  presetBtnText: { fontSize: Type.footnote.fontSize, color: Colors.primary, fontWeight: '700' as const },
 
   helpBanner: {
     flexDirection: 'row',
@@ -575,13 +577,13 @@ const styles = StyleSheet.create({
     gap: 8,
     backgroundColor: Colors.infoLight,
     padding: 10,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
   },
-  helpBannerText: { flex: 1, fontSize: 12, color: Colors.info, lineHeight: 16 },
+  helpBannerText: { flex: 1, fontSize: Type.caption1.fontSize, color: Colors.info, lineHeight: 16 },
 
   rowCard: {
     backgroundColor: Colors.surface,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     padding: 14,
     gap: 10,
     borderWidth: 1,
@@ -590,12 +592,12 @@ const styles = StyleSheet.create({
   rowCardInactive: { opacity: 0.6 },
   rowCardDone: { opacity: 0.55, backgroundColor: Colors.successLight },
   rowHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  rowName: { fontSize: 14, fontWeight: '600' as const, color: Colors.text },
-  rowMeta: { fontSize: 11, color: Colors.textMuted, marginTop: 2 },
-  rowLineTotal: { fontSize: 14, fontWeight: '700' as const, color: Colors.text },
+  rowName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
+  rowMeta: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 2 },
+  rowLineTotal: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
 
   rowStatusLine: { flexDirection: 'row', justifyContent: 'space-between' as const },
-  rowStatusText: { fontSize: 11, color: Colors.textSecondary, fontWeight: '500' as const },
+  rowStatusText: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, fontWeight: '500' as const },
   rowProgressTrack: {
     height: 5,
     backgroundColor: Colors.surfaceAlt,
@@ -624,14 +626,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.surfaceAlt,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
     paddingHorizontal: 12,
     paddingVertical: 8,
     gap: 6,
   },
   rowPctInput: {
     flex: 1,
-    fontSize: 16,
+    fontSize: Type.callout.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
     padding: 0,
@@ -640,24 +642,24 @@ const styles = StyleSheet.create({
   miniPreset: {
     flex: 1,
     paddingVertical: 4,
-    borderRadius: 6,
+    borderRadius: Tokens.radius.xs,
     alignItems: 'center',
     backgroundColor: Colors.surfaceAlt,
   },
   miniPresetActive: { backgroundColor: Colors.primary },
-  miniPresetText: { fontSize: 11, color: Colors.textSecondary, fontWeight: '600' as const },
+  miniPresetText: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, fontWeight: '600' as const },
   miniPresetTextActive: { color: Colors.textOnPrimary },
 
   rowAmtWrap: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.successLight,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
     paddingHorizontal: 10,
     paddingVertical: 9,
     gap: 2,
   },
-  rowAmtText: { fontSize: 16, fontWeight: '700' as const, color: Colors.success },
+  rowAmtText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.success },
   rowAmtHint: { fontSize: 10, color: Colors.textMuted, marginTop: 4 },
 
   footer: {
@@ -673,10 +675,10 @@ const styles = StyleSheet.create({
   footerTotals: { gap: 4 },
   footerTotalRow: { flexDirection: 'row', justifyContent: 'space-between' as const },
   footerTotalRowBold: { borderTopWidth: 1, borderTopColor: Colors.cardBorder, paddingTop: 6, marginTop: 4 },
-  footerTotalLabel: { fontSize: 13, color: Colors.textSecondary },
-  footerTotalValue: { fontSize: 13, color: Colors.text, fontWeight: '600' as const },
-  footerTotalLabelBold: { fontSize: 15, color: Colors.text, fontWeight: '700' as const },
-  footerTotalValueBold: { fontSize: 17, color: Colors.text, fontWeight: '700' as const },
+  footerTotalLabel: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary },
+  footerTotalValue: { fontSize: Type.footnote.fontSize, color: Colors.text, fontWeight: '600' as const },
+  footerTotalLabelBold: { fontSize: Type.subhead.fontSize, color: Colors.text, fontWeight: '700' as const },
+  footerTotalValueBold: { fontSize: Type.body.fontSize, color: Colors.text, fontWeight: '700' as const },
 
   primaryBtn: {
     flexDirection: 'row',
@@ -684,21 +686,21 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     backgroundColor: Colors.primary,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     paddingVertical: 14,
   },
   primaryBtnDisabled: { backgroundColor: Colors.textMuted, opacity: 0.5 },
-  primaryBtnText: { color: Colors.textOnPrimary, fontSize: 15, fontWeight: '700' as const },
+  primaryBtnText: { color: Colors.textOnPrimary, fontSize: Type.subhead.fontSize, fontWeight: '700' as const },
 
   emptyCard: {
     backgroundColor: Colors.surface,
-    borderRadius: 16,
+    borderRadius: Tokens.radius.panel,
     padding: 24,
     alignItems: 'center',
     gap: 10,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
   },
-  emptyTitle: { fontSize: 18, fontWeight: '700' as const, color: Colors.text, marginTop: 6 },
-  emptyBody: { fontSize: 13, color: Colors.textSecondary, textAlign: 'center' as const, lineHeight: 18 },
+  emptyTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: Colors.text, marginTop: 6 },
+  emptyBody: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, textAlign: 'center' as const, lineHeight: 18 },
 });

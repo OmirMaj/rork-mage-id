@@ -14,6 +14,8 @@ import { ShieldCheck, AlertTriangle } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { WarrantyWalkAlert } from '@/utils/warrantyWalks';
 import { describeWalkTiming } from '@/utils/warrantyWalks';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 interface Props {
   alerts: WarrantyWalkAlert[];
@@ -77,10 +79,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderWidth: 1,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
   },
   iconWrap: {
-    width: 32, height: 32, borderRadius: 10,
+    width: 32, height: 32, borderRadius: Tokens.radius.md,
     alignItems: 'center' as const, justifyContent: 'center' as const,
   },
   title: {
@@ -88,11 +90,11 @@ const styles = StyleSheet.create({
     letterSpacing: 0.6, textTransform: 'uppercase' as const,
   },
   body: {
-    fontSize: 13, color: Colors.text, marginTop: 2,
+    fontSize: Type.footnote.fontSize, color: Colors.text, marginTop: 2,
   },
   bodyStrong: { fontWeight: '700' as const },
   extra: {
-    fontSize: 11, color: Colors.textMuted,
+    fontSize: Type.caption2.fontSize, color: Colors.textMuted,
     textAlign: 'center' as const, fontStyle: 'italic' as const,
   },
 });

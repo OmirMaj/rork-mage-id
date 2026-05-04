@@ -34,6 +34,8 @@ import { formatEntityLabel } from '@/utils/entityResolver';
 import { useProjects } from '@/contexts/ProjectContext';
 import type { EntityRef } from '@/types';
 import type { EntityStore } from '@/utils/entityResolver';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 export interface EntityActionSheetProps {
   /** The ref to act on. Pass `null` to hide the sheet. */
@@ -253,7 +255,7 @@ const styles = StyleSheet.create({
   },
   title: {
     flex: 1,
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '600',
     color: Colors.textSecondary,
   },
@@ -265,12 +267,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 12,
     paddingVertical: 12,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
     gap: 12,
   },
   rowIcon: {
     width: 34, height: 34,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
     backgroundColor: Colors.fillTertiary,
     alignItems: 'center', justifyContent: 'center',
   },
@@ -278,7 +280,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.errorLight,
   },
   rowLabel: {
-    fontSize: 16,
+    fontSize: Type.callout.fontSize,
     color: Colors.text,
     fontWeight: '500',
   },

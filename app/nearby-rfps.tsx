@@ -23,6 +23,8 @@ import { Colors } from '@/constants/colors';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { useUserLocation, getDistanceMiles } from '@/utils/location';
 import { formatMoney } from '@/utils/formatters';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 interface RfpRow {
   id: string;
@@ -103,7 +105,7 @@ export default function NearbyRfpsScreen() {
       <Stack.Screen options={{ headerShown: false }} />
 
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={8}>
+        <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
           <ChevronLeft size={26} color={Colors.primary} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
@@ -233,8 +235,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, paddingTop: 14, paddingBottom: 12,
     borderBottomWidth: 1, borderBottomColor: Colors.border,
   },
-  eyebrow: { fontSize: 11, fontWeight: '700', color: Colors.primary, letterSpacing: 1.4, textTransform: 'uppercase' },
-  title:   { fontSize: 22, fontWeight: '800', color: Colors.text, letterSpacing: -0.4, marginTop: 4 },
+  eyebrow: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.primary, letterSpacing: 1.4, textTransform: 'uppercase' },
+  title:   { fontSize: Type.title2.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.4, marginTop: 4 },
 
   controls: {
     paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8,
@@ -248,44 +250,44 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,
     alignSelf: 'flex-start',
   },
-  locBtnText: { fontSize: 12, color: Colors.text, fontWeight: '600' },
+  locBtnText: { fontSize: Type.caption1.fontSize, color: Colors.text, fontWeight: '600' },
   radiusRow: { flexDirection: 'row', gap: 6 },
   radiusChip: {
-    paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8,
+    paddingHorizontal: 10, paddingVertical: 6, borderRadius: Tokens.radius.sm,
     backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,
   },
   radiusChipActive: { backgroundColor: Colors.text, borderColor: Colors.text },
-  radiusChipText:  { fontSize: 12, fontWeight: '700', color: Colors.text },
+  radiusChipText:  { fontSize: Type.caption1.fontSize, fontWeight: '700', color: Colors.text },
   radiusChipTextActive: { color: '#FFF' },
 
   loading: { padding: 30, alignItems: 'center' },
   emptyCard: {
-    backgroundColor: Colors.card, borderRadius: 14, padding: 28,
+    backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 28,
     alignItems: 'center', gap: 8, marginTop: 22,
     borderWidth: 1, borderColor: Colors.border,
   },
-  emptyTitle: { fontSize: 16, fontWeight: '800', color: Colors.text, marginTop: 4 },
-  emptyBody: { fontSize: 13, color: Colors.textMuted, textAlign: 'center', lineHeight: 19, maxWidth: 320 },
+  emptyTitle: { fontSize: Type.callout.fontSize, fontWeight: '800', color: Colors.text, marginTop: 4 },
+  emptyBody: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, textAlign: 'center', lineHeight: 19, maxWidth: 320 },
 
   rfpCard: {
-    backgroundColor: Colors.card, borderRadius: 14, overflow: 'hidden',
+    backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, overflow: 'hidden',
     borderWidth: 1, borderColor: Colors.border,
     marginBottom: 12,
   },
   rfpHero: { width: '100%', height: 130, backgroundColor: Colors.background },
   rfpBody: { padding: 14, gap: 6 },
   rfpHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-  rfpTitle: { flex: 1, fontSize: 15, fontWeight: '700', color: Colors.text, lineHeight: 21 },
+  rfpTitle: { flex: 1, fontSize: Type.subhead.fontSize, fontWeight: '700', color: Colors.text, lineHeight: 21 },
   verifyDot: { width: 22, height: 22, borderRadius: 11, backgroundColor: Colors.success + '15', alignItems: 'center', justifyContent: 'center' },
-  rfpScope: { fontSize: 12, color: Colors.textMuted, lineHeight: 17 },
+  rfpScope: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, lineHeight: 17 },
   rfpMetaRow: { flexDirection: 'row', alignItems: 'center' },
   rfpMetaItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  rfpMetaText: { fontSize: 11, color: Colors.textMuted, fontWeight: '600' },
+  rfpMetaText: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontWeight: '600' },
   rfpFoot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 6, paddingTop: 8, borderTopWidth: 1, borderTopColor: Colors.border, gap: 8 },
   rfpFootChip: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
-    paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999,
+    paddingHorizontal: 8, paddingVertical: 4, borderRadius: Tokens.radius.full,
     backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border,
   },
-  rfpFootChipText: { fontSize: 11, fontWeight: '700', color: Colors.text },
+  rfpFootChipText: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.text },
 });

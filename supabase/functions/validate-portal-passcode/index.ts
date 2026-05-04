@@ -97,7 +97,7 @@ serve(async (req) => {
     return jsonResponse({ ok: false, error: "Lookup failed" }, 500);
   }
 
-  const rows = (await lookup.json()) as Array<{ client_portal: { passcode?: string; requirePasscode?: boolean } | null }>;
+  const rows = (await lookup.json()) as { client_portal: { passcode?: string; requirePasscode?: boolean } | null }[];
   const portal = rows[0]?.client_portal ?? null;
 
   if (!portal) {

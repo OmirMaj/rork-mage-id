@@ -12,6 +12,7 @@ import {
   HelpCircle, FileText, RefreshCw, ChevronRight, Crown, Zap,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import { Skeleton } from '@/components/Skeleton';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
@@ -20,6 +21,8 @@ import { analyzeDrawings, type DrawingAnalysisResult, type AnalyzerModel, MODEL_
 import { formatMoney } from '@/utils/formatters';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 type Step = 'idle' | 'uploading' | 'analyzing' | 'review';
 
@@ -162,7 +165,7 @@ function DrawingAnalyzerInner() {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={8}>
+        <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
           <ChevronLeft size={26} color={Colors.primary} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
@@ -258,6 +261,26 @@ function DrawingAnalyzerInner() {
           </TouchableOpacity>
         )}
 
+        {step === 'idle' && (
+          <TouchableOpacity
+            style={styles.sisterToolCard}
+            onPress={() => router.push('/takeoff' as never)}
+            activeOpacity={0.85}
+            testID="open-takeoff-link"
+          >
+            <View style={styles.sisterToolIconWrap}>
+              <FileText size={16} color={Colors.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.sisterToolTitle}>Need raw quantities instead?</Text>
+              <Text style={styles.sisterToolBody}>
+                Open the Quantity Takeoff tool — same PDF in, but you get LF / SF / EA counts you can edit before sending out for sub bids.
+              </Text>
+            </View>
+            <ChevronRight size={16} color={Colors.textMuted} />
+          </TouchableOpacity>
+        )}
+
         {error && step === 'idle' && (
           <View style={styles.errorCard}>
             <AlertTriangle size={16} color={Colors.error} />
@@ -270,17 +293,34 @@ function DrawingAnalyzerInner() {
 
         {/* Progress */}
         {(step === 'uploading' || step === 'analyzing') && (
-          <View style={styles.progressCard}>
-            <ActivityIndicator size="small" color={Colors.primary} />
-            <Text style={styles.progressTitle}>
-              {step === 'uploading' ? 'Rendering PDF pages…' : 'Reading drawings + estimating…'}
-            </Text>
-            <Text style={styles.progressBody}>
-              {step === 'uploading'
-                ? `Converting ${uploadedFileName ?? 'your PDF'} to high-res page images.`
-                : `Gemini is looking at ${pages.length} page${pages.length === 1 ? '' : 's'}, identifying scope, and pricing it. This can take 30-60 seconds.`}
-            </Text>
-          </View>
+          <>
+            <View style={styles.progressCard}>
+              <ActivityIndicator size="small" color={Colors.primary} />
+              <Text style={styles.progressTitle}>
+                {step === 'uploading' ? 'Rendering PDF pages…' : 'Reading drawings + estimating…'}
+              </Text>
+              <Text style={styles.progressBody}>
+                {step === 'uploading'
+                  ? `Converting ${uploadedFileName ?? 'your PDF'} to high-res page images.`
+                  : `Gemini is looking at ${pages.length} page${pages.length === 1 ? '' : 's'}, identifying scope, and pricing it. This can take 30-60 seconds.`}
+              </Text>
+            </View>
+            {step === 'analyzing' && (
+              // Hint at the upcoming priced-row layout while Gemini works.
+              <View style={styles.skeletonStack} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+                {[0, 1, 2, 3, 4].map((i) => (
+                  <View key={i} style={styles.skeletonRow}>
+                    <Skeleton width={36} height={36} radius={10} />
+                    <View style={{ flex: 1, gap: 8 }}>
+                      <Skeleton width="65%" height={12} />
+                      <Skeleton width="40%" height={10} />
+                    </View>
+                    <Skeleton width={64} height={20} radius={10} />
+                  </View>
+                ))}
+              </View>
+            )}
+          </>
         )}
 
         {/* Result */}
@@ -381,9 +421,7 @@ function ResultView({ result, pages, modelUsed, onReset, onUse, showProTeaser, o
               <Text style={styles.modelBadgeText}>{modelMeta.label}</Text>
             </View>
           )}
-          <TouchableOpacity onPress={onReset} hitSlop={6}>
-            <RefreshCw size={16} color={Colors.textMuted} />
-          </TouchableOpacity>
+          <TouchableOpacity onPress={onReset} hitSlop={6} accessibilityRole="button" accessibilityLabel="Refresh"><RefreshCw size={16} color={Colors.textMuted} /></TouchableOpacity>
         </View>
         <Text style={styles.summaryTitle}>{result.summary}</Text>
         <Text style={styles.summarySub}>{result.confidenceExplanation}</Text>
@@ -634,19 +672,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, paddingTop: 14, paddingBottom: 16,
     borderBottomWidth: 1, borderBottomColor: Colors.border,
   },
-  eyebrow: { fontSize: 11, fontWeight: '700', color: Colors.primary, letterSpacing: 1.4, textTransform: 'uppercase' },
-  title: { fontSize: 22, fontWeight: '800', color: Colors.text, letterSpacing: -0.4, marginTop: 4 },
+  eyebrow: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.primary, letterSpacing: 1.4, textTransform: 'uppercase' },
+  title: { fontSize: Type.title2.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.4, marginTop: 4 },
 
   card: {
-    backgroundColor: Colors.card, borderRadius: 14, padding: 14,
+    backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 14,
     borderWidth: 1, borderColor: Colors.border, marginBottom: 14,
   },
-  cardLabel: { fontSize: 11, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.6 },
-  cardHelper: { fontSize: 12, color: Colors.textMuted, marginTop: 4, marginBottom: 10, lineHeight: 17 },
+  cardLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.6 },
+  cardHelper: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 4, marginBottom: 10, lineHeight: 17 },
 
   modelRow: { flexDirection: 'row', gap: 8 },
   modelOption: {
-    flex: 1, padding: 12, borderRadius: 12,
+    flex: 1, padding: 12, borderRadius: Tokens.radius.card,
     backgroundColor: Colors.background,
     borderWidth: 1.5, borderColor: Colors.border,
     gap: 4,
@@ -656,24 +694,24 @@ const styles = StyleSheet.create({
   },
   modelOptionDisabled: { opacity: 0.6 },
   modelOptionHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  modelOptionLabel: { flex: 1, fontSize: 13, fontWeight: '700', color: Colors.text },
-  modelOptionTagline: { fontSize: 11, color: Colors.textMuted, lineHeight: 15 },
-  tierTag: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 999 },
+  modelOptionLabel: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.text },
+  modelOptionTagline: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, lineHeight: 15 },
+  tierTag: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: Tokens.radius.full },
   tierTagBusiness: { backgroundColor: Colors.primary + '20' },
   tierTagLocked: { backgroundColor: Colors.warning + '20' },
   tierTagText: { fontSize: 9, fontWeight: '800', color: Colors.text, letterSpacing: 0.4 },
 
   upsell: {
-    marginTop: 8, padding: 10, borderRadius: 10,
+    marginTop: 8, padding: 10, borderRadius: Tokens.radius.md,
     backgroundColor: Colors.warning + '0D',
     borderWidth: 1, borderColor: Colors.warning + '30',
     flexDirection: 'row', gap: 6, alignItems: 'flex-start',
   },
-  upsellText: { flex: 1, fontSize: 11, color: Colors.text, lineHeight: 16, fontStyle: 'italic' },
+  upsellText: { flex: 1, fontSize: Type.caption2.fontSize, color: Colors.text, lineHeight: 16, fontStyle: 'italic' },
 
   modelBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
-    paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999,
+    paddingHorizontal: 8, paddingVertical: 4, borderRadius: Tokens.radius.full,
     backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border,
   },
   modelBadgeText: { fontSize: 10, fontWeight: '700', color: Colors.text, letterSpacing: 0.3 },
@@ -684,64 +722,71 @@ const styles = StyleSheet.create({
     maxWidth: 200,
   },
   chipActive: { backgroundColor: Colors.text, borderColor: Colors.text },
-  chipText: { fontSize: 12, fontWeight: '600', color: Colors.text },
+  chipText: { fontSize: Type.caption1.fontSize, fontWeight: '600', color: Colors.text },
   chipTextActive: { color: '#FFF' },
 
   uploadCard: {
     backgroundColor: Colors.primary + '0D',
-    borderRadius: 18, padding: 28,
+    borderRadius: Tokens.radius.xl, padding: 28,
     borderWidth: 1.5, borderColor: Colors.primary + '40',
     borderStyle: 'dashed',
     alignItems: 'center', gap: 8,
     marginBottom: 14,
   },
   uploadIcon: {
-    width: 64, height: 64, borderRadius: 18,
+    width: 64, height: 64, borderRadius: Tokens.radius.xl,
     backgroundColor: Colors.primary + '15',
     alignItems: 'center', justifyContent: 'center',
     marginBottom: 6,
   },
-  uploadTitle: { fontSize: 18, fontWeight: '800', color: Colors.text, marginTop: 4 },
-  uploadBody: { fontSize: 13, color: Colors.text, textAlign: 'center', lineHeight: 19, maxWidth: 320 },
+  uploadTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: Colors.text, marginTop: 4 },
+  uploadBody: { fontSize: Type.footnote.fontSize, color: Colors.text, textAlign: 'center', lineHeight: 19, maxWidth: 320 },
   uploadCta: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingHorizontal: 18, paddingVertical: 11, borderRadius: 12,
+    paddingHorizontal: 18, paddingVertical: 11, borderRadius: Tokens.radius.card,
     backgroundColor: Colors.primary, marginTop: 10,
     shadowColor: Colors.primary, shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3, shadowRadius: 8, elevation: 4,
   },
-  uploadCtaText: { color: '#FFF', fontSize: 14, fontWeight: '700' },
-  uploadHint: { fontSize: 11, color: Colors.textMuted, textAlign: 'center', lineHeight: 15, marginTop: 8, fontStyle: 'italic' },
+  uploadCtaText: { color: '#FFF', fontSize: Type.bodyCompact.fontSize, fontWeight: '700' },
+  uploadHint: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, textAlign: 'center', lineHeight: 15, marginTop: 8, fontStyle: 'italic' },
 
   errorCard: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 10,
-    padding: 14, borderRadius: 12,
+    padding: 14, borderRadius: Tokens.radius.card,
     backgroundColor: Colors.error + '0D',
     borderWidth: 1, borderColor: Colors.error + '30',
     marginBottom: 14,
   },
-  errorText: { flex: 1, fontSize: 13, color: Colors.error, lineHeight: 18 },
-  errorRetry: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: Colors.error + '15' },
-  errorRetryText: { fontSize: 12, fontWeight: '700', color: Colors.error },
+  errorText: { flex: 1, fontSize: Type.footnote.fontSize, color: Colors.error, lineHeight: 18 },
+  errorRetry: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: Tokens.radius.sm, backgroundColor: Colors.error + '15' },
+  errorRetryText: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: Colors.error },
 
   progressCard: {
-    backgroundColor: Colors.card, borderRadius: 14, padding: 22,
+    backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 22,
     borderWidth: 1, borderColor: Colors.border,
     alignItems: 'center', gap: 10,
   },
-  progressTitle: { fontSize: 15, fontWeight: '700', color: Colors.text },
-  progressBody: { fontSize: 13, color: Colors.textMuted, textAlign: 'center', lineHeight: 19, maxWidth: 320 },
+  progressTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700', color: Colors.text },
+  progressBody: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, textAlign: 'center', lineHeight: 19, maxWidth: 320 },
+
+  skeletonStack: { marginTop: 16, gap: 10 },
+  skeletonRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: Colors.card, borderRadius: Tokens.radius.card, padding: 14,
+    borderWidth: 1, borderColor: Colors.borderLight,
+  },
 
   summaryCard: {
-    backgroundColor: Colors.card, borderRadius: 16, padding: 18,
+    backgroundColor: Colors.card, borderRadius: Tokens.radius.panel, padding: 18,
     borderWidth: 1, borderColor: Colors.border, marginBottom: 22,
   },
   summaryHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
-  confidenceBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999 },
+  confidenceBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 5, borderRadius: Tokens.radius.full },
   confidenceDot: { width: 7, height: 7, borderRadius: 4 },
   confidenceText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.6 },
-  summaryTitle: { fontSize: 15, fontWeight: '600', color: Colors.text, lineHeight: 22, marginBottom: 6 },
-  summarySub: { fontSize: 12, color: Colors.textMuted, lineHeight: 18, marginBottom: 16 },
+  summaryTitle: { fontSize: Type.subhead.fontSize, fontWeight: '600', color: Colors.text, lineHeight: 22, marginBottom: 6 },
+  summarySub: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, lineHeight: 18, marginBottom: 16 },
   summaryGrand: { alignItems: 'center', paddingTop: 8, paddingBottom: 16, borderTopWidth: 1, borderTopColor: Colors.border },
   summaryGrandLabel: { fontSize: 10, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 4 },
   summaryGrandValue: { fontSize: 36, fontWeight: '800', color: Colors.text, letterSpacing: -1 },
@@ -749,71 +794,71 @@ const styles = StyleSheet.create({
   summarySplitItem: { flex: 1, alignItems: 'center' },
   summarySplitDivider: { width: 1, alignSelf: 'stretch', backgroundColor: Colors.border },
   summarySplitLabel: { fontSize: 10, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5 },
-  summarySplitValue: { fontSize: 16, fontWeight: '800', color: Colors.text, marginTop: 4 },
+  summarySplitValue: { fontSize: Type.callout.fontSize, fontWeight: '800', color: Colors.text, marginTop: 4 },
 
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12, marginBottom: 4 },
-  sectionHeaderIcon: { width: 28, height: 28, borderRadius: 8, backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center' },
-  sectionHeaderText: { fontSize: 16, fontWeight: '800', color: Colors.text, letterSpacing: -0.2 },
-  sectionHelper: { fontSize: 12, color: Colors.textMuted, marginBottom: 10, lineHeight: 17 },
+  sectionHeaderIcon: { width: 28, height: 28, borderRadius: Tokens.radius.sm, backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center' },
+  sectionHeaderText: { fontSize: Type.callout.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.2 },
+  sectionHelper: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginBottom: 10, lineHeight: 17 },
 
   cardList: { gap: 8, marginBottom: 14 },
 
   drawingCard: {
     flexDirection: 'row', gap: 12,
-    backgroundColor: Colors.card, borderRadius: 12, padding: 12,
+    backgroundColor: Colors.card, borderRadius: Tokens.radius.card, padding: 12,
     borderWidth: 1, borderColor: Colors.border,
   },
-  drawingThumb: { width: 64, height: 64, borderRadius: 8, backgroundColor: Colors.background },
+  drawingThumb: { width: 64, height: 64, borderRadius: Tokens.radius.sm, backgroundColor: Colors.background },
   drawingHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
-  drawingPage: { fontSize: 11, fontWeight: '700', color: Colors.textMuted, letterSpacing: 0.5, textTransform: 'uppercase' },
-  readabilityPill: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 999 },
+  drawingPage: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.textMuted, letterSpacing: 0.5, textTransform: 'uppercase' },
+  readabilityPill: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: Tokens.radius.full },
   readabilityText: { fontSize: 9, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.6 },
-  drawingType: { fontSize: 14, fontWeight: '700', color: Colors.text, marginBottom: 2 },
-  drawingScope: { fontSize: 12, color: Colors.textMuted, lineHeight: 17 },
-  drawingDims: { fontSize: 11, color: Colors.text, marginTop: 6, fontStyle: 'italic' },
+  drawingType: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text, marginBottom: 2 },
+  drawingScope: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, lineHeight: 17 },
+  drawingDims: { fontSize: Type.caption2.fontSize, color: Colors.text, marginTop: 6, fontStyle: 'italic' },
 
   concernCard: {
-    backgroundColor: Colors.card, borderRadius: 12, padding: 14,
+    backgroundColor: Colors.card, borderRadius: Tokens.radius.card, padding: 14,
     borderWidth: 1, borderColor: Colors.border, borderLeftWidth: 4,
     gap: 8,
   },
   concernHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  severityPill: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 999 },
+  severityPill: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: Tokens.radius.full },
   severityText: { fontSize: 9, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.6 },
-  concernTopic: { flex: 1, fontSize: 14, fontWeight: '700', color: Colors.text },
-  concernDetail: { fontSize: 13, color: Colors.text, lineHeight: 19 },
+  concernTopic: { flex: 1, fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
+  concernDetail: { fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 19 },
   concernRec: { paddingTop: 6, borderTopWidth: 1, borderTopColor: Colors.border },
   concernRecLabel: { fontSize: 10, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 2 },
-  concernRecText: { fontSize: 13, color: Colors.text, lineHeight: 19 },
+  concernRecText: { fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 19 },
 
   checklistCard: {
-    backgroundColor: Colors.card, borderRadius: 12, padding: 14,
+    backgroundColor: Colors.card, borderRadius: Tokens.radius.card, padding: 14,
     borderWidth: 1, borderColor: Colors.border, marginBottom: 14,
     gap: 10,
   },
   checklistRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   checklistDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: Colors.primary, marginTop: 7 },
-  checklistText: { flex: 1, fontSize: 13, color: Colors.text, lineHeight: 18 },
+  checklistText: { flex: 1, fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 18 },
 
   categoryGroup: { gap: 6 },
-  categoryLabel: { fontSize: 11, fontWeight: '800', color: Colors.primary, textTransform: 'uppercase', letterSpacing: 1, marginTop: 6, marginBottom: 2 },
+  categoryLabel: { fontSize: Type.caption2.fontSize, fontWeight: '800', color: Colors.primary, textTransform: 'uppercase', letterSpacing: 1, marginTop: 6, marginBottom: 2 },
   lineItem: {
-    backgroundColor: Colors.card, borderRadius: 10, padding: 12,
+    backgroundColor: Colors.card, borderRadius: Tokens.radius.md, padding: 12,
     borderWidth: 1, borderColor: Colors.border,
     gap: 6,
   },
   lineItemHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-  lineItemName: { fontSize: 14, fontWeight: '700', color: Colors.text },
-  lineItemDesc: { fontSize: 12, color: Colors.textMuted, marginTop: 2, lineHeight: 17 },
-  lineItemTotal: { fontSize: 15, fontWeight: '800', color: Colors.text },
+  lineItemName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
+  lineItemDesc: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2, lineHeight: 17 },
+  lineItemTotal: { fontSize: Type.subhead.fontSize, fontWeight: '800', color: Colors.text },
   lineItemMeta: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
-  lineItemMetaText: { fontSize: 12, color: Colors.textMuted, fontWeight: '600' },
-  miniPill: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 999 },
+  lineItemMetaText: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, fontWeight: '600' },
+  miniPill: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: Tokens.radius.full },
   miniPillText: { fontSize: 9, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
-  lineItemPages: { fontSize: 11, color: Colors.textMuted, marginLeft: 'auto' },
+  lineItemPages: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginLeft: 'auto' },
   reasoningWrap: { paddingTop: 6, borderTopWidth: 1, borderTopColor: Colors.border },
   reasoningLabel: { fontSize: 10, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 2 },
-  reasoningText: { fontSize: 12, color: Colors.text, lineHeight: 17, fontStyle: 'italic' },
+  reasoningText: { fontSize: Type.caption1.fontSize, color: Colors.text, lineHeight: 17, fontStyle: 'italic' },
 
   ctaBar: {
     flexDirection: 'row', gap: 10, marginTop: 18, marginBottom: 8,
@@ -823,36 +868,36 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,
     alignItems: 'center', justifyContent: 'center',
   },
-  ctaSecondaryText: { fontSize: 13, fontWeight: '700', color: Colors.text },
+  ctaSecondaryText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.text },
   ctaPrimary: {
     flex: 1.4, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     paddingVertical: 13, borderRadius: 11, backgroundColor: Colors.primary,
   },
-  ctaPrimaryText: { fontSize: 13, fontWeight: '700', color: '#FFF' },
+  ctaPrimaryText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: '#FFF' },
 
   teaserCard: {
     backgroundColor: Colors.warning + '0D',
-    borderRadius: 16, padding: 16,
+    borderRadius: Tokens.radius.panel, padding: 16,
     borderWidth: 1.5, borderColor: Colors.warning + '40',
     marginBottom: 22,
     gap: 12,
   },
   teaserHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   teaserIcon: {
-    width: 36, height: 36, borderRadius: 10,
+    width: 36, height: 36, borderRadius: Tokens.radius.md,
     backgroundColor: Colors.warning + '20',
     alignItems: 'center', justifyContent: 'center',
   },
   teaserEyebrow: { fontSize: 10, fontWeight: '800', color: Colors.warning, letterSpacing: 0.8, textTransform: 'uppercase' },
-  teaserTitle: { fontSize: 16, fontWeight: '800', color: Colors.text, marginTop: 2, letterSpacing: -0.2 },
-  teaserBody: { fontSize: 13, color: Colors.text, lineHeight: 19 },
+  teaserTitle: { fontSize: Type.callout.fontSize, fontWeight: '800', color: Colors.text, marginTop: 2, letterSpacing: -0.2 },
+  teaserBody: { fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 19 },
   teaserStatRow: {
     flexDirection: 'row', alignItems: 'center',
-    paddingVertical: 12, paddingHorizontal: 8, borderRadius: 10,
+    paddingVertical: 12, paddingHorizontal: 8, borderRadius: Tokens.radius.md,
     backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.warning + '25',
   },
   teaserStat: { flex: 1, alignItems: 'center', gap: 2 },
-  teaserStatValue: { fontSize: 18, fontWeight: '800', color: Colors.text, letterSpacing: -0.4 },
+  teaserStatValue: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.4 },
   teaserStatLabel: { fontSize: 10, color: Colors.textMuted, textAlign: 'center', lineHeight: 14, paddingHorizontal: 4 },
   teaserStatDivider: { width: 1, alignSelf: 'stretch', backgroundColor: Colors.warning + '25' },
   teaserCta: {
@@ -860,5 +905,19 @@ const styles = StyleSheet.create({
     paddingVertical: 12, borderRadius: 11,
     backgroundColor: Colors.text,
   },
-  teaserCtaText: { fontSize: 13, fontWeight: '800', color: '#FFF', letterSpacing: 0.2 },
+  teaserCtaText: { fontSize: Type.footnote.fontSize, fontWeight: '800', color: '#FFF', letterSpacing: 0.2 },
+
+  sisterToolCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    padding: 14, borderRadius: Tokens.radius.card, marginBottom: 14,
+    backgroundColor: Colors.card,
+    borderWidth: 1, borderColor: Colors.border,
+  },
+  sisterToolIconWrap: {
+    width: 32, height: 32, borderRadius: 9,
+    backgroundColor: Colors.primary + '12',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  sisterToolTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.text },
+  sisterToolBody: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 2, lineHeight: 16 },
 });

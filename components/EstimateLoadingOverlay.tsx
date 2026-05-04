@@ -15,6 +15,8 @@ import {
 } from 'react-native';
 import { Sparkles, Hammer } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 interface Props {
   visible: boolean;
@@ -195,7 +197,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   subtitle: {
-    fontSize: 13, color: Colors.textSecondary,
+    fontSize: Type.footnote.fontSize, color: Colors.textSecondary,
     textAlign: 'center', lineHeight: 19, maxWidth: 300,
   },
   dotsRow: {
@@ -209,7 +211,7 @@ const styles = StyleSheet.create({
   factCard: {
     width: '100%',
     paddingHorizontal: 16, paddingVertical: 14,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     backgroundColor: Colors.fillSecondary,
     borderWidth: 1, borderColor: Colors.borderLight,
     gap: 8,
@@ -219,7 +221,7 @@ const styles = StyleSheet.create({
     color: Colors.primary, letterSpacing: 1.4,
   },
   factText: {
-    fontSize: 13, color: Colors.text,
+    fontSize: Type.footnote.fontSize, color: Colors.text,
     lineHeight: 19,
   },
 });

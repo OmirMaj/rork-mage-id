@@ -84,6 +84,27 @@ Deno.serve(async (req) => {
     const GOOGLE_PLACES_API_KEY = Deno.env.get('GOOGLE_PLACES_API_KEY') ?? ''
     const supabase = createClient(SUPABASE_URL, SERVICE_KEY)
 
+    // Concurrent-safety: claim the singleton geocode_run_lock row before
+    // doing any work. Stress-5 found that 4 parallel runs each pulled
+    // the same 60 cities — 4× wasted Places calls and 4× hammering on
+    // Nominatim. UPDATE ... WHERE last_started_at IS NULL OR < (NOW()-4m)
+    // is atomic at the row level, so only one parallel runner wins. The
+    // 4-min staleness lets a stuck/crashed runner be reclaimed (the
+    // function's max wall-clock is 150s, so 4 min is generous).
+    const staleAfter = new Date(Date.now() - 4 * 60 * 1000).toISOString()
+    const { data: claim } = await supabase
+      .from('geocode_run_lock')
+      .update({ last_started_at: new Date().toISOString() })
+      .eq('id', 1)
+      .or(`last_started_at.is.null,last_started_at.lt.${staleAfter}`)
+      .select('id')
+    if (!claim || claim.length === 0) {
+      return new Response(JSON.stringify({
+        success: true,
+        skipped: 'another_runner_active',
+      }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+
     // 1. Distinct (city, state) pairs in cached_bids without coords.
     //    PostgREST doesn't expose `select distinct` directly, so we
     //    pull a slim projection and dedupe in memory. With ~2k rows
@@ -202,6 +223,17 @@ Deno.serve(async (req) => {
 
     if (newCacheRows.length > 0) {
       await supabase.from('city_coords').upsert(newCacheRows, { onConflict: 'city,state' })
+    }
+
+    // Release the lock — the next cron fire can claim it immediately
+    // instead of waiting out the 4-min staleness window. Best-effort.
+    await supabase.from('geocode_run_lock').update({ last_started_at: null }).eq('id', 1)
+
+    // Heartbeat: tell BetterStack this cron ran. Alerts fire if the
+    // ping doesn't show up within 4h + 30min grace. Best-effort.
+    const heartbeatUrl = Deno.env.get('BETTERSTACK_HEARTBEAT_GEOCODE')
+    if (heartbeatUrl) {
+      await fetch(heartbeatUrl).catch(() => {})
     }
 
     return new Response(JSON.stringify({

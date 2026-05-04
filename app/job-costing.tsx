@@ -35,6 +35,8 @@ import {
   type JobCostLine, type JobCostSummary,
 } from '@/utils/jobCostEngine';
 import type { Commitment, CommitmentType } from '@/types';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 // ─────────────────────────────────────────────────────────────
 // Root
@@ -112,14 +114,14 @@ function JobCostingInner() {
 
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn} hitSlop={12}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back">
           <ChevronLeft size={22} color={Colors.text} />
         </TouchableOpacity>
         <View style={styles.headerText}>
           <Text style={styles.headerEyebrow}>Job Costing · MAGE</Text>
           <Text style={styles.headerTitle} numberOfLines={1}>{project.name}</Text>
         </View>
-        <TouchableOpacity onPress={() => setShowAdd(true)} style={[styles.headerBtn, styles.headerCta]} hitSlop={8}>
+        <TouchableOpacity onPress={() => setShowAdd(true)} style={[styles.headerBtn, styles.headerCta]} hitSlop={8} accessibilityRole="button" accessibilityLabel="Add">
           <Plus size={18} color={Colors.textOnPrimary} />
         </TouchableOpacity>
       </View>
@@ -268,7 +270,7 @@ function JobCostingInner() {
                     {formatMoney(c.amount + (c.changeAmount ?? 0))}
                   </Text>
                   <StatusChip status={c.status} />
-                  <TouchableOpacity onPress={() => handleDelete(c.id)} hitSlop={8} style={styles.deleteBtn}>
+                  <TouchableOpacity onPress={() => handleDelete(c.id)} hitSlop={8} style={styles.deleteBtn} accessibilityRole="button" accessibilityLabel="Delete">
                     <Trash2 size={14} color={Colors.error} />
                   </TouchableOpacity>
                 </TouchableOpacity>
@@ -461,7 +463,7 @@ function CommitmentEditor({ visible, projectId, existing, onClose, onSave }: Com
         <View style={styles.modalCard}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>{existing ? 'Edit commitment' : 'New commitment'}</Text>
-            <TouchableOpacity onPress={onClose} hitSlop={12}><X size={20} color={Colors.text} /></TouchableOpacity>
+            <TouchableOpacity onPress={onClose} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={Colors.text} /></TouchableOpacity>
           </View>
 
           <ScrollView style={{ maxHeight: 500 }}>
@@ -568,7 +570,7 @@ function PhaseDetailModal({ line, summary, onClose }: {
         <View style={styles.modalCard}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>{line.phase}</Text>
-            <TouchableOpacity onPress={onClose} hitSlop={12}><X size={20} color={Colors.text} /></TouchableOpacity>
+            <TouchableOpacity onPress={onClose} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={Colors.text} /></TouchableOpacity>
           </View>
           <View style={{ padding: 16 }}>
             <DetailRow label="Budget" value={formatMoneyFull(line.budget)} />
@@ -626,7 +628,7 @@ function DetailRow({ label, value, bold, color }: {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: Colors.background },
   errorWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  errorText: { fontSize: 15, color: Colors.textSecondary },
+  errorText: { fontSize: Type.subhead.fontSize, color: Colors.textSecondary },
 
   // Header
   header: {
@@ -634,57 +636,57 @@ const styles = StyleSheet.create({
     gap: 8, borderBottomWidth: 1, borderBottomColor: Colors.borderLight,
   },
   headerBtn: {
-    width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center',
+    width: 36, height: 36, borderRadius: Tokens.radius.xl, alignItems: 'center', justifyContent: 'center',
     backgroundColor: Colors.fillTertiary,
   },
   headerCta: { backgroundColor: Colors.primary },
   headerText: { flex: 1 },
   headerEyebrow: { fontSize: 10, color: Colors.primary, fontWeight: '800', letterSpacing: 2, textTransform: 'uppercase' },
-  headerTitle: { fontSize: 17, fontWeight: '700', color: Colors.text },
+  headerTitle: { fontSize: Type.body.fontSize, fontWeight: '700', color: Colors.text },
 
   // KPI grid
   kpiGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 12 },
   kpiCard: {
-    flexBasis: '48%', backgroundColor: Colors.card, borderRadius: 12, padding: 14,
+    flexBasis: '48%', backgroundColor: Colors.card, borderRadius: Tokens.radius.card, padding: 14,
     borderLeftWidth: 3, shadowColor: Colors.shadow, shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 1, shadowRadius: 2, elevation: 1,
   },
   kpiHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
-  kpiLabel: { fontSize: 11, color: Colors.textSecondary, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
-  kpiValue: { fontSize: 22, fontWeight: '800', marginBottom: 2 },
-  kpiSub: { fontSize: 11, color: Colors.textMuted },
+  kpiLabel: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
+  kpiValue: { fontSize: Type.title2.fontSize, fontWeight: '800', marginBottom: 2 },
+  kpiSub: { fontSize: Type.caption2.fontSize, color: Colors.textMuted },
 
   // Banner
   banner: {
-    borderRadius: 12, padding: 14, marginBottom: 16, borderLeftWidth: 4,
+    borderRadius: Tokens.radius.card, padding: 14, marginBottom: 16, borderLeftWidth: 4,
   },
-  bannerTitle: { fontSize: 15, fontWeight: '700', color: Colors.text },
-  bannerSub: { fontSize: 11, color: Colors.textSecondary, marginTop: 3 },
+  bannerTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700', color: Colors.text },
+  bannerSub: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, marginTop: 3 },
 
   // Sections
   section: {
-    backgroundColor: Colors.card, borderRadius: 12, padding: 14, marginBottom: 12,
+    backgroundColor: Colors.card, borderRadius: Tokens.radius.card, padding: 14, marginBottom: 12,
     shadowColor: Colors.shadow, shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 1, shadowRadius: 2, elevation: 1,
   },
-  sectionTitle: { fontSize: 14, fontWeight: '700', color: Colors.text, marginBottom: 10 },
+  sectionTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text, marginBottom: 10 },
   sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
   addLink: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  addLinkText: { fontSize: 13, color: Colors.primary, fontWeight: '600' },
+  addLinkText: { fontSize: Type.footnote.fontSize, color: Colors.primary, fontWeight: '600' },
 
   warningSection: { backgroundColor: Colors.errorLight, borderWidth: 1, borderColor: `${Colors.error}40` },
   warningHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
-  warningTitle: { fontSize: 13, fontWeight: '700', color: Colors.error },
-  warningItem: { fontSize: 12, color: Colors.text, marginLeft: 6, marginTop: 2 },
+  warningTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.error },
+  warningItem: { fontSize: Type.caption1.fontSize, color: Colors.text, marginLeft: 6, marginTop: 2 },
 
   // Variance rows
   varianceRow: {
     flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8,
     borderBottomWidth: 1, borderBottomColor: Colors.borderLight,
   },
-  varianceName: { fontSize: 14, fontWeight: '600', color: Colors.text },
-  varianceSub: { fontSize: 11, color: Colors.textSecondary, marginTop: 2 },
-  varianceDelta: { fontSize: 14, fontWeight: '700' },
+  varianceName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600', color: Colors.text },
+  varianceSub: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, marginTop: 2 },
+  varianceDelta: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' },
 
   // Phase bar
   phaseWrap: {
@@ -692,8 +694,8 @@ const styles = StyleSheet.create({
     borderTopWidth: 1, borderTopColor: Colors.borderLight,
   },
   phaseHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
-  phaseName: { fontSize: 13, fontWeight: '700', color: Colors.text, flex: 1 },
-  phasePill: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
+  phaseName: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.text, flex: 1 },
+  phasePill: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: Tokens.radius.sm },
   phasePillText: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
   phaseTrack: {
     height: 14, backgroundColor: Colors.fillSecondary, borderRadius: 4, overflow: 'hidden',
@@ -712,22 +714,22 @@ const styles = StyleSheet.create({
     borderTopWidth: 1, borderTopColor: Colors.borderLight,
   },
   commitmentNumBox: {
-    width: 44, paddingVertical: 4, borderRadius: 6, backgroundColor: Colors.fillSecondary,
+    width: 44, paddingVertical: 4, borderRadius: Tokens.radius.xs, backgroundColor: Colors.fillSecondary,
     alignItems: 'center',
   },
   commitmentNumText: { fontSize: 10, fontWeight: '700', color: Colors.text },
-  commitmentTitle: { fontSize: 13, fontWeight: '600', color: Colors.text },
-  commitmentSub: { fontSize: 11, color: Colors.textSecondary, marginTop: 1 },
-  commitmentAmount: { fontSize: 13, fontWeight: '700', color: Colors.text, fontVariant: ['tabular-nums'] },
+  commitmentTitle: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: Colors.text },
+  commitmentSub: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, marginTop: 1 },
+  commitmentAmount: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.text, fontVariant: ['tabular-nums'] },
   deleteBtn: { padding: 4 },
-  statusChip: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
+  statusChip: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: Tokens.radius.xs },
   statusChipText: { fontSize: 9, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
 
   // Empty state
   emptyBox: { alignItems: 'center', padding: 20 },
-  emptyText: { fontSize: 12, color: Colors.textSecondary, textAlign: 'center', marginTop: 8, marginBottom: 8 },
-  emptyCta: { backgroundColor: Colors.primary, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8 },
-  emptyCtaText: { color: Colors.textOnPrimary, fontSize: 13, fontWeight: '700' },
+  emptyText: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, textAlign: 'center', marginTop: 8, marginBottom: 8 },
+  emptyCta: { backgroundColor: Colors.primary, paddingHorizontal: 14, paddingVertical: 8, borderRadius: Tokens.radius.sm },
+  emptyCtaText: { color: Colors.textOnPrimary, fontSize: Type.footnote.fontSize, fontWeight: '700' },
 
   footerNote: { fontSize: 10, color: Colors.textMuted, textAlign: 'center', marginTop: 16, lineHeight: 14, paddingHorizontal: 16 },
 
@@ -738,40 +740,40 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     padding: 16, borderBottomWidth: 1, borderBottomColor: Colors.borderLight,
   },
-  modalTitle: { fontSize: 17, fontWeight: '700', color: Colors.text },
+  modalTitle: { fontSize: Type.body.fontSize, fontWeight: '700', color: Colors.text },
   modalFooter: { flexDirection: 'row', gap: 10, padding: 16, borderTopWidth: 1, borderTopColor: Colors.borderLight },
 
-  btnGhost: { flex: 1, paddingVertical: 12, alignItems: 'center', borderRadius: 10, backgroundColor: Colors.fillSecondary },
-  btnGhostText: { color: Colors.text, fontSize: 14, fontWeight: '600' },
-  btnPrimary: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 10, backgroundColor: Colors.primary },
-  btnPrimaryText: { color: Colors.textOnPrimary, fontSize: 14, fontWeight: '700' },
+  btnGhost: { flex: 1, paddingVertical: 12, alignItems: 'center', borderRadius: Tokens.radius.md, backgroundColor: Colors.fillSecondary },
+  btnGhostText: { color: Colors.text, fontSize: Type.bodyCompact.fontSize, fontWeight: '600' },
+  btnPrimary: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: Tokens.radius.md, backgroundColor: Colors.primary },
+  btnPrimaryText: { color: Colors.textOnPrimary, fontSize: Type.bodyCompact.fontSize, fontWeight: '700' },
 
   // Form
-  segWrap: { flexDirection: 'row', margin: 16, backgroundColor: Colors.fillSecondary, borderRadius: 10, padding: 2 },
-  segBtn: { flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 8 },
+  segWrap: { flexDirection: 'row', margin: 16, backgroundColor: Colors.fillSecondary, borderRadius: Tokens.radius.md, padding: 2 },
+  segBtn: { flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: Tokens.radius.sm },
   segBtnActive: { backgroundColor: Colors.surface },
-  segBtnText: { fontSize: 13, fontWeight: '600', color: Colors.textSecondary },
+  segBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: Colors.textSecondary },
   segBtnTextActive: { color: Colors.text },
 
   fieldWrap: { marginHorizontal: 16, marginBottom: 12 },
-  fieldLabel: { fontSize: 11, fontWeight: '700', color: Colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 },
+  fieldLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 },
   input: {
-    backgroundColor: Colors.fillSecondary, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10,
-    fontSize: 14, color: Colors.text,
+    backgroundColor: Colors.fillSecondary, borderRadius: Tokens.radius.md, paddingHorizontal: 12, paddingVertical: 10,
+    fontSize: Type.bodyCompact.fontSize, color: Colors.text,
   },
 
   subList: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  subChip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: Colors.fillSecondary },
+  subChip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: Tokens.radius.sm, backgroundColor: Colors.fillSecondary },
   subChipActive: { backgroundColor: Colors.primary },
-  subChipText: { fontSize: 12, color: Colors.text },
+  subChipText: { fontSize: Type.caption1.fontSize, color: Colors.text },
   subChipTextActive: { color: Colors.textOnPrimary, fontWeight: '700' },
 
   // Detail modal
   detailRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 },
-  detailLabel: { fontSize: 13, color: Colors.textSecondary },
-  detailValue: { fontSize: 13, color: Colors.text, fontVariant: ['tabular-nums'] },
+  detailLabel: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary },
+  detailValue: { fontSize: Type.footnote.fontSize, color: Colors.text, fontVariant: ['tabular-nums'] },
   detailDivider: { height: 1, backgroundColor: Colors.borderLight, marginVertical: 6 },
-  detailNote: { fontSize: 11, color: Colors.textMuted, marginTop: 14, lineHeight: 15 },
+  detailNote: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 14, lineHeight: 15 },
 });
 
 // This is exported so other screens can embed a mini job-cost summary if needed.

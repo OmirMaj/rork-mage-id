@@ -24,6 +24,8 @@ import {
 import { Colors } from '@/constants/colors';
 import type { CashFlowWeek } from '@/utils/cashFlowEngine';
 import { formatCurrencyShort } from '@/utils/cashFlowEngine';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 interface CashFlowChartProps {
   weeks: CashFlowWeek[];
@@ -213,7 +215,7 @@ const CashFlowChart = React.memo(function CashFlowChart({
                           top: pt.y - 8,
                           width: 16,
                           height: 16,
-                          borderRadius: 8,
+                          borderRadius: Tokens.radius.sm,
                           backgroundColor: pt.balance < 0 ? Colors.error : Colors.info,
                           opacity: pulseOpacity,
                           transform: [{ scale: pulseScale }],
@@ -337,7 +339,7 @@ const CashFlowChart = React.memo(function CashFlowChart({
 const styles = StyleSheet.create({
   container: {
     backgroundColor: Colors.surface,
-    borderRadius: 18,
+    borderRadius: Tokens.radius.xl,
     padding: 16,
     paddingLeft: 12,
     borderWidth: 1,
@@ -399,7 +401,7 @@ const styles = StyleSheet.create({
   barColumn: {
     width: BAR_WIDTH,
     alignItems: 'center' as const,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
     paddingHorizontal: 2,
   },
   barColumnSelected: {
@@ -480,7 +482,7 @@ const styles = StyleSheet.create({
     borderRadius: 1.25,
   },
   legendText: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     color: Colors.textSecondary,
     fontWeight: '600' as const,
   },

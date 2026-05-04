@@ -17,6 +17,8 @@ import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { calculateEVM, generateCashFlowData } from '@/utils/earnedValueEngine';
 import { mageAI } from '@/utils/mageAI';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const CHART_WIDTH = SCREEN_WIDTH - 64;
@@ -251,7 +253,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   emptyText: {
-    fontSize: 16,
+    fontSize: Type.callout.fontSize,
     color: Colors.textSecondary,
   },
   scrollContent: {
@@ -259,7 +261,7 @@ const styles = StyleSheet.create({
   },
   projectHeader: {
     backgroundColor: Colors.surface,
-    borderRadius: 16,
+    borderRadius: Tokens.radius.panel,
     padding: 18,
     marginBottom: 20,
     gap: 6,
@@ -267,12 +269,12 @@ const styles = StyleSheet.create({
     borderColor: Colors.cardBorder,
   },
   projectName: {
-    fontSize: 20,
+    fontSize: Type.title3.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
   },
   projectBudget: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     color: Colors.textSecondary,
   },
   progressBarContainer: {
@@ -287,13 +289,13 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   progressText: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
     color: Colors.text,
     marginTop: 4,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: Type.subheadline.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
     marginBottom: 12,
@@ -307,7 +309,7 @@ const styles = StyleSheet.create({
   metricCard: {
     width: '48%' as any,
     backgroundColor: Colors.surface,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     padding: 14,
     // Black outline + colored left accent stripe (the borderLeft is
     // overridden inline by the metric's category color).
@@ -322,17 +324,17 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   metricLabel: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     fontWeight: '600' as const,
     color: Colors.textSecondary,
   },
   metricValue: {
-    fontSize: 22,
+    fontSize: Type.title2.fontSize,
     fontWeight: '800' as const,
   },
   chartCard: {
     backgroundColor: Colors.surface,
-    borderRadius: 16,
+    borderRadius: Tokens.radius.panel,
     padding: 16,
     alignItems: 'center',
     marginBottom: 24,
@@ -355,13 +357,13 @@ const styles = StyleSheet.create({
     borderRadius: 5,
   },
   legendText: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     color: Colors.textSecondary,
     fontWeight: '500' as const,
   },
   forecastCard: {
     backgroundColor: Colors.surface,
-    borderRadius: 16,
+    borderRadius: Tokens.radius.panel,
     padding: 18,
     gap: 14,
     marginBottom: 20,
@@ -369,12 +371,12 @@ const styles = StyleSheet.create({
     borderColor: Colors.cardBorder,
   },
   forecastText: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     color: Colors.text,
     lineHeight: 22,
   },
   forecastPlaceholder: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     color: Colors.textMuted,
     lineHeight: 20,
     fontStyle: 'italic',
@@ -385,11 +387,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     backgroundColor: Colors.primary,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     paddingVertical: 14,
   },
   forecastBtnText: {
-    fontSize: 15,
+    fontSize: Type.subhead.fontSize,
     fontWeight: '600' as const,
     color: '#fff',
   },

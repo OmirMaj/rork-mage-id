@@ -11,6 +11,8 @@ import {
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useSubscription } from '@/contexts/SubscriptionContext';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 interface FeatureRow {
   label: string;
@@ -115,7 +117,7 @@ export default function PaywallScreen() {
     <View style={[styles.container, { paddingBottom: insets.bottom }]}>
       <Stack.Screen options={{ headerShown: false }} />
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.closeBtn} testID="paywall-close">
+        <TouchableOpacity onPress={() => router.back()} style={styles.closeBtn} testID="paywall-close" accessibilityRole="button" accessibilityLabel="Close">
           <X size={22} color={Colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Choose Your Plan</Text>
@@ -291,13 +293,13 @@ const styles = StyleSheet.create({
   closeBtn: {
     width: 36,
     height: 36,
-    borderRadius: 18,
+    borderRadius: Tokens.radius.xl,
     backgroundColor: Colors.fillTertiary,
     alignItems: 'center',
     justifyContent: 'center',
   },
   headerTitle: {
-    fontSize: 18,
+    fontSize: Type.subheadline.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
   },
@@ -313,7 +315,7 @@ const styles = StyleSheet.create({
   planCard: {
     flex: 1,
     backgroundColor: Colors.surface,
-    borderRadius: 16,
+    borderRadius: Tokens.radius.panel,
     padding: 14,
     alignItems: 'center',
     gap: 6,
@@ -334,7 +336,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
     paddingHorizontal: 8,
     paddingVertical: 3,
-    borderRadius: 6,
+    borderRadius: Tokens.radius.xs,
     zIndex: 1,
   },
   popularTagText: {
@@ -346,58 +348,58 @@ const styles = StyleSheet.create({
   planIconWrap: {
     width: 40,
     height: 40,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 4,
     marginTop: 4,
   },
   planName: {
-    fontSize: 15,
+    fontSize: Type.subhead.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
   },
   planPrice: {
-    fontSize: 18,
+    fontSize: Type.subheadline.fontSize,
     fontWeight: '800' as const,
     color: Colors.text,
   },
   planPeriod: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     color: Colors.textSecondary,
     marginBottom: 6,
   },
   currentBadge: {
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 8,
+    borderRadius: Tokens.radius.sm,
   },
   currentBadgeText: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     fontWeight: '700' as const,
   },
   ctaBtn: {
     backgroundColor: Colors.primary,
     paddingHorizontal: 14,
     paddingVertical: 10,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
     width: '100%' as const,
     alignItems: 'center',
   },
   ctaBtnText: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     fontWeight: '700' as const,
     color: '#fff',
   },
   compareTitle: {
-    fontSize: 18,
+    fontSize: Type.subheadline.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
     marginBottom: 12,
   },
   compareTable: {
     backgroundColor: Colors.surface,
-    borderRadius: 16,
+    borderRadius: Tokens.radius.panel,
     overflow: 'hidden',
     marginBottom: 20,
   },
@@ -419,12 +421,12 @@ const styles = StyleSheet.create({
   compareLabelCell: {
     flex: 1,
     paddingLeft: 14,
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: Colors.text,
     fontWeight: '400' as const,
   },
   compareHeaderCell: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     fontWeight: '700' as const,
     color: Colors.textSecondary,
     textAlign: 'center',
@@ -441,7 +443,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   trustText: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     color: Colors.textSecondary,
   },
   legalRow: {
@@ -452,16 +454,16 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   legalLink: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: Colors.primary,
     fontWeight: '600' as const,
   },
   legalDot: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: Colors.textMuted,
   },
   legalFinePrint: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     color: Colors.textMuted,
     textAlign: 'center' as const,
     lineHeight: 16,
@@ -476,18 +478,18 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   loadingText: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: Colors.textSecondary,
   },
   fallbackNotice: {
     backgroundColor: Colors.fillSecondary,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
     padding: 12,
     marginBottom: 12,
     alignItems: 'center',
   },
   fallbackNoticeText: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     color: Colors.textSecondary,
     textAlign: 'center' as const,
     lineHeight: 18,

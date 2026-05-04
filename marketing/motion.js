@@ -11,20 +11,20 @@
 (function () {
   'use strict';
 
-  var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   // =========================================================
   // Year stamp
   // =========================================================
-  var yearEl = document.getElementById('year');
+  let yearEl = document.getElementById('year');
   if (yearEl) yearEl.textContent = String(new Date().getFullYear());
 
   // =========================================================
   // Nav scroll state
   // =========================================================
-  var nav = document.querySelector('.nav');
+  let nav = document.querySelector('.nav');
   if (nav) {
-    var onScroll = function () {
+    let onScroll = function () {
       if (window.scrollY > 10) nav.classList.add('is-scrolled');
       else nav.classList.remove('is-scrolled');
     };
@@ -36,7 +36,7 @@
   // Generic reveal-on-enter
   // =========================================================
   if (!reduceMotion && 'IntersectionObserver' in window) {
-    var revealables = document.querySelectorAll('.reveal, .reveal-word');
+    let revealables = document.querySelectorAll('.reveal, .reveal-word');
     var io = new IntersectionObserver(function (entries) {
       entries.forEach(function (entry) {
         if (entry.isIntersecting) {
@@ -48,7 +48,7 @@
     revealables.forEach(function (el) { io.observe(el); });
 
     // Sections that opt into .is-in class (for child chip reveals, etc.)
-    var sectionTargets = document.querySelectorAll('.problem, .pillar');
+    let sectionTargets = document.querySelectorAll('.problem, .pillar');
     var sectionIo = new IntersectionObserver(function (entries) {
       entries.forEach(function (entry) {
         if (entry.isIntersecting) {
@@ -74,12 +74,12 @@
   function animateCounter(el, target, duration, prefix, suffix) {
     prefix = prefix || '';
     suffix = suffix || '';
-    var start = performance.now();
+    let start = performance.now();
     function tick(now) {
-      var p = Math.min(1, (now - start) / duration);
+      let p = Math.min(1, (now - start) / duration);
       // ease-out cubic
-      var eased = 1 - Math.pow(1 - p, 3);
-      var val = Math.round(target * eased);
+      let eased = 1 - Math.pow(1 - p, 3);
+      let val = Math.round(target * eased);
       el.textContent = prefix + val + suffix;
       if (p < 1) requestAnimationFrame(tick);
     }
@@ -87,24 +87,24 @@
   }
 
   if (!reduceMotion && 'IntersectionObserver' in window) {
-    var stats = document.querySelectorAll('.stat-val');
+    let stats = document.querySelectorAll('.stat-val');
     var statsIo = new IntersectionObserver(function (entries) {
       entries.forEach(function (entry) {
         if (!entry.isIntersecting) return;
-        var el = entry.target;
+        let el = entry.target;
         if (el.dataset.animated) return;
         el.dataset.animated = '1';
 
-        var text = el.getAttribute('data-text');
+        let text = el.getAttribute('data-text');
         if (text) {
           el.textContent = text;
           statsIo.unobserve(el);
           return;
         }
 
-        var target = parseInt(el.getAttribute('data-count') || '0', 10);
-        var prefix = el.getAttribute('data-prefix') || '';
-        var suffix = el.getAttribute('data-suffix') || '';
+        let target = parseInt(el.getAttribute('data-count') || '0', 10);
+        let prefix = el.getAttribute('data-prefix') || '';
+        let suffix = el.getAttribute('data-suffix') || '';
         animateCounter(el, target, 1400, prefix, suffix);
         statsIo.unobserve(el);
       });
@@ -122,7 +122,7 @@
 
     // Pillar mockup parallax (subtle — mockup drifts up as pillar passes)
     document.querySelectorAll('.pillar').forEach(function (pillar) {
-      var mockup = pillar.querySelector('.pillar-mockup');
+      let mockup = pillar.querySelector('.pillar-mockup');
       if (!mockup) return;
 
       gsap.fromTo(mockup,
@@ -141,7 +141,7 @@
     });
 
     // Hero content subtle lift on scroll
-    var heroContent = document.querySelector('.hero-content');
+    let heroContent = document.querySelector('.hero-content');
     if (heroContent) {
       gsap.to(heroContent, {
         y: -60,
@@ -157,7 +157,7 @@
     }
 
     // Problem headline strike-through timing synced with section
-    var scrub = document.querySelector('.problem .scrub-out');
+    let scrub = document.querySelector('.problem .scrub-out');
     if (scrub) {
       ScrollTrigger.create({
         trigger: '.problem',
@@ -172,13 +172,13 @@
   // =========================================================
   // Magnetic CTA + cursor blob
   // =========================================================
-  var isFinePointer = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+  let isFinePointer = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
 
   if (isFinePointer && !reduceMotion) {
-    var blob = document.querySelector('.cursor-blob');
-    var rafId = null;
-    var mouseX = -100, mouseY = -100;
-    var blobX = -100, blobY = -100;
+    let blob = document.querySelector('.cursor-blob');
+    let rafId = null;
+    let mouseX = -100, mouseY = -100;
+    let blobX = -100, blobY = -100;
 
     document.addEventListener('mousemove', function (e) {
       mouseX = e.clientX;
@@ -201,18 +201,18 @@
     blobLoop();
 
     // Magnetic pull on .magnetic buttons
-    var magnets = document.querySelectorAll('.magnetic');
+    let magnets = document.querySelectorAll('.magnetic');
     magnets.forEach(function (btn) {
-      var strength = 0.28;
-      var radius = 90;
+      let strength = 0.28;
+      let radius = 90;
 
       btn.addEventListener('mousemove', function (e) {
-        var rect = btn.getBoundingClientRect();
-        var centerX = rect.left + rect.width / 2;
-        var centerY = rect.top + rect.height / 2;
-        var dx = e.clientX - centerX;
-        var dy = e.clientY - centerY;
-        var dist = Math.sqrt(dx * dx + dy * dy);
+        let rect = btn.getBoundingClientRect();
+        let centerX = rect.left + rect.width / 2;
+        let centerY = rect.top + rect.height / 2;
+        let dx = e.clientX - centerX;
+        let dy = e.clientY - centerY;
+        let dist = Math.sqrt(dx * dx + dy * dy);
 
         if (dist < radius) {
           btn.style.transform = 'translate(' + (dx * strength) + 'px, ' + (dy * strength) + 'px)';
@@ -238,15 +238,15 @@
   // =========================================================
   // Form: light-weight validation + success state
   // =========================================================
-  var form = document.querySelector('.cta-form');
+  let form = document.querySelector('.cta-form');
   if (form) {
     form.addEventListener('submit', function (e) {
-      var email = form.querySelector('input[type="email"]');
+      let email = form.querySelector('input[type="email"]');
       if (email && email.value && email.checkValidity()) {
         // Let Formspree handle the actual submit; flash a success affordance on click.
-        var btn = form.querySelector('button');
+        let btn = form.querySelector('button');
         if (btn) {
-          var label = btn.querySelector('span');
+          let label = btn.querySelector('span');
           if (label) label.textContent = 'Sending…';
         }
       }

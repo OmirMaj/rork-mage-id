@@ -5,7 +5,14 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ChevronRight, TrendingDown, Search, X, RefreshCw, Clock, Wifi, Bell, Pause, Play, Trash2, MapPin, ChevronDown } from 'lucide-react-native';
+import {
+  ChevronRight, TrendingDown, Search, X, RefreshCw, Clock, Wifi, Bell, Pause, Play, Trash2, MapPin, ChevronDown,
+  // Category icons (rendered via CATEGORY_ICONS map below) — replaces
+  // emoji-as-icon for visual consistency with the rest of the app
+  TreePine, Box, Home as HomeIcon, Layers, LayoutPanelLeft, AppWindow, LayoutGrid,
+  Wrench, Zap, Wind, Square, Brush, Construction, HardHat, Hammer, Leaf, Package,
+  type LucideIcon,
+} from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { Colors } from '@/constants/colors';
 import MageRefreshControl from '@/components/MageRefreshControl';
@@ -13,13 +20,23 @@ import { CATEGORY_META, getLivePrices, type MaterialItem } from '@/constants/mat
 import { useProjects } from '@/contexts/ProjectContext';
 import { REGIONS, CITY_ADJUSTMENTS, getRegionForState } from '@/constants/regions';
 import type { PricingRegion } from '@/types';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 const ALL_CATEGORIES = Object.keys(CATEGORY_META);
+
+// Map iconName strings (declared in constants/materials.ts) to actual
+// Lucide components. Done locally rather than at the data layer because
+// data files shouldn't import from JSX-rendering modules.
+const CATEGORY_ICONS: Record<string, LucideIcon> = {
+  TreePine, Box, Home: HomeIcon, Layers, LayoutPanelLeft, AppWindow, LayoutGrid,
+  Wrench, Zap, Wind, Square, Brush, Construction, HardHat, Hammer, Leaf, Package,
+};
 
 interface CategorySummary {
   name: string;
   label: string;
-  emoji: string;
+  Icon: LucideIcon;
   color: string;
   itemCount: number;
   priceRange: { min: number; max: number };
@@ -105,7 +122,7 @@ export default function MaterialsScreen() {
       .filter(cat => grouped[cat])
       .map(cat => {
         const items = grouped[cat];
-        const meta = CATEGORY_META[cat] ?? { color: Colors.primary, emoji: '📦', label: cat };
+        const meta = CATEGORY_META[cat] ?? { color: Colors.primary, emoji: '📦', iconName: 'Package', label: cat };
         const prices = items.map(i => i.baseBulkPrice);
         const discounts = items.map(i => {
           if (i.baseRetailPrice <= 0) return 0;
@@ -114,7 +131,7 @@ export default function MaterialsScreen() {
         return {
           name: cat,
           label: meta.label,
-          emoji: meta.emoji,
+          Icon: CATEGORY_ICONS[meta.iconName] ?? Package,
           color: meta.color,
           itemCount: items.length,
           priceRange: { min: Math.min(...prices), max: Math.max(...prices) },
@@ -156,7 +173,7 @@ export default function MaterialsScreen() {
       >
         <View style={styles.categoryCardInner}>
           <View style={[styles.categoryEmoji, { backgroundColor: item.color + '15' }]}>
-            <Text style={styles.emojiText}>{item.emoji}</Text>
+            <item.Icon size={20} color={item.color} strokeWidth={2} />
           </View>
           <View style={styles.categoryInfo}>
             <View style={styles.categoryTitleRow}>
@@ -436,41 +453,41 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   listContainer: {},
   headerArea: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginBottom: 4 },
-  largeTitle: { fontSize: 34, fontWeight: '700' as const, color: Colors.text, letterSpacing: -0.5 },
+  largeTitle: { fontSize: Type.largeTitle.fontSize, fontWeight: '700' as const, color: Colors.text, letterSpacing: -0.5 },
   liveRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 },
   liveDot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: Colors.success },
   liveLabel: { fontSize: 10, fontWeight: '700' as const, color: Colors.success, letterSpacing: 0.8 },
   refreshBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: Colors.primary + '12', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20 },
-  refreshBtnText: { fontSize: 13, fontWeight: '600' as const, color: Colors.primary },
-  alertBadge: { position: 'absolute', top: -4, right: -4, width: 16, height: 16, borderRadius: 8, backgroundColor: Colors.error, alignItems: 'center', justifyContent: 'center' },
+  refreshBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.primary },
+  alertBadge: { position: 'absolute', top: -4, right: -4, width: 16, height: 16, borderRadius: Tokens.radius.sm, backgroundColor: Colors.error, alignItems: 'center', justifyContent: 'center' },
   alertBadgeText: { fontSize: 9, fontWeight: '700' as const, color: '#fff' },
   updatedRow: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 20, marginBottom: 12 },
-  updatedText: { flex: 1, fontSize: 11, color: Colors.textMuted },
+  updatedText: { flex: 1, fontSize: Type.caption2.fontSize, color: Colors.textMuted },
   searchWrap: { paddingHorizontal: 16, marginBottom: 12 },
-  searchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.fillTertiary, borderRadius: 12, paddingHorizontal: 12, gap: 8, height: 40 },
-  searchInput: { flex: 1, fontSize: 15, color: Colors.text },
+  searchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.fillTertiary, borderRadius: Tokens.radius.card, paddingHorizontal: 12, gap: 8, height: 40 },
+  searchInput: { flex: 1, fontSize: Type.subhead.fontSize, color: Colors.text },
   clearBtn: { width: 18, height: 18, borderRadius: 9, backgroundColor: Colors.textMuted, alignItems: 'center', justifyContent: 'center' },
   alertsSection: { marginHorizontal: 16, marginBottom: 16, gap: 8 },
-  alertsSectionTitle: { fontSize: 11, fontWeight: '600' as const, color: Colors.textSecondary, letterSpacing: 0.5, marginBottom: 4 },
-  alertCard: { backgroundColor: Colors.surface, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: Colors.cardBorder, gap: 8 },
+  alertsSectionTitle: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: Colors.textSecondary, letterSpacing: 0.5, marginBottom: 4 },
+  alertCard: { backgroundColor: Colors.surface, borderRadius: Tokens.radius.card, padding: 14, borderWidth: 1, borderColor: Colors.cardBorder, gap: 8 },
   alertCardTop: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  alertMatName: { fontSize: 14, fontWeight: '600' as const, color: Colors.text },
-  alertDetail: { fontSize: 12, color: Colors.textSecondary, marginTop: 2 },
-  alertStatusBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  alertMatName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
+  alertDetail: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, marginTop: 2 },
+  alertStatusBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.xs },
   alertStatusText: { fontSize: 10, fontWeight: '700' as const },
   alertProgressTrack: { height: 4, backgroundColor: Colors.fillTertiary, borderRadius: 2, overflow: 'hidden' as const },
   alertProgressFill: { height: 4, borderRadius: 2 },
   alertActions: { flexDirection: 'row', gap: 12 },
   alertActionBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  alertActionText: { fontSize: 12, fontWeight: '600' as const },
-  savingsBanner: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, backgroundColor: Colors.success + '12', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, gap: 8, marginBottom: 20 },
-  savingsText: { flex: 1, fontSize: 13, color: Colors.success, fontWeight: '500' as const, lineHeight: 17 },
-  sectionHeader: { fontSize: 11, fontWeight: '600' as const, color: Colors.textSecondary, letterSpacing: 0.5, paddingHorizontal: 20, marginBottom: 8 },
+  alertActionText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const },
+  savingsBanner: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, backgroundColor: Colors.success + '12', borderRadius: Tokens.radius.md, paddingHorizontal: 12, paddingVertical: 10, gap: 8, marginBottom: 20 },
+  savingsText: { flex: 1, fontSize: Type.footnote.fontSize, color: Colors.success, fontWeight: '500' as const, lineHeight: 17 },
+  sectionHeader: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: Colors.textSecondary, letterSpacing: 0.5, paddingHorizontal: 20, marginBottom: 8 },
   categoryCard: {
     marginHorizontal: 16,
     marginBottom: 8,
     backgroundColor: Colors.surface,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
     overflow: 'hidden' as const,
@@ -481,11 +498,11 @@ const styles = StyleSheet.create({
     padding: 14,
     gap: 12,
   },
-  categoryEmoji: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  emojiText: { fontSize: 20 },
+  categoryEmoji: { width: 44, height: 44, borderRadius: Tokens.radius.card, alignItems: 'center', justifyContent: 'center' },
+  emojiText: { fontSize: Type.title3.fontSize },
   categoryInfo: { flex: 1, gap: 2 },
   categoryTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  categoryName: { fontSize: 16, fontWeight: '600' as const, color: Colors.text },
+  categoryName: { fontSize: Type.callout.fontSize, fontWeight: '600' as const, color: Colors.text },
   categoryAlertDot: {
     width: 18,
     height: 18,
@@ -494,9 +511,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  categoryCount: { fontSize: 12, color: Colors.textMuted },
+  categoryCount: { fontSize: Type.caption1.fontSize, color: Colors.textMuted },
   categoryStats: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 },
-  priceRangeText: { fontSize: 12, color: Colors.textSecondary, fontWeight: '500' as const },
+  priceRangeText: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, fontWeight: '500' as const },
   discountChip: {
     backgroundColor: Colors.success + '15',
     paddingHorizontal: 6,
@@ -505,21 +522,21 @@ const styles = StyleSheet.create({
   },
   discountChipText: { fontSize: 10, fontWeight: '700' as const, color: Colors.success },
   emptyState: { alignItems: 'center', paddingVertical: 60, gap: 8 },
-  emptyTitle: { fontSize: 18, fontWeight: '600' as const, color: Colors.text },
-  emptyDesc: { fontSize: 14, color: Colors.textMuted },
-  sourceNote: { marginHorizontal: 16, marginTop: 16, padding: 12, backgroundColor: Colors.fillTertiary, borderRadius: 10 },
-  sourceText: { fontSize: 11, color: Colors.textMuted, lineHeight: 16 },
-  locationBanner: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginBottom: 8, backgroundColor: Colors.primary + '08', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, gap: 6, borderWidth: 1, borderColor: Colors.primary + '20' },
-  locationText: { flex: 1, fontSize: 13, color: Colors.text },
+  emptyTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '600' as const, color: Colors.text },
+  emptyDesc: { fontSize: Type.bodyCompact.fontSize, color: Colors.textMuted },
+  sourceNote: { marginHorizontal: 16, marginTop: 16, padding: 12, backgroundColor: Colors.fillTertiary, borderRadius: Tokens.radius.md },
+  sourceText: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, lineHeight: 16 },
+  locationBanner: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginBottom: 8, backgroundColor: Colors.primary + '08', borderRadius: Tokens.radius.md, paddingHorizontal: 12, paddingVertical: 10, gap: 6, borderWidth: 1, borderColor: Colors.primary + '20' },
+  locationText: { flex: 1, fontSize: Type.footnote.fontSize, color: Colors.text },
   locationBold: { fontWeight: '700' as const, color: Colors.primary },
   locationMultiplier: { backgroundColor: Colors.primary + '18', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
-  multiplierText: { fontSize: 11, fontWeight: '700' as const, color: Colors.primary },
-  locationPicker: { marginHorizontal: 16, marginBottom: 12, backgroundColor: Colors.surface, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: Colors.cardBorder },
+  multiplierText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: Colors.primary },
+  locationPicker: { marginHorizontal: 16, marginBottom: 12, backgroundColor: Colors.surface, borderRadius: Tokens.radius.card, padding: 12, borderWidth: 1, borderColor: Colors.cardBorder },
   pickerLabel: { fontSize: 10, fontWeight: '700' as const, color: Colors.textMuted, letterSpacing: 0.5, marginBottom: 6 },
   pickerScroll: { flexDirection: 'row', marginBottom: 4 },
-  pickerChip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: Colors.background, marginRight: 6, alignItems: 'center' },
+  pickerChip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: Tokens.radius.sm, backgroundColor: Colors.background, marginRight: 6, alignItems: 'center' },
   pickerChipActive: { backgroundColor: Colors.primary },
-  pickerChipText: { fontSize: 12, color: Colors.textSecondary, fontWeight: '500' as const },
+  pickerChipText: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, fontWeight: '500' as const },
   pickerChipSub: { fontSize: 10, color: Colors.textMuted, marginTop: 1 },
   pickerChipTextActive: { color: '#FFF' },
 });

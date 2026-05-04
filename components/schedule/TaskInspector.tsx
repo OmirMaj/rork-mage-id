@@ -15,12 +15,16 @@
 // everything else. Slides in from the right on web; on native the width
 // matches a phone's portrait so it acts like a full-screen drawer.
 
-import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform } from 'react-native';
-import { X, Anchor, Flag, Users, CalendarClock, Info } from 'lucide-react-native';
+import React, { useMemo, useState, useCallback } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, Image, TextInput, Alert } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
+import * as Haptics from 'expo-haptics';
+import { X, Anchor, Flag, Users, CalendarClock, Info, Camera, Bell, Plus, Trash2 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ScheduleTask } from '@/types';
 import type { CpmResult } from '@/utils/cpm';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 interface TaskInspectorProps {
   task: ScheduleTask | null;
@@ -48,6 +52,68 @@ const STATUS_OPTIONS: { value: NonNullable<ScheduleTask['status']>; label: strin
 export default function TaskInspector({
   task, allTasks, cpm, projectStartDate, onClose, onEdit,
 }: TaskInspectorProps) {
+  const [subscriberDraft, setSubscriberDraft] = useState('');
+
+  // Photo capture — camera + library, both fall through to handleEdit
+  // appending to the photos array. iOS handles HEIC→JPEG natively at the
+  // ImagePicker layer.
+  const handleAddPhoto = useCallback(async (source: 'camera' | 'library') => {
+    if (!task) return;
+    if (Platform.OS === 'web' && source === 'camera') {
+      Alert.alert('Camera unavailable on web', 'Use the library picker instead.');
+      return;
+    }
+    try {
+      if (source === 'camera') {
+        const perm = await ImagePicker.requestCameraPermissionsAsync();
+        if (!perm.granted) return;
+      } else {
+        const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!perm.granted) return;
+      }
+      const result = source === 'camera'
+        ? await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.7, exif: false })
+        : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.7, exif: false, allowsMultipleSelection: false });
+      if (result.canceled || !result.assets?.[0]) return;
+      const next = [...(task.photos ?? []), {
+        uri: result.assets[0].uri,
+        timestamp: new Date().toISOString(),
+      }];
+      onEdit(task.id, { photos: next });
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (e) {
+      console.warn('[TaskInspector] photo failed', e);
+    }
+  }, [task, onEdit]);
+
+  const handleRemovePhoto = useCallback((idx: number) => {
+    if (!task) return;
+    const photos = task.photos ?? [];
+    const next = photos.filter((_, i) => i !== idx);
+    onEdit(task.id, { photos: next });
+  }, [task, onEdit]);
+
+  // Subscribers — opt-in identifiers (sub name / email / phone). On task
+  // shift, only these get notified. Empty array = silent.
+  const handleAddSubscriber = useCallback(() => {
+    if (!task) return;
+    const trimmed = subscriberDraft.trim();
+    if (!trimmed) return;
+    const existing = task.subscribers ?? [];
+    if (existing.some(s => s.toLowerCase() === trimmed.toLowerCase())) {
+      setSubscriberDraft('');
+      return;
+    }
+    onEdit(task.id, { subscribers: [...existing, trimmed] });
+    setSubscriberDraft('');
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+  }, [task, subscriberDraft, onEdit]);
+
+  const handleRemoveSubscriber = useCallback((subscriber: string) => {
+    if (!task) return;
+    const next = (task.subscribers ?? []).filter(s => s !== subscriber);
+    onEdit(task.id, { subscribers: next });
+  }, [task, onEdit]);
   // Look up dependencies by id so we can show a readable list. Use the
   // typed link array if present; fall back to the legacy string ids.
   const depRows = useMemo(() => {
@@ -87,9 +153,7 @@ export default function TaskInspector({
       <View style={styles.header}>
         <Info size={16} color={Colors.primary} />
         <Text style={styles.headerTitle} numberOfLines={1}>{task.title || 'Untitled task'}</Text>
-        <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-          <X size={18} color={Colors.textSecondary} />
-        </TouchableOpacity>
+        <TouchableOpacity onPress={onClose} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={Colors.textSecondary} /></TouchableOpacity>
       </View>
 
       <ScrollView style={styles.body} contentContainerStyle={{ paddingBottom: 32 }}>
@@ -206,6 +270,88 @@ export default function TaskInspector({
             <Text style={styles.notesText}>{task.notes}</Text>
           </View>
         ) : null}
+
+        {/* Photos — camera + library, no upload (local URI). */}
+        <View style={styles.section}>
+          <View style={styles.sectionHead}>
+            <Camera size={12} color={Colors.textSecondary} />
+            <Text style={styles.sectionTitle}>Photos {task.photos && task.photos.length > 0 ? `(${task.photos.length})` : ''}</Text>
+          </View>
+          <View style={styles.photoGrid}>
+            {(task.photos ?? []).map((p, i) => (
+              <View key={`${p.uri}-${i}`} style={styles.photoTile}>
+                <Image source={{ uri: p.uri }} style={styles.photoImg} resizeMode="cover" />
+                <TouchableOpacity
+                  style={styles.photoRemove}
+                  onPress={() => handleRemovePhoto(i)}
+                  hitSlop={6} accessibilityRole="button" accessibilityLabel="Delete">
+                  <Trash2 size={11} color="#FFF" />
+                </TouchableOpacity>
+              </View>
+            ))}
+            <TouchableOpacity
+              style={[styles.photoTile, styles.photoAdd]}
+              onPress={() => handleAddPhoto(Platform.OS === 'web' ? 'library' : 'camera')}
+              activeOpacity={0.85}
+              testID="task-add-photo"
+            >
+              <Camera size={18} color={Colors.primary} />
+              <Text style={styles.photoAddLabel}>{Platform.OS === 'web' ? 'Pick' : 'Snap'}</Text>
+            </TouchableOpacity>
+            {Platform.OS !== 'web' && (
+              <TouchableOpacity
+                style={[styles.photoTile, styles.photoAdd]}
+                onPress={() => handleAddPhoto('library')}
+                activeOpacity={0.85}
+              >
+                <Plus size={18} color={Colors.primary} />
+                <Text style={styles.photoAddLabel}>Library</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+
+        {/* Subscribers — opt-in per-task notifications. Silent by default
+            (opposite of Buildertrend's email-everyone posture). */}
+        <View style={styles.section}>
+          <View style={styles.sectionHead}>
+            <Bell size={12} color={Colors.textSecondary} />
+            <Text style={styles.sectionTitle}>Notification list {task.subscribers && task.subscribers.length > 0 ? `(${task.subscribers.length})` : ''}</Text>
+          </View>
+          <Text style={styles.notesText}>
+            Only people on this list get pinged when this task shifts. Add a sub by name, email, or phone — login not required.
+          </Text>
+          <View style={styles.subRow}>
+            <TextInput
+              value={subscriberDraft}
+              onChangeText={setSubscriberDraft}
+              placeholder="e.g. Volt Bros, joe@example.com"
+              placeholderTextColor={Colors.textMuted}
+              style={styles.subInput}
+              onSubmitEditing={handleAddSubscriber}
+              returnKeyType="done"
+            />
+            <TouchableOpacity
+              style={[styles.subAddBtn, !subscriberDraft.trim() && styles.subAddBtnDisabled]}
+              onPress={handleAddSubscriber}
+              disabled={!subscriberDraft.trim()}
+              activeOpacity={0.85} accessibilityRole="button" accessibilityLabel="Add"><Plus size={14} color="#FFF" /></TouchableOpacity>
+          </View>
+          {(task.subscribers ?? []).length > 0 && (
+            <View style={styles.subList}>
+              {(task.subscribers ?? []).map(s => (
+                <View key={s} style={styles.subChip}>
+                  <Text style={styles.subChipText} numberOfLines={1}>{s}</Text>
+                  <TouchableOpacity
+                    onPress={() => handleRemoveSubscriber(s)}
+                    hitSlop={4} accessibilityRole="button" accessibilityLabel="Close">
+                    <X size={11} color={Colors.textMuted} />
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
       </ScrollView>
     </View>
   );
@@ -244,7 +390,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
   },
-  headerTitle: { flex: 1, fontSize: 14, fontWeight: '700', color: Colors.text },
+  headerTitle: { flex: 1, fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
   closeBtn: { padding: 4 },
   body: { flex: 1 },
   section: {
@@ -260,7 +406,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   sectionTitle: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     fontWeight: '700',
     color: Colors.textSecondary,
     textTransform: 'uppercase',
@@ -274,8 +420,8 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     gap: 10,
   },
-  rowLabel: { fontSize: 12, color: Colors.textSecondary, flex: 1 },
-  rowValue: { fontSize: 12, fontWeight: '600', color: Colors.text, maxWidth: 180, textAlign: 'right' },
+  rowLabel: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, flex: 1 },
+  rowValue: { fontSize: Type.caption1.fontSize, fontWeight: '600', color: Colors.text, maxWidth: 180, textAlign: 'right' },
   statusRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   statusChip: {
     flexDirection: 'row',
@@ -283,15 +429,15 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 6,
+    borderRadius: Tokens.radius.xs,
     borderWidth: 1,
     borderColor: Colors.border,
     backgroundColor: Colors.fillTertiary,
   },
   statusDot: { width: 8, height: 8, borderRadius: 4 },
-  statusChipText: { fontSize: 11, fontWeight: '600', color: Colors.textSecondary },
+  statusChipText: { fontSize: Type.caption2.fontSize, fontWeight: '600', color: Colors.textSecondary },
   subLabel: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     fontWeight: '700',
     color: Colors.textSecondary,
     textTransform: 'uppercase',
@@ -302,13 +448,13 @@ const styles = StyleSheet.create({
   progressChip: {
     paddingHorizontal: 10,
     paddingVertical: 5,
-    borderRadius: 6,
+    borderRadius: Tokens.radius.xs,
     backgroundColor: Colors.fillTertiary,
   },
   progressChipActive: { backgroundColor: Colors.primary },
-  progressChipText: { fontSize: 11, fontWeight: '600', color: Colors.textSecondary },
+  progressChipText: { fontSize: Type.caption2.fontSize, fontWeight: '600', color: Colors.textSecondary },
   progressChipTextActive: { color: '#fff' },
-  emptyText: { fontSize: 12, color: Colors.textMuted, fontStyle: 'italic' },
+  emptyText: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, fontStyle: 'italic' },
   depRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -316,7 +462,58 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     gap: 10,
   },
-  depTitle: { fontSize: 12, color: Colors.text, flex: 1 },
-  depMeta: { fontSize: 11, color: Colors.textSecondary, fontWeight: '600' },
-  notesText: { fontSize: 12, color: Colors.text, lineHeight: 18 },
+  depTitle: { fontSize: Type.caption1.fontSize, color: Colors.text, flex: 1 },
+  depMeta: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, fontWeight: '600' },
+  notesText: { fontSize: Type.caption1.fontSize, color: Colors.text, lineHeight: 18 },
+
+  sectionHead: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
+
+  // Photo grid
+  photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 6 },
+  photoTile: {
+    width: 72, height: 72, borderRadius: Tokens.radius.md,
+    overflow: 'hidden',
+    backgroundColor: Colors.background,
+    borderWidth: 1, borderColor: Colors.border,
+    position: 'relative',
+  },
+  photoImg: { width: '100%', height: '100%' },
+  photoRemove: {
+    position: 'absolute', top: 4, right: 4,
+    width: 18, height: 18, borderRadius: 9,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  photoAdd: {
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: Colors.primary + '0D',
+    borderColor: Colors.primary + '30', borderStyle: 'dashed',
+    gap: 4,
+  },
+  photoAddLabel: { fontSize: 10, fontWeight: '700', color: Colors.primary },
+
+  // Subscribers
+  subRow: { flexDirection: 'row', gap: 6, marginTop: 8 },
+  subInput: {
+    flex: 1,
+    paddingHorizontal: 10, paddingVertical: 8, borderRadius: Tokens.radius.sm,
+    borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: Colors.background,
+    fontSize: Type.caption1.fontSize, color: Colors.text,
+  },
+  subAddBtn: {
+    width: 36, height: 36, borderRadius: Tokens.radius.sm,
+    backgroundColor: Colors.primary,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  subAddBtnDisabled: { opacity: 0.4 },
+  subList: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
+  subChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    paddingLeft: 10, paddingRight: 6, paddingVertical: 5, borderRadius: Tokens.radius.full,
+    backgroundColor: Colors.fillSecondary,
+    borderWidth: 1, borderColor: Colors.border,
+    maxWidth: 220,
+  },
+  subChipText: { fontSize: Type.caption2.fontSize, fontWeight: '600', color: Colors.text },
 });

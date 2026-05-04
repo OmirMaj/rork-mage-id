@@ -9,8 +9,7 @@ import {
   pdfShell, pdfHeader, pdfTitle, pdfFooter, pdfTable,
   escHtml, fmtMoney, fmtDate, PDF_PALETTE,
 } from './pdfDesign';
-import type { WIPReport, ARAgingReport } from './financialReports';
-import type { ProfitRow } from './financialReports';
+import type { WIPReport, ARAgingReport , ProfitRow } from './financialReports';
 
 // ─── WIP PDF ─────────────────────────────────────────────────────────
 

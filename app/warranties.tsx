@@ -13,6 +13,8 @@ import {
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import type { Warranty, WarrantyCategory } from '@/types';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 const CATEGORIES: { key: WarrantyCategory; label: string }[] = [
   { key: 'general', label: 'General' },
@@ -47,10 +49,10 @@ function formatDate(iso: string): string {
 }
 
 const STATUS_META: Record<Warranty['status'], { label: string; color: string; bg: string; Icon: any }> = {
-  active: { label: 'Active', color: '#34C759', bg: '#E8F5E9', Icon: CheckCircle2 },
-  expiring_soon: { label: 'Expiring Soon', color: '#FF9500', bg: '#FFF3E0', Icon: AlertTriangle },
-  expired: { label: 'Expired', color: Colors.error, bg: '#FFF0EF', Icon: Clock },
-  claimed: { label: 'Claimed', color: Colors.info, bg: '#E3F2FD', Icon: Shield },
+  active: { label: 'Active', color: Colors.success, bg: Colors.successLight, Icon: CheckCircle2 },
+  expiring_soon: { label: 'Expiring Soon', color: Colors.warning, bg: Colors.warningLight, Icon: AlertTriangle },
+  expired: { label: 'Expired', color: Colors.error, bg: Colors.errorLight, Icon: Clock },
+  claimed: { label: 'Claimed', color: Colors.info, bg: Colors.infoLight, Icon: Shield },
   void: { label: 'Void', color: Colors.textMuted, bg: Colors.fillTertiary, Icon: X },
 };
 
@@ -174,11 +176,11 @@ export default function WarrantiesScreen() {
             <Text style={styles.metricValue}>{list.filter(w => w.status === 'active').length}</Text>
             <Text style={styles.metricLabel}>Active</Text>
           </View>
-          <View style={[styles.metricCard, { backgroundColor: '#FFF3E0' }]}>
-            <Text style={[styles.metricValue, { color: '#FF9500' }]}>{list.filter(w => w.status === 'expiring_soon').length}</Text>
+          <View style={[styles.metricCard, { backgroundColor: Colors.warningLight }]}>
+            <Text style={[styles.metricValue, { color: Colors.warning }]}>{list.filter(w => w.status === 'expiring_soon').length}</Text>
             <Text style={styles.metricLabel}>Expiring</Text>
           </View>
-          <View style={[styles.metricCard, { backgroundColor: '#FFF0EF' }]}>
+          <View style={[styles.metricCard, { backgroundColor: Colors.errorLight }]}>
             <Text style={[styles.metricValue, { color: Colors.error }]}>{list.filter(w => w.status === 'expired').length}</Text>
             <Text style={styles.metricLabel}>Expired</Text>
           </View>
@@ -209,11 +211,11 @@ export default function WarrantiesScreen() {
                 <Text style={styles.cardProvider}>Provider: {w.provider}</Text>
                 <View style={styles.cardFooter}>
                   <Text style={styles.dateText}>{formatDate(w.startDate)} → {formatDate(w.endDate)}</Text>
-                  <Text style={[styles.daysText, { color: daysLeft < 0 ? Colors.error : daysLeft <= 30 ? '#FF9500' : Colors.textSecondary }]}>
+                  <Text style={[styles.daysText, { color: daysLeft < 0 ? Colors.error : daysLeft <= 30 ? Colors.warning : Colors.textSecondary }]}>
                     {daysLeft < 0 ? `${Math.abs(daysLeft)}d ago` : `${daysLeft}d left`}
                   </Text>
                 </View>
-                <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDelete(w)}>
+                <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDelete(w)} accessibilityRole="button" accessibilityLabel="Delete">
                   <Trash2 size={14} color={Colors.error} />
                 </TouchableOpacity>
               </TouchableOpacity>
@@ -234,7 +236,7 @@ export default function WarrantiesScreen() {
               <ScrollView showsVerticalScrollIndicator={false}>
                 <View style={styles.modalHeader}>
                   <Text style={styles.modalTitle}>{editingId ? 'Edit Warranty' : 'New Warranty'}</Text>
-                  <TouchableOpacity onPress={() => setShowForm(false)}>
+                  <TouchableOpacity onPress={() => setShowForm(false)} accessibilityRole="button" accessibilityLabel="Close">
                     <X size={20} color={Colors.textMuted} />
                   </TouchableOpacity>
                 </View>
@@ -311,43 +313,43 @@ export default function WarrantiesScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
-  hero: { marginHorizontal: 20, marginTop: 16, marginBottom: 12, padding: 16, backgroundColor: Colors.primary + '10', borderRadius: 16, borderWidth: 1, borderColor: Colors.primary + '25', gap: 4 },
-  heroTitle: { fontSize: 18, fontWeight: '700' as const, color: Colors.text, marginTop: 4 },
-  heroSub: { fontSize: 13, color: Colors.textSecondary, lineHeight: 18 },
+  hero: { marginHorizontal: 20, marginTop: 16, marginBottom: 12, padding: 16, backgroundColor: Colors.primary + '10', borderRadius: Tokens.radius.panel, borderWidth: 1, borderColor: Colors.primary + '25', gap: 4 },
+  heroTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: Colors.text, marginTop: 4 },
+  heroSub: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, lineHeight: 18 },
   metricsRow: { flexDirection: 'row', gap: 10, paddingHorizontal: 20, marginBottom: 16 },
-  metricCard: { flex: 1, padding: 14, borderRadius: 14, backgroundColor: '#E8F5E9', alignItems: 'center' as const, gap: 2 },
-  metricValue: { fontSize: 22, fontWeight: '800' as const, color: '#34C759' },
-  metricLabel: { fontSize: 12, color: Colors.textSecondary, fontWeight: '600' as const },
+  metricCard: { flex: 1, padding: 14, borderRadius: Tokens.radius.lg, backgroundColor: Colors.successLight, alignItems: 'center' as const, gap: 2 },
+  metricValue: { fontSize: Type.title2.fontSize, fontWeight: '800' as const, color: Colors.success },
+  metricLabel: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, fontWeight: '600' as const },
   emptyState: { alignItems: 'center', paddingVertical: 40, paddingHorizontal: 40, gap: 10 },
-  emptyTitle: { fontSize: 17, fontWeight: '700' as const, color: Colors.text },
-  emptyDesc: { fontSize: 13, color: Colors.textSecondary, textAlign: 'center' as const, lineHeight: 18 },
-  card: { marginHorizontal: 20, marginBottom: 10, padding: 16, borderRadius: 14, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.cardBorder, gap: 4, position: 'relative' as const },
+  emptyTitle: { fontSize: Type.body.fontSize, fontWeight: '700' as const, color: Colors.text },
+  emptyDesc: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, textAlign: 'center' as const, lineHeight: 18 },
+  card: { marginHorizontal: 20, marginBottom: 10, padding: 16, borderRadius: Tokens.radius.lg, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.cardBorder, gap: 4, position: 'relative' as const },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' as const, marginBottom: 4 },
-  statusPill: { flexDirection: 'row', alignItems: 'center' as const, gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
-  statusText: { fontSize: 11, fontWeight: '700' as const },
-  categoryText: { fontSize: 11, color: Colors.textMuted, fontWeight: '600' as const, textTransform: 'uppercase' as const, letterSpacing: 0.3 },
-  cardTitle: { fontSize: 15, fontWeight: '700' as const, color: Colors.text },
-  cardProject: { fontSize: 12, color: Colors.primary, fontWeight: '600' as const },
-  cardProvider: { fontSize: 13, color: Colors.textSecondary },
+  statusPill: { flexDirection: 'row', alignItems: 'center' as const, gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.sm },
+  statusText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const },
+  categoryText: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontWeight: '600' as const, textTransform: 'uppercase' as const, letterSpacing: 0.3 },
+  cardTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text },
+  cardProject: { fontSize: Type.caption1.fontSize, color: Colors.primary, fontWeight: '600' as const },
+  cardProvider: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary },
   cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' as const, marginTop: 6, paddingTop: 6, borderTopWidth: 0.5, borderTopColor: Colors.borderLight },
-  dateText: { fontSize: 12, color: Colors.textMuted },
-  daysText: { fontSize: 12, fontWeight: '700' as const },
-  deleteBtn: { position: 'absolute' as const, top: 10, right: 10, width: 26, height: 26, borderRadius: 6, backgroundColor: Colors.errorLight, alignItems: 'center' as const, justifyContent: 'center' as const },
-  addBtn: { flexDirection: 'row', alignItems: 'center' as const, justifyContent: 'center' as const, gap: 8, marginHorizontal: 20, marginTop: 12, paddingVertical: 14, borderRadius: 14, backgroundColor: Colors.primary + '12', borderWidth: 1, borderColor: Colors.primary + '25' },
-  addBtnText: { fontSize: 15, fontWeight: '600' as const, color: Colors.primary },
+  dateText: { fontSize: Type.caption1.fontSize, color: Colors.textMuted },
+  daysText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const },
+  deleteBtn: { position: 'absolute' as const, top: 10, right: 10, width: 26, height: 26, borderRadius: Tokens.radius.xs, backgroundColor: Colors.errorLight, alignItems: 'center' as const, justifyContent: 'center' as const },
+  addBtn: { flexDirection: 'row', alignItems: 'center' as const, justifyContent: 'center' as const, gap: 8, marginHorizontal: 20, marginTop: 12, paddingVertical: 14, borderRadius: Tokens.radius.lg, backgroundColor: Colors.primary + '12', borderWidth: 1, borderColor: Colors.primary + '25' },
+  addBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: Colors.primary },
   modalOverlay: { flex: 1, backgroundColor: Colors.overlay, justifyContent: 'flex-end' as const },
   modalCard: { backgroundColor: Colors.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 22, gap: 4, maxHeight: '90%' },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' as const, marginBottom: 8 },
-  modalTitle: { fontSize: 20, fontWeight: '700' as const, color: Colors.text },
-  fieldLabel: { fontSize: 13, fontWeight: '600' as const, color: Colors.textSecondary, marginTop: 10, marginBottom: 4 },
-  input: { minHeight: 44, borderRadius: 12, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 14, fontSize: 15, color: Colors.text },
-  chip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, backgroundColor: Colors.fillTertiary },
+  modalTitle: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: Colors.text },
+  fieldLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.textSecondary, marginTop: 10, marginBottom: 4 },
+  input: { minHeight: 44, borderRadius: Tokens.radius.card, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 14, fontSize: Type.subhead.fontSize, color: Colors.text },
+  chip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: Tokens.radius.md, backgroundColor: Colors.fillTertiary },
   chipActive: { backgroundColor: Colors.primary },
-  chipText: { fontSize: 13, fontWeight: '600' as const, color: Colors.textSecondary },
+  chipText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.textSecondary },
   chipTextActive: { color: '#FFF' },
   formActions: { flexDirection: 'row', gap: 10, marginTop: 16 },
-  cancelBtn: { flex: 1, minHeight: 48, borderRadius: 14, backgroundColor: Colors.fillTertiary, alignItems: 'center' as const, justifyContent: 'center' as const },
-  cancelBtnText: { fontSize: 15, fontWeight: '700' as const, color: Colors.text },
-  saveBtn: { flex: 2, minHeight: 48, borderRadius: 14, backgroundColor: Colors.primary, alignItems: 'center' as const, justifyContent: 'center' as const },
-  saveBtnText: { fontSize: 15, fontWeight: '700' as const, color: '#FFF' },
+  cancelBtn: { flex: 1, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: Colors.fillTertiary, alignItems: 'center' as const, justifyContent: 'center' as const },
+  cancelBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text },
+  saveBtn: { flex: 2, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: Colors.primary, alignItems: 'center' as const, justifyContent: 'center' as const },
+  saveBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: '#FFF' },
 });

@@ -13,12 +13,14 @@ import {
 import { Colors } from '@/constants/colors';
 import { MOCK_DOCUMENTS, DOCUMENT_TYPE_INFO } from '@/mocks/documents';
 import type { ProjectDocument, DocumentStatus } from '@/types';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 const STATUS_CONFIG: Record<DocumentStatus, { label: string; color: string; bgColor: string; icon: React.ElementType }> = {
   draft: { label: 'Draft', color: '#546E7A', bgColor: '#ECEFF1', icon: FileText },
-  pending_signature: { label: 'Awaiting Signature', color: '#E65100', bgColor: '#FFF3E0', icon: PenTool },
-  signed: { label: 'Signed', color: '#2E7D32', bgColor: '#E8F5E9', icon: Check },
-  expired: { label: 'Expired', color: '#C62828', bgColor: '#FFEBEE', icon: AlertCircle },
+  pending_signature: { label: 'Awaiting Signature', color: Colors.warningDark, bgColor: Colors.warningLight, icon: PenTool },
+  signed: { label: 'Signed', color: Colors.successDark, bgColor: Colors.successLight, icon: Check },
+  expired: { label: 'Expired', color: Colors.errorDark, bgColor: Colors.errorLight, icon: AlertCircle },
   void: { label: 'Void', color: '#9E9E9E', bgColor: '#F5F5F5', icon: XIcon },
 };
 
@@ -50,7 +52,7 @@ function DocumentCard({ doc, onPress }: { doc: ProjectDocument; onPress: () => v
 
         {isExpiringSoon && (
           <View style={styles.expiryWarning}>
-            <AlertCircle size={12} color="#E65100" />
+            <AlertCircle size={12} color={Colors.warningDark} />
             <Text style={styles.expiryWarningText}>
               Expires {new Date(doc.expiresAt!).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
             </Text>
@@ -141,19 +143,19 @@ export default function DocumentsScreen() {
       <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 30 }} showsVerticalScrollIndicator={false}>
         <View style={styles.alertsRow}>
           {stats.pending > 0 && (
-            <View style={[styles.alertCard, { backgroundColor: '#FFF3E0', borderColor: '#FFE0B2' }]}>
-              <PenTool size={16} color="#E65100" />
+            <View style={[styles.alertCard, { backgroundColor: Colors.warningLight, borderColor: '#FFE0B2' }]}>
+              <PenTool size={16} color={Colors.warningDark} />
               <View style={{ flex: 1 }}>
-                <Text style={[styles.alertTitle, { color: '#E65100' }]}>{stats.pending} Awaiting Signature</Text>
+                <Text style={[styles.alertTitle, { color: Colors.warningDark }]}>{stats.pending} Awaiting Signature</Text>
                 <Text style={styles.alertDesc}>Documents need attention</Text>
               </View>
             </View>
           )}
           {stats.expiringSoon > 0 && (
-            <View style={[styles.alertCard, { backgroundColor: '#FFEBEE', borderColor: '#FFCDD2' }]}>
-              <AlertCircle size={16} color="#C62828" />
+            <View style={[styles.alertCard, { backgroundColor: Colors.errorLight, borderColor: '#FFCDD2' }]}>
+              <AlertCircle size={16} color={Colors.errorDark} />
               <View style={{ flex: 1 }}>
-                <Text style={[styles.alertTitle, { color: '#C62828' }]}>{stats.expiringSoon} Expiring Soon</Text>
+                <Text style={[styles.alertTitle, { color: Colors.errorDark }]}>{stats.expiringSoon} Expiring Soon</Text>
                 <Text style={styles.alertDesc}>COIs expiring within 30 days</Text>
               </View>
             </View>
@@ -166,15 +168,15 @@ export default function DocumentsScreen() {
             <Text style={styles.statLabel}>Total</Text>
           </View>
           <View style={styles.statCard}>
-            <Text style={[styles.statValue, { color: '#E65100' }]}>{stats.pending}</Text>
+            <Text style={[styles.statValue, { color: Colors.warningDark }]}>{stats.pending}</Text>
             <Text style={styles.statLabel}>Pending</Text>
           </View>
           <View style={styles.statCard}>
-            <Text style={[styles.statValue, { color: '#2E7D32' }]}>{stats.signed}</Text>
+            <Text style={[styles.statValue, { color: Colors.successDark }]}>{stats.signed}</Text>
             <Text style={styles.statLabel}>Signed</Text>
           </View>
           <View style={styles.statCard}>
-            <Text style={[styles.statValue, { color: '#C62828' }]}>{stats.expired}</Text>
+            <Text style={[styles.statValue, { color: Colors.errorDark }]}>{stats.expired}</Text>
             <Text style={styles.statLabel}>Expired</Text>
           </View>
         </View>
@@ -231,11 +233,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
     padding: 14,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     borderWidth: 1,
   },
-  alertTitle: { fontSize: 14, fontWeight: '600' as const },
-  alertDesc: { fontSize: 12, color: Colors.textSecondary, marginTop: 1 },
+  alertTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const },
+  alertDesc: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, marginTop: 1 },
   statsRow: {
     flexDirection: 'row',
     paddingHorizontal: 16,
@@ -246,18 +248,18 @@ const styles = StyleSheet.create({
   statCard: {
     flex: 1,
     backgroundColor: Colors.surface,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     padding: 12,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: Colors.cardBorder,
   },
-  statValue: { fontSize: 20, fontWeight: '700' as const, color: Colors.text },
-  statLabel: { fontSize: 11, color: Colors.textSecondary, marginTop: 2 },
+  statValue: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: Colors.text },
+  statLabel: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, marginTop: 2 },
   createButton: {
     marginHorizontal: 16,
     backgroundColor: Colors.primary,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     paddingVertical: 14,
     flexDirection: 'row',
     alignItems: 'center',
@@ -270,7 +272,7 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 3,
   },
-  createButtonText: { fontSize: 16, fontWeight: '700' as const, color: '#fff' },
+  createButtonText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: '#fff' },
   filterRow: { paddingHorizontal: 16, gap: 8, paddingBottom: 16 },
   filterChip: {
     paddingHorizontal: 16,
@@ -281,12 +283,12 @@ const styles = StyleSheet.create({
     borderColor: Colors.cardBorder,
   },
   filterChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  filterChipText: { fontSize: 13, fontWeight: '600' as const, color: Colors.textSecondary },
+  filterChipText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.textSecondary },
   filterChipTextActive: { color: '#fff' },
   listSection: { paddingHorizontal: 16 },
   docCard: {
     marginBottom: 10,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     backgroundColor: Colors.surface,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
@@ -295,21 +297,21 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   docCardInner: { padding: 14, gap: 6 },
-  docTypeTag: { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 },
-  docTypeTagText: { fontSize: 11, fontWeight: '600' as const },
-  docTitle: { fontSize: 16, fontWeight: '600' as const, color: Colors.text },
-  docProject: { fontSize: 13, color: Colors.textSecondary },
+  docTypeTag: { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4, borderRadius: Tokens.radius.xs },
+  docTypeTagText: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const },
+  docTitle: { fontSize: Type.callout.fontSize, fontWeight: '600' as const, color: Colors.text },
+  docProject: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary },
   expiryWarning: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: '#FFF3E0',
+    backgroundColor: Colors.warningLight,
     paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: 8,
+    borderRadius: Tokens.radius.sm,
     alignSelf: 'flex-start',
   },
-  expiryWarningText: { fontSize: 12, fontWeight: '500' as const, color: '#E65100' },
+  expiryWarningText: { fontSize: Type.caption1.fontSize, fontWeight: '500' as const, color: Colors.warningDark },
   docFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 },
   docStatusBadge: {
     flexDirection: 'row',
@@ -317,10 +319,10 @@ const styles = StyleSheet.create({
     gap: 4,
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 6,
+    borderRadius: Tokens.radius.xs,
   },
-  docStatusText: { fontSize: 11, fontWeight: '600' as const },
-  docDate: { fontSize: 12, color: Colors.textMuted },
+  docStatusText: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const },
+  docDate: { fontSize: Type.caption1.fontSize, color: Colors.textMuted },
   emptyState: { alignItems: 'center', paddingVertical: 60, gap: 8 },
-  emptyTitle: { fontSize: 17, fontWeight: '600' as const, color: Colors.text },
+  emptyTitle: { fontSize: Type.body.fontSize, fontWeight: '600' as const, color: Colors.text },
 });

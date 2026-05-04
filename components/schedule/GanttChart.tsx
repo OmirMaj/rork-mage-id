@@ -16,6 +16,8 @@ import {
   getPhaseColor,
 } from '@/utils/scheduleEngine';
 import { findWeatherRisk, type DayForecast } from '@/utils/weatherService';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
@@ -87,7 +89,7 @@ function GanttChart({ schedule, tasks, projectStartDate, onTaskPress, showBaseli
       >
         <View style={s.ganttLabel}>
           <View style={s.ganttLabelIcons}>
-            {task.isMilestone && <Flag size={9} color="#FF9500" />}
+            {task.isMilestone && <Flag size={9} color={Colors.warning} />}
             {task.isCriticalPath && <GitBranch size={9} color={Colors.error} />}
             {weatherRisk && <CloudRain size={9} color="#F5A623" />}
           </View>
@@ -107,7 +109,7 @@ function GanttChart({ schedule, tasks, projectStartDate, onTaskPress, showBaseli
             <View
               style={[
                 s.ganttDiamond,
-                { left: `${barLeft}%` as any, backgroundColor: '#007AFF' },
+                { left: `${barLeft}%` as any, backgroundColor: Colors.info },
               ]}
             />
           ) : (
@@ -207,7 +209,7 @@ const s = StyleSheet.create({
     borderRightColor: Colors.borderLight,
   },
   headerLabelText: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     fontWeight: '600' as const,
     color: Colors.textMuted,
     textTransform: 'uppercase' as const,
@@ -234,7 +236,7 @@ const s = StyleSheet.create({
     top: 0,
     bottom: 0,
     width: 2,
-    backgroundColor: '#FF3B30',
+    backgroundColor: Colors.error,
     zIndex: 10,
   },
   phaseHeader: {
@@ -247,12 +249,12 @@ const s = StyleSheet.create({
     borderLeftWidth: 3,
   },
   phaseHeaderText: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
   },
   phaseHeaderCount: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     color: Colors.textMuted,
     fontWeight: '500' as const,
   },
@@ -278,7 +280,7 @@ const s = StyleSheet.create({
   },
   ganttLabelText: {
     flex: 1,
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     fontWeight: '500' as const,
     color: Colors.text,
   },
@@ -328,7 +330,7 @@ const s = StyleSheet.create({
     marginLeft: -8,
     width: 16,
     height: 16,
-    borderRadius: 8,
+    borderRadius: Tokens.radius.sm,
     backgroundColor: '#FFF4E0',
     borderWidth: 1,
     borderColor: '#F5A623',

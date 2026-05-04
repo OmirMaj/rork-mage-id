@@ -11,6 +11,8 @@ import { TRADE_CATEGORIES } from '@/constants/trades';
 import { US_STATES } from '@/constants/regions';
 import type { JobListing, TradeCategory, JobType, ExperienceLevel } from '@/types';
 import { generateUUID } from '@/utils/generateId';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 const JOB_TYPES: { id: JobType; label: string }[] = [
   { id: 'full_time', label: 'Full-Time' }, { id: 'part_time', label: 'Part-Time' },
@@ -172,22 +174,22 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   scroll: { flex: 1 },
   scrollContent: { padding: 16, paddingBottom: 60 },
-  label: { fontSize: 13, fontWeight: '600' as const, color: Colors.textSecondary, marginBottom: 6, marginTop: 14, textTransform: 'uppercase' as const, letterSpacing: 0.3 },
-  input: { backgroundColor: Colors.surface, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: Colors.text, borderWidth: 0.5, borderColor: Colors.borderLight },
+  label: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.textSecondary, marginBottom: 6, marginTop: 14, textTransform: 'uppercase' as const, letterSpacing: 0.3 },
+  input: { backgroundColor: Colors.surface, borderRadius: Tokens.radius.md, paddingHorizontal: 14, paddingVertical: 12, fontSize: Type.subhead.fontSize, color: Colors.text, borderWidth: 0.5, borderColor: Colors.borderLight },
   textArea: { minHeight: 100, textAlignVertical: 'top' as const },
   row: { flexDirection: 'row', gap: 10 },
   halfField: { flex: 1 },
   scrollRow: { maxHeight: 36 },
   stateScroll: { maxHeight: 36 },
-  stateChip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: Colors.surface, marginRight: 4, borderWidth: 0.5, borderColor: Colors.borderLight },
+  stateChip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: Tokens.radius.sm, backgroundColor: Colors.surface, marginRight: 4, borderWidth: 0.5, borderColor: Colors.borderLight },
   stateChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  stateChipText: { fontSize: 13, color: Colors.textSecondary, fontWeight: '600' as const },
+  stateChipText: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, fontWeight: '600' as const },
   stateChipTextActive: { color: '#FFF' },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  chip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8, backgroundColor: Colors.surface, borderWidth: 0.5, borderColor: Colors.borderLight },
+  chip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: Tokens.radius.sm, backgroundColor: Colors.surface, borderWidth: 0.5, borderColor: Colors.borderLight },
   chipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  chipText: { fontSize: 13, color: Colors.textSecondary, fontWeight: '500' as const },
+  chipText: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, fontWeight: '500' as const },
   chipTextActive: { color: '#FFF' },
-  submitBtn: { backgroundColor: Colors.primary, borderRadius: 12, paddingVertical: 16, alignItems: 'center', marginTop: 24 },
-  submitBtnText: { color: '#FFF', fontSize: 16, fontWeight: '700' as const },
+  submitBtn: { backgroundColor: Colors.primary, borderRadius: Tokens.radius.card, paddingVertical: 16, alignItems: 'center', marginTop: 24 },
+  submitBtnText: { color: '#FFF', fontSize: Type.callout.fontSize, fontWeight: '700' as const },
 });

@@ -9,6 +9,8 @@ import * as Haptics from 'expo-haptics';
 import { MessageSquare, Send, Inbox } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 export default function ClientMessagesScreen() {
   const insets = useSafeAreaInsets();
@@ -161,10 +163,7 @@ export default function ClientMessagesScreen() {
           style={[styles.sendBtn, (!composeBody.trim() || sending) && styles.sendBtnDisabled]}
           onPress={handleSend}
           disabled={!composeBody.trim() || sending}
-          activeOpacity={0.8}
-        >
-          <Send size={16} color="#fff" />
-        </TouchableOpacity>
+          activeOpacity={0.8} accessibilityRole="button" accessibilityLabel="Send"><Send size={16} color="#fff" /></TouchableOpacity>
       </View>
     </KeyboardAvoidingView>
   );
@@ -172,12 +171,12 @@ export default function ClientMessagesScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
-  muted: { fontSize: 14, color: Colors.textSecondary, textAlign: 'center', lineHeight: 20, marginTop: 12 },
+  muted: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, textAlign: 'center', lineHeight: 20, marginTop: 12 },
   backBtn: {
     marginTop: 18, paddingHorizontal: 16, paddingVertical: 10,
-    backgroundColor: Colors.primary, borderRadius: 10,
+    backgroundColor: Colors.primary, borderRadius: Tokens.radius.md,
   },
-  backBtnTxt: { color: Colors.textOnPrimary, fontWeight: '600', fontSize: 14 },
+  backBtnTxt: { color: Colors.textOnPrimary, fontWeight: '600', fontSize: Type.bodyCompact.fontSize },
 
   subheader: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
@@ -185,27 +184,27 @@ const styles = StyleSheet.create({
     backgroundColor: `${Colors.primary}0A`,
     borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Colors.border,
   },
-  subheaderTxt: { fontSize: 12, color: Colors.textSecondary, fontWeight: '600' },
+  subheaderTxt: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, fontWeight: '600' },
 
   scroll: { flex: 1 },
   scrollContent: { padding: 16, gap: 8 },
 
   empty: { alignItems: 'center', paddingTop: 60, paddingHorizontal: 24, gap: 8 },
-  emptyTitle: { fontSize: 16, fontWeight: '700', color: Colors.text, marginTop: 8 },
-  emptyHint: { fontSize: 13, color: Colors.textMuted, textAlign: 'center', lineHeight: 18 },
+  emptyTitle: { fontSize: Type.callout.fontSize, fontWeight: '700', color: Colors.text, marginTop: 8 },
+  emptyHint: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, textAlign: 'center', lineHeight: 18 },
 
   row: { flexDirection: 'row' },
   rowMine: { justifyContent: 'flex-end' },
   rowTheirs: { justifyContent: 'flex-start' },
   bubble: {
-    maxWidth: '84%', borderRadius: 14,
+    maxWidth: '84%', borderRadius: Tokens.radius.lg,
     paddingHorizontal: 12, paddingVertical: 8,
   },
   bubbleMine: { backgroundColor: Colors.primary, borderBottomRightRadius: 4 },
   bubbleTheirs: { backgroundColor: Colors.surface, borderBottomLeftRadius: 4, borderWidth: 1, borderColor: Colors.cardBorder },
-  author: { fontSize: 11, fontWeight: '700', color: Colors.textSecondary, marginBottom: 2 },
+  author: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.textSecondary, marginBottom: 2 },
   authorMine: { color: 'rgba(255,255,255,0.85)' },
-  body: { fontSize: 14, color: Colors.text, lineHeight: 19 },
+  body: { fontSize: Type.bodyCompact.fontSize, color: Colors.text, lineHeight: 19 },
   bodyMine: { color: '#fff' },
   time: { fontSize: 10, color: Colors.textMuted, marginTop: 4 },
   timeMine: { color: 'rgba(255,255,255,0.7)' },
@@ -218,12 +217,12 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1, minHeight: 40, maxHeight: 140,
-    borderWidth: 1, borderColor: Colors.border, borderRadius: 10,
+    borderWidth: 1, borderColor: Colors.border, borderRadius: Tokens.radius.md,
     paddingHorizontal: 10, paddingVertical: 8,
-    fontSize: 14, color: Colors.text, backgroundColor: Colors.background,
+    fontSize: Type.bodyCompact.fontSize, color: Colors.text, backgroundColor: Colors.background,
   },
   sendBtn: {
-    width: 40, height: 40, borderRadius: 10,
+    width: 40, height: 40, borderRadius: Tokens.radius.md,
     backgroundColor: Colors.primary,
     alignItems: 'center', justifyContent: 'center',
   },

@@ -1,0 +1,507 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>MAGE ID — App Store Screenshot Builder</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500;1,9..144,600&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    /*
+     * MAGE ID — App Store Screenshot Builder
+     *
+     * Renders at exactly 1290 × 2796 (the 6.7" iPhone Pro Max canvas
+     * Apple requires for App Store Connect). Take a full-page screenshot
+     * in Chrome DevTools (Cmd+Shift+P → "screenshot full size") with the
+     * device toolbar set to Custom 1290×2796, and you have a store-ready
+     * asset. No resize step needed.
+     *
+     * The "phone" frame is pure CSS — no PNG mockup. Drop a screenshot
+     * into raw/, point the preset at it, and you're done.
+     */
+
+    :root {
+      /* App Store 6.7" Pro Max canvas */
+      --w: 1290px;
+      --h: 2796px;
+
+      /* Brand */
+      --accent: #FF6A1A;
+      --accent-deep: #B83F00;
+      --ink: #0B0D10;
+      --cream: #F4EFE6;
+      --muted: #8B9099;
+
+      /* Phone bezel (proportions tuned to read as "iPhone-ish" without
+       * impersonating the actual hardware bezel — Apple rejects mockups
+       * that look like a literal device frame). */
+      --bezel-w: 980px;
+      --bezel-h: 2010px;
+      --bezel-radius: 110px;
+      --screen-radius: 90px;
+      --bezel-color: #1B1F25;
+    }
+
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0; padding: 0;
+      background: #2a2a2a;
+      font-family: 'Inter', system-ui, sans-serif;
+    }
+
+    /* The export canvas — actual App Store dimensions. */
+    .canvas {
+      width: var(--w);
+      height: var(--h);
+      position: relative;
+      overflow: hidden;
+      margin: 32px auto;
+      background: linear-gradient(180deg, var(--ink) 0%, #1A1F26 60%, #2A1A0F 100%);
+    }
+
+    /* Soft accent glows top-right + bottom-left so the canvas reads warm
+     * even before the phone is dropped in. */
+    .accent-glow {
+      position: absolute;
+      width: 1400px; height: 1400px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(255,106,26,0.25) 0%, transparent 70%);
+      top: -200px; right: -400px;
+      pointer-events: none;
+    }
+    .accent-glow.bottom {
+      top: auto; right: auto;
+      bottom: -400px; left: -200px;
+      width: 1200px; height: 1200px;
+      background: radial-gradient(circle, rgba(255,106,26,0.18) 0%, transparent 70%);
+    }
+
+    /* Faint blueprint grid behind everything. Construction tell. */
+    .grid-bg {
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+      background-size: 60px 60px;
+      pointer-events: none;
+    }
+
+    /* Headline area — pinned to the top portion of the canvas. */
+    .headline {
+      position: absolute;
+      top: 160px; left: 80px; right: 80px;
+      text-align: center;
+      z-index: 5;
+    }
+    .headline .eyebrow {
+      font-family: 'Inter', system-ui, sans-serif;
+      font-size: 28px;
+      font-weight: 800;
+      letter-spacing: 4px;
+      color: var(--accent);
+      text-transform: uppercase;
+      margin-bottom: 28px;
+    }
+    .headline h1 {
+      font-family: 'Fraunces', Georgia, serif;
+      font-size: 108px;
+      font-weight: 700;
+      line-height: 1.04;
+      letter-spacing: -0.02em;
+      color: var(--cream);
+      margin: 0 0 28px;
+    }
+    .headline h1 em {
+      font-style: italic;
+      color: var(--accent);
+    }
+    .headline p {
+      font-family: 'Inter', system-ui, sans-serif;
+      font-size: 34px;
+      font-weight: 500;
+      line-height: 1.35;
+      color: rgba(244,239,230,0.72);
+      margin: 0;
+      max-width: 1080px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    /* Phone — pure CSS bezel + drop shadow. No image dependency. */
+    .phone {
+      position: absolute;
+      bottom: 90px; left: 50%;
+      transform: translateX(-50%);
+      width: var(--bezel-w);
+      height: var(--bezel-h);
+      background: var(--bezel-color);
+      border-radius: var(--bezel-radius);
+      padding: 24px;
+      z-index: 4;
+      box-shadow:
+        0 80px 160px rgba(0,0,0,0.5),
+        0 30px 60px rgba(0,0,0,0.35),
+        inset 0 0 0 6px rgba(255,255,255,0.08);
+    }
+    .phone .screen {
+      width: 100%;
+      height: 100%;
+      border-radius: var(--screen-radius);
+      overflow: hidden;
+      background: var(--cream);
+      position: relative;
+    }
+    .phone .screen img {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: top center;
+    }
+    .placeholder {
+      width: 100%; height: 100%;
+      background:
+        radial-gradient(circle at 30% 20%, rgba(255,106,26,0.15) 0%, transparent 50%),
+        linear-gradient(135deg, #F8F2E4, #FAEED1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #8B9099;
+      font-family: 'Inter', sans-serif;
+      font-size: 32px;
+      font-weight: 600;
+      flex-direction: column;
+      gap: 18px;
+      padding: 80px;
+      text-align: center;
+    }
+    .placeholder .icon { font-size: 96px; }
+    .placeholder code {
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
+      font-size: 24px;
+      background: rgba(0,0,0,0.06);
+      padding: 8px 14px;
+      border-radius: 8px;
+      color: #5a5a5a;
+    }
+
+    /* Dynamic-Island-style notch. CSS-only. */
+    .notch {
+      position: absolute;
+      top: 28px; left: 50%;
+      transform: translateX(-50%);
+      width: 280px; height: 40px;
+      background: #000;
+      border-radius: 999px;
+      z-index: 6;
+    }
+
+    /* Optional accent callout pin. Toggled per-preset. */
+    .callout {
+      position: absolute;
+      background: var(--accent);
+      color: #fff;
+      padding: 18px 26px;
+      border-radius: 18px;
+      font-family: 'Inter', sans-serif;
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      box-shadow: 0 16px 40px rgba(255,106,26,0.45);
+      z-index: 7;
+      max-width: 360px;
+    }
+    .callout::after {
+      content: '';
+      position: absolute;
+      width: 0; height: 0;
+      border: 14px solid transparent;
+    }
+    .callout.bottom-left {
+      bottom: 580px; left: 60px;
+      transform: rotate(-2deg);
+    }
+    .callout.bottom-left::after {
+      bottom: -22px; left: 40px;
+      border-top-color: var(--accent);
+    }
+    .callout.top-right {
+      top: 880px; right: 60px;
+      transform: rotate(2deg);
+    }
+    .callout.top-right::after {
+      top: -22px; right: 40px;
+      border-bottom-color: var(--accent);
+    }
+
+    /* Brand mark anchored to the bottom edge. */
+    .brand-mark {
+      position: absolute;
+      bottom: 36px; left: 0; right: 0;
+      text-align: center;
+      font-family: 'Inter', system-ui, sans-serif;
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: 8px;
+      color: rgba(244,239,230,0.36);
+      z-index: 3;
+    }
+
+    /* Preset selector — visible while authoring, dropped from the export
+     * via the .export-mode class (toggle bottom-right). */
+    .controls {
+      position: fixed;
+      top: 16px; right: 16px;
+      background: rgba(0,0,0,0.92);
+      color: #fff;
+      padding: 18px;
+      border-radius: 14px;
+      font-family: 'Inter', sans-serif;
+      font-size: 13px;
+      max-width: 340px;
+      z-index: 100;
+      backdrop-filter: blur(12px);
+    }
+    .controls h3 {
+      margin: 0 0 12px;
+      font-size: 11px;
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+      opacity: 0.6;
+    }
+    .controls button {
+      display: block;
+      width: 100%;
+      text-align: left;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      color: #fff;
+      padding: 9px 12px;
+      margin: 5px 0;
+      border-radius: 9px;
+      cursor: pointer;
+      font-size: 12.5px;
+      font-family: inherit;
+      letter-spacing: 0.3px;
+      transition: background 120ms;
+    }
+    .controls button:hover { background: rgba(255,255,255,0.1); }
+    .controls button.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      font-weight: 600;
+    }
+    .controls .tip {
+      margin: 14px 0 0;
+      font-size: 11.5px;
+      line-height: 1.45;
+      opacity: 0.65;
+    }
+    .controls .tip code {
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
+      background: rgba(255,255,255,0.08);
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-size: 11px;
+    }
+    body.export-mode .controls { display: none; }
+
+    @media print {
+      body { background: white; }
+      .controls { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="controls">
+  <h3>Preset · Headline / Image</h3>
+  <div id="preset-list"></div>
+  <p class="tip">
+    <strong>Export:</strong><br>
+    1. DevTools (Cmd+Opt+I) → Device Toolbar (Cmd+Shift+M)<br>
+    2. Custom: <code>1290 × 2796</code><br>
+    3. Cmd+Shift+P → "screenshot full size"<br>
+    4. PNG drops to Downloads, App-Store ready.
+  </p>
+  <p class="tip" style="margin-top: 10px;">
+    Or press <code>E</code> to hide controls before screenshotting.
+  </p>
+</div>
+
+<div class="canvas" id="canvas">
+  <div class="accent-glow"></div>
+  <div class="accent-glow bottom"></div>
+  <div class="grid-bg"></div>
+
+  <div class="headline">
+    <p class="eyebrow" id="eyebrow">AI ESTIMATE</p>
+    <h1 id="title">Drop a PDF. <em>Get a priced estimate.</em></h1>
+    <p id="subtitle">In 60 seconds, AI turns architect's drawings into editable line items.</p>
+  </div>
+
+  <div class="phone">
+    <div class="notch"></div>
+    <div class="screen" id="screen"></div>
+  </div>
+
+  <div class="callout bottom-left" id="callout-bl" style="display:none;"></div>
+  <div class="callout top-right" id="callout-tr" style="display:none;"></div>
+
+  <div class="brand-mark">M A G E   I D</div>
+</div>
+
+<script>
+/**
+ * 10 presets matching the App Store screenshot order in
+ * docs/app-store-metadata.md. Tweak headline / subtitle / image / callouts
+ * here, save, refresh — no build step.
+ *
+ * `image` is relative to this file. Drop your raw screenshots into
+ * `raw/01-drawing-analyzer.png` etc.
+ */
+const PRESETS = [
+  {
+    id: '01',
+    eyebrow: 'AI ESTIMATE',
+    title: "Drop a PDF. <em>Get a priced estimate.</em>",
+    subtitle: "In 60 seconds, AI turns architect's drawings into editable line items.",
+    image: 'raw/01-drawing-analyzer.png',
+    callout: { position: 'bottom-left', text: '60-sec analysis' },
+  },
+  {
+    id: '02',
+    eyebrow: 'YOUR PROJECTS',
+    title: "Every project. <em>One tap away.</em>",
+    subtitle: "Active jobs, budget burn, and the next thing that needs you — on the home screen.",
+    image: 'raw/02-home.png',
+  },
+  {
+    id: '03',
+    eyebrow: 'TAKEOFF',
+    title: "Quantities <em>off the sheet.</em>",
+    subtitle: "Linear feet, square feet, doors, windows — measured by AI, verified in the field.",
+    image: 'raw/03-takeoff.png',
+    callout: { position: 'top-right', text: 'LF · SF · EA · CY' },
+  },
+  {
+    id: '04',
+    eyebrow: 'SCHEDULE',
+    title: "<em>Critical path</em> on your phone.",
+    subtitle: "Pinch-to-zoom Gantt, dependencies, milestones. Built for the truck.",
+    image: 'raw/04-schedule.png',
+  },
+  {
+    id: '05',
+    eyebrow: 'DCMA HEALTH',
+    title: "Schedule health, <em>federal-grade.</em>",
+    subtitle: "The 14-point assessment Primavera P6 charges for, built into MAGE.",
+    image: 'raw/05-dcma.png',
+    callout: { position: 'bottom-left', text: 'Free · No P6' },
+  },
+  {
+    id: '06',
+    eyebrow: 'AIA PAY APP',
+    title: "G702 / G703. <em>One screen.</em>",
+    subtitle: "Schedule of values, retainage math, change orders, e-sign export.",
+    image: 'raw/06-aia.png',
+  },
+  {
+    id: '07',
+    eyebrow: 'CASH FLOW',
+    title: "Know which job <em>is making money.</em>",
+    subtitle: "Budget vs actual by cost code. Live, the moment a bill hits.",
+    image: 'raw/07-cash-flow.png',
+  },
+  {
+    id: '08',
+    eyebrow: 'DAILY REPORT',
+    title: "Voice-to-log. <em>30 seconds.</em>",
+    subtitle: "Speak the day. AI structures it into a daily report your owner can read.",
+    image: 'raw/08-daily.png',
+    callout: { position: 'top-right', text: 'Hands-free' },
+  },
+  {
+    id: '09',
+    eyebrow: 'CLIENT PORTAL',
+    title: "Six languages. <em>Zero apps.</em>",
+    subtitle: "The portal homeowners actually open. AI Daily Digest, e-sign, selections.",
+    image: 'raw/09-portal.png',
+  },
+  {
+    id: '10',
+    eyebrow: 'BUILT FOR GCs',
+    title: "$1M – $30M jobs. <em>From the truck.</em>",
+    subtitle: "The operating system for residential and small-commercial general contractors.",
+    image: 'raw/10-onboarding.png',
+  },
+];
+
+function makePlaceholder(imagePath) {
+  const div = document.createElement('div');
+  div.className = 'placeholder';
+  div.innerHTML = `
+    <div class="icon">📷</div>
+    <div>Drop your screenshot at</div>
+    <code>${imagePath}</code>
+    <div style="font-size: 22px; opacity: 0.7; margin-top: 8px;">PNG, native phone resolution</div>
+  `;
+  return div;
+}
+
+function applyPreset(p, btn) {
+  document.querySelectorAll('.controls button').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+
+  document.getElementById('eyebrow').textContent = p.eyebrow;
+  document.getElementById('title').innerHTML = p.title;
+  document.getElementById('subtitle').textContent = p.subtitle;
+
+  // Replace the screen content
+  const screen = document.getElementById('screen');
+  const img = document.createElement('img');
+  img.alt = '';
+  img.src = p.image;
+  img.onerror = function () { this.replaceWith(makePlaceholder(p.image)); };
+  screen.replaceChildren(img);
+
+  // Callouts
+  const bl = document.getElementById('callout-bl');
+  const tr = document.getElementById('callout-tr');
+  bl.style.display = 'none';
+  tr.style.display = 'none';
+  if (p.callout) {
+    const target = p.callout.position === 'top-right' ? tr : bl;
+    target.textContent = p.callout.text;
+    target.style.display = 'block';
+  }
+
+  document.title = `MAGE ID — Screenshot ${p.id} · ${p.eyebrow}`;
+  // Persist across reload — handy when you're iterating on a single shot.
+  try { localStorage.setItem('mage-screenshot-preset', p.id); } catch (e) { /* private mode */ }
+}
+
+const list = document.getElementById('preset-list');
+PRESETS.forEach((p, i) => {
+  const btn = document.createElement('button');
+  btn.textContent = `${p.id}. ${p.eyebrow}`;
+  btn.onclick = () => applyPreset(p, btn);
+  list.appendChild(btn);
+});
+
+// Restore last-used preset (or default to first).
+const saved = (() => { try { return localStorage.getItem('mage-screenshot-preset'); } catch (e) { return null; } })();
+const startIdx = Math.max(0, PRESETS.findIndex(p => p.id === saved));
+applyPreset(PRESETS[startIdx], list.children[startIdx]);
+
+// Press 'E' to toggle export mode (hide controls).
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'e' || e.key === 'E') {
+    document.body.classList.toggle('export-mode');
+  }
+});
+</script>
+
+</body>
+</html>

@@ -13,6 +13,8 @@ import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Animated, Easing, Platform } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { Colors } from '@/constants/colors';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 interface EmptyStateProps {
   icon: React.ReactNode;
@@ -168,7 +170,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center' as const,
   },
   title: {
-    fontSize: 22,
+    fontSize: Type.title2.fontSize,
     fontWeight: '800' as const,
     color: Colors.text,
     textAlign: 'center' as const,
@@ -176,7 +178,7 @@ const styles = StyleSheet.create({
     letterSpacing: -0.4,
   },
   message: {
-    fontSize: 15,
+    fontSize: Type.subhead.fontSize,
     color: Colors.textSecondary,
     textAlign: 'center' as const,
     lineHeight: 22,
@@ -186,15 +188,15 @@ const styles = StyleSheet.create({
   button: {
     paddingHorizontal: 28,
     paddingVertical: 14,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.18,
     shadowRadius: 12,
     elevation: 3,
   },
   buttonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
+    color: Colors.surface,
+    fontSize: Type.callout.fontSize,
     fontWeight: '700' as const,
     letterSpacing: 0.2,
   },
@@ -205,7 +207,7 @@ const styles = StyleSheet.create({
   },
   secondaryText: {
     color: Colors.textSecondary,
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     fontWeight: '600' as const,
   },
 });

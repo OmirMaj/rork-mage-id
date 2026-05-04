@@ -461,6 +461,13 @@ Deno.serve(async (req) => {
 
     console.log('=== Data fetch cycle complete ===')
 
+    // Heartbeat: tell BetterStack this cron ran successfully. Alerts
+    // fire if the ping doesn't arrive within 6h + 30min grace.
+    const heartbeatUrl = Deno.env.get('BETTERSTACK_HEARTBEAT_FETCH_EXTERNAL')
+    if (heartbeatUrl) {
+      await fetch(heartbeatUrl).catch(() => {})
+    }
+
     return new Response(
       JSON.stringify({ success: true, message: 'Data fetch cycle complete', timestamp: new Date().toISOString() }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 },

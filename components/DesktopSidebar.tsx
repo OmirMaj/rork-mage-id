@@ -9,6 +9,8 @@ import {
 import { Colors } from '@/constants/colors';
 import { useSearch } from '@/contexts/SearchContext';
 import { useTierAccess, type FeatureKey } from '@/hooks/useTierAccess';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 interface NavItem {
   key: string;
@@ -140,10 +142,14 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
                   } as any : {})}
                   testID={`sidebar-${item.key}`}
                 >
-                  {active && <View style={styles.activeIndicator} />}
+                  {/* Active state is now a solid pill (matches the SaaS-
+                      dashboard reference) instead of a left-bar + 9% tint
+                      combo. Pill alone reads cleaner; the bar was redundant
+                      visual noise once the bg was strong enough to anchor
+                      the active item. */}
                   <Icon
                     size={18}
-                    color={active ? Colors.primary : hovered ? Colors.text : Colors.textSecondary}
+                    color={active ? Colors.textOnPrimary : hovered ? Colors.text : Colors.textSecondary}
                     strokeWidth={active ? 2.2 : 1.8}
                   />
                   <Text style={[
@@ -165,11 +171,16 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
         ))}
       </ScrollView>
 
-      <View style={styles.footer}>
-        <View style={styles.footerDivider} />
-        <Text style={styles.footerText}>MAGE ID v2.0</Text>
-        <Text style={styles.footerSubtext}>Desktop Mode</Text>
-      </View>
+      {/* Dev-mode footer — only shown in dev builds. The "v2.0 / Desktop
+          Mode" label was reading as a debug stamp on the production site;
+          quiet by default, available locally for build diagnostics. */}
+      {__DEV__ && (
+        <View style={styles.footer}>
+          <View style={styles.footerDivider} />
+          <Text style={styles.footerText}>MAGE ID v2.0</Text>
+          <Text style={styles.footerSubtext}>Desktop Mode</Text>
+        </View>
+      )}
     </View>
   );
 });
@@ -193,16 +204,16 @@ const styles = StyleSheet.create({
   brandIcon: {
     width: 40,
     height: 40,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
     backgroundColor: Colors.primary,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
     marginBottom: 8,
   },
   brandName: {
-    fontSize: 16,
+    fontSize: Type.callout.fontSize,
     fontWeight: '800' as const,
-    color: '#FFFFFF',
+    color: Colors.surface,
     letterSpacing: 1,
   },
   brandTagline: {
@@ -232,36 +243,31 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingVertical: 10,
     paddingHorizontal: 12,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
     marginBottom: 2,
     position: 'relative' as const,
   },
+  // Solid pill in brand green for the active item — high-contrast against
+  // the dark sidebar surface, matches the reference dashboard's active
+  // treatment. Replaces the 9%-opacity tint + left-bar combo, which was
+  // too subtle on a dark bg to read as "you are here".
   navItemActive: {
-    backgroundColor: Colors.primary + '15',
+    backgroundColor: Colors.primary,
   },
   navItemHovered: {
     backgroundColor: 'rgba(255,255,255,0.06)',
   },
-  activeIndicator: {
-    position: 'absolute' as const,
-    left: 0,
-    top: 8,
-    bottom: 8,
-    width: 3,
-    borderRadius: 2,
-    backgroundColor: Colors.primary,
-  },
   navLabel: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     fontWeight: '500' as const,
     color: 'rgba(255,255,255,0.6)',
   },
   navLabelActive: {
-    color: Colors.primary,
+    color: Colors.textOnPrimary,
     fontWeight: '600' as const,
   },
   navLabelHovered: {
-    color: '#FFFFFF',
+    color: Colors.surface,
   },
   searchItem: {
     backgroundColor: 'rgba(255,255,255,0.04)',
@@ -292,7 +298,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   footerText: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     fontWeight: '700' as const,
     color: 'rgba(255,255,255,0.25)',
     letterSpacing: 0.5,
@@ -306,7 +312,7 @@ const styles = StyleSheet.create({
     marginLeft: 'auto' as const,
     width: 18,
     height: 18,
-    borderRadius: 6,
+    borderRadius: Tokens.radius.xs,
     backgroundColor: 'rgba(255,255,255,0.06)',
     alignItems: 'center' as const,
     justifyContent: 'center' as const,

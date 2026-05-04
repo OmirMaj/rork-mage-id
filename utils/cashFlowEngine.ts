@@ -26,8 +26,8 @@ export interface ExpectedPayment {
 export interface CashFlowWeek {
   weekStart: string;
   weekEnd: string;
-  incomeItems: Array<{ description: string; amount: number; confidence: string }>;
-  expenseItems: Array<{ description: string; amount: number; category: string }>;
+  incomeItems: { description: string; amount: number; confidence: string }[];
+  expenseItems: { description: string; amount: number; category: string }[];
   totalIncome: number;
   totalExpenses: number;
   netCashFlow: number;
@@ -42,7 +42,7 @@ export interface CashFlowSummary {
   lowestBalanceWeek: number;
   highestBalance: number;
   highestBalanceWeek: number;
-  dangerWeeks: Array<{ weekNumber: number; weekDate: string; balance: number }>;
+  dangerWeeks: { weekNumber: number; weekDate: string; balance: number }[];
 }
 
 /**

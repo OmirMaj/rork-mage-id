@@ -12,6 +12,8 @@ import {
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import type { Invoice, Project } from '@/types';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 function formatCurrency(n: number): string {
   return '$' + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
@@ -277,49 +279,49 @@ const styles = StyleSheet.create({
   hero: { alignItems: 'center' as const, paddingVertical: 28, paddingHorizontal: 20, gap: 6 },
   heroIconWrap: { width: 56, height: 56, borderRadius: 28, backgroundColor: Colors.warning + '15', alignItems: 'center' as const, justifyContent: 'center' as const, marginBottom: 8 },
   heroAmount: { fontSize: 36, fontWeight: '800' as const, color: Colors.text, letterSpacing: -1.2 },
-  heroLabel: { fontSize: 14, color: Colors.textSecondary, fontWeight: '600' as const },
-  heroMeta: { fontSize: 12, color: Colors.textMuted, marginTop: 4 },
+  heroLabel: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, fontWeight: '600' as const },
+  heroMeta: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 4 },
 
   metricsRow: { flexDirection: 'row' as const, gap: 10, paddingHorizontal: 16, marginBottom: 20 },
-  metricCard: { flex: 1, backgroundColor: Colors.surface, borderRadius: 14, padding: 12, borderWidth: 1, gap: 4, alignItems: 'flex-start' as const },
-  metricValue: { fontSize: 18, fontWeight: '800' as const, color: Colors.text, marginTop: 4 },
-  metricLabel: { fontSize: 11, color: Colors.textMuted, fontWeight: '600' as const },
+  metricCard: { flex: 1, backgroundColor: Colors.surface, borderRadius: Tokens.radius.lg, padding: 12, borderWidth: 1, gap: 4, alignItems: 'flex-start' as const },
+  metricValue: { fontSize: Type.subheadline.fontSize, fontWeight: '800' as const, color: Colors.text, marginTop: 4 },
+  metricLabel: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontWeight: '600' as const },
 
-  emptyState: { margin: 16, padding: 28, backgroundColor: Colors.surface, borderRadius: 16, borderWidth: 1, borderColor: Colors.cardBorder, alignItems: 'center' as const, gap: 10 },
-  emptyTitle: { fontSize: 17, fontWeight: '700' as const, color: Colors.text, marginTop: 6 },
-  emptyBody: { fontSize: 13, color: Colors.textSecondary, textAlign: 'center' as const, lineHeight: 19 },
-  emptyBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6, paddingVertical: 10, paddingHorizontal: 16, borderRadius: 10, backgroundColor: Colors.primary + '15', marginTop: 6 },
-  emptyBtnText: { fontSize: 13, fontWeight: '600' as const, color: Colors.primary },
+  emptyState: { margin: 16, padding: 28, backgroundColor: Colors.surface, borderRadius: Tokens.radius.panel, borderWidth: 1, borderColor: Colors.cardBorder, alignItems: 'center' as const, gap: 10 },
+  emptyTitle: { fontSize: Type.body.fontSize, fontWeight: '700' as const, color: Colors.text, marginTop: 6 },
+  emptyBody: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, textAlign: 'center' as const, lineHeight: 19 },
+  emptyBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6, paddingVertical: 10, paddingHorizontal: 16, borderRadius: Tokens.radius.md, backgroundColor: Colors.primary + '15', marginTop: 6 },
+  emptyBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.primary },
 
-  projectCard: { marginHorizontal: 16, marginBottom: 12, backgroundColor: Colors.surface, borderRadius: 16, borderWidth: 1, borderColor: Colors.cardBorder, overflow: 'hidden' as const },
+  projectCard: { marginHorizontal: 16, marginBottom: 12, backgroundColor: Colors.surface, borderRadius: Tokens.radius.panel, borderWidth: 1, borderColor: Colors.cardBorder, overflow: 'hidden' as const },
   projectHeader: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 12, padding: 14 },
-  projectIconWrap: { width: 36, height: 36, borderRadius: 10, backgroundColor: Colors.fillTertiary, alignItems: 'center' as const, justifyContent: 'center' as const },
-  projectName: { fontSize: 15, fontWeight: '700' as const, color: Colors.text },
-  projectMeta: { fontSize: 12, color: Colors.textMuted, marginTop: 2 },
+  projectIconWrap: { width: 36, height: 36, borderRadius: Tokens.radius.md, backgroundColor: Colors.fillTertiary, alignItems: 'center' as const, justifyContent: 'center' as const },
+  projectName: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text },
+  projectMeta: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2 },
   projectAmountWrap: { alignItems: 'flex-end' as const },
-  projectAmount: { fontSize: 16, fontWeight: '800' as const, color: Colors.warning },
+  projectAmount: { fontSize: Type.callout.fontSize, fontWeight: '800' as const, color: Colors.warning },
   projectAmountLabel: { fontSize: 10, color: Colors.textMuted, fontWeight: '600' as const, textTransform: 'uppercase' as const, letterSpacing: 0.4 },
 
   progressBarWrap: { paddingHorizontal: 14, paddingBottom: 12, flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10 },
   progressBarTrack: { flex: 1, height: 6, borderRadius: 3, backgroundColor: Colors.fillSecondary, overflow: 'hidden' as const },
   progressBarFill: { height: '100%' as const, borderRadius: 3 },
-  progressBarText: { fontSize: 11, color: Colors.textMuted, fontWeight: '600' as const, minWidth: 70, textAlign: 'right' as const },
+  progressBarText: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontWeight: '600' as const, minWidth: 70, textAlign: 'right' as const },
 
   expandedSection: { borderTopWidth: 1, borderTopColor: Colors.borderLight, padding: 14, gap: 6 },
   detailRow: { flexDirection: 'row' as const, justifyContent: 'space-between' as const, alignItems: 'center' as const, paddingVertical: 3 },
-  detailLabel: { fontSize: 13, color: Colors.textSecondary, fontWeight: '500' as const },
-  detailValue: { fontSize: 13, color: Colors.text, fontWeight: '600' as const },
-  detailLabelBold: { fontSize: 14, color: Colors.text, fontWeight: '700' as const },
-  detailValueBold: { fontSize: 14, fontWeight: '800' as const },
+  detailLabel: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, fontWeight: '500' as const },
+  detailValue: { fontSize: Type.footnote.fontSize, color: Colors.text, fontWeight: '600' as const },
+  detailLabelBold: { fontSize: Type.bodyCompact.fontSize, color: Colors.text, fontWeight: '700' as const },
+  detailValueBold: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800' as const },
 
-  invoicesSectionLabel: { fontSize: 11, fontWeight: '700' as const, color: Colors.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.6, marginTop: 10, marginBottom: 4 },
+  invoicesSectionLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: Colors.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.6, marginTop: 10, marginBottom: 4 },
   invoiceRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, paddingVertical: 8 },
-  invoiceIconWrap: { width: 28, height: 28, borderRadius: 8, backgroundColor: Colors.primary + '12', alignItems: 'center' as const, justifyContent: 'center' as const },
-  invoiceTitle: { fontSize: 13, fontWeight: '600' as const, color: Colors.text },
-  invoiceMeta: { fontSize: 11, color: Colors.textMuted, marginTop: 2 },
-  invoiceRetention: { fontSize: 14, fontWeight: '700' as const },
+  invoiceIconWrap: { width: 28, height: 28, borderRadius: Tokens.radius.sm, backgroundColor: Colors.primary + '12', alignItems: 'center' as const, justifyContent: 'center' as const },
+  invoiceTitle: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.text },
+  invoiceMeta: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 2 },
+  invoiceRetention: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const },
   invoiceRetentionLabel: { fontSize: 10, color: Colors.textMuted, fontWeight: '600' as const },
 
-  tipCard: { marginHorizontal: 16, marginTop: 8, padding: 14, backgroundColor: Colors.primary + '10', borderRadius: 12, flexDirection: 'row' as const, alignItems: 'flex-start' as const, gap: 10 },
-  tipText: { flex: 1, fontSize: 12, color: Colors.primary, lineHeight: 17, fontWeight: '500' as const },
+  tipCard: { marginHorizontal: 16, marginTop: 8, padding: 14, backgroundColor: Colors.primary + '10', borderRadius: Tokens.radius.card, flexDirection: 'row' as const, alignItems: 'flex-start' as const, gap: 10 },
+  tipText: { flex: 1, fontSize: Type.caption1.fontSize, color: Colors.primary, lineHeight: 17, fontWeight: '500' as const },
 });

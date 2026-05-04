@@ -149,12 +149,12 @@ export interface G704Data {
   /** Date the work was substantially complete per the certificate. */
   dateOfSubstantialCompletion: string;
   /** Items still to be completed or corrected (the "punch"). */
-  punchList: Array<{
+  punchList: {
     description: string;
     location?: string;
     trade?: string;
     estimatedCost?: number;
-  }>;
+  }[];
   /** Date by which the contractor will complete the punch. */
   punchCompletionDate?: string;
   /** Warranty / responsibility transfer date — usually = SC date. */
@@ -333,7 +333,7 @@ export interface G706AData {
   contractorState: string;
   contractorCounty?: string;
   /** Subcontractors / suppliers who have NOT yet provided final waivers. */
-  unreleasedClaimants?: Array<{ name: string; reason: string; amount?: number }>;
+  unreleasedClaimants?: { name: string; reason: string; amount?: number }[];
 }
 
 function buildG706AHtml(data: G706AData, branding: CompanyBranding): string {

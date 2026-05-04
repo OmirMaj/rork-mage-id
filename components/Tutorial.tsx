@@ -27,6 +27,8 @@ import {
   Pencil, ScrollText, Globe, Bell, Footprints,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 // Bumped to v2 so existing users see the post-Wave-5 walkthrough
 // (contracts, AI selections, closeout binder, photo markup, AI daily
@@ -571,9 +573,14 @@ const STEPS: TutorialStep[] = [
 interface TutorialProps {
   visible: boolean;
   onClose: () => void;
+  /** Optional substring matched (case-insensitive) against step titles
+   *  on open. Lets callers deep-link to a specific feature explainer
+   *  (e.g. from a FeatureExplainerSheet "Walk me through it" CTA).
+   *  Falls back to step 0 if no match. */
+  startAtStepKey?: string;
 }
 
-export default function Tutorial({ visible, onClose }: TutorialProps) {
+export default function Tutorial({ visible, onClose, startAtStepKey }: TutorialProps) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [index, setIndex] = useState(0);
@@ -581,13 +588,21 @@ export default function Tutorial({ visible, onClose }: TutorialProps) {
   // green check on the progress indicator and enable Next.
   const [done, setDone] = useState<boolean[]>(() => STEPS.map(() => false));
 
-  // Reset when the tutorial re-opens.
+  // Reset when the tutorial re-opens. If a startAtStepKey is supplied,
+  // jump to the first step whose title contains it (case-insensitive)
+  // so callers can deep-link to a relevant tour step.
   useEffect(() => {
     if (visible) {
-      setIndex(0);
+      let startIdx = 0;
+      if (startAtStepKey) {
+        const needle = startAtStepKey.toLowerCase();
+        const found = STEPS.findIndex(s => s.title.toLowerCase().includes(needle));
+        if (found >= 0) startIdx = found;
+      }
+      setIndex(startIdx);
       setDone(STEPS.map(() => false));
     }
-  }, [visible]);
+  }, [visible, startAtStepKey]);
 
   const step = STEPS[index];
   const isLast = index === STEPS.length - 1;
@@ -636,9 +651,7 @@ export default function Tutorial({ visible, onClose }: TutorialProps) {
     <Modal visible={visible} animationType="slide" transparent={false} onRequestClose={finish}>
       <View style={[styles.container, { paddingTop: insets.top + 8, paddingBottom: insets.bottom }]}>
         <View style={styles.topBar}>
-          <TouchableOpacity onPress={finish} style={styles.closeBtn} testID="tutorial-close">
-            <X size={22} color={Colors.textMuted} />
-          </TouchableOpacity>
+          <TouchableOpacity onPress={finish} style={styles.closeBtn} testID="tutorial-close" accessibilityRole="button" accessibilityLabel="Close"><X size={22} color={Colors.textMuted} /></TouchableOpacity>
           <View style={styles.progressDots}>
             {STEPS.map((_, i) => (
               <View
@@ -758,7 +771,7 @@ const styles = StyleSheet.create({
   closeBtn: {
     width: 36,
     height: 36,
-    borderRadius: 18,
+    borderRadius: Tokens.radius.xl,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
     backgroundColor: Colors.surface,
@@ -783,7 +796,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.success,
   },
   progressLabel: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
     color: Colors.textMuted,
     minWidth: 36,
@@ -815,14 +828,14 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   title: {
-    fontSize: 22,
+    fontSize: Type.title2.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
     textAlign: 'center' as const,
     marginBottom: 8,
   },
   body: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     color: Colors.textMuted,
     textAlign: 'center' as const,
     lineHeight: 20,
@@ -836,12 +849,12 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary + '10',
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
     marginBottom: 12,
     alignSelf: 'center' as const,
   },
   instructionText: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
     color: Colors.primary,
   },
@@ -852,13 +865,13 @@ const styles = StyleSheet.create({
     marginTop: 10,
     paddingVertical: 8,
     paddingHorizontal: 14,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
     borderWidth: 1,
     borderColor: Colors.primary + '40',
     backgroundColor: Colors.surface,
   },
   deepLinkText: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     color: Colors.primary,
     fontWeight: '600' as const,
   },
@@ -874,14 +887,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center' as const,
     gap: 6,
     backgroundColor: Colors.surface,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     paddingVertical: 14,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
   },
   secondaryBtnDisabled: { opacity: 0.5 },
   secondaryText: {
-    fontSize: 15,
+    fontSize: Type.subhead.fontSize,
     fontWeight: '600' as const,
     color: Colors.text,
   },
@@ -892,14 +905,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center' as const,
     gap: 6,
     backgroundColor: Colors.primary,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     paddingVertical: 14,
   },
   primaryBtnDisabled: {
     opacity: 0.4,
   },
   primaryText: {
-    fontSize: 16,
+    fontSize: Type.callout.fontSize,
     fontWeight: '700' as const,
     color: '#FFF',
   },
@@ -908,7 +921,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   skipText: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: Colors.textMuted,
     fontWeight: '500' as const,
   },
@@ -920,7 +933,7 @@ const demoStyles = StyleSheet.create({
   mockScreen: {
     width: '100%' as const,
     backgroundColor: Colors.surface,
-    borderRadius: 16,
+    borderRadius: Tokens.radius.panel,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
     padding: 14,
@@ -933,7 +946,7 @@ const demoStyles = StyleSheet.create({
     marginBottom: 10,
   },
   mockHeaderText: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '700' as const,
     color: Colors.textSecondary,
     letterSpacing: 0.5,
@@ -943,12 +956,12 @@ const demoStyles = StyleSheet.create({
   },
   mockProjectRow: {
     backgroundColor: Colors.fillTertiary,
-    borderRadius: 8,
+    borderRadius: Tokens.radius.sm,
     paddingVertical: 10,
     paddingHorizontal: 12,
   },
   mockProjectText: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: Colors.text,
     fontWeight: '500' as const,
   },
@@ -957,12 +970,12 @@ const demoStyles = StyleSheet.create({
     alignItems: 'center' as const,
   },
   mockEmptyText: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     color: Colors.textMuted,
     fontStyle: 'italic' as const,
   },
   mockLabel: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     color: Colors.textMuted,
     marginBottom: 10,
     fontWeight: '500' as const,
@@ -998,7 +1011,7 @@ const demoStyles = StyleSheet.create({
     flexDirection: 'row' as const,
     justifyContent: 'space-around' as const,
     backgroundColor: Colors.fillSecondary,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     padding: 8,
     marginBottom: 10,
   },
@@ -1007,7 +1020,7 @@ const demoStyles = StyleSheet.create({
     gap: 2,
     paddingVertical: 8,
     paddingHorizontal: 10,
-    borderRadius: 8,
+    borderRadius: Tokens.radius.sm,
     position: 'relative' as const,
     minWidth: 56,
   },
@@ -1018,7 +1031,7 @@ const demoStyles = StyleSheet.create({
     top: 0,
     bottom: 0,
     backgroundColor: Colors.primary + '30',
-    borderRadius: 8,
+    borderRadius: Tokens.radius.sm,
   },
   tabLabel: {
     fontSize: 10,
@@ -1033,13 +1046,13 @@ const demoStyles = StyleSheet.create({
     justifyContent: 'center' as const,
   },
   hintText: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     color: Colors.text,
   },
   ganttTrack: {
     height: 36,
     backgroundColor: Colors.fillSecondary,
-    borderRadius: 8,
+    borderRadius: Tokens.radius.sm,
     overflow: 'hidden' as const,
     position: 'relative' as const,
     marginBottom: 6,
@@ -1050,7 +1063,7 @@ const demoStyles = StyleSheet.create({
     top: 0,
     bottom: 0,
     backgroundColor: Colors.primary,
-    borderRadius: 8,
+    borderRadius: Tokens.radius.sm,
   },
   ganttSegments: {
     flexDirection: 'row' as const,
@@ -1075,7 +1088,7 @@ const demoStyles = StyleSheet.create({
     fontWeight: '500' as const,
   },
   quizQuestion: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     fontWeight: '600' as const,
     color: Colors.text,
     marginBottom: 10,
@@ -1086,7 +1099,7 @@ const demoStyles = StyleSheet.create({
     alignItems: 'center' as const,
     justifyContent: 'space-between' as const,
     backgroundColor: Colors.fillTertiary,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
     paddingVertical: 12,
     paddingHorizontal: 14,
     borderWidth: 1,
@@ -1102,7 +1115,7 @@ const demoStyles = StyleSheet.create({
   },
   quizOptionText: {
     flex: 1,
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: Colors.text,
   },
   startBtn: {
@@ -1111,7 +1124,7 @@ const demoStyles = StyleSheet.create({
     justifyContent: 'center' as const,
     gap: 10,
     backgroundColor: Colors.primary,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     paddingVertical: 16,
     paddingHorizontal: 24,
     alignSelf: 'center' as const,
@@ -1121,7 +1134,7 @@ const demoStyles = StyleSheet.create({
   },
   startBtnText: {
     color: '#FFF',
-    fontSize: 16,
+    fontSize: Type.callout.fontSize,
     fontWeight: '700' as const,
   },
   finishBtn: {
@@ -1130,7 +1143,7 @@ const demoStyles = StyleSheet.create({
     justifyContent: 'center' as const,
     gap: 10,
     backgroundColor: Colors.primary,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     paddingVertical: 18,
     paddingHorizontal: 28,
     alignSelf: 'center' as const,
@@ -1140,7 +1153,7 @@ const demoStyles = StyleSheet.create({
   },
   finishBtnText: {
     color: '#FFF',
-    fontSize: 16,
+    fontSize: Type.callout.fontSize,
     fontWeight: '700' as const,
   },
 });

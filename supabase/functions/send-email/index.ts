@@ -109,20 +109,36 @@ async function sendWithAttachments(opts: {
   if (opts.replyTo) payload.reply_to = opts.replyTo;
   const headers = { ...opts.unsubscribeHeaders, 'X-Entity-Ref-ID': `mageid-${Date.now()}` };
   if (Object.keys(headers).length > 0) payload.headers = headers;
-  try {
-    const r = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${RESEND_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    });
-    const resp = await r.json().catch(() => ({}));
-    return { ok: r.ok, resp };
-  } catch (e) {
-    return { ok: false, resp: { error: String(e) } };
+  // Mirror the retry-with-backoff in resendSend for the attachment path —
+  // Resend's 5/sec rate limit applies to the whole account, so a burst
+  // of invoice/CO sends with PDFs would 429 just like the no-attachment
+  // path. 4 attempts, ~3.5s worst case, only retries on 429.
+  const MAX_ATTEMPTS = 4;
+  const BASE_MS = 350;
+  let lastResp: unknown = null;
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    try {
+      const r = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${RESEND_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+      const resp = await r.json().catch(() => ({}));
+      if (r.ok) return { ok: true, resp };
+      lastResp = resp;
+      if (r.status !== 429 || attempt === MAX_ATTEMPTS - 1) {
+        return { ok: false, resp };
+      }
+      const wait = BASE_MS * Math.pow(2, attempt) + Math.floor(Math.random() * 200);
+      await new Promise((res) => setTimeout(res, wait));
+    } catch (e) {
+      return { ok: false, resp: { error: String(e) } };
+    }
   }
+  return { ok: false, resp: lastResp ?? { error: 'rate_limit_exhausted' } };
 }
 
 serve(async (req) => {
@@ -161,7 +177,7 @@ serve(async (req) => {
   // Send to each recipient. Resend supports multi-recipient on `to` but
   // that exposes each recipient's address to the others — never what we
   // want. Loop instead.
-  const results: Array<{ to: string; ok: boolean; id?: string; error?: string }> = [];
+  const results: { to: string; ok: boolean; id?: string; error?: string }[] = [];
   for (const to of recipients) {
     if (body.attachments && body.attachments.length > 0) {
       // Build unsubscribe headers for this recipient.

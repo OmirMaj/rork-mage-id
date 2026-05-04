@@ -27,6 +27,8 @@ import {
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useSubscription } from '@/contexts/SubscriptionContext';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 /**
  * Onboarding-style paywall — single-screen, trial-narrative, big-CTA
@@ -259,10 +261,7 @@ export default function OnboardingPaywallScreen() {
         <TouchableOpacity
           style={styles.closeBtn}
           onPress={handleClose}
-          testID="onboarding-paywall-close"
-        >
-          <X size={20} color={Colors.textSecondary} />
-        </TouchableOpacity>
+          testID="onboarding-paywall-close" accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={Colors.textSecondary} /></TouchableOpacity>
       </View>
 
       <ScrollView
@@ -510,7 +509,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   brandName: {
-    fontSize: 16,
+    fontSize: Type.callout.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
     letterSpacing: 0.2,
@@ -518,7 +517,7 @@ const styles = StyleSheet.create({
   closeBtn: {
     width: 32,
     height: 32,
-    borderRadius: 16,
+    borderRadius: Tokens.radius.panel,
     backgroundColor: Colors.fillTertiary,
     alignItems: 'center',
     justifyContent: 'center',
@@ -551,7 +550,7 @@ const styles = StyleSheet.create({
   rail: {
     width: 36,
     height: '100%',
-    borderRadius: 18,
+    borderRadius: Tokens.radius.xl,
   },
   featureRow: {
     flexDirection: 'row',
@@ -567,7 +566,7 @@ const styles = StyleSheet.create({
   railIcon: {
     width: 32,
     height: 32,
-    borderRadius: 16,
+    borderRadius: Tokens.radius.panel,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -576,21 +575,21 @@ const styles = StyleSheet.create({
     paddingTop: 2,
   },
   featureTitle: {
-    fontSize: 16,
+    fontSize: Type.callout.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
     marginBottom: 3,
     letterSpacing: -0.2,
   },
   featureDesc: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: Colors.textSecondary,
     lineHeight: 18,
   },
   periodToggle: {
     flexDirection: 'row',
     backgroundColor: Colors.surfaceAlt,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     padding: 4,
     marginBottom: 12,
   },
@@ -612,7 +611,7 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   periodLabel: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     fontWeight: '600' as const,
     color: Colors.textSecondary,
   },
@@ -638,7 +637,7 @@ const styles = StyleSheet.create({
   },
   planCard: {
     flex: 1,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     borderWidth: 1.5,
     borderColor: Colors.border,
     backgroundColor: Colors.surface,
@@ -666,7 +665,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.6,
   },
   planLabel: {
-    fontSize: 16,
+    fontSize: Type.callout.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
   },
@@ -674,7 +673,7 @@ const styles = StyleSheet.create({
     color: Colors.primary,
   },
   planTagline: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     color: Colors.textMuted,
     marginTop: 2,
     marginBottom: 14,
@@ -694,17 +693,17 @@ const styles = StyleSheet.create({
     color: Colors.primary,
   },
   planPriceUnit: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     color: Colors.textSecondary,
     fontWeight: '600' as const,
   },
   planPriceBottom: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     color: Colors.textMuted,
     marginTop: 2,
   },
   priceFootnote: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     color: Colors.textSecondary,
     textAlign: 'center',
     marginTop: 10,
@@ -712,7 +711,7 @@ const styles = StyleSheet.create({
   },
   cta: {
     height: 54,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     backgroundColor: '#000',
     alignItems: 'center',
     justifyContent: 'center',
@@ -721,13 +720,13 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   ctaLabel: {
-    fontSize: 16,
+    fontSize: Type.callout.fontSize,
     fontWeight: '700' as const,
-    color: '#FFFFFF',
+    color: Colors.surface,
     letterSpacing: 0.1,
   },
   reassurance: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     color: Colors.textMuted,
     textAlign: 'center',
     marginTop: 10,
@@ -740,12 +739,12 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   legalLink: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     color: Colors.textSecondary,
     fontWeight: '500' as const,
   },
   legalDot: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     color: Colors.textMuted,
   },
 });

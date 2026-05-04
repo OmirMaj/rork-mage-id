@@ -9,6 +9,7 @@ import * as Haptics from 'expo-haptics';
 import { Save, Plus, Link2, X, CheckCircle2, ChevronDown, Share2, Send } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
+import { FeatureHeader } from '@/components/FeatureHeader';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import { generateSubmittalPDF, generateSubmittalPDFUri, buildSubmittalEmailHtml } from '@/utils/pdfGenerator';
@@ -17,6 +18,8 @@ import { nailIt } from '@/components/animations/NailItToast';
 import InlineVoiceFill from '@/components/InlineVoiceFill';
 import { parseSubmittalFromTranscript, pickIfEmpty } from '@/utils/voiceFormParsers';
 import type { SubmittalStatus } from '@/types';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 const STATUS_COLORS: Record<SubmittalStatus, string> = {
   pending: Colors.warning,
@@ -227,12 +230,28 @@ function SubmittalScreenInner() {
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-      <Stack.Screen options={{ title: existingSubmittal ? `Submittal #${existingSubmittal.number}` : 'New Submittal' }} />
+      <Stack.Screen options={{ title: existingSubmittal ? `Submittal #${existingSubmittal.number}` : 'Approval Before Order' }} />
       <ScrollView
         style={styles.container}
         contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
         keyboardShouldPersistTaps="handled"
       >
+        {!existingSubmittal && (
+          <FeatureHeader
+            eyebrow="Submittal"
+            title="Get a stamp before you order"
+            subtitle="Send the architect a product spec for review. They mark it Approved / Approved-as-Noted / Rejected — you keep the stamp on file before you cut a PO."
+            explainer={{
+              term: 'Submittal',
+              definition: 'A submittal is a document (cut sheet, shop drawing, color sample, MSDS, mockup) you send to the architect for sign-off BEFORE you order or fabricate. The architect stamps it Approved, Approved-as-Noted, or Rejected. Skipping submittals is how you end up installing the wrong fixture and eating the cost.',
+              whenToUse: [
+                'Before ordering anything spec\'d in the contract documents',
+                'When you want to substitute one product for another',
+                'For any custom shop fabrication (millwork, steel, glazing)',
+              ],
+            }}
+          />
+        )}
         {project && <Text style={styles.projectLabel}>{project.name}</Text>}
 
         <InlineVoiceFill
@@ -380,7 +399,7 @@ function SubmittalScreenInner() {
               <View style={styles.linkedTaskBadge}>
                 <Text style={styles.linkedTaskPhase}>{linkedTask.phase}</Text>
                 <Text style={styles.linkedTaskName} numberOfLines={1}>{linkedTask.title}</Text>
-                <TouchableOpacity onPress={() => setLinkedTaskId('')}><X size={14} color={Colors.error} /></TouchableOpacity>
+                <TouchableOpacity onPress={() => setLinkedTaskId('')} accessibilityRole="button" accessibilityLabel="Close"><X size={14} color={Colors.error} /></TouchableOpacity>
               </View>
             )}
           </>
@@ -414,7 +433,7 @@ function SubmittalScreenInner() {
           <Pressable style={styles.taskPickerCard} onPress={() => undefined}>
             <View style={styles.taskPickerHeader}>
               <Text style={styles.taskPickerTitle}>Link Schedule Task</Text>
-              <TouchableOpacity onPress={() => setShowTaskPicker(false)}><X size={20} color={Colors.textMuted} /></TouchableOpacity>
+              <TouchableOpacity onPress={() => setShowTaskPicker(false)} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={Colors.textMuted} /></TouchableOpacity>
             </View>
             <ScrollView style={{ maxHeight: 360 }}>
               <TouchableOpacity style={[styles.taskOption, !linkedTaskId && styles.taskOptionActive]} onPress={() => { setLinkedTaskId(''); setShowTaskPicker(false); }}>
@@ -443,7 +462,7 @@ function SubmittalScreenInner() {
             <Pressable style={styles.emailModalCard} onPress={() => undefined}>
               <View style={styles.emailModalHeader}>
                 <Text style={styles.emailModalTitle}>Send Submittal</Text>
-                <TouchableOpacity onPress={() => setShowEmailSend(false)} testID="submittal-email-close">
+                <TouchableOpacity onPress={() => setShowEmailSend(false)} testID="submittal-email-close" accessibilityRole="button" accessibilityLabel="Close">
                   <X size={20} color={Colors.textMuted} />
                 </TouchableOpacity>
               </View>
@@ -502,13 +521,13 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   projectLabel: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
     color: Colors.primary,
     marginBottom: 16,
   },
   fieldLabel: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
     color: Colors.textSecondary,
     marginBottom: 6,
@@ -516,16 +535,16 @@ const styles = StyleSheet.create({
   },
   input: {
     backgroundColor: Colors.surface,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    fontSize: 15,
+    fontSize: Type.subhead.fontSize,
     color: Colors.text,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: Type.callout.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
     marginBottom: 12,
@@ -544,7 +563,7 @@ const styles = StyleSheet.create({
   timelineDot: {
     width: 12,
     height: 12,
-    borderRadius: 6,
+    borderRadius: Tokens.radius.xs,
     marginTop: 4,
   },
   timelineConnector: {
@@ -558,7 +577,7 @@ const styles = StyleSheet.create({
     paddingLeft: 12,
     paddingBottom: 16,
     backgroundColor: Colors.surface,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     padding: 12,
     marginBottom: 8,
   },
@@ -569,26 +588,26 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   cycleNumber: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
   },
   statusBadge: {
     paddingHorizontal: 8,
     paddingVertical: 3,
-    borderRadius: 6,
+    borderRadius: Tokens.radius.xs,
   },
   statusBadgeText: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     fontWeight: '700' as const,
   },
   cycleDetail: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: Colors.textSecondary,
     lineHeight: 20,
   },
   cycleComments: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: Colors.text,
     marginTop: 6,
     fontStyle: 'italic',
@@ -599,19 +618,19 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 6,
     paddingVertical: 12,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     backgroundColor: Colors.primary + '12',
     marginTop: 12,
   },
   addCycleBtnText: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     fontWeight: '600' as const,
     color: Colors.primary,
   },
   addCycleForm: {
     marginTop: 16,
     backgroundColor: Colors.surface,
-    borderRadius: 16,
+    borderRadius: Tokens.radius.panel,
     padding: 16,
     gap: 10,
   },
@@ -623,22 +642,22 @@ const styles = StyleSheet.create({
   statusChip: {
     paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: 8,
+    borderRadius: Tokens.radius.sm,
     backgroundColor: Colors.fillTertiary,
   },
   statusChipText: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     fontWeight: '600' as const,
     color: Colors.textSecondary,
   },
   addCycleSubmit: {
     backgroundColor: Colors.primary,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
     paddingVertical: 12,
     alignItems: 'center',
   },
   addCycleSubmitText: {
-    fontSize: 15,
+    fontSize: Type.subhead.fontSize,
     fontWeight: '600' as const,
     color: '#fff',
   },
@@ -648,7 +667,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     backgroundColor: Colors.primary,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     paddingVertical: 16,
     marginTop: 28,
     shadowColor: Colors.primary,
@@ -658,33 +677,33 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   saveBtnText: {
-    fontSize: 17,
+    fontSize: Type.body.fontSize,
     fontWeight: '600' as const,
     color: '#fff',
   },
   exportRow: { flexDirection: 'row' as const, gap: 10, marginTop: 12 },
-  exportBtn: { flex: 1, flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 8, paddingVertical: 12, borderRadius: 10, borderWidth: 1, borderColor: Colors.cardBorder, backgroundColor: Colors.card },
+  exportBtn: { flex: 1, flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 8, paddingVertical: 12, borderRadius: Tokens.radius.md, borderWidth: 1, borderColor: Colors.cardBorder, backgroundColor: Colors.card },
   exportBtnPrimary: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  exportBtnText: { fontSize: 14, fontWeight: '600' as const, color: Colors.primary },
-  emailModalCard: { backgroundColor: Colors.card, marginHorizontal: 16, padding: 20, borderRadius: 16, gap: 6, borderWidth: 1, borderColor: Colors.cardBorder },
+  exportBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.primary },
+  emailModalCard: { backgroundColor: Colors.card, marginHorizontal: 16, padding: 20, borderRadius: Tokens.radius.panel, gap: 6, borderWidth: 1, borderColor: Colors.cardBorder },
   emailModalHeader: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'space-between' as const, marginBottom: 8 },
-  emailModalTitle: { fontSize: 18, fontWeight: '700' as const, color: Colors.text },
-  emailFieldLabel: { fontSize: 12, fontWeight: '600' as const, color: Colors.textSecondary, marginTop: 10 },
-  emailInput: { backgroundColor: Colors.fillTertiary, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: Colors.text },
-  emailSendBtn: { marginTop: 16, flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 8, backgroundColor: Colors.primary, paddingVertical: 14, borderRadius: 12 },
-  emailSendBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' as const },
-  pickerBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, backgroundColor: Colors.surface, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, borderWidth: 1, borderColor: Colors.cardBorder },
-  pickerBtnText: { flex: 1, fontSize: 15, color: Colors.text },
-  linkedTaskBadge: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, backgroundColor: Colors.primary + '10', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, marginTop: 6 },
-  linkedTaskPhase: { fontSize: 11, fontWeight: '700' as const, color: Colors.primary },
-  linkedTaskName: { flex: 1, fontSize: 13, color: Colors.text },
+  emailModalTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: Colors.text },
+  emailFieldLabel: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.textSecondary, marginTop: 10 },
+  emailInput: { backgroundColor: Colors.fillTertiary, borderRadius: Tokens.radius.md, paddingHorizontal: 14, paddingVertical: 12, fontSize: Type.subhead.fontSize, color: Colors.text },
+  emailSendBtn: { marginTop: 16, flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 8, backgroundColor: Colors.primary, paddingVertical: 14, borderRadius: Tokens.radius.card },
+  emailSendBtnText: { color: '#fff', fontSize: Type.subhead.fontSize, fontWeight: '700' as const },
+  pickerBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, backgroundColor: Colors.surface, borderRadius: Tokens.radius.card, paddingHorizontal: 14, paddingVertical: 12, borderWidth: 1, borderColor: Colors.cardBorder },
+  pickerBtnText: { flex: 1, fontSize: Type.subhead.fontSize, color: Colors.text },
+  linkedTaskBadge: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, backgroundColor: Colors.primary + '10', borderRadius: Tokens.radius.sm, paddingHorizontal: 10, paddingVertical: 8, marginTop: 6 },
+  linkedTaskPhase: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: Colors.primary },
+  linkedTaskName: { flex: 1, fontSize: Type.footnote.fontSize, color: Colors.text },
   modalOverlay: { flex: 1, backgroundColor: '#00000060', justifyContent: 'center' as const, alignItems: 'center' as const, padding: 24 },
-  taskPickerCard: { backgroundColor: Colors.surface, borderRadius: 16, width: '100%', overflow: 'hidden' as const },
+  taskPickerCard: { backgroundColor: Colors.surface, borderRadius: Tokens.radius.panel, width: '100%', overflow: 'hidden' as const },
   taskPickerHeader: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'space-between' as const, padding: 16, borderBottomWidth: 1, borderBottomColor: Colors.cardBorder },
-  taskPickerTitle: { fontSize: 16, fontWeight: '700' as const, color: Colors.text },
+  taskPickerTitle: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.text },
   taskOption: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, padding: 12, borderBottomWidth: 1, borderBottomColor: Colors.cardBorder + '80' },
   taskOptionActive: { backgroundColor: Colors.primary + '10' },
-  taskOptionText: { fontSize: 14, fontWeight: '500' as const, color: Colors.text },
+  taskOptionText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '500' as const, color: Colors.text },
   taskOptionTextActive: { fontWeight: '700' as const, color: Colors.primary },
-  taskOptionMeta: { fontSize: 11, color: Colors.textSecondary ?? Colors.textMuted, marginTop: 1 },
+  taskOptionMeta: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary ?? Colors.textMuted, marginTop: 1 },
 });

@@ -16,6 +16,8 @@ import type { Payment, PaymentStatus, PaymentProvider, Invoice, Project, Contact
 import { formatMoney } from '@/utils/formatters';
 import { useProjects } from '@/contexts/ProjectContext';
 import EmptyState from '@/components/EmptyState';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 // Stripe's posted rate — good enough for a rough "net after fees" column on the
 // payments dashboard. We never charge this ourselves; Stripe takes it out of
@@ -130,10 +132,10 @@ function derivePayments(
 }
 
 const STATUS_CONFIG: Record<PaymentStatus, { label: string; color: string; bgColor: string; icon: React.ElementType }> = {
-  pending: { label: 'Pending', color: '#E65100', bgColor: '#FFF3E0', icon: Clock },
-  processing: { label: 'Processing', color: '#1565C0', bgColor: '#E3F2FD', icon: RefreshCw },
-  completed: { label: 'Completed', color: '#2E7D32', bgColor: '#E8F5E9', icon: Check },
-  failed: { label: 'Failed', color: '#C62828', bgColor: '#FFEBEE', icon: XCircle },
+  pending: { label: 'Pending', color: Colors.warningDark, bgColor: Colors.warningLight, icon: Clock },
+  processing: { label: 'Processing', color: Colors.infoDark, bgColor: Colors.infoLight, icon: RefreshCw },
+  completed: { label: 'Completed', color: Colors.successDark, bgColor: Colors.successLight, icon: Check },
+  failed: { label: 'Failed', color: Colors.errorDark, bgColor: Colors.errorLight, icon: XCircle },
   refunded: { label: 'Refunded', color: '#546E7A', bgColor: '#ECEFF1', icon: RefreshCw },
 };
 
@@ -163,7 +165,7 @@ function PaymentCard({ payment, onPress }: { payment: Payment; onPress: () => vo
             <Text style={styles.payCardProject} numberOfLines={1}>{payment.projectName}</Text>
           </View>
           <View style={{ alignItems: 'flex-end' }}>
-            <Text style={[styles.payCardAmount, payment.status === 'failed' && { color: '#C62828' }]}>
+            <Text style={[styles.payCardAmount, payment.status === 'failed' && { color: Colors.errorDark }]}>
               {formatMoney(payment.amount)}
             </Text>
             {payment.fee > 0 && (
@@ -273,17 +275,17 @@ export default function PaymentsScreen() {
       <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 30 }} showsVerticalScrollIndicator={false}>
         <View style={styles.heroCards}>
           <View style={[styles.heroCard, { flex: 1.2 }]}>
-            <View style={[styles.heroIconWrap, { backgroundColor: '#E8F5E9' }]}>
-              <ArrowDownRight size={18} color="#2E7D32" />
+            <View style={[styles.heroIconWrap, { backgroundColor: Colors.successLight }]}>
+              <ArrowDownRight size={18} color={Colors.successDark} />
             </View>
-            <Text style={[styles.heroValue, { color: '#2E7D32' }]}>{formatMoney(stats.received)}</Text>
+            <Text style={[styles.heroValue, { color: Colors.successDark }]}>{formatMoney(stats.received)}</Text>
             <Text style={styles.heroLabel}>Received</Text>
           </View>
           <View style={styles.heroCard}>
-            <View style={[styles.heroIconWrap, { backgroundColor: '#FFF3E0' }]}>
-              <Clock size={18} color="#E65100" />
+            <View style={[styles.heroIconWrap, { backgroundColor: Colors.warningLight }]}>
+              <Clock size={18} color={Colors.warningDark} />
             </View>
-            <Text style={[styles.heroValue, { color: '#E65100' }]}>{formatMoney(stats.pending)}</Text>
+            <Text style={[styles.heroValue, { color: Colors.warningDark }]}>{formatMoney(stats.pending)}</Text>
             <Text style={styles.heroLabel}>Pending</Text>
           </View>
         </View>
@@ -294,9 +296,9 @@ export default function PaymentsScreen() {
             <Text style={styles.feeItemValue}>{formatMoney(stats.totalFees, 2)}</Text>
           </View>
           {stats.failedCount > 0 && (
-            <View style={[styles.feeItem, { backgroundColor: '#FFEBEE' }]}>
-              <Text style={[styles.feeItemLabel, { color: '#C62828' }]}>Failed</Text>
-              <Text style={[styles.feeItemValue, { color: '#C62828' }]}>{stats.failedCount}</Text>
+            <View style={[styles.feeItem, { backgroundColor: Colors.errorLight }]}>
+              <Text style={[styles.feeItemLabel, { color: Colors.errorDark }]}>Failed</Text>
+              <Text style={[styles.feeItemValue, { color: Colors.errorDark }]}>{stats.failedCount}</Text>
             </View>
           )}
         </View>
@@ -353,7 +355,7 @@ const styles = StyleSheet.create({
   heroCard: {
     flex: 1,
     backgroundColor: Colors.surface,
-    borderRadius: 16,
+    borderRadius: Tokens.radius.panel,
     padding: 16,
     gap: 8,
     shadowColor: '#000',
@@ -362,9 +364,9 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 2,
   },
-  heroIconWrap: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  heroValue: { fontSize: 22, fontWeight: '800' as const, color: Colors.text, letterSpacing: -0.5 },
-  heroLabel: { fontSize: 12, color: Colors.textSecondary, fontWeight: '500' as const },
+  heroIconWrap: { width: 36, height: 36, borderRadius: Tokens.radius.md, alignItems: 'center', justifyContent: 'center' },
+  heroValue: { fontSize: Type.title2.fontSize, fontWeight: '800' as const, color: Colors.text, letterSpacing: -0.5 },
+  heroLabel: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, fontWeight: '500' as const },
   feeRow: {
     flexDirection: 'row',
     paddingHorizontal: 16,
@@ -374,7 +376,7 @@ const styles = StyleSheet.create({
   feeItem: {
     flex: 1,
     backgroundColor: Colors.surface,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     padding: 12,
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -382,12 +384,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.cardBorder,
   },
-  feeItemLabel: { fontSize: 13, color: Colors.textSecondary },
-  feeItemValue: { fontSize: 15, fontWeight: '700' as const, color: Colors.text },
+  feeItemLabel: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary },
+  feeItemValue: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text },
   sendButton: {
     marginHorizontal: 16,
     backgroundColor: Colors.primary,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     paddingVertical: 14,
     flexDirection: 'row',
     alignItems: 'center',
@@ -400,12 +402,12 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 3,
   },
-  sendButtonText: { fontSize: 16, fontWeight: '700' as const, color: '#fff' },
+  sendButtonText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: '#fff' },
   tabRow: {
     flexDirection: 'row',
     marginHorizontal: 16,
     backgroundColor: Colors.fillTertiary,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     padding: 3,
     marginBottom: 16,
   },
@@ -413,15 +415,15 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 10,
     alignItems: 'center',
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
   },
   tabActive: { backgroundColor: Colors.surface },
-  tabText: { fontSize: 13, fontWeight: '600' as const, color: Colors.textMuted },
+  tabText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.textMuted },
   tabTextActive: { color: Colors.text },
   listSection: { paddingHorizontal: 16 },
   payCard: {
     marginBottom: 10,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     backgroundColor: Colors.surface,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
@@ -434,17 +436,17 @@ const styles = StyleSheet.create({
   providerBadge: {
     width: 40,
     height: 40,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  providerBadgeLetter: { fontSize: 18, fontWeight: '700' as const },
+  providerBadgeLetter: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const },
   payCardInfo: { flex: 1, gap: 2 },
-  payCardClient: { fontSize: 15, fontWeight: '600' as const, color: Colors.text },
-  payCardProject: { fontSize: 12, color: Colors.textSecondary },
-  payCardAmount: { fontSize: 18, fontWeight: '700' as const, color: Colors.text },
-  payCardFee: { fontSize: 11, color: Colors.textMuted },
-  payCardDesc: { fontSize: 13, color: Colors.textSecondary },
+  payCardClient: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: Colors.text },
+  payCardProject: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary },
+  payCardAmount: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: Colors.text },
+  payCardFee: { fontSize: Type.caption2.fontSize, color: Colors.textMuted },
+  payCardDesc: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary },
   payCardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   payStatusBadge: {
     flexDirection: 'row',
@@ -452,13 +454,13 @@ const styles = StyleSheet.create({
     gap: 4,
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 6,
+    borderRadius: Tokens.radius.xs,
   },
-  payStatusText: { fontSize: 11, fontWeight: '600' as const },
+  payStatusText: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const },
   payCardMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  providerTag: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
-  providerTagText: { fontSize: 11, fontWeight: '600' as const },
-  payCardDate: { fontSize: 12, color: Colors.textMuted },
+  providerTag: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.xs },
+  providerTagText: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const },
+  payCardDate: { fontSize: Type.caption1.fontSize, color: Colors.textMuted },
   emptyState: { alignItems: 'center', paddingVertical: 60, gap: 8 },
-  emptyTitle: { fontSize: 17, fontWeight: '600' as const, color: Colors.text },
+  emptyTitle: { fontSize: Type.body.fontSize, fontWeight: '600' as const, color: Colors.text },
 });

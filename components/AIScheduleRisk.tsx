@@ -10,6 +10,8 @@ import {
   type ScheduleRiskResult,
 } from '@/utils/aiService';
 import type { ProjectSchedule } from '@/types';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 interface Props {
   schedule: ProjectSchedule;
@@ -18,9 +20,9 @@ interface Props {
 }
 
 const SEVERITY_STYLES = {
-  high: { bg: '#FFF0EF', border: '#FF3B30', icon: AlertTriangle, label: 'HIGH RISK', textColor: '#D32F2F' },
-  medium: { bg: '#FFF8E1', border: '#FF9500', icon: Zap, label: 'MEDIUM RISK', textColor: '#E65100' },
-  low: { bg: '#E8F5E9', border: '#34C759', icon: CheckCircle2, label: 'LOW RISK', textColor: '#2E7D32' },
+  high: { bg: Colors.errorLight, border: Colors.error, icon: AlertTriangle, label: 'HIGH RISK', textColor: '#D32F2F' },
+  medium: { bg: '#FFF8E1', border: Colors.warning, icon: Zap, label: 'MEDIUM RISK', textColor: Colors.warningDark },
+  low: { bg: Colors.successLight, border: Colors.success, icon: CheckCircle2, label: 'LOW RISK', textColor: Colors.successDark },
 } as const;
 
 const TWO_HOURS = 2 * 60 * 60 * 1000;
@@ -148,10 +150,10 @@ export default React.memo(function AIScheduleRisk({ schedule, projectId, weather
       })}
 
       {(lowCount + otherCount) > 0 && (
-        <View style={[styles.riskItem, { backgroundColor: '#E8F5E9', borderLeftColor: '#34C759' }]}>
+        <View style={[styles.riskItem, { backgroundColor: Colors.successLight, borderLeftColor: Colors.success }]}>
           <View style={styles.riskHeader}>
-            <CheckCircle2 size={14} color="#2E7D32" />
-            <Text style={[styles.riskSeverity, { color: '#2E7D32' }]}>
+            <CheckCircle2 size={14} color={Colors.successDark} />
+            <Text style={[styles.riskSeverity, { color: Colors.successDark }]}>
               LOW RISK: {lowCount + otherCount} other tasks on track
             </Text>
           </View>
@@ -195,7 +197,7 @@ const styles = StyleSheet.create({
     gap: 8,
     padding: 16,
     backgroundColor: `${Colors.primary}08`,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     borderWidth: 1,
     borderColor: `${Colors.primary}20`,
     borderStyle: 'dashed',
@@ -203,13 +205,13 @@ const styles = StyleSheet.create({
     marginVertical: 8,
   },
   initText: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     color: Colors.primary,
     fontWeight: '600' as const,
   },
   card: {
     backgroundColor: Colors.surface,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     padding: 16,
     marginHorizontal: 16,
     marginVertical: 8,
@@ -228,7 +230,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   headerTitle: {
-    fontSize: 15,
+    fontSize: Type.subhead.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
   },
@@ -239,13 +241,13 @@ const styles = StyleSheet.create({
     padding: 8,
   },
   loadingText: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     color: Colors.textSecondary,
     fontStyle: 'italic' as const,
   },
   riskItem: {
     padding: 12,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
     borderLeftWidth: 3,
     gap: 4,
   },
@@ -255,20 +257,20 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   riskSeverity: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '700' as const,
   },
   riskProb: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: Colors.textSecondary,
   },
   riskReason: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     color: Colors.textSecondary,
     marginLeft: 4,
   },
   riskRec: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: Colors.primary,
     fontWeight: '600' as const,
     marginTop: 2,
@@ -282,7 +284,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.fillSecondary,
     padding: 10,
-    borderRadius: 8,
+    borderRadius: Tokens.radius.sm,
     alignItems: 'center',
   },
   confLabel: {
@@ -291,12 +293,12 @@ const styles = StyleSheet.create({
     fontWeight: '500' as const,
   },
   confValue: {
-    fontSize: 16,
+    fontSize: Type.callout.fontSize,
     fontWeight: '800' as const,
     color: Colors.text,
   },
   timestamp: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     color: Colors.textMuted,
     textAlign: 'right',
   },

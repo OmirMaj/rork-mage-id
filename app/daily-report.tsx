@@ -26,6 +26,8 @@ import { stampPhotoLocation } from '@/utils/photoGeoStamp';
 import type { DailyReportGenResult } from '@/utils/aiService';
 import { generateHomeownerSummary } from '@/utils/aiService';
 import { nailIt } from '@/components/animations/NailItToast';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 function createId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -565,7 +567,7 @@ export default function DailyReportScreen() {
               <View style={voiceStyles.previewHead}>
                 <Sparkles size={14} color={Colors.primary} />
                 <Text style={voiceStyles.previewTitle}>Here&apos;s what I heard</Text>
-                <TouchableOpacity onPress={() => { setShowVoiceBanner(false); setVoiceParsed(null); }} hitSlop={8}>
+                <TouchableOpacity onPress={() => { setShowVoiceBanner(false); setVoiceParsed(null); }} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
                   <X size={14} color={Colors.textMuted} />
                 </TouchableOpacity>
               </View>
@@ -594,11 +596,11 @@ export default function DailyReportScreen() {
 
           {showVoiceBanner && !voiceParsed && (
             <TouchableOpacity
-              style={{ marginHorizontal: 16, marginBottom: 8, backgroundColor: Colors.infoLight, borderRadius: 10, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 8 }}
+              style={{ marginHorizontal: 16, marginBottom: 8, backgroundColor: Colors.infoLight, borderRadius: Tokens.radius.md, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 8 }}
               onPress={() => setShowVoiceBanner(false)}
               activeOpacity={0.7}
             >
-              <Text style={{ flex: 1, fontSize: 13, color: Colors.info }}>Nothing new picked up — the fields you already had stay as-is.</Text>
+              <Text style={{ flex: 1, fontSize: Type.footnote.fontSize, color: Colors.info }}>Nothing new picked up — the fields you already had stay as-is.</Text>
               <X size={14} color={Colors.info} />
             </TouchableOpacity>
           )}
@@ -741,8 +743,7 @@ export default function DailyReportScreen() {
                   style={styles.addSmallBtn}
                   onPress={() => setShowManpowerModal(true)}
                   activeOpacity={0.7}
-                  testID="add-manpower-btn"
-                >
+                  testID="add-manpower-btn" accessibilityRole="button" accessibilityLabel="Add">
                   <Plus size={14} color={Colors.primary} />
                 </TouchableOpacity>
               )}
@@ -759,7 +760,7 @@ export default function DailyReportScreen() {
                   </Text>
                 </View>
                 {!isLocked && (
-                  <TouchableOpacity onPress={() => handleRemoveManpower(entry.id)} activeOpacity={0.7}>
+                  <TouchableOpacity onPress={() => handleRemoveManpower(entry.id)} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Delete">
                     <Trash2 size={14} color={Colors.error} />
                   </TouchableOpacity>
                 )}
@@ -804,9 +805,7 @@ export default function DailyReportScreen() {
                   onSubmitEditing={handleAddMaterial}
                   returnKeyType="done"
                 />
-                <TouchableOpacity style={styles.addMaterialBtn} onPress={handleAddMaterial} activeOpacity={0.7}>
-                  <Plus size={16} color={Colors.primary} />
-                </TouchableOpacity>
+                <TouchableOpacity style={styles.addMaterialBtn} onPress={handleAddMaterial} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Add"><Plus size={16} color={Colors.primary} /></TouchableOpacity>
               </View>
             )}
             {materialsDelivered.length === 0 && (
@@ -817,7 +816,7 @@ export default function DailyReportScreen() {
                 <View style={styles.materialDot} />
                 <Text style={styles.materialText}>{mat}</Text>
                 {!isLocked && (
-                  <TouchableOpacity onPress={() => handleRemoveMaterial(idx)} activeOpacity={0.7}>
+                  <TouchableOpacity onPress={() => handleRemoveMaterial(idx)} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Close">
                     <X size={14} color={Colors.error} />
                   </TouchableOpacity>
                 )}
@@ -1078,8 +1077,7 @@ export default function DailyReportScreen() {
                       <TouchableOpacity
                         style={styles.photoRemoveBtn}
                         onPress={() => handleRemovePhoto(photo.id)}
-                        activeOpacity={0.7}
-                      >
+                        activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Close">
                         <X size={12} color={Colors.error} />
                       </TouchableOpacity>
                     )}
@@ -1119,7 +1117,7 @@ export default function DailyReportScreen() {
             <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }]}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Send Report To</Text>
-                <TouchableOpacity onPress={() => setShowSendRecipient(false)}>
+                <TouchableOpacity onPress={() => setShowSendRecipient(false)} accessibilityRole="button" accessibilityLabel="Close">
                   <X size={20} color={Colors.textMuted} />
                 </TouchableOpacity>
               </View>
@@ -1131,7 +1129,7 @@ export default function DailyReportScreen() {
                     <Text style={styles.selectedRecipientName}>{sendRecipientName}</Text>
                     {sendRecipientEmail ? <Text style={styles.selectedRecipientEmail}>{sendRecipientEmail}</Text> : null}
                   </View>
-                  <TouchableOpacity onPress={() => { setSendRecipientName(''); setSendRecipientEmail(''); setContactPicked(false); }} style={styles.clearRecipientBtn}>
+                  <TouchableOpacity onPress={() => { setSendRecipientName(''); setSendRecipientEmail(''); setContactPicked(false); }} style={styles.clearRecipientBtn} accessibilityRole="button" accessibilityLabel="Close">
                     <X size={12} color={Colors.textMuted} />
                   </TouchableOpacity>
                 </View>
@@ -1203,7 +1201,7 @@ export default function DailyReportScreen() {
             <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }]}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Add Manpower</Text>
-                <TouchableOpacity onPress={() => setShowManpowerModal(false)}>
+                <TouchableOpacity onPress={() => setShowManpowerModal(false)} accessibilityRole="button" accessibilityLabel="Close">
                   <X size={20} color={Colors.textMuted} />
                 </TouchableOpacity>
               </View>
@@ -1272,128 +1270,128 @@ const voiceStyles = StyleSheet.create({
     marginHorizontal: 16, marginBottom: 8,
     backgroundColor: Colors.primary + '0D',
     borderWidth: 1, borderColor: Colors.primary + '30',
-    borderRadius: 12, padding: 14, gap: 8,
+    borderRadius: Tokens.radius.card, padding: 14, gap: 8,
   },
   previewHead: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
-  previewTitle: { flex: 1, fontSize: 13, fontWeight: '800', color: Colors.primary, letterSpacing: -0.2 },
-  previewHelper: { fontSize: 11, color: Colors.textMuted, lineHeight: 15 },
+  previewTitle: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '800', color: Colors.primary, letterSpacing: -0.2 },
+  previewHelper: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, lineHeight: 15 },
   previewList: { gap: 6, marginTop: 4 },
   row: { flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
-  rowLabel: { width: 90, fontSize: 11, fontWeight: '800', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, paddingTop: 1 },
-  rowValue: { flex: 1, fontSize: 13, color: Colors.text, lineHeight: 18 },
+  rowLabel: { width: 90, fontSize: Type.caption2.fontSize, fontWeight: '800', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, paddingTop: 1 },
+  rowValue: { flex: 1, fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 18 },
 });
 
 const hsStyles = StyleSheet.create({
-  helperText: { fontSize: 12, color: Colors.textMuted, marginBottom: 10, lineHeight: 17 },
+  helperText: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginBottom: 10, lineHeight: 17 },
   publishedPill: {
     backgroundColor: 'rgba(30,142,74,0.12)', paddingHorizontal: 8, paddingVertical: 3,
-    borderRadius: 999, marginLeft: 'auto',
+    borderRadius: Tokens.radius.full, marginLeft: 'auto',
   },
-  publishedPillText: { fontSize: 9, fontWeight: '800', color: '#1E8E4A', letterSpacing: 0.6 },
+  publishedPillText: { fontSize: 9, fontWeight: '800', color: Colors.successDark, letterSpacing: 0.6 },
   aiBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     paddingHorizontal: 12, paddingVertical: 11, borderRadius: 11,
     backgroundColor: Colors.primary + '0F', borderWidth: 1, borderColor: Colors.primary + '40',
   },
   aiBtnDisabled: { opacity: 0.7 },
-  aiBtnText: { fontSize: 13, fontWeight: '700', color: Colors.primary },
+  aiBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.primary },
   highlightsBlock: { marginTop: 10, gap: 4 },
   highlightsLabel: { fontSize: 10, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 4 },
   highlightRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingVertical: 2 },
   highlightDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: Colors.primary, marginTop: 7 },
-  highlightText: { flex: 1, fontSize: 13, color: Colors.text, lineHeight: 19 },
-  lookingAhead: { fontSize: 12, color: Colors.textMuted, marginTop: 8, fontStyle: 'italic' },
+  highlightText: { flex: 1, fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 19 },
+  lookingAhead: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 8, fontStyle: 'italic' },
   publishBtn: {
     marginTop: 12, paddingVertical: 11, borderRadius: 11,
     backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border,
     alignItems: 'center',
   },
   publishBtnPublished: { backgroundColor: 'rgba(30,142,74,0.10)', borderColor: '#1E8E4A' },
-  publishBtnText: { fontSize: 13, fontWeight: '700', color: Colors.text },
-  publishBtnTextPublished: { color: '#1E8E4A' },
+  publishBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.text },
+  publishBtnTextPublished: { color: Colors.successDark },
 });
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   center: { alignItems: 'center', justifyContent: 'center' },
-  notFoundText: { fontSize: 18, color: Colors.textSecondary, marginBottom: 16 },
-  backBtn: { backgroundColor: Colors.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 10 },
-  backBtnText: { color: Colors.textOnPrimary, fontSize: 15, fontWeight: '600' as const },
-  heroCard: { backgroundColor: Colors.primary, marginHorizontal: 20, marginTop: 16, borderRadius: 16, padding: 20, gap: 4 },
-  heroLabel: { fontSize: 13, fontWeight: '600' as const, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' as const, letterSpacing: 0.5 },
-  heroProject: { fontSize: 20, fontWeight: '700' as const, color: Colors.textOnPrimary },
-  heroDate: { fontSize: 14, color: 'rgba(255,255,255,0.8)', marginTop: 2 },
-  statusBadge: { alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 8, marginTop: 6 },
-  statusText: { fontSize: 12, fontWeight: '700' as const },
-  sectionCard: { marginHorizontal: 20, marginTop: 14, backgroundColor: Colors.card, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: Colors.cardBorder },
+  notFoundText: { fontSize: Type.subheadline.fontSize, color: Colors.textSecondary, marginBottom: 16 },
+  backBtn: { backgroundColor: Colors.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: Tokens.radius.md },
+  backBtnText: { color: Colors.textOnPrimary, fontSize: Type.subhead.fontSize, fontWeight: '600' as const },
+  heroCard: { backgroundColor: Colors.primary, marginHorizontal: 20, marginTop: 16, borderRadius: Tokens.radius.panel, padding: 20, gap: 4 },
+  heroLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' as const, letterSpacing: 0.5 },
+  heroProject: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: Colors.textOnPrimary },
+  heroDate: { fontSize: Type.bodyCompact.fontSize, color: 'rgba(255,255,255,0.8)', marginTop: 2 },
+  statusBadge: { alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 4, borderRadius: Tokens.radius.sm, marginTop: 6 },
+  statusText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const },
+  sectionCard: { marginHorizontal: 20, marginTop: 14, backgroundColor: Colors.card, borderRadius: Tokens.radius.panel, padding: 16, borderWidth: 1, borderColor: Colors.cardBorder },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
-  sectionTitle: { flex: 1, fontSize: 15, fontWeight: '700' as const, color: Colors.text },
-  refreshBtn: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: Colors.infoLight },
-  refreshBtnText: { fontSize: 12, fontWeight: '600' as const, color: Colors.info },
+  sectionTitle: { flex: 1, fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text },
+  refreshBtn: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: Tokens.radius.sm, backgroundColor: Colors.infoLight },
+  refreshBtnText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.info },
   weatherGrid: { gap: 10 },
   weatherItem: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  weatherInput: { flex: 1, minHeight: 38, borderRadius: 10, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 12, fontSize: 14, color: Colors.text },
-  weatherValue: { fontSize: 14, fontWeight: '600' as const, color: Colors.text },
-  addSmallBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: Colors.primary + '15', alignItems: 'center', justifyContent: 'center' },
-  emptyText: { fontSize: 13, color: Colors.textMuted, fontStyle: 'italic' as const },
+  weatherInput: { flex: 1, minHeight: 38, borderRadius: Tokens.radius.md, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 12, fontSize: Type.bodyCompact.fontSize, color: Colors.text },
+  weatherValue: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
+  addSmallBtn: { width: 32, height: 32, borderRadius: Tokens.radius.panel, backgroundColor: Colors.primary + '15', alignItems: 'center', justifyContent: 'center' },
+  emptyText: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, fontStyle: 'italic' as const },
   mpRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderTopWidth: 1, borderTopColor: Colors.borderLight, gap: 10 },
   mpInfo: { flex: 1, gap: 2 },
-  mpTrade: { fontSize: 14, fontWeight: '600' as const, color: Colors.text },
-  mpMeta: { fontSize: 12, color: Colors.textSecondary },
-  textArea: { minHeight: 80, borderRadius: 12, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 14, paddingTop: 12, fontSize: 14, color: Colors.text },
-  textInput: { minHeight: 44, borderRadius: 12, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 14, fontSize: 14, color: Colors.text },
-  readOnlyText: { fontSize: 14, color: Colors.text, lineHeight: 20 },
-  incidentToggle: { flexDirection: 'row', alignItems: 'center' as const, gap: 10, paddingVertical: 12, paddingHorizontal: 12, borderRadius: 12, backgroundColor: Colors.surfaceAlt, borderWidth: 1, borderColor: Colors.cardBorder },
+  mpTrade: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
+  mpMeta: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary },
+  textArea: { minHeight: 80, borderRadius: Tokens.radius.card, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 14, paddingTop: 12, fontSize: Type.bodyCompact.fontSize, color: Colors.text },
+  textInput: { minHeight: 44, borderRadius: Tokens.radius.card, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 14, fontSize: Type.bodyCompact.fontSize, color: Colors.text },
+  readOnlyText: { fontSize: Type.bodyCompact.fontSize, color: Colors.text, lineHeight: 20 },
+  incidentToggle: { flexDirection: 'row', alignItems: 'center' as const, gap: 10, paddingVertical: 12, paddingHorizontal: 12, borderRadius: Tokens.radius.card, backgroundColor: Colors.surfaceAlt, borderWidth: 1, borderColor: Colors.cardBorder },
   incidentToggleActive: { backgroundColor: Colors.errorLight, borderColor: Colors.error + '40' },
-  incidentToggleDot: { width: 16, height: 16, borderRadius: 8, borderWidth: 2, borderColor: Colors.border },
+  incidentToggleDot: { width: 16, height: 16, borderRadius: Tokens.radius.sm, borderWidth: 2, borderColor: Colors.border },
   incidentToggleDotActive: { backgroundColor: Colors.error, borderColor: Colors.error },
-  incidentToggleText: { fontSize: 14, fontWeight: '600' as const, color: Colors.text },
+  incidentToggleText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
   incidentBlock: { marginTop: 10, gap: 6 },
-  incidentLabel: { fontSize: 13, fontWeight: '600' as const, color: Colors.textSecondary, marginTop: 8 },
+  incidentLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.textSecondary, marginTop: 8 },
   severityRow: { flexDirection: 'row', flexWrap: 'wrap' as const, gap: 6 },
-  severityChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10, backgroundColor: Colors.fillTertiary },
+  severityChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: Tokens.radius.md, backgroundColor: Colors.fillTertiary },
   severityChipActive: { backgroundColor: Colors.error },
-  severityChipText: { fontSize: 12, fontWeight: '600' as const, color: Colors.textSecondary },
+  severityChipText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.textSecondary },
   severityChipTextActive: { color: '#FFF' },
   checkboxRow: { flexDirection: 'row', flexWrap: 'wrap' as const, gap: 12, marginTop: 8 },
   checkboxItem: { flexDirection: 'row', alignItems: 'center' as const, gap: 6 },
   checkbox: { width: 18, height: 18, borderRadius: 4, borderWidth: 2, borderColor: Colors.border },
   checkboxActive: { backgroundColor: Colors.error, borderColor: Colors.error },
-  checkboxLabel: { fontSize: 13, color: Colors.text, fontWeight: '500' as const },
+  checkboxLabel: { fontSize: Type.footnote.fontSize, color: Colors.text, fontWeight: '500' as const },
   addMaterialRow: { flexDirection: 'row', gap: 8, marginBottom: 8 },
-  materialInput: { flex: 1, minHeight: 40, borderRadius: 10, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 12, fontSize: 14, color: Colors.text },
-  addMaterialBtn: { width: 40, height: 40, borderRadius: 10, backgroundColor: Colors.primary + '15', alignItems: 'center', justifyContent: 'center' },
+  materialInput: { flex: 1, minHeight: 40, borderRadius: Tokens.radius.md, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 12, fontSize: Type.bodyCompact.fontSize, color: Colors.text },
+  addMaterialBtn: { width: 40, height: 40, borderRadius: Tokens.radius.md, backgroundColor: Colors.primary + '15', alignItems: 'center', justifyContent: 'center' },
   materialRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6 },
   materialDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: Colors.primary },
-  materialText: { flex: 1, fontSize: 14, color: Colors.text },
+  materialText: { flex: 1, fontSize: Type.bodyCompact.fontSize, color: Colors.text },
   photoActions: { flexDirection: 'row', gap: 10, marginBottom: 10 },
-  photoBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10, backgroundColor: Colors.primary + '10', borderWidth: 1, borderColor: Colors.primary + '20' },
-  photoBtnText: { fontSize: 13, fontWeight: '600' as const, color: Colors.primary },
+  photoBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 10, borderRadius: Tokens.radius.md, backgroundColor: Colors.primary + '10', borderWidth: 1, borderColor: Colors.primary + '20' },
+  photoBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.primary },
   photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
-  photoCard: { width: 80, height: 80, borderRadius: 10, backgroundColor: Colors.surfaceAlt, overflow: 'hidden' as const, position: 'relative' as const },
+  photoCard: { width: 80, height: 80, borderRadius: Tokens.radius.md, backgroundColor: Colors.surfaceAlt, overflow: 'hidden' as const, position: 'relative' as const },
   photoPlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 4 },
   photoTimestamp: { fontSize: 9, color: Colors.textMuted },
-  photoRemoveBtn: { position: 'absolute', top: 4, right: 4, width: 20, height: 20, borderRadius: 10, backgroundColor: Colors.errorLight, alignItems: 'center', justifyContent: 'center' },
+  photoRemoveBtn: { position: 'absolute', top: 4, right: 4, width: 20, height: 20, borderRadius: Tokens.radius.md, backgroundColor: Colors.errorLight, alignItems: 'center', justifyContent: 'center' },
   bottomBar: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: Colors.surface, borderTopWidth: 0.5, borderTopColor: Colors.borderLight, paddingHorizontal: 20, paddingTop: 12, flexDirection: 'row', gap: 10 },
-  saveDraftBtn: { flex: 1, minHeight: 48, borderRadius: 14, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
-  saveDraftBtnText: { fontSize: 14, fontWeight: '700' as const, color: Colors.text },
-  saveProjectBtn: { flex: 1, minHeight: 48, borderRadius: 14, backgroundColor: Colors.primary + '15', borderWidth: 1.5, borderColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
-  saveProjectBtnText: { fontSize: 14, fontWeight: '700' as const, color: Colors.primary },
-  sendBtn: { flex: 1.2, minHeight: 48, borderRadius: 14, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 },
-  sendBtnText: { fontSize: 14, fontWeight: '700' as const, color: Colors.textOnPrimary },
-  selectedRecipientCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.primary + '10', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, gap: 10, borderWidth: 1, borderColor: Colors.primary + '25' },
-  selectedRecipientName: { fontSize: 14, fontWeight: '600' as const, color: Colors.text },
-  selectedRecipientEmail: { fontSize: 12, color: Colors.textSecondary },
-  clearRecipientBtn: { width: 24, height: 24, borderRadius: 12, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
-  pickContactBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', marginTop: 8, paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8, backgroundColor: Colors.primary + '10' },
-  pickContactText: { fontSize: 13, fontWeight: '600' as const, color: Colors.primary },
+  saveDraftBtn: { flex: 1, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
+  saveDraftBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
+  saveProjectBtn: { flex: 1, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: Colors.primary + '15', borderWidth: 1.5, borderColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
+  saveProjectBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.primary },
+  sendBtn: { flex: 1.2, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 },
+  sendBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.textOnPrimary },
+  selectedRecipientCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.primary + '10', borderRadius: Tokens.radius.card, paddingHorizontal: 12, paddingVertical: 10, gap: 10, borderWidth: 1, borderColor: Colors.primary + '25' },
+  selectedRecipientName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
+  selectedRecipientEmail: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary },
+  clearRecipientBtn: { width: 24, height: 24, borderRadius: Tokens.radius.card, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
+  pickContactBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', marginTop: 8, paddingVertical: 6, paddingHorizontal: 10, borderRadius: Tokens.radius.sm, backgroundColor: Colors.primary + '10' },
+  pickContactText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.primary },
   modalOverlay: { flex: 1, backgroundColor: Colors.overlay, justifyContent: 'flex-end' },
   modalCard: { backgroundColor: Colors.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 22, gap: 8 },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  modalTitle: { fontSize: 20, fontWeight: '700' as const, color: Colors.text },
-  modalFieldLabel: { fontSize: 12, fontWeight: '600' as const, color: Colors.textSecondary, marginTop: 4 },
-  modalInput: { minHeight: 44, borderRadius: 12, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 12, fontSize: 15, color: Colors.text },
+  modalTitle: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: Colors.text },
+  modalFieldLabel: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.textSecondary, marginTop: 4 },
+  modalInput: { minHeight: 44, borderRadius: Tokens.radius.card, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 12, fontSize: Type.subhead.fontSize, color: Colors.text },
   modalRow: { flexDirection: 'row', gap: 10 },
-  modalAddBtn: { backgroundColor: Colors.primary, borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginTop: 8 },
-  modalAddBtnText: { fontSize: 16, fontWeight: '700' as const, color: Colors.textOnPrimary },
+  modalAddBtn: { backgroundColor: Colors.primary, borderRadius: Tokens.radius.lg, paddingVertical: 14, alignItems: 'center', marginTop: 8 },
+  modalAddBtnText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.textOnPrimary },
 });

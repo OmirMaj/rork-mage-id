@@ -15,6 +15,8 @@ import * as Haptics from 'expo-haptics';
 import { Crown, Building2, CheckCircle2, X, Sparkles, Shield, Smartphone, Apple } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useSubscription } from '@/contexts/SubscriptionContext';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 // App Store / Play Store deep links — used by the web paywall to bounce
 // users to mobile. App Store ID 6762229238 is from eas.json submit.production.
@@ -134,9 +136,7 @@ export default function Paywall({ visible, onClose, feature, requiredTier }: Pay
           <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
             <View style={{ width: 36 }} />
             <Text style={styles.headerTitle}>Continue on Mobile</Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn} testID="paywall-modal-close-web">
-              <X size={22} color={Colors.text} />
-            </TouchableOpacity>
+            <TouchableOpacity onPress={onClose} style={styles.closeBtn} testID="paywall-modal-close-web" accessibilityRole="button" accessibilityLabel="Close"><X size={22} color={Colors.text} /></TouchableOpacity>
           </View>
 
           <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
@@ -211,9 +211,7 @@ export default function Paywall({ visible, onClose, feature, requiredTier }: Pay
         <View style={[styles.header, { paddingTop: Platform.OS === 'ios' ? 16 : insets.top + 8 }]}>
           <View style={{ width: 36 }} />
           <Text style={styles.headerTitle}>Upgrade Required</Text>
-          <TouchableOpacity onPress={onClose} style={styles.closeBtn} testID="paywall-modal-close">
-            <X size={22} color={Colors.text} />
-          </TouchableOpacity>
+          <TouchableOpacity onPress={onClose} style={styles.closeBtn} testID="paywall-modal-close" accessibilityRole="button" accessibilityLabel="Close"><X size={22} color={Colors.text} /></TouchableOpacity>
         </View>
 
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
@@ -337,9 +335,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: 0.5,
     borderBottomColor: Colors.borderLight,
   },
-  headerTitle: { fontSize: 17, fontWeight: '700' as const, color: Colors.text },
+  headerTitle: { fontSize: Type.body.fontSize, fontWeight: '700' as const, color: Colors.text },
   closeBtn: {
-    width: 36, height: 36, borderRadius: 18,
+    width: 36, height: 36, borderRadius: Tokens.radius.xl,
     backgroundColor: Colors.fillTertiary,
     alignItems: 'center', justifyContent: 'center',
   },
@@ -349,15 +347,15 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center', marginBottom: 14,
   },
   featureName: {
-    fontSize: 22, fontWeight: '800' as const, color: Colors.text,
+    fontSize: Type.title2.fontSize, fontWeight: '800' as const, color: Colors.text,
     letterSpacing: -0.4, textAlign: 'center', marginBottom: 4,
   },
-  requiresLine: { fontSize: 15, color: Colors.textSecondary, marginBottom: 22 },
+  requiresLine: { fontSize: Type.subhead.fontSize, color: Colors.textSecondary, marginBottom: 22 },
   requiresTierEm: { fontWeight: '700' as const },
   benefitsBox: {
     width: '100%',
     backgroundColor: Colors.surface,
-    borderRadius: 16,
+    borderRadius: Tokens.radius.panel,
     padding: 16,
     gap: 10,
     borderWidth: 1,
@@ -365,12 +363,12 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   benefitRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-  benefitText: { flex: 1, fontSize: 14, color: Colors.text, lineHeight: 20 },
+  benefitText: { flex: 1, fontSize: Type.bodyCompact.fontSize, color: Colors.text, lineHeight: 20 },
   toggleRow: {
     flexDirection: 'row',
     backgroundColor: Colors.fillTertiary,
     padding: 4,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     marginBottom: 14,
     width: '100%',
     gap: 4,
@@ -392,20 +390,20 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     elevation: 1,
   },
-  toggleText: { fontSize: 14, fontWeight: '600' as const, color: Colors.textSecondary },
+  toggleText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.textSecondary },
   toggleTextActive: { color: Colors.text },
   saveBadge: {
     backgroundColor: Colors.success + '20',
     paddingHorizontal: 6,
     paddingVertical: 2,
-    borderRadius: 6,
+    borderRadius: Tokens.radius.xs,
   },
   saveBadgeText: { fontSize: 10, fontWeight: '700' as const, color: Colors.success },
   priceBox: { alignItems: 'center', marginBottom: 20 },
-  priceBig: { fontSize: 34, fontWeight: '800' as const, color: Colors.text, letterSpacing: -0.8 },
-  priceSub: { fontSize: 13, color: Colors.textSecondary, marginTop: 2 },
-  savingsRow: { marginTop: 10, backgroundColor: Colors.successLight, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 5 },
-  savingsRowText: { fontSize: 12, fontWeight: '600' as const, color: Colors.success },
+  priceBig: { fontSize: Type.largeTitle.fontSize, fontWeight: '800' as const, color: Colors.text, letterSpacing: -0.8 },
+  priceSub: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, marginTop: 2 },
+  savingsRow: { marginTop: 10, backgroundColor: Colors.successLight, borderRadius: Tokens.radius.sm, paddingHorizontal: 12, paddingVertical: 5 },
+  savingsRowText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.success },
   savingsRowAmount: { fontWeight: '800' as const, color: Colors.success },
   // Upgrade CTA — beefed shadow + bigger height + heavier weight so it
   // feels like THE primary action on the screen. Colored shadow uses the
@@ -418,7 +416,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 10,
     paddingVertical: 18,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     marginBottom: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 8 },
@@ -426,13 +424,13 @@ const styles = StyleSheet.create({
     shadowRadius: 18,
     elevation: 6,
   },
-  upgradeBtnText: { color: '#fff', fontSize: 17, fontWeight: '800' as const, letterSpacing: 0.2 },
+  upgradeBtnText: { color: '#fff', fontSize: Type.body.fontSize, fontWeight: '800' as const, letterSpacing: 0.2 },
   notNowBtn: { paddingVertical: 12 },
-  notNowText: { fontSize: 14, color: Colors.textSecondary, fontWeight: '500' as const },
+  notNowText: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, fontWeight: '500' as const },
   trustRow: {
     flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10,
     paddingHorizontal: 16,
   },
-  trustText: { fontSize: 12, color: Colors.textSecondary, textAlign: 'center' },
-  webExplain: { fontSize: 14, color: Colors.textSecondary, textAlign: 'center' as const, lineHeight: 20, marginHorizontal: 16, marginBottom: 18 },
+  trustText: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, textAlign: 'center' },
+  webExplain: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, textAlign: 'center' as const, lineHeight: 20, marginHorizontal: 16, marginBottom: 18 },
 });

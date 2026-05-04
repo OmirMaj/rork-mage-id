@@ -12,6 +12,7 @@ import {
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import ConstructionLoader from '@/components/ConstructionLoader';
+import { FeatureHeader } from '@/components/FeatureHeader';
 import { useProjects } from '@/contexts/ProjectContext';
 import { formatMoney } from '@/utils/formatters';
 import {
@@ -25,6 +26,8 @@ import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import { generateUUID } from '@/utils/generateId';
 import type { SavedAIAPayApp } from '@/types';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 export default function AIAPayAppScreen() {
   const router = useRouter();
@@ -233,9 +236,9 @@ function AIAPayAppScreenInner() {
     <>
       <Stack.Screen
         options={{
-          title: 'AIA Pay Application',
+          title: 'Progress Billing',
           headerLeft: () => (
-            <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }}>
+            <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }} accessibilityRole="button" accessibilityLabel="Back">
               <ChevronLeft size={24} color={Colors.primary} />
             </TouchableOpacity>
           ),
@@ -246,6 +249,21 @@ function AIAPayAppScreenInner() {
         contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
         keyboardShouldPersistTaps="handled"
       >
+        <FeatureHeader
+          eyebrow="AIA G702 / G703"
+          title="Bill the bank"
+          subtitle="Turn your % complete into the AIA pay application your owner&apos;s lender expects. Auto-fills contract sum, retainage, and the schedule of values."
+          explainer={{
+            term: 'AIA Pay Application',
+            definition: 'The American Institute of Architects (AIA) G702 and G703 forms are the industry-standard pay-application format used on most commercial and many residential bank-financed projects. The G702 is the cover sheet showing total contract value, % complete, and amount requested; the G703 is the line-item schedule of values backing it up.',
+            whenToUse: [
+              'Your owner or their bank/lender requires AIA-format billing',
+              'You need to bill in stages tied to actual completion percentage',
+              'Retainage (a % held back until completion) is part of your contract',
+            ],
+          }}
+        />
+
         {/* Hero summary card */}
         <View style={styles.hero}>
           <View style={styles.heroHeaderRow}>
@@ -556,7 +574,7 @@ function Row({ label, value, bold, dim, highlight }: { label: string; value: str
         styles.totalsValue,
         bold && { fontWeight: '700' },
         dim && { color: Colors.textMuted },
-        highlight && { color: Colors.primary, fontSize: 17, fontWeight: '800' },
+        highlight && { color: Colors.primary, fontSize: Type.body.fontSize, fontWeight: '800' },
       ]}>
         {value}
       </Text>
@@ -571,95 +589,95 @@ function Divider() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, backgroundColor: Colors.background },
-  loadingText: { fontSize: 14, color: Colors.textMuted },
+  loadingText: { fontSize: Type.bodyCompact.fontSize, color: Colors.textMuted },
 
   hero: {
-    margin: 16, padding: 16, borderRadius: 16,
+    margin: 16, padding: 16, borderRadius: Tokens.radius.panel,
     backgroundColor: Colors.primary + '10',
     borderWidth: 1, borderColor: Colors.primary + '30',
   },
   heroHeaderRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   heroTitleBlock: { flex: 1 },
   heroLabel: { fontSize: 10, color: Colors.primary, fontWeight: '700', letterSpacing: 1.5, marginBottom: 4 },
-  heroTitle: { fontSize: 20, fontWeight: '800', color: Colors.text, marginBottom: 2 },
-  heroSub: { fontSize: 13, color: Colors.textMuted },
+  heroTitle: { fontSize: Type.title3.fontSize, fontWeight: '800', color: Colors.text, marginBottom: 2 },
+  heroSub: { fontSize: Type.footnote.fontSize, color: Colors.textMuted },
   progressBadge: {
     alignItems: 'center', justifyContent: 'center',
     backgroundColor: Colors.primary, borderRadius: 50,
     width: 68, height: 68,
   },
-  progressBadgeNum: { fontSize: 18, fontWeight: '800', color: '#FFF', lineHeight: 20 },
+  progressBadgeNum: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: '#FFF', lineHeight: 20 },
   progressBadgeLabel: { fontSize: 9, color: '#FFFFFFCC', fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
 
   heroStats: { flexDirection: 'row', gap: 12, marginTop: 14 },
-  heroStat: { flex: 1, backgroundColor: Colors.card, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: Colors.border },
-  heroStatLabel: { fontSize: 11, color: Colors.textMuted, fontWeight: '600', marginBottom: 4 },
-  heroStatValue: { fontSize: 18, fontWeight: '800', color: Colors.text },
+  heroStat: { flex: 1, backgroundColor: Colors.card, borderRadius: Tokens.radius.card, padding: 12, borderWidth: 1, borderColor: Colors.border },
+  heroStatLabel: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontWeight: '600', marginBottom: 4 },
+  heroStatValue: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: Colors.text },
   heroStatSub: { fontSize: 10, color: Colors.textMuted, marginTop: 2 },
 
   section: { marginHorizontal: 16, marginBottom: 20 },
   sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  sectionTitle: { fontSize: 16, fontWeight: '700', color: Colors.text, marginBottom: 4 },
-  sectionTitleCount: { fontSize: 12, color: Colors.textMuted },
-  sectionHint: { fontSize: 12, color: Colors.textMuted, marginBottom: 10, lineHeight: 16 },
+  sectionTitle: { fontSize: Type.callout.fontSize, fontWeight: '700', color: Colors.text, marginBottom: 4 },
+  sectionTitleCount: { fontSize: Type.caption1.fontSize, color: Colors.textMuted },
+  sectionHint: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginBottom: 10, lineHeight: 16 },
 
   formRow: { marginBottom: 10 },
-  formLabel: { fontSize: 12, color: Colors.textMuted, marginBottom: 4, fontWeight: '600' },
+  formLabel: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginBottom: 4, fontWeight: '600' },
   formInput: {
-    backgroundColor: Colors.card, borderRadius: 10, borderWidth: 1, borderColor: Colors.border,
-    paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: Colors.text,
+    backgroundColor: Colors.card, borderRadius: Tokens.radius.md, borderWidth: 1, borderColor: Colors.border,
+    paddingHorizontal: 12, paddingVertical: 10, fontSize: Type.bodyCompact.fontSize, color: Colors.text,
   },
 
   retainageChips: { flexDirection: 'row', gap: 8, alignItems: 'center' },
   chip: {
-    paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8,
+    paddingHorizontal: 12, paddingVertical: 8, borderRadius: Tokens.radius.sm,
     backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,
   },
   chipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  chipText: { fontSize: 13, fontWeight: '600', color: Colors.text },
+  chipText: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: Colors.text },
   chipTextActive: { color: '#FFF' },
 
   sovCard: {
-    backgroundColor: Colors.card, borderRadius: 14, padding: 12,
+    backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 12,
     marginBottom: 10, borderWidth: 1, borderColor: Colors.border,
   },
   sovHeaderRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 10 },
   sovItemNoPill: {
-    paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6,
+    paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.xs,
     backgroundColor: Colors.primary + '15',
   },
-  sovItemNoText: { fontSize: 11, fontWeight: '700', color: Colors.primary },
-  sovDescription: { flex: 1, fontSize: 13, fontWeight: '600', color: Colors.text, lineHeight: 18 },
+  sovItemNoText: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.primary },
+  sovDescription: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '600', color: Colors.text, lineHeight: 18 },
 
   sovValueRow: { flexDirection: 'row', gap: 8, marginBottom: 10 },
   sovValueCol: { flex: 1 },
   sovValueLabel: { fontSize: 10, color: Colors.textMuted, fontWeight: '600', marginBottom: 4 },
-  sovValueNum: { fontSize: 14, fontWeight: '700', color: Colors.text },
+  sovValueNum: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
   sovInput: {
-    backgroundColor: Colors.background, borderRadius: 8, borderWidth: 1, borderColor: Colors.border,
-    paddingHorizontal: 8, paddingVertical: 8, fontSize: 13, color: Colors.text,
+    backgroundColor: Colors.background, borderRadius: Tokens.radius.sm, borderWidth: 1, borderColor: Colors.border,
+    paddingHorizontal: 8, paddingVertical: 8, fontSize: Type.footnote.fontSize, color: Colors.text,
   },
 
   sovProgressRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
   sovProgressBar: { flex: 1, height: 6, backgroundColor: Colors.border, borderRadius: 3, overflow: 'hidden' },
-  sovProgressFill: { height: '100%', backgroundColor: '#34C759', borderRadius: 3 },
-  sovProgressPct: { fontSize: 11, fontWeight: '700', color: Colors.text, width: 38, textAlign: 'right' },
+  sovProgressFill: { height: '100%', backgroundColor: Colors.success, borderRadius: 3 },
+  sovProgressPct: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.text, width: 38, textAlign: 'right' },
 
   sovQuickRow: { flexDirection: 'row', gap: 6 },
   sovQuickBtn: {
-    flex: 1, paddingVertical: 6, borderRadius: 6,
+    flex: 1, paddingVertical: 6, borderRadius: Tokens.radius.xs,
     backgroundColor: Colors.background, alignItems: 'center',
     borderWidth: 1, borderColor: Colors.border,
   },
-  sovQuickText: { fontSize: 11, fontWeight: '600', color: Colors.text },
+  sovQuickText: { fontSize: Type.caption2.fontSize, fontWeight: '600', color: Colors.text },
 
   totalsCard: {
-    backgroundColor: Colors.card, borderRadius: 14, padding: 14,
+    backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 14,
     borderWidth: 1, borderColor: Colors.border,
   },
   totalsRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 5 },
-  totalsLabel: { fontSize: 13, color: Colors.text },
-  totalsValue: { fontSize: 14, fontWeight: '600', color: Colors.text },
+  totalsLabel: { fontSize: Type.footnote.fontSize, color: Colors.text },
+  totalsValue: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600', color: Colors.text },
   totalsDivider: { height: 1, backgroundColor: Colors.border, marginVertical: 6 },
 
   bottomBar: {
@@ -670,21 +688,21 @@ const styles = StyleSheet.create({
   },
   generateBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 8, backgroundColor: Colors.primary, borderRadius: 12,
+    gap: 8, backgroundColor: Colors.primary, borderRadius: Tokens.radius.card,
     paddingVertical: 14,
   },
-  generateBtnText: { fontSize: 15, fontWeight: '700', color: '#FFF' },
+  generateBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700', color: '#FFF' },
   bottomBarRow: { flexDirection: 'row', gap: 10, alignItems: 'stretch' },
   saveBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 6, paddingHorizontal: 14, paddingVertical: 14, borderRadius: 12,
+    gap: 6, paddingHorizontal: 14, paddingVertical: 14, borderRadius: Tokens.radius.card,
     backgroundColor: Colors.primary + '12',
     borderWidth: 1, borderColor: Colors.primary + '40',
   },
   saveBtnDone: { backgroundColor: Colors.primary + '20', borderColor: Colors.primary },
-  saveBtnText: { fontSize: 13, fontWeight: '700', color: Colors.primary },
+  saveBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.primary },
   bottomBarHint: {
-    fontSize: 11, color: Colors.textMuted, textAlign: 'center',
+    fontSize: Type.caption2.fontSize, color: Colors.textMuted, textAlign: 'center',
     marginTop: 8, lineHeight: 15,
   },
 
@@ -701,31 +719,31 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: Colors.border,
   },
   modalIconWrap: {
-    width: 48, height: 48, borderRadius: 14,
+    width: 48, height: 48, borderRadius: Tokens.radius.lg,
     backgroundColor: '#FFF4E0',
     alignItems: 'center', justifyContent: 'center',
     marginBottom: 14,
   },
-  modalTitle: { fontSize: 20, fontWeight: '800', color: Colors.text, marginBottom: 12, letterSpacing: -0.3 },
-  modalBody: { fontSize: 14, color: Colors.text, lineHeight: 20 },
+  modalTitle: { fontSize: Type.title3.fontSize, fontWeight: '800', color: Colors.text, marginBottom: 12, letterSpacing: -0.3 },
+  modalBody: { fontSize: Type.bodyCompact.fontSize, color: Colors.text, lineHeight: 20 },
   modalBodyEmph: { fontWeight: '700', color: Colors.text },
   modalCta: {
     backgroundColor: Colors.text,
     paddingVertical: 13, paddingHorizontal: 18,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     alignItems: 'center', justifyContent: 'center',
     marginTop: 16,
     flex: 1,
   },
-  modalCtaText: { color: '#FFF', fontSize: 14, fontWeight: '700' },
+  modalCtaText: { color: '#FFF', fontSize: Type.bodyCompact.fontSize, fontWeight: '700' },
   modalCtaRow: { flexDirection: 'row', gap: 10, marginTop: 16 },
   modalCtaSecondary: {
     backgroundColor: Colors.card,
     paddingVertical: 13, paddingHorizontal: 18,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     borderWidth: 1, borderColor: Colors.border,
     alignItems: 'center', justifyContent: 'center',
     flex: 1,
   },
-  modalCtaSecondaryText: { color: Colors.text, fontSize: 14, fontWeight: '700' },
+  modalCtaSecondaryText: { color: Colors.text, fontSize: Type.bodyCompact.fontSize, fontWeight: '700' },
 });

@@ -32,6 +32,8 @@ import InlineVoiceFill from '@/components/InlineVoiceFill';
 import VoiceCaptureModal from '@/components/VoiceCaptureModal';
 import { parseLeadFromTranscript, pickIfEmpty, titleCase } from '@/utils/voiceFormParsers';
 import { buildMailtoUrl, mailSignOff } from '@/utils/mailtoComposer';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 export default function LeadDetailScreen() {
   const insets = useSafeAreaInsets();
@@ -257,7 +259,7 @@ export default function LeadDetailScreen() {
               suggestions={[
                 'John Smith, 555 1234, kitchen remodel, found us on Houzz, eighty thousand budget, spring',
                 'Jane Garcia, jane@email.com, full bathroom renovation, referral from Bob, twenty-five thousand',
-                'Henderson family, 312 555 0199, two-story addition, our website, two hundred thousand',
+                'Patel family, 312 555 0199, two-story addition, our website, two hundred thousand',
                 'Mike Doe, walk-in this morning, ADU in the back yard, one fifty',
               ]}
               onTranscript={async (transcript) => {
@@ -342,7 +344,7 @@ export default function LeadDetailScreen() {
                   placeholder={`Log a ${touchKind.replace('_',' ')}…`}
                   placeholderTextColor={Colors.textMuted}
                 />
-                <TouchableOpacity style={styles.touchVoiceBtn} onPress={() => setVoiceLogOpen(true)} activeOpacity={0.8}>
+                <TouchableOpacity style={styles.touchVoiceBtn} onPress={() => setVoiceLogOpen(true)} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel="Record">
                   <Mic size={16} color={Colors.primary} />
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -378,9 +380,7 @@ export default function LeadDetailScreen() {
         {/* Sticky bottom save bar */}
         <View style={[styles.saveBar, { paddingBottom: insets.bottom + 12 }]}>
           {existing && (
-            <TouchableOpacity style={styles.deleteBtn} onPress={handleDelete} activeOpacity={0.8}>
-              <Trash2 size={16} color={Colors.error} />
-            </TouchableOpacity>
+            <TouchableOpacity style={styles.deleteBtn} onPress={handleDelete} activeOpacity={0.8} accessibilityRole="button" accessibilityLabel="Delete"><Trash2 size={16} color={Colors.error} /></TouchableOpacity>
           )}
           <TouchableOpacity
             style={[styles.saveBtn, !canSave && styles.saveBtnDisabled]}
@@ -417,15 +417,15 @@ const styles = StyleSheet.create({
   quickBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     backgroundColor: Colors.surface,
-    paddingHorizontal: 12, paddingVertical: 10, borderRadius: 12,
+    paddingHorizontal: 12, paddingVertical: 10, borderRadius: Tokens.radius.card,
     borderWidth: 1, borderColor: Colors.cardBorder,
   },
-  quickBtnText: { fontSize: 13, fontWeight: '600' as const, color: Colors.text },
+  quickBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.text },
   scoreCard: {
     flexDirection: 'row', alignItems: 'center', gap: 14,
     margin: 16, marginBottom: 0,
     backgroundColor: Colors.surface,
-    padding: 14, borderRadius: 14, borderWidth: 1, borderColor: Colors.cardBorder,
+    padding: 14, borderRadius: Tokens.radius.lg, borderWidth: 1, borderColor: Colors.cardBorder,
   },
   scoreCircle: {
     width: 56, height: 56, borderRadius: 28,
@@ -433,82 +433,82 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center', gap: 1,
   },
   scoreCircleHot: { backgroundColor: Colors.primary },
-  scoreCircleText: { fontSize: 18, fontWeight: '700' as const, color: Colors.primary },
+  scoreCircleText: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: Colors.primary },
   scoreCircleTextHot: { color: '#FFF' },
-  scoreCardTitle: { fontSize: 12, fontWeight: '700' as const, color: Colors.textMuted, letterSpacing: 0.5, textTransform: 'uppercase' },
-  scoreCardReason: { fontSize: 13, color: Colors.text, marginTop: 2, lineHeight: 18 },
+  scoreCardTitle: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: Colors.textMuted, letterSpacing: 0.5, textTransform: 'uppercase' },
+  scoreCardReason: { fontSize: Type.footnote.fontSize, color: Colors.text, marginTop: 2, lineHeight: 18 },
   section: { padding: 16, paddingBottom: 8 },
-  sectionLabel: { fontSize: 12, fontWeight: '700' as const, color: Colors.textMuted, letterSpacing: 0.5, textTransform: 'uppercase', marginBottom: 8 },
-  fieldLabel: { fontSize: 13, color: Colors.textMuted, marginTop: 12, marginBottom: 6, fontWeight: '600' as const },
+  sectionLabel: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: Colors.textMuted, letterSpacing: 0.5, textTransform: 'uppercase', marginBottom: 8 },
+  fieldLabel: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, marginTop: 12, marginBottom: 6, fontWeight: '600' as const },
   input: {
     backgroundColor: Colors.surface,
     paddingHorizontal: 14, paddingVertical: 12,
-    borderRadius: 12, borderWidth: 1, borderColor: Colors.cardBorder,
-    fontSize: 15, color: Colors.text,
+    borderRadius: Tokens.radius.card, borderWidth: 1, borderColor: Colors.cardBorder,
+    fontSize: Type.subhead.fontSize, color: Colors.text,
   },
   multilineInput: { minHeight: 80 },
   budgetRow: { flexDirection: 'row', marginTop: 4 },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   chip: {
     paddingHorizontal: 12, paddingVertical: 8,
-    backgroundColor: Colors.surface, borderRadius: 10,
+    backgroundColor: Colors.surface, borderRadius: Tokens.radius.md,
     borderWidth: 1, borderColor: Colors.cardBorder,
   },
   chipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  chipText: { fontSize: 13, color: Colors.text, fontWeight: '500' as const },
+  chipText: { fontSize: Type.footnote.fontSize, color: Colors.text, fontWeight: '500' as const },
   chipTextActive: { color: '#FFF' },
   convertBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     marginTop: 12,
     backgroundColor: Colors.success,
-    paddingVertical: 14, borderRadius: 12,
+    paddingVertical: 14, borderRadius: Tokens.radius.card,
   },
-  convertBtnText: { color: '#FFF', fontSize: 15, fontWeight: '700' as const },
+  convertBtnText: { color: '#FFF', fontSize: Type.subhead.fontSize, fontWeight: '700' as const },
   convertedBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     marginTop: 12,
     backgroundColor: Colors.primary + '15',
-    paddingVertical: 14, borderRadius: 12,
+    paddingVertical: 14, borderRadius: Tokens.radius.card,
     borderWidth: 1, borderColor: Colors.primary + '40',
   },
-  convertedBtnText: { color: Colors.primary, fontSize: 14, fontWeight: '600' as const },
+  convertedBtnText: { color: Colors.primary, fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const },
   touchKindRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 },
   chipSmall: {
     paddingHorizontal: 10, paddingVertical: 6,
-    backgroundColor: Colors.surface, borderRadius: 8,
+    backgroundColor: Colors.surface, borderRadius: Tokens.radius.sm,
     borderWidth: 1, borderColor: Colors.cardBorder,
   },
   chipSmallActive: { backgroundColor: Colors.text, borderColor: Colors.text },
-  chipSmallText: { fontSize: 12, color: Colors.text, textTransform: 'capitalize' as const },
+  chipSmallText: { fontSize: Type.caption1.fontSize, color: Colors.text, textTransform: 'capitalize' as const },
   chipSmallTextActive: { color: '#FFF' },
   touchInputRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   touchVoiceBtn: {
-    width: 42, height: 42, borderRadius: 12,
+    width: 42, height: 42, borderRadius: Tokens.radius.card,
     backgroundColor: Colors.primary + '15',
     alignItems: 'center', justifyContent: 'center',
     borderWidth: 1, borderColor: Colors.primary + '30',
   },
   touchAddBtn: {
     backgroundColor: Colors.text,
-    paddingHorizontal: 14, paddingVertical: 12, borderRadius: 12,
+    paddingHorizontal: 14, paddingVertical: 12, borderRadius: Tokens.radius.card,
   },
   touchAddBtnDisabled: { backgroundColor: Colors.fillTertiary },
-  touchAddBtnText: { color: '#FFF', fontSize: 13, fontWeight: '600' as const },
+  touchAddBtnText: { color: '#FFF', fontSize: Type.footnote.fontSize, fontWeight: '600' as const },
   touchList: { marginTop: 12, gap: 10 },
   touchRow: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 10,
     backgroundColor: Colors.surface,
-    padding: 12, borderRadius: 12,
+    padding: 12, borderRadius: Tokens.radius.card,
     borderWidth: 1, borderColor: Colors.cardBorder,
   },
   touchKindBadge: {
     backgroundColor: Colors.primary + '15',
-    paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6,
+    paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.xs,
   },
   touchKindBadgeText: { fontSize: 10, fontWeight: '700' as const, color: Colors.primary, textTransform: 'uppercase' },
-  touchBody: { fontSize: 13, color: Colors.text, lineHeight: 18 },
-  touchMeta: { fontSize: 11, color: Colors.textMuted, marginTop: 2 },
-  emptyText: { fontSize: 13, color: Colors.textMuted, textAlign: 'center', paddingVertical: 12 },
+  touchBody: { fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 18 },
+  touchMeta: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 2 },
+  emptyText: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, textAlign: 'center', paddingVertical: 12 },
   saveBar: {
     position: 'absolute', left: 0, right: 0, bottom: 0,
     flexDirection: 'row', gap: 8,
@@ -517,7 +517,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, paddingTop: 12,
   },
   deleteBtn: {
-    width: 48, height: 48, borderRadius: 12,
+    width: 48, height: 48, borderRadius: Tokens.radius.card,
     backgroundColor: Colors.error + '15',
     alignItems: 'center', justifyContent: 'center',
     borderWidth: 1, borderColor: Colors.error + '30',
@@ -525,8 +525,8 @@ const styles = StyleSheet.create({
   saveBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     backgroundColor: Colors.primary,
-    paddingVertical: 14, borderRadius: 12,
+    paddingVertical: 14, borderRadius: Tokens.radius.card,
   },
   saveBtnDisabled: { backgroundColor: Colors.fillTertiary },
-  saveBtnText: { color: '#FFF', fontSize: 15, fontWeight: '700' as const },
+  saveBtnText: { color: '#FFF', fontSize: Type.subhead.fontSize, fontWeight: '700' as const },
 });

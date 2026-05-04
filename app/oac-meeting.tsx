@@ -28,9 +28,12 @@ import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import VoiceRecorder from '@/components/VoiceRecorder';
 import { sendEmail } from '@/utils/emailService';
+import { FeatureHeader } from '@/components/FeatureHeader';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import { generateUUID } from '@/utils/generateId';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 import {
   buildAgendaFromProjectState, mergeAgenda, generateMinutesFromTranscript,
 } from '@/utils/oacEngine';
@@ -497,12 +500,24 @@ function OACMeetingInner() {
   // List mode
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      <Stack.Screen options={{ title: 'OAC Meetings' }} />
+      <Stack.Screen options={{ title: 'Project Meetings' }} />
+      <FeatureHeader
+        eyebrow="OAC Weekly"
+        title="Weekly project meeting"
+        subtitle="The standing call with the owner, architect, and you. We auto-build the agenda from open RFIs, change orders, and schedule slips — and record + transcribe the meeting."
+        explainer={{
+          term: 'OAC Meeting',
+          definition: '"OAC" stands for Owner / Architect / Contractor — the three parties who meet weekly (or biweekly) on most jobs to align on progress, decisions, and changes. This is the meeting where blocking RFIs get resolved, change orders get approved, and the schedule gets re-baselined.',
+          whenToUse: [
+            'You\'re running a project with regular owner/architect involvement',
+            'You want one place to track decisions across weeks',
+            'You need a paper trail of who agreed to what, when',
+          ],
+        }}
+      />
       <View style={styles.listHeader}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.eyebrow}>OAC Meetings</Text>
-          <Text style={styles.title}>{project.name}</Text>
-          <Text style={styles.subtitle}>{meetings.length} meeting{meetings.length === 1 ? '' : 's'} on file</Text>
+          <Text style={styles.subtitle}>{project.name} · {meetings.length} meeting{meetings.length === 1 ? '' : 's'} on file</Text>
         </View>
         <TouchableOpacity
           style={[styles.newMeetingBtn, generatingAgenda && styles.primaryBtnDisabled]}
@@ -680,8 +695,8 @@ function buildMinutesEmailHtml(opts: {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   center: { alignItems: 'center', justifyContent: 'center' },
-  notFound: { fontSize: 16, color: Colors.text, fontWeight: '600' as const, marginBottom: 12 },
-  backBtn: { paddingHorizontal: 18, paddingVertical: 10, backgroundColor: Colors.primary, borderRadius: 10 },
+  notFound: { fontSize: Type.callout.fontSize, color: Colors.text, fontWeight: '600' as const, marginBottom: 12 },
+  backBtn: { paddingHorizontal: 18, paddingVertical: 10, backgroundColor: Colors.primary, borderRadius: Tokens.radius.md },
   backBtnText: { color: '#fff', fontWeight: '700' as const },
 
   // List mode
@@ -699,34 +714,34 @@ const styles = StyleSheet.create({
     fontSize: 10, fontWeight: '800' as const, color: Colors.textMuted,
     letterSpacing: 0.7, textTransform: 'uppercase' as const,
   },
-  title: { fontSize: 22, fontWeight: '800' as const, color: Colors.text, marginTop: 2, letterSpacing: -0.4 },
-  subtitle: { fontSize: 12, color: Colors.textMuted, marginTop: 2 },
+  title: { fontSize: Type.title2.fontSize, fontWeight: '800' as const, color: Colors.text, marginTop: 2, letterSpacing: -0.4 },
+  subtitle: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2 },
   newMeetingBtn: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     gap: 6,
     paddingHorizontal: 14, paddingVertical: 11,
-    backgroundColor: Colors.primary, borderRadius: 12,
+    backgroundColor: Colors.primary, borderRadius: Tokens.radius.card,
   },
   emptyState: { alignItems: 'center', paddingTop: 60, gap: 10 },
-  emptyTitle: { fontSize: 18, fontWeight: '800' as const, color: Colors.text },
-  emptyBody: { fontSize: 13, color: Colors.textSecondary, textAlign: 'center', lineHeight: 19, paddingHorizontal: 32 },
+  emptyTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '800' as const, color: Colors.text },
+  emptyBody: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, textAlign: 'center', lineHeight: 19, paddingHorizontal: 32 },
   meetingRow: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     backgroundColor: Colors.surface,
-    borderRadius: 12, padding: 12, marginBottom: 8,
+    borderRadius: Tokens.radius.card, padding: 12, marginBottom: 8,
     borderWidth: 1, borderColor: Colors.cardBorder,
     gap: 12,
   },
   meetingBadge: {
-    width: 44, height: 44, borderRadius: 12,
+    width: 44, height: 44, borderRadius: Tokens.radius.card,
     backgroundColor: Colors.primary + '15',
     alignItems: 'center', justifyContent: 'center',
   },
-  meetingBadgeText: { fontSize: 14, fontWeight: '800' as const, color: Colors.primary },
-  meetingTitle: { fontSize: 14, fontWeight: '700' as const, color: Colors.text },
-  meetingMeta: { fontSize: 12, color: Colors.textMuted, marginTop: 2 },
+  meetingBadgeText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800' as const, color: Colors.primary },
+  meetingTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
+  meetingMeta: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2 },
 
   // Detail mode
   detailHeader: {
@@ -736,24 +751,24 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1, borderBottomColor: Colors.borderLight,
   },
   headerBack: { flexDirection: 'row', alignItems: 'center', gap: 4, flex: 1 },
-  headerBackText: { fontSize: 14, fontWeight: '600' as const, color: Colors.primary },
+  headerBackText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.primary },
   statusPill: {
-    paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999,
+    paddingHorizontal: 10, paddingVertical: 5, borderRadius: Tokens.radius.full,
     backgroundColor: Colors.primary + '15',
   },
-  statusPillText: { fontSize: 11, fontWeight: '700' as const, color: Colors.primary, letterSpacing: 0.4 },
+  statusPillText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: Colors.primary, letterSpacing: 0.4 },
   titleBlock: { marginBottom: 16 },
 
   card: {
     backgroundColor: Colors.surface,
-    borderRadius: 14, padding: 14,
+    borderRadius: Tokens.radius.lg, padding: 14,
     borderWidth: 1, borderColor: Colors.cardBorder,
     marginBottom: 12,
   },
   cardHead: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, marginBottom: 8 },
-  cardLabel: { flex: 1, fontSize: 11, fontWeight: '800' as const, color: Colors.textMuted, letterSpacing: 0.6, textTransform: 'uppercase' as const },
-  cardHelper: { fontSize: 12, color: Colors.textMuted, lineHeight: 16, marginBottom: 8 },
-  emptyHint: { fontSize: 12, color: Colors.textMuted, fontStyle: 'italic' as const },
+  cardLabel: { flex: 1, fontSize: Type.caption2.fontSize, fontWeight: '800' as const, color: Colors.textMuted, letterSpacing: 0.6, textTransform: 'uppercase' as const },
+  cardHelper: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, lineHeight: 16, marginBottom: 8 },
+  emptyHint: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, fontStyle: 'italic' as const },
   smallBtn: {
     flexDirection: 'row' as const, alignItems: 'center' as const, gap: 4,
     paddingHorizontal: 10, paddingVertical: 6, borderRadius: 9,
@@ -762,11 +777,11 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start' as const,
     marginTop: 8,
   },
-  smallBtnText: { fontSize: 12, fontWeight: '800' as const, color: Colors.primary },
+  smallBtnText: { fontSize: Type.caption1.fontSize, fontWeight: '800' as const, color: Colors.primary },
 
   attendeeRow: { paddingVertical: 6 },
-  attendeeName: { fontSize: 14, fontWeight: '700' as const, color: Colors.text },
-  attendeeMeta: { fontSize: 12, color: Colors.textMuted, marginTop: 2 },
+  attendeeName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
+  attendeeMeta: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2 },
 
   section: { marginTop: 6, marginBottom: 4 },
   sectionLabel: {
@@ -781,35 +796,35 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1, borderBottomColor: Colors.borderLight,
   },
   agendaCheck: { paddingTop: 2 },
-  agendaTitle: { fontSize: 14, fontWeight: '700' as const, color: Colors.text, lineHeight: 19 },
+  agendaTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text, lineHeight: 19 },
   agendaTitleDone: { color: Colors.textMuted, textDecorationLine: 'line-through' as const },
-  agendaDetail: { fontSize: 12, color: Colors.textSecondary, marginTop: 3, lineHeight: 16 },
+  agendaDetail: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, marginTop: 3, lineHeight: 16 },
   agendaNote: {
-    fontSize: 12, color: Colors.text,
+    fontSize: Type.caption1.fontSize, color: Colors.text,
     backgroundColor: Colors.background,
-    borderRadius: 6, padding: 6, marginTop: 6,
+    borderRadius: Tokens.radius.xs, padding: 6, marginTop: 6,
     minHeight: 28,
   },
   itemPill: { width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
-  itemPillText: { fontSize: 12, fontWeight: '800' as const },
+  itemPillText: { fontSize: Type.caption1.fontSize, fontWeight: '800' as const },
   coveredSummary: {
-    fontSize: 11, color: Colors.textMuted, fontStyle: 'italic' as const,
+    fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontStyle: 'italic' as const,
     textAlign: 'right' as const, marginTop: 6,
   },
 
   transcriptCard: {
     backgroundColor: Colors.background,
-    borderRadius: 8, padding: 10,
+    borderRadius: Tokens.radius.sm, padding: 10,
     marginTop: 8,
   },
   transcriptLabel: { fontSize: 10, fontWeight: '800' as const, color: Colors.textMuted, letterSpacing: 0.6, textTransform: 'uppercase' as const, marginBottom: 4 },
-  transcriptText: { fontSize: 12, color: Colors.text, lineHeight: 16 },
+  transcriptText: { fontSize: Type.caption1.fontSize, color: Colors.text, lineHeight: 16 },
 
   minutesInput: {
     backgroundColor: Colors.background,
     borderWidth: 1, borderColor: Colors.border,
-    borderRadius: 10, padding: 12,
-    fontSize: 13, color: Colors.text,
+    borderRadius: Tokens.radius.md, padding: 12,
+    fontSize: Type.footnote.fontSize, color: Colors.text,
     minHeight: 200,
     marginBottom: 12,
   },
@@ -819,10 +834,10 @@ const styles = StyleSheet.create({
     alignItems: 'center' as const, justifyContent: 'center' as const,
     gap: 8,
     backgroundColor: Colors.primary,
-    borderRadius: 12, paddingVertical: 14,
+    borderRadius: Tokens.radius.card, paddingVertical: 14,
   },
   primaryBtnDisabled: { opacity: 0.5 },
-  primaryBtnText: { fontSize: 15, fontWeight: '800' as const, color: '#fff' },
+  primaryBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '800' as const, color: '#fff' },
 
   actionRow: {
     flexDirection: 'row' as const,
@@ -831,10 +846,10 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1, borderBottomColor: Colors.borderLight,
     gap: 10,
   },
-  actionDesc: { fontSize: 13, fontWeight: '600' as const, color: Colors.text },
-  actionMeta: { fontSize: 11, color: Colors.textMuted, marginTop: 2 },
+  actionDesc: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.text },
+  actionMeta: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 2 },
   actionStatus: {
-    paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999,
+    paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.full,
     backgroundColor: Colors.warning + '15',
   },
   actionStatusDone: { backgroundColor: Colors.success + '15' },

@@ -380,13 +380,13 @@ export interface AllowanceSummary {
   totalBudget: number;
   totalChosen: number;
   totalOver: number;            // sum of (chosen.total - budget) across exceeded categories
-  byCategory: Array<{
+  byCategory: {
     category: string;
     budget: number;
     chosenTotal: number;
     delta: number;              // chosenTotal - budget (negative = under, positive = over)
     status: SelectionCategory['status'];
-  }>;
+  }[];
 }
 
 export function summarizeAllowances(categories: SelectionCategory[]): AllowanceSummary {

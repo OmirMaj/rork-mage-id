@@ -10,7 +10,7 @@ import type { ProjectSchedule } from '@/types';
 
 interface Props {
   changeDescription: string;
-  lineItems: Array<{ name: string; quantity: number; unitPrice: number; total: number }>;
+  lineItems: { name: string; quantity: number; unitPrice: number; total: number }[];
   schedule: ProjectSchedule | null;
 }
 

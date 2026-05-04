@@ -6,6 +6,8 @@ import * as Haptics from 'expo-haptics';
 import { X, Search, Clock, Users, DollarSign, ChevronDown, ChevronUp } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { PRODUCTIVITY_RATES, PRODUCTIVITY_CATEGORIES, type ProductivityRate } from '@/constants/productivityRates';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 interface ProductivityCalculatorProps {
   visible: boolean;
@@ -77,9 +79,7 @@ const ProductivityCalculator = React.memo(function ProductivityCalculator({ visi
             <Text style={s.headerTitle}>Productivity Calc</Text>
             <Text style={s.headerSub}>Crew output & cost estimator</Text>
           </View>
-          <TouchableOpacity onPress={handleClose} style={s.closeBtn}>
-            <X size={20} color={Colors.text} />
-          </TouchableOpacity>
+          <TouchableOpacity onPress={handleClose} style={s.closeBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={Colors.text} /></TouchableOpacity>
         </View>
 
         {selectedRate ? (
@@ -184,7 +184,7 @@ const ProductivityCalculator = React.memo(function ProductivityCalculator({ visi
                 placeholderTextColor={Colors.textMuted}
               />
               {query.length > 0 && (
-                <TouchableOpacity onPress={() => setQuery('')}>
+                <TouchableOpacity onPress={() => setQuery('')} accessibilityRole="button" accessibilityLabel="Close">
                   <X size={14} color={Colors.textMuted} />
                 </TouchableOpacity>
               )}
@@ -251,89 +251,89 @@ const s = StyleSheet.create({
     paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12,
     backgroundColor: Colors.surface, borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight,
   },
-  headerTitle: { fontSize: 22, fontWeight: '700' as const, color: Colors.text, letterSpacing: -0.3 },
-  headerSub: { fontSize: 13, color: Colors.textSecondary, marginTop: 2 },
+  headerTitle: { fontSize: Type.title2.fontSize, fontWeight: '700' as const, color: Colors.text, letterSpacing: -0.3 },
+  headerSub: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, marginTop: 2 },
   closeBtn: {
     width: 34, height: 34, borderRadius: 17, backgroundColor: Colors.fillTertiary,
     alignItems: 'center', justifyContent: 'center',
   },
   body: { flex: 1, paddingHorizontal: 16, paddingTop: 12 },
   backBtn: { marginBottom: 8 },
-  backBtnText: { fontSize: 13, color: Colors.primary, fontWeight: '600' as const },
-  taskTitle: { fontSize: 20, fontWeight: '700' as const, color: Colors.text, marginBottom: 12 },
+  backBtnText: { fontSize: Type.footnote.fontSize, color: Colors.primary, fontWeight: '600' as const },
+  taskTitle: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: Colors.text, marginBottom: 12 },
   searchBar: {
     flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.fillTertiary,
-    borderRadius: 12, paddingHorizontal: 12, gap: 8, height: 42, marginBottom: 8,
+    borderRadius: Tokens.radius.card, paddingHorizontal: 12, gap: 8, height: 42, marginBottom: 8,
   },
-  searchInput: { flex: 1, fontSize: 14, color: Colors.text },
+  searchInput: { flex: 1, fontSize: Type.bodyCompact.fontSize, color: Colors.text },
   catScroll: { maxHeight: 40, marginBottom: 8 },
   catContent: { gap: 6, paddingRight: 16 },
   catChip: {
     paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, backgroundColor: Colors.fillTertiary,
   },
   catChipActive: { backgroundColor: Colors.primary },
-  catChipText: { fontSize: 12, fontWeight: '600' as const, color: Colors.textSecondary },
+  catChipText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.textSecondary },
   catChipTextActive: { color: Colors.textOnPrimary },
   rateList: { flex: 1 },
   rateCard: {
-    backgroundColor: Colors.surface, borderRadius: 12, marginBottom: 6,
+    backgroundColor: Colors.surface, borderRadius: Tokens.radius.card, marginBottom: 6,
     borderWidth: 1, borderColor: Colors.cardBorder, overflow: 'hidden' as const,
   },
   rateCardTop: { flexDirection: 'row', alignItems: 'center', padding: 12, gap: 10 },
   rateInfo: { flex: 1, gap: 2 },
-  rateName: { fontSize: 14, fontWeight: '600' as const, color: Colors.text },
-  rateCrew: { fontSize: 11, color: Colors.textMuted },
+  rateName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
+  rateCrew: { fontSize: Type.caption2.fontSize, color: Colors.textMuted },
   rateRight: { alignItems: 'flex-end' },
-  rateUnitCost: { fontSize: 15, fontWeight: '700' as const, color: Colors.success },
+  rateUnitCost: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.success },
   rateUnit: { fontSize: 10, color: Colors.textMuted },
   expandToggle: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 12, paddingBottom: 8, gap: 6,
   },
-  expandText: { fontSize: 11, color: Colors.info, fontWeight: '500' as const },
+  expandText: { fontSize: Type.caption2.fontSize, color: Colors.info, fontWeight: '500' as const },
   expandedContent: {
     padding: 12, paddingTop: 8, borderTopWidth: 0.5, borderTopColor: Colors.borderLight,
     backgroundColor: Colors.surfaceAlt, gap: 4,
   },
-  expandedRow: { fontSize: 11, color: Colors.textSecondary },
-  expandedNotes: { fontSize: 11, color: Colors.textMuted, fontStyle: 'italic' as const },
+  expandedRow: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary },
+  expandedNotes: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontStyle: 'italic' as const },
   crewCard: {
-    backgroundColor: Colors.surface, borderRadius: 12, padding: 14, gap: 10, marginBottom: 16,
+    backgroundColor: Colors.surface, borderRadius: Tokens.radius.card, padding: 14, gap: 10, marginBottom: 16,
     borderWidth: 1, borderColor: Colors.cardBorder,
   },
   crewRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  crewLabel: { fontSize: 13, fontWeight: '600' as const, color: Colors.textSecondary },
-  crewValue: { fontSize: 13, fontWeight: '600' as const, color: Colors.text },
-  fieldLabel: { fontSize: 13, fontWeight: '600' as const, color: Colors.textSecondary, marginBottom: 6 },
+  crewLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.textSecondary },
+  crewValue: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.text },
+  fieldLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.textSecondary, marginBottom: 6 },
   qtyInput: {
-    height: 52, backgroundColor: Colors.surface, borderRadius: 12, fontSize: 22,
+    height: 52, backgroundColor: Colors.surface, borderRadius: Tokens.radius.card, fontSize: Type.title2.fontSize,
     fontWeight: '700' as const, color: Colors.text, borderWidth: 1, borderColor: Colors.border, marginBottom: 16,
   },
   resultCard: {
-    backgroundColor: Colors.surface, borderRadius: 16, padding: 16, gap: 10,
+    backgroundColor: Colors.surface, borderRadius: Tokens.radius.panel, padding: 16, gap: 10,
     borderWidth: 1, borderColor: Colors.primary + '30',
   },
-  resultTitle: { fontSize: 16, fontWeight: '700' as const, color: Colors.text },
+  resultTitle: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.text },
   costRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8,
   },
-  costLabel: { fontSize: 14, color: Colors.textSecondary, width: 80 },
-  costSub: { flex: 1, fontSize: 11, color: Colors.textMuted },
-  costValue: { fontSize: 14, fontWeight: '600' as const, color: Colors.text },
+  costLabel: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, width: 80 },
+  costSub: { flex: 1, fontSize: Type.caption2.fontSize, color: Colors.textMuted },
+  costValue: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
   divider: { height: 1, backgroundColor: Colors.borderLight },
   totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  totalLabel: { fontSize: 16, fontWeight: '700' as const, color: Colors.text },
-  totalValue: { fontSize: 22, fontWeight: '800' as const, color: Colors.primary },
+  totalLabel: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.text },
+  totalValue: { fontSize: Type.title2.fontSize, fontWeight: '800' as const, color: Colors.primary },
   scheduleCard: {
-    backgroundColor: Colors.infoLight, borderRadius: 10, padding: 12, gap: 8,
+    backgroundColor: Colors.infoLight, borderRadius: Tokens.radius.md, padding: 12, gap: 8,
   },
   scheduleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  scheduleLabel: { fontSize: 12, color: Colors.info, fontWeight: '500' as const },
-  scheduleValue: { fontSize: 12, fontWeight: '700' as const, color: Colors.info },
-  notes: { fontSize: 11, color: Colors.textMuted, lineHeight: 16, fontStyle: 'italic' as const },
+  scheduleLabel: { fontSize: Type.caption1.fontSize, color: Colors.info, fontWeight: '500' as const },
+  scheduleValue: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: Colors.info },
+  notes: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, lineHeight: 16, fontStyle: 'italic' as const },
   addBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: Colors.primary, borderRadius: 14, paddingVertical: 14, marginTop: 4,
+    backgroundColor: Colors.primary, borderRadius: Tokens.radius.lg, paddingVertical: 14, marginTop: 4,
   },
-  addBtnText: { fontSize: 16, fontWeight: '700' as const, color: Colors.textOnPrimary },
+  addBtnText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.textOnPrimary },
 });

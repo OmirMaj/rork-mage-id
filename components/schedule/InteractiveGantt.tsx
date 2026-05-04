@@ -48,6 +48,8 @@ import { Colors } from '@/constants/colors';
 import type { ScheduleTask } from '@/types';
 import { wouldCreateCycle, type CpmResult } from '@/utils/cpm';
 import { getHiddenTaskIds } from '@/utils/summaryRollup';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -520,12 +522,12 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
   // right-to-left inverted — we only render FS elbows for now and straight
   // lines for other types. Good enough for first pass.
   const dependencyPaths = useMemo(() => {
-    const out: Array<{
+    const out: {
       id: string;
       d: string;
       critical: boolean;
       highlighted: boolean;
-    }> = [];
+    }[] = [];
     for (const succ of bars) {
       const links = succ.task.dependencyLinks && succ.task.dependencyLinks.length > 0
         ? succ.task.dependencyLinks
@@ -617,7 +619,7 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
   // Build day ticks. For zoom=day we label every day; week → every 7;
   // month → every 1st of month.
   const headerTicks = useMemo(() => {
-    const ticks: Array<{ x: number; label: string; bold?: boolean; month?: string }> = [];
+    const ticks: { x: number; label: string; bold?: boolean; month?: string }[] = [];
     if (zoom === 'day') {
       for (let d = 1; d <= totalDays; d++) {
         const date = addDays(projectStartDate, d - 1);
@@ -1029,7 +1031,7 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                   const cy = bar.y - 2;
                   const path = `M ${cx - 6} ${cy} L ${cx + 6} ${cy} L ${cx} ${cy + 8} Z`;
                   const overdue = bar.cpmRow && bar.cpmRow.ef > d;
-                  const color = overdue ? '#FF3B30' : '#FF9500';
+                  const color = overdue ? Colors.error : Colors.warning;
                   return (
                     <Path
                       key={`deadline-${bar.task.id}`}
@@ -1444,7 +1446,7 @@ function BarView({
             top: bar.y - 4,
             width: bar.w + 8,
             height: BAR_HEIGHT + 8,
-            borderRadius: 10,
+            borderRadius: Tokens.radius.md,
             borderWidth: 2,
             borderColor: targetRingColor,
             backgroundColor: targetRingColor + '22',
@@ -1464,7 +1466,7 @@ function BarView({
         top: bar.y,
         width: bar.w,
         height: BAR_HEIGHT,
-        borderRadius: 6,
+        borderRadius: Tokens.radius.xs,
         backgroundColor: barBg,
         borderWidth: isFocusTarget ? 2.5 : 1.5,
         borderColor: isFocusTarget ? Colors.accent : barColor,
@@ -1615,7 +1617,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.surface,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
     overflow: 'hidden',
@@ -1631,20 +1633,20 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surfaceAlt,
   },
   toolbarTitle: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     fontWeight: '700',
     color: Colors.text,
   },
   zoomGroup: {
     flexDirection: 'row',
     backgroundColor: Colors.fillTertiary,
-    borderRadius: 8,
+    borderRadius: Tokens.radius.sm,
     padding: 2,
   },
   zoomBtn: {
     paddingHorizontal: 12,
     paddingVertical: 5,
-    borderRadius: 6,
+    borderRadius: Tokens.radius.xs,
   },
   zoomBtnActive: {
     backgroundColor: Colors.surface,
@@ -1654,7 +1656,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
   },
   zoomBtnText: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     fontWeight: '600',
     color: Colors.textSecondary,
   },
@@ -1675,12 +1677,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   zoomStepBtnText: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     fontWeight: '700',
     color: Colors.text,
   },
   zoomSliderValue: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     fontWeight: '600',
     color: Colors.textSecondary,
     minWidth: 48,
@@ -1694,14 +1696,14 @@ const styles = StyleSheet.create({
   navBtn: {
     paddingHorizontal: 10,
     paddingVertical: 5,
-    borderRadius: 6,
+    borderRadius: Tokens.radius.xs,
     backgroundColor: Colors.fillTertiary,
   },
   navBtnDisabled: {
     opacity: 0.4,
   },
   navBtnText: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     fontWeight: '600',
     color: Colors.text,
   },
@@ -1717,7 +1719,7 @@ const styles = StyleSheet.create({
     borderRadius: 5,
   },
   legendText: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     color: Colors.textSecondary,
     fontWeight: '600',
   },
@@ -1739,7 +1741,7 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.cardBorder,
   },
   gutterHeaderText: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     fontWeight: '700',
     color: Colors.textSecondary,
     textTransform: 'uppercase',
@@ -1757,7 +1759,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary + '0A',
   },
   gutterIndex: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     color: Colors.textMuted,
     fontWeight: '600',
     width: 20,
@@ -1770,7 +1772,7 @@ const styles = StyleSheet.create({
   },
   gutterName: {
     flex: 1,
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: Colors.text,
   },
   gutterNameCritical: {
@@ -1830,7 +1832,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   barLabelText: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     fontWeight: '600',
     color: Colors.text,
   },
@@ -1840,7 +1842,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#111',
     paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: 6,
+    borderRadius: Tokens.radius.xs,
     maxWidth: 240,
     zIndex: 1000,
     shadowColor: '#000',
@@ -1850,12 +1852,12 @@ const styles = StyleSheet.create({
   },
   tooltipTitle: {
     color: '#fff',
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     fontWeight: '700',
   },
   tooltipBody: {
     color: '#fff',
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     marginTop: 2,
   },
   tooltipDelta: {
@@ -1868,7 +1870,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
     paddingVertical: 10,
     paddingHorizontal: 12,
     zIndex: 1001,
@@ -1878,7 +1880,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
   },
   linkPopoverTitle: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     fontWeight: '700',
     color: Colors.text,
     marginBottom: 8,
@@ -1892,12 +1894,12 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 6,
     paddingHorizontal: 4,
-    borderRadius: 6,
+    borderRadius: Tokens.radius.xs,
     backgroundColor: Colors.fillTertiary,
     alignItems: 'center',
   },
   linkTypeLabel: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     fontWeight: '700',
     color: Colors.primary,
   },
@@ -1926,7 +1928,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.fillTertiary,
   },
   linkLagText: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     fontWeight: '600',
     color: Colors.text,
   },
@@ -1935,7 +1937,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   linkCancelText: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     color: Colors.textSecondary,
   },
 
@@ -1947,7 +1949,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surfaceAlt,
   },
   footerText: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     color: Colors.textSecondary,
     fontStyle: 'italic',
   },
@@ -1956,7 +1958,7 @@ const styles = StyleSheet.create({
   chipBtn: {
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: Colors.cardBorder,

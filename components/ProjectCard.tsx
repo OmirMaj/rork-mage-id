@@ -7,6 +7,8 @@ import {
 import { Colors } from '@/constants/colors';
 import { formatMoney } from '@/utils/formatters';
 import type { Project, ProjectType } from '@/types';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 const ICON_MAP: Record<string, React.ComponentType<{ size: number; color: string; strokeWidth?: number }>> = {
   Building2, Hammer, Plus, PenLine, Store, Trees, Home, LayoutGrid, Paintbrush, Droplets, Zap, Boxes,
@@ -194,7 +196,7 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: Colors.surface,
-    borderRadius: 16,
+    borderRadius: Tokens.radius.panel,
     // Match Colors.cardBorder (solid black) used everywhere else —
     // home tab statCards, summary tab cards, cash-flow cards. Pre-fix
     // this card used a faint 8%-opacity ink border which read as a
@@ -217,7 +219,7 @@ const styles = StyleSheet.create({
   iconWrap: {
     width: 42,
     height: 42,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     backgroundColor: Colors.primary + '12',
     alignItems: 'center',
     justifyContent: 'center',
@@ -230,7 +232,7 @@ const styles = StyleSheet.create({
     // Bumped from 16/600 → 17/800 with tighter tracking. Project name
     // is the primary identifier on each card; it should feel anchored
     // and confident, not whispered.
-    fontSize: 17,
+    fontSize: Type.body.fontSize,
     fontWeight: '800' as const,
     color: Colors.text,
     letterSpacing: -0.3,
@@ -241,7 +243,7 @@ const styles = StyleSheet.create({
     gap: 3,
   },
   locationText: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     color: Colors.textMuted,
   },
   statusDot: {
@@ -258,7 +260,7 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   statusLabel: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     fontWeight: '600' as const,
   },
   separator: {
@@ -278,12 +280,12 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   metaLabel: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     color: Colors.textMuted,
     fontWeight: '400' as const,
   },
   metaValue: {
-    fontSize: 15,
+    fontSize: Type.subhead.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
     letterSpacing: -0.2,

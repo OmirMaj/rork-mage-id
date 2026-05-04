@@ -12,6 +12,8 @@ import { generateWeeklySummary, type WeeklySummaryResult } from '@/utils/aiServi
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import type { Project } from '@/types';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 interface Props {
   projects: Project[];
@@ -20,15 +22,15 @@ interface Props {
 }
 
 const STATUS_CONFIG = {
-  on_track: { icon: CheckCircle2, color: '#34C759', label: 'ON TRACK', bg: '#E8F5E9' },
-  at_risk: { icon: AlertTriangle, color: '#FF9500', label: 'AT RISK', bg: '#FFF3E0' },
-  behind: { icon: AlertTriangle, color: '#FF3B30', label: 'BEHIND', bg: '#FFF0EF' },
-  ahead: { icon: TrendingUp, color: '#007AFF', label: 'AHEAD', bg: '#EBF3FF' },
+  on_track: { icon: CheckCircle2, color: Colors.success, label: 'ON TRACK', bg: Colors.successLight },
+  at_risk: { icon: AlertTriangle, color: Colors.warning, label: 'AT RISK', bg: Colors.warningLight },
+  behind: { icon: AlertTriangle, color: Colors.error, label: 'BEHIND', bg: Colors.errorLight },
+  ahead: { icon: TrendingUp, color: Colors.info, label: 'AHEAD', bg: Colors.infoLight },
 } as const;
 
 const SEVERITY_CONFIG = {
-  critical: { color: '#D32F2F', bg: '#FFEBEE',  label: 'CRITICAL' },
-  high:     { color: '#E65100', bg: '#FFF3E0',  label: 'HIGH' },
+  critical: { color: '#D32F2F', bg: Colors.errorLight,  label: 'CRITICAL' },
+  high:     { color: Colors.warningDark, bg: Colors.warningLight,  label: 'HIGH' },
   medium:   { color: '#F57F17', bg: '#FFFDE7',  label: 'MEDIUM' },
   low:      { color: '#5E6873', bg: '#F2F4F7',  label: 'LOW' },
 } as const;
@@ -90,9 +92,7 @@ export default function AIWeeklySummary({ projects, visible, onClose }: Props) {
             <Sparkles size={18} color={Colors.primary} />
             <Text style={styles.headerTitle}>Full Project Analysis</Text>
           </View>
-          <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-            <X size={22} color={Colors.textSecondary} />
-          </TouchableOpacity>
+          <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} accessibilityRole="button" accessibilityLabel="Close"><X size={22} color={Colors.textSecondary} /></TouchableOpacity>
         </View>
 
         {paywallReason ? (
@@ -173,8 +173,8 @@ export default function AIWeeklySummary({ projects, visible, onClose }: Props) {
 
                         {iss.cause ? (
                           <View style={styles.issueRow}>
-                            <View style={[styles.issueRowIcon, { backgroundColor: '#FFF3E0' }]}>
-                              <Target size={11} color="#E65100" />
+                            <View style={[styles.issueRowIcon, { backgroundColor: Colors.warningLight }]}>
+                              <Target size={11} color={Colors.warningDark} />
                             </View>
                             <View style={{ flex: 1 }}>
                               <Text style={styles.issueRowLabel}>CAUSE</Text>
@@ -185,7 +185,7 @@ export default function AIWeeklySummary({ projects, visible, onClose }: Props) {
 
                         {iss.impact ? (
                           <View style={styles.issueRow}>
-                            <View style={[styles.issueRowIcon, { backgroundColor: '#FFEBEE' }]}>
+                            <View style={[styles.issueRowIcon, { backgroundColor: Colors.errorLight }]}>
                               <Zap size={11} color="#D32F2F" />
                             </View>
                             <View style={{ flex: 1 }}>
@@ -197,11 +197,11 @@ export default function AIWeeklySummary({ projects, visible, onClose }: Props) {
 
                         {iss.fix ? (
                           <View style={[styles.issueRow, styles.issueRowFix]}>
-                            <View style={[styles.issueRowIcon, { backgroundColor: '#E8F5E9' }]}>
-                              <Wrench size={11} color="#2E7D32" />
+                            <View style={[styles.issueRowIcon, { backgroundColor: Colors.successLight }]}>
+                              <Wrench size={11} color={Colors.successDark} />
                             </View>
                             <View style={{ flex: 1 }}>
-                              <Text style={[styles.issueRowLabel, { color: '#2E7D32' }]}>NEXT STEP</Text>
+                              <Text style={[styles.issueRowLabel, { color: Colors.successDark }]}>NEXT STEP</Text>
                               <Text style={[styles.issueRowText, styles.issueRowFixText]}>{iss.fix}</Text>
                             </View>
                           </View>
@@ -300,7 +300,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   headerTitle: {
-    fontSize: 17,
+    fontSize: Type.body.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
   },
@@ -311,12 +311,12 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   loadingText: {
-    fontSize: 16,
+    fontSize: Type.callout.fontSize,
     fontWeight: '600' as const,
     color: Colors.text,
   },
   loadingSubtext: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     color: Colors.textSecondary,
   },
   scroll: {
@@ -332,23 +332,23 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.fillTertiary,
     paddingHorizontal: 16,
     paddingVertical: 6,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
   },
   weekText: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
     color: Colors.textSecondary,
   },
   overviewCard: {
     backgroundColor: Colors.surface,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     padding: 16,
     borderWidth: 0.5,
     borderColor: Colors.borderLight,
     gap: 12,
   },
   sectionLabel: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     fontWeight: '700' as const,
     color: Colors.textMuted,
     letterSpacing: 1,
@@ -362,15 +362,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 10,
     backgroundColor: Colors.fillSecondary,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
   },
   overviewValue: {
-    fontSize: 22,
+    fontSize: Type.title2.fontSize,
     fontWeight: '800' as const,
     color: Colors.text,
   },
   overviewLabel: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     color: Colors.textMuted,
     fontWeight: '500' as const,
   },
@@ -383,17 +383,17 @@ const styles = StyleSheet.create({
     borderTopColor: Colors.borderLight,
   },
   combinedLabel: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: Colors.textSecondary,
   },
   combinedAmount: {
-    fontSize: 18,
+    fontSize: Type.subheadline.fontSize,
     fontWeight: '800' as const,
     color: Colors.text,
   },
   projectCard: {
     backgroundColor: Colors.surface,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     padding: 16,
     borderWidth: 0.5,
     borderColor: Colors.borderLight,
@@ -405,7 +405,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   projectName: {
-    fontSize: 16,
+    fontSize: Type.callout.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
     flex: 1,
@@ -416,10 +416,10 @@ const styles = StyleSheet.create({
     gap: 4,
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 6,
+    borderRadius: Tokens.radius.xs,
   },
   statusText: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     fontWeight: '700' as const,
   },
   progressRow: {
@@ -427,11 +427,11 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   progressLabel: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: Colors.textSecondary,
   },
   progressValue: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: Colors.text,
     fontWeight: '600' as const,
   },
@@ -446,15 +446,15 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   keyLabel: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: Colors.text,
   },
   riskLabel: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: Colors.warning,
   },
   recLabel: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: Colors.primary,
     fontWeight: '600' as const,
   },
@@ -463,18 +463,18 @@ const styles = StyleSheet.create({
     gap: 8,
     padding: 16,
     backgroundColor: `${Colors.primary}08`,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     borderWidth: 1,
     borderColor: `${Colors.primary}15`,
   },
   overallRecText: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     color: Colors.text,
     lineHeight: 20,
     flex: 1,
   },
   aiDisclaimer: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     color: Colors.textMuted,
     textAlign: 'center',
     marginTop: 8,
@@ -493,7 +493,7 @@ const styles = StyleSheet.create({
   },
   issuesTitle: {
     flex: 1,
-    fontSize: 16,
+    fontSize: Type.callout.fontSize,
     fontWeight: '800' as const,
     color: Colors.text,
     letterSpacing: -0.2,
@@ -501,24 +501,24 @@ const styles = StyleSheet.create({
   issuesCountPill: {
     paddingHorizontal: 9,
     paddingVertical: 3,
-    borderRadius: 999,
+    borderRadius: Tokens.radius.full,
     backgroundColor: Colors.error + '15',
   },
   issuesCountText: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     fontWeight: '800' as const,
     color: Colors.error,
     letterSpacing: 0.4,
   },
   issuesHelper: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     color: Colors.textMuted,
     marginBottom: 12,
     lineHeight: 17,
   },
   issueCard: {
     backgroundColor: Colors.surface,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     padding: 14,
     marginBottom: 10,
     borderWidth: 1,
@@ -534,7 +534,7 @@ const styles = StyleSheet.create({
   severityPill: {
     paddingHorizontal: 7,
     paddingVertical: 2,
-    borderRadius: 999,
+    borderRadius: Tokens.radius.full,
   },
   severityText: {
     fontSize: 9,
@@ -543,12 +543,12 @@ const styles = StyleSheet.create({
   },
   issueProject: {
     flex: 1,
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     fontWeight: '700' as const,
     color: Colors.textSecondary,
   },
   issueText: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
     lineHeight: 20,
@@ -569,7 +569,7 @@ const styles = StyleSheet.create({
   issueRowIcon: {
     width: 20,
     height: 20,
-    borderRadius: 6,
+    borderRadius: Tokens.radius.xs,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
     marginTop: 2,
@@ -582,7 +582,7 @@ const styles = StyleSheet.create({
     marginBottom: 3,
   },
   issueRowText: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: Colors.text,
     lineHeight: 18,
   },
@@ -595,19 +595,19 @@ const styles = StyleSheet.create({
     alignItems: 'center' as const,
     gap: 12,
     padding: 14,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     backgroundColor: Colors.success + '0D',
     borderWidth: 1,
     borderColor: Colors.success + '30',
     marginBottom: 16,
   },
   noIssuesTitle: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     fontWeight: '800' as const,
     color: Colors.success,
   },
   noIssuesBody: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     color: Colors.textSecondary,
     lineHeight: 17,
     marginTop: 2,

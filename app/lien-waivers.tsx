@@ -20,6 +20,7 @@ import {
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
+import { FeatureHeader } from '@/components/FeatureHeader';
 import {
   fetchLienWaiversForProject, saveLienWaiver, deleteLienWaiver,
   shareLienWaiverPDF, WAIVER_LABELS,
@@ -27,6 +28,8 @@ import {
 import { formatMoney } from '@/utils/formatters';
 import { statusPillStyle } from '@/utils/statusPill';
 import type { LienWaiver, LienWaiverType, CompanyBranding } from '@/types';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 export default function LienWaiversScreen() {
   const insets = useSafeAreaInsets();
@@ -218,18 +221,32 @@ export default function LienWaiversScreen() {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={8}>
+        <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
           <ChevronLeft size={26} color={Colors.primary} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.eyebrow}>{project.name}</Text>
-          <Text style={styles.title}>Lien Waivers</Text>
+          <Text style={styles.title}>Proof of Payment</Text>
         </View>
         <TouchableOpacity style={styles.addBtn} onPress={() => setAddModal(true)}>
           <Plus size={14} color="#FFF" />
           <Text style={styles.addBtnText}>New</Text>
         </TouchableOpacity>
       </View>
+      <FeatureHeader
+        eyebrow="Lien Waivers"
+        title="Sign-offs your bank wants"
+        subtitle="A signed slip from each sub saying &ldquo;I&apos;ve been paid; I won&apos;t lien the job.&rdquo; Most lenders require these on every draw. We auto-fill from the invoice — you just pick the type."
+        explainer={{
+          term: 'Lien Waiver',
+          definition: 'A lien waiver is a legal document a contractor or subcontractor signs giving up their right to file a mechanic\'s lien against the property for the amount they\'ve been paid. Banks require these on most draws to make sure no sub will come back later claiming they weren\'t paid.',
+          whenToUse: [
+            'Every time you pay a sub on a bank-financed project',
+            'Before issuing the next progress draw to the lender',
+            'At final payment / closeout (a "final unconditional waiver")',
+          ],
+        }}
+      />
 
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 80 }}>
         {loading && (
@@ -370,9 +387,7 @@ function WaiverCard({ waiver, exporting, onExport, onMarkSigned, onMarkReceived,
             <Text style={styles.actionGhostText}>Void</Text>
           </TouchableOpacity>
         )}
-        <TouchableOpacity style={styles.actionGhost} onPress={onDelete}>
-          <Trash2 size={13} color={Colors.error} />
-        </TouchableOpacity>
+        <TouchableOpacity style={styles.actionGhost} onPress={onDelete} accessibilityRole="button" accessibilityLabel="Delete"><Trash2 size={13} color={Colors.error} /></TouchableOpacity>
       </View>
     </View>
   );
@@ -520,74 +535,74 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, paddingTop: 14, paddingBottom: 14,
     borderBottomWidth: 1, borderBottomColor: Colors.border,
   },
-  eyebrow: { fontSize: 11, fontWeight: '700', color: Colors.primary, letterSpacing: 1.4, textTransform: 'uppercase' },
-  title:   { fontSize: 20, fontWeight: '800', color: Colors.text, letterSpacing: -0.4, marginTop: 4 },
+  eyebrow: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.primary, letterSpacing: 1.4, textTransform: 'uppercase' },
+  title:   { fontSize: Type.title3.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.4, marginTop: 4 },
   addBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 9, backgroundColor: Colors.primary },
-  addBtnText: { fontSize: 13, fontWeight: '700', color: '#FFF' },
+  addBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: '#FFF' },
 
   loading: { padding: 30, alignItems: 'center' },
-  emptyCard: { backgroundColor: Colors.card, borderRadius: 14, padding: 28, alignItems: 'center', gap: 10, marginTop: 22, borderWidth: 1, borderColor: Colors.border },
-  emptyTitle: { fontSize: 16, fontWeight: '800', color: Colors.text, marginTop: 4 },
-  emptyBody:  { fontSize: 13, color: Colors.textMuted, textAlign: 'center', lineHeight: 19, maxWidth: 320 },
+  emptyCard: { backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 28, alignItems: 'center', gap: 10, marginTop: 22, borderWidth: 1, borderColor: Colors.border },
+  emptyTitle: { fontSize: Type.callout.fontSize, fontWeight: '800', color: Colors.text, marginTop: 4 },
+  emptyBody:  { fontSize: Type.footnote.fontSize, color: Colors.textMuted, textAlign: 'center', lineHeight: 19, maxWidth: 320 },
   bigCta: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 18, paddingVertical: 11, borderRadius: 11, backgroundColor: Colors.primary, marginTop: 8 },
-  bigCtaText: { color: '#FFF', fontSize: 14, fontWeight: '800' },
+  bigCtaText: { color: '#FFF', fontSize: Type.bodyCompact.fontSize, fontWeight: '800' },
 
   disclaimer: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 8,
-    padding: 12, borderRadius: 10, marginBottom: 12,
+    padding: 12, borderRadius: Tokens.radius.md, marginBottom: 12,
     backgroundColor: Colors.warning + '0D',
     borderWidth: 1, borderColor: Colors.warning + '30',
   },
-  disclaimerText: { flex: 1, fontSize: 11, color: Colors.text, lineHeight: 16 },
+  disclaimerText: { flex: 1, fontSize: Type.caption2.fontSize, color: Colors.text, lineHeight: 16 },
 
   waiverCard: {
-    backgroundColor: Colors.card, borderRadius: 12, padding: 14,
+    backgroundColor: Colors.card, borderRadius: Tokens.radius.card, padding: 14,
     borderWidth: 1, borderColor: Colors.border,
     marginBottom: 10, gap: 10,
   },
   waiverHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   waiverType: { fontSize: 9, fontWeight: '800', color: Colors.primary, letterSpacing: 0.8 },
-  waiverSubName: { fontSize: 14, fontWeight: '800', color: Colors.text, marginTop: 3 },
-  statusPill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },
+  waiverSubName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800', color: Colors.text, marginTop: 3 },
+  statusPill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.full },
   statusPillText: { fontSize: 9, fontWeight: '800', letterSpacing: 0.5 },
 
   waiverGrid: { flexDirection: 'row', gap: 12 },
-  waiverField: { flex: 1, padding: 8, borderRadius: 8, backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border },
+  waiverField: { flex: 1, padding: 8, borderRadius: Tokens.radius.sm, backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border },
   waiverFieldLabel: { fontSize: 9, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.6 },
-  waiverFieldValue: { fontSize: 14, fontWeight: '700', color: Colors.text, marginTop: 2 },
+  waiverFieldValue: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text, marginTop: 2 },
 
-  sigPreview: { flexDirection: 'row', alignItems: 'center', gap: 6, padding: 8, borderRadius: 8, backgroundColor: Colors.success + '0D', borderWidth: 1, borderColor: Colors.success + '30' },
-  sigPreviewText: { flex: 1, fontSize: 11, color: Colors.text },
+  sigPreview: { flexDirection: 'row', alignItems: 'center', gap: 6, padding: 8, borderRadius: Tokens.radius.sm, backgroundColor: Colors.success + '0D', borderWidth: 1, borderColor: Colors.success + '30' },
+  sigPreviewText: { flex: 1, fontSize: Type.caption2.fontSize, color: Colors.text },
 
   waiverActions: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
   actionPrimary: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 9, backgroundColor: Colors.primary },
-  actionPrimaryText: { fontSize: 12, fontWeight: '800', color: '#FFF' },
+  actionPrimaryText: { fontSize: Type.caption1.fontSize, fontWeight: '800', color: '#FFF' },
   actionSecondary: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 9, backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border },
-  actionSecondaryText: { fontSize: 12, fontWeight: '700', color: Colors.text },
+  actionSecondaryText: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: Colors.text },
   actionGhost: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 9 },
-  actionGhostText: { fontSize: 12, fontWeight: '700', color: Colors.warning },
+  actionGhostText: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: Colors.warning },
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(11, 13, 16, 0.75)', justifyContent: 'flex-end' },
   modalCard: { backgroundColor: Colors.surface, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 20, gap: 8 },
-  modalTitle: { fontSize: 18, fontWeight: '800', color: Colors.text },
-  modalBody: { fontSize: 13, color: Colors.textMuted, lineHeight: 18 },
-  modalLabel: { fontSize: 11, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.6, textTransform: 'uppercase', marginTop: 8 },
+  modalTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: Colors.text },
+  modalBody: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, lineHeight: 18 },
+  modalLabel: { fontSize: Type.caption2.fontSize, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.6, textTransform: 'uppercase', marginTop: 8 },
   modalInput: {
-    backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border, borderRadius: 10,
-    paddingHorizontal: 12, paddingVertical: 11, fontSize: 14, color: Colors.text,
+    backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border, borderRadius: Tokens.radius.md,
+    paddingHorizontal: 12, paddingVertical: 11, fontSize: Type.bodyCompact.fontSize, color: Colors.text,
   },
   modalRow: { flexDirection: 'row', gap: 10, marginTop: -4 },
   typeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   typeChip: { paddingHorizontal: 10, paddingVertical: 7, borderRadius: 9, backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border },
   typeChipActive: { backgroundColor: Colors.primary + '15', borderColor: Colors.primary },
-  typeChipText: { fontSize: 11, fontWeight: '700', color: Colors.text },
+  typeChipText: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.text },
   typeChipTextActive: { color: Colors.primary },
-  typeHint: { fontSize: 11, color: Colors.textMuted, lineHeight: 16, marginTop: 4, fontStyle: 'italic' },
+  typeHint: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, lineHeight: 16, marginTop: 4, fontStyle: 'italic' },
 
   modalActions: { flexDirection: 'row', gap: 10, marginTop: 12 },
   modalCancel: { flex: 1, paddingVertical: 12, borderRadius: 11, backgroundColor: Colors.background, alignItems: 'center', borderWidth: 1, borderColor: Colors.border },
-  modalCancelText: { fontSize: 14, fontWeight: '700', color: Colors.text },
+  modalCancelText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
   modalConfirm: { flex: 1.4, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 11, backgroundColor: Colors.primary },
   modalConfirmDisabled: { opacity: 0.45 },
-  modalConfirmText: { fontSize: 14, fontWeight: '800', color: '#FFF' },
+  modalConfirmText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800', color: '#FFF' },
 });

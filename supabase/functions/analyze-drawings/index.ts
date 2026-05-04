@@ -28,8 +28,16 @@
 // }
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
+import { requireTier, aiUsageIncrement, MONTHLY_CAPS } from "../_shared/auth.ts";
 
 const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY") || "";
+
+// Hard input limits — defense against DoS / token-bombing. The UI pipeline
+// renders 144-DPI letter-size pages so each PNG is ~1–3 MB. We cap at
+// 16 pages (already in callGemini) and 8 MB per page so a forged client
+// can't burn server memory or Gemini tokens. 16 pages × 8 MB = 128 MB
+// peak per request, which is fine for the function's memory budget.
+const MAX_PAGE_BYTES = 8 * 1024 * 1024;
 // Default to Gemini 2.5 Flash — fast + cheap. The client can opt into
 // gemini-2.5-pro for higher-tier subscriptions (better at reading dense
 // drawings + reasoning about quantity takeoffs).
@@ -89,6 +97,9 @@ async function urlToInlineImagePart(url: string): Promise<{ inlineData: { mimeTy
   // don't get mislabeled as png and rejected by Gemini's vision pipeline.
   const mimeType = contentType.startsWith('image/') ? contentType.split(';')[0] : 'image/png';
   const buf = new Uint8Array(await r.arrayBuffer());
+  if (buf.length > MAX_PAGE_BYTES) {
+    throw new Error(`Page too large: ${(buf.length / 1024 / 1024).toFixed(1)}MB (max 8MB).`);
+  }
   // Base64-encode without blowing the stack on big images.
   let binary = '';
   for (let i = 0; i < buf.length; i++) binary += String.fromCharCode(buf[i]);
@@ -240,13 +251,42 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: CORS_HEADERS });
   if (req.method !== 'POST') return jsonResponse({ success: false, error: 'Method not allowed' }, 405);
 
+  // Server-side paywall: the AI estimate wizard is Pro/Business only.
+  // Without this gate, anyone with the function URL could curl us for
+  // free Gemini Vision calls. Audit found this was the highest-risk
+  // bypass in the codebase.
+  const auth = await requireTier(req, ['pro', 'business'], 'analyze_drawings');
+  if (!auth.ok) return jsonResponse(auth.body, auth.status);
+
   try {
     const body = await req.json() as AnalyzeRequest;
     if (!body || !Array.isArray(body.pageUrls)) {
       return jsonResponse({ success: false, error: 'Missing pageUrls' }, 400);
     }
+    // gemini-2.5-pro is Business only — the model field is client-supplied
+    // and the UI sets it from the user's tier, but a forged client could
+    // pick pro on a Pro tier subscription. Force-downgrade on the server.
+    if (body.model === 'gemini-2.5-pro' && auth.tier !== 'business') {
+      body.model = 'gemini-2.5-flash';
+    }
+
+    // Monthly cap. Increment-then-check is fine because we deny BEFORE
+    // burning Gemini tokens — the 31st call (Pro cap = 30) returns the
+    // tier-limit error and never makes the upstream API request.
+    const used = await aiUsageIncrement(auth.userId, 'analyze_drawings');
+    const cap = MONTHLY_CAPS[auth.tier].analyze_drawings;
+    if (used > cap) {
+      return jsonResponse({
+        success: false,
+        error: `Monthly drawing-analysis limit reached (${cap} on ${auth.tier}). Resets on the 1st.`,
+        code: 'monthly_cap_reached',
+        used,
+        cap,
+      }, 429);
+    }
+
     const { data, modelUsed } = await callGemini(body);
-    return jsonResponse({ success: true, data, modelUsed });
+    return jsonResponse({ success: true, data, modelUsed, usage: { used, cap } });
   } catch (e) {
     console.error('[analyze-drawings] failed', e);
     return jsonResponse({ success: false, error: String((e as Error).message ?? e) }, 500);

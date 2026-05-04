@@ -29,24 +29,31 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Gavel, MapPin, Hammer, AlertTriangle, CheckCircle, Sparkles,
   ClipboardCheck, BookOpen, X, ChevronDown, ChevronUp, Zap,
+  Home, Building2, Droplets, HardHat, Accessibility, Map,
 } from 'lucide-react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 import { z } from 'zod';
 import { Colors } from '@/constants/colors';
 import { mageAISmart } from '@/utils/mageAI';
 import { useTierAccess, FEATURE_LIMITS } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
+import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/contexts/AuthContext';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
+// Each category gets a distinct, semantically-correct icon. Audit found
+// 7 of 8 were `Hammer` — the AI was lying with its iconography. Now
+// every category telegraphs its scope at a glance.
 const CATEGORIES = [
-  { key: 'residential', label: 'Residential', icon: Hammer },
-  { key: 'commercial', label: 'Commercial', icon: Hammer },
-  { key: 'electrical', label: 'Electrical', icon: Hammer },
-  { key: 'plumbing', label: 'Plumbing', icon: Hammer },
-  { key: 'structural', label: 'Structural', icon: Hammer },
+  { key: 'residential', label: 'Residential', icon: Home },
+  { key: 'commercial', label: 'Commercial', icon: Building2 },
+  { key: 'electrical', label: 'Electrical', icon: Zap },
+  { key: 'plumbing', label: 'Plumbing', icon: Droplets },
+  { key: 'structural', label: 'Structural', icon: HardHat },
   { key: 'egress_fire', label: 'Egress / Fire', icon: AlertTriangle },
-  { key: 'accessibility', label: 'ADA / Accessibility', icon: CheckCircle },
-  { key: 'zoning', label: 'Zoning / Land Use', icon: BookOpen },
+  { key: 'accessibility', label: 'ADA / Accessibility', icon: Accessibility },
+  { key: 'zoning', label: 'Zoning / Land Use', icon: Map },
 ] as const;
 
 type CategoryKey = typeof CATEGORIES[number]['key'];
@@ -120,28 +127,30 @@ const codeCheckSchema = z.object({
 
 type CodeCheckResult = z.infer<typeof codeCheckSchema>;
 
-const USAGE_KEY = 'mageid_code_check_usage_v1';
-
-function todayKey(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
-}
-
-async function getTodayUsage(): Promise<number> {
+// Server-side daily counter. Replaces an earlier AsyncStorage-based
+// implementation that audit found was trivially bypassed: reinstall,
+// clear app data, or directly edit `mageid_code_check_usage_v1`. Backed
+// by ai_usage_counters table + ai_usage_daily_increment RPC.
+async function getTodayUsage(userId: string | null | undefined): Promise<number> {
+  if (!userId) return 0;
   try {
-    const raw = await AsyncStorage.getItem(USAGE_KEY);
-    if (!raw) return 0;
-    const parsed = JSON.parse(raw) as { day: string; count: number };
-    if (parsed.day !== todayKey()) return 0;
-    return parsed.count ?? 0;
+    const { data } = await supabase.rpc('ai_usage_daily_get', {
+      p_user_id: userId,
+      p_feature: 'ai_code_check',
+    });
+    return typeof data === 'number' ? data : 0;
   } catch { return 0; }
 }
 
-async function bumpTodayUsage(): Promise<void> {
+async function bumpTodayUsage(userId: string | null | undefined): Promise<number> {
+  if (!userId) return 0;
   try {
-    const current = await getTodayUsage();
-    await AsyncStorage.setItem(USAGE_KEY, JSON.stringify({ day: todayKey(), count: current + 1 }));
-  } catch { /* ignore */ }
+    const { data } = await supabase.rpc('ai_usage_daily_increment', {
+      p_user_id: userId,
+      p_feature: 'ai_code_check',
+    });
+    return typeof data === 'number' ? data : 0;
+  } catch { return 0; }
 }
 
 export default function ConstructionAITab() {
@@ -186,6 +195,7 @@ export default function ConstructionAITab() {
 function CodeCheckScreenInner() {
   const insets = useSafeAreaInsets();
   const { tier } = useTierAccess();
+  const { user } = useAuth();
 
   const [location, setLocation] = useState<string>('');
   const [category, setCategory] = useState<CategoryKey>('residential');
@@ -201,7 +211,7 @@ function CodeCheckScreenInner() {
 
   const runCheck = useCallback(async () => {
     if (!canSubmit) return;
-    const used = await getTodayUsage();
+    const used = await getTodayUsage(user?.id);
     if (used >= dailyCap) {
       setOverLimit(true);
       return;
@@ -239,7 +249,7 @@ Be specific to the cited location if possible. If the location is not in the US,
         return;
       }
       setResult(res.data as CodeCheckResult);
-      if (!res.cached) await bumpTodayUsage();
+      if (!res.cached) await bumpTodayUsage(user?.id);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       // iOS can't present two Modals at once. Dismiss the loading modal
       // first, then open the result modal after the dismissal animation
@@ -252,7 +262,7 @@ Be specific to the cited location if possible. If the location is not in the US,
       setLoading(false);
       Alert.alert('Code check failed', err instanceof Error ? err.message : 'Unknown error.');
     }
-  }, [canSubmit, category, dailyCap, location, scenario]);
+  }, [canSubmit, category, dailyCap, location, scenario, user?.id]);
 
   const presets = PRESET_QUESTIONS[category];
 
@@ -522,10 +532,7 @@ function ResultModal({
             onPress={onClose}
             style={styles.resultCloseBtn}
             testID="code-check-close"
-            activeOpacity={0.7}
-          >
-            <X size={20} color={Colors.text} />
-          </TouchableOpacity>
+            activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={Colors.text} /></TouchableOpacity>
         </View>
 
         <ScrollView
@@ -666,26 +673,26 @@ const styles = StyleSheet.create({
   },
   heroTitle: { fontSize: 24, fontWeight: '700' as const, color: Colors.text },
   heroSubtitle: {
-    fontSize: 14, color: Colors.textMuted, textAlign: 'center' as const,
+    fontSize: Type.bodyCompact.fontSize, color: Colors.textMuted, textAlign: 'center' as const,
     paddingHorizontal: 20, lineHeight: 20,
   },
   label: {
-    fontSize: 12, fontWeight: '600' as const, color: Colors.textMuted,
+    fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.textMuted,
     marginTop: 16, marginBottom: 8, letterSpacing: 0.5,
   },
   inputRow: {
     flexDirection: 'row' as const, alignItems: 'center' as const,
-    backgroundColor: Colors.surface, borderRadius: 12, borderWidth: 1,
+    backgroundColor: Colors.surface, borderRadius: Tokens.radius.card, borderWidth: 1,
     borderColor: Colors.cardBorder, paddingHorizontal: 12, paddingVertical: 10, gap: 8,
   },
-  input: { flex: 1, fontSize: 15, color: Colors.text, padding: 0 },
+  input: { flex: 1, fontSize: Type.subhead.fontSize, color: Colors.text, padding: 0 },
   chipWrap: { flexDirection: 'row' as const, flexWrap: 'wrap' as const, gap: 8 },
   chip: {
-    paddingHorizontal: 12, paddingVertical: 8, borderRadius: 16,
+    paddingHorizontal: 12, paddingVertical: 8, borderRadius: Tokens.radius.panel,
     backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.cardBorder,
   },
   chipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  chipText: { fontSize: 13, fontWeight: '600' as const, color: Colors.text },
+  chipText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.text },
   chipTextActive: { color: '#FFF' },
   presetHeader: {
     flexDirection: 'row' as const,
@@ -695,7 +702,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   presetHeaderText: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     fontWeight: '700' as const,
     color: Colors.primary,
     letterSpacing: 0.5,
@@ -706,7 +713,7 @@ const styles = StyleSheet.create({
   },
   presetPill: {
     backgroundColor: Colors.surface,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
     paddingVertical: 10,
@@ -717,7 +724,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary + '10',
   },
   presetPillText: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: Colors.text,
     lineHeight: 18,
   },
@@ -726,19 +733,19 @@ const styles = StyleSheet.create({
     fontWeight: '600' as const,
   },
   textArea: {
-    backgroundColor: Colors.surface, borderRadius: 12, borderWidth: 1,
+    backgroundColor: Colors.surface, borderRadius: Tokens.radius.card, borderWidth: 1,
     borderColor: Colors.cardBorder, padding: 12, minHeight: 100,
-    fontSize: 15, color: Colors.text,
+    fontSize: Type.subhead.fontSize, color: Colors.text,
   },
   runBtn: {
     marginTop: 20, flexDirection: 'row' as const, alignItems: 'center' as const,
     justifyContent: 'center' as const, gap: 8,
-    backgroundColor: Colors.primary, borderRadius: 14, paddingVertical: 14,
+    backgroundColor: Colors.primary, borderRadius: Tokens.radius.lg, paddingVertical: 14,
   },
   runBtnDisabled: { opacity: 0.5 },
-  runBtnText: { color: '#FFF', fontSize: 16, fontWeight: '700' as const },
+  runBtnText: { color: '#FFF', fontSize: Type.callout.fontSize, fontWeight: '700' as const },
   quotaText: {
-    fontSize: 12, color: Colors.textMuted, textAlign: 'center' as const,
+    fontSize: Type.caption1.fontSize, color: Colors.textMuted, textAlign: 'center' as const,
     marginTop: 8,
   },
   reopenBtn: {
@@ -749,13 +756,13 @@ const styles = StyleSheet.create({
     marginTop: 16,
     paddingVertical: 12,
     paddingHorizontal: 16,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     backgroundColor: Colors.primary + '10',
     borderWidth: 1,
     borderColor: Colors.primary + '30',
   },
   reopenText: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     fontWeight: '600' as const,
     color: Colors.primary,
   },
@@ -790,13 +797,13 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary + '22',
   },
   loadingTitle: {
-    fontSize: 18,
+    fontSize: Type.subheadline.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
     marginTop: 8,
   },
   loadingStep: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     color: Colors.textSecondary,
     textAlign: 'center' as const,
     minHeight: 20,
@@ -834,27 +841,27 @@ const styles = StyleSheet.create({
   resultHeaderIcon: {
     width: 36,
     height: 36,
-    borderRadius: 18,
+    borderRadius: Tokens.radius.xl,
     backgroundColor: Colors.primary + '14',
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
   },
   resultHeaderTitle: {
     flex: 1,
-    fontSize: 17,
+    fontSize: Type.body.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
   },
   resultCloseBtn: {
     width: 36,
     height: 36,
-    borderRadius: 18,
+    borderRadius: Tokens.radius.xl,
     backgroundColor: Colors.fillTertiary,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
   },
   resultCard: {
-    backgroundColor: Colors.surface, borderRadius: 14, borderWidth: 1,
+    backgroundColor: Colors.surface, borderRadius: Tokens.radius.lg, borderWidth: 1,
     borderColor: Colors.cardBorder, padding: 14,
   },
   resultSummaryCard: {
@@ -865,14 +872,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row' as const, alignItems: 'center' as const,
     gap: 8, marginBottom: 10,
   },
-  resultCardTitle: { fontSize: 14, fontWeight: '700' as const, color: Colors.text },
-  resultBody: { fontSize: 14, color: Colors.text, lineHeight: 20 },
+  resultCardTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
+  resultBody: { fontSize: Type.bodyCompact.fontSize, color: Colors.text, lineHeight: 20 },
   codeRow: { marginBottom: 10 },
-  codeLabel: { fontSize: 13, fontWeight: '700' as const, color: Colors.primary, marginBottom: 2 },
-  codeReq: { fontSize: 13, color: Colors.text, lineHeight: 19 },
-  bulletRow: { fontSize: 13, color: Colors.text, lineHeight: 20, marginBottom: 4 },
+  codeLabel: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.primary, marginBottom: 2 },
+  codeReq: { fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 19 },
+  bulletRow: { fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 20, marginBottom: 4 },
   disclaimer: {
-    fontSize: 11, color: Colors.textMuted, fontStyle: 'italic' as const,
+    fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontStyle: 'italic' as const,
     textAlign: 'center' as const, paddingHorizontal: 20, marginTop: 4,
   },
 
@@ -886,12 +893,12 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.fillTertiary,
     paddingHorizontal: 8,
     paddingVertical: 2,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
     minWidth: 22,
     alignItems: 'center' as const,
   },
   accordionCountText: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     fontWeight: '700' as const,
     color: Colors.textSecondary,
   },
@@ -920,17 +927,17 @@ const styles = StyleSheet.create({
     textAlign: 'center' as const,
   },
   lockedBody: {
-    fontSize: 15, color: Colors.textMuted,
+    fontSize: Type.subhead.fontSize, color: Colors.textMuted,
     textAlign: 'center' as const, lineHeight: 22,
     paddingHorizontal: 12, marginBottom: 12,
   },
   lockedCta: {
     flexDirection: 'row' as const, alignItems: 'center' as const,
     justifyContent: 'center' as const, gap: 8,
-    backgroundColor: Colors.primary, borderRadius: 14,
+    backgroundColor: Colors.primary, borderRadius: Tokens.radius.lg,
     paddingVertical: 14, paddingHorizontal: 28,
   },
   lockedCtaText: {
-    fontSize: 16, fontWeight: '700' as const, color: '#FFF',
+    fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: '#FFF',
   },
 });

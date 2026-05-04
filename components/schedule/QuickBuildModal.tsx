@@ -22,6 +22,8 @@ import {
 import { Colors } from '@/constants/colors';
 import { SCHEDULE_TEMPLATES } from '@/constants/scheduleTemplates';
 import type { ScheduleTemplate } from '@/constants/scheduleTemplates';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 interface QuickBuildModalProps {
   visible: boolean;
@@ -121,9 +123,7 @@ function QuickBuildModal({ visible, onClose, onTemplateSelect }: QuickBuildModal
               <Zap size={20} color={Colors.accent} />
               <Text style={s.headerTitle}>Quick Build</Text>
             </View>
-            <TouchableOpacity onPress={handleClose}>
-              <X size={20} color={Colors.textMuted} />
-            </TouchableOpacity>
+            <TouchableOpacity onPress={handleClose} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={Colors.textMuted} /></TouchableOpacity>
           </View>
 
           <View style={s.stepIndicator}>
@@ -253,14 +253,14 @@ const s = StyleSheet.create({
   handle: { width: 36, height: 4, borderRadius: 2, backgroundColor: Colors.fillTertiary, alignSelf: 'center', marginBottom: 4 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  headerTitle: { fontSize: 20, fontWeight: '800' as const, color: Colors.text },
+  headerTitle: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: Colors.text },
 
   stepIndicator: { flexDirection: 'row', gap: 6, alignSelf: 'center' },
   stepDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.fillTertiary },
   stepDotActive: { backgroundColor: Colors.primary },
 
-  stepTitle: { fontSize: 17, fontWeight: '700' as const, color: Colors.text },
-  stepSubtitle: { fontSize: 13, color: Colors.textSecondary, marginTop: -4 },
+  stepTitle: { fontSize: Type.body.fontSize, fontWeight: '700' as const, color: Colors.text },
+  stepSubtitle: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, marginTop: -4 },
 
   scrollContent: { maxHeight: 380 },
 
@@ -268,7 +268,7 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.surfaceAlt,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     padding: 14,
     marginBottom: 8,
     gap: 12,
@@ -278,44 +278,44 @@ const s = StyleSheet.create({
   templateIconWrap: {
     width: 40,
     height: 40,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     backgroundColor: Colors.primary + '12',
     alignItems: 'center',
     justifyContent: 'center',
   },
   templateInfo: { flex: 1, gap: 2 },
-  templateName: { fontSize: 15, fontWeight: '700' as const, color: Colors.text },
-  templateMeta: { fontSize: 12, color: Colors.textSecondary },
+  templateName: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text },
+  templateMeta: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary },
 
   sizeOptions: { flexDirection: 'row', gap: 10, marginTop: 6 },
   sizeCard: {
     flex: 1,
     alignItems: 'center',
     backgroundColor: Colors.surfaceAlt,
-    borderRadius: 16,
+    borderRadius: Tokens.radius.panel,
     padding: 18,
     gap: 6,
     borderWidth: 2,
     borderColor: Colors.borderLight,
   },
   sizeCardActive: { borderColor: Colors.primary, backgroundColor: Colors.primary + '08' },
-  sizeLabel: { fontSize: 16, fontWeight: '800' as const, color: Colors.text },
+  sizeLabel: { fontSize: Type.callout.fontSize, fontWeight: '800' as const, color: Colors.text },
   sizeLabelActive: { color: Colors.primary },
-  sizeDesc: { fontSize: 11, color: Colors.textSecondary, textAlign: 'center' as const },
+  sizeDesc: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, textAlign: 'center' as const },
   sizeDescActive: { color: Colors.primary },
-  sizeFactor: { fontSize: 13, fontWeight: '700' as const, color: Colors.textMuted },
+  sizeFactor: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.textMuted },
   sizeFactorActive: { color: Colors.primary },
 
   reviewCard: {
     backgroundColor: Colors.surfaceAlt,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     padding: 12,
     gap: 2,
     flex: 1,
   },
   reviewRow: { flexDirection: 'row', gap: 8 },
   reviewLabel: { fontSize: 10, fontWeight: '600' as const, color: Colors.textMuted, textTransform: 'uppercase' as const },
-  reviewValue: { fontSize: 14, fontWeight: '700' as const, color: Colors.text },
+  reviewValue: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
 
   taskPreview: { maxHeight: 200, marginTop: 4 },
   previewRow: {
@@ -325,8 +325,8 @@ const s = StyleSheet.create({
     borderBottomWidth: 0.5,
     borderBottomColor: Colors.borderLight,
   },
-  previewName: { flex: 1, fontSize: 13, color: Colors.text, fontWeight: '500' as const },
-  previewDur: { fontSize: 12, fontWeight: '700' as const, color: Colors.textMuted },
+  previewName: { flex: 1, fontSize: Type.footnote.fontSize, color: Colors.text, fontWeight: '500' as const },
+  previewDur: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: Colors.textMuted },
 
   createBtn: {
     flexDirection: 'row',
@@ -334,14 +334,14 @@ const s = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     minHeight: 52,
-    borderRadius: 16,
+    borderRadius: Tokens.radius.panel,
     backgroundColor: Colors.primary,
     marginTop: 6,
   },
-  createBtnText: { fontSize: 16, fontWeight: '700' as const, color: '#FFF' },
+  createBtnText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: '#FFF' },
 
   backBtn: { alignSelf: 'center', paddingVertical: 8 },
-  backBtnText: { fontSize: 14, fontWeight: '600' as const, color: Colors.textSecondary },
+  backBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.textSecondary },
 });
 
 export default React.memo(QuickBuildModal);

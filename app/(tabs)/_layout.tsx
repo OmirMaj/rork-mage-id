@@ -5,7 +5,10 @@ import { Home, Compass, Settings, LayoutDashboard } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import DesktopSidebar from '@/components/DesktopSidebar';
+import DesktopActionRail from '@/components/DesktopActionRail';
 import { useSmartInbox } from '@/hooks/useSmartInbox';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 /**
  * TabIcon — wraps a tab icon with a focused-state indicator dot
@@ -75,7 +78,7 @@ const tabIconStyles = StyleSheet.create({
     position: 'absolute' as const,
     width: 56,
     height: 32,
-    borderRadius: 16,
+    borderRadius: Tokens.radius.panel,
     top: -4,
   },
   dot: { width: 5, height: 5, borderRadius: 2.5, marginTop: 2 },
@@ -88,13 +91,18 @@ export default function TabLayout() {
     ? (counts.all > 99 ? '99+' : String(counts.all))
     : undefined;
 
+  // Right-rail "Action Required" column shows on wide desktops (>= 1280px
+  // viewport). Below that we don't have horizontal room for a clean three-
+  // column layout — the inline SmartInbox in the home tab takes over.
+  const showActionRail = layout.isDesktop && layout.width >= 1280;
+
   if (layout.showSidebar) {
     return (
       <View style={styles.desktopContainer}>
         <DesktopSidebar width={layout.sidebarWidth} />
         <View style={styles.desktopContent}>
           <Tabs
-            initialRouteName="summary"
+            initialRouteName="(home)"
             screenOptions={{
               headerShown: false,
               tabBarStyle: { display: 'none' },
@@ -102,13 +110,10 @@ export default function TabLayout() {
           >
             <Tabs.Screen name="summary" options={{ title: 'Summary' }} />
             <Tabs.Screen name="(home)" options={{ title: 'Your Projects' }} />
-            <Tabs.Screen name="discover" options={{ title: 'Discover' }} />
+            <Tabs.Screen name="discover" options={{ title: 'Find Work' }} />
             <Tabs.Screen name="settings" options={{ title: 'Settings' }} />
             <Tabs.Screen name="mage-id-bids" options={{ title: 'MAGE ID Bids' }} />
             <Tabs.Screen name="construction-ai" options={{ href: null }} />
-            <Tabs.Screen name="bids" options={{ href: null }} />
-            <Tabs.Screen name="companies" options={{ href: null }} />
-            <Tabs.Screen name="hire" options={{ href: null }} />
             <Tabs.Screen name="estimate" options={{ href: null }} />
             <Tabs.Screen name="materials" options={{ href: null }} />
             <Tabs.Screen name="schedule" options={{ href: null }} />
@@ -117,13 +122,18 @@ export default function TabLayout() {
             <Tabs.Screen name="equipment" options={{ href: null }} />
           </Tabs>
         </View>
+        {showActionRail && <DesktopActionRail />}
       </View>
     );
   }
 
   return (
     <Tabs
-      initialRouteName="summary"
+      // (home) lands fresh users on the proper EmptyState with a CTA —
+      // the previous `summary` default had no CTA, just text saying
+      // "Create a project from the Projects tab" forcing new users to
+      // discover the tab switch on their own.
+      initialRouteName="(home)"
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: Colors.primary,
@@ -134,7 +144,7 @@ export default function TabLayout() {
           borderTopWidth: 0.5,
         },
         tabBarLabelStyle: {
-          fontSize: 11,
+          fontSize: Type.caption2.fontSize,
           fontWeight: '500',
           letterSpacing: 0.2,
           marginBottom: Platform.OS === 'ios' ? 0 : 4,
@@ -158,7 +168,7 @@ export default function TabLayout() {
         options={{
           title: 'Your Projects',
           tabBarBadge: inboxBadge,
-          tabBarBadgeStyle: { backgroundColor: '#FF3B30', color: '#FFFFFF' },
+          tabBarBadgeStyle: { backgroundColor: Colors.error, color: Colors.surface },
           tabBarIcon: ({ color, focused }) => (
             <TabIcon Icon={Home} color={color} focused={focused} />
           ),
@@ -167,7 +177,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="discover"
         options={{
-          title: 'Discover',
+          title: 'Find Work',
           tabBarIcon: ({ color, focused }) => (
             <TabIcon Icon={Compass} color={color} focused={focused} />
           ),
@@ -182,9 +192,6 @@ export default function TabLayout() {
           ),
         }}
       />
-      <Tabs.Screen name="bids" options={{ href: null }} />
-      <Tabs.Screen name="companies" options={{ href: null }} />
-      <Tabs.Screen name="hire" options={{ href: null }} />
       <Tabs.Screen name="estimate" options={{ href: null }} />
       <Tabs.Screen name="materials" options={{ href: null }} />
       <Tabs.Screen name="schedule" options={{ href: null }} />

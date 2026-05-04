@@ -215,6 +215,28 @@ async function sendPush(token: string, title: string, body: string, data?: Recor
   }
 }
 
+// ─── JWT role inspection ─────────────────────────────────────────────
+// Decode the second segment (payload) of a JWT and check the role claim.
+// We don't verify the signature — the rate limit is downstream of an
+// already-verified JWT (Supabase verifies before invoking the function
+// when verify_jwt is on, and edge gateway still won't accept random
+// tokens). This is just a way to robustly identify anon vs. authed
+// callers without depending on env-var key matching.
+function jwtHasRole(token: string, expected: string): boolean {
+  if (!token || token.length < 20) return false;
+  const parts = token.split('.');
+  if (parts.length !== 3) return false;
+  try {
+    // base64url → base64 → decode → JSON
+    let b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    while (b64.length % 4) b64 += '=';
+    const payload = JSON.parse(atob(b64));
+    return payload?.role === expected;
+  } catch {
+    return false;
+  }
+}
+
 // ─── Anon allowlist + rate limit ──────────────────────────────────────
 const ANON_ALLOWED_EVENTS = new Set([
   'contract_signed',
@@ -224,17 +246,36 @@ const ANON_ALLOWED_EVENTS = new Set([
   'closeout_binder_sent',
 ]);
 
+// Per-portal rate limit: at most 30 anon-triggered notifications per
+// hour per portal. Backed by the rate_limit_increment SQL function
+// (see migration: rate_limit_counters), which does an atomic
+// INSERT … ON CONFLICT DO UPDATE … RETURNING count. This closes the
+// TOCTOU race in the previous SELECT-then-decide implementation: under
+// N parallel anon callers, the i'th caller is GUARANTEED to see count=i.
+//
+// Fail-open semantics: if the RPC errors (network, function missing,
+// etc.), we let the request through. We'd rather risk a duplicate than
+// drop a legit homeowner-signed-contract notification on a transient
+// counter glitch.
+const PORTAL_HOURLY_CAP = 30;
 async function exceedsRateLimit(portalId: string | null): Promise<boolean> {
   if (!portalId) return false;
-  const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-  const url = `${SUPABASE_URL}/rest/v1/notification_outbox?payload->>portal_id=eq.${encodeURIComponent(portalId)}&created_at=gte.${encodeURIComponent(since)}&select=id`;
-  const r = await fetch(url, {
-    headers: { 'apikey': SERVICE_ROLE_KEY, 'Authorization': `Bearer ${SERVICE_ROLE_KEY}`, 'Range-Unit': 'items', 'Range': '0-30', 'Prefer': 'count=exact' },
-  }).catch(() => null);
-  if (!r || !r.ok) return false;
-  const contentRange = r.headers.get('content-range') ?? '';
-  const total = parseInt(contentRange.split('/')[1] ?? '0', 10);
-  return total >= 30;
+  try {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/rate_limit_increment`, {
+      method: 'POST',
+      headers: {
+        'apikey': SERVICE_ROLE_KEY,
+        'Authorization': `Bearer ${SERVICE_ROLE_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ p_scope: `portal:${portalId}` }),
+    });
+    if (!r.ok) return false; // fail open
+    const count = await r.json();
+    return typeof count === 'number' && count > PORTAL_HOURLY_CAP;
+  } catch {
+    return false; // fail open
+  }
 }
 
 // ─── Event dispatch ───────────────────────────────────────────────────
@@ -735,7 +776,7 @@ async function dispatch(req: NotifyRequest, isAnonCaller: boolean): Promise<unkn
       const question = (payload.question as string) || '';
       const answer = (payload.answer as string) || '';
       const detailUrl = rfpId ? `${APP_BASE}/rfp-detail?bidId=${encodeURIComponent(rfpId)}` : APP_BASE;
-      const recipients = (payload.bidder_recipients as Array<{ email?: string; push_token?: string; user_id?: string }> | undefined) ?? [];
+      const recipients = (payload.bidder_recipients as { email?: string; push_token?: string; user_id?: string }[] | undefined) ?? [];
       for (const r of recipients) {
         const pushTok = r.push_token ?? null;
         const em = r.email ?? null;
@@ -903,10 +944,15 @@ serve(async (req) => {
     const body = await req.json() as NotifyRequest;
     if (!body || !body.event) return jsonResponse({ error: "Missing event" }, 400);
 
+    // Anon detection: inspect the JWT's `role` claim rather than comparing
+    // the raw token string to SUPABASE_ANON_KEY. The auto-injected env var
+    // can lag behind a key rotation, and we'd rather not depend on it.
+    // We accept the bearer (Authorization) OR the `apikey` header — Supabase
+    // clients send both; raw fetch callers may only send one.
     const auth = req.headers.get('Authorization') || req.headers.get('authorization') || '';
     const bearer = auth.replace(/^Bearer\s+/i, '').trim();
-    const anonKey = Deno.env.get('SUPABASE_ANON_KEY') || '';
-    const isAnonCaller = !!bearer && !!anonKey && bearer === anonKey;
+    const apikey = req.headers.get('apikey') || req.headers.get('Apikey') || '';
+    const isAnonCaller = jwtHasRole(bearer, 'anon') || jwtHasRole(apikey, 'anon');
 
     const result = await dispatch(body, isAnonCaller);
     return jsonResponse({ success: true, result });

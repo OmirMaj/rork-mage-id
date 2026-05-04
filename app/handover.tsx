@@ -21,7 +21,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   ActivityIndicator,
-} from 'react-native';
+ Platform } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
@@ -32,10 +32,12 @@ import {
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
+import { FeatureHeader } from '@/components/FeatureHeader';
 import { fetchSelectionsForProject } from '@/utils/selectionsEngine';
 import { fetchCloseoutBinder } from '@/utils/closeoutBinderEngine';
 import { fetchLienWaiversForProject } from '@/utils/lienWaiverEngine';
-import { Platform } from 'react-native';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 interface HandoverItem {
   key: string;
@@ -298,14 +300,28 @@ export default function HandoverScreen() {
       <Stack.Screen options={{ headerShown: false }} />
 
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={8}>
+        <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
           <ChevronLeft size={26} color={Colors.primary} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.eyebrow}>{project.name}</Text>
-          <Text style={styles.title}>Handover Checklist</Text>
+          <Text style={styles.title}>Walkthrough day checklist</Text>
         </View>
       </View>
+      <FeatureHeader
+        eyebrow="Handover"
+        title="Don&apos;t leave anything unchecked"
+        subtitle="The walkthrough-day flow most GCs improvise. Every spec confirmed, every signature collected, every key handed over — captured in one place."
+        explainer={{
+          term: 'Handover Checklist',
+          definition: 'Handover is the day you walk the homeowner through the finished project, demonstrate every system (HVAC, smart lock, irrigation), confirm every selection, walk the punch list, and collect signatures on the certificate of substantial completion. Skipping a step here is how warranty disputes start six months later.',
+          whenToUse: [
+            'Day-of project completion, before the homeowner moves in',
+            'Anytime your contract requires "substantial completion" sign-off',
+            'When you want a paper trail of what you demonstrated and what they accepted',
+          ],
+        }}
+      />
 
       {loading ? (
         <View style={styles.loading}>
@@ -317,8 +333,8 @@ export default function HandoverScreen() {
           {/* Progress hero */}
           <View style={[styles.heroCard, allDone && styles.heroCardDone]}>
             <View style={styles.heroHead}>
-              {allDone ? <Sparkles size={16} color={'#1E8E4A'} /> : <AlertCircle size={16} color={Colors.primary} />}
-              <Text style={[styles.heroTitle, allDone && { color: '#1E8E4A' }]}>
+              {allDone ? <Sparkles size={16} color={Colors.successDark} /> : <AlertCircle size={16} color={Colors.primary} />}
+              <Text style={[styles.heroTitle, allDone && { color: Colors.successDark }]}>
                 {allDone ? 'Ready to hand over' : `${doneCount} of ${total} done`}
               </Text>
             </View>
@@ -370,7 +386,7 @@ export default function HandoverScreen() {
 function ChecklistRow({ item, onPressItem }: { item: HandoverItem; onPressItem: () => void }) {
   const Icon = item.icon;
   const Status = (() => {
-    if (item.status === 'done') return { Comp: CheckCircle2, color: '#1E8E4A' };
+    if (item.status === 'done') return { Comp: CheckCircle2, color: Colors.successDark };
     if (item.status === 'partial') return { Comp: AlertCircle, color: '#C26A00' };
     return { Comp: Circle, color: Colors.textMuted };
   })();
@@ -410,47 +426,47 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   center: { alignItems: 'center', justifyContent: 'center' },
   loading: { padding: 30, alignItems: 'center', gap: 10 },
-  loadingText: { fontSize: 13, color: Colors.textMuted },
+  loadingText: { fontSize: Type.footnote.fontSize, color: Colors.textMuted },
 
   header: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 10,
     paddingHorizontal: 16, paddingTop: 14, paddingBottom: 14,
     borderBottomWidth: 1, borderBottomColor: Colors.border,
   },
-  eyebrow: { fontSize: 11, fontWeight: '700', color: Colors.primary, letterSpacing: 1.4, textTransform: 'uppercase' },
-  title:   { fontSize: 20, fontWeight: '800', color: Colors.text, letterSpacing: -0.4, marginTop: 4 },
-  emptyTitle: { fontSize: 16, fontWeight: '800', color: Colors.text },
-  emptyBack: { marginTop: 12, paddingHorizontal: 18, paddingVertical: 10, borderRadius: 10, backgroundColor: Colors.primary },
-  emptyBackText: { color: '#FFF', fontWeight: '800', fontSize: 13 },
+  eyebrow: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.primary, letterSpacing: 1.4, textTransform: 'uppercase' },
+  title:   { fontSize: Type.title3.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.4, marginTop: 4 },
+  emptyTitle: { fontSize: Type.callout.fontSize, fontWeight: '800', color: Colors.text },
+  emptyBack: { marginTop: 12, paddingHorizontal: 18, paddingVertical: 10, borderRadius: Tokens.radius.md, backgroundColor: Colors.primary },
+  emptyBackText: { color: '#FFF', fontWeight: '800', fontSize: Type.footnote.fontSize },
 
   heroCard: {
     backgroundColor: Colors.primary + '0D', borderWidth: 1, borderColor: Colors.primary + '30',
-    borderRadius: 14, padding: 16, marginBottom: 16,
+    borderRadius: Tokens.radius.lg, padding: 16, marginBottom: 16,
   },
   heroCardDone: {
     backgroundColor: 'rgba(30,142,74,0.08)', borderColor: 'rgba(30,142,74,0.35)',
   },
   heroHead: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
-  heroTitle: { fontSize: 14, fontWeight: '800', color: Colors.primary, letterSpacing: -0.2 },
-  heroBody: { fontSize: 13, color: Colors.text, lineHeight: 18, marginBottom: 12 },
+  heroTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800', color: Colors.primary, letterSpacing: -0.2 },
+  heroBody: { fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 18, marginBottom: 12 },
   progressTrack: { height: 6, backgroundColor: Colors.fillTertiary, borderRadius: 4, overflow: 'hidden' },
   progressFill: { height: '100%', borderRadius: 4 },
 
-  listLabel: { fontSize: 11, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 8, marginLeft: 2 },
+  listLabel: { fontSize: Type.caption2.fontSize, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 8, marginLeft: 2 },
 
   row: {
     flexDirection: 'row', gap: 12, padding: 14,
     backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,
-    borderRadius: 12, marginBottom: 8,
+    borderRadius: Tokens.radius.card, marginBottom: 8,
   },
   rowDone: { opacity: 0.85 },
-  rowIcon: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  rowIcon: { width: 36, height: 36, borderRadius: Tokens.radius.md, alignItems: 'center', justifyContent: 'center' },
   rowHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  rowLabel: { flex: 1, fontSize: 14, fontWeight: '700', color: Colors.text, letterSpacing: -0.2 },
-  rowDetail: { fontSize: 12, color: Colors.textMuted, lineHeight: 17, marginTop: 4 },
+  rowLabel: { flex: 1, fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text, letterSpacing: -0.2 },
+  rowDetail: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, lineHeight: 17, marginTop: 4 },
   rowCta: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 8 },
-  rowCtaText: { fontSize: 12, fontWeight: '800', color: Colors.primary },
+  rowCtaText: { fontSize: Type.caption1.fontSize, fontWeight: '800', color: Colors.primary },
   rowCtaManual: { color: Colors.textMuted, fontWeight: '700' },
 
-  fineprint: { fontSize: 11, color: Colors.textMuted, lineHeight: 16, marginTop: 14, fontStyle: 'italic' },
+  fineprint: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, lineHeight: 16, marginTop: 14, fontStyle: 'italic' },
 });

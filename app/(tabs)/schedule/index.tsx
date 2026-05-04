@@ -87,6 +87,8 @@ import { z } from 'zod';
 import AIScheduleRisk from '@/components/AIScheduleRisk';
 import AICopilot from '@/components/AICopilot';
 import VoiceFieldButton from '@/components/VoiceFieldButton';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 interface TaskDraft {
   title: string;
@@ -891,21 +893,21 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
             </View>
             {task.isMilestone && (
               <View style={[styles.tagChip, { backgroundColor: '#007AFF14' }]}>
-                <Flag size={9} color="#007AFF" />
-                <Text style={[styles.tagChipText, { color: '#007AFF' }]}>Milestone</Text>
+                <Flag size={9} color={Colors.info} />
+                <Text style={[styles.tagChipText, { color: Colors.info }]}>Milestone</Text>
               </View>
             )}
             {task.isCriticalPath && (
               <View style={[styles.tagChip, { backgroundColor: '#FF3B3014' }]}>
-                <GitBranch size={9} color="#FF3B30" />
+                <GitBranch size={9} color={Colors.error} />
               </View>
             )}
             {task.isWeatherSensitive && (
-              <Cloud size={12} color="#007AFF" />
+              <Cloud size={12} color={Colors.info} />
             )}
           </View>
           {variance !== null && variance !== 0 && (
-            <Text style={[styles.varianceText, { color: variance > 0 ? '#FF3B30' : '#34C759' }]}>
+            <Text style={[styles.varianceText, { color: variance > 0 ? Colors.error : Colors.success }]}>
               {variance > 0 ? '+' : ''}{variance}d
             </Text>
           )}
@@ -953,9 +955,9 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
   const renderFieldMode = useCallback(() => (
     <View style={styles.fieldModeContainer}>
       <View style={styles.fieldModeHeader}>
-        <Zap size={20} color="#FF9500" />
+        <Zap size={20} color={Colors.warning} />
         <Text style={styles.fieldModeTitle}>Field Update Mode</Text>
-        <TouchableOpacity style={styles.fieldModeClose} onPress={() => setIsFieldMode(false)}>
+        <TouchableOpacity style={styles.fieldModeClose} onPress={() => setIsFieldMode(false)} accessibilityRole="button" accessibilityLabel="Close">
           <X size={18} color={Colors.textMuted} />
         </TouchableOpacity>
       </View>
@@ -1122,13 +1124,13 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
               const missed = !hit && dr.end < new Date();
               return (
                 <View key={m.id} style={styles.summaryMilestoneRow}>
-                  <Flag size={12} color={hit ? '#34C759' : missed ? '#FF3B30' : '#FF9500'} />
+                  <Flag size={12} color={hit ? Colors.success : missed ? Colors.error : Colors.warning} />
                   <Text style={styles.summaryMilestoneName}>{m.title}</Text>
                   <View style={[styles.summaryMilestoneChip, {
                     backgroundColor: hit ? '#34C75914' : missed ? '#FF3B3014' : '#FF950014'
                   }]}>
                     <Text style={[styles.summaryMilestoneChipText, {
-                      color: hit ? '#34C759' : missed ? '#FF3B30' : '#FF9500'
+                      color: hit ? Colors.success : missed ? Colors.error : Colors.warning
                     }]}>
                       {hit ? 'Hit' : missed ? 'Missed' : formatShortDate(dr.end)}
                     </Text>
@@ -1157,7 +1159,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
             <Text style={styles.summarySectionTitle}>Risks</Text>
             {activeSchedule.riskItems.map(risk => (
               <View key={risk.id} style={styles.summaryRiskRow}>
-                <AlertTriangle size={13} color={risk.severity === 'high' ? '#FF3B30' : '#FF9500'} />
+                <AlertTriangle size={13} color={risk.severity === 'high' ? Colors.error : Colors.warning} />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.summaryRiskTitle}>{risk.title}</Text>
                   <Text style={styles.summaryRiskDetail}>{risk.detail}</Text>
@@ -1247,7 +1249,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                 <View style={styles.bottomSheetHandle} />
                 <View style={styles.modalHeader}>
                   <Text style={styles.modalTitle}>{editingTask ? 'Edit Task' : 'New Task'}</Text>
-                  <TouchableOpacity onPress={() => setIsEditModalOpen(false)}>
+                  <TouchableOpacity onPress={() => setIsEditModalOpen(false)} accessibilityRole="button" accessibilityLabel="Close">
                     <X size={20} color={Colors.textMuted} />
                   </TouchableOpacity>
                 </View>
@@ -1357,7 +1359,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                       );
                     })}
                     {contacts.filter(c => c.role === 'Sub').length === 0 ? (
-                      <Text style={{ fontSize: 12, color: Colors.textMuted, alignSelf: 'center' as const, paddingHorizontal: 8 }}>
+                      <Text style={{ fontSize: Type.caption1.fontSize, color: Colors.textMuted, alignSelf: 'center' as const, paddingHorizontal: 8 }}>
                         No subs in contacts. Add one from the Contacts tab.
                       </Text>
                     ) : null}
@@ -1365,16 +1367,16 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                 </View>
 
                 <View style={styles.toggleRow}>
-                  <View style={styles.toggleInfo}><Flag size={14} color="#FF9500" /><Text style={styles.toggleLabel}>Milestone</Text></View>
-                  <Switch value={taskDraft.isMilestone} onValueChange={val => setTaskDraft(p => ({ ...p, isMilestone: val }))} trackColor={{ false: Colors.border, true: '#FF9500' }} thumbColor="#FFF" />
+                  <View style={styles.toggleInfo}><Flag size={14} color={Colors.warning} /><Text style={styles.toggleLabel}>Milestone</Text></View>
+                  <Switch value={taskDraft.isMilestone} onValueChange={val => setTaskDraft(p => ({ ...p, isMilestone: val }))} trackColor={{ false: Colors.border, true: Colors.warning }} thumbColor="#FFF" />
                 </View>
                 <View style={styles.toggleRow}>
                   <View style={styles.toggleInfo}><GitBranch size={14} color={Colors.error} /><Text style={styles.toggleLabel}>Critical Path</Text></View>
                   <Switch value={taskDraft.isCriticalPath} onValueChange={val => setTaskDraft(p => ({ ...p, isCriticalPath: val }))} trackColor={{ false: Colors.border, true: Colors.error }} thumbColor="#FFF" />
                 </View>
                 <View style={styles.toggleRow}>
-                  <View style={styles.toggleInfo}><Cloud size={14} color="#007AFF" /><Text style={styles.toggleLabel}>Weather Sensitive</Text></View>
-                  <Switch value={taskDraft.isWeatherSensitive} onValueChange={val => setTaskDraft(p => ({ ...p, isWeatherSensitive: val }))} trackColor={{ false: Colors.border, true: '#007AFF' }} thumbColor="#FFF" />
+                  <View style={styles.toggleInfo}><Cloud size={14} color={Colors.info} /><Text style={styles.toggleLabel}>Weather Sensitive</Text></View>
+                  <Switch value={taskDraft.isWeatherSensitive} onValueChange={val => setTaskDraft(p => ({ ...p, isWeatherSensitive: val }))} trackColor={{ false: Colors.border, true: Colors.info }} thumbColor="#FFF" />
                 </View>
 
                 <Text style={styles.fieldLabel}>Predecessors {taskDraft.dependencyLinks.length > 0 ? '(controls start day)' : '(optional)'}</Text>
@@ -1454,7 +1456,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
           <Pressable style={[styles.modalCard, { maxHeight: '80%' }]} onPress={() => undefined}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Link Predecessors</Text>
-              <TouchableOpacity onPress={() => setShowDepPicker(false)}><X size={20} color={Colors.textMuted} /></TouchableOpacity>
+              <TouchableOpacity onPress={() => setShowDepPicker(false)} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={Colors.textMuted} /></TouchableOpacity>
             </View>
             <ScrollView style={{ maxHeight: 400 }}>
               {sortedTasks.filter(t => t.id !== editingTask?.id).map(task => {
@@ -1487,7 +1489,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
             <View style={[styles.bottomSheet, { paddingBottom: insets.bottom + 16 }]}>
               <View style={styles.bottomSheetHandle} />
               <View style={styles.aiHeader}>
-                <Sparkles size={22} color="#FF9500" />
+                <Sparkles size={22} color={Colors.warning} />
                 <Text style={styles.aiTitle}>AI Schedule Builder</Text>
               </View>
               <Text style={styles.aiSubtitle}>
@@ -1540,7 +1542,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
             <View style={styles.bottomSheetHandle} />
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Schedule Templates</Text>
-              <TouchableOpacity onPress={() => setIsTemplatePickerOpen(false)}>
+              <TouchableOpacity onPress={() => setIsTemplatePickerOpen(false)} accessibilityRole="button" accessibilityLabel="Close">
                 <X size={20} color={Colors.textMuted} />
               </TouchableOpacity>
             </View>
@@ -1605,13 +1607,20 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
           </ScrollView>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }}>
             <View style={styles.viewTabBar}>
+              {/* Audit found 6 view modes was too many for a phone
+                  (Apple segmented-control standard is 3-4 max). The 4
+                  below are the modes a GC reaches for daily. The
+                  retired modes (`resources`/Crew, `summary`) remain
+                  in the underlying type + render switch so we can
+                  re-add them behind a "More" overflow pill later if
+                  user research shows demand — for now their entry
+                  points are removed and the rendering paths are
+                  unreachable through this UI. */}
               {([
                 { key: 'today' as const, label: 'Today', icon: CalendarDays },
                 { key: 'lookahead' as const, label: 'Lookahead', icon: ChevronRight },
                 { key: 'board' as const, label: 'Board', icon: LayoutGrid },
                 { key: 'gantt' as const, label: 'Gantt', icon: BarChart3 },
-                { key: 'resources' as const, label: 'Crew', icon: Users },
-                { key: 'summary' as const, label: 'Summary', icon: Target },
               ]).map(tab => {
                 const Icon = tab.icon;
                 const active = viewMode === tab.key;
@@ -1645,8 +1654,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
           <TouchableOpacity
             style={styles.fab}
             onPress={() => { setTaskDraft({ ...EMPTY_DRAFT }); setQuickAddCount(0); setIsQuickAddOpen(true); }}
-            activeOpacity={0.85}
-          >
+            activeOpacity={0.85} accessibilityRole="button" accessibilityLabel="Add">
             <Plus size={18} color="#FFF" />
           </TouchableOpacity>
         </View>
@@ -1808,7 +1816,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
             <Pressable style={styles.modalCard} onPress={() => undefined}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Select Project</Text>
-                <TouchableOpacity onPress={() => setIsProjectPickerOpen(false)}>
+                <TouchableOpacity onPress={() => setIsProjectPickerOpen(false)} accessibilityRole="button" accessibilityLabel="Close">
                   <X size={20} color={Colors.textMuted} />
                 </TouchableOpacity>
               </View>
@@ -2002,7 +2010,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                   <ScrollView showsVerticalScrollIndicator={false}>
                     <View style={styles.modalHeader}>
                       <Text style={[styles.modalTitle, { flex: 1, marginRight: 12 }]}>{task.title}</Text>
-                      <TouchableOpacity onPress={() => setTaskDetailModal(null)}>
+                      <TouchableOpacity onPress={() => setTaskDetailModal(null)} accessibilityRole="button" accessibilityLabel="Close">
                         <X size={20} color={Colors.textMuted} />
                       </TouchableOpacity>
                     </View>
@@ -2023,8 +2031,8 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                       <TouchableOpacity style={styles.detailEditBtn} onPress={() => openEditTask(task)}>
                         <Text style={styles.detailEditBtnText}>Edit Task</Text>
                       </TouchableOpacity>
-                      <TouchableOpacity style={styles.detailDeleteBtn} onPress={() => { setTaskDetailModal(null); handleDeleteTask(task.id); }}>
-                        <Trash2 size={16} color="#FF3B30" />
+                      <TouchableOpacity style={styles.detailDeleteBtn} onPress={() => { setTaskDetailModal(null); handleDeleteTask(task.id); }} accessibilityRole="button" accessibilityLabel="Delete">
+                        <Trash2 size={16} color={Colors.error} />
                       </TouchableOpacity>
                     </View>
                   </ScrollView>
@@ -2120,7 +2128,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
             <Text style={styles.emptyDesc}>Choose how to get started:</Text>
 
             <TouchableOpacity style={styles.emptyAction} onPress={() => setIsAIBuilderOpen(true)}>
-              <Sparkles size={20} color="#FF9500" />
+              <Sparkles size={20} color={Colors.warning} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.emptyActionTitle}>Generate with AI</Text>
                 <Text style={styles.emptyActionDesc}>Describe your project, get a full schedule in seconds</Text>
@@ -2162,11 +2170,11 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
           <>
             {weatherAlerts.length > 0 && (
               <View style={styles.weatherBanner}>
-                <CloudRain size={16} color="#FF9500" />
+                <CloudRain size={16} color={Colors.warning} />
                 <Text style={styles.weatherBannerText}>
                   {weatherAlerts.length} weather alert{weatherAlerts.length > 1 ? 's' : ''} for upcoming tasks
                 </Text>
-                <TouchableOpacity onPress={() => setWeatherAlerts([])}>
+                <TouchableOpacity onPress={() => setWeatherAlerts([])} accessibilityRole="button" accessibilityLabel="Close">
                   <X size={14} color={Colors.textMuted} />
                 </TouchableOpacity>
               </View>
@@ -2220,15 +2228,13 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                 })}
                 <TouchableOpacity
                   style={styles.weatherBtn}
-                  onPress={fetchWeather}
-                >
-                  <Cloud size={13} color="#007AFF" />
+                  onPress={fetchWeather} accessibilityRole="button" accessibilityLabel="Cloud">
+                  <Cloud size={13} color={Colors.info} />
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.fieldModeBtn, isFieldMode && styles.fieldModeBtnActive]}
-                  onPress={() => setIsFieldMode(!isFieldMode)}
-                >
-                  <Zap size={13} color={isFieldMode ? '#FFF' : '#FF9500'} />
+                  onPress={() => setIsFieldMode(!isFieldMode)} accessibilityRole="button" accessibilityLabel="Power">
+                  <Zap size={13} color={isFieldMode ? '#FFF' : Colors.warning} />
                 </TouchableOpacity>
               </View>
             </ScrollView>
@@ -2442,24 +2448,21 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
             style={styles.fabSecondary}
             onPress={() => setIsShareSheetOpen(true)}
             activeOpacity={0.85}
-            testID="open-share-sheet"
-          >
+            testID="open-share-sheet" accessibilityRole="button" accessibilityLabel="Open document">
             <FileText size={18} color={Colors.primary} />
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.fabSecondary}
             onPress={() => setIsQuickBuildOpen(true)}
             activeOpacity={0.85}
-            testID="open-quick-build"
-          >
-            <Zap size={18} color="#FF9500" />
+            testID="open-quick-build" accessibilityRole="button" accessibilityLabel="Power">
+            <Zap size={18} color={Colors.warning} />
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.fab}
             onPress={() => { setTaskDraft({ ...EMPTY_DRAFT }); setQuickAddCount(0); setIsQuickAddOpen(true); }}
             activeOpacity={0.85}
-            testID="open-quick-add"
-          >
+            testID="open-quick-add" accessibilityRole="button" accessibilityLabel="Add">
             <Plus size={22} color="#FFF" />
           </TouchableOpacity>
         </View>
@@ -2471,7 +2474,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
           <Pressable style={styles.modalCard} onPress={() => undefined}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Select Project</Text>
-              <TouchableOpacity onPress={() => setIsProjectPickerOpen(false)}>
+              <TouchableOpacity onPress={() => setIsProjectPickerOpen(false)} accessibilityRole="button" accessibilityLabel="Close">
                 <X size={20} color={Colors.textMuted} />
               </TouchableOpacity>
             </View>
@@ -2700,7 +2703,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                   style={[styles.quickAddToggle, taskDraft.isMilestone && styles.quickAddToggleActive]}
                   onPress={() => setTaskDraft(prev => ({ ...prev, isMilestone: !prev.isMilestone }))}
                 >
-                  <Flag size={12} color={taskDraft.isMilestone ? '#FFF' : '#FF9500'} />
+                  <Flag size={12} color={taskDraft.isMilestone ? '#FFF' : Colors.warning} />
                   <Text style={[styles.quickAddToggleText, taskDraft.isMilestone && styles.quickAddToggleTextActive]}>Milestone</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -2711,10 +2714,10 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                   <Text style={[styles.quickAddToggleText, taskDraft.isCriticalPath && { color: '#FFF' }]}>Critical</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.quickAddToggle, taskDraft.isWeatherSensitive && { backgroundColor: '#007AFF' }]}
+                  style={[styles.quickAddToggle, taskDraft.isWeatherSensitive && { backgroundColor: Colors.info }]}
                   onPress={() => setTaskDraft(prev => ({ ...prev, isWeatherSensitive: !prev.isWeatherSensitive }))}
                 >
-                  <Cloud size={12} color={taskDraft.isWeatherSensitive ? '#FFF' : '#007AFF'} />
+                  <Cloud size={12} color={taskDraft.isWeatherSensitive ? '#FFF' : Colors.info} />
                   <Text style={[styles.quickAddToggleText, taskDraft.isWeatherSensitive && { color: '#FFF' }]}>Weather</Text>
                 </TouchableOpacity>
               </View>
@@ -2748,7 +2751,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                 <ScrollView showsVerticalScrollIndicator={false}>
                   <View style={styles.modalHeader}>
                     <Text style={[styles.modalTitle, { flex: 1, marginRight: 12 }]}>{task.title}</Text>
-                    <TouchableOpacity onPress={() => setTaskDetailModal(null)}>
+                    <TouchableOpacity onPress={() => setTaskDetailModal(null)} accessibilityRole="button" accessibilityLabel="Close">
                       <X size={20} color={Colors.textMuted} />
                     </TouchableOpacity>
                   </View>
@@ -2758,9 +2761,9 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                       <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
                       <Text style={[styles.statusChipText, { color: statusColor }]}>{getStatusLabel(task.status)}</Text>
                     </View>
-                    {task.isMilestone && <View style={[styles.tagChip, { backgroundColor: '#007AFF14' }]}><Flag size={10} color="#007AFF" /><Text style={[styles.tagChipText, { color: '#007AFF' }]}>Milestone</Text></View>}
-                    {task.isCriticalPath && <View style={[styles.tagChip, { backgroundColor: '#FF3B3014' }]}><GitBranch size={10} color="#FF3B30" /><Text style={[styles.tagChipText, { color: '#FF3B30' }]}>Critical</Text></View>}
-                    {task.isWeatherSensitive && <View style={[styles.tagChip, { backgroundColor: '#007AFF14' }]}><Cloud size={10} color="#007AFF" /><Text style={[styles.tagChipText, { color: '#007AFF' }]}>Weather</Text></View>}
+                    {task.isMilestone && <View style={[styles.tagChip, { backgroundColor: '#007AFF14' }]}><Flag size={10} color={Colors.info} /><Text style={[styles.tagChipText, { color: Colors.info }]}>Milestone</Text></View>}
+                    {task.isCriticalPath && <View style={[styles.tagChip, { backgroundColor: '#FF3B3014' }]}><GitBranch size={10} color={Colors.error} /><Text style={[styles.tagChipText, { color: Colors.error }]}>Critical</Text></View>}
+                    {task.isWeatherSensitive && <View style={[styles.tagChip, { backgroundColor: '#007AFF14' }]}><Cloud size={10} color={Colors.info} /><Text style={[styles.tagChipText, { color: Colors.info }]}>Weather</Text></View>}
                   </View>
 
                   <View style={styles.detailGrid}>
@@ -2793,7 +2796,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                     {variance !== null && (
                       <View style={styles.detailGridItem}>
                         <Text style={styles.detailGridLabel}>vs Baseline</Text>
-                        <Text style={[styles.detailGridValue, { color: variance > 0 ? '#FF3B30' : '#34C759' }]}>
+                        <Text style={[styles.detailGridValue, { color: variance > 0 ? Colors.error : Colors.success }]}>
                           {variance > 0 ? '+' : ''}{variance}d
                         </Text>
                       </View>
@@ -2835,7 +2838,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
 
                   {succs.length > 0 && (
                     <View style={styles.detailDepSection}>
-                      <Text style={[styles.detailDepTitle, { color: '#FF9500' }]}>Successors</Text>
+                      <Text style={[styles.detailDepTitle, { color: Colors.warning }]}>Successors</Text>
                       {succs.map(s => (
                         <View key={s.id} style={styles.detailDepRow}>
                           <View style={[styles.detailDepDot, { backgroundColor: getStatusColor(s.status) }]} />
@@ -2861,7 +2864,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                       return (
                         <View style={styles.delayImpactSection}>
                           <View style={styles.delayImpactHeader}>
-                            <AlertTriangle size={14} color="#FF3B30" />
+                            <AlertTriangle size={14} color={Colors.error} />
                             <Text style={styles.delayImpactTitle}>Schedule Impact</Text>
                           </View>
                           <Text style={styles.delayImpactBody}>
@@ -2903,7 +2906,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                     return (
                       <View style={styles.weatherImpactSection}>
                         <View style={styles.weatherImpactHeader}>
-                          <Cloud size={14} color="#007AFF" />
+                          <Cloud size={14} color={Colors.info} />
                           <Text style={styles.weatherImpactTitle}>Weather Impact</Text>
                         </View>
                         <View style={styles.weatherImpactForecastRow}>
@@ -2982,8 +2985,8 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                     <TouchableOpacity style={styles.detailEditBtn} onPress={() => openEditTask(task)}>
                       <Text style={styles.detailEditBtnText}>Edit Task</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.detailDeleteBtn} onPress={() => { setTaskDetailModal(null); handleDeleteTask(task.id); }}>
-                      <Trash2 size={16} color="#FF3B30" />
+                    <TouchableOpacity style={styles.detailDeleteBtn} onPress={() => { setTaskDetailModal(null); handleDeleteTask(task.id); }} accessibilityRole="button" accessibilityLabel="Delete">
+                      <Trash2 size={16} color={Colors.error} />
                     </TouchableOpacity>
                   </View>
                 </ScrollView>
@@ -3039,15 +3042,15 @@ const styles = StyleSheet.create({
   header: { paddingHorizontal: 20, paddingBottom: 4 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   title: { fontSize: 32, fontWeight: '800' as const, color: Colors.text, letterSpacing: -0.8 },
-  subtitle: { marginTop: 4, fontSize: 14, color: Colors.textSecondary },
+  subtitle: { marginTop: 4, fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary },
 
   healthBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, marginTop: 4 },
   healthDot: { width: 8, height: 8, borderRadius: 4 },
-  healthScore: { fontSize: 18, fontWeight: '800' as const },
+  healthScore: { fontSize: Type.subheadline.fontSize, fontWeight: '800' as const },
 
   projectPickerRow: { paddingHorizontal: 16, marginTop: 14, marginBottom: 10 },
-  projectPickerBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: Colors.surface, borderRadius: 14, paddingHorizontal: 14, minHeight: 46, borderWidth: 1, borderColor: Colors.cardBorder },
-  projectPickerText: { flex: 1, fontSize: 14, fontWeight: '600' as const, color: Colors.text },
+  projectPickerBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: Colors.surface, borderRadius: Tokens.radius.lg, paddingHorizontal: 14, minHeight: 46, borderWidth: 1, borderColor: Colors.cardBorder },
+  projectPickerText: { flex: 1, fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
 
   // Project chips — replaces the picker-button-then-modal flow.
   projectChipsRow: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 10, gap: 8, alignItems: 'center', flexDirection: 'row' as const },
@@ -3069,32 +3072,32 @@ const styles = StyleSheet.create({
   },
   projectChipDot: { width: 8, height: 8, borderRadius: 4 },
   projectChipText: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
     color: Colors.text,
   },
   projectChipTextActive: { color: '#FFF' },
-  projectChipsEmpty: { fontSize: 13, color: Colors.textMuted, paddingHorizontal: 4 },
+  projectChipsEmpty: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, paddingHorizontal: 4 },
 
   emptyPrompt: { alignItems: 'center', paddingVertical: 60, paddingHorizontal: 40, gap: 10 },
-  emptyTitle: { fontSize: 20, fontWeight: '700' as const, color: Colors.text },
-  emptyDesc: { fontSize: 14, color: Colors.textSecondary, textAlign: 'center' as const },
+  emptyTitle: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: Colors.text },
+  emptyDesc: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, textAlign: 'center' as const },
 
   emptySchedule: { marginHorizontal: 16, backgroundColor: Colors.surface, borderRadius: 20, padding: 24, gap: 14, alignItems: 'center', borderWidth: 1, borderColor: Colors.cardBorder },
-  emptyAction: { flexDirection: 'row', alignItems: 'center', gap: 14, width: '100%', backgroundColor: Colors.surfaceAlt, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: Colors.borderLight },
-  emptyActionTitle: { fontSize: 15, fontWeight: '700' as const, color: Colors.text },
-  emptyActionDesc: { fontSize: 12, color: Colors.textSecondary, marginTop: 2 },
-  emptyManualBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', backgroundColor: Colors.primary, borderRadius: 14, paddingVertical: 14, marginTop: 4 },
-  emptyManualBtnText: { fontSize: 15, fontWeight: '700' as const, color: '#FFF' },
+  emptyAction: { flexDirection: 'row', alignItems: 'center', gap: 14, width: '100%', backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.lg, padding: 16, borderWidth: 1, borderColor: Colors.borderLight },
+  emptyActionTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text },
+  emptyActionDesc: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, marginTop: 2 },
+  emptyManualBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', backgroundColor: Colors.primary, borderRadius: Tokens.radius.lg, paddingVertical: 14, marginTop: 4 },
+  emptyManualBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: '#FFF' },
 
-  weatherBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16, marginBottom: 8, backgroundColor: '#FF950010', borderRadius: 12, padding: 12, borderWidth: 1, borderColor: '#FF950030' },
-  weatherBannerText: { flex: 1, fontSize: 13, fontWeight: '600' as const, color: '#FF9500' },
+  weatherBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16, marginBottom: 8, backgroundColor: '#FF950010', borderRadius: Tokens.radius.card, padding: 12, borderWidth: 1, borderColor: '#FF950030' },
+  weatherBannerText: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.warning },
 
-  topBar: { marginHorizontal: 16, backgroundColor: Colors.surface, borderRadius: 16, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: Colors.cardBorder },
+  topBar: { marginHorizontal: 16, backgroundColor: Colors.surface, borderRadius: Tokens.radius.panel, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: Colors.cardBorder },
   topBarStats: { flexDirection: 'row', justifyContent: 'space-around', marginBottom: 10 },
   topBarStat: { alignItems: 'center' },
-  topBarStatValue: { fontSize: 20, fontWeight: '800' as const, color: Colors.text },
-  topBarStatLabel: { fontSize: 11, color: Colors.textMuted, fontWeight: '500' as const },
+  topBarStatValue: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: Colors.text },
+  topBarStatLabel: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontWeight: '500' as const },
   topBarDivider: { width: 1, backgroundColor: Colors.borderLight },
   overallProgress: { height: 6, borderRadius: 3, backgroundColor: Colors.fillSecondary, overflow: 'hidden' as const },
   overallProgressFill: { height: '100%', borderRadius: 3, backgroundColor: Colors.primary },
@@ -3117,57 +3120,57 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingHorizontal: 14,
     paddingVertical: 10,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
     backgroundColor: 'transparent',
   },
   viewTabActive: {
     backgroundColor: Colors.primary,
   },
-  viewTabText: { fontSize: 13, fontWeight: '600' as const, color: Colors.textSecondary },
+  viewTabText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.textSecondary },
   viewTabTextActive: { color: '#FFF' },
-  weatherBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#007AFF12', alignItems: 'center', justifyContent: 'center', marginLeft: 'auto' as const },
-  fieldModeBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#FF950015', alignItems: 'center', justifyContent: 'center' },
-  fieldModeBtnActive: { backgroundColor: '#FF9500' },
+  weatherBtn: { width: 36, height: 36, borderRadius: Tokens.radius.xl, backgroundColor: '#007AFF12', alignItems: 'center', justifyContent: 'center', marginLeft: 'auto' as const },
+  fieldModeBtn: { width: 36, height: 36, borderRadius: Tokens.radius.xl, backgroundColor: '#FF950015', alignItems: 'center', justifyContent: 'center' },
+  fieldModeBtnActive: { backgroundColor: Colors.warning },
 
   filterBar: { marginBottom: 10, paddingLeft: 16 },
   filterChipRow: { flexDirection: 'row', gap: 6, paddingRight: 16 },
-  filterChip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 18, backgroundColor: Colors.fillTertiary },
+  filterChip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: Tokens.radius.xl, backgroundColor: Colors.fillTertiary },
   filterChipActive: { backgroundColor: Colors.primary },
-  filterChipText: { fontSize: 12, fontWeight: '600' as const, color: Colors.textSecondary },
+  filterChipText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.textSecondary },
   filterChipTextActive: { color: '#FFF' },
 
   phaseSection: { marginBottom: 6 },
   phaseHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 10 },
   phaseHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   phaseColorDot: { width: 8, height: 8, borderRadius: 4 },
-  phaseHeaderName: { fontSize: 15, fontWeight: '700' as const, color: Colors.text },
+  phaseHeaderName: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text },
   phaseHeaderRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   phaseProgressMini: { width: 40, height: 4, borderRadius: 2, backgroundColor: Colors.fillSecondary, overflow: 'hidden' as const },
   phaseProgressMiniFill: { height: '100%', borderRadius: 2 },
-  phaseHeaderMeta: { fontSize: 11, color: Colors.textMuted, fontWeight: '500' as const },
+  phaseHeaderMeta: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontWeight: '500' as const },
   phaseTaskList: { paddingHorizontal: 16, gap: 8, paddingBottom: 8 },
 
-  taskCard: { backgroundColor: Colors.surface, borderRadius: 16, padding: 14, borderWidth: 1, borderColor: Colors.cardBorder, gap: 8 },
+  taskCard: { backgroundColor: Colors.surface, borderRadius: Tokens.radius.panel, padding: 14, borderWidth: 1, borderColor: Colors.cardBorder, gap: 8 },
   taskTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   taskBadgeRow: { flexDirection: 'row', alignItems: 'center', gap: 5, flex: 1, flexWrap: 'wrap' as const },
-  varianceText: { fontSize: 12, fontWeight: '700' as const },
+  varianceText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const },
   statusChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 99 },
   statusDot: { width: 6, height: 6, borderRadius: 3 },
   statusChipText: { fontSize: 10, fontWeight: '700' as const },
   tagChip: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 99 },
   tagChipText: { fontSize: 10, fontWeight: '700' as const },
-  taskName: { fontSize: 16, fontWeight: '700' as const, color: Colors.text },
+  taskName: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.text },
   taskMeta: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' as const },
-  taskMetaText: { fontSize: 12, color: Colors.textSecondary, fontWeight: '500' as const },
+  taskMetaText: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, fontWeight: '500' as const },
   progressRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   progressTrack: { flex: 1, height: 6, borderRadius: 3, backgroundColor: Colors.fillSecondary, overflow: 'hidden' as const },
   progressFill: { height: '100%', borderRadius: 3 },
-  progressText: { fontSize: 12, fontWeight: '700' as const, color: Colors.text, minWidth: 30, textAlign: 'right' as const },
+  progressText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: Colors.text, minWidth: 30, textAlign: 'right' as const },
   taskActions: { flexDirection: 'row', alignItems: 'center' },
   progressBtnGroup: { flexDirection: 'row', gap: 5 },
-  progressBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: Colors.fillTertiary },
+  progressBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: Tokens.radius.sm, backgroundColor: Colors.fillTertiary },
   progressBtnActive: { backgroundColor: Colors.primary + '18' },
-  progressBtnText: { fontSize: 11, fontWeight: '700' as const, color: Colors.textSecondary },
+  progressBtnText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: Colors.textSecondary },
   progressBtnTextActive: { color: Colors.primary },
 
   fabContainer: { position: 'absolute' as const, right: 20, flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10 },
@@ -3176,112 +3179,112 @@ const styles = StyleSheet.create({
 
   fieldModeContainer: { paddingHorizontal: 16, gap: 12 },
   fieldModeHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  fieldModeTitle: { flex: 1, fontSize: 18, fontWeight: '700' as const, color: Colors.text },
+  fieldModeTitle: { flex: 1, fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: Colors.text },
   fieldModeClose: { padding: 4 },
-  fieldModeSubtitle: { fontSize: 13, color: Colors.textSecondary, marginTop: -4 },
+  fieldModeSubtitle: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, marginTop: -4 },
   fieldModeEmpty: { alignItems: 'center', paddingVertical: 40, gap: 10 },
-  fieldModeEmptyText: { fontSize: 15, color: Colors.textSecondary },
-  fieldCard: { backgroundColor: Colors.surface, borderRadius: 16, padding: 16, gap: 10, borderWidth: 1, borderColor: Colors.cardBorder },
-  fieldCardTitle: { fontSize: 18, fontWeight: '700' as const, color: Colors.text },
+  fieldModeEmptyText: { fontSize: Type.subhead.fontSize, color: Colors.textSecondary },
+  fieldCard: { backgroundColor: Colors.surface, borderRadius: Tokens.radius.panel, padding: 16, gap: 10, borderWidth: 1, borderColor: Colors.cardBorder },
+  fieldCardTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: Colors.text },
   fieldProgressRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   fieldProgressTrack: { flex: 1, height: 10, borderRadius: 5, backgroundColor: Colors.fillSecondary, overflow: 'hidden' as const },
   fieldProgressFill: { height: '100%', borderRadius: 5, backgroundColor: Colors.primary },
-  fieldProgressText: { fontSize: 14, fontWeight: '700' as const, color: Colors.text },
+  fieldProgressText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
   fieldBtnRow: { flexDirection: 'row', gap: 8 },
-  fieldBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: Colors.fillTertiary, alignItems: 'center' },
+  fieldBtn: { flex: 1, paddingVertical: 12, borderRadius: Tokens.radius.md, backgroundColor: Colors.fillTertiary, alignItems: 'center' },
   fieldBtnActive: { backgroundColor: Colors.primary },
-  fieldBtnText: { fontSize: 14, fontWeight: '700' as const, color: Colors.text },
+  fieldBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
   fieldBtnTextActive: { color: '#FFF' },
-  fieldNotes: { minHeight: 44, borderRadius: 10, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 12, fontSize: 14, color: Colors.text },
+  fieldNotes: { minHeight: 44, borderRadius: Tokens.radius.md, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 12, fontSize: Type.bodyCompact.fontSize, color: Colors.text },
 
   resourceContainer: { paddingHorizontal: 16, gap: 12 },
-  resourceTitle: { fontSize: 18, fontWeight: '700' as const, color: Colors.text },
-  resourceCard: { backgroundColor: Colors.surface, borderRadius: 16, padding: 14, gap: 10, borderWidth: 1, borderColor: Colors.cardBorder },
+  resourceTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: Colors.text },
+  resourceCard: { backgroundColor: Colors.surface, borderRadius: Tokens.radius.panel, padding: 14, gap: 10, borderWidth: 1, borderColor: Colors.cardBorder },
   resourceCardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   resourceCrewInfo: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  resourceCrewName: { fontSize: 15, fontWeight: '700' as const, color: Colors.text },
-  resourceCrewMeta: { fontSize: 12, color: Colors.textMuted },
+  resourceCrewName: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text },
+  resourceCrewMeta: { fontSize: Type.caption1.fontSize, color: Colors.textMuted },
   resourceProgressRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   resourceProgressTrack: { flex: 1, height: 5, borderRadius: 3, backgroundColor: Colors.fillSecondary, overflow: 'hidden' as const },
   resourceProgressFill: { height: '100%', borderRadius: 3, backgroundColor: Colors.primary },
-  resourceProgressText: { fontSize: 12, fontWeight: '700' as const, color: Colors.text },
+  resourceProgressText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: Colors.text },
   resourceTaskRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6, borderTopWidth: 0.5, borderTopColor: Colors.borderLight },
   resourceTaskDot: { width: 6, height: 6, borderRadius: 3 },
-  resourceTaskName: { flex: 1, fontSize: 13, fontWeight: '500' as const, color: Colors.text },
-  resourceTaskDate: { fontSize: 11, color: Colors.textMuted },
+  resourceTaskName: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '500' as const, color: Colors.text },
+  resourceTaskDate: { fontSize: Type.caption2.fontSize, color: Colors.textMuted },
 
   summaryContainer: { paddingHorizontal: 16, gap: 14 },
   summaryHeader: { gap: 2 },
-  summaryProjectName: { fontSize: 20, fontWeight: '800' as const, color: Colors.text },
-  summaryDateRange: { fontSize: 13, color: Colors.textSecondary },
+  summaryProjectName: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: Colors.text },
+  summaryDateRange: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary },
   healthRing: { alignItems: 'center', paddingVertical: 12 },
   healthRingOuter: { width: 100, height: 100, borderRadius: 50, borderWidth: 6, alignItems: 'center', justifyContent: 'center' },
   healthRingScore: { fontSize: 30, fontWeight: '800' as const },
-  healthRingLabel: { fontSize: 11, color: Colors.textMuted, fontWeight: '600' as const },
-  summaryStatsRow: { flexDirection: 'row', justifyContent: 'space-around', backgroundColor: Colors.surface, borderRadius: 16, padding: 14, borderWidth: 1, borderColor: Colors.cardBorder },
+  healthRingLabel: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontWeight: '600' as const },
+  summaryStatsRow: { flexDirection: 'row', justifyContent: 'space-around', backgroundColor: Colors.surface, borderRadius: Tokens.radius.panel, padding: 14, borderWidth: 1, borderColor: Colors.cardBorder },
   summaryStat: { alignItems: 'center' },
-  summaryStatValue: { fontSize: 20, fontWeight: '800' as const, color: Colors.text },
-  summaryStatLabel: { fontSize: 11, color: Colors.textMuted },
-  summarySectionTitle: { fontSize: 16, fontWeight: '700' as const, color: Colors.text, marginTop: 6 },
+  summaryStatValue: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: Colors.text },
+  summaryStatLabel: { fontSize: Type.caption2.fontSize, color: Colors.textMuted },
+  summarySectionTitle: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.text, marginTop: 6 },
   summaryPhaseRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 },
   summaryPhaseDot: { width: 8, height: 8, borderRadius: 4 },
-  summaryPhaseName: { fontSize: 13, fontWeight: '600' as const, color: Colors.text, width: 80 },
+  summaryPhaseName: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.text, width: 80 },
   summaryPhaseProgressTrack: { flex: 1, height: 6, borderRadius: 3, backgroundColor: Colors.fillSecondary, overflow: 'hidden' as const },
   summaryPhaseProgressFill: { height: '100%', borderRadius: 3 },
-  summaryPhasePercent: { fontSize: 12, fontWeight: '700' as const, color: Colors.text, minWidth: 32, textAlign: 'right' as const },
+  summaryPhasePercent: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: Colors.text, minWidth: 32, textAlign: 'right' as const },
   summaryMilestoneRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 },
-  summaryMilestoneName: { flex: 1, fontSize: 13, fontWeight: '600' as const, color: Colors.text },
-  summaryMilestoneChip: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
-  summaryMilestoneChipText: { fontSize: 11, fontWeight: '700' as const },
+  summaryMilestoneName: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.text },
+  summaryMilestoneChip: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.xs },
+  summaryMilestoneChipText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const },
   summaryCriticalRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 3 },
-  summaryCriticalDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#FF3B30' },
-  summaryCriticalName: { flex: 1, fontSize: 13, fontWeight: '500' as const, color: Colors.text },
-  summaryCriticalDur: { fontSize: 12, fontWeight: '700' as const, color: '#FF3B30' },
+  summaryCriticalDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: Colors.error },
+  summaryCriticalName: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '500' as const, color: Colors.text },
+  summaryCriticalDur: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: Colors.error },
   summaryRiskRow: { flexDirection: 'row', gap: 8, paddingVertical: 4, alignItems: 'flex-start' },
-  summaryRiskTitle: { fontSize: 13, fontWeight: '600' as const, color: Colors.text },
-  summaryRiskDetail: { fontSize: 12, color: Colors.textSecondary, marginTop: 2 },
+  summaryRiskTitle: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.text },
+  summaryRiskDetail: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, marginTop: 2 },
 
   ganttWrapper: { paddingHorizontal: 16 },
   ganttControls: { flexDirection: 'row', gap: 6, marginBottom: 10, flexWrap: 'wrap' as const },
-  ganttOrientBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 4, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 8, backgroundColor: Colors.fillTertiary },
+  ganttOrientBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 4, paddingHorizontal: 10, paddingVertical: 7, borderRadius: Tokens.radius.sm, backgroundColor: Colors.fillTertiary },
   ganttOrientBtnActive: { backgroundColor: Colors.primary },
-  ganttOrientBtnText: { fontSize: 11, fontWeight: '600' as const, color: Colors.textSecondary },
+  ganttOrientBtnText: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: Colors.textSecondary },
   ganttOrientBtnTextActive: { color: '#FFF' },
-  baselineToggle: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8, backgroundColor: Colors.fillTertiary },
+  baselineToggle: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: Tokens.radius.sm, backgroundColor: Colors.fillTertiary },
   baselineToggleActive: { backgroundColor: Colors.primary },
-  baselineToggleText: { fontSize: 12, fontWeight: '600' as const, color: Colors.textSecondary },
+  baselineToggleText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.textSecondary },
   baselineToggleTextActive: { color: '#FFF' },
-  saveBaselineBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8, backgroundColor: Colors.fillTertiary },
-  scenarioBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: Colors.primary + '15', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 8, borderWidth: 1, borderColor: Colors.primary + '30' },
-  scenarioBannerText: { flex: 1, fontSize: 12, fontWeight: '600' as const, color: Colors.primary },
-  saveBaselineBtnText: { fontSize: 12, fontWeight: '600' as const, color: Colors.primary },
+  saveBaselineBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 7, borderRadius: Tokens.radius.sm, backgroundColor: Colors.fillTertiary },
+  scenarioBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: Colors.primary + '15', borderRadius: Tokens.radius.md, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 8, borderWidth: 1, borderColor: Colors.primary + '30' },
+  scenarioBannerText: { flex: 1, fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.primary },
+  saveBaselineBtnText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.primary },
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', padding: 20 },
-  modalCard: { backgroundColor: Colors.surface, borderRadius: 24, padding: 20, gap: 8 },
+  modalCard: { backgroundColor: Colors.surface, borderRadius: Tokens.radius["2xl"], padding: 20, gap: 8 },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  modalTitle: { fontSize: 20, fontWeight: '700' as const, color: Colors.text },
-  pickerOption: { backgroundColor: Colors.surfaceAlt, borderRadius: 12, padding: 14, gap: 2, marginTop: 6 },
+  modalTitle: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: Colors.text },
+  pickerOption: { backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.card, padding: 14, gap: 2, marginTop: 6 },
   pickerOptionSelected: { borderWidth: 2, borderColor: Colors.primary },
-  pickerOptionTitle: { fontSize: 14, fontWeight: '600' as const, color: Colors.text },
-  pickerOptionMeta: { fontSize: 12, color: Colors.textSecondary },
+  pickerOptionTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
+  pickerOptionMeta: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary },
 
   bottomSheetOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
   bottomSheet: { backgroundColor: Colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, gap: 8 },
   bottomSheetHandle: { width: 36, height: 4, borderRadius: 2, backgroundColor: Colors.fillTertiary, alignSelf: 'center', marginBottom: 8 },
-  doneBtn: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 8, backgroundColor: Colors.primary },
-  doneBtnText: { fontSize: 13, fontWeight: '700' as const, color: '#FFF' },
+  doneBtn: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: Tokens.radius.sm, backgroundColor: Colors.primary },
+  doneBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: '#FFF' },
 
-  quickAddInput: { minHeight: 48, borderRadius: 14, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 14, fontSize: 16, fontWeight: '600' as const, color: Colors.text },
+  quickAddInput: { minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 14, fontSize: Type.callout.fontSize, fontWeight: '600' as const, color: Colors.text },
   quickAddFieldRow: { flexDirection: 'row' as const, gap: 10, marginTop: 10 },
-  quickAddFieldLabel: { fontSize: 11, fontWeight: '600' as const, color: Colors.textMuted, marginBottom: 4, letterSpacing: 0.3 },
-  quickAddSmallInput: { minHeight: 44, borderRadius: 12, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 12, fontSize: 14, fontWeight: '600' as const, color: Colors.text },
-  quickAddHint: { fontSize: 11, color: Colors.textMuted, marginTop: 6, marginBottom: 4, lineHeight: 14 },
+  quickAddFieldLabel: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: Colors.textMuted, marginBottom: 4, letterSpacing: 0.3 },
+  quickAddSmallInput: { minHeight: 44, borderRadius: Tokens.radius.card, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 12, fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
+  quickAddHint: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 6, marginBottom: 4, lineHeight: 14 },
   quickAddDateScroller: { marginBottom: 8, marginTop: 2 },
   quickAddDateChipRow: { flexDirection: 'row' as const, gap: 8, paddingVertical: 2 },
   quickAddDateChip: {
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
     backgroundColor: Colors.surfaceAlt,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
@@ -3305,155 +3308,155 @@ const styles = StyleSheet.create({
     color: Colors.primary,
   },
   quickAddDateChipValue: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
   },
   quickAddDateChipValueActive: {
     color: Colors.primary,
   },
-  projectStartBar: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, paddingHorizontal: 16, paddingVertical: 8, backgroundColor: Colors.surfaceAlt, borderRadius: 10, marginHorizontal: 16, marginBottom: 8 },
-  projectStartLabel: { fontSize: 11, fontWeight: '600' as const, color: Colors.textMuted, letterSpacing: 0.4, textTransform: 'uppercase' as const },
-  projectStartValue: { flex: 1, fontSize: 14, fontWeight: '700' as const, color: Colors.text },
-  projectStartEdit: { paddingVertical: 4, paddingHorizontal: 10, borderRadius: 8, backgroundColor: Colors.primary + '15' },
-  projectStartEditText: { fontSize: 12, fontWeight: '700' as const, color: Colors.primary },
+  projectStartBar: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, paddingHorizontal: 16, paddingVertical: 8, backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.md, marginHorizontal: 16, marginBottom: 8 },
+  projectStartLabel: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: Colors.textMuted, letterSpacing: 0.4, textTransform: 'uppercase' as const },
+  projectStartValue: { flex: 1, fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
+  projectStartEdit: { paddingVertical: 4, paddingHorizontal: 10, borderRadius: Tokens.radius.sm, backgroundColor: Colors.primary + '15' },
+  projectStartEditText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: Colors.primary },
   phaseScroller: { marginBottom: 4 },
   phaseChipRow: { flexDirection: 'row', gap: 6 },
-  phaseChip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 18, backgroundColor: Colors.fillTertiary },
+  phaseChip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: Tokens.radius.xl, backgroundColor: Colors.fillTertiary },
   phaseChipActive: { backgroundColor: Colors.primary },
-  phaseChipText: { fontSize: 12, fontWeight: '600' as const, color: Colors.textSecondary },
+  phaseChipText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.textSecondary },
   phaseChipTextActive: { color: '#FFF' },
   quickAddRow: { flexDirection: 'row', gap: 12 },
   quickAddField: { flex: 1, gap: 4 },
-  quickAddLabel: { fontSize: 12, fontWeight: '600' as const, color: Colors.textMuted },
-  stepperRow: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: Colors.surfaceAlt, borderRadius: 12, paddingHorizontal: 10, minHeight: 44, justifyContent: 'center' },
-  stepperBtn: { width: 30, height: 30, borderRadius: 8, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
-  stepperValue: { fontSize: 16, fontWeight: '700' as const, color: Colors.text, minWidth: 30, textAlign: 'center' as const },
+  quickAddLabel: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.textMuted },
+  stepperRow: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.card, paddingHorizontal: 10, minHeight: 44, justifyContent: 'center' },
+  stepperBtn: { width: 30, height: 30, borderRadius: Tokens.radius.sm, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
+  stepperValue: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.text, minWidth: 30, textAlign: 'center' as const },
   quickAddToggleRow: { flexDirection: 'row', gap: 8 },
-  quickAddToggle: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, backgroundColor: Colors.fillTertiary },
-  quickAddToggleActive: { backgroundColor: '#FF9500' },
-  quickAddToggleText: { fontSize: 12, fontWeight: '600' as const, color: Colors.textSecondary },
+  quickAddToggle: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 8, borderRadius: Tokens.radius.md, backgroundColor: Colors.fillTertiary },
+  quickAddToggleActive: { backgroundColor: Colors.warning },
+  quickAddToggleText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.textSecondary },
   quickAddToggleTextActive: { color: '#FFF' },
-  addTaskBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 48, borderRadius: 14, backgroundColor: Colors.primary },
-  addTaskBtnText: { fontSize: 15, fontWeight: '700' as const, color: '#FFF' },
-  quickAddCountText: { textAlign: 'center' as const, fontSize: 12, color: Colors.textMuted, fontWeight: '500' as const },
+  addTaskBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: Colors.primary },
+  addTaskBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: '#FFF' },
+  quickAddCountText: { textAlign: 'center' as const, fontSize: Type.caption1.fontSize, color: Colors.textMuted, fontWeight: '500' as const },
 
-  fieldLabel: { fontSize: 12, fontWeight: '600' as const, color: Colors.textMuted, marginTop: 4 },
-  input: { minHeight: 46, borderRadius: 12, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 14, fontSize: 14, color: Colors.text },
+  fieldLabel: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.textMuted, marginTop: 4 },
+  input: { minHeight: 46, borderRadius: Tokens.radius.card, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 14, fontSize: Type.bodyCompact.fontSize, color: Colors.text },
   dualRow: { flexDirection: 'row', gap: 10 },
-  toggleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: Colors.surfaceAlt, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, marginTop: 4 },
+  toggleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.card, paddingHorizontal: 14, paddingVertical: 10, marginTop: 4 },
   toggleInfo: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  toggleLabel: { fontSize: 14, fontWeight: '500' as const, color: Colors.text },
-  depPickerBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: Colors.surfaceAlt, borderRadius: 12, paddingHorizontal: 14, minHeight: 44, borderWidth: 1, borderColor: Colors.cardBorder },
-  depPickerBtnText: { flex: 1, fontSize: 13, color: Colors.textSecondary },
+  toggleLabel: { fontSize: Type.bodyCompact.fontSize, fontWeight: '500' as const, color: Colors.text },
+  depPickerBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.card, paddingHorizontal: 14, minHeight: 44, borderWidth: 1, borderColor: Colors.cardBorder },
+  depPickerBtnText: { flex: 1, fontSize: Type.footnote.fontSize, color: Colors.textSecondary },
   editActionRow: { flexDirection: 'row', gap: 10, marginTop: 8 },
-  editCancelBtn: { flex: 1, minHeight: 46, borderRadius: 12, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
-  editCancelBtnText: { fontSize: 14, fontWeight: '700' as const, color: Colors.text },
-  editSaveBtn: { flex: 1, minHeight: 46, borderRadius: 12, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
-  editSaveBtnText: { fontSize: 14, fontWeight: '700' as const, color: '#FFF' },
+  editCancelBtn: { flex: 1, minHeight: 46, borderRadius: Tokens.radius.card, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
+  editCancelBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
+  editSaveBtn: { flex: 1, minHeight: 46, borderRadius: Tokens.radius.card, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
+  editSaveBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: '#FFF' },
 
-  depOption: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 10, borderRadius: 12, marginBottom: 4, backgroundColor: Colors.surfaceAlt },
+  depOption: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 10, borderRadius: Tokens.radius.card, marginBottom: 4, backgroundColor: Colors.surfaceAlt },
   depOptionSelected: { backgroundColor: Colors.infoLight, borderWidth: 1, borderColor: '#007AFF30' },
   depCheckbox: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center' },
-  depCheckboxSelected: { backgroundColor: '#007AFF', borderColor: '#007AFF' },
-  depOptionTitle: { fontSize: 13, fontWeight: '600' as const, color: Colors.text },
-  depOptionMeta: { fontSize: 11, color: Colors.textSecondary },
-  depDoneBtn: { marginTop: 8, minHeight: 44, borderRadius: 12, backgroundColor: '#007AFF', alignItems: 'center', justifyContent: 'center' },
-  depDoneBtnText: { fontSize: 14, fontWeight: '700' as const, color: '#FFF' },
+  depCheckboxSelected: { backgroundColor: Colors.info, borderColor: Colors.info },
+  depOptionTitle: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.text },
+  depOptionMeta: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary },
+  depDoneBtn: { marginTop: 8, minHeight: 44, borderRadius: Tokens.radius.card, backgroundColor: Colors.info, alignItems: 'center', justifyContent: 'center' },
+  depDoneBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: '#FFF' },
 
   // Status chips (modal)
   statusChipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 },
-  modalStatusChip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1.5 },
-  modalStatusChipText: { fontSize: 12, fontWeight: '700' as const },
+  modalStatusChip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: Tokens.radius.sm, borderWidth: 1.5 },
+  modalStatusChipText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const },
 
   // Progress buttons (modal)
   modalProgressRow: { flexDirection: 'row', gap: 6, marginBottom: 12 },
-  modalProgressBtn: { flex: 1, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: Colors.border, alignItems: 'center' },
+  modalProgressBtn: { flex: 1, paddingVertical: 8, borderRadius: Tokens.radius.sm, borderWidth: 1, borderColor: Colors.border, alignItems: 'center' },
   modalProgressBtnActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  modalProgressBtnText: { fontSize: 12, fontWeight: '600' as const, color: Colors.textMuted },
+  modalProgressBtnText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.textMuted },
   modalProgressBtnTextActive: { color: '#FFF' },
 
   // Dep detail
   depDetailList: { marginTop: 6, marginBottom: 8, gap: 8 },
-  depDetailRow: { backgroundColor: Colors.surfaceAlt, borderRadius: 10, padding: 10 },
-  depDetailName: { fontSize: 12, fontWeight: '600' as const, color: Colors.text, marginBottom: 6 },
+  depDetailRow: { backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.md, padding: 10 },
+  depDetailName: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.text, marginBottom: 6 },
   depTypeRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  depTypeBtn: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, borderWidth: 1, borderColor: Colors.border },
-  depTypeBtnActive: { backgroundColor: '#007AFF', borderColor: '#007AFF' },
-  depTypeBtnText: { fontSize: 11, fontWeight: '700' as const, color: Colors.textMuted },
+  depTypeBtn: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: Tokens.radius.xs, borderWidth: 1, borderColor: Colors.border },
+  depTypeBtnActive: { backgroundColor: Colors.info, borderColor: Colors.info },
+  depTypeBtnText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: Colors.textMuted },
   depTypeBtnTextActive: { color: '#FFF' },
-  lagInput: { flex: 1, backgroundColor: Colors.card, borderRadius: 6, borderWidth: 1, borderColor: Colors.border, paddingHorizontal: 8, paddingVertical: 4, fontSize: 12, color: Colors.text, textAlign: 'center' as const, maxWidth: 56 },
+  lagInput: { flex: 1, backgroundColor: Colors.card, borderRadius: Tokens.radius.xs, borderWidth: 1, borderColor: Colors.border, paddingHorizontal: 8, paddingVertical: 4, fontSize: Type.caption1.fontSize, color: Colors.text, textAlign: 'center' as const, maxWidth: 56 },
 
   // Cascade note
-  cascadeNote: { backgroundColor: '#007AFF10', borderRadius: 8, padding: 8, marginBottom: 8, flexDirection: 'row', alignItems: 'center' },
-  cascadeNoteText: { fontSize: 11, color: '#007AFF', fontStyle: 'italic' as const },
+  cascadeNote: { backgroundColor: '#007AFF10', borderRadius: Tokens.radius.sm, padding: 8, marginBottom: 8, flexDirection: 'row', alignItems: 'center' },
+  cascadeNoteText: { fontSize: Type.caption2.fontSize, color: Colors.info, fontStyle: 'italic' as const },
 
   detailBadges: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 },
   detailGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 },
-  detailGridItem: { width: '46%' as any, backgroundColor: Colors.surfaceAlt, borderRadius: 10, padding: 10, gap: 2 },
+  detailGridItem: { width: '46%' as any, backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.md, padding: 10, gap: 2 },
   detailGridLabel: { fontSize: 10, fontWeight: '600' as const, color: Colors.textMuted, textTransform: 'uppercase' as const },
-  detailGridValue: { fontSize: 14, fontWeight: '700' as const, color: Colors.text },
+  detailGridValue: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
   detailProgressRow: { flexDirection: 'row', gap: 6, marginBottom: 14 },
-  detailProgressBtn: { flex: 1, paddingVertical: 10, borderRadius: 10, backgroundColor: Colors.fillTertiary, alignItems: 'center' },
+  detailProgressBtn: { flex: 1, paddingVertical: 10, borderRadius: Tokens.radius.md, backgroundColor: Colors.fillTertiary, alignItems: 'center' },
   detailProgressBtnActive: { backgroundColor: Colors.primary },
-  detailProgressBtnText: { fontSize: 13, fontWeight: '700' as const, color: Colors.textSecondary },
+  detailProgressBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.textSecondary },
   detailProgressBtnTextActive: { color: '#FFF' },
   detailDepSection: { marginBottom: 12, gap: 6 },
-  detailDepTitle: { fontSize: 13, fontWeight: '700' as const, color: '#007AFF' },
-  detailDepRow: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: Colors.surfaceAlt, borderRadius: 10, padding: 10 },
+  detailDepTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.info },
+  detailDepRow: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.md, padding: 10 },
   detailDepDot: { width: 6, height: 6, borderRadius: 3 },
-  detailDepName: { flex: 1, fontSize: 13, fontWeight: '600' as const, color: Colors.text },
-  detailDepMeta: { fontSize: 11, color: Colors.textMuted, fontWeight: '600' as const },
-  detailNotes: { fontSize: 13, lineHeight: 19, color: Colors.textSecondary, marginBottom: 12 },
+  detailDepName: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.text },
+  detailDepMeta: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontWeight: '600' as const },
+  detailNotes: { fontSize: Type.footnote.fontSize, lineHeight: 19, color: Colors.textSecondary, marginBottom: 12 },
 
-  delayImpactSection: { backgroundColor: '#FF3B3008', borderRadius: 14, padding: 14, gap: 8, marginBottom: 12, borderWidth: 1, borderColor: '#FF3B3020' },
+  delayImpactSection: { backgroundColor: '#FF3B3008', borderRadius: Tokens.radius.lg, padding: 14, gap: 8, marginBottom: 12, borderWidth: 1, borderColor: '#FF3B3020' },
   delayImpactHeader: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6 },
-  delayImpactTitle: { fontSize: 14, fontWeight: '700' as const, color: '#FF3B30' },
-  delayImpactBody: { fontSize: 13, color: Colors.text, fontWeight: '500' as const },
+  delayImpactTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.error },
+  delayImpactBody: { fontSize: Type.footnote.fontSize, color: Colors.text, fontWeight: '500' as const },
   delayImpactDownstream: { gap: 3, marginTop: 2 },
-  delayImpactLabel: { fontSize: 12, fontWeight: '600' as const, color: Colors.textSecondary },
-  delayImpactItem: { fontSize: 12, color: Colors.text, paddingLeft: 8 },
+  delayImpactLabel: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.textSecondary },
+  delayImpactItem: { fontSize: Type.caption1.fontSize, color: Colors.text, paddingLeft: 8 },
   delayImpactCost: { gap: 3, marginTop: 4, borderTopWidth: 1, borderTopColor: '#FF3B3015', paddingTop: 6 },
-  delayImpactTotal: { fontSize: 13, fontWeight: '800' as const, color: '#FF3B30' },
+  delayImpactTotal: { fontSize: Type.footnote.fontSize, fontWeight: '800' as const, color: Colors.error },
 
-  weatherImpactSection: { backgroundColor: '#007AFF08', borderRadius: 14, padding: 14, gap: 8, marginBottom: 12, borderWidth: 1, borderColor: '#007AFF20' },
+  weatherImpactSection: { backgroundColor: '#007AFF08', borderRadius: Tokens.radius.lg, padding: 14, gap: 8, marginBottom: 12, borderWidth: 1, borderColor: '#007AFF20' },
   weatherImpactHeader: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6 },
-  weatherImpactTitle: { fontSize: 14, fontWeight: '700' as const, color: '#007AFF' },
+  weatherImpactTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.info },
   weatherImpactForecastRow: { flexDirection: 'row' as const, justifyContent: 'space-around' as const, gap: 4 },
   weatherImpactDay: { alignItems: 'center' as const, gap: 1, flex: 1 },
-  weatherImpactDayBad: { backgroundColor: '#FF3B3010', borderRadius: 8, padding: 2 },
+  weatherImpactDayBad: { backgroundColor: '#FF3B3010', borderRadius: Tokens.radius.sm, padding: 2 },
   weatherImpactDayName: { fontSize: 10, fontWeight: '600' as const, color: Colors.textMuted },
-  weatherImpactDayIcon: { fontSize: 14 },
+  weatherImpactDayIcon: { fontSize: Type.bodyCompact.fontSize },
   weatherImpactDayTemp: { fontSize: 10, fontWeight: '700' as const, color: Colors.text },
-  weatherImpactWarning: { fontSize: 12, color: '#FF9500', fontWeight: '600' as const },
+  weatherImpactWarning: { fontSize: Type.caption1.fontSize, color: Colors.warning, fontWeight: '600' as const },
 
   detailPhotosSection: { marginBottom: 12, gap: 8 },
   detailPhotosHeader: { flexDirection: 'row' as const, justifyContent: 'space-between' as const, alignItems: 'center' as const },
-  detailPhotosTitle: { fontSize: 13, fontWeight: '700' as const, color: Colors.text },
-  addPhotoBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: Colors.primary + '12' },
-  addPhotoBtnText: { fontSize: 12, fontWeight: '700' as const, color: Colors.primary },
+  detailPhotosTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.text },
+  addPhotoBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: Tokens.radius.sm, backgroundColor: Colors.primary + '12' },
+  addPhotoBtnText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: Colors.primary },
   detailPhotosRow: { flexDirection: 'row' as const, gap: 8 },
-  detailPhotoThumb: { width: 80, borderRadius: 10, backgroundColor: Colors.fillTertiary, overflow: 'hidden' as const },
+  detailPhotoThumb: { width: 80, borderRadius: Tokens.radius.md, backgroundColor: Colors.fillTertiary, overflow: 'hidden' as const },
   detailPhotoImg: { width: 80, height: 80, borderTopLeftRadius: 10, borderTopRightRadius: 10 },
   detailPhotoTime: { fontSize: 9, color: Colors.textMuted, fontWeight: '600' as const, textAlign: 'center' as const, paddingVertical: 3 },
   detailPhotoNote: { fontSize: 9, color: Colors.textSecondary, textAlign: 'center' as const, paddingBottom: 3, paddingHorizontal: 4 },
-  noPhotosText: { fontSize: 12, color: Colors.textMuted, fontStyle: 'italic' as const },
+  noPhotosText: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, fontStyle: 'italic' as const },
   detailActions: { flexDirection: 'row', gap: 10 },
-  detailEditBtn: { flex: 1, minHeight: 46, borderRadius: 12, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
-  detailEditBtnText: { fontSize: 14, fontWeight: '700' as const, color: '#FFF' },
-  detailDeleteBtn: { width: 46, height: 46, borderRadius: 12, backgroundColor: '#FF3B3010', alignItems: 'center', justifyContent: 'center' },
+  detailEditBtn: { flex: 1, minHeight: 46, borderRadius: Tokens.radius.card, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
+  detailEditBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: '#FFF' },
+  detailDeleteBtn: { width: 46, height: 46, borderRadius: Tokens.radius.card, backgroundColor: '#FF3B3010', alignItems: 'center', justifyContent: 'center' },
 
   aiHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 4 },
-  aiTitle: { fontSize: 20, fontWeight: '800' as const, color: Colors.text },
-  aiSubtitle: { fontSize: 13, lineHeight: 19, color: Colors.textSecondary, marginBottom: 4 },
-  aiInput: { minHeight: 100, borderRadius: 14, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 14, paddingTop: 14, fontSize: 14, color: Colors.text },
-  aiGenerateBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 50, borderRadius: 14, backgroundColor: '#FF9500' },
-  aiGenerateBtnText: { fontSize: 15, fontWeight: '700' as const, color: '#FFF' },
+  aiTitle: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: Colors.text },
+  aiSubtitle: { fontSize: Type.footnote.fontSize, lineHeight: 19, color: Colors.textSecondary, marginBottom: 4 },
+  aiInput: { minHeight: 100, borderRadius: Tokens.radius.lg, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 14, paddingTop: 14, fontSize: Type.bodyCompact.fontSize, color: Colors.text },
+  aiGenerateBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 50, borderRadius: Tokens.radius.lg, backgroundColor: Colors.warning },
+  aiGenerateBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: '#FFF' },
 
-  templateCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surfaceAlt, borderRadius: 14, padding: 16, marginBottom: 8, borderWidth: 1, borderColor: Colors.borderLight },
+  templateCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.lg, padding: 16, marginBottom: 8, borderWidth: 1, borderColor: Colors.borderLight },
   templateInfo: { flex: 1, gap: 2 },
-  templateName: { fontSize: 15, fontWeight: '700' as const, color: Colors.text },
-  templateMeta: { fontSize: 12, color: Colors.textSecondary },
+  templateName: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text },
+  templateMeta: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary },
 });
 
 const desktopStyles = StyleSheet.create({
@@ -3473,11 +3476,11 @@ const desktopStyles = StyleSheet.create({
     gap: 5,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
     backgroundColor: Colors.primary,
   },
   proBtnText: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     fontWeight: '800' as const,
     color: Colors.textOnPrimary,
     letterSpacing: 0.3,
@@ -3505,18 +3508,18 @@ const desktopStyles = StyleSheet.create({
     borderBottomColor: Colors.borderLight,
   },
   taskListTitle: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
   },
   taskListCount: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     fontWeight: '600' as const,
     color: Colors.textMuted,
     backgroundColor: Colors.fillTertiary,
     paddingHorizontal: 8,
     paddingVertical: 2,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
   },
   taskListRow: {
     flexDirection: 'row',
@@ -3540,7 +3543,7 @@ const desktopStyles = StyleSheet.create({
     gap: 2,
   },
   taskListRowTitle: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
     color: Colors.text,
   },
@@ -3550,7 +3553,7 @@ const desktopStyles = StyleSheet.create({
     gap: 6,
   },
   taskListRowMetaText: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     fontWeight: '500' as const,
     color: Colors.textMuted,
   },
@@ -3573,7 +3576,7 @@ const desktopStyles = StyleSheet.create({
     gap: 8,
   },
   statusBarItem: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     fontWeight: '600' as const,
     color: Colors.textSecondary,
   },

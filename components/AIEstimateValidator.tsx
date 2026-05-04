@@ -6,6 +6,8 @@ import * as Haptics from 'expo-haptics';
 import { Sparkles, AlertTriangle, CheckCircle2, Lightbulb, XCircle, Search } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { validateEstimate, type EstimateValidationResult } from '@/utils/aiService';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 interface Props {
   projectType: string;
@@ -19,10 +21,10 @@ interface Props {
 }
 
 const ISSUE_ICONS = {
-  warning: { Icon: AlertTriangle, color: '#FF9500', bg: '#FFF3E0' },
-  error: { Icon: XCircle, color: '#FF3B30', bg: '#FFF0EF' },
-  suggestion: { Icon: Lightbulb, color: '#007AFF', bg: '#EBF3FF' },
-  ok: { Icon: CheckCircle2, color: '#34C759', bg: '#E8F5E9' },
+  warning: { Icon: AlertTriangle, color: Colors.warning, bg: Colors.warningLight },
+  error: { Icon: XCircle, color: Colors.error, bg: Colors.errorLight },
+  suggestion: { Icon: Lightbulb, color: Colors.info, bg: Colors.infoLight },
+  ok: { Icon: CheckCircle2, color: Colors.success, bg: Colors.successLight },
 } as const;
 
 export default React.memo(function AIEstimateValidator(props: Props) {
@@ -134,19 +136,19 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 20,
     backgroundColor: `${Colors.primary}08`,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     borderWidth: 1,
     borderColor: `${Colors.primary}20`,
     marginVertical: 8,
   },
   triggerText: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     fontWeight: '600' as const,
     color: Colors.primary,
   },
   card: {
     backgroundColor: Colors.surface,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     padding: 16,
     marginVertical: 8,
     borderWidth: 0.5,
@@ -164,60 +166,60 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   headerTitle: {
-    fontSize: 15,
+    fontSize: Type.subhead.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
   },
   scoreBadge: {
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 8,
+    borderRadius: Tokens.radius.sm,
   },
   scoreText: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     fontWeight: '800' as const,
   },
   issueRow: {
     flexDirection: 'row',
     gap: 10,
     padding: 12,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
   },
   issueContent: {
     flex: 1,
     gap: 2,
   },
   issueTitle: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     fontWeight: '700' as const,
   },
   issueDetail: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: Colors.textSecondary,
     lineHeight: 18,
   },
   issueImpact: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     color: Colors.textMuted,
     fontStyle: 'italic' as const,
   },
   missingSection: {
     padding: 12,
     backgroundColor: Colors.fillSecondary,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
     gap: 4,
   },
   missingTitle: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
     color: Colors.text,
   },
   missingItem: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: Colors.textSecondary,
   },
   summary: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: Colors.textSecondary,
     lineHeight: 19,
     fontStyle: 'italic' as const,
@@ -230,7 +232,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   revalidateText: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: Colors.primary,
     fontWeight: '600' as const,
   },

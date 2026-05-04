@@ -49,7 +49,7 @@ const cashFlowAnalysisSchema = z.object({
 
 type AIAnalysis = z.infer<typeof cashFlowAnalysisSchema>;
 
-const EXPENSE_CATEGORIES: Array<{ value: ExpenseCategory; label: string }> = [
+const EXPENSE_CATEGORIES: { value: ExpenseCategory; label: string }[] = [
   { value: 'payroll', label: 'Payroll' },
   { value: 'materials', label: 'Materials' },
   { value: 'equipment_rental', label: 'Equipment Rental' },
@@ -60,7 +60,7 @@ const EXPENSE_CATEGORIES: Array<{ value: ExpenseCategory; label: string }> = [
   { value: 'other', label: 'Other' },
 ];
 
-const FREQUENCY_OPTIONS: Array<{ value: ExpenseFrequency; label: string }> = [
+const FREQUENCY_OPTIONS: { value: ExpenseFrequency; label: string }[] = [
   { value: 'weekly', label: 'Weekly' },
   { value: 'biweekly', label: 'Biweekly' },
   { value: 'monthly', label: 'Monthly' },

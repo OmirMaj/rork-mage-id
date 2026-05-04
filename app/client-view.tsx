@@ -23,6 +23,8 @@ import { getStatusColor, getStatusLabel, getPhaseColor } from '@/utils/scheduleE
 import { MOCK_DOCUMENTS, DOCUMENT_TYPE_INFO } from '@/mocks/documents';
 import SignaturePad from '@/components/SignaturePad';
 import { generateUUID } from '@/utils/generateId';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -51,7 +53,7 @@ function TaskRow({ task }: { task: ScheduleTask }) {
       <View style={[styles.taskPhaseBar, { backgroundColor: phaseColor }]} />
       <View style={styles.taskContent}>
         <View style={styles.taskTitleRow}>
-          {task.isMilestone && <Flag size={11} color="#FF9500" />}
+          {task.isMilestone && <Flag size={11} color={Colors.warning} />}
           {task.isCriticalPath && <GitBranch size={11} color={Colors.error} />}
           <Text style={styles.taskTitle} numberOfLines={1}>{task.title}</Text>
         </View>
@@ -498,7 +500,7 @@ export default function ClientViewScreen() {
             Last updated {lastUpdatedAt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
           </Text>
           <View style={[styles.statusBadge, { backgroundColor: project.status === 'in_progress' ? '#34C75940' : '#FF950040' }]}>
-            <Text style={[styles.statusBadgeText, { color: project.status === 'in_progress' ? '#34C759' : '#FF9500' }]}>
+            <Text style={[styles.statusBadgeText, { color: project.status === 'in_progress' ? Colors.success : Colors.warning }]}>
               {project.status === 'in_progress' ? 'In Progress' : project.status === 'completed' ? 'Completed' : 'Active'}
             </Text>
           </View>
@@ -516,7 +518,7 @@ export default function ClientViewScreen() {
         <View style={styles.statsRow}>
           <View style={styles.statCard}>
             <Text style={styles.statLabel}>Schedule</Text>
-            <Text style={[styles.statValue, { color: healthScore >= 80 ? '#34C759' : healthScore >= 60 ? '#FF9500' : Colors.error }]}>
+            <Text style={[styles.statValue, { color: healthScore >= 80 ? Colors.success : healthScore >= 60 ? Colors.warning : Colors.error }]}>
               {scheduleProgress}%
             </Text>
             <Text style={styles.statSub}>complete</Text>
@@ -530,7 +532,7 @@ export default function ClientViewScreen() {
           )}
           <View style={styles.statCard}>
             <Text style={styles.statLabel}>Punch List</Text>
-            <Text style={[styles.statValue, { color: punchItems.filter(p => p.status !== 'closed').length > 0 ? '#FF9500' : '#34C759' }]}>
+            <Text style={[styles.statValue, { color: punchItems.filter(p => p.status !== 'closed').length > 0 ? Colors.warning : Colors.success }]}>
               {punchItems.filter(p => p.status !== 'closed').length}
             </Text>
             <Text style={styles.statSub}>open items</Text>
@@ -598,10 +600,7 @@ export default function ClientViewScreen() {
                   style={[styles.msgSendBtn, (!composeBody.trim() || sendingMsg) && styles.msgSendBtnDisabled]}
                   onPress={handleSendMessage}
                   disabled={!composeBody.trim() || sendingMsg}
-                  activeOpacity={0.8}
-                >
-                  <Send size={16} color="#fff" />
-                </TouchableOpacity>
+                  activeOpacity={0.8} accessibilityRole="button" accessibilityLabel="Send"><Send size={16} color="#fff" /></TouchableOpacity>
               </View>
             </View>
           )}
@@ -612,7 +611,7 @@ export default function ClientViewScreen() {
           <View style={styles.section}>
             <SectionHeader
               title="Project Schedule"
-              icon={<CalendarDays size={18} color="#007AFF" />}
+              icon={<CalendarDays size={18} color={Colors.info} />}
               count={tasks.length}
               expanded={expanded.schedule}
               onToggle={() => toggleSection('schedule')}
@@ -629,7 +628,7 @@ export default function ClientViewScreen() {
                     }]} />
                   </View>
                   <Text style={[styles.healthPct, {
-                    color: healthScore >= 80 ? '#34C759' : healthScore >= 60 ? '#FF9500' : Colors.error,
+                    color: healthScore >= 80 ? Colors.success : healthScore >= 60 ? Colors.warning : Colors.error,
                   }]}>{healthScore}%</Text>
                 </View>
                 {/* Tasks by phase */}
@@ -644,7 +643,7 @@ export default function ClientViewScreen() {
           <View style={styles.section}>
             <SectionHeader
               title="Budget Summary"
-              icon={<BarChart3 size={18} color="#34C759" />}
+              icon={<BarChart3 size={18} color={Colors.success} />}
               expanded={expanded.budget}
               onToggle={() => toggleSection('budget')}
             />
@@ -657,7 +656,7 @@ export default function ClientViewScreen() {
                 {coTotal !== 0 && (
                   <View style={styles.budgetRow}>
                     <Text style={styles.budgetLabel}>Approved Change Orders</Text>
-                    <Text style={[styles.budgetValue, { color: coTotal > 0 ? Colors.error : '#34C759' }]}>
+                    <Text style={[styles.budgetValue, { color: coTotal > 0 ? Colors.error : Colors.success }]}>
                       {coTotal > 0 ? '+' : ''}{formatMoney(coTotal)}
                     </Text>
                   </View>
@@ -672,7 +671,7 @@ export default function ClientViewScreen() {
                 </View>
                 <View style={styles.budgetRow}>
                   <Text style={styles.budgetLabel}>Total Paid</Text>
-                  <Text style={[styles.budgetValue, { color: '#34C759' }]}>{formatMoney(paidTotal)}</Text>
+                  <Text style={[styles.budgetValue, { color: Colors.success }]}>{formatMoney(paidTotal)}</Text>
                 </View>
                 {/* Invoice progress bar */}
                 <View style={styles.invoiceProgressRow}>
@@ -693,7 +692,7 @@ export default function ClientViewScreen() {
           <View style={styles.section}>
             <SectionHeader
               title="Invoices"
-              icon={<DollarSign size={18} color="#FF9500" />}
+              icon={<DollarSign size={18} color={Colors.warning} />}
               count={invoices.length}
               expanded={expanded.invoices}
               onToggle={() => toggleSection('invoices')}
@@ -729,7 +728,7 @@ export default function ClientViewScreen() {
           <View style={styles.section}>
             <SectionHeader
               title="Change Orders"
-              icon={<FileText size={18} color="#FF3B30" />}
+              icon={<FileText size={18} color={Colors.error} />}
               count={changeOrders.length}
               expanded={expanded.changeOrders}
               onToggle={() => toggleSection('changeOrders')}
@@ -747,7 +746,7 @@ export default function ClientViewScreen() {
                           <Text style={styles.listRowMeta}>{new Date(co.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</Text>
                         </View>
                         <View style={styles.listRowRight}>
-                          <Text style={[styles.listRowAmount, { color: co.changeAmount > 0 ? Colors.error : '#34C759' }]}>
+                          <Text style={[styles.listRowAmount, { color: co.changeAmount > 0 ? Colors.error : Colors.success }]}>
                             {co.changeAmount > 0 ? '+' : ''}{formatMoney(co.changeAmount)}
                           </Text>
                           <View style={[styles.listStatusBadge, { backgroundColor: statusColor + '20' }]}>
@@ -779,7 +778,7 @@ export default function ClientViewScreen() {
                       )}
                       {co.status === 'approved' && co.approvers?.some(a => a.role === 'Client' && a.status === 'approved') && (
                         <View style={styles.coSignedBanner}>
-                          <ShieldCheck size={12} color="#34C759" />
+                          <ShieldCheck size={12} color={Colors.success} />
                           <Text style={styles.coSignedBannerText}>
                             Approved by {co.approvers.find(a => a.role === 'Client' && a.status === 'approved')?.name} on{' '}
                             {new Date(co.approvers.find(a => a.role === 'Client' && a.status === 'approved')?.responseDate ?? co.updatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
@@ -799,7 +798,7 @@ export default function ClientViewScreen() {
           <View style={styles.section}>
             <SectionHeader
               title="Site Photos"
-              icon={<ImageIcon size={18} color="#5856D6" />}
+              icon={<ImageIcon size={18} color={Colors.purple} />}
               count={photos.length}
               expanded={expanded.photos}
               onToggle={() => toggleSection('photos')}
@@ -858,7 +857,7 @@ export default function ClientViewScreen() {
           <View style={styles.section}>
             <SectionHeader
               title="Punch List"
-              icon={<CheckCircle2 size={18} color="#34C759" />}
+              icon={<CheckCircle2 size={18} color={Colors.success} />}
               count={punchItems.filter(p => p.status !== 'closed').length}
               expanded={expanded.punchList}
               onToggle={() => toggleSection('punchList')}
@@ -891,7 +890,7 @@ export default function ClientViewScreen() {
           <View style={styles.section}>
             <SectionHeader
               title="RFIs"
-              icon={<MessageSquare size={18} color="#FF9500" />}
+              icon={<MessageSquare size={18} color={Colors.warning} />}
               count={rfis.filter(r => r.status === 'open').length}
               expanded={expanded.rfis}
               onToggle={() => toggleSection('rfis')}
@@ -985,9 +984,7 @@ export default function ClientViewScreen() {
               <Text style={styles.modalTitle}>
                 {approvalMode === 'approve' ? 'Sign & Approve' : 'Reject Change Order'}
               </Text>
-              <TouchableOpacity onPress={closeApprovalFlow} style={styles.modalClose}>
-                <X size={20} color={Colors.textMuted} />
-              </TouchableOpacity>
+              <TouchableOpacity onPress={closeApprovalFlow} style={styles.modalClose} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={Colors.textMuted} /></TouchableOpacity>
             </View>
 
             <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
@@ -997,7 +994,7 @@ export default function ClientViewScreen() {
                   <Text style={styles.modalSummaryTitle}>{approvalCO.description}</Text>
                   <View style={styles.modalSummaryRow}>
                     <Text style={styles.modalSummaryKey}>Change Amount</Text>
-                    <Text style={[styles.modalSummaryVal, { color: approvalCO.changeAmount > 0 ? Colors.error : '#34C759' }]}>
+                    <Text style={[styles.modalSummaryVal, { color: approvalCO.changeAmount > 0 ? Colors.error : Colors.success }]}>
                       {approvalCO.changeAmount > 0 ? '+' : ''}{formatMoney(approvalCO.changeAmount)}
                     </Text>
                   </View>
@@ -1037,7 +1034,7 @@ export default function ClientViewScreen() {
                   </View>
                   {signaturePaths.length > 0 && (
                     <View style={styles.signatureConfirm}>
-                      <Check size={14} color="#34C759" />
+                      <Check size={14} color={Colors.success} />
                       <Text style={styles.signatureConfirmText}>Signature captured</Text>
                     </View>
                   )}
@@ -1093,19 +1090,19 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
 
   notFoundContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 32 },
-  notFoundTitle: { fontSize: 20, fontWeight: '700', color: Colors.text },
-  notFoundSubtitle: { fontSize: 14, color: Colors.textMuted, textAlign: 'center' },
+  notFoundTitle: { fontSize: Type.title3.fontSize, fontWeight: '700', color: Colors.text },
+  notFoundSubtitle: { fontSize: Type.bodyCompact.fontSize, color: Colors.textMuted, textAlign: 'center' },
 
   passcodeContainer: { flex: 1, backgroundColor: Colors.background, alignItems: 'center', justifyContent: 'center', padding: 24 },
   passcodeCard: { backgroundColor: Colors.surface, borderRadius: 20, padding: 28, width: '100%', maxWidth: 380, alignItems: 'center', borderWidth: 1, borderColor: Colors.cardBorder, gap: 10 },
   passcodeIconWrap: { width: 64, height: 64, borderRadius: 32, backgroundColor: Colors.primary + '15', alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
-  passcodeTitle: { fontSize: 20, fontWeight: '700', color: Colors.text },
-  passcodeSub: { fontSize: 14, color: Colors.primary, fontWeight: '600' },
-  passcodeDesc: { fontSize: 13, color: Colors.textMuted, textAlign: 'center', lineHeight: 18, marginTop: 4 },
-  passcodeInput: { width: '100%', minHeight: 50, borderRadius: 12, backgroundColor: Colors.surfaceAlt, borderWidth: 1, borderColor: Colors.cardBorder, paddingHorizontal: 14, fontSize: 16, color: Colors.text, marginTop: 12, textAlign: 'center', letterSpacing: 2 },
-  passcodeErrorText: { fontSize: 12, color: Colors.error, marginTop: 4 },
-  passcodeBtn: { width: '100%', minHeight: 50, borderRadius: 12, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center', marginTop: 12 },
-  passcodeBtnText: { fontSize: 15, fontWeight: '700', color: '#FFF' },
+  passcodeTitle: { fontSize: Type.title3.fontSize, fontWeight: '700', color: Colors.text },
+  passcodeSub: { fontSize: Type.bodyCompact.fontSize, color: Colors.primary, fontWeight: '600' },
+  passcodeDesc: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, textAlign: 'center', lineHeight: 18, marginTop: 4 },
+  passcodeInput: { width: '100%', minHeight: 50, borderRadius: Tokens.radius.card, backgroundColor: Colors.surfaceAlt, borderWidth: 1, borderColor: Colors.cardBorder, paddingHorizontal: 14, fontSize: Type.callout.fontSize, color: Colors.text, marginTop: 12, textAlign: 'center', letterSpacing: 2 },
+  passcodeErrorText: { fontSize: Type.caption1.fontSize, color: Colors.error, marginTop: 4 },
+  passcodeBtn: { width: '100%', minHeight: 50, borderRadius: Tokens.radius.card, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center', marginTop: 12 },
+  passcodeBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700', color: '#FFF' },
 
   header: {
     backgroundColor: Colors.primary,
@@ -1114,142 +1111,142 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   headerBrand: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12, opacity: 0.8 },
-  headerBrandText: { fontSize: 12, fontWeight: '600', color: '#FFF', letterSpacing: 1 },
+  headerBrandText: { fontSize: Type.caption1.fontSize, fontWeight: '600', color: '#FFF', letterSpacing: 1 },
   headerProjectName: { fontSize: 24, fontWeight: '800', color: '#FFF', marginBottom: 4 },
-  headerLocation: { fontSize: 13, color: '#FFFFFF99', marginBottom: 4 },
-  headerLastUpdated: { fontSize: 11, color: '#FFFFFF80', marginBottom: 12, fontStyle: 'italic' as const },
-  statusBadge: { borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 },
-  statusBadgeText: { fontSize: 12, fontWeight: '700' },
+  headerLocation: { fontSize: Type.footnote.fontSize, color: '#FFFFFF99', marginBottom: 4 },
+  headerLastUpdated: { fontSize: Type.caption2.fontSize, color: '#FFFFFF80', marginBottom: 12, fontStyle: 'italic' as const },
+  statusBadge: { borderRadius: Tokens.radius.sm, paddingHorizontal: 10, paddingVertical: 4 },
+  statusBadgeText: { fontSize: Type.caption1.fontSize, fontWeight: '700' },
 
   welcomeCard: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 10,
     margin: 16, backgroundColor: Colors.primary + '10',
-    borderRadius: 12, padding: 14,
+    borderRadius: Tokens.radius.card, padding: 14,
     borderLeftWidth: 3, borderLeftColor: Colors.primary,
   },
-  welcomeText: { flex: 1, fontSize: 14, color: Colors.text, lineHeight: 20 },
+  welcomeText: { flex: 1, fontSize: Type.bodyCompact.fontSize, color: Colors.text, lineHeight: 20 },
 
   statsRow: { flexDirection: 'row', paddingHorizontal: 16, gap: 10, marginBottom: 8 },
   statCard: {
     flex: 1, backgroundColor: Colors.card,
-    borderRadius: 12, padding: 12, alignItems: 'center',
+    borderRadius: Tokens.radius.card, padding: 12, alignItems: 'center',
     borderWidth: 1, borderColor: Colors.border,
   },
-  statLabel: { fontSize: 11, color: Colors.textMuted, fontWeight: '600', marginBottom: 4 },
-  statValue: { fontSize: 20, fontWeight: '800', color: Colors.text },
+  statLabel: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontWeight: '600', marginBottom: 4 },
+  statValue: { fontSize: Type.title3.fontSize, fontWeight: '800', color: Colors.text },
   statSub: { fontSize: 10, color: Colors.textMuted, marginTop: 2 },
 
   section: {
     marginHorizontal: 16, marginBottom: 12,
-    backgroundColor: Colors.card, borderRadius: 14,
+    backgroundColor: Colors.card, borderRadius: Tokens.radius.lg,
     borderWidth: 1, borderColor: Colors.border, overflow: 'hidden',
   },
   sectionHeader: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     padding: 14, borderBottomWidth: 1, borderBottomColor: Colors.border,
   },
-  sectionTitle: { fontSize: 15, fontWeight: '700', color: Colors.text, flex: 1 },
-  badge: { backgroundColor: Colors.primary + '20', borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2 },
-  badgeText: { fontSize: 11, fontWeight: '700', color: Colors.primary },
+  sectionTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700', color: Colors.text, flex: 1 },
+  badge: { backgroundColor: Colors.primary + '20', borderRadius: Tokens.radius.md, paddingHorizontal: 7, paddingVertical: 2 },
+  badgeText: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.primary },
 
   sectionBody: { padding: 12, gap: 8 },
 
   // Health bar
   healthRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
-  healthLabel: { fontSize: 12, color: Colors.textMuted, width: 100 },
+  healthLabel: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, width: 100 },
   healthBar: { flex: 1, height: 6, backgroundColor: Colors.border, borderRadius: 3, overflow: 'hidden' },
   healthFill: { height: '100%', borderRadius: 3 },
-  healthPct: { fontSize: 12, fontWeight: '700', width: 34, textAlign: 'right' },
+  healthPct: { fontSize: Type.caption1.fontSize, fontWeight: '700', width: 34, textAlign: 'right' },
 
   // Task rows
-  taskRow: { flexDirection: 'row', backgroundColor: Colors.background, borderRadius: 8, overflow: 'hidden', marginBottom: 4 },
+  taskRow: { flexDirection: 'row', backgroundColor: Colors.background, borderRadius: Tokens.radius.sm, overflow: 'hidden', marginBottom: 4 },
   taskPhaseBar: { width: 3 },
   taskContent: { flex: 1, padding: 10 },
   taskTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 2 },
-  taskTitle: { fontSize: 13, fontWeight: '600', color: Colors.text, flex: 1 },
-  taskMeta: { fontSize: 11, color: Colors.textMuted, marginBottom: 6 },
+  taskTitle: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: Colors.text, flex: 1 },
+  taskMeta: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginBottom: 6 },
   taskProgressRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   taskProgressBar: { flex: 1, height: 4, backgroundColor: Colors.border, borderRadius: 2, overflow: 'hidden' },
   taskProgressFill: { height: '100%', borderRadius: 2 },
-  taskProgressPct: { fontSize: 11, fontWeight: '600', width: 28, textAlign: 'right' },
-  taskStatusBadge: { margin: 10, alignSelf: 'center', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 },
+  taskProgressPct: { fontSize: Type.caption2.fontSize, fontWeight: '600', width: 28, textAlign: 'right' },
+  taskStatusBadge: { margin: 10, alignSelf: 'center', borderRadius: Tokens.radius.xs, paddingHorizontal: 7, paddingVertical: 3 },
   taskStatusText: { fontSize: 10, fontWeight: '700' },
 
   // Budget
   budgetRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6 },
   budgetRowTotal: { borderTopWidth: 1, borderTopColor: Colors.border, marginTop: 4, paddingTop: 10 },
-  budgetLabel: { fontSize: 13, color: Colors.textMuted },
-  budgetValue: { fontSize: 14, fontWeight: '600', color: Colors.text },
-  budgetLabelTotal: { fontSize: 14, fontWeight: '700', color: Colors.text },
-  budgetValueTotal: { fontSize: 16, fontWeight: '800', color: Colors.text },
+  budgetLabel: { fontSize: Type.footnote.fontSize, color: Colors.textMuted },
+  budgetValue: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600', color: Colors.text },
+  budgetLabelTotal: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
+  budgetValueTotal: { fontSize: Type.callout.fontSize, fontWeight: '800', color: Colors.text },
   invoiceProgressRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
   invoiceProgressBar: { flex: 1, height: 8, backgroundColor: Colors.border, borderRadius: 4, overflow: 'hidden' },
-  invoiceProgressFill: { height: '100%', backgroundColor: '#34C759', borderRadius: 4 },
-  invoiceProgressPct: { fontSize: 12, fontWeight: '600', color: Colors.textMuted },
+  invoiceProgressFill: { height: '100%', backgroundColor: Colors.success, borderRadius: 4 },
+  invoiceProgressPct: { fontSize: Type.caption1.fontSize, fontWeight: '600', color: Colors.textMuted },
 
   // List rows (invoices, COs, RFIs, punch)
-  listRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: Colors.background, borderRadius: 8, padding: 10, marginBottom: 4 },
+  listRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: Colors.background, borderRadius: Tokens.radius.sm, padding: 10, marginBottom: 4 },
   listRowLeft: { flex: 1, marginRight: 10 },
-  listRowTitle: { fontSize: 13, fontWeight: '600', color: Colors.text, marginBottom: 2 },
-  listRowMeta: { fontSize: 11, color: Colors.textMuted },
+  listRowTitle: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: Colors.text, marginBottom: 2 },
+  listRowMeta: { fontSize: Type.caption2.fontSize, color: Colors.textMuted },
   listRowRight: { alignItems: 'flex-end', gap: 4 },
-  listRowAmount: { fontSize: 14, fontWeight: '700', color: Colors.text },
-  listStatusBadge: { borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3 },
+  listRowAmount: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
+  listStatusBadge: { borderRadius: Tokens.radius.xs, paddingHorizontal: 7, paddingVertical: 3 },
   listStatusText: { fontSize: 10, fontWeight: '700', color: Colors.textMuted },
 
   // Photos
   photoGrid: { flexDirection: 'row', flexWrap: 'wrap', padding: 12, gap: 4 },
-  photoThumb: { width: PHOTO_SIZE, height: PHOTO_SIZE, borderRadius: 8, overflow: 'hidden', backgroundColor: Colors.border },
+  photoThumb: { width: PHOTO_SIZE, height: PHOTO_SIZE, borderRadius: Tokens.radius.sm, overflow: 'hidden', backgroundColor: Colors.border },
   photoImg: { width: '100%', height: '100%' },
   photoTag: { position: 'absolute', bottom: 4, left: 4, backgroundColor: '#00000080', borderRadius: 4, paddingHorizontal: 4, paddingVertical: 2 },
   photoTagText: { fontSize: 9, color: '#FFF', fontWeight: '600' },
   photoMoreOverlay: { alignItems: 'center', justifyContent: 'center', backgroundColor: '#00000060' },
-  photoMoreText: { fontSize: 20, fontWeight: '800', color: '#FFF' },
+  photoMoreText: { fontSize: Type.title3.fontSize, fontWeight: '800', color: '#FFF' },
 
   footer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 8 },
-  footerText: { fontSize: 12, color: Colors.textMuted },
+  footerText: { fontSize: Type.caption1.fontSize, color: Colors.textMuted },
 
   // Change order card (wrapper for row + actions)
-  coCard: { backgroundColor: Colors.background, borderRadius: 8, marginBottom: 6, overflow: 'hidden' },
+  coCard: { backgroundColor: Colors.background, borderRadius: Tokens.radius.sm, marginBottom: 6, overflow: 'hidden' },
   coActions: {
     flexDirection: 'row', gap: 8, paddingHorizontal: 10, paddingBottom: 10,
     borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: 10,
   },
   coActionBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 6, paddingVertical: 9, borderRadius: 8,
+    gap: 6, paddingVertical: 9, borderRadius: Tokens.radius.sm,
   },
-  coActionApprove: { backgroundColor: '#34C759' },
+  coActionApprove: { backgroundColor: Colors.success },
   coActionReject: { backgroundColor: Colors.error + '15', borderWidth: 1, borderColor: Colors.error + '40' },
-  coActionText: { fontSize: 13, fontWeight: '700' },
+  coActionText: { fontSize: Type.footnote.fontSize, fontWeight: '700' },
   coSignedBanner: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     backgroundColor: '#34C75915', paddingHorizontal: 10, paddingVertical: 8,
     borderTopWidth: 1, borderTopColor: '#34C75920',
   },
-  coSignedBannerText: { fontSize: 11, fontWeight: '600', color: '#2E7D32', flex: 1 },
+  coSignedBannerText: { fontSize: Type.caption2.fontSize, fontWeight: '600', color: Colors.successDark, flex: 1 },
 
   // Empty documents state
   emptyDocs: { alignItems: 'center', padding: 20, gap: 6 },
-  emptyDocsText: { fontSize: 13, fontWeight: '600', color: Colors.text },
-  emptyDocsHint: { fontSize: 11, color: Colors.textMuted, textAlign: 'center' },
+  emptyDocsText: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: Colors.text },
+  emptyDocsHint: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, textAlign: 'center' },
 
   // Messages (Q&A thread)
   msgEmpty: { alignItems: 'center', padding: 18, gap: 6 },
-  msgEmptyTitle: { fontSize: 14, fontWeight: '700', color: Colors.text },
-  msgEmptyHint: { fontSize: 12, color: Colors.textMuted, textAlign: 'center', lineHeight: 17, paddingHorizontal: 10 },
+  msgEmptyTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
+  msgEmptyHint: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, textAlign: 'center', lineHeight: 17, paddingHorizontal: 10 },
   msgList: { gap: 8, paddingBottom: 12 },
   msgRow: { flexDirection: 'row' },
   msgRowMine: { justifyContent: 'flex-end' },
   msgRowTheirs: { justifyContent: 'flex-start' },
   msgBubble: {
-    maxWidth: '84%', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8,
+    maxWidth: '84%', borderRadius: Tokens.radius.card, paddingHorizontal: 12, paddingVertical: 8,
   },
   msgBubbleMine: { backgroundColor: Colors.primary, borderBottomRightRadius: 4 },
   msgBubbleTheirs: { backgroundColor: Colors.surfaceAlt, borderBottomLeftRadius: 4 },
-  msgAuthor: { fontSize: 11, fontWeight: '700', color: Colors.textSecondary, marginBottom: 2 },
+  msgAuthor: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.textSecondary, marginBottom: 2 },
   msgAuthorMine: { color: 'rgba(255,255,255,0.85)' },
-  msgBody: { fontSize: 14, color: Colors.text, lineHeight: 19 },
+  msgBody: { fontSize: Type.bodyCompact.fontSize, color: Colors.text, lineHeight: 19 },
   msgBodyMine: { color: '#fff' },
   msgTime: { fontSize: 10, color: Colors.textMuted, marginTop: 4 },
   msgTimeMine: { color: 'rgba(255,255,255,0.7)' },
@@ -1259,12 +1256,12 @@ const styles = StyleSheet.create({
   },
   msgInput: {
     flex: 1, minHeight: 40, maxHeight: 120,
-    borderWidth: 1, borderColor: Colors.border, borderRadius: 10,
+    borderWidth: 1, borderColor: Colors.border, borderRadius: Tokens.radius.md,
     paddingHorizontal: 10, paddingVertical: 8,
-    fontSize: 14, color: Colors.text, backgroundColor: Colors.surface,
+    fontSize: Type.bodyCompact.fontSize, color: Colors.text, backgroundColor: Colors.surface,
   },
   msgSendBtn: {
-    width: 40, height: 40, borderRadius: 10,
+    width: 40, height: 40, borderRadius: Tokens.radius.md,
     backgroundColor: Colors.primary,
     alignItems: 'center', justifyContent: 'center',
   },
@@ -1281,40 +1278,40 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12,
     borderBottomWidth: 1, borderBottomColor: Colors.border,
   },
-  modalTitle: { fontSize: 18, fontWeight: '700', color: Colors.text },
+  modalTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700', color: Colors.text },
   modalClose: { padding: 4 },
   modalBody: { paddingHorizontal: 20, paddingTop: 14 },
   modalSummary: {
-    backgroundColor: Colors.surface, borderRadius: 12, padding: 14,
+    backgroundColor: Colors.surface, borderRadius: Tokens.radius.card, padding: 14,
     borderWidth: 1, borderColor: Colors.border, marginBottom: 16,
   },
-  modalSummaryLabel: { fontSize: 11, color: Colors.textMuted, fontWeight: '600', marginBottom: 4, letterSpacing: 0.5 },
-  modalSummaryTitle: { fontSize: 15, fontWeight: '700', color: Colors.text, marginBottom: 10 },
+  modalSummaryLabel: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontWeight: '600', marginBottom: 4, letterSpacing: 0.5 },
+  modalSummaryTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700', color: Colors.text, marginBottom: 10 },
   modalSummaryRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 },
-  modalSummaryKey: { fontSize: 13, color: Colors.textMuted },
-  modalSummaryVal: { fontSize: 14, fontWeight: '700', color: Colors.text },
-  modalSummaryReason: { fontSize: 12, color: Colors.textMuted, marginTop: 8, fontStyle: 'italic', lineHeight: 17 },
-  modalFieldLabel: { fontSize: 13, fontWeight: '600', color: Colors.text, marginBottom: 6, marginTop: 4 },
-  modalFieldHint: { fontSize: 11, color: Colors.textMuted, marginBottom: 10, lineHeight: 16 },
+  modalSummaryKey: { fontSize: Type.footnote.fontSize, color: Colors.textMuted },
+  modalSummaryVal: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
+  modalSummaryReason: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 8, fontStyle: 'italic', lineHeight: 17 },
+  modalFieldLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: Colors.text, marginBottom: 6, marginTop: 4 },
+  modalFieldHint: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginBottom: 10, lineHeight: 16 },
   modalInput: {
-    backgroundColor: Colors.surface, borderRadius: 10, borderWidth: 1, borderColor: Colors.border,
-    paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: Colors.text, marginBottom: 14,
+    backgroundColor: Colors.surface, borderRadius: Tokens.radius.md, borderWidth: 1, borderColor: Colors.border,
+    paddingHorizontal: 12, paddingVertical: 10, fontSize: Type.bodyCompact.fontSize, color: Colors.text, marginBottom: 14,
   },
   signatureWrap: { alignItems: 'center', marginBottom: 10 },
   signatureConfirm: { flexDirection: 'row', alignItems: 'center', gap: 6, justifyContent: 'center', marginBottom: 14 },
-  signatureConfirmText: { fontSize: 12, fontWeight: '600', color: '#34C759' },
+  signatureConfirmText: { fontSize: Type.caption1.fontSize, fontWeight: '600', color: Colors.success },
   modalActions: {
     flexDirection: 'row', gap: 10, paddingHorizontal: 20, paddingTop: 12,
     borderTopWidth: 1, borderTopColor: Colors.border,
   },
   modalCancelBtn: {
-    flex: 1, paddingVertical: 13, borderRadius: 12, alignItems: 'center',
+    flex: 1, paddingVertical: 13, borderRadius: Tokens.radius.card, alignItems: 'center',
     backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
   },
-  modalCancelText: { fontSize: 14, fontWeight: '600', color: Colors.text },
+  modalCancelText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600', color: Colors.text },
   modalSubmitBtn: {
-    flex: 2, flexDirection: 'row', gap: 8, paddingVertical: 13, borderRadius: 12,
-    alignItems: 'center', justifyContent: 'center', backgroundColor: '#34C759',
+    flex: 2, flexDirection: 'row', gap: 8, paddingVertical: 13, borderRadius: Tokens.radius.card,
+    alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.success,
   },
-  modalSubmitText: { fontSize: 14, fontWeight: '700', color: '#FFF' },
+  modalSubmitText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: '#FFF' },
 });

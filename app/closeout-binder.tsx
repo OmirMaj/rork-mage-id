@@ -27,6 +27,7 @@ import {
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
+import { FeatureHeader } from '@/components/FeatureHeader';
 import {
   fetchCloseoutBinder, saveCloseoutBinder, shareCloseoutBinderPDF,
   DEFAULT_MAINTENANCE,
@@ -36,6 +37,8 @@ import { statusPillStyle } from '@/utils/statusPill';
 import { fetchSelectionsForProject } from '@/utils/selectionsEngine';
 import { generateUUID } from '@/utils/generateId';
 import { notifyEvent } from '@/utils/notifyClient';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 import {
   generateG704PDF, generateG706PDF, generateG706APDF, generateG707PDF,
   type G704Data, type G706Data, type G706AData, type G707Data,
@@ -308,7 +311,7 @@ export default function CloseoutBinderScreen() {
     if (!project) return;
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     try {
-      const punch = (getPunchItemsForProject?.(project.id) ?? []) as Array<{ description: string; location?: string; trade?: string; status: string }>;
+      const punch = (getPunchItemsForProject?.(project.id) ?? []) as { description: string; location?: string; trade?: string; status: string }[];
       const openPunch = punch.filter(p => p.status !== 'closed').map(p => ({
         description: p.description,
         location: p.location,
@@ -369,7 +372,7 @@ export default function CloseoutBinderScreen() {
           break;
         }
         case 'G707': {
-          const cos = (getChangeOrdersForProject?.(project.id) ?? []) as Array<{ status: string; changeAmount: number }>;
+          const cos = (getChangeOrdersForProject?.(project.id) ?? []) as { status: string; changeAmount: number }[];
           const coTotal = cos.filter(c => c.status === 'approved').reduce((s, c) => s + (c.changeAmount ?? 0), 0);
           const baseSum = (project.linkedEstimate?.grandTotal) ?? (project.estimate?.grandTotal) ?? 0;
           const data: G707Data = {
@@ -427,17 +430,31 @@ export default function CloseoutBinderScreen() {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={8}>
+        <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
           <ChevronLeft size={26} color={Colors.primary} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.eyebrow}>{project.name}</Text>
-          <Text style={styles.title}>Closeout Binder</Text>
+          <Text style={styles.title}>The handover packet</Text>
         </View>
         <View style={[styles.statusPill, { backgroundColor: statusPill.bg }]}>
           <Text style={[styles.statusPillText, { color: statusPill.color }]}>{statusPill.label}</Text>
         </View>
       </View>
+      <FeatureHeader
+        eyebrow="Closeout Binder"
+        title="Everything the homeowner gets at the end"
+        subtitle="Warranties, manuals, paint colors, sub contacts, as-builts — all bundled into one PDF binder you hand over on closeout day."
+        explainer={{
+          term: 'Closeout Binder',
+          definition: 'The closeout binder is the package of everything the homeowner needs to live with their new home: warranty docs from each manufacturer, operating manuals for installed equipment, paint colors and finishes for touch-ups, sub contact info for warranty claims, and as-built drawings showing what was actually built (not just what was designed).',
+          whenToUse: [
+            'At project closeout, before you hand over the keys',
+            'When the homeowner asks "where\'s the warranty for the dishwasher?"',
+            'A year later, when something needs warranty work and they call you',
+          ],
+        }}
+      />
 
       {loading ? (
         <View style={styles.loading}>
@@ -458,7 +475,7 @@ export default function CloseoutBinderScreen() {
               )}
               {sentAt && (
                 <View style={styles.timelineRow}>
-                  <Send size={13} color={'#1E8E4A'} />
+                  <Send size={13} color={Colors.successDark} />
                   <Text style={styles.timelineText}>Delivered to homeowner {formattedAt(sentAt)}</Text>
                 </View>
               )}
@@ -534,7 +551,7 @@ export default function CloseoutBinderScreen() {
                     />
                   </View>
                 </View>
-                <TouchableOpacity onPress={() => removeMaintenance(m.id)} hitSlop={6} testID={`maint-remove-${m.id}`}>
+                <TouchableOpacity onPress={() => removeMaintenance(m.id)} hitSlop={6} testID={`maint-remove-${m.id}`} accessibilityRole="button" accessibilityLabel="Delete">
                   <Trash2 size={13} color={Colors.error} />
                 </TouchableOpacity>
               </View>
@@ -682,14 +699,14 @@ function PreviewRow({ label, value }: { label: string; value: string }) {
 // closeout-binder screen; tapping fires handleAiaFormTap.
 type AiaFormId = 'G704' | 'G706' | 'G706A' | 'G707';
 
-const AIA_FORM_LIST: Array<{
+const AIA_FORM_LIST: {
   id: AiaFormId;
   title: string;
   subtitle: string;
   Icon: typeof FileText;
   color: string;
-}> = [
-  { id: 'G704',  title: 'G704 — Substantial Completion',         subtitle: 'Certifies the project is complete enough for owner to occupy. Includes punch list.', Icon: Stamp,    color: '#1E8E4A' },
+}[] = [
+  { id: 'G704',  title: 'G704 — Substantial Completion',         subtitle: 'Certifies the project is complete enough for owner to occupy. Includes punch list.', Icon: Stamp,    color: Colors.successDark },
   { id: 'G706',  title: 'G706 — Affidavit of Debts & Claims',    subtitle: 'Notarized — confirms all bills and claims are paid except as listed.',               Icon: FileText, color: '#1E5BC6' },
   { id: 'G706A', title: 'G706A — Affidavit of Lien Releases',    subtitle: 'Notarized — confirms all lien waivers received except as listed.',                   Icon: FileText, color: '#1E5BC6' },
   { id: 'G707',  title: 'G707 — Consent of Surety',              subtitle: 'Surety company approves final payment to contractor without releasing bond.',         Icon: Shield,   color: '#C26A00' },
@@ -738,9 +755,7 @@ function AiaFormModal({
             <Text style={modalStyles.headSub}>Generate</Text>
             <Text style={modalStyles.headTitle}>{formMeta?.title}</Text>
           </View>
-          <TouchableOpacity onPress={onClose} hitSlop={10} testID="aia-modal-close">
-            <X size={20} color={Colors.textMuted} />
-          </TouchableOpacity>
+          <TouchableOpacity onPress={onClose} hitSlop={10} testID="aia-modal-close" accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={Colors.textMuted} /></TouchableOpacity>
         </View>
 
         <ScrollView style={{ maxHeight: 380 }} showsVerticalScrollIndicator={false}>
@@ -855,22 +870,22 @@ const modalStyles = StyleSheet.create({
     letterSpacing: 0.8, textTransform: 'uppercase' as const,
   },
   headTitle: {
-    fontSize: 16, fontWeight: '800' as const, color: Colors.text,
+    fontSize: Type.callout.fontSize, fontWeight: '800' as const, color: Colors.text,
     marginTop: 2,
   },
   label: {
-    fontSize: 11, fontWeight: '800' as const, color: Colors.textMuted,
+    fontSize: Type.caption2.fontSize, fontWeight: '800' as const, color: Colors.textMuted,
     letterSpacing: 0.6, textTransform: 'uppercase' as const,
     marginTop: 12, marginBottom: 5,
   },
   input: {
     backgroundColor: Colors.background,
-    borderWidth: 1, borderColor: Colors.border, borderRadius: 10,
+    borderWidth: 1, borderColor: Colors.border, borderRadius: Tokens.radius.md,
     paddingHorizontal: 12, paddingVertical: 10,
-    fontSize: 14, color: Colors.text,
+    fontSize: Type.bodyCompact.fontSize, color: Colors.text,
   },
   helper: {
-    fontSize: 11, color: Colors.textMuted, lineHeight: 16,
+    fontSize: Type.caption2.fontSize, color: Colors.textMuted, lineHeight: 16,
     marginTop: 10, fontStyle: 'italic' as const,
   },
   cta: {
@@ -878,55 +893,55 @@ const modalStyles = StyleSheet.create({
     alignItems: 'center' as const, justifyContent: 'center' as const,
     gap: 8,
     backgroundColor: Colors.primary,
-    borderRadius: 12, paddingVertical: 14,
+    borderRadius: Tokens.radius.card, paddingVertical: 14,
     marginTop: 14,
   },
   ctaDisabled: { opacity: 0.5 },
-  ctaText: { color: '#FFF', fontSize: 15, fontWeight: '800' as const },
+  ctaText: { color: '#FFF', fontSize: Type.subhead.fontSize, fontWeight: '800' as const },
 });
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   center: { alignItems: 'center', justifyContent: 'center' },
   loading: { padding: 30, alignItems: 'center', gap: 10 },
-  loadingText: { fontSize: 13, color: Colors.textMuted },
+  loadingText: { fontSize: Type.footnote.fontSize, color: Colors.textMuted },
 
   header: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 10,
     paddingHorizontal: 16, paddingTop: 14, paddingBottom: 14,
     borderBottomWidth: 1, borderBottomColor: Colors.border,
   },
-  eyebrow: { fontSize: 11, fontWeight: '700', color: Colors.primary, letterSpacing: 1.4, textTransform: 'uppercase' },
-  title:   { fontSize: 20, fontWeight: '800', color: Colors.text, letterSpacing: -0.4, marginTop: 4 },
-  statusPill: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999, marginTop: 6 },
+  eyebrow: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.primary, letterSpacing: 1.4, textTransform: 'uppercase' },
+  title:   { fontSize: Type.title3.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.4, marginTop: 4 },
+  statusPill: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: Tokens.radius.full, marginTop: 6 },
   statusPillText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.8 },
-  emptyTitle: { fontSize: 16, fontWeight: '800', color: Colors.text },
-  emptyBack: { marginTop: 12, paddingHorizontal: 18, paddingVertical: 10, borderRadius: 10, backgroundColor: Colors.primary },
-  emptyBackText: { color: '#FFF', fontWeight: '800', fontSize: 13 },
+  emptyTitle: { fontSize: Type.callout.fontSize, fontWeight: '800', color: Colors.text },
+  emptyBack: { marginTop: 12, paddingHorizontal: 18, paddingVertical: 10, borderRadius: Tokens.radius.md, backgroundColor: Colors.primary },
+  emptyBackText: { color: '#FFF', fontWeight: '800', fontSize: Type.footnote.fontSize },
 
   timeline: { gap: 4, marginBottom: 10, paddingHorizontal: 4 },
   timelineRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  timelineText: { fontSize: 12, color: Colors.textMuted, fontWeight: '600' },
+  timelineText: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, fontWeight: '600' },
 
-  previewCard: { backgroundColor: Colors.primary + '0D', borderRadius: 14, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: Colors.primary + '30', gap: 8 },
+  previewCard: { backgroundColor: Colors.primary + '0D', borderRadius: Tokens.radius.lg, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: Colors.primary + '30', gap: 8 },
   previewHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  previewTitle: { fontSize: 13, fontWeight: '800', color: Colors.primary, letterSpacing: -0.2 },
-  previewBody: { fontSize: 12, color: Colors.text, lineHeight: 17 },
+  previewTitle: { fontSize: Type.footnote.fontSize, fontWeight: '800', color: Colors.primary, letterSpacing: -0.2 },
+  previewBody: { fontSize: Type.caption1.fontSize, color: Colors.text, lineHeight: 17 },
   previewList: { gap: 4 },
   previewRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 4 },
-  previewRowLabel: { fontSize: 12, color: Colors.text, fontWeight: '600' },
-  previewRowValue: { fontSize: 12, color: Colors.primary, fontWeight: '800' },
-  emptyHint: { fontSize: 11, color: Colors.textMuted, fontStyle: 'italic', lineHeight: 16, marginTop: 4 },
+  previewRowLabel: { fontSize: Type.caption1.fontSize, color: Colors.text, fontWeight: '600' },
+  previewRowValue: { fontSize: Type.caption1.fontSize, color: Colors.primary, fontWeight: '800' },
+  emptyHint: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontStyle: 'italic', lineHeight: 16, marginTop: 4 },
 
-  card: { backgroundColor: Colors.card, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: Colors.border, marginBottom: 12 },
+  card: { backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 14, borderWidth: 1, borderColor: Colors.border, marginBottom: 12 },
   cardHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 4 },
-  cardLabel: { fontSize: 11, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 6 },
-  cardHelper: { fontSize: 12, color: Colors.textMuted, marginBottom: 10, lineHeight: 17 },
+  cardLabel: { fontSize: Type.caption2.fontSize, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 6 },
+  cardHelper: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginBottom: 10, lineHeight: 17 },
 
   smallBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 9, backgroundColor: Colors.primary + '0D', borderWidth: 1, borderColor: Colors.primary + '30' },
-  smallBtnText: { fontSize: 12, fontWeight: '800', color: Colors.primary },
+  smallBtnText: { fontSize: Type.caption1.fontSize, fontWeight: '800', color: Colors.primary },
 
-  textarea: { backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 11, fontSize: 14, color: Colors.text, minHeight: 110 },
+  textarea: { backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border, borderRadius: Tokens.radius.md, paddingHorizontal: 12, paddingVertical: 11, fontSize: Type.bodyCompact.fontSize, color: Colors.text, minHeight: 110 },
 
   // AIA closeout form rows — clean tappable list inside the binder card
   aiaFormRow: {
@@ -940,21 +955,21 @@ const styles = StyleSheet.create({
   },
   aiaFormIcon: {
     width: 36, height: 36,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
     alignItems: 'center' as const, justifyContent: 'center' as const,
   },
-  aiaFormTitle: { fontSize: 13, fontWeight: '700' as const, color: Colors.text },
-  aiaFormSub: { fontSize: 11, color: Colors.textMuted, marginTop: 2, lineHeight: 15 },
+  aiaFormTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.text },
+  aiaFormSub: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 2, lineHeight: 15 },
 
   maintRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: Colors.border },
   maintMain: { flex: 1, gap: 6 },
-  maintTask: { fontSize: 13, color: Colors.text, fontWeight: '600', padding: 0 },
+  maintTask: { fontSize: Type.footnote.fontSize, color: Colors.text, fontWeight: '600', padding: 0 },
   maintMeta: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  maintFreq: { flex: 1, fontSize: 11, color: Colors.textMuted, padding: 0 },
+  maintFreq: { flex: 1, fontSize: Type.caption2.fontSize, color: Colors.textMuted, padding: 0 },
 
   actionBar: { flexDirection: 'row', gap: 8, paddingHorizontal: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: Colors.border, backgroundColor: Colors.surface },
   secondary: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 13, borderRadius: 11, backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border },
-  secondaryText: { fontSize: 13, fontWeight: '700', color: Colors.text },
+  secondaryText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.text },
   primary: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 14, borderRadius: 11, backgroundColor: Colors.primary, shadowColor: Colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.28, shadowRadius: 8, elevation: 4 },
-  primaryText: { fontSize: 13, fontWeight: '800', color: '#FFF' },
+  primaryText: { fontSize: Type.footnote.fontSize, fontWeight: '800', color: '#FFF' },
 });

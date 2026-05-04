@@ -28,6 +28,8 @@ import { Colors } from '@/constants/colors';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { formatMoney } from '@/utils/formatters';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 interface ResponseRow {
   id: string;
@@ -183,7 +185,7 @@ export default function RfpResponsesReviewScreen() {
       <Stack.Screen options={{ headerShown: false }} />
 
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={8}>
+        <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
           <ChevronLeft size={26} color={Colors.primary} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
@@ -379,8 +381,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, paddingTop: 14, paddingBottom: 12,
     borderBottomWidth: 1, borderBottomColor: Colors.border,
   },
-  eyebrow: { fontSize: 11, fontWeight: '700', color: Colors.primary, letterSpacing: 1.4, textTransform: 'uppercase' },
-  title:   { fontSize: 20, fontWeight: '800', color: Colors.text, letterSpacing: -0.4, marginTop: 4 },
+  eyebrow: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.primary, letterSpacing: 1.4, textTransform: 'uppercase' },
+  title:   { fontSize: Type.title3.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.4, marginTop: 4 },
 
   controls: {
     paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8,
@@ -390,55 +392,55 @@ const styles = StyleSheet.create({
   tabRow: { flexDirection: 'row', gap: 8 },
   tab: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 9, backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border },
   tabActive: { backgroundColor: Colors.text, borderColor: Colors.text },
-  tabText: { fontSize: 12, fontWeight: '700', color: Colors.text },
+  tabText: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: Colors.text },
   tabTextActive: { color: '#FFF' },
   sortRow: { flexDirection: 'row', gap: 6 },
-  sortChip: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border },
+  sortChip: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: Tokens.radius.sm, backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border },
   sortChipActive: { backgroundColor: Colors.primary + '15', borderColor: Colors.primary },
-  sortChipText: { fontSize: 11, fontWeight: '700', color: Colors.textMuted },
+  sortChipText: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.textMuted },
   sortChipTextActive: { color: Colors.primary },
 
   loading: { padding: 30, alignItems: 'center' },
   emptyCard: {
-    backgroundColor: Colors.card, borderRadius: 14, padding: 28,
+    backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 28,
     alignItems: 'center', gap: 8, marginTop: 22,
     borderWidth: 1, borderColor: Colors.border,
   },
-  emptyTitle: { fontSize: 16, fontWeight: '800', color: Colors.text, marginTop: 4, textAlign: 'center' },
-  emptyBody: { fontSize: 13, color: Colors.textMuted, textAlign: 'center', lineHeight: 19, maxWidth: 320 },
+  emptyTitle: { fontSize: Type.callout.fontSize, fontWeight: '800', color: Colors.text, marginTop: 4, textAlign: 'center' },
+  emptyBody: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, textAlign: 'center', lineHeight: 19, maxWidth: 320 },
 
   card: {
-    backgroundColor: Colors.card, borderRadius: 14, padding: 14,
+    backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 14,
     borderWidth: 1, borderColor: Colors.border, marginBottom: 12, gap: 8,
   },
   cardAwarded:  { borderColor: Colors.success, borderWidth: 2, backgroundColor: Colors.success + '08' },
   cardDeclined: { opacity: 0.65 },
   cardHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   identityWrap: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
-  identityIcon: { width: 36, height: 36, borderRadius: 10, backgroundColor: Colors.primary + '15', alignItems: 'center', justifyContent: 'center' },
-  identityName: { fontSize: 14, fontWeight: '700', color: Colors.text },
-  identityMeta: { fontSize: 11, color: Colors.textMuted, marginTop: 2 },
+  identityIcon: { width: 36, height: 36, borderRadius: Tokens.radius.md, backgroundColor: Colors.primary + '15', alignItems: 'center', justifyContent: 'center' },
+  identityName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
+  identityMeta: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 2 },
 
-  awardedPill:    { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, backgroundColor: Colors.success + '20' },
+  awardedPill:    { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: Tokens.radius.full, backgroundColor: Colors.success + '20' },
   awardedPillText:{ fontSize: 9, fontWeight: '800', color: Colors.success, letterSpacing: 0.6 },
-  shortlistPill:  { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, backgroundColor: Colors.warning + '20' },
+  shortlistPill:  { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: Tokens.radius.full, backgroundColor: Colors.warning + '20' },
   shortlistPillText:{ fontSize: 9, fontWeight: '800', color: Colors.warning, letterSpacing: 0.6 },
-  declinedPill:   { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, backgroundColor: Colors.error + '15' },
+  declinedPill:   { paddingHorizontal: 8, paddingVertical: 4, borderRadius: Tokens.radius.full, backgroundColor: Colors.error + '15' },
   declinedPillText:{ fontSize: 9, fontWeight: '800', color: Colors.error, letterSpacing: 0.6 },
 
-  siteVisitRow: { flexDirection: 'row', alignItems: 'center', gap: 6, padding: 10, borderRadius: 10, backgroundColor: Colors.warning + '0D', borderWidth: 1, borderColor: Colors.warning + '30' },
-  siteVisitText: { fontSize: 12, color: Colors.warning, fontWeight: '700' },
+  siteVisitRow: { flexDirection: 'row', alignItems: 'center', gap: 6, padding: 10, borderRadius: Tokens.radius.md, backgroundColor: Colors.warning + '0D', borderWidth: 1, borderColor: Colors.warning + '30' },
+  siteVisitText: { fontSize: Type.caption1.fontSize, color: Colors.warning, fontWeight: '700' },
 
   amountWrap: { paddingVertical: 4 },
   amountValue: { fontSize: 26, fontWeight: '800', color: Colors.text, letterSpacing: -0.6 },
-  amountSummary: { fontSize: 12, color: Colors.textMuted, marginTop: 2, lineHeight: 17 },
+  amountSummary: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2, lineHeight: 17 },
 
-  messageBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 10, borderRadius: 10, backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border },
-  messageText: { flex: 1, fontSize: 12, color: Colors.text, lineHeight: 17 },
+  messageBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 10, borderRadius: Tokens.radius.md, backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border },
+  messageText: { flex: 1, fontSize: Type.caption1.fontSize, color: Colors.text, lineHeight: 17 },
 
   contactRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   contactItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  contactText: { fontSize: 11, color: Colors.textMuted, fontWeight: '600' },
+  contactText: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontWeight: '600' },
 
   actionRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4 },
   actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 9, borderWidth: 1 },
@@ -446,11 +448,11 @@ const styles = StyleSheet.create({
   unshortBtn:   { backgroundColor: Colors.background, borderColor: Colors.border },
   declineBtn:   { backgroundColor: Colors.background, borderColor: Colors.error + '40' },
   awardBtn:     { backgroundColor: Colors.primary, borderColor: Colors.primary, marginLeft: 'auto' },
-  actionBtnText:{ fontSize: 12, fontWeight: '700' },
+  actionBtnText:{ fontSize: Type.caption1.fontSize, fontWeight: '700' },
 
   undeclineRow: { paddingTop: 6, alignSelf: 'flex-start' },
-  undeclineText: { fontSize: 12, color: Colors.primary, fontWeight: '700' },
+  undeclineText: { fontSize: Type.caption1.fontSize, color: Colors.primary, fontWeight: '700' },
 
-  backCta: { paddingHorizontal: 18, paddingVertical: 11, borderRadius: 10, backgroundColor: Colors.primary, marginTop: 12 },
+  backCta: { paddingHorizontal: 18, paddingVertical: 11, borderRadius: Tokens.radius.md, backgroundColor: Colors.primary, marginTop: 12 },
   backCtaText: { color: '#FFF', fontWeight: '700' },
 });

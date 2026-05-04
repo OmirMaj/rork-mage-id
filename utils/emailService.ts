@@ -89,7 +89,7 @@ async function sendViaResend(params: SendEmailWithAttachmentsParams): Promise<Se
   }
 
   // Encode attachments in parallel — typical invoice is 1-2 files so this is fast.
-  let attachments: Array<{ filename: string; content: string; contentType?: string }> | undefined;
+  let attachments: { filename: string; content: string; contentType?: string }[] | undefined;
   if (params.attachments && params.attachments.length > 0) {
     const encoded = await Promise.all(params.attachments.map(fileUriToAttachment));
     attachments = encoded.filter((a): a is NonNullable<typeof a> => a !== null);

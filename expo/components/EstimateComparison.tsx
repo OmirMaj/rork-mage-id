@@ -42,7 +42,7 @@ interface SavedEstimateVersion {
   materialCount: number;
   laborCount: number;
   assemblyCount: number;
-  items: Array<{ id: string; name: string; category: string; total: number; quantity: number }>;
+  items: { id: string; name: string; category: string; total: number; quantity: number }[];
 }
 
 interface EstimateComparisonProps {
@@ -159,7 +159,7 @@ const EstimateComparison = React.memo(function EstimateComparison({
     }));
     const savedItemMap = new Map(selectedVersion.items.map(i => [i.id, i]));
 
-    const changedItems: Array<{ name: string; currentTotal: number; savedTotal: number; type: 'changed' | 'new' | 'removed' }> = [];
+    const changedItems: { name: string; currentTotal: number; savedTotal: number; type: 'changed' | 'new' | 'removed' }[] = [];
 
     for (const [id, curr] of currentItemMap) {
       const saved = savedItemMap.get(id);

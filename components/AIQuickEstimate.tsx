@@ -18,6 +18,8 @@ import EstimateLoadingOverlay from '@/components/EstimateLoadingOverlay';
 import type { MaterialItem } from '@/constants/materials';
 import { LABOR_RATES, type LaborRate } from '@/constants/laborRates';
 import { ASSEMBLIES, type AssemblyItem } from '@/constants/assemblies';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 interface CartItem {
   material: MaterialItem;
@@ -672,9 +674,7 @@ export default React.memo(function AIQuickEstimate({
               <Sparkles size={20} color={Colors.primary} />
               <Text style={s.modalTitle}>AI Estimator</Text>
             </View>
-            <TouchableOpacity onPress={handleClose} style={s.closeBtn} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-              <X size={20} color={Colors.textSecondary} />
-            </TouchableOpacity>
+            <TouchableOpacity onPress={handleClose} style={s.closeBtn} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={Colors.textSecondary} /></TouchableOpacity>
           </View>
         </View>
 
@@ -724,14 +724,14 @@ const s = StyleSheet.create({
     gap: 8,
   },
   modalTitle: {
-    fontSize: 20,
+    fontSize: Type.title3.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
   },
   closeBtn: {
     width: 36,
     height: 36,
-    borderRadius: 18,
+    borderRadius: Tokens.radius.xl,
     backgroundColor: Colors.fillSecondary,
     alignItems: 'center',
     justifyContent: 'center',
@@ -756,12 +756,12 @@ const s = StyleSheet.create({
     marginBottom: 4,
   },
   heroTitle: {
-    fontSize: 22,
+    fontSize: Type.title2.fontSize,
     fontWeight: '800' as const,
     color: Colors.text,
   },
   heroDesc: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     color: Colors.textSecondary,
     textAlign: 'center',
     lineHeight: 20,
@@ -771,7 +771,7 @@ const s = StyleSheet.create({
     marginBottom: 16,
   },
   sectionLabel: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '700' as const,
     color: Colors.textSecondary,
     textTransform: 'uppercase' as const,
@@ -796,7 +796,7 @@ const s = StyleSheet.create({
     borderColor: Colors.primary,
   },
   quickChipText: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '500' as const,
     color: Colors.textSecondary,
   },
@@ -810,9 +810,9 @@ const s = StyleSheet.create({
   descInput: {
     minHeight: 100,
     backgroundColor: Colors.surface,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     padding: 14,
-    fontSize: 15,
+    fontSize: Type.subhead.fontSize,
     color: Colors.text,
     lineHeight: 22,
     borderWidth: 1,
@@ -828,16 +828,16 @@ const s = StyleSheet.create({
     gap: 6,
   },
   detailLabel: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     fontWeight: '600' as const,
     color: Colors.textSecondary,
   },
   detailInput: {
     height: 44,
     backgroundColor: Colors.surface,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     paddingHorizontal: 14,
-    fontSize: 16,
+    fontSize: Type.callout.fontSize,
     fontWeight: '600' as const,
     color: Colors.text,
     borderWidth: 1,
@@ -846,14 +846,14 @@ const s = StyleSheet.create({
   locationBadge: {
     height: 44,
     backgroundColor: Colors.surface,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     paddingHorizontal: 14,
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: Colors.border,
   },
   locationText: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     fontWeight: '500' as const,
     color: Colors.text,
   },
@@ -875,7 +875,7 @@ const s = StyleSheet.create({
     borderColor: Colors.primary,
   },
   typeChipText: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '500' as const,
     color: Colors.textSecondary,
   },
@@ -891,7 +891,7 @@ const s = StyleSheet.create({
     flex: 1,
     paddingVertical: 10,
     paddingHorizontal: 8,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: Colors.border,
@@ -903,7 +903,7 @@ const s = StyleSheet.create({
     borderColor: Colors.primary,
   },
   qualityChipLabel: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
   },
@@ -923,13 +923,13 @@ const s = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     backgroundColor: Colors.errorLight,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     padding: 14,
     marginBottom: 12,
   },
   errorText: {
     flex: 1,
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: Colors.error,
     fontWeight: '500' as const,
   },
@@ -939,7 +939,7 @@ const s = StyleSheet.create({
     justifyContent: 'center',
     gap: 10,
     backgroundColor: Colors.primary,
-    borderRadius: 16,
+    borderRadius: Tokens.radius.panel,
     paddingVertical: 18,
     marginTop: 8,
     shadowColor: Colors.primary,
@@ -952,7 +952,7 @@ const s = StyleSheet.create({
     opacity: 0.5,
   },
   generateBtnText: {
-    fontSize: 17,
+    fontSize: Type.body.fontSize,
     fontWeight: '700' as const,
     color: '#FFF',
   },
@@ -961,7 +961,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 4,
   },
   disclaimerText: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     color: Colors.textMuted,
     textAlign: 'center',
     lineHeight: 16,
@@ -976,19 +976,19 @@ const s = StyleSheet.create({
   loadingIcon: {
     width: 80,
     height: 80,
-    borderRadius: 24,
+    borderRadius: Tokens.radius["2xl"],
     backgroundColor: Colors.primary + '12',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 8,
   },
   loadingTitle: {
-    fontSize: 20,
+    fontSize: Type.title3.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
   },
   loadingDesc: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     color: Colors.textSecondary,
     textAlign: 'center',
     lineHeight: 20,
@@ -1017,7 +1017,7 @@ const s = StyleSheet.create({
     gap: 8,
   },
   loadingStepText: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: Colors.textMuted,
   },
   resultContainer: {
@@ -1037,32 +1037,32 @@ const s = StyleSheet.create({
     gap: 4,
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 8,
+    borderRadius: Tokens.radius.sm,
     backgroundColor: Colors.primary + '12',
   },
   resultBadgeText: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     fontWeight: '600' as const,
     color: Colors.primary,
   },
   confidenceBadge: {
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 8,
+    borderRadius: Tokens.radius.sm,
   },
   confidenceText: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     fontWeight: '700' as const,
   },
   resultSummary: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     color: Colors.textSecondary,
     lineHeight: 20,
     marginBottom: 16,
   },
   summaryCard: {
     backgroundColor: Colors.surface,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     padding: 14,
     marginTop: 12,
     marginBottom: 8,
@@ -1070,7 +1070,7 @@ const s = StyleSheet.create({
     borderColor: Colors.borderLight,
   },
   summaryLabel: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     fontWeight: '700' as const,
     color: Colors.textMuted,
     letterSpacing: 0.5,
@@ -1078,13 +1078,13 @@ const s = StyleSheet.create({
     marginBottom: 6,
   },
   summaryText: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: Colors.textSecondary,
     lineHeight: 19,
   },
   totalCard: {
     backgroundColor: Colors.surface,
-    borderRadius: 16,
+    borderRadius: Tokens.radius.panel,
     padding: 16,
     marginBottom: 16,
     borderWidth: 1,
@@ -1096,12 +1096,12 @@ const s = StyleSheet.create({
     alignItems: 'center',
   },
   totalLabel: {
-    fontSize: 15,
+    fontSize: Type.subhead.fontSize,
     fontWeight: '600' as const,
     color: Colors.textSecondary,
   },
   totalValue: {
-    fontSize: 28,
+    fontSize: Type.title1.fontSize,
     fontWeight: '800' as const,
     color: Colors.primary,
   },
@@ -1122,15 +1122,15 @@ const s = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     backgroundColor: Colors.background,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
     padding: 10,
   },
   totalBreakdownLabel: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     color: Colors.textMuted,
   },
   totalBreakdownValue: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
     marginLeft: 'auto' as const,
@@ -1143,13 +1143,13 @@ const s = StyleSheet.create({
     marginTop: 12,
   },
   costPerSqftText: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
     color: Colors.textSecondary,
   },
   collapsibleCard: {
     backgroundColor: Colors.surface,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     marginBottom: 10,
     overflow: 'hidden',
   },
@@ -1167,12 +1167,12 @@ const s = StyleSheet.create({
   collapsibleIcon: {
     width: 32,
     height: 32,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
     alignItems: 'center',
     justifyContent: 'center',
   },
   collapsibleTitle: {
-    fontSize: 15,
+    fontSize: Type.subhead.fontSize,
     fontWeight: '600' as const,
     color: Colors.text,
   },
@@ -1188,30 +1188,30 @@ const s = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 10,
     backgroundColor: Colors.background,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
   },
   itemLeft: {
     flex: 1,
     marginRight: 10,
   },
   itemName: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
     color: Colors.text,
   },
   itemMeta: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     color: Colors.textMuted,
     marginTop: 2,
   },
   itemPrice: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     fontWeight: '700' as const,
     color: Colors.primary,
   },
   warningsCard: {
     backgroundColor: Colors.warningLight,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     padding: 14,
     marginBottom: 10,
     gap: 6,
@@ -1223,18 +1223,18 @@ const s = StyleSheet.create({
     marginBottom: 2,
   },
   warningsTitle: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     fontWeight: '700' as const,
     color: Colors.warning,
   },
   warningItem: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: '#7A5400',
     lineHeight: 18,
   },
   tipsCard: {
     backgroundColor: Colors.successLight,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     padding: 14,
     marginBottom: 16,
     gap: 6,
@@ -1246,12 +1246,12 @@ const s = StyleSheet.create({
     marginBottom: 2,
   },
   tipsTitle: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     fontWeight: '700' as const,
     color: Colors.success,
   },
   tipItem: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: '#1B5E20',
     lineHeight: 18,
   },
@@ -1261,7 +1261,7 @@ const s = StyleSheet.create({
     justifyContent: 'center',
     gap: 10,
     backgroundColor: Colors.primary,
-    borderRadius: 16,
+    borderRadius: Tokens.radius.panel,
     paddingVertical: 18,
     shadowColor: Colors.primary,
     shadowOffset: { width: 0, height: 6 },
@@ -1270,7 +1270,7 @@ const s = StyleSheet.create({
     elevation: 4,
   },
   applyBtnText: {
-    fontSize: 17,
+    fontSize: Type.body.fontSize,
     fontWeight: '700' as const,
     color: '#FFF',
   },
@@ -1283,7 +1283,7 @@ const s = StyleSheet.create({
     marginTop: 4,
   },
   regenerateBtnText: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     fontWeight: '600' as const,
     color: Colors.primary,
   },

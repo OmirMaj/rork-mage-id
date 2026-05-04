@@ -565,20 +565,38 @@ export async function resendSend(apiKey: string, opts: SendOpts): Promise<{ ok: 
   if (opts.replyTo) payload.reply_to = opts.replyTo;
   if (Object.keys(headers).length > 0) payload.headers = headers;
 
-  try {
-    const r = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    });
-    const resp = await r.json().catch(() => ({}));
-    return { ok: r.ok, resp };
-  } catch (e) {
-    return { ok: false, resp: { error: String(e) } };
+  // Resend's free tier rate-limits at 5 req/sec. Under bursty fan-outs
+  // (e.g. 50-event marketplace broadcast, 20-bidder Q&A answer) we hit
+  // 429 on ~88% of calls and silently lose them. Retry with jittered
+  // exponential backoff — up to 4 attempts, ~3.5s total worst case.
+  // Non-429 errors (auth, validation, network) fail through immediately.
+  const MAX_ATTEMPTS = 4;
+  const BASE_MS = 350;
+  let lastResp: unknown = null;
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    try {
+      const r = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+      const resp = await r.json().catch(() => ({}));
+      if (r.ok) return { ok: true, resp };
+      lastResp = resp;
+      // Only retry on 429 (rate limit). Other failures are deterministic.
+      if (r.status !== 429 || attempt === MAX_ATTEMPTS - 1) {
+        return { ok: false, resp };
+      }
+      const wait = BASE_MS * Math.pow(2, attempt) + Math.floor(Math.random() * 200);
+      await new Promise((res) => setTimeout(res, wait));
+    } catch (e) {
+      return { ok: false, resp: { error: String(e) } };
+    }
   }
+  return { ok: false, resp: lastResp ?? { error: 'rate_limit_exhausted' } };
 }
 
 // ─── Money formatter ─────────────────────────────────────────────────

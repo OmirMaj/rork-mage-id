@@ -17,6 +17,8 @@ import { Animated, Easing, Platform, StyleSheet, Text, View, Dimensions } from '
 import { Hammer, CheckCircle2 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import * as Haptics from 'expo-haptics';
+import { Tokens } from '@/constants/designTokens';
+import { Type } from '@/constants/typography';
 
 interface ToastEvent {
   message: string;
@@ -151,7 +153,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.card,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     paddingVertical: 12,
     paddingHorizontal: 14,
     minWidth: 240,
@@ -166,14 +168,14 @@ const styles = StyleSheet.create({
   checkBubble: {
     width: 28,
     height: 28,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: Colors.successLight,
   },
   message: {
     flex: 1,
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     fontWeight: '600',
     color: Colors.text,
   },

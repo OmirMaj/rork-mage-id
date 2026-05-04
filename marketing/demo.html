@@ -1,0 +1,866 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>MAGE ID — see how it works · video walkthroughs + live demo</title>
+  <meta name="description" content="See how MAGE ID works. 90-second tour, full 15-minute walkthrough, and short how-to videos for every feature — AI takeoff, drawing analyzer, AIA pay app, daily reports, client portal, sub buyout, scheduling. Or book a live 30-minute demo with the team." />
+  <meta name="theme-color" content="#0B0D10" />
+
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="MAGE ID — see how it works" />
+  <meta property="og:description" content="Video walkthroughs, feature tutorials, and a live demo on your own plan set." />
+  <meta property="og:url" content="https://mageid.app/demo.html" />
+  <meta property="og:site_name" content="MAGE ID" />
+  <meta property="og:image" content="https://mageid.app/assets/og-image.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:image" content="https://mageid.app/assets/og-image.png" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="/assets/favicon-16.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/assets/favicon-180.png" />
+  <link rel="icon" type="image/png" sizes="512x512" href="/assets/favicon-512.png" />
+  <link rel="stylesheet" href="/styles.css" />
+  <style>
+    /* Page-scoped — the demo grid + video frames */
+    .demo-hero {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 60px clamp(20px, 4vw, 40px) 24px;
+      text-align: center;
+    }
+    .demo-hero h1 {
+      font-family: var(--ff-serif);
+      font-size: clamp(2.4rem, 5vw, 3.8rem);
+      line-height: 1.05;
+      letter-spacing: -0.02em;
+      margin: 8px 0 16px;
+      color: #fff;
+    }
+    .demo-hero h1 em {
+      font-style: italic;
+      color: var(--amber);
+    }
+    .demo-hero p.lede {
+      font-size: clamp(1rem, 1.4vw, 1.15rem);
+      color: var(--fog);
+      max-width: 640px;
+      margin: 0 auto 24px;
+    }
+
+    .video-frame {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      border-radius: 18px;
+      overflow: hidden;
+      background: linear-gradient(135deg, #1A1D22 0%, #0B0D10 100%);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 30px 60px -20px rgba(0, 0, 0, 0.6);
+    }
+    .video-frame iframe,
+    .video-frame video {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      border: 0;
+    }
+    .video-placeholder {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      color: var(--fog);
+      cursor: pointer;
+      transition: background 220ms ease;
+    }
+    .video-placeholder:hover {
+      background: rgba(255, 106, 26, 0.06);
+    }
+    .video-placeholder .play-icon {
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      background: rgba(255, 106, 26, 0.16);
+      border: 2px solid var(--amber);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 220ms ease;
+    }
+    .video-placeholder:hover .play-icon {
+      transform: scale(1.08);
+      background: rgba(255, 106, 26, 0.24);
+    }
+    .video-placeholder .play-icon svg {
+      width: 28px;
+      height: 28px;
+      fill: var(--amber);
+      margin-left: 4px;
+    }
+    .video-placeholder .vp-title {
+      font-family: var(--ff-serif);
+      font-size: 1.6rem;
+      letter-spacing: -0.01em;
+      color: #fff;
+    }
+    .video-placeholder .vp-subtitle {
+      font-size: 13px;
+      color: var(--fog);
+      max-width: 420px;
+      text-align: center;
+      padding: 0 20px;
+    }
+    .video-placeholder .vp-duration {
+      font-family: var(--ff-mono);
+      font-size: 11px;
+      letter-spacing: 1px;
+      color: var(--amber);
+      background: rgba(255, 106, 26, 0.1);
+      padding: 4px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 106, 26, 0.3);
+    }
+
+    .hero-video-wrap {
+      max-width: 1100px;
+      margin: 0 auto 80px;
+      padding: 0 clamp(20px, 4vw, 40px);
+    }
+
+    .tutorials-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 18px;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 clamp(20px, 4vw, 40px);
+    }
+    .tutorial-card {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 14px;
+      overflow: hidden;
+      transition: transform 220ms ease, border-color 220ms ease;
+    }
+    .tutorial-card:hover {
+      transform: translateY(-2px);
+      border-color: rgba(255, 106, 26, 0.4);
+    }
+    .tutorial-card .video-frame {
+      border-radius: 14px 14px 0 0;
+      border-left: 0;
+      border-right: 0;
+      border-top: 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .tutorial-card .tc-body {
+      padding: 18px 20px 20px;
+    }
+    .tutorial-card .tc-eyebrow {
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 1.4px;
+      text-transform: uppercase;
+      color: var(--amber);
+      margin-bottom: 6px;
+    }
+    .tutorial-card h3 {
+      font-family: var(--ff-serif);
+      font-size: 1.15rem;
+      margin: 0 0 6px;
+      color: #fff;
+      letter-spacing: -0.01em;
+    }
+    .tutorial-card p {
+      font-size: 13px;
+      line-height: 1.5;
+      color: var(--fog);
+      margin: 0;
+    }
+    .tutorial-card .video-placeholder .vp-title {
+      font-size: 1.1rem;
+    }
+    .tutorial-card .video-placeholder .play-icon {
+      width: 48px;
+      height: 48px;
+    }
+    .tutorial-card .video-placeholder .play-icon svg {
+      width: 18px;
+      height: 18px;
+    }
+
+    .section-heading-light {
+      font-family: var(--ff-serif);
+      font-size: clamp(1.8rem, 3.5vw, 2.6rem);
+      letter-spacing: -0.02em;
+      margin: 0 0 12px;
+      color: #fff;
+    }
+    .section-heading-light em {
+      color: var(--amber);
+      font-style: italic;
+    }
+    .section-sub-light {
+      font-size: 1rem;
+      color: var(--fog);
+      max-width: 640px;
+      margin: 0 auto 36px;
+      text-align: center;
+    }
+    .section-wrap {
+      padding: 60px clamp(20px, 4vw, 40px);
+      max-width: 1200px;
+      margin: 0 auto;
+      text-align: center;
+    }
+
+    /* Help-center grid */
+    .help-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 14px;
+      max-width: 1100px;
+      margin: 36px auto 0;
+      padding: 0 clamp(20px, 4vw, 40px);
+    }
+    .help-card {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 14px;
+      padding: 22px;
+      text-align: left;
+      color: #fff;
+      text-decoration: none;
+      display: block;
+      transition: transform 220ms ease, border-color 220ms ease, background 220ms ease;
+    }
+    .help-card:hover {
+      transform: translateY(-2px);
+      border-color: rgba(255, 106, 26, 0.4);
+      background: rgba(255, 106, 26, 0.04);
+    }
+    .help-card .hc-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      background: rgba(255, 106, 26, 0.14);
+      border: 1px solid rgba(255, 106, 26, 0.3);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 12px;
+    }
+    .help-card .hc-icon svg {
+      width: 18px;
+      height: 18px;
+      stroke: var(--amber);
+    }
+    .help-card h4 {
+      font-size: 14px;
+      font-weight: 700;
+      margin: 0 0 4px;
+      color: #fff;
+    }
+    .help-card p {
+      font-size: 12px;
+      color: var(--fog);
+      line-height: 1.5;
+      margin: 0;
+    }
+
+    /* Live-demo CTA */
+    .demo-cta {
+      max-width: 880px;
+      margin: 60px auto 80px;
+      padding: 36px clamp(20px, 4vw, 40px);
+      background: linear-gradient(180deg, rgba(255, 106, 26, 0.16) 0%, rgba(255, 106, 26, 0.04) 100%);
+      border: 1px solid rgba(255, 106, 26, 0.4);
+      border-radius: 22px;
+      text-align: center;
+    }
+    .demo-cta h2 {
+      font-family: var(--ff-serif);
+      font-size: clamp(1.8rem, 3.5vw, 2.4rem);
+      letter-spacing: -0.02em;
+      margin: 0 0 12px;
+      color: #fff;
+    }
+    .demo-cta p {
+      font-size: 1rem;
+      color: var(--fog);
+      max-width: 520px;
+      margin: 0 auto 24px;
+    }
+
+    /* FAQ accordion */
+    .faq-list {
+      max-width: 880px;
+      margin: 36px auto 0;
+      padding: 0 clamp(20px, 4vw, 40px);
+    }
+    .faq-item {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 14px;
+      margin-bottom: 10px;
+      overflow: hidden;
+    }
+    .faq-item summary {
+      list-style: none;
+      cursor: pointer;
+      padding: 18px 22px;
+      font-weight: 600;
+      font-size: 15px;
+      color: #fff;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+    }
+    .faq-item summary::-webkit-details-marker { display: none; }
+    .faq-item summary::after {
+      content: '+';
+      font-size: 22px;
+      color: var(--amber);
+      transition: transform 220ms ease;
+    }
+    .faq-item[open] summary::after { transform: rotate(45deg); }
+    .faq-item .faq-body {
+      padding: 0 22px 20px;
+      color: var(--fog);
+      font-size: 14px;
+      line-height: 1.6;
+    }
+  </style>
+</head>
+<body>
+  <!-- Grain overlay matches landing -->
+  <div class="grain" aria-hidden="true"></div>
+
+  <header class="nav">
+    <div class="nav-inner">
+      <a href="/" class="brand"><img class="brand-mark" src="/assets/logo-mark-light.png" alt="" width="32" height="32" /><span>MAGE&nbsp;ID</span></a>
+      <nav class="links">
+        <a href="/playbook.html">How it works</a>
+        <a href="/features/post-a-project.html">Post a Project</a>
+        <a href="/features/client-experience.html">Client Experience</a>
+        <a href="/features/field.html">Field Ops</a>
+        <a href="/features/financials.html">Financials</a>
+        <a href="/features/vs-competitors.html">vs. Software</a>
+        <a href="/features/vs-takeoff.html">vs. Takeoff Tools</a>
+        <a href="/demo.html" class="active">Demo</a>
+        <a href="/support.html">Support</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="demo-hero">
+      <span class="eyebrow"><span style="color: var(--amber);">●</span> See it in motion</span>
+      <h1>See how MAGE ID <em>actually works</em>.</h1>
+      <p class="lede">
+        90 seconds for the gist. 15 minutes for the full tour. Short how-to clips for every
+        feature. Or jump on a live 30-minute demo and we&apos;ll run it on your own plan set.
+      </p>
+    </section>
+
+    <!-- =====================================================================
+         Hero — 90-second tour
+         ===================================================================== -->
+    <section class="hero-video-wrap">
+      <div class="video-frame" id="hero-video" data-video-id="HERO_TOUR">
+        <!--
+          Replace the placeholder below with the embed iframe once the tour
+          video is uploaded. Examples:
+            <iframe src="https://www.youtube.com/embed/VIDEO_ID?autoplay=1&rel=0" allowfullscreen></iframe>
+            <iframe src="https://player.vimeo.com/video/VIDEO_ID?autoplay=1" allowfullscreen></iframe>
+            <video controls poster="/assets/hero-poster.jpg"><source src="/videos/hero-tour.mp4" type="video/mp4"></video>
+        -->
+        <div class="video-placeholder">
+          <div class="vp-duration">90 SECONDS</div>
+          <div class="play-icon">
+            <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+          </div>
+          <div class="vp-title">The 90-second tour</div>
+          <div class="vp-subtitle">From plan upload to a sent estimate, in less time than your morning coffee.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =====================================================================
+         Full walkthrough — 15 min
+         ===================================================================== -->
+    <section class="section-wrap">
+      <h2 class="section-heading-light">The <em>full walkthrough</em>.</h2>
+      <p class="section-sub-light">
+        15 minutes of an actual project, end to end &mdash; plan upload, AI takeoff, spec book
+        match, sub-trade buyout, schedule, AIA pay app, client portal. The rest of this page
+        breaks each piece into its own short clip.
+      </p>
+
+      <div class="hero-video-wrap" style="max-width: 960px; margin: 0 auto;">
+        <div class="video-frame" id="full-demo" data-video-id="FULL_DEMO">
+          <div class="video-placeholder">
+            <div class="vp-duration">15:00</div>
+            <div class="play-icon">
+              <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+            </div>
+            <div class="vp-title">Full product demo</div>
+            <div class="vp-subtitle">One project, every feature. Watch this if you want the complete picture before signing up.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =====================================================================
+         Tutorial library — by feature
+         ===================================================================== -->
+    <section class="section-wrap" id="tutorials">
+      <h2 class="section-heading-light">Tutorial library.</h2>
+      <p class="section-sub-light">
+        Short clips, one feature each. Use these when a contractor on your team gets stuck,
+        or to drop into a Slack thread when training a new estimator.
+      </p>
+
+      <div class="tutorials-grid">
+
+        <!-- AI Takeoff -->
+        <div class="tutorial-card">
+          <div class="video-frame" data-video-id="TUTORIAL_TAKEOFF">
+            <div class="video-placeholder">
+              <div class="vp-duration">3:42</div>
+              <div class="play-icon">
+                <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+              </div>
+            </div>
+          </div>
+          <div class="tc-body">
+            <div class="tc-eyebrow">AI takeoff</div>
+            <h3>Drop in a PDF, get LF / SF / EA quantities</h3>
+            <p>Upload a residential plan set. Watch the AI categorize walls, doors, windows, finishes, and fixtures. Edit a row. See where the number came from.</p>
+          </div>
+        </div>
+
+        <!-- Spec book matcher -->
+        <div class="tutorial-card">
+          <div class="video-frame" data-video-id="TUTORIAL_SPEC">
+            <div class="video-placeholder">
+              <div class="vp-duration">2:30</div>
+              <div class="play-icon">
+                <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+              </div>
+            </div>
+          </div>
+          <div class="tc-body">
+            <div class="tc-eyebrow">Spec book matcher</div>
+            <h3>Pair PT-1 with the actual paint product</h3>
+            <p>Upload the architect&apos;s spec PDF. The AI maps every callout code to manufacturer + product + finish + SKU. Unmatched codes flagged for RFI.</p>
+          </div>
+        </div>
+
+        <!-- Sub-trade buyout -->
+        <div class="tutorial-card">
+          <div class="video-frame" data-video-id="TUTORIAL_BUYOUT">
+            <div class="video-placeholder">
+              <div class="vp-duration">3:10</div>
+              <div class="play-icon">
+                <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+              </div>
+            </div>
+          </div>
+          <div class="tc-body">
+            <div class="tc-eyebrow">Sub-trade buyout</div>
+            <h3>One tap. Eight to twelve buyout packages.</h3>
+            <p>Turn the takeoff into draft buyout packages with auto-written scope text. Send to subs without leaving the app.</p>
+          </div>
+        </div>
+
+        <!-- Drawing analyzer -->
+        <div class="tutorial-card">
+          <div class="video-frame" data-video-id="TUTORIAL_DRAWING">
+            <div class="video-placeholder">
+              <div class="vp-duration">2:50</div>
+              <div class="play-icon">
+                <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+              </div>
+            </div>
+          </div>
+          <div class="tc-body">
+            <div class="tc-eyebrow">AI drawing analyzer</div>
+            <h3>Plans &rarr; priced starting estimate</h3>
+            <p>Different from takeoff. The AI returns a priced CSI-organized estimate with reasoning + a list of concerns &mdash; what the AI doesn&apos;t know, what to RFI.</p>
+          </div>
+        </div>
+
+        <!-- AIA pay app -->
+        <div class="tutorial-card">
+          <div class="video-frame" data-video-id="TUTORIAL_AIA">
+            <div class="video-placeholder">
+              <div class="vp-duration">4:00</div>
+              <div class="play-icon">
+                <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+              </div>
+            </div>
+          </div>
+          <div class="tc-body">
+            <div class="tc-eyebrow">AIA progress billing</div>
+            <h3>G702 + G703 generated in two minutes</h3>
+            <p>The bank-formatted pay app for institutional and HNW projects. Add line completion %, retention, prior pay apps. Send the PDF.</p>
+          </div>
+        </div>
+
+        <!-- Daily reports + voice -->
+        <div class="tutorial-card">
+          <div class="video-frame" data-video-id="TUTORIAL_DFR">
+            <div class="video-placeholder">
+              <div class="vp-duration">2:20</div>
+              <div class="play-icon">
+                <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+              </div>
+            </div>
+          </div>
+          <div class="tc-body">
+            <div class="tc-eyebrow">Daily field reports</div>
+            <h3>Voice it in. AI structures it.</h3>
+            <p>Tap the mic, talk for 30 seconds about your day. AI fills the manpower count, weather, work performed, incidents. You review and ship.</p>
+          </div>
+        </div>
+
+        <!-- Client portal -->
+        <div class="tutorial-card">
+          <div class="video-frame" data-video-id="TUTORIAL_PORTAL">
+            <div class="video-placeholder">
+              <div class="vp-duration">3:00</div>
+              <div class="play-icon">
+                <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+              </div>
+            </div>
+          </div>
+          <div class="tc-body">
+            <div class="tc-eyebrow">Client portal</div>
+            <h3>What the homeowner sees</h3>
+            <p>Live updates, change orders for approval, photos, schedule, the open-book budget if you toggle it on. Six languages. Passcode-protected.</p>
+          </div>
+        </div>
+
+        <!-- Sub portal -->
+        <div class="tutorial-card">
+          <div class="video-frame" data-video-id="TUTORIAL_SUB_PORTAL">
+            <div class="video-placeholder">
+              <div class="vp-duration">2:15</div>
+              <div class="play-icon">
+                <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+              </div>
+            </div>
+          </div>
+          <div class="tc-body">
+            <div class="tc-eyebrow">Sub portal</div>
+            <h3>Subs upload invoices, you get notified</h3>
+            <p>One private link per sub. They drop invoices, COIs, lien waivers. AI extracts the data. You approve and pay.</p>
+          </div>
+        </div>
+
+        <!-- Schedule + AI -->
+        <div class="tutorial-card">
+          <div class="video-frame" data-video-id="TUTORIAL_SCHEDULE">
+            <div class="video-placeholder">
+              <div class="vp-duration">3:30</div>
+              <div class="play-icon">
+                <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+              </div>
+            </div>
+          </div>
+          <div class="tc-body">
+            <div class="tc-eyebrow">Scheduling</div>
+            <h3>AI draft a Gantt from your estimate</h3>
+            <p>Estimate &rarr; Auto-Schedule. Phase Gantt with critical path. Weather risk overlaid. Drag a task, dependents update.</p>
+          </div>
+        </div>
+
+        <!-- Cash flow -->
+        <div class="tutorial-card">
+          <div class="video-frame" data-video-id="TUTORIAL_CASHFLOW">
+            <div class="video-placeholder">
+              <div class="vp-duration">2:45</div>
+              <div class="play-icon">
+                <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+              </div>
+            </div>
+          </div>
+          <div class="tc-body">
+            <div class="tc-eyebrow">Cash flow forecaster</div>
+            <h3>12 weeks ahead. Across all your jobs.</h3>
+            <p>Sees your invoices, AIA pay apps, sub commitments, payroll, overhead. Tells you which Friday you&apos;re short on cash.</p>
+          </div>
+        </div>
+
+        <!-- Field verification -->
+        <div class="tutorial-card">
+          <div class="video-frame" data-video-id="TUTORIAL_FIELD">
+            <div class="video-placeholder">
+              <div class="vp-duration">1:50</div>
+              <div class="play-icon">
+                <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+              </div>
+            </div>
+          </div>
+          <div class="tc-body">
+            <div class="tc-eyebrow">Field verification</div>
+            <h3>Snap a photo. Verify the AI.</h3>
+            <p>On site, tap any takeoff row. Snap a photo, GPS attaches, type what you measured. AI vs. field delta in green / yellow / red.</p>
+          </div>
+        </div>
+
+        <!-- Voice everywhere -->
+        <div class="tutorial-card">
+          <div class="video-frame" data-video-id="TUTORIAL_VOICE">
+            <div class="video-placeholder">
+              <div class="vp-duration">1:40</div>
+              <div class="play-icon">
+                <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+              </div>
+            </div>
+          </div>
+          <div class="tc-body">
+            <div class="tc-eyebrow">Voice everywhere</div>
+            <h3>Universal mic for RFI, CO, Punch, Invoice</h3>
+            <p>Tap the floating mic. Speak. AI structures it as the right form. No typing on the jobsite. Hands-free DFR.</p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- =====================================================================
+         Help center
+         ===================================================================== -->
+    <section class="section-wrap" id="help">
+      <h2 class="section-heading-light">Get unstuck.</h2>
+      <p class="section-sub-light">
+        Short guides for the questions that come up first. Or text us &mdash; we answer fast.
+      </p>
+
+      <div class="help-grid">
+        <a href="/support.html#getting-started" class="help-card">
+          <div class="hc-icon">
+            <svg fill="none" viewBox="0 0 24 24" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>
+          </div>
+          <h4>Getting started</h4>
+          <p>Sign up, create your first project, add your team in 5 minutes.</p>
+        </a>
+        <a href="/support.html#takeoff" class="help-card">
+          <div class="hc-icon">
+            <svg fill="none" viewBox="0 0 24 24" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h20M12 2v20M3 7l4-3M21 7l-4-3M3 17l4 3M21 17l-4 3"/></svg>
+          </div>
+          <h4>AI takeoff how-to</h4>
+          <p>Best PDF resolution, scale tips, why a row got medium confidence.</p>
+        </a>
+        <a href="/support.html#estimate" class="help-card">
+          <div class="hc-icon">
+            <svg fill="none" viewBox="0 0 24 24" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11h6M9 15h6M3 5h18v14H3z"/></svg>
+          </div>
+          <h4>Estimating</h4>
+          <p>Wizard, Quick Estimate, materials database, regional pricing.</p>
+        </a>
+        <a href="/support.html#aia" class="help-card">
+          <div class="hc-icon">
+            <svg fill="none" viewBox="0 0 24 24" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          </div>
+          <h4>AIA pay apps</h4>
+          <p>Setting up the schedule of values, retention, sending to the bank.</p>
+        </a>
+        <a href="/support.html#portal" class="help-card">
+          <div class="hc-icon">
+            <svg fill="none" viewBox="0 0 24 24" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 18 0 9 9 0 0 0-18 0z"/><path d="M3.6 9h16.8M3.6 15h16.8M11.5 3a17 17 0 0 0 0 18M12.5 3a17 17 0 0 1 0 18"/></svg>
+          </div>
+          <h4>Client portal</h4>
+          <p>Inviting homeowners, what they see, six languages, open-book mode.</p>
+        </a>
+        <a href="/support.html#offline" class="help-card">
+          <div class="hc-icon">
+            <svg fill="none" viewBox="0 0 24 24" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0 1 14.08 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"/></svg>
+          </div>
+          <h4>Offline mode</h4>
+          <p>How writes queue on bad reception and sync the moment you&apos;re back.</p>
+        </a>
+        <a href="/support.html#voice" class="help-card">
+          <div class="hc-icon">
+            <svg fill="none" viewBox="0 0 24 24" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3zM19 10v2a7 7 0 0 1-14 0v-2M12 19v3M8 22h8"/></svg>
+          </div>
+          <h4>Voice tips</h4>
+          <p>Best phrasing for RFIs, change orders, daily reports, punch items.</p>
+        </a>
+        <a href="/support.html" class="help-card">
+          <div class="hc-icon">
+            <svg fill="none" viewBox="0 0 24 24" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          </div>
+          <h4>Talk to us</h4>
+          <p>Stuck? Text the support line. Real human, fast.</p>
+        </a>
+      </div>
+    </section>
+
+    <!-- =====================================================================
+         FAQ
+         ===================================================================== -->
+    <section class="section-wrap" id="faq">
+      <h2 class="section-heading-light">Frequently asked.</h2>
+      <p class="section-sub-light">If we missed yours, the support page has a longer list.</p>
+
+      <div class="faq-list">
+        <details class="faq-item">
+          <summary>How accurate is the AI takeoff?</summary>
+          <div class="faq-body">
+            Accuracy depends on the drawing. Clean architectural sets with visible dimensions and schedules
+            return high-confidence numbers on most rooms, walls, doors, and windows. Hand-sketched plans or
+            scans without dimension strings get medium-to-low confidence and the AI flags them in the
+            Concerns section. Every quantity is editable. We publish per-category accuracy from anonymized
+            corrections data and the Corrections panel on every project shows you exactly where the AI was
+            off &mdash; so you can spot patterns before bidding.
+          </div>
+        </details>
+
+        <details class="faq-item">
+          <summary>What types of plans does it work on?</summary>
+          <div class="faq-body">
+            Architectural floor plans, elevations, sections, RCPs, schedules (door / window / finish /
+            wall), MEP plans, and site plans. Single-family and multi-family residential are the primary
+            target. Light commercial works. Heavy industrial / structural with deep MEP coordination is on
+            the roadmap.
+          </div>
+        </details>
+
+        <details class="faq-item">
+          <summary>Can I export quantities to Excel?</summary>
+          <div class="faq-body">
+            Today CSV and PDF export are supported. Native Excel with formulas is on the near roadmap. If
+            you need it before we ship, the CSV opens cleanly in Excel and Google Sheets.
+          </div>
+        </details>
+
+        <details class="faq-item">
+          <summary>Does it run offline?</summary>
+          <div class="faq-body">
+            The takeoff itself needs cloud AI to run. But once the takeoff lands on your phone, you can
+            view, edit, and capture field-verification photos offline &mdash; everything queues and syncs
+            the moment you&apos;re back on signal. Daily reports, change orders, punch items, photos, voice
+            captures all work fully offline.
+          </div>
+        </details>
+
+        <details class="faq-item">
+          <summary>What happens to my data if I cancel?</summary>
+          <div class="faq-body">
+            Read-only access to everything you&apos;ve created stays available for 90 days after cancel.
+            Full export of all projects, estimates, photos, daily reports, and PDFs at any time, no
+            cancellation required.
+          </div>
+        </details>
+
+        <details class="faq-item">
+          <summary>Is there a free trial?</summary>
+          <div class="faq-body">
+            Free tier with up to 2 projects, no time limit. Pro and Business unlock everything else &mdash;
+            sign up in the App Store, cancel anytime.
+          </div>
+        </details>
+
+        <details class="faq-item">
+          <summary>Do you integrate with QuickBooks?</summary>
+          <div class="faq-body">
+            On the roadmap for Q3 2026. Today MAGE ID handles the entire invoice / change-order /
+            AIA pay-app flow in-app, and exports a clean CSV for your bookkeeper. If QuickBooks sync is
+            a hard blocker for switching, let us know &mdash; demand drives priority.
+          </div>
+        </details>
+
+        <details class="faq-item">
+          <summary>Do you have an Android app?</summary>
+          <div class="faq-body">
+            Yes. iOS, Android, and web all share the same codebase. Sign in once, use any of them.
+          </div>
+        </details>
+
+        <details class="faq-item">
+          <summary>What&apos;s the price?</summary>
+          <div class="faq-body">
+            Pro is $24.99/month or $299.88/year. Business is $63.99/month or $767.88/year. Both replace a
+            stack of point tools that typically runs $400&ndash;$700/month. See the full breakdown on the
+            <a href="/features/vs-competitors.html">vs. Software</a> page.
+          </div>
+        </details>
+      </div>
+    </section>
+
+    <!-- =====================================================================
+         Live demo CTA
+         ===================================================================== -->
+    <section class="section-wrap">
+      <div class="demo-cta">
+        <h2>Want a live demo on your own plan set?</h2>
+        <p>
+          30 minutes. We screen-share, you upload one of your real projects, we walk it together.
+          You keep the takeoff and matched specs whether you sign up or not.
+        </p>
+        <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
+          <a class="btn btn-primary" href="mailto:demo@mageid.app?subject=Live%20demo%20request">
+            <span>Email demo@mageid.app</span>
+          </a>
+          <a class="btn btn-ghost" href="/support.html" style="border-color: rgba(255,255,255,0.3); color: #fff;">
+            <span>Talk to support</span>
+          </a>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      <div>
+        <a href="/" class="brand"><img class="brand-mark" src="/assets/logo-mark-light.png" alt="" width="28" height="28" /><span>MAGE&nbsp;ID</span></a>
+        <p style="font-size: 12px; color: var(--fog); margin-top: 12px; max-width: 360px;">
+          The operating system for general contractors. iOS, Android, web. Built for the GC who&apos;s on the ladder twice a week.
+        </p>
+      </div>
+      <div class="footer-links">
+        <a href="/playbook.html">How it works</a>
+        <a href="/features/">Explore</a>
+        <a href="/features/vs-competitors.html">vs. Software</a>
+        <a href="/features/vs-takeoff.html">vs. Takeoff Tools</a>
+        <a href="/demo.html">Demo</a>
+        <a href="/support.html">Support</a>
+        <a href="/privacy.html">Privacy</a>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    /* Replace each placeholder with the real embed when video is uploaded.
+       Pattern:
+         document.querySelector('[data-video-id="HERO_TOUR"]').innerHTML =
+           '<iframe src="https://www.youtube.com/embed/YOUR_VIDEO_ID?autoplay=1&rel=0" allowfullscreen></iframe>';
+
+       Or wire a click handler that swaps placeholder → iframe so videos lazy-load:
+    */
+    document.querySelectorAll('.video-frame .video-placeholder').forEach(el => {
+      el.addEventListener('click', () => {
+        const frame = el.closest('.video-frame');
+        const id = frame?.dataset.videoId;
+        // Once you upload videos, replace the alert with the iframe swap, e.g.:
+        //   const youtubeId = { HERO_TOUR: 'abc123', FULL_DEMO: 'def456', ... }[id];
+        //   if (youtubeId) {
+        //     frame.innerHTML = `<iframe src="https://www.youtube.com/embed/${youtubeId}?autoplay=1&rel=0" allowfullscreen></iframe>`;
+        //   }
+        alert('Video coming soon — record + upload, then map the data-video-id "' + id + '" in this script.');
+      });
+    });
+  </script>
+</body>
+</html>

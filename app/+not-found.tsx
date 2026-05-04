@@ -2,6 +2,8 @@ import { Link, Stack } from "expo-router";
 import { StyleSheet, Text, View } from "react-native";
 import { Colors } from "@/constants/colors";
 import { AlertTriangle } from "lucide-react-native";
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 export default function NotFoundScreen() {
   return (
@@ -39,13 +41,13 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   title: {
-    fontSize: 22,
+    fontSize: Type.title2.fontSize,
     fontWeight: "700",
     color: Colors.text,
     marginBottom: 6,
   },
   subtitle: {
-    fontSize: 15,
+    fontSize: Type.subhead.fontSize,
     color: Colors.textSecondary,
     marginBottom: 24,
   },
@@ -53,10 +55,10 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
     paddingHorizontal: 24,
     paddingVertical: 14,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
   },
   linkText: {
-    fontSize: 16,
+    fontSize: Type.callout.fontSize,
     fontWeight: "600",
     color: Colors.textOnPrimary,
   },

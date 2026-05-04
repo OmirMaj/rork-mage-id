@@ -9,6 +9,8 @@ import { Colors } from '@/constants/colors';
 import type { MaterialItem } from '@/constants/materials';
 import type { LaborRate } from '@/constants/laborRates';
 import type { AssemblyItem } from '@/constants/assemblies';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 interface CartItem {
   material: MaterialItem;
@@ -42,7 +44,7 @@ interface SavedEstimateVersion {
   materialCount: number;
   laborCount: number;
   assemblyCount: number;
-  items: Array<{ id: string; name: string; category: string; total: number; quantity: number }>;
+  items: { id: string; name: string; category: string; total: number; quantity: number }[];
 }
 
 interface EstimateComparisonProps {
@@ -159,7 +161,7 @@ const EstimateComparison = React.memo(function EstimateComparison({
     }));
     const savedItemMap = new Map(selectedVersion.items.map(i => [i.id, i]));
 
-    const changedItems: Array<{ name: string; currentTotal: number; savedTotal: number; type: 'changed' | 'new' | 'removed' }> = [];
+    const changedItems: { name: string; currentTotal: number; savedTotal: number; type: 'changed' | 'new' | 'removed' }[] = [];
 
     for (const [id, curr] of currentItemMap) {
       const saved = savedItemMap.get(id);
@@ -186,9 +188,7 @@ const EstimateComparison = React.memo(function EstimateComparison({
             <Text style={s.headerTitle}>Compare Estimates</Text>
             <Text style={s.headerSub}>Track changes across versions</Text>
           </View>
-          <TouchableOpacity onPress={onClose} style={s.closeBtn}>
-            <X size={20} color={Colors.text} />
-          </TouchableOpacity>
+          <TouchableOpacity onPress={onClose} style={s.closeBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={Colors.text} /></TouchableOpacity>
         </View>
 
         <ScrollView style={s.body} showsVerticalScrollIndicator={false}>
@@ -270,16 +270,16 @@ const EstimateComparison = React.memo(function EstimateComparison({
                     <Text style={[s.compCell, { flex: 2, fontWeight: '600' as const }]}>{row.label}</Text>
                     <Text style={s.compCell}>${row.current.toFixed(0)}</Text>
                     <Text style={[s.compCell, { color: Colors.textMuted }]}>${row.saved.toFixed(0)}</Text>
-                    <Text style={[s.compCell, { color: row.delta.color, fontWeight: '600' as const, fontSize: 11 }]}>{row.delta.text}</Text>
+                    <Text style={[s.compCell, { color: row.delta.color, fontWeight: '600' as const, fontSize: Type.caption2.fontSize }]}>{row.delta.text}</Text>
                   </View>
                 ))}
 
                 <View style={s.compDivider} />
                 <View style={s.compRow}>
-                  <Text style={[s.compCell, { flex: 2, fontWeight: '700' as const, fontSize: 14 }]}>Grand Total</Text>
+                  <Text style={[s.compCell, { flex: 2, fontWeight: '700' as const, fontSize: Type.bodyCompact.fontSize }]}>Grand Total</Text>
                   <Text style={[s.compCell, { fontWeight: '700' as const, color: Colors.primary }]}>${currentGrandTotal.toFixed(0)}</Text>
                   <Text style={[s.compCell, { color: Colors.textMuted }]}>${selectedVersion.grandTotal.toFixed(0)}</Text>
-                  <Text style={[s.compCell, { color: comparison.totalDelta.color, fontWeight: '700' as const, fontSize: 12 }]}>{comparison.totalDelta.text}</Text>
+                  <Text style={[s.compCell, { color: comparison.totalDelta.color, fontWeight: '700' as const, fontSize: Type.caption1.fontSize }]}>{comparison.totalDelta.text}</Text>
                 </View>
               </View>
 
@@ -326,8 +326,8 @@ const s = StyleSheet.create({
     paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12,
     backgroundColor: Colors.surface, borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight,
   },
-  headerTitle: { fontSize: 22, fontWeight: '700' as const, color: Colors.text, letterSpacing: -0.3 },
-  headerSub: { fontSize: 13, color: Colors.textSecondary, marginTop: 2 },
+  headerTitle: { fontSize: Type.title2.fontSize, fontWeight: '700' as const, color: Colors.text, letterSpacing: -0.3 },
+  headerSub: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, marginTop: 2 },
   closeBtn: {
     width: 34, height: 34, borderRadius: 17, backgroundColor: Colors.fillTertiary,
     alignItems: 'center', justifyContent: 'center',
@@ -335,38 +335,38 @@ const s = StyleSheet.create({
   body: { flex: 1, paddingHorizontal: 16, paddingTop: 12 },
   saveBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: Colors.primary, borderRadius: 14, paddingVertical: 14, marginBottom: 16,
+    backgroundColor: Colors.primary, borderRadius: Tokens.radius.lg, paddingVertical: 14, marginBottom: 16,
   },
-  saveBtnText: { fontSize: 15, fontWeight: '700' as const, color: Colors.textOnPrimary },
+  saveBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.textOnPrimary },
   emptyState: { alignItems: 'center', paddingVertical: 40, gap: 10 },
-  emptyTitle: { fontSize: 17, fontWeight: '600' as const, color: Colors.text },
-  emptyDesc: { fontSize: 13, color: Colors.textMuted, textAlign: 'center' as const, lineHeight: 18 },
+  emptyTitle: { fontSize: Type.body.fontSize, fontWeight: '600' as const, color: Colors.text },
+  emptyDesc: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, textAlign: 'center' as const, lineHeight: 18 },
   sectionTitle: {
-    fontSize: 15, fontWeight: '700' as const, color: Colors.text, marginBottom: 8, marginTop: 4,
+    fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text, marginBottom: 8, marginTop: 4,
   },
   versionCard: {
-    backgroundColor: Colors.surface, borderRadius: 12, padding: 14, marginBottom: 8,
+    backgroundColor: Colors.surface, borderRadius: Tokens.radius.card, padding: 14, marginBottom: 8,
     borderWidth: 1.5, borderColor: Colors.cardBorder, gap: 8,
   },
   versionCardSelected: { borderColor: Colors.primary, backgroundColor: Colors.primary + '06' },
   versionTop: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   versionInfo: { flex: 1, gap: 3 },
-  versionName: { fontSize: 14, fontWeight: '600' as const, color: Colors.text },
+  versionName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
   versionNameSelected: { color: Colors.primary },
   versionMeta: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  versionDate: { fontSize: 11, color: Colors.textMuted },
+  versionDate: { fontSize: Type.caption2.fontSize, color: Colors.textMuted },
   versionRight: { alignItems: 'flex-end', gap: 2 },
-  versionTotal: { fontSize: 16, fontWeight: '700' as const, color: Colors.text },
+  versionTotal: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.text },
   versionTotalSelected: { color: Colors.primary },
   versionCount: { fontSize: 10, color: Colors.textMuted },
   deleteBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-end' as const,
-    paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: Colors.errorLight,
+    paddingHorizontal: 8, paddingVertical: 4, borderRadius: Tokens.radius.xs, backgroundColor: Colors.errorLight,
   },
-  deleteBtnText: { fontSize: 11, fontWeight: '600' as const, color: Colors.error },
+  deleteBtnText: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: Colors.error },
   comparisonSection: { marginTop: 8, gap: 8 },
   compTable: {
-    backgroundColor: Colors.surface, borderRadius: 12, borderWidth: 1, borderColor: Colors.cardBorder,
+    backgroundColor: Colors.surface, borderRadius: Tokens.radius.card, borderWidth: 1, borderColor: Colors.cardBorder,
     overflow: 'hidden' as const,
   },
   compHeader: {
@@ -381,19 +381,19 @@ const s = StyleSheet.create({
     flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 10,
     borderTopWidth: 0.5, borderTopColor: Colors.borderLight, alignItems: 'center', gap: 4,
   },
-  compCell: { flex: 1, fontSize: 12, color: Colors.textSecondary, textAlign: 'right' as const },
+  compCell: { flex: 1, fontSize: Type.caption1.fontSize, color: Colors.textSecondary, textAlign: 'right' as const },
   compDivider: { height: 1, backgroundColor: Colors.border, marginHorizontal: 12 },
   changesSection: { marginTop: 12, gap: 6 },
-  changesSectionTitle: { fontSize: 13, fontWeight: '700' as const, color: Colors.text, marginBottom: 2 },
+  changesSectionTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.text, marginBottom: 2 },
   changeRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    borderRadius: 10, padding: 10, gap: 8,
+    borderRadius: Tokens.radius.md, padding: 10, gap: 8,
   },
   changeInfo: { flex: 1, gap: 4 },
-  changeName: { fontSize: 12, fontWeight: '500' as const, color: Colors.text },
+  changeName: { fontSize: Type.caption1.fontSize, fontWeight: '500' as const, color: Colors.text },
   changeBadge: { alignSelf: 'flex-start' as const },
   changeBadgeText: { fontSize: 9, fontWeight: '700' as const, letterSpacing: 0.5 },
   changeAmounts: { alignItems: 'flex-end', gap: 2 },
-  changeOld: { fontSize: 11, color: Colors.textMuted, textDecorationLine: 'line-through' as const },
-  changeNew: { fontSize: 13, fontWeight: '700' as const },
+  changeOld: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, textDecorationLine: 'line-through' as const },
+  changeNew: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const },
 });

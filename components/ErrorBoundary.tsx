@@ -1,6 +1,10 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { AlertTriangle, RefreshCw } from 'lucide-react-native';
+import * as Sentry from '@sentry/react-native';
+import { Colors } from '@/constants/colors';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 interface Props {
   children: ReactNode;
@@ -26,6 +30,14 @@ export default class ErrorBoundary extends Component<Props, State> {
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.log('[ErrorBoundary] Error details:', error.message);
     console.log('[ErrorBoundary] Component stack:', errorInfo.componentStack);
+    // Forward to Sentry so we get the React component stack alongside
+    // the JS stack trace. Sentry's auto-capture catches uncaught errors
+    // but not ones React's error boundary intercepts before they bubble.
+    Sentry.captureException(error, {
+      contexts: {
+        react: { componentStack: errorInfo.componentStack ?? 'n/a' },
+      },
+    });
   }
 
   handleReset = () => {
@@ -39,7 +51,7 @@ export default class ErrorBoundary extends Component<Props, State> {
         <View style={styles.container}>
           <View style={styles.card}>
             <View style={styles.iconWrap}>
-              <AlertTriangle size={32} color="#FF3B30" strokeWidth={1.8} />
+              <AlertTriangle size={32} color={Colors.error} strokeWidth={1.8} />
             </View>
             <Text style={styles.title}>Something went wrong</Text>
             <Text style={styles.message}>
@@ -56,7 +68,7 @@ export default class ErrorBoundary extends Component<Props, State> {
               activeOpacity={0.8}
               testID="error-boundary-retry"
             >
-              <RefreshCw size={16} color="#FFFFFF" strokeWidth={2} />
+              <RefreshCw size={16} color={Colors.surface} strokeWidth={2} />
               <Text style={styles.retryText}>Try Again</Text>
             </TouchableOpacity>
           </View>
@@ -93,20 +105,20 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 20,
-    backgroundColor: '#FFF0EF',
+    backgroundColor: Colors.errorLight,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
   },
   title: {
-    fontSize: 20,
+    fontSize: Type.title3.fontSize,
     fontWeight: '700' as const,
-    color: '#000000',
+    color: Colors.text,
     marginBottom: 8,
     textAlign: 'center',
   },
   message: {
-    fontSize: 15,
+    fontSize: Type.subhead.fontSize,
     color: 'rgba(60,60,67,0.6)',
     textAlign: 'center',
     lineHeight: 22,
@@ -114,15 +126,15 @@ const styles = StyleSheet.create({
   },
   errorBox: {
     backgroundColor: '#F2F2F7',
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
     padding: 12,
     width: '100%',
     maxHeight: 80,
     marginBottom: 20,
   },
   errorText: {
-    fontSize: 12,
-    color: '#FF3B30',
+    fontSize: Type.caption1.fontSize,
+    color: Colors.error,
     fontFamily: 'monospace',
   },
   retryButton: {
@@ -131,14 +143,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     backgroundColor: '#1A6B3C',
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     paddingVertical: 14,
     paddingHorizontal: 32,
     width: '100%',
   },
   retryText: {
-    fontSize: 16,
+    fontSize: Type.callout.fontSize,
     fontWeight: '600' as const,
-    color: '#FFFFFF',
+    color: Colors.surface,
   },
 });

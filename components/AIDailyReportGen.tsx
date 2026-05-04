@@ -7,6 +7,8 @@ import { Sparkles } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { generateDailyReport, type DailyReportGenResult } from '@/utils/aiService';
 import type { ScheduleTask } from '@/types';
+import { Tokens } from '@/constants/designTokens';
+import { Type } from '@/constants/typography';
 
 interface Props {
   projectName: string;
@@ -36,9 +38,9 @@ export default React.memo(function AIDailyReportGen({ projectName, tasks, weathe
   return (
     <TouchableOpacity style={styles.btn} onPress={handleGenerate} disabled={isLoading}>
       {isLoading ? (
-        <ActivityIndicator size="small" color="#FFFFFF" />
+        <ActivityIndicator size="small" color={Colors.surface} />
       ) : (
-        <Sparkles size={16} color="#FFFFFF" />
+        <Sparkles size={16} color={Colors.surface} />
       )}
       <Text style={styles.btnText}>
         {isLoading ? 'Generating...' : 'Auto-Generate from Schedule'}
@@ -56,12 +58,12 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 20,
     backgroundColor: Colors.primary,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     marginVertical: 8,
   },
   btnText: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     fontWeight: '700' as const,
-    color: '#FFFFFF',
+    color: Colors.surface,
   },
 });

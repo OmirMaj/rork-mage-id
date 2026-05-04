@@ -28,6 +28,8 @@ import {
   type ParsedVoiceCommand,
 } from '@/utils/voiceCommandParser';
 import type { Project, ScheduleTask } from '@/types';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 import QuickUpdateClarifier, {
   type ClarifierAction,
   type ClarifierResult,
@@ -616,7 +618,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     padding: 14,
     backgroundColor: Colors.surface,
-    borderRadius: 16,
+    borderRadius: Tokens.radius.panel,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
     gap: 10,
@@ -629,13 +631,13 @@ const styles = StyleSheet.create({
   titleIconWrap: {
     width: 22,
     height: 22,
-    borderRadius: 6,
+    borderRadius: Tokens.radius.xs,
     backgroundColor: Colors.primary + '15',
     alignItems: 'center',
     justifyContent: 'center',
   },
   title: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
     letterSpacing: -0.1,
@@ -648,10 +650,10 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.fillTertiary,
     paddingHorizontal: 10,
     paddingVertical: 5,
-    borderRadius: 8,
+    borderRadius: Tokens.radius.sm,
   },
   projectChipText: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     fontWeight: '600' as const,
     color: Colors.textSecondary,
     maxWidth: 220,
@@ -664,16 +666,16 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     minHeight: 42,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
     backgroundColor: Colors.surfaceAlt,
     paddingHorizontal: 12,
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     color: Colors.text,
   },
   sendBtn: {
     width: 42,
     height: 42,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
     backgroundColor: Colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
@@ -692,14 +694,14 @@ const styles = StyleSheet.create({
     gap: 5,
     paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: 8,
+    borderRadius: Tokens.radius.sm,
     backgroundColor: Colors.primary + '10',
     borderWidth: 1,
     borderColor: Colors.primary + '30',
     maxWidth: 220,
   },
   suggestLabel: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     color: Colors.primary,
     fontWeight: '600' as const,
     flexShrink: 1,
@@ -710,7 +712,7 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: 8,
+    borderRadius: Tokens.radius.sm,
   },
   feedbackSuccess: {
     backgroundColor: Colors.success + '15',
@@ -720,7 +722,7 @@ const styles = StyleSheet.create({
   },
   feedbackText: {
     flex: 1,
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     fontWeight: '500' as const,
   },
   pickerOverlay: {
@@ -731,12 +733,12 @@ const styles = StyleSheet.create({
   },
   pickerCard: {
     backgroundColor: Colors.surface,
-    borderRadius: 16,
+    borderRadius: Tokens.radius.panel,
     padding: 16,
     gap: 6,
   },
   pickerTitle: {
-    fontSize: 15,
+    fontSize: Type.subhead.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
     marginBottom: 8,
@@ -747,7 +749,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 10,
     paddingHorizontal: 12,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
     backgroundColor: Colors.surfaceAlt,
     gap: 12,
   },
@@ -756,7 +758,7 @@ const styles = StyleSheet.create({
   },
   pickerRowText: {
     flex: 1,
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     fontWeight: '500' as const,
     color: Colors.text,
   },
@@ -765,7 +767,7 @@ const styles = StyleSheet.create({
     fontWeight: '700' as const,
   },
   pickerRowMeta: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     color: Colors.textMuted,
   },
 });

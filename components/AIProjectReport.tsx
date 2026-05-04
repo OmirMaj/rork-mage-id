@@ -14,6 +14,8 @@ import {
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
 import type { Project, Invoice, ChangeOrder } from '@/types';
 import type { SubscriptionTierKey } from '@/utils/aiRateLimiter';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 interface Props {
   project: Project;
@@ -88,7 +90,7 @@ export default React.memo(function AIProjectReport({ project, invoices, changeOr
               <Sparkles size={16} color={Colors.primary} />
               <Text style={styles.modalTitle}>Project Status Report</Text>
             </View>
-            <TouchableOpacity onPress={() => setShowModal(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <TouchableOpacity onPress={() => setShowModal(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} accessibilityRole="button" accessibilityLabel="Close">
               <X size={22} color={Colors.textSecondary} />
             </TouchableOpacity>
           </View>
@@ -182,13 +184,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     backgroundColor: Colors.primary + '10',
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     paddingVertical: 14,
     borderWidth: 1,
     borderColor: Colors.primary + '25',
   },
   triggerText: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     fontWeight: '600' as const,
     color: Colors.primary,
   },
@@ -219,7 +221,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   modalTitle: {
-    fontSize: 18,
+    fontSize: Type.subheadline.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
   },
@@ -232,31 +234,31 @@ const styles = StyleSheet.create({
   },
   projectBanner: {
     backgroundColor: Colors.primary + '0A',
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     padding: 16,
     borderLeftWidth: 4,
     borderLeftColor: Colors.primary,
   },
   projectName: {
-    fontSize: 18,
+    fontSize: Type.subheadline.fontSize,
     fontWeight: '800' as const,
     color: Colors.text,
   },
   projectMeta: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: Colors.textSecondary,
     marginTop: 2,
   },
   section: {
     backgroundColor: Colors.surface,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     padding: 16,
     borderWidth: 0.5,
     borderColor: Colors.borderLight,
     gap: 8,
   },
   sectionTitle: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
     textTransform: 'uppercase' as const,
@@ -264,7 +266,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   sectionText: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     color: Colors.text,
     lineHeight: 21,
   },
@@ -275,19 +277,19 @@ const styles = StyleSheet.create({
   statusCard: {
     flex: 1,
     backgroundColor: Colors.surface,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     padding: 14,
     borderLeftWidth: 3,
     gap: 4,
   },
   statusLabel: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     color: Colors.textMuted,
     fontWeight: '600' as const,
     textTransform: 'uppercase' as const,
   },
   statusText: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: Colors.text,
     lineHeight: 18,
   },
@@ -297,13 +299,13 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   listText: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     color: Colors.text,
     lineHeight: 20,
     flex: 1,
   },
   disclaimer: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     color: Colors.textMuted,
     textAlign: 'center',
     marginTop: 8,

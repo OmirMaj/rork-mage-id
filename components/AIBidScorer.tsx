@@ -8,6 +8,8 @@ import * as Haptics from 'expo-haptics';
 import { Sparkles, X, CheckCircle2, Settings } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 import {
   scoreBid, getCompanyProfile, saveCompanyProfile, getCachedResult, setCachedResult,
   type CompanyAIProfile, type BidScoreResult,
@@ -19,9 +21,9 @@ const SIZE_OPTIONS = ['Under $100K', '$100K-$500K', '$500K-$2M', '$2M-$10M', '$1
 const CERTS = ['SDVOSB', 'HUBZone', '8(a)', 'WOSB', 'MBE', 'DBE', 'MWBE', 'SBE'];
 
 function getMatchBadge(score: number): { label: string; color: string; bg: string } {
-  if (score >= 90) return { label: 'Great Match', color: '#2E7D32', bg: '#E8F5E9' };
-  if (score >= 70) return { label: 'Good Match', color: '#1565C0', bg: '#E3F2FD' };
-  if (score >= 50) return { label: 'Partial Match', color: '#E65100', bg: '#FFF3E0' };
+  if (score >= 90) return { label: 'Great Match', color: Colors.successDark, bg: Colors.successLight };
+  if (score >= 70) return { label: 'Good Match', color: Colors.infoDark, bg: Colors.infoLight };
+  if (score >= 50) return { label: 'Partial Match', color: Colors.warningDark, bg: Colors.warningLight };
   return { label: 'Low Match', color: '#757575', bg: '#F5F5F5' };
 }
 
@@ -42,7 +44,7 @@ const badgeStyles = StyleSheet.create({
     gap: 3,
     paddingHorizontal: 6,
     paddingVertical: 3,
-    borderRadius: 6,
+    borderRadius: Tokens.radius.xs,
   },
   text: {
     fontSize: 10,
@@ -81,9 +83,7 @@ export function AIProfileSetup({ visible, onClose, onSave, initialProfile }: Pro
       <View style={[setupStyles.container, { paddingTop: insets.top }]}>
         <View style={setupStyles.header}>
           <Text style={setupStyles.title}>Company AI Profile</Text>
-          <TouchableOpacity onPress={onClose}>
-            <X size={22} color={Colors.textSecondary} />
-          </TouchableOpacity>
+          <TouchableOpacity onPress={onClose} accessibilityRole="button" accessibilityLabel="Close"><X size={22} color={Colors.textSecondary} /></TouchableOpacity>
         </View>
         <ScrollView contentContainerStyle={setupStyles.content}>
           <Text style={setupStyles.sectionTitle}>Specialties</Text>
@@ -154,22 +154,22 @@ const setupStyles = StyleSheet.create({
     paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 0.5,
     borderBottomColor: Colors.borderLight, backgroundColor: Colors.surface,
   },
-  title: { fontSize: 17, fontWeight: '700' as const, color: Colors.text },
+  title: { fontSize: Type.body.fontSize, fontWeight: '700' as const, color: Colors.text },
   content: { padding: 20, gap: 16, paddingBottom: 40 },
-  sectionTitle: { fontSize: 14, fontWeight: '700' as const, color: Colors.text },
+  sectionTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: {
     paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
     backgroundColor: Colors.fillSecondary, borderWidth: 1, borderColor: Colors.borderLight,
   },
   chipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  chipText: { fontSize: 13, color: Colors.text, fontWeight: '500' as const },
-  chipTextActive: { color: '#FFFFFF' },
+  chipText: { fontSize: Type.footnote.fontSize, color: Colors.text, fontWeight: '500' as const },
+  chipTextActive: { color: Colors.surface },
   saveBtn: {
-    backgroundColor: Colors.primary, paddingVertical: 14, borderRadius: 12,
+    backgroundColor: Colors.primary, paddingVertical: 14, borderRadius: Tokens.radius.card,
     alignItems: 'center', marginTop: 8,
   },
-  saveBtnText: { fontSize: 16, fontWeight: '700' as const, color: '#FFFFFF' },
+  saveBtnText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.surface },
 });
 
 export async function getBidScore(bidId: string, bid: {

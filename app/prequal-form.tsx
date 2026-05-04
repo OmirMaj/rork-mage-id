@@ -27,6 +27,8 @@ import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { reviewPrequalPacket } from '@/utils/prequalEngine';
 import { generateUUID } from '@/utils/generateId';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 import type {
   PrequalPacket, PrequalFinancials, PrequalSafetyRecord,
   PrequalInsurance, PrequalLicense,
@@ -154,9 +156,7 @@ function PrequalFormInner({ packet, subCompanyName, onSave, onExit }: {
       <Stack.Screen options={{ headerShown: false }} />
 
       <View style={styles.header}>
-        <TouchableOpacity onPress={onExit} style={styles.headerBtn} hitSlop={12}>
-          <ChevronLeft size={22} color={Colors.text} />
-        </TouchableOpacity>
+        <TouchableOpacity onPress={onExit} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back"><ChevronLeft size={22} color={Colors.text} /></TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerEyebrow}>Prequalification · MAGE</Text>
           <Text style={styles.headerTitle}>{subCompanyName}</Text>
@@ -508,59 +508,59 @@ const styles = StyleSheet.create({
     gap: 8, borderBottomWidth: 1, borderBottomColor: Colors.borderLight,
   },
   headerBtn: {
-    width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center',
+    width: 36, height: 36, borderRadius: Tokens.radius.xl, alignItems: 'center', justifyContent: 'center',
     backgroundColor: Colors.fillTertiary,
   },
   headerEyebrow: { fontSize: 10, color: Colors.primary, fontWeight: '800', letterSpacing: 2, textTransform: 'uppercase' },
-  headerTitle: { fontSize: 17, fontWeight: '700', color: Colors.text },
+  headerTitle: { fontSize: Type.body.fontSize, fontWeight: '700', color: Colors.text },
 
-  savingChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, backgroundColor: Colors.fillSecondary },
+  savingChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: Tokens.radius.sm, backgroundColor: Colors.fillSecondary },
   savingChipText: { fontSize: 10, color: Colors.textSecondary, fontWeight: '600' },
 
   introCard: {
-    flexDirection: 'row', gap: 10, padding: 14, borderRadius: 12, backgroundColor: Colors.card,
+    flexDirection: 'row', gap: 10, padding: 14, borderRadius: Tokens.radius.card, backgroundColor: Colors.card,
     borderLeftWidth: 3, borderLeftColor: Colors.primary, marginBottom: 12,
   },
-  introTitle: { fontSize: 13, fontWeight: '700', color: Colors.text, marginBottom: 2 },
-  introBody: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17 },
+  introTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.text, marginBottom: 2 },
+  introBody: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, lineHeight: 17 },
 
   checklistCard: {
-    padding: 12, borderRadius: 10, borderLeftWidth: 3, marginBottom: 18,
+    padding: 12, borderRadius: Tokens.radius.md, borderLeftWidth: 3, marginBottom: 18,
   },
-  checklistTitle: { fontSize: 13, fontWeight: '700', color: Colors.text },
-  checklistSub: { fontSize: 11, color: Colors.textSecondary, marginTop: 4, lineHeight: 15 },
+  checklistTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.text },
+  checklistSub: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, marginTop: 4, lineHeight: 15 },
 
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 22, marginBottom: 10 },
-  sectionHeaderText: { fontSize: 11, color: Colors.primary, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 1.1 },
+  sectionHeaderText: { fontSize: Type.caption2.fontSize, color: Colors.primary, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 1.1 },
 
   field: { marginBottom: 12 },
-  fieldLabel: { fontSize: 11, fontWeight: '700', color: Colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 },
+  fieldLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 },
   input: {
-    backgroundColor: Colors.fillSecondary, borderRadius: 10, paddingHorizontal: 12,
-    paddingVertical: Platform.OS === 'ios' ? 12 : 10, fontSize: 14, color: Colors.text,
+    backgroundColor: Colors.fillSecondary, borderRadius: Tokens.radius.md, paddingHorizontal: 12,
+    paddingVertical: Platform.OS === 'ios' ? 12 : 10, fontSize: Type.bodyCompact.fontSize, color: Colors.text,
   },
   row: { flexDirection: 'row', gap: 10 },
-  helperText: { fontSize: 11, color: Colors.textMuted, marginBottom: 10, lineHeight: 15 },
+  helperText: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginBottom: 10, lineHeight: 15 },
 
   toggleRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingVertical: 10, borderTopWidth: 1, borderTopColor: Colors.borderLight,
   },
-  toggleLabel: { flex: 1, fontSize: 13, color: Colors.text, paddingRight: 10 },
+  toggleLabel: { flex: 1, fontSize: Type.footnote.fontSize, color: Colors.text, paddingRight: 10 },
 
   licenseCard: {
-    padding: 12, borderRadius: 10, backgroundColor: Colors.card, marginBottom: 10,
+    padding: 12, borderRadius: Tokens.radius.md, backgroundColor: Colors.card, marginBottom: 10,
     borderWidth: 1, borderColor: Colors.borderLight,
   },
   removeBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4, alignSelf: 'flex-end' },
-  removeBtnText: { fontSize: 11, color: Colors.error, fontWeight: '600' },
+  removeBtnText: { fontSize: Type.caption2.fontSize, color: Colors.error, fontWeight: '600' },
 
   addLicenseBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-    paddingVertical: 12, borderRadius: 10, borderWidth: 1, borderStyle: 'dashed',
+    paddingVertical: 12, borderRadius: Tokens.radius.md, borderWidth: 1, borderStyle: 'dashed',
     borderColor: Colors.primary, marginTop: 4,
   },
-  addLicenseText: { color: Colors.primary, fontSize: 13, fontWeight: '700' },
+  addLicenseText: { color: Colors.primary, fontSize: Type.footnote.fontSize, fontWeight: '700' },
 
   submitBar: {
     position: 'absolute', left: 0, right: 0, bottom: 0,
@@ -569,20 +569,20 @@ const styles = StyleSheet.create({
   },
   submitBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    paddingVertical: 14, borderRadius: 12, backgroundColor: Colors.primary,
+    paddingVertical: 14, borderRadius: Tokens.radius.card, backgroundColor: Colors.primary,
   },
   submitBtnDisabled: { backgroundColor: Colors.textMuted },
-  submitBtnText: { color: Colors.textOnPrimary, fontSize: 14, fontWeight: '800' },
-  submitHelper: { fontSize: 11, color: Colors.textMuted, textAlign: 'center', marginTop: 6, lineHeight: 15 },
+  submitBtnText: { color: Colors.textOnPrimary, fontSize: Type.bodyCompact.fontSize, fontWeight: '800' },
+  submitHelper: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, textAlign: 'center', marginTop: 6, lineHeight: 15 },
 
   submittedChip: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    paddingVertical: 14, borderRadius: 12, backgroundColor: Colors.successLight,
+    paddingVertical: 14, borderRadius: Tokens.radius.card, backgroundColor: Colors.successLight,
   },
-  submittedText: { color: Colors.success, fontSize: 13, fontWeight: '700' },
+  submittedText: { color: Colors.success, fontSize: Type.footnote.fontSize, fontWeight: '700' },
 
-  errorTitle: { fontSize: 18, fontWeight: '700', color: Colors.text, marginTop: 12 },
-  errorBody: { fontSize: 13, color: Colors.textSecondary, textAlign: 'center', marginTop: 6, lineHeight: 18 },
-  errorBtn: { marginTop: 20, paddingHorizontal: 24, paddingVertical: 10, borderRadius: 10, backgroundColor: Colors.primary },
+  errorTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700', color: Colors.text, marginTop: 12 },
+  errorBody: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, textAlign: 'center', marginTop: 6, lineHeight: 18 },
+  errorBtn: { marginTop: 20, paddingHorizontal: 24, paddingVertical: 10, borderRadius: Tokens.radius.md, backgroundColor: Colors.primary },
   errorBtnText: { color: Colors.textOnPrimary, fontWeight: '700' },
 });

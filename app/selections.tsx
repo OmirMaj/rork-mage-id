@@ -26,6 +26,8 @@ import {
 import { formatMoney } from '@/utils/formatters';
 import EstimateLoadingOverlay from '@/components/EstimateLoadingOverlay';
 import type { SelectionCategory, SelectionOption } from '@/types';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 export default function SelectionsScreen() {
   const insets = useSafeAreaInsets();
@@ -163,7 +165,7 @@ export default function SelectionsScreen() {
       <Stack.Screen options={{ headerShown: false }} />
 
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={8}>
+        <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
           <ChevronLeft size={26} color={Colors.primary} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
@@ -280,9 +282,7 @@ function CategoryCard({ category, curating, onCurate, onChoose, onDelete, onDraf
           <Text style={styles.catBudgetLabel}>BUDGET</Text>
           <Text style={styles.catBudgetValue}>{formatMoney(category.budget)}</Text>
         </View>
-        <TouchableOpacity onPress={onDelete} hitSlop={6}>
-          <Trash2 size={14} color={Colors.error} />
-        </TouchableOpacity>
+        <TouchableOpacity onPress={onDelete} hitSlop={6} accessibilityRole="button" accessibilityLabel="Delete"><Trash2 size={14} color={Colors.error} /></TouchableOpacity>
       </View>
 
       {chosen && (
@@ -487,14 +487,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, paddingTop: 14, paddingBottom: 14,
     borderBottomWidth: 1, borderBottomColor: Colors.border,
   },
-  eyebrow: { fontSize: 11, fontWeight: '700', color: Colors.primary, letterSpacing: 1.4, textTransform: 'uppercase' },
-  title:   { fontSize: 20, fontWeight: '800', color: Colors.text, letterSpacing: -0.4, marginTop: 4 },
+  eyebrow: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.primary, letterSpacing: 1.4, textTransform: 'uppercase' },
+  title:   { fontSize: Type.title3.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.4, marginTop: 4 },
   addBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
     paddingHorizontal: 12, paddingVertical: 8, borderRadius: 9,
     backgroundColor: Colors.primary,
   },
-  addBtnText: { fontSize: 13, fontWeight: '700', color: '#FFF' },
+  addBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: '#FFF' },
 
   summaryStrip: {
     flexDirection: 'row', alignItems: 'center',
@@ -504,78 +504,78 @@ const styles = StyleSheet.create({
   },
   summaryStat: { flex: 1 },
   summaryStatLabel: { fontSize: 9, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 4 },
-  summaryStatValue: { fontSize: 16, fontWeight: '800', color: Colors.text, letterSpacing: -0.3 },
+  summaryStatValue: { fontSize: Type.callout.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.3 },
   summaryDiv: { width: 1, alignSelf: 'stretch', backgroundColor: Colors.border, marginVertical: 4 },
 
   loading: { padding: 30, alignItems: 'center' },
   emptyCard: {
-    backgroundColor: Colors.card, borderRadius: 14, padding: 28,
+    backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 28,
     alignItems: 'center', gap: 10, marginTop: 22,
     borderWidth: 1, borderColor: Colors.border,
   },
-  emptyTitle: { fontSize: 16, fontWeight: '800', color: Colors.text, marginTop: 4 },
-  emptyBody:  { fontSize: 13, color: Colors.textMuted, textAlign: 'center', lineHeight: 19, maxWidth: 320 },
+  emptyTitle: { fontSize: Type.callout.fontSize, fontWeight: '800', color: Colors.text, marginTop: 4 },
+  emptyBody:  { fontSize: Type.footnote.fontSize, color: Colors.textMuted, textAlign: 'center', lineHeight: 19, maxWidth: 320 },
   bigCta: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: 18, paddingVertical: 11, borderRadius: 11,
     backgroundColor: Colors.primary, marginTop: 8,
   },
-  bigCtaText: { color: '#FFF', fontSize: 14, fontWeight: '800' },
+  bigCtaText: { color: '#FFF', fontSize: Type.bodyCompact.fontSize, fontWeight: '800' },
 
   catCard: {
-    backgroundColor: Colors.card, borderRadius: 14, padding: 14,
+    backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 14,
     borderWidth: 1, borderColor: Colors.border, marginBottom: 12, gap: 12,
   },
   catHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  catName: { fontSize: 15, fontWeight: '800', color: Colors.text, letterSpacing: -0.2 },
-  catBrief: { fontSize: 11, color: Colors.textMuted, marginTop: 2, fontStyle: 'italic' },
+  catName: { fontSize: Type.subhead.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.2 },
+  catBrief: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 2, fontStyle: 'italic' },
   catBudget: { alignItems: 'flex-end' },
   catBudgetLabel: { fontSize: 9, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.6 },
-  catBudgetValue: { fontSize: 14, fontWeight: '800', color: Colors.text },
+  catBudgetValue: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800', color: Colors.text },
 
   chosenBanner: {
     flexDirection: 'column', gap: 8,
-    padding: 12, borderRadius: 10,
+    padding: 12, borderRadius: Tokens.radius.md,
     backgroundColor: Colors.success + '0D',
     borderWidth: 1, borderColor: Colors.success + '30',
   },
-  chosenTitle: { fontSize: 13, fontWeight: '800', color: Colors.success },
-  chosenSub:   { fontSize: 11, color: Colors.text, marginTop: 2 },
+  chosenTitle: { fontSize: Type.footnote.fontSize, fontWeight: '800', color: Colors.success },
+  chosenSub:   { fontSize: Type.caption2.fontSize, color: Colors.text, marginTop: 2 },
 
   draftCoCta: {
-    paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8,
+    paddingVertical: 8, paddingHorizontal: 12, borderRadius: Tokens.radius.sm,
     backgroundColor: Colors.error + '12',
     borderWidth: 1, borderColor: Colors.error + '40',
   },
-  draftCoCtaText: { fontSize: 12, fontWeight: '800', color: Colors.error, letterSpacing: -0.1 },
+  draftCoCtaText: { fontSize: Type.caption1.fontSize, fontWeight: '800', color: Colors.error, letterSpacing: -0.1 },
 
   curateCta: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    paddingVertical: 14, borderRadius: 12,
+    paddingVertical: 14, borderRadius: Tokens.radius.card,
     backgroundColor: Colors.primary,
     shadowColor: Colors.primary, shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.28, shadowRadius: 8, elevation: 4,
   },
-  curateCtaText: { fontSize: 14, fontWeight: '800', color: '#FFF' },
+  curateCtaText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800', color: '#FFF' },
 
   optionsList: { gap: 8 },
   opt: {
-    backgroundColor: Colors.background, borderRadius: 12, padding: 12,
+    backgroundColor: Colors.background, borderRadius: Tokens.radius.card, padding: 12,
     borderWidth: 1.5, borderColor: Colors.border, gap: 6,
   },
   optChosen: { borderColor: Colors.success, backgroundColor: Colors.success + '08' },
   optOver:   { borderColor: Colors.warning + '60' },
   optHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  tierPill: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 999 },
+  tierPill: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: Tokens.radius.full },
   tierPillText: { fontSize: 9, fontWeight: '800', letterSpacing: 0.5 },
-  optTotal: { fontSize: 16, fontWeight: '800', color: Colors.text, letterSpacing: -0.2 },
-  optName:  { fontSize: 13, fontWeight: '700', color: Colors.text },
-  optBrand: { fontSize: 11, color: Colors.textMuted, marginTop: 1 },
-  optDesc:  { fontSize: 12, color: Colors.text, lineHeight: 17, marginTop: 2 },
+  optTotal: { fontSize: Type.callout.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.2 },
+  optName:  { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.text },
+  optBrand: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 1 },
+  optDesc:  { fontSize: Type.caption1.fontSize, color: Colors.text, lineHeight: 17, marginTop: 2 },
   highlightsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4 },
   highlight: {
     flexDirection: 'row', alignItems: 'center', gap: 3,
-    paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6,
+    paddingHorizontal: 6, paddingVertical: 2, borderRadius: Tokens.radius.xs,
     backgroundColor: Colors.warning + '0D', borderWidth: 1, borderColor: Colors.warning + '30',
   },
   highlightText: { fontSize: 9, fontWeight: '700', color: Colors.text },
@@ -590,30 +590,30 @@ const styles = StyleSheet.create({
     paddingVertical: 8, borderRadius: 9,
     borderWidth: 1, borderColor: Colors.border, borderStyle: 'dashed',
   },
-  regenerateText: { fontSize: 11, fontWeight: '700', color: Colors.primary },
+  regenerateText: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.primary },
 
   // Modal
   modalOverlay: { flex: 1, backgroundColor: 'rgba(11, 13, 16, 0.75)', justifyContent: 'flex-end' },
   modalCard: { backgroundColor: Colors.surface, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 20, gap: 10 },
-  modalTitle: { fontSize: 18, fontWeight: '800', color: Colors.text },
-  modalBody:  { fontSize: 13, color: Colors.textMuted, lineHeight: 18 },
-  modalLabel: { fontSize: 11, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.6, textTransform: 'uppercase', marginTop: 8 },
+  modalTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: Colors.text },
+  modalBody:  { fontSize: Type.footnote.fontSize, color: Colors.textMuted, lineHeight: 18 },
+  modalLabel: { fontSize: Type.caption2.fontSize, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.6, textTransform: 'uppercase', marginTop: 8 },
   modalInput: {
     backgroundColor: Colors.background,
-    borderWidth: 1, borderColor: Colors.border, borderRadius: 10,
+    borderWidth: 1, borderColor: Colors.border, borderRadius: Tokens.radius.md,
     paddingHorizontal: 12, paddingVertical: 11,
-    fontSize: 14, color: Colors.text,
+    fontSize: Type.bodyCompact.fontSize, color: Colors.text,
   },
   modalAmountField: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: Colors.background, borderRadius: 10, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: Colors.background, borderRadius: Tokens.radius.md, borderWidth: 1, borderColor: Colors.border,
     paddingHorizontal: 14,
   },
-  modalAmountInput: { flex: 1, paddingVertical: 11, fontSize: 14, color: Colors.text },
+  modalAmountInput: { flex: 1, paddingVertical: 11, fontSize: Type.bodyCompact.fontSize, color: Colors.text },
   modalActions: { flexDirection: 'row', gap: 10, marginTop: 12 },
   modalCancel: { flex: 1, paddingVertical: 12, borderRadius: 11, backgroundColor: Colors.background, alignItems: 'center', borderWidth: 1, borderColor: Colors.border },
-  modalCancelText: { fontSize: 14, fontWeight: '700', color: Colors.text },
+  modalCancelText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
   modalConfirm: { flex: 1.4, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 11, backgroundColor: Colors.primary },
   modalConfirmDisabled: { opacity: 0.45 },
-  modalConfirmText: { fontSize: 14, fontWeight: '800', color: '#FFF' },
+  modalConfirmText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800', color: '#FFF' },
 });

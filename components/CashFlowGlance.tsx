@@ -8,6 +8,8 @@ import { TrendingUp, TrendingDown, ChevronRight, Wallet } from 'lucide-react-nat
 import { Colors } from '@/constants/colors';
 import type { CashFlowWeek } from '@/utils/cashFlowEngine';
 import { formatMoney } from '@/utils/formatters';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 interface Props {
   forecast: CashFlowWeek[] | null;
@@ -88,7 +90,7 @@ export default function CashFlowGlance({ forecast, weeks = 4 }: Props) {
       </Svg>
 
       <View style={styles.foot}>
-        <Stat label="In" value={formatMoney(totals.income)} icon={<TrendingUp size={12} color="#1E8E4A" />} />
+        <Stat label="In" value={formatMoney(totals.income)} icon={<TrendingUp size={12} color={Colors.successDark} />} />
         <Stat label="Out" value={formatMoney(totals.expense)} icon={<TrendingDown size={12} color="#C26A00" />} />
         <Stat
           label="Net"
@@ -125,7 +127,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 20,
     marginBottom: 16,
     backgroundColor: Colors.card,
-    borderRadius: 16,
+    borderRadius: Tokens.radius.panel,
     borderWidth: 1,
     borderColor: Colors.border,
     padding: 16,
@@ -137,11 +139,11 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   eyebrow: {
-    fontSize: 11, fontWeight: '700', color: Colors.textMuted,
+    fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.textMuted,
     letterSpacing: 0.6, textTransform: 'uppercase',
     marginBottom: 2,
   },
-  endingBalance: { fontSize: 22, fontWeight: '800', color: Colors.text },
+  endingBalance: { fontSize: Type.title2.fontSize, fontWeight: '800', color: Colors.text },
   spark: { alignSelf: 'center', marginVertical: 6 },
   foot: {
     flexDirection: 'row',
@@ -155,12 +157,12 @@ const styles = StyleSheet.create({
     fontSize: 10, fontWeight: '700', color: Colors.textMuted,
     letterSpacing: 0.5, textTransform: 'uppercase',
   },
-  statValue: { fontSize: 14, fontWeight: '700', color: Colors.text },
+  statValue: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
   warning: {
     marginTop: 10,
     padding: 10,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
     backgroundColor: '#FBEAE7',
   },
-  warningText: { fontSize: 12, color: '#7A1B12', lineHeight: 16, fontWeight: '600' },
+  warningText: { fontSize: Type.caption1.fontSize, color: '#7A1B12', lineHeight: 16, fontWeight: '600' },
 });

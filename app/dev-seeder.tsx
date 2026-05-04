@@ -33,6 +33,8 @@ import { saveContract } from '@/utils/contractEngine';
 import { saveSelectionCategory, saveCuratedOptions, chooseSelectionOption, fetchSelectionsForProject } from '@/utils/selectionsEngine';
 import { saveLienWaiver } from '@/utils/lienWaiverEngine';
 import { saveCloseoutBinder, DEFAULT_MAINTENANCE } from '@/utils/closeoutBinderEngine';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 export default function DevSeederScreen() {
   const insets = useSafeAreaInsets();
@@ -47,11 +49,10 @@ export default function DevSeederScreen() {
   const [seeding, setSeeding] = useState<boolean>(false);
 
   // Owner gate: anyone other than the platform owner gets bounced.
-  // Done via Redirect (declarative) so refreshing the page doesn't
-  // briefly flash this screen before the check runs.
-  if (!isOwner(user?.email)) {
-    return <Redirect href="/(tabs)/(home)" />;
-  }
+  // Computed up here (not as an early return) so the hooks below run
+  // in the same order on every render — Rules of Hooks compliance.
+  // The actual redirect happens just before the JSX render.
+  const ownerOk = isOwner(user?.email);
 
   const seed = useCallback(async () => {
     if (seeding) return;
@@ -138,7 +139,7 @@ export default function DevSeederScreen() {
 
       // 2. Invoices — 5 progress bills across the build.
       // Two paid, one partially paid, one sent (overdue), one draft.
-      const invoiceData: Array<Pick<Invoice, 'number' | 'type' | 'progressPercent' | 'issueDate' | 'dueDate' | 'totalDue' | 'amountPaid' | 'status'>> = [
+      const invoiceData: Pick<Invoice, 'number' | 'type' | 'progressPercent' | 'issueDate' | 'dueDate' | 'totalDue' | 'amountPaid' | 'status'>[] = [
         { number: 1, type: 'progress', progressPercent: 15, issueDate: isoDaysAgo(40), dueDate: isoDaysAgo(10),  totalDue: 76_780, amountPaid: 76_780, status: 'paid' },
         { number: 2, type: 'progress', progressPercent: 30, issueDate: isoDaysAgo(28), dueDate: isoDaysAgo(0),   totalDue: 76_780, amountPaid: 76_780, status: 'paid' },
         { number: 3, type: 'progress', progressPercent: 45, issueDate: isoDaysAgo(14), dueDate: isoDaysAgo(-7),  totalDue: 76_780, amountPaid: 50_000, status: 'partially_paid' },
@@ -540,11 +541,18 @@ export default function DevSeederScreen() {
     );
   }, [projects, deleteProject]);
 
+  // Owner gate fires here — after all hooks have run for the render — so
+  // we don't violate Rules of Hooks. Anyone but the platform owner gets
+  // bounced to the home tab; the dev seeder UI never paints for them.
+  if (!ownerOk) {
+    return <Redirect href="/(tabs)/(home)" />;
+  }
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn} accessibilityRole="button" accessibilityLabel="Back">
           <ChevronLeft size={22} color={Colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Dev — Demo Seeder</Text>
@@ -589,10 +597,10 @@ export default function DevSeederScreen() {
             activeOpacity={0.85}
           >
             {seeding ? (
-              <ActivityIndicator color="#FFFFFF" />
+              <ActivityIndicator color={Colors.surface} />
             ) : (
               <>
-                <Database size={16} color="#FFFFFF" />
+                <Database size={16} color={Colors.surface} />
                 <Text style={styles.ctaText}>Load demo project</Text>
               </>
             )}
@@ -613,7 +621,7 @@ export default function DevSeederScreen() {
             onPress={wipeAllProjects}
             activeOpacity={0.85}
           >
-            <Trash2 size={16} color="#FFFFFF" />
+            <Trash2 size={16} color={Colors.surface} />
             <Text style={styles.ctaText}>Wipe all projects</Text>
           </TouchableOpacity>
         </View>
@@ -634,22 +642,22 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.borderLight,
   },
   headerBtn: { width: 36, height: 36, alignItems: 'center' as const, justifyContent: 'center' as const },
-  headerTitle: { fontSize: 17, fontWeight: '700' as const, color: Colors.text },
+  headerTitle: { fontSize: Type.body.fontSize, fontWeight: '700' as const, color: Colors.text },
   warningCard: {
     flexDirection: 'row' as const,
     alignItems: 'flex-start' as const,
     gap: 10,
     backgroundColor: Colors.warning + '12',
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     padding: 14,
     marginBottom: 20,
     borderWidth: 1,
     borderColor: Colors.warning + '30',
   },
-  warningText: { flex: 1, fontSize: 12, color: Colors.text, lineHeight: 17 },
+  warningText: { flex: 1, fontSize: Type.caption1.fontSize, color: Colors.text, lineHeight: 17 },
   card: {
     backgroundColor: Colors.surface,
-    borderRadius: 16,
+    borderRadius: Tokens.radius.panel,
     padding: 22,
     gap: 12,
     borderWidth: 1,
@@ -658,15 +666,15 @@ const styles = StyleSheet.create({
   cardIcon: {
     width: 56,
     height: 56,
-    borderRadius: 16,
+    borderRadius: Tokens.radius.panel,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
   },
-  cardTitle: { fontSize: 20, fontWeight: '800' as const, color: Colors.text, letterSpacing: -0.4 },
-  cardSub: { fontSize: 14, color: Colors.textSecondary, lineHeight: 20 },
-  cardSubFine: { fontSize: 12, color: Colors.textMuted, lineHeight: 17, marginTop: 6, fontStyle: 'italic' as const },
+  cardTitle: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: Colors.text, letterSpacing: -0.4 },
+  cardSub: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, lineHeight: 20 },
+  cardSubFine: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, lineHeight: 17, marginTop: 6, fontStyle: 'italic' as const },
   bulletList: { gap: 4, marginTop: 8, marginBottom: 8 },
-  bullet: { fontSize: 12, color: Colors.text, lineHeight: 17 },
+  bullet: { fontSize: Type.caption1.fontSize, color: Colors.text, lineHeight: 17 },
   cta: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
@@ -674,8 +682,8 @@ const styles = StyleSheet.create({
     gap: 8,
     backgroundColor: Colors.primary,
     paddingVertical: 14,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     marginTop: 8,
   },
-  ctaText: { fontSize: 15, fontWeight: '700' as const, color: '#FFFFFF' },
+  ctaText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.surface },
 });

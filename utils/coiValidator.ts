@@ -19,7 +19,7 @@ import type { COICoverageType, COICoverage, COIValidationResult } from '@/types'
 interface RawAIExtraction {
   insuredName?: string;
   certificateHolder?: string;
-  coverages?: Array<{
+  coverages?: {
     type?: string;
     carrierName?: string;
     policyNumber?: string;
@@ -27,7 +27,7 @@ interface RawAIExtraction {
     expiresAt?: string;
     eachOccurrence?: number;
     generalAggregate?: number;
-  }>;
+  }[];
   hasAdditionalInsured?: boolean;
   hasWaiverOfSubrogation?: boolean;
   notes?: string;

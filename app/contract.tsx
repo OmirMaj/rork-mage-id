@@ -37,6 +37,8 @@ import { syncAllowancesToSelections } from '@/utils/selectionsEngine';
 import SignaturePad from '@/components/SignaturePad';
 import { fireConfetti } from '@/components/animations/Confetti';
 import type { ProjectContract, PaymentMilestone, ContractAllowance } from '@/types';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 export default function ContractScreen() {
   const insets = useSafeAreaInsets();
@@ -269,7 +271,7 @@ export default function ContractScreen() {
       <Stack.Screen options={{ headerShown: false }} />
 
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={8}>
+        <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
           <ChevronLeft size={26} color={Colors.primary} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
@@ -420,7 +422,7 @@ export default function ContractScreen() {
                 />
               </View>
               {!isLocked && (
-                <TouchableOpacity onPress={() => removeAllowance(a.id)} hitSlop={6}>
+                <TouchableOpacity onPress={() => removeAllowance(a.id)} hitSlop={6} accessibilityRole="button" accessibilityLabel="Delete">
                   <Trash2 size={14} color={Colors.error} />
                 </TouchableOpacity>
               )}
@@ -583,9 +585,7 @@ function MilestoneRow({ milestone, locked, onChange, onRemove }: {
         </View>
         <View style={{ flex: 1 }} />
         {!locked && (
-          <TouchableOpacity onPress={onRemove} hitSlop={8} style={styles.milestoneTrash}>
-            <Trash2 size={14} color={Colors.error} />
-          </TouchableOpacity>
+          <TouchableOpacity onPress={onRemove} hitSlop={8} style={styles.milestoneTrash} accessibilityRole="button" accessibilityLabel="Delete"><Trash2 size={14} color={Colors.error} /></TouchableOpacity>
         )}
       </View>
 
@@ -730,19 +730,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, paddingTop: 14, paddingBottom: 14,
     borderBottomWidth: 1, borderBottomColor: Colors.border,
   },
-  eyebrow: { fontSize: 11, fontWeight: '700', color: Colors.primary, letterSpacing: 1.4, textTransform: 'uppercase' },
-  title:   { fontSize: 20, fontWeight: '800', color: Colors.text, letterSpacing: -0.4, marginTop: 4 },
+  eyebrow: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.primary, letterSpacing: 1.4, textTransform: 'uppercase' },
+  title:   { fontSize: Type.title3.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.4, marginTop: 4 },
 
-  pill: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999 },
+  pill: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: Tokens.radius.full },
   pillText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
 
   card: {
-    backgroundColor: Colors.card, borderRadius: 14, padding: 14,
+    backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 14,
     borderWidth: 1, borderColor: Colors.border, marginBottom: 12,
   },
   cardHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 4 },
-  cardLabel: { fontSize: 11, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 6 },
-  cardHelper: { fontSize: 12, color: Colors.textMuted, marginBottom: 10, lineHeight: 17 },
+  cardLabel: { fontSize: Type.caption2.fontSize, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 6 },
+  cardHelper: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginBottom: 10, lineHeight: 17 },
 
   smallBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
@@ -750,25 +750,25 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary + '0D',
     borderWidth: 1, borderColor: Colors.primary + '30',
   },
-  smallBtnText: { fontSize: 12, fontWeight: '800', color: Colors.primary },
+  smallBtnText: { fontSize: Type.caption1.fontSize, fontWeight: '800', color: Colors.primary },
 
   input: {
     backgroundColor: Colors.background,
-    borderWidth: 1, borderColor: Colors.border, borderRadius: 10,
+    borderWidth: 1, borderColor: Colors.border, borderRadius: Tokens.radius.md,
     paddingHorizontal: 12, paddingVertical: 11,
-    fontSize: 14, color: Colors.text,
+    fontSize: Type.bodyCompact.fontSize, color: Colors.text,
   },
   inputDisabled: { opacity: 0.7 },
   inputMultiline: { minHeight: 110, paddingTop: 11 },
-  inputTermsMultiline: { minHeight: 200, paddingTop: 11, fontSize: 12, lineHeight: 18 },
+  inputTermsMultiline: { minHeight: 200, paddingTop: 11, fontSize: Type.caption1.fontSize, lineHeight: 18 },
 
   amountField: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: Colors.background, borderRadius: 10,
+    backgroundColor: Colors.background, borderRadius: Tokens.radius.md,
     borderWidth: 1, borderColor: Colors.border,
     paddingHorizontal: 14, paddingVertical: 8,
   },
-  amountInput: { flex: 1, fontSize: 18, fontWeight: '800', color: Colors.text },
+  amountInput: { flex: 1, fontSize: Type.subheadline.fontSize, fontWeight: '800', color: Colors.text },
 
   // ── Milestone row (Payment Schedule) ──
   // Redesigned to remove the cramped/overlapping look. Each input has
@@ -778,7 +778,7 @@ const styles = StyleSheet.create({
   // label input.
   milestoneCard: {
     backgroundColor: Colors.surface,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     borderWidth: 1,
     borderColor: Colors.border,
     paddingTop: 12,
@@ -793,11 +793,11 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   milestoneTrash: {
-    width: 28, height: 28, borderRadius: 8,
+    width: 28, height: 28, borderRadius: Tokens.radius.sm,
     alignItems: 'center', justifyContent: 'center',
     backgroundColor: Colors.errorLight,
   },
-  milestoneStatus: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999 },
+  milestoneStatus: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: Tokens.radius.full },
   milestoneStatusText: { fontSize: 9, fontWeight: '800', letterSpacing: 0.6 },
   milestoneFieldLabel: {
     fontSize: 10, fontWeight: '800', color: Colors.textMuted,
@@ -807,7 +807,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
     borderWidth: 1, borderColor: Colors.border, borderRadius: 9,
     paddingHorizontal: 12, paddingVertical: 10,
-    fontSize: 14, fontWeight: '600', color: Colors.text,
+    fontSize: Type.bodyCompact.fontSize, fontWeight: '600', color: Colors.text,
     marginBottom: 12,
   },
   milestoneFieldsRow: {
@@ -823,7 +823,7 @@ const styles = StyleSheet.create({
     minHeight: 44,
   },
   milestoneAmountInput: {
-    flex: 1, fontSize: 15, fontWeight: '700', color: Colors.text,
+    flex: 1, fontSize: Type.subhead.fontSize, fontWeight: '700', color: Colors.text,
     padding: 0,
     minHeight: 22,
   },
@@ -835,11 +835,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   milestoneTriggerText: {
-    fontSize: 13, fontWeight: '600', color: Colors.text,
+    fontSize: Type.footnote.fontSize, fontWeight: '600', color: Colors.text,
     lineHeight: 17,
   },
   milestoneTriggerInput: {
-    fontSize: 13, color: Colors.text,
+    fontSize: Type.footnote.fontSize, color: Colors.text,
     backgroundColor: Colors.background, borderRadius: 9,
     paddingHorizontal: 12, paddingVertical: 10,
     borderWidth: 1, borderColor: Colors.border,
@@ -851,8 +851,8 @@ const styles = StyleSheet.create({
     paddingTop: 12, marginTop: 6,
     borderTopWidth: 1, borderTopColor: Colors.border,
   },
-  scheduleTotalLabel: { fontSize: 12, fontWeight: '700', color: Colors.textMuted, letterSpacing: 0.4, textTransform: 'uppercase' },
-  scheduleTotalValue: { fontSize: 18, fontWeight: '800', color: Colors.text },
+  scheduleTotalLabel: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: Colors.textMuted, letterSpacing: 0.4, textTransform: 'uppercase' },
+  scheduleTotalValue: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: Colors.text },
   // Mismatch banner — its own row, amber tint, real "this is wrong" affordance
   scheduleMismatchBanner: {
     flexDirection: 'row',
@@ -867,88 +867,88 @@ const styles = StyleSheet.create({
   },
   scheduleMismatchText: {
     flex: 1,
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     fontWeight: '600',
     color: Colors.warning,
     lineHeight: 16,
   },
   rebalanceBtn: {
     backgroundColor: Colors.warning,
-    borderRadius: 8,
+    borderRadius: Tokens.radius.sm,
     paddingHorizontal: 10,
     paddingVertical: 6,
   },
-  rebalanceText: { fontSize: 11, color: '#FFF', fontWeight: '800', letterSpacing: 0.3 },
+  rebalanceText: { fontSize: Type.caption2.fontSize, color: '#FFF', fontWeight: '800', letterSpacing: 0.3 },
 
   allowanceRow: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: Colors.surface, borderRadius: 10,
+    backgroundColor: Colors.surface, borderRadius: Tokens.radius.md,
     paddingHorizontal: 12, paddingVertical: 10, marginBottom: 8,
     borderWidth: 1, borderColor: Colors.border,
     minHeight: 48,
   },
   allowanceCategory: {
-    flex: 1, fontSize: 14, color: Colors.text, padding: 0,
+    flex: 1, fontSize: Type.bodyCompact.fontSize, color: Colors.text, padding: 0,
     fontWeight: '600',
   },
   allowanceAmountField: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     paddingHorizontal: 10, paddingVertical: 8,
-    backgroundColor: Colors.background, borderRadius: 8,
+    backgroundColor: Colors.background, borderRadius: Tokens.radius.sm,
     borderWidth: 1, borderColor: Colors.border,
     minWidth: 110,
   },
-  allowanceAmount: { fontSize: 14, fontWeight: '700', color: Colors.text, padding: 0, flex: 1 },
-  allowanceEmpty: { fontSize: 12, color: Colors.textMuted, fontStyle: 'italic', textAlign: 'center', paddingVertical: 12 },
+  allowanceAmount: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text, padding: 0, flex: 1 },
+  allowanceEmpty: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, fontStyle: 'italic', textAlign: 'center', paddingVertical: 12 },
 
   sigBlock: {
     paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.border,
   },
   sigLabel: { fontSize: 10, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.6, textTransform: 'uppercase' },
-  sigName:  { fontSize: 16, fontWeight: '800', color: Colors.text, fontStyle: 'italic', marginTop: 4 },
-  sigDate:  { fontSize: 11, color: Colors.textMuted, marginTop: 2 },
+  sigName:  { fontSize: Type.callout.fontSize, fontWeight: '800', color: Colors.text, fontStyle: 'italic', marginTop: 4 },
+  sigDate:  { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 2 },
 
   actionRow: { flexDirection: 'row', gap: 10, marginTop: 10 },
   primaryBtn: {
     flex: 1.4, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    paddingVertical: 14, borderRadius: 12,
+    paddingVertical: 14, borderRadius: Tokens.radius.card,
     backgroundColor: Colors.primary,
     shadowColor: Colors.primary, shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.28, shadowRadius: 8, elevation: 4,
   },
-  primaryBtnText: { fontSize: 14, fontWeight: '800', color: '#FFF' },
+  primaryBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800', color: '#FFF' },
   primaryBtnDisabled: { opacity: 0.45 },
   secondaryBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     paddingVertical: 13, borderRadius: 11,
     backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,
   },
-  secondaryBtnText: { fontSize: 13, fontWeight: '700', color: Colors.text },
+  secondaryBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.text },
 
   statusBanner: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 10,
-    padding: 14, borderRadius: 12,
+    padding: 14, borderRadius: Tokens.radius.card,
     backgroundColor: Colors.primary + '0D',
     borderWidth: 1, borderColor: Colors.primary + '30',
     marginTop: 10,
   },
-  statusBannerTitle: { fontSize: 14, fontWeight: '800', color: Colors.primary },
-  statusBannerBody:  { fontSize: 12, color: Colors.text, marginTop: 3, lineHeight: 17 },
+  statusBannerTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800', color: Colors.primary },
+  statusBannerBody:  { fontSize: Type.caption1.fontSize, color: Colors.text, marginTop: 3, lineHeight: 17 },
 
   // Modal
   modalOverlay: { flex: 1, backgroundColor: 'rgba(11, 13, 16, 0.75)', justifyContent: 'flex-end' },
   modalCard: { backgroundColor: Colors.surface, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 20, gap: 12 },
-  modalTitle: { fontSize: 18, fontWeight: '800', color: Colors.text },
-  modalBody: { fontSize: 13, color: Colors.textMuted, lineHeight: 18 },
+  modalTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: Colors.text },
+  modalBody: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, lineHeight: 18 },
   modalNameInput: {
     backgroundColor: Colors.background,
-    borderWidth: 1, borderColor: Colors.border, borderRadius: 10,
+    borderWidth: 1, borderColor: Colors.border, borderRadius: Tokens.radius.md,
     paddingHorizontal: 14, paddingVertical: 12,
-    fontSize: 15, fontWeight: '700', color: Colors.text,
+    fontSize: Type.subhead.fontSize, fontWeight: '700', color: Colors.text,
   },
   modalActions: { flexDirection: 'row', gap: 10 },
   modalCancel: { flex: 1, paddingVertical: 12, borderRadius: 11, backgroundColor: Colors.background, alignItems: 'center', borderWidth: 1, borderColor: Colors.border },
-  modalCancelText: { fontSize: 14, fontWeight: '700', color: Colors.text },
+  modalCancelText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
   modalConfirm: { flex: 1.4, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 11, backgroundColor: Colors.primary },
-  modalConfirmText: { fontSize: 14, fontWeight: '800', color: '#FFF' },
+  modalConfirmText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800', color: '#FFF' },
 });

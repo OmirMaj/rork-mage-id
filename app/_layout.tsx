@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
+import { useFonts, Fraunces_700Bold, Fraunces_700Bold_Italic } from "@expo-google-fonts/fraunces";
 import React, { useEffect, useRef } from "react";
 import { AppState, Platform, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -22,6 +23,38 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { processOfflineQueue } from "@/utils/offlineQueue";
 import * as Linking from "expo-linking";
 import { supabase } from "@/lib/supabase";
+import * as Sentry from '@sentry/react-native';
+
+Sentry.init({
+  dsn: 'https://f1ef45279647b4001040c1e2f9407faa@o4511315578388480.ingest.us.sentry.io/4511315581075456',
+
+  // Don't send dev crashes — they pollute the dashboard and burn the
+  // free-tier quota. Only production builds report.
+  enabled: !__DEV__,
+
+  // Tag every event with the build environment so you can filter
+  // production-only in the dashboard (saved view: environment:production).
+  environment: __DEV__ ? 'dev' : 'production',
+
+  // Performance trace sampling — 10% catches enough to spot slow paths
+  // without flooding the project. Bump to 0.25 if you ever need more.
+  tracesSampleRate: 0.1,
+
+  // Adds more context data to events (IP address, cookies, user, etc.)
+  // For more information, visit: https://docs.sentry.io/platforms/react-native/data-management/data-collected/
+  sendDefaultPii: true,
+
+  // Enable Logs
+  enableLogs: true,
+
+  // Configure Session Replay
+  replaysSessionSampleRate: 0.1,
+  replaysOnErrorSampleRate: 1,
+  integrations: [Sentry.mobileReplayIntegration(), Sentry.feedbackIntegration()],
+
+  // uncomment the line below to enable Spotlight (https://spotlightjs.com)
+  // spotlight: __DEV__,
+});
 
 void SplashScreen.preventAutoHideAsync();
 
@@ -199,7 +232,7 @@ function RootLayoutNav() {
 
     if (isAuthenticated && inAuth) {
       console.log('[Layout] Already authenticated — redirecting to home');
-      router.replace('/(tabs)/summary' as any);
+      router.replace('/(tabs)/(home)' as any);
       return;
     }
 
@@ -503,6 +536,10 @@ function RootLayoutNav() {
       />
       <Stack.Screen
         name="drawing-analyzer"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="takeoff"
         options={{ headerShown: false }}
       />
       <Stack.Screen
@@ -814,10 +851,27 @@ function ThemeLoader({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-export default function RootLayout() {
+export default Sentry.wrap(function RootLayout() {
+  // Load Fraunces — used for the onboarding display headline + any future
+  // expressive serif moments. We wait for fonts before hiding the splash
+  // so the first paint already has the right typography. If the font load
+  // fails (network blip on first launch), we still hide the splash after
+  // a 1s timeout so the user is never blocked.
+  const [fontsLoaded] = useFonts({
+    Fraunces_700Bold,
+    Fraunces_700Bold_Italic,
+  });
+
   useEffect(() => {
-    void SplashScreen.hideAsync();
-  }, []);
+    if (fontsLoaded) {
+      void SplashScreen.hideAsync();
+      return;
+    }
+    // Failsafe: hide splash after 1.2s even if fonts haven't loaded.
+    // Onboarding falls back to Georgia / serif so it remains usable.
+    const timer = setTimeout(() => { void SplashScreen.hideAsync(); }, 1200);
+    return () => clearTimeout(timer);
+  }, [fontsLoaded]);
 
   return (
     <ErrorBoundary fallbackMessage="MAGE ID encountered an error. Tap below to restart.">
@@ -852,4 +906,4 @@ export default function RootLayout() {
       </QueryClientProvider>
     </ErrorBoundary>
   );
-}
+});

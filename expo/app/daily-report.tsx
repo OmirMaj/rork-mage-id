@@ -2,7 +2,7 @@ import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
   Alert, Platform, KeyboardAvoidingView, Modal,
-} from 'react-native';
+ Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -12,7 +12,6 @@ import {
   HardHat, Package, AlertTriangle, Image as ImageIcon, BookUser, User,
   FileText, Paperclip,
 } from 'lucide-react-native';
-import { Image } from 'react-native';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import ContactPickerModal from '@/components/ContactPickerModal';
@@ -65,7 +64,7 @@ export default function DailyReportScreen() {
   const [sendRecipientEmail, setSendRecipientEmail] = useState('');
   const [showContactPicker, setShowContactPicker] = useState(false);
   const [contactPicked, setContactPicked] = useState(false);
-  const [documents, setDocuments] = useState<Array<{ id: string; name: string; uri: string; timestamp: string }>>((existingReport as any)?.documents ?? []);
+  const [documents, setDocuments] = useState<{ id: string; name: string; uri: string; timestamp: string }[]>((existingReport as any)?.documents ?? []);
   const [showDocNameModal, setShowDocNameModal] = useState(false);
   const [pendingDocUri, setPendingDocUri] = useState<string | null>(null);
   const [docName, setDocName] = useState('');

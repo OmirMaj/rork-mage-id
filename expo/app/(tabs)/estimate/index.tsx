@@ -15,7 +15,7 @@ import {
   Mail, MessageSquare, FolderOpen, FileText, Send,
   HardHat, Boxes, ClipboardList, Ruler, Calculator, Gauge, GitCompare,
   ChevronRight,
-} from 'lucide-react-native';
+ Sparkles, Wifi, PlusCircle, History, Star } from 'lucide-react-native';
 import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
 import { Colors } from '@/constants/colors';
@@ -28,7 +28,6 @@ import {
   getPopularCustomMaterials, aiResultToSavedMaterial, addRecentMaterial,
   getRecentMaterials, type SavedMaterial, type RecentMaterial,
 } from '@/utils/materialDatabase';
-import { Sparkles, Wifi, PlusCircle, History, Star } from 'lucide-react-native';
 import { generateAndSharePDF, generateEstimatePDFUri } from '@/utils/pdfGenerator';
 import * as Sharing from 'expo-sharing';
 import PDFPreSendSheet from '@/components/PDFPreSendSheet';

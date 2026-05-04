@@ -12,18 +12,16 @@ import {
   Building2, User, Phone, Mail, FileText, Award, Type, Camera,
   PenTool, X, Image as ImageIcon, Store, Package, Truck, ScanFace,
   Crown, Star, Zap, Check, BookOpen, MessageCircle, ThumbsUp, Globe, DollarSign,
-} from 'lucide-react-native';
+ Sparkles, Hash , LogOut, UserCircle, CloudUpload, Eye, EyeOff } from 'lucide-react-native';
 import { Colors, setCustomColors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { getAIUsageStats } from '@/utils/aiRateLimiter';
-import { Sparkles, Hash } from 'lucide-react-native';
 import { THEME_PRESETS } from '@/types';
 import type { PDFNamingSettings } from '@/types';
 import SignaturePad from '@/components/SignaturePad';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { LogOut, UserCircle, CloudUpload, Eye, EyeOff } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { track, AnalyticsEvents } from '@/utils/analytics';
 

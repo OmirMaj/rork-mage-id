@@ -7,6 +7,8 @@ import { Camera, Sparkles, Check } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ProjectPhoto, DailyFieldReport } from '@/types';
 import { generateDFRFromPhotos } from '@/utils/voiceDFRParser';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 interface Props {
   projectName: string;
@@ -154,7 +156,7 @@ function Platform_isMobile() {
 const styles = StyleSheet.create({
   wrap: {
     backgroundColor: Colors.card,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     padding: 14,
     borderWidth: 1,
     borderColor: Colors.border,
@@ -166,12 +168,12 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary + '15',
     alignItems: 'center', justifyContent: 'center',
   },
-  title: { fontSize: 14, fontWeight: '700', color: Colors.text },
-  subtitle: { fontSize: 12, color: Colors.textMuted, marginTop: 1 },
-  count: { fontSize: 12, fontWeight: '700', color: Colors.primary },
+  title: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
+  subtitle: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 1 },
+  count: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: Colors.primary },
   thumbsRow: { gap: 8, paddingVertical: 4, paddingRight: 4 },
   thumb: {
-    width: 86, height: 86, borderRadius: 10,
+    width: 86, height: 86, borderRadius: Tokens.radius.md,
     overflow: 'hidden', backgroundColor: Colors.background,
     borderWidth: 2, borderColor: 'transparent',
     position: 'relative',
@@ -193,8 +195,8 @@ const styles = StyleSheet.create({
   btn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     gap: 8, paddingVertical: 12, paddingHorizontal: 16,
-    backgroundColor: Colors.primary, borderRadius: 10, marginTop: 12,
+    backgroundColor: Colors.primary, borderRadius: Tokens.radius.md, marginTop: 12,
   },
   btnDisabled: { opacity: 0.5 },
-  btnText: { fontSize: 14, fontWeight: '700', color: '#FFF' },
+  btnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: '#FFF' },
 });

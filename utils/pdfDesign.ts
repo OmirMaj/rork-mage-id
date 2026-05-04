@@ -92,7 +92,7 @@ export function pdfHeader(branding: CompanyBranding): string {
 
 // Title block — eyebrow (uppercase amber pill), big serif title, optional
 // subtitle. Sits below the header.
-export function pdfTitle(opts: { eyebrow?: string; title: string; subtitle?: string; meta?: Array<{ label: string; value: string }> }): string {
+export function pdfTitle(opts: { eyebrow?: string; title: string; subtitle?: string; meta?: { label: string; value: string }[] }): string {
   const eyebrowHtml = opts.eyebrow
     ? `<div style="display:inline-block;padding:5px 12px;border-radius:999px;background:${PDF_PALETTE.ink};color:${PDF_PALETTE.amber};font-size:10px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;margin-bottom:12px">${escHtml(opts.eyebrow)}</div>`
     : '';
@@ -112,7 +112,7 @@ export function pdfTitle(opts: { eyebrow?: string; title: string; subtitle?: str
 
 // Stat card grid — used for AIA totals, project KPIs, etc. Each card
 // has an uppercase label + serif value.
-export function pdfStatGrid(stats: Array<{ label: string; value: string; accent?: 'amber' | 'success' | 'error' }>): string {
+export function pdfStatGrid(stats: { label: string; value: string; accent?: 'amber' | 'success' | 'error' }[]): string {
   const tint = (a?: string) => a === 'amber' ? PDF_PALETTE.amberDark
     : a === 'success' ? PDF_PALETTE.success
     : a === 'error' ? PDF_PALETTE.error

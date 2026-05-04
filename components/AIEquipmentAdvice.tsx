@@ -13,6 +13,8 @@ import {
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
 import type { Equipment } from '@/types';
 import type { SubscriptionTierKey } from '@/utils/aiRateLimiter';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 interface Props {
   equipment: Equipment;
@@ -128,20 +130,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     backgroundColor: Colors.primary + '10',
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     paddingVertical: 14,
     marginTop: 12,
     borderWidth: 1,
     borderColor: Colors.primary + '25',
   },
   triggerText: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     fontWeight: '600' as const,
     color: Colors.primary,
   },
   container: {
     backgroundColor: Colors.surface,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     padding: 14,
     marginTop: 12,
     borderWidth: 1,
@@ -154,7 +156,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   headerTitle: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
     flex: 1,
@@ -167,15 +169,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
     padding: 12,
     marginBottom: 12,
   },
   recIcon: {
-    fontSize: 18,
+    fontSize: Type.subheadline.fontSize,
   },
   recLabel: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '800' as const,
     letterSpacing: 0.5,
   },
@@ -187,7 +189,7 @@ const styles = StyleSheet.create({
   statItem: {
     flex: 1,
     backgroundColor: Colors.fillSecondary,
-    borderRadius: 8,
+    borderRadius: Tokens.radius.sm,
     padding: 10,
     alignItems: 'center',
     gap: 2,
@@ -198,13 +200,13 @@ const styles = StyleSheet.create({
     fontWeight: '500' as const,
   },
   statValue: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
     textAlign: 'center' as const,
   },
   reasoning: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: Colors.text,
     lineHeight: 19,
     marginBottom: 8,
@@ -214,11 +216,11 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     gap: 6,
     backgroundColor: Colors.fillSecondary,
-    borderRadius: 8,
+    borderRadius: Tokens.radius.sm,
     padding: 10,
   },
   reconsiderText: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     color: Colors.textSecondary,
     flex: 1,
     lineHeight: 17,

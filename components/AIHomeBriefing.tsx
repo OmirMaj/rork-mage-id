@@ -13,6 +13,8 @@ import {
 import { checkAILimit, recordAIUsage, getAIUsageStats } from '@/utils/aiRateLimiter';
 import type { Project, Invoice } from '@/types';
 import type { SubscriptionTierKey } from '@/utils/aiRateLimiter';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 interface Props {
   projects: Project[];
@@ -24,9 +26,9 @@ interface Props {
 const FOUR_HOURS = 4 * 60 * 60 * 1000;
 
 const STATUS_ICONS = {
-  on_track: { Icon: CheckCircle2, color: '#34C759', bg: '#E8F5E9' },
-  at_risk: { Icon: AlertTriangle, color: '#FF9500', bg: '#FFF3E0' },
-  behind: { Icon: TrendingDown, color: '#FF3B30', bg: '#FFF0EF' },
+  on_track: { Icon: CheckCircle2, color: Colors.success, bg: Colors.successLight },
+  at_risk: { Icon: AlertTriangle, color: Colors.warning, bg: Colors.warningLight },
+  behind: { Icon: TrendingDown, color: Colors.error, bg: Colors.errorLight },
   ahead: { Icon: CheckCircle2, color: '#30B0C7', bg: '#E1F5FA' },
 } as const;
 
@@ -152,7 +154,7 @@ export default React.memo(function AIHomeBriefing({ projects, invoices, subscrip
         <View style={styles.urgentSection}>
           {result.urgentItems.map((item, idx) => (
             <View key={idx} style={styles.urgentRow}>
-              <AlertTriangle size={12} color="#FF3B30" />
+              <AlertTriangle size={12} color={Colors.error} />
               <Text style={styles.urgentText}>{item}</Text>
             </View>
           ))}
@@ -181,7 +183,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 20,
     marginBottom: 20,
     backgroundColor: Colors.surface,
-    borderRadius: 16,
+    borderRadius: Tokens.radius.panel,
     padding: 16,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
@@ -203,7 +205,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   headerTitle: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
     letterSpacing: 0.2,
@@ -214,7 +216,7 @@ const styles = StyleSheet.create({
     fontWeight: '500' as const,
   },
   briefingText: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     color: Colors.text,
     lineHeight: 20,
     marginBottom: 12,
@@ -230,7 +232,7 @@ const styles = StyleSheet.create({
   statusDot: {
     width: 28,
     height: 28,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 2,
@@ -240,24 +242,24 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   projectName: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     fontWeight: '600' as const,
     color: Colors.text,
   },
   projectInsight: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: Colors.textSecondary,
     lineHeight: 18,
   },
   actionItem: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: Colors.primary,
     fontWeight: '500' as const,
     marginTop: 2,
   },
   urgentSection: {
-    backgroundColor: '#FFF0EF',
-    borderRadius: 10,
+    backgroundColor: Colors.errorLight,
+    borderRadius: Tokens.radius.md,
     padding: 10,
     marginTop: 8,
     gap: 6,
@@ -268,7 +270,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   urgentText: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: '#D32F2F',
     flex: 1,
     lineHeight: 18,
@@ -288,19 +290,19 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   viewFullText: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
     color: Colors.primary,
   },
   usageText: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     color: Colors.textMuted,
     fontWeight: '500' as const,
   },
   skeletonLine: {
     height: 12,
     backgroundColor: Colors.fillTertiary,
-    borderRadius: 6,
+    borderRadius: Tokens.radius.xs,
     marginBottom: 8,
     width: '100%',
   },

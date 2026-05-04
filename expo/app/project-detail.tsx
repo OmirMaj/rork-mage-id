@@ -2,7 +2,7 @@ import React, { useState, useMemo, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Platform, Modal,
   TextInput, Pressable, KeyboardAvoidingView,
-} from 'react-native';
+ ActivityIndicator } from 'react-native';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
@@ -15,16 +15,14 @@ import {
   FileText, ShoppingCart, UserPlus, Send, Share2, Eye, PenTool, Crown, Pencil,
   Plus, Receipt, ClipboardList, Repeat, CheckSquare, Camera, Globe, Link, Copy, Wallet,
 } from 'lucide-react-native';
-import { ActivityIndicator } from 'react-native';
 import { PROJECT_TYPES } from '@/types';
-import type { ProjectType } from '@/types';
+import type { ProjectType , ProjectCollaborator } from '@/types';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { generateUUID } from '@/utils/generateId';
 import AIProjectReport from '@/components/AIProjectReport';
 import { generateAndSharePDF, buildEstimateTextForEmail } from '@/utils/pdfGenerator';
-import type { ProjectCollaborator } from '@/types';
 import { formatMoney } from '@/utils/formatters';
 import { sendEmail, buildCollaboratorInviteHtml } from '@/utils/emailService';
 import { generateScheduleSectionPdf } from '@/utils/schedulePdfGenerator';

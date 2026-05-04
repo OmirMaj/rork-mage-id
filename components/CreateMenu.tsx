@@ -1,0 +1,305 @@
+// CreateMenu — the "+ New…" bottom sheet that surfaces every creatable
+// thing in the app with a 1-line plain-English subtitle.
+//
+// Inspired by Notion's `/` slash command + Linear's `Cmd+K` palette.
+// Why this matters: audit found that even after the design refresh,
+// users had no way to discover features they didn't know existed (e.g.,
+// "I had no idea I could create an OAC meeting from this app"). A
+// single bottom-sheet listing every creatable entity with a one-line
+// description is the mobile analog to the desktop command palette and
+// the cheapest possible feature-discoverability surface.
+//
+// Triggered by the (+) button on the home screen. Search box at top
+// filters in real time. Tapping a row routes to the relevant screen
+// in "create" mode.
+//
+// Each entry: icon + plain-English label + 1-sentence description +
+// optional "Pro" / "Business" tier chip.
+
+import React, { memo, useCallback, useMemo, useState } from 'react';
+import {
+  Modal, View, Text, StyleSheet, TouchableOpacity, ScrollView,
+  TextInput, Platform,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
+import * as Haptics from 'expo-haptics';
+import {
+  Search, X, ChevronRight, FolderPlus, Calculator, CalendarDays, FileText,
+  Receipt, Repeat, ClipboardList, CheckSquare, ShoppingCart, Camera, Layers,
+  ScrollText, Footprints, Users, Mail, Shield, BookOpen, UserPlus, Gavel,
+  Wallet, MessageSquare, Ruler, Sparkles, type LucideIcon,
+} from 'lucide-react-native';
+import { Colors } from '@/constants/colors';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
+
+interface CreateOption {
+  /** Human label (plain English). */
+  label: string;
+  /** One-sentence description. */
+  subtitle: string;
+  /** Lucide icon. */
+  Icon: LucideIcon;
+  /** Route to push when tapped. */
+  href: string;
+  /** Optional category for grouping. */
+  category: 'project' | 'money' | 'docs' | 'field' | 'people' | 'tools';
+  /** Optional Pro/Business tier hint. */
+  tier?: 'pro' | 'business';
+  /** Search keywords beyond the label. */
+  keywords?: string[];
+}
+
+const OPTIONS: CreateOption[] = [
+  // Project-level
+  { label: 'Project', subtitle: 'Start a new job from scratch', Icon: FolderPlus, href: '/?openCreate=1', category: 'project', keywords: ['job', 'new'] },
+  { label: 'Estimate', subtitle: 'Build a line-item quote with materials + labor', Icon: Calculator, href: '/(tabs)/estimate', category: 'project' },
+  { label: 'Schedule', subtitle: 'Plan tasks with a Gantt or Today list', Icon: CalendarDays, href: '/(tabs)/schedule', category: 'project' },
+  { label: 'Lead', subtitle: 'Capture a homeowner inquiry — voice or form', Icon: UserPlus, href: '/leads', category: 'project', keywords: ['pipeline', 'sales'] },
+
+  // Money
+  { label: 'Invoice', subtitle: 'Bill the client for completed work', Icon: Receipt, href: '/invoice', category: 'money' },
+  { label: 'Change Order', subtitle: 'Add scope or cost on top of the contract', Icon: Repeat, href: '/change-order', category: 'money', keywords: ['co'] },
+  { label: 'Progress Billing', subtitle: 'AIA G702/G703 — the bank-formatted pay app', Icon: FileText, href: '/aia-pay-app', category: 'money', keywords: ['aia', 'pay app', 'g702', 'g703'] },
+  { label: 'Buyout package', subtitle: 'Send a trade out for sub bids', Icon: Gavel, href: '/buyout', category: 'money', keywords: ['subs', 'sub bids', 'awards'] },
+  { label: 'Lien Waiver', subtitle: 'Sub sign-off — proof they\'ve been paid', Icon: ScrollText, href: '/lien-waivers', category: 'money', keywords: ['waiver', 'release'] },
+
+  // Documentation
+  { label: 'Daily Report', subtitle: 'What got done today on site', Icon: ClipboardList, href: '/daily-report', category: 'docs', keywords: ['dfr', 'log'] },
+  { label: 'Punch Item', subtitle: 'Something to fix before final walkthrough', Icon: CheckSquare, href: '/punch-list', category: 'docs', keywords: ['punch list'] },
+  { label: 'RFI', subtitle: 'Ask the architect a formal question', Icon: MessageSquare, href: '/rfi', category: 'docs', keywords: ['request for information'] },
+  { label: 'Submittal', subtitle: 'Send a product spec for architect approval', Icon: FileText, href: '/submittal', category: 'docs' },
+  { label: 'Selection', subtitle: 'Lock in a tile, fixture, or finish', Icon: ShoppingCart, href: '/selections', category: 'docs' },
+  { label: 'Photo / markup', subtitle: 'Capture site photo, draw on it', Icon: Camera, href: '/photo-annotator', category: 'docs', keywords: ['picture'] },
+  { label: 'Plan / drawing', subtitle: 'Upload a PDF set, mark it up', Icon: Layers, href: '/plans', category: 'docs', keywords: ['blueprint'] },
+  { label: 'Permit', subtitle: 'Track issued permits and inspections', Icon: Shield, href: '/permits', category: 'docs' },
+  { label: 'Sub COI', subtitle: 'Add a subcontractor\'s insurance certificate', Icon: Shield, href: '/coi-vault', category: 'docs', keywords: ['certificate', 'insurance'] },
+
+  // People & meetings
+  { label: 'OAC Meeting', subtitle: 'The owner-architect-contractor weekly', Icon: Users, href: '/oac-meeting', category: 'people', keywords: ['meeting'] },
+  { label: 'Client portal invite', subtitle: 'Give the homeowner read access', Icon: Mail, href: '/client-portal-setup', category: 'people' },
+  { label: 'Sub portal invite', subtitle: 'Give a sub a private upload link', Icon: Mail, href: '/sub-portal-setup', category: 'people' },
+
+  // Closeout
+  { label: 'Handover Checklist', subtitle: 'The walkthrough-day checklist', Icon: Footprints, href: '/handover', category: 'docs' },
+  { label: 'Closeout Binder', subtitle: 'The PDF packet you give the homeowner', Icon: BookOpen, href: '/closeout-binder', category: 'docs' },
+
+  // Tools
+  { label: 'Cash Flow setup', subtitle: 'Forecast the next 12 weeks of money', Icon: Wallet, href: '/cash-flow', category: 'tools' },
+  { label: 'AI Takeoff', subtitle: 'Upload plans, get LF / SF / EA quantities', Icon: Ruler, href: '/takeoff', category: 'tools', tier: 'pro', keywords: ['quantity', 'measure', 'takeoff', 'plans'] },
+  { label: 'AI Drawing Estimate', subtitle: 'Upload plans, get a priced starting estimate', Icon: Sparkles, href: '/drawing-analyzer', category: 'tools', tier: 'pro', keywords: ['estimate', 'plans', 'drawings'] },
+];
+
+const CATEGORY_LABELS: Record<CreateOption['category'], string> = {
+  project: 'Start',
+  money: 'Money',
+  docs: 'Documents',
+  field: 'Field',
+  people: 'People',
+  tools: 'Tools',
+};
+
+export interface CreateMenuProps {
+  visible: boolean;
+  onClose: () => void;
+  /** Optional handler for the "Project" entry — if set, called instead
+   *  of routing. Lets the host (typically the home tab) open its
+   *  create-project modal in place. */
+  onCreateProject?: () => void;
+}
+
+function CreateMenuImpl({ visible, onClose, onCreateProject }: CreateMenuProps) {
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const [query, setQuery] = useState('');
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return OPTIONS;
+    return OPTIONS.filter(o => {
+      if (o.label.toLowerCase().includes(q)) return true;
+      if (o.subtitle.toLowerCase().includes(q)) return true;
+      if (o.keywords?.some(k => k.toLowerCase().includes(q))) return true;
+      return false;
+    });
+  }, [query]);
+
+  // Group by category, preserving display order from the source array.
+  const grouped = useMemo(() => {
+    const out: Array<{ key: CreateOption['category']; label: string; items: CreateOption[] }> = [];
+    const order: CreateOption['category'][] = ['project', 'money', 'docs', 'people', 'tools', 'field'];
+    for (const cat of order) {
+      const items = filtered.filter(f => f.category === cat);
+      if (items.length === 0) continue;
+      out.push({ key: cat, label: CATEGORY_LABELS[cat], items });
+    }
+    return out;
+  }, [filtered]);
+
+  const handleClose = useCallback(() => {
+    setQuery('');
+    onClose();
+  }, [onClose]);
+
+  const handleSelect = useCallback((opt: CreateOption) => {
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+    handleClose();
+    // "Project" routes via callback when a host provides one (typically
+    // the home tab passing its own setShowCreateModal). Everything else
+    // routes through expo-router after the sheet animates closed (iOS
+    // can't present two modals back-to-back without a gap).
+    setTimeout(() => {
+      if (opt.label === 'Project' && onCreateProject) {
+        onCreateProject();
+      } else {
+        router.push(opt.href as never);
+      }
+    }, 280);
+  }, [handleClose, router, onCreateProject]);
+
+  return (
+    <Modal
+      visible={visible}
+      animationType="slide"
+      transparent
+      onRequestClose={handleClose}
+      statusBarTranslucent
+    >
+      <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={handleClose} />
+      <View style={[styles.sheet, { paddingBottom: insets.bottom + 12 }]}>
+        <View style={styles.handle} />
+
+        <View style={styles.headerRow}>
+          <Text style={[Type.title2, { color: Colors.text }]}>Create new…</Text>
+          <TouchableOpacity onPress={handleClose} style={styles.closeBtn} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={Colors.text} /></TouchableOpacity>
+        </View>
+
+        <View style={styles.searchRow}>
+          <Search size={16} color={Colors.textMuted} />
+          <TextInput
+            style={[styles.searchInput, Type.body]}
+            placeholder="Search for anything you can create…"
+            placeholderTextColor={Colors.textMuted}
+            value={query}
+            onChangeText={setQuery}
+            autoFocus={false}
+            returnKeyType="search"
+          />
+          {!!query && (
+            <TouchableOpacity onPress={() => setQuery('')} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
+              <X size={14} color={Colors.textMuted} />
+            </TouchableOpacity>
+          )}
+        </View>
+
+        <ScrollView style={{ maxHeight: '70%' as any }} showsVerticalScrollIndicator={false}>
+          {grouped.length === 0 && (
+            <View style={styles.emptyResult}>
+              <Text style={[Type.subhead, { color: Colors.textSecondary, textAlign: 'center' }]}>
+                No matches. Try &ldquo;invoice&rdquo;, &ldquo;rfi&rdquo;, &ldquo;buyout&rdquo;…
+              </Text>
+            </View>
+          )}
+          {grouped.map(g => (
+            <View key={g.key} style={styles.group}>
+              <Text style={[Type.eyebrow, { color: Colors.textMuted, paddingHorizontal: 16, paddingTop: 8, paddingBottom: 6 }]}>
+                {g.label}
+              </Text>
+              {g.items.map(opt => (
+                <TouchableOpacity
+                  key={opt.label}
+                  style={styles.row}
+                  onPress={() => handleSelect(opt)}
+                  activeOpacity={0.55}
+                  testID={`create-${opt.label.toLowerCase().replace(/\s+/g, '-')}`}
+                >
+                  <View style={styles.iconSquare}>
+                    <opt.Icon size={18} color={Colors.textSecondary} strokeWidth={2} />
+                  </View>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={[Type.headline, { color: Colors.text }]} numberOfLines={1}>
+                      {opt.label}
+                    </Text>
+                    <Text style={[Type.footnote, { color: Colors.textSecondary }]} numberOfLines={1}>
+                      {opt.subtitle}
+                    </Text>
+                  </View>
+                  <ChevronRight size={16} color={Colors.textMuted} />
+                </TouchableOpacity>
+              ))}
+            </View>
+          ))}
+        </ScrollView>
+      </View>
+    </Modal>
+  );
+}
+
+export const CreateMenu = memo(CreateMenuImpl);
+
+const styles = StyleSheet.create({
+  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' },
+  sheet: {
+    position: 'absolute',
+    bottom: 0, left: 0, right: 0,
+    backgroundColor: Colors.surface,
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
+    paddingHorizontal: 0,
+    paddingTop: 8,
+    maxHeight: '85%' as any,
+  },
+  handle: {
+    alignSelf: 'center',
+    width: 36, height: 5,
+    borderRadius: 3,
+    backgroundColor: Colors.cardBorder,
+    marginBottom: 12,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    marginBottom: 10,
+  },
+  closeBtn: {
+    width: 32, height: 32, borderRadius: Tokens.radius.panel,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: Colors.fillTertiary,
+  },
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginHorizontal: 16,
+    marginBottom: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: Tokens.radius.card,
+    backgroundColor: Colors.fillTertiary,
+  },
+  searchInput: {
+    flex: 1,
+    color: Colors.text,
+    padding: 0,
+  },
+  group: { marginBottom: 8 },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  iconSquare: {
+    width: 36, height: 36, borderRadius: Tokens.radius.md,
+    backgroundColor: Colors.fillTertiary,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  emptyResult: {
+    paddingVertical: 32,
+    paddingHorizontal: 24,
+  },
+});

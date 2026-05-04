@@ -6,6 +6,8 @@ import { CATEGORY_META, CATEGORY_COST_FACTORS } from '@/constants/materials';
 import type { MaterialItem } from '@/constants/materials';
 import type { LaborRate } from '@/constants/laborRates';
 import type { AssemblyItem } from '@/constants/assemblies';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 interface CartItem {
   material: MaterialItem;
@@ -214,15 +216,15 @@ export default CostBreakdownReport;
 const s = StyleSheet.create({
   container: { gap: 12 },
   sectionTitle: {
-    fontSize: 16, fontWeight: '700' as const, color: Colors.text,
+    fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.text,
     paddingHorizontal: 16, paddingTop: 8,
   },
   barContainer: {
-    marginHorizontal: 16, backgroundColor: Colors.surface, borderRadius: 12, padding: 12,
+    marginHorizontal: 16, backgroundColor: Colors.surface, borderRadius: Tokens.radius.card, padding: 12,
     borderWidth: 1, borderColor: Colors.cardBorder, gap: 8,
   },
   barTrack: {
-    flexDirection: 'row', height: 12, borderRadius: 6, overflow: 'hidden' as const,
+    flexDirection: 'row', height: 12, borderRadius: Tokens.radius.xs, overflow: 'hidden' as const,
     backgroundColor: Colors.fillTertiary,
   },
   barSegment: { height: '100%' },
@@ -231,7 +233,7 @@ const s = StyleSheet.create({
   legendDot: { width: 8, height: 8, borderRadius: 4 },
   legendText: { fontSize: 10, fontWeight: '600' as const, color: Colors.textSecondary },
   divisionTable: {
-    marginHorizontal: 16, backgroundColor: Colors.surface, borderRadius: 12,
+    marginHorizontal: 16, backgroundColor: Colors.surface, borderRadius: Tokens.radius.card,
     borderWidth: 1, borderColor: Colors.cardBorder, overflow: 'hidden' as const,
   },
   tableHeader: {
@@ -248,15 +250,15 @@ const s = StyleSheet.create({
   },
   tableCell: { flex: 1 },
   tableDot: { width: 6, height: 6, borderRadius: 3 },
-  tableCellText: { fontSize: 12, color: Colors.textSecondary },
-  tableCellBold: { fontSize: 12, fontWeight: '700' as const, color: Colors.text },
+  tableCellText: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary },
+  tableCellBold: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: Colors.text },
   metricsGrid: {
     flexDirection: 'row', flexWrap: 'wrap' as const, paddingHorizontal: 16, gap: 8,
   },
   metricCard: {
-    flex: 1, minWidth: 70, backgroundColor: Colors.surface, borderRadius: 10, padding: 10,
+    flex: 1, minWidth: 70, backgroundColor: Colors.surface, borderRadius: Tokens.radius.md, padding: 10,
     alignItems: 'center', gap: 4, borderWidth: 1, borderColor: Colors.cardBorder,
   },
   metricLabel: { fontSize: 10, fontWeight: '600' as const, color: Colors.textMuted },
-  metricValue: { fontSize: 14, fontWeight: '800' as const, color: Colors.text },
+  metricValue: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800' as const, color: Colors.text },
 });

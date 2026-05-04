@@ -47,6 +47,8 @@ import { SkeletonRow } from '@/components/Skeleton';
 import { supabase } from '@/lib/supabase';
 import { useUserLocation, getDistanceMiles } from '@/utils/location';
 import { US_STATES } from '@/constants/states';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 interface CachedBid {
   id: string;
@@ -98,7 +100,7 @@ const SET_ASIDE_TYPES = [
   { label: 'No Set-Aside',     match: ['no set aside', 'no set-aside'] },
 ] as const;
 
-const SORT_OPTIONS: Array<{ key: SortKey; label: string }> = [
+const SORT_OPTIONS: { key: SortKey; label: string }[] = [
   { key: 'deadline', label: 'Deadline' },
   { key: 'posted',   label: 'Newest' },
   { key: 'distance', label: 'Nearest' },
@@ -144,10 +146,10 @@ function getDeadlineInfo(deadline: string | null | undefined): { text: string; c
   if (isNaN(ms)) return { text: 'No deadline', color: '#9E9E9E', bgColor: '#F5F5F5', sortableMs: Number.MAX_SAFE_INTEGER };
   if (ms <= 0) return { text: 'Expired', color: '#9E9E9E', bgColor: '#F5F5F5', sortableMs: Number.MAX_SAFE_INTEGER - 1 };
   const days = Math.floor(ms / (1000 * 60 * 60 * 24));
-  if (days < 3) return { text: `${days}d ${Math.floor((ms % 86_400_000) / 3_600_000)}h left`, color: '#D32F2F', bgColor: '#FFEBEE', sortableMs: ms };
+  if (days < 3) return { text: `${days}d ${Math.floor((ms % 86_400_000) / 3_600_000)}h left`, color: '#D32F2F', bgColor: Colors.errorLight, sortableMs: ms };
   if (days <= 7) return { text: `${days} days left`, color: '#F57F17', bgColor: '#FFF8E1', sortableMs: ms };
-  if (days > 30) return { text: `${Math.floor(days / 30)}mo ${days % 30}d left`, color: '#2E7D32', bgColor: '#E8F5E9', sortableMs: ms };
-  return { text: `${days} days left`, color: '#2E7D32', bgColor: '#E8F5E9', sortableMs: ms };
+  if (days > 30) return { text: `${Math.floor(days / 30)}mo ${days % 30}d left`, color: Colors.successDark, bgColor: Colors.successLight, sortableMs: ms };
+  return { text: `${days} days left`, color: Colors.successDark, bgColor: Colors.successLight, sortableMs: ms };
 }
 
 /** Some SAM.gov titles arrive with leading "Z--" or trailing letter
@@ -465,7 +467,7 @@ export default function CachedBidsScreen() {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
         <View style={styles.headerTop}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Back">
             <ArrowLeft size={20} color={Colors.text} />
           </TouchableOpacity>
           <View style={{ flex: 1 }}>
@@ -501,7 +503,7 @@ export default function CachedBidsScreen() {
             returnKeyType="search"
           />
           {searchQuery ? (
-            <TouchableOpacity onPress={() => setSearchQuery('')}>
+            <TouchableOpacity onPress={() => setSearchQuery('')} accessibilityRole="button" accessibilityLabel="Close">
               <X size={15} color={Colors.textMuted} />
             </TouchableOpacity>
           ) : null}
@@ -639,7 +641,7 @@ export default function CachedBidsScreen() {
           <View style={styles.dropdownModal}>
             <View style={styles.dropdownHeader}>
               <Text style={styles.dropdownTitle}>Sort by</Text>
-              <TouchableOpacity onPress={() => setShowSortDropdown(false)}>
+              <TouchableOpacity onPress={() => setShowSortDropdown(false)} accessibilityRole="button" accessibilityLabel="Close">
                 <X size={20} color={Colors.text} />
               </TouchableOpacity>
             </View>
@@ -668,7 +670,7 @@ export default function CachedBidsScreen() {
           <View style={styles.dropdownModal}>
             <View style={styles.dropdownHeader}>
               <Text style={styles.dropdownTitle}>Set-aside type</Text>
-              <TouchableOpacity onPress={() => setShowSetAsideDropdown(false)}>
+              <TouchableOpacity onPress={() => setShowSetAsideDropdown(false)} accessibilityRole="button" accessibilityLabel="Close">
                 <X size={20} color={Colors.text} />
               </TouchableOpacity>
             </View>
@@ -749,25 +751,25 @@ const styles = StyleSheet.create({
   // ─── Header
   header: { backgroundColor: Colors.surface, borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight, paddingHorizontal: 16, paddingBottom: 12 },
   headerTop: { flexDirection: 'row', alignItems: 'center', marginBottom: 12, marginTop: 8, gap: 12 },
-  backBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: 22, fontWeight: '800' as const, color: Colors.text, letterSpacing: -0.5 },
-  headerSubtitle: { fontSize: 12, color: Colors.textMuted, marginTop: 1, fontWeight: '500' as const },
+  backBtn: { width: 36, height: 36, borderRadius: Tokens.radius.xl, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { fontSize: Type.title2.fontSize, fontWeight: '800' as const, color: Colors.text, letterSpacing: -0.5 },
+  headerSubtitle: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 1, fontWeight: '500' as const },
   sortBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: 12, paddingVertical: 8,
-    backgroundColor: Colors.fillTertiary, borderRadius: 10,
+    backgroundColor: Colors.fillTertiary, borderRadius: Tokens.radius.md,
   },
-  sortBtnText: { fontSize: 13, color: Colors.text, fontWeight: '600' as const },
+  sortBtnText: { fontSize: Type.footnote.fontSize, color: Colors.text, fontWeight: '600' as const },
 
   // ─── Search
   searchWrap: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: Colors.fillTertiary, borderRadius: 12,
+    backgroundColor: Colors.fillTertiary, borderRadius: Tokens.radius.card,
     paddingHorizontal: 12, paddingVertical: Platform.OS === 'ios' ? 9 : 4,
     marginBottom: 10,
   },
   searchInput: {
-    flex: 1, fontSize: 14, color: Colors.text,
+    flex: 1, fontSize: Type.bodyCompact.fontSize, color: Colors.text,
     paddingVertical: Platform.OS === 'ios' ? 0 : 6,
   },
 
@@ -776,7 +778,7 @@ const styles = StyleSheet.create({
   pill: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
     paddingHorizontal: 12, paddingVertical: 7,
-    borderRadius: 999,
+    borderRadius: Tokens.radius.full,
     backgroundColor: Colors.fillTertiary,
     borderWidth: 1, borderColor: 'transparent',
   },
@@ -789,7 +791,7 @@ const styles = StyleSheet.create({
   subFilterRowInner: { paddingRight: 16, gap: 6 },
   subChip: {
     paddingHorizontal: 12, paddingVertical: 7,
-    borderRadius: 999,
+    borderRadius: Tokens.radius.full,
     backgroundColor: Colors.fillTertiary,
   },
   subChipActive: { backgroundColor: Colors.primary },
@@ -797,7 +799,7 @@ const styles = StyleSheet.create({
   subChipTextActive: { color: '#FFF' },
   cityChip: {
     paddingHorizontal: 12, paddingVertical: 7,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     backgroundColor: Colors.fillTertiary,
     minWidth: 110,
   },
@@ -807,40 +809,40 @@ const styles = StyleSheet.create({
   // ─── Cards
   list: { padding: 16, paddingBottom: 100 },
   bidCard: {
-    backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 12,
+    backgroundColor: Colors.surface, borderRadius: Tokens.radius.lg, padding: 16, marginBottom: 12,
     // Black outline matches every other card across the app.
     borderWidth: 1, borderColor: Colors.cardBorder,
   },
   bidHeader: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginBottom: 10 },
-  setAsideBadge: { backgroundColor: '#E8F5E9', paddingHorizontal: 9, paddingVertical: 4, borderRadius: 6 },
-  setAsideText: { fontSize: 11, fontWeight: '800' as const, color: '#1E5128', letterSpacing: 0.2 },
-  openBadge: { backgroundColor: '#E3F2FD', paddingHorizontal: 9, paddingVertical: 4, borderRadius: 6 },
-  openBadgeText: { fontSize: 11, fontWeight: '800' as const, color: '#0D47A1', letterSpacing: 0.6 },
+  setAsideBadge: { backgroundColor: Colors.successLight, paddingHorizontal: 9, paddingVertical: 4, borderRadius: Tokens.radius.xs },
+  setAsideText: { fontSize: Type.caption2.fontSize, fontWeight: '800' as const, color: '#1E5128', letterSpacing: 0.2 },
+  openBadge: { backgroundColor: Colors.infoLight, paddingHorizontal: 9, paddingVertical: 4, borderRadius: Tokens.radius.xs },
+  openBadgeText: { fontSize: Type.caption2.fontSize, fontWeight: '800' as const, color: '#0D47A1', letterSpacing: 0.6 },
   constructionBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
-    backgroundColor: '#FFF4E0', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6,
+    backgroundColor: '#FFF4E0', paddingHorizontal: 8, paddingVertical: 4, borderRadius: Tokens.radius.xs,
   },
   constructionText: { fontSize: 10.5, fontWeight: '800' as const, color: '#3D2A0F', letterSpacing: 0.2 },
   countdownBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
-    paddingHorizontal: 9, paddingVertical: 4, borderRadius: 6,
+    paddingHorizontal: 9, paddingVertical: 4, borderRadius: Tokens.radius.xs,
     marginLeft: 'auto' as const,
   },
-  countdownText: { fontSize: 11, fontWeight: '700' as const },
+  countdownText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const },
 
-  bidTitle: { fontSize: 16, fontWeight: '700' as const, color: Colors.text, marginBottom: 4, lineHeight: 21, letterSpacing: -0.2 },
+  bidTitle: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.text, marginBottom: 4, lineHeight: 21, letterSpacing: -0.2 },
   bidDepartment: { fontSize: 12.5, color: Colors.textSecondary, marginBottom: 8, fontWeight: '500' as const },
 
   bidMeta: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginTop: 6 },
   metaItem: { flexDirection: 'row', alignItems: 'center', gap: 4, flex: 1, minWidth: 0 },
-  metaText: { fontSize: 13, color: Colors.textSecondary, fontWeight: '500' as const, flexShrink: 1 },
+  metaText: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, fontWeight: '500' as const, flexShrink: 1 },
   distanceTag: {
     flexDirection: 'row', alignItems: 'center', gap: 3,
-    backgroundColor: Colors.infoLight, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6,
+    backgroundColor: Colors.infoLight, paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.xs,
   },
   distanceTagText: { fontSize: 11.5, fontWeight: '700' as const, color: Colors.info },
   valueTag: {
-    backgroundColor: Colors.primary + '14', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6,
+    backgroundColor: Colors.primary + '14', paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.xs,
   },
   valueTagText: { fontSize: 11.5, fontWeight: '800' as const, color: Colors.primary },
 
@@ -858,15 +860,15 @@ const styles = StyleSheet.create({
   // ─── States
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12, paddingHorizontal: 32 },
   emptyContainer: { alignItems: 'center', paddingTop: 60, gap: 8, paddingHorizontal: 32 },
-  emptyTitle: { fontSize: 18, fontWeight: '700' as const, color: Colors.text, marginTop: 6 },
-  emptySubtitle: { fontSize: 14, color: Colors.textSecondary, textAlign: 'center' as const, lineHeight: 20 },
-  retryButton: { marginTop: 14, backgroundColor: Colors.primary, paddingHorizontal: 22, paddingVertical: 11, borderRadius: 10 },
-  retryButtonText: { color: '#FFF', fontWeight: '700' as const, fontSize: 14 },
+  emptyTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: Colors.text, marginTop: 6 },
+  emptySubtitle: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, textAlign: 'center' as const, lineHeight: 20 },
+  retryButton: { marginTop: 14, backgroundColor: Colors.primary, paddingHorizontal: 22, paddingVertical: 11, borderRadius: Tokens.radius.md },
+  retryButtonText: { color: '#FFF', fontWeight: '700' as const, fontSize: Type.bodyCompact.fontSize },
 
   // ─── Modal (sort + set-aside)
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.42)', justifyContent: 'center', alignItems: 'center' },
   dropdownModal: {
-    width: '82%', backgroundColor: Colors.surface, borderRadius: 16, paddingVertical: 8, maxHeight: 460,
+    width: '82%', backgroundColor: Colors.surface, borderRadius: Tokens.radius.panel, paddingVertical: 8, maxHeight: 460,
     shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.18, shadowRadius: 22, elevation: 12,
   },
   dropdownHeader: {
@@ -874,13 +876,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20, paddingVertical: 14,
     borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight,
   },
-  dropdownTitle: { fontSize: 17, fontWeight: '700' as const, color: Colors.text },
+  dropdownTitle: { fontSize: Type.body.fontSize, fontWeight: '700' as const, color: Colors.text },
   dropdownItem: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 20, paddingVertical: 14,
   },
   dropdownItemActive: { backgroundColor: Colors.primary + '0E' },
-  dropdownItemText: { fontSize: 15, color: Colors.text, fontWeight: '500' as const },
+  dropdownItemText: { fontSize: Type.subhead.fontSize, color: Colors.text, fontWeight: '500' as const },
   dropdownItemTextActive: { color: Colors.primary, fontWeight: '700' as const },
   dropdownCheck: { width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.primary },
 });

@@ -3,6 +3,10 @@ import { useRouter } from 'expo-router';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQueryClient, useQuery, useMutation } from '@tanstack/react-query';
+import createContextHook from '@nkzw/create-context-hook';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { useAuth } from '@/contexts/AuthContext';
+import type { SubscriptionTier } from '@/types';
 let Purchases: any = null;
 let LOG_LEVEL: any = { DEBUG: 0 };
 
@@ -18,10 +22,6 @@ try {
 type PurchasesOfferings = any;
 type PurchasesPackage = any;
 type CustomerInfo = any;
-import createContextHook from '@nkzw/create-context-hook';
-import { supabase, isSupabaseConfigured } from '@/lib/supabase';
-import { useAuth } from '@/contexts/AuthContext';
-import type { SubscriptionTier } from '@/types';
 
 const SUBSCRIPTION_KEY = 'mageid_subscription_tier';
 

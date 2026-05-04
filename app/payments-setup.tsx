@@ -39,6 +39,8 @@ import {
   startStripeConnectOnboarding, fetchStripeConnectStatus, type ConnectStatus,
 } from '@/utils/stripeConnect';
 import { nailIt } from '@/components/animations/NailItToast';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 export default function PaymentsSetupScreen() {
   const insets = useSafeAreaInsets();
@@ -156,7 +158,7 @@ export default function PaymentsSetupScreen() {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn} testID="payments-setup-back">
+        <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn} testID="payments-setup-back" accessibilityRole="button" accessibilityLabel="Back">
           <ChevronLeft size={22} color={Colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Payments</Text>
@@ -340,7 +342,7 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.borderLight,
   },
   headerBtn: { width: 36, height: 36, alignItems: 'center' as const, justifyContent: 'center' as const },
-  headerTitle: { fontSize: 17, fontWeight: '700' as const, color: Colors.text },
+  headerTitle: { fontSize: Type.body.fontSize, fontWeight: '700' as const, color: Colors.text },
   loadingWrap: { paddingTop: 80, alignItems: 'center' as const },
   card: {
     margin: 16,
@@ -359,23 +361,23 @@ const styles = StyleSheet.create({
   heroIcon: {
     width: 56,
     height: 56,
-    borderRadius: 16,
+    borderRadius: Tokens.radius.panel,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
   },
-  heroTitle: { fontSize: 22, fontWeight: '800' as const, color: Colors.text, letterSpacing: -0.5 },
-  heroSub: { fontSize: 14, color: Colors.textSecondary, lineHeight: 20 },
+  heroTitle: { fontSize: Type.title2.fontSize, fontWeight: '800' as const, color: Colors.text, letterSpacing: -0.5 },
+  heroSub: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, lineHeight: 20 },
   benefits: { gap: 10, marginTop: 4 },
   benefitRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10 },
   benefitDot: {
     width: 24,
     height: 24,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     backgroundColor: Colors.success + '15',
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
   },
-  benefitText: { flex: 1, fontSize: 14, color: Colors.text, fontWeight: '500' as const },
+  benefitText: { flex: 1, fontSize: Type.bodyCompact.fontSize, color: Colors.text, fontWeight: '500' as const },
   cta: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
@@ -383,7 +385,7 @@ const styles = StyleSheet.create({
     gap: 8,
     backgroundColor: Colors.primary,
     paddingVertical: 14,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     marginTop: 8,
     shadowColor: Colors.primary,
     shadowOffset: { width: 0, height: 4 },
@@ -391,14 +393,14 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 3,
   },
-  ctaText: { fontSize: 16, fontWeight: '700' as const, color: '#FFFFFF', letterSpacing: 0.2 },
-  incompleteHint: { fontSize: 12, color: Colors.textMuted, textAlign: 'center' as const, marginTop: 4 },
-  brandHint: { fontSize: 12, color: Colors.textMuted, textAlign: 'center' as const, marginTop: 4 },
+  ctaText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.surface, letterSpacing: 0.2 },
+  incompleteHint: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, textAlign: 'center' as const, marginTop: 4 },
+  brandHint: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, textAlign: 'center' as const, marginTop: 4 },
   brandHintBold: { fontWeight: '700' as const, color: Colors.text },
   statRow: { flexDirection: 'row' as const, gap: 10, marginTop: 4 },
-  stat: { flex: 1, backgroundColor: Colors.surfaceAlt, borderRadius: 12, padding: 12, gap: 4 },
-  statLabel: { fontSize: 11, fontWeight: '600' as const, color: Colors.textMuted, letterSpacing: 0.5, textTransform: 'uppercase' as const },
-  statValue: { fontSize: 14, fontWeight: '700' as const, color: Colors.text },
+  stat: { flex: 1, backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.card, padding: 12, gap: 4 },
+  statLabel: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: Colors.textMuted, letterSpacing: 0.5, textTransform: 'uppercase' as const },
+  statValue: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
   fineprint: {
     flexDirection: 'row' as const,
     alignItems: 'flex-start' as const,
@@ -406,5 +408,5 @@ const styles = StyleSheet.create({
     marginHorizontal: 28,
     marginTop: 8,
   },
-  fineprintText: { flex: 1, fontSize: 11, color: Colors.textMuted, lineHeight: 16 },
+  fineprintText: { flex: 1, fontSize: Type.caption2.fontSize, color: Colors.textMuted, lineHeight: 16 },
 });

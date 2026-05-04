@@ -10,6 +10,8 @@ import {
 import Svg, { Path } from 'react-native-svg';
 import { Trash2, Check } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 interface SignaturePadProps {
   initialPaths?: string[];
@@ -161,7 +163,7 @@ const styles = StyleSheet.create({
   },
   canvas: {
     backgroundColor: '#FAFAFA',
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     borderWidth: 1.5,
     borderColor: Colors.border,
     borderStyle: 'dashed' as const,
@@ -173,7 +175,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   placeholderText: {
-    fontSize: 16,
+    fontSize: Type.callout.fontSize,
     color: Colors.textMuted,
     fontStyle: 'italic' as const,
   },
@@ -195,11 +197,11 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingHorizontal: 14,
     paddingVertical: 10,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
     backgroundColor: Colors.errorLight,
   },
   clearBtnText: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
     color: Colors.error,
   },
@@ -210,14 +212,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center' as const,
     gap: 6,
     paddingVertical: 10,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
     backgroundColor: Colors.primary,
   },
   saveBtnDisabled: {
     backgroundColor: Colors.fillTertiary,
   },
   saveBtnText: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
     color: Colors.textOnPrimary,
   },

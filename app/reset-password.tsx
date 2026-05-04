@@ -9,6 +9,8 @@ import { Lock, CheckCircle, ArrowRight } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 export default function ResetPasswordScreen() {
   const insets = useSafeAreaInsets();
@@ -142,11 +144,11 @@ export default function ResetPasswordScreen() {
             testID="reset-submit"
           >
             {isSubmitting ? (
-              <ActivityIndicator color="#FFFFFF" size="small" />
+              <ActivityIndicator color={Colors.surface} size="small" />
             ) : (
               <>
                 <Text style={styles.submitButtonText}>Update Password</Text>
-                <ArrowRight size={18} color="#FFFFFF" strokeWidth={2.5} />
+                <ArrowRight size={18} color={Colors.surface} strokeWidth={2.5} />
               </>
             )}
           </TouchableOpacity>
@@ -193,7 +195,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   subtitle: {
-    fontSize: 15,
+    fontSize: Type.subhead.fontSize,
     color: Colors.textSecondary,
     textAlign: 'center',
     marginBottom: 32,
@@ -202,7 +204,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   inputLabel: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     fontWeight: '600' as const,
     color: Colors.text,
     marginBottom: 8,
@@ -212,7 +214,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.surface,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     paddingHorizontal: 14,
     paddingVertical: 14,
     gap: 10,
@@ -221,7 +223,7 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    fontSize: 16,
+    fontSize: Type.callout.fontSize,
     color: Colors.text,
     fontWeight: '400' as const,
   },
@@ -230,7 +232,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: Colors.primary,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     paddingVertical: 16,
     gap: 8,
     marginTop: 8,
@@ -239,16 +241,16 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   submitButtonText: {
-    fontSize: 17,
+    fontSize: Type.body.fontSize,
     fontWeight: '700' as const,
-    color: '#FFFFFF',
+    color: Colors.surface,
   },
   backButton: {
     alignSelf: 'center',
     paddingVertical: 16,
   },
   backText: {
-    fontSize: 15,
+    fontSize: Type.subhead.fontSize,
     color: Colors.primary,
     fontWeight: '500' as const,
   },
@@ -266,7 +268,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   successText: {
-    fontSize: 15,
+    fontSize: Type.subhead.fontSize,
     color: Colors.textSecondary,
     textAlign: 'center',
   },

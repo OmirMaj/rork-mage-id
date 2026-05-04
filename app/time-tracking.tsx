@@ -16,6 +16,8 @@ import { Colors } from '@/constants/colors';
 import { MOCK_TIME_ENTRIES, CREW_MEMBERS } from '@/mocks/timeTracking';
 import type { TimeEntry } from '@/types';
 import { formatMoney } from '@/utils/formatters';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 function getElapsedHours(clockIn: string): string {
   const diff = Date.now() - new Date(clockIn).getTime();
@@ -72,30 +74,30 @@ function LiveTimeCard({ entry, onAction }: { entry: TimeEntry; onAction: (entry:
             {entry.status === 'clocked_in' ? (
               <>
                 <TouchableOpacity
-                  style={[styles.actionBtn, { backgroundColor: '#FFF3E0' }]}
+                  style={[styles.actionBtn, { backgroundColor: Colors.warningLight }]}
                   onPress={() => onAction(entry, 'break')}
                   activeOpacity={0.7}
                 >
-                  <Coffee size={14} color="#E65100" />
-                  <Text style={[styles.actionBtnText, { color: '#E65100' }]}>Break</Text>
+                  <Coffee size={14} color={Colors.warningDark} />
+                  <Text style={[styles.actionBtnText, { color: Colors.warningDark }]}>Break</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.actionBtn, { backgroundColor: '#FFEBEE' }]}
+                  style={[styles.actionBtn, { backgroundColor: Colors.errorLight }]}
                   onPress={() => onAction(entry, 'clock_out')}
                   activeOpacity={0.7}
                 >
-                  <Square size={14} color="#C62828" />
-                  <Text style={[styles.actionBtnText, { color: '#C62828' }]}>Clock Out</Text>
+                  <Square size={14} color={Colors.errorDark} />
+                  <Text style={[styles.actionBtnText, { color: Colors.errorDark }]}>Clock Out</Text>
                 </TouchableOpacity>
               </>
             ) : (
               <TouchableOpacity
-                style={[styles.actionBtn, { backgroundColor: '#E8F5E9' }]}
+                style={[styles.actionBtn, { backgroundColor: Colors.successLight }]}
                 onPress={() => onAction(entry, 'resume')}
                 activeOpacity={0.7}
               >
-                <Play size={14} color="#2E7D32" />
-                <Text style={[styles.actionBtnText, { color: '#2E7D32' }]}>Resume</Text>
+                <Play size={14} color={Colors.successDark} />
+                <Text style={[styles.actionBtnText, { color: Colors.successDark }]}>Resume</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -215,9 +217,9 @@ function TimeTrackingScreenInner() {
           </View>
           <View style={styles.statCard}>
             <View style={[styles.statIconWrap, { backgroundColor: todayStats.totalOT > 0 ? '#FFF3E0' : Colors.success + '14' }]}>
-              {todayStats.totalOT > 0 ? <AlertTriangle size={16} color="#E65100" /> : <TrendingUp size={16} color={Colors.success} />}
+              {todayStats.totalOT > 0 ? <AlertTriangle size={16} color={Colors.warningDark} /> : <TrendingUp size={16} color={Colors.success} />}
             </View>
-            <Text style={[styles.statValue, todayStats.totalOT > 0 && { color: '#E65100' }]}>{todayStats.totalOT.toFixed(1)}</Text>
+            <Text style={[styles.statValue, todayStats.totalOT > 0 && { color: Colors.warningDark }]}>{todayStats.totalOT.toFixed(1)}</Text>
             <Text style={styles.statLabel}>OT Hours</Text>
           </View>
         </View>
@@ -300,7 +302,7 @@ function TimeTrackingScreenInner() {
           <View style={[styles.modalCard, { paddingBottom: insets.bottom + 20 }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Clock In</Text>
-              <TouchableOpacity onPress={() => setShowClockInModal(false)} style={styles.closeBtn}>
+              <TouchableOpacity onPress={() => setShowClockInModal(false)} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close">
                 <X size={20} color={Colors.textMuted} />
               </TouchableOpacity>
             </View>
@@ -346,7 +348,7 @@ const styles = StyleSheet.create({
   statCard: {
     flex: 1,
     backgroundColor: Colors.surface,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     padding: 14,
     alignItems: 'flex-start',
     shadowColor: '#000',
@@ -355,13 +357,13 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 2,
   },
-  statIconWrap: { width: 32, height: 32, borderRadius: 8, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
-  statValue: { fontSize: 20, fontWeight: '700' as const, color: Colors.text, letterSpacing: -0.3 },
-  statLabel: { fontSize: 11, color: Colors.textSecondary, marginTop: 2 },
+  statIconWrap: { width: 32, height: 32, borderRadius: Tokens.radius.sm, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
+  statValue: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: Colors.text, letterSpacing: -0.3 },
+  statLabel: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, marginTop: 2 },
   clockInButton: {
     marginHorizontal: 16,
     backgroundColor: Colors.primary,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     paddingVertical: 16,
     flexDirection: 'row',
     alignItems: 'center',
@@ -374,12 +376,12 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 4,
   },
-  clockInButtonText: { fontSize: 16, fontWeight: '700' as const, color: '#fff' },
+  clockInButtonText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: '#fff' },
   tabRow: {
     flexDirection: 'row',
     marginHorizontal: 16,
     backgroundColor: Colors.fillTertiary,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     padding: 3,
     marginBottom: 16,
   },
@@ -387,15 +389,15 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 10,
     alignItems: 'center',
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
   },
   tabActive: { backgroundColor: Colors.surface },
-  tabText: { fontSize: 14, fontWeight: '600' as const, color: Colors.textMuted },
+  tabText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.textMuted },
   tabTextActive: { color: Colors.text },
   listSection: { paddingHorizontal: 16 },
   liveCard: {
     marginBottom: 10,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     backgroundColor: Colors.surface,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
@@ -407,16 +409,16 @@ const styles = StyleSheet.create({
   liveCardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   liveCardNameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   statusDot: { width: 8, height: 8, borderRadius: 4 },
-  liveCardName: { fontSize: 16, fontWeight: '600' as const, color: Colors.text },
-  liveStatusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
-  liveStatusText: { fontSize: 12, fontWeight: '600' as const },
+  liveCardName: { fontSize: Type.callout.fontSize, fontWeight: '600' as const, color: Colors.text },
+  liveStatusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: Tokens.radius.sm },
+  liveStatusText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const },
   liveCardMeta: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  liveCardTrade: { fontSize: 13, color: Colors.textSecondary, fontWeight: '500' as const },
+  liveCardTrade: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, fontWeight: '500' as const },
   liveCardDot: { color: Colors.textMuted, fontSize: 10 },
-  liveCardProject: { fontSize: 13, color: Colors.textSecondary, flex: 1 },
+  liveCardProject: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, flex: 1 },
   liveCardTimer: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  liveCardTimerText: { fontSize: 14, fontWeight: '700' as const, color: Colors.primary },
-  liveCardNote: { fontSize: 12, color: Colors.textMuted, flex: 1 },
+  liveCardTimerText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.primary },
+  liveCardNote: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, flex: 1 },
   liveCardActions: { flexDirection: 'row', gap: 8, marginTop: 4 },
   actionBtn: {
     flex: 1,
@@ -425,12 +427,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 6,
     paddingVertical: 10,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
   },
-  actionBtnText: { fontSize: 13, fontWeight: '600' as const },
+  actionBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const },
   historyCard: {
     backgroundColor: Colors.surface,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     padding: 14,
     marginBottom: 8,
     gap: 4,
@@ -438,19 +440,19 @@ const styles = StyleSheet.create({
     borderColor: Colors.cardBorder,
   },
   historyHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  historyName: { fontSize: 15, fontWeight: '600' as const, color: Colors.text },
-  historyHours: { fontSize: 16, fontWeight: '700' as const, color: Colors.text },
+  historyName: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: Colors.text },
+  historyHours: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.text },
   historyMeta: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  historyTrade: { fontSize: 13, color: Colors.textSecondary },
+  historyTrade: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary },
   historyDot: { color: Colors.textMuted, fontSize: 10 },
-  historyProject: { fontSize: 13, color: Colors.textSecondary, flex: 1 },
+  historyProject: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, flex: 1 },
   historyFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 },
-  historyDate: { fontSize: 12, color: Colors.textMuted },
-  otBadge: { backgroundColor: '#FFF3E0', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
-  otBadgeText: { fontSize: 11, fontWeight: '600' as const, color: '#E65100' },
+  historyDate: { fontSize: Type.caption1.fontSize, color: Colors.textMuted },
+  otBadge: { backgroundColor: Colors.warningLight, paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.xs },
+  otBadgeText: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: Colors.warningDark },
   emptyState: { alignItems: 'center', paddingVertical: 60, gap: 8 },
-  emptyTitle: { fontSize: 17, fontWeight: '600' as const, color: Colors.text },
-  emptyDesc: { fontSize: 14, color: Colors.textSecondary },
+  emptyTitle: { fontSize: Type.body.fontSize, fontWeight: '600' as const, color: Colors.text },
+  emptyDesc: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary },
   modalOverlay: { flex: 1, backgroundColor: Colors.overlay, justifyContent: 'flex-end' },
   modalCard: {
     backgroundColor: Colors.surface,
@@ -459,9 +461,9 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
-  modalTitle: { fontSize: 22, fontWeight: '700' as const, color: Colors.text },
-  closeBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
-  modalSubtitle: { fontSize: 14, color: Colors.textSecondary, marginBottom: 16 },
+  modalTitle: { fontSize: Type.title2.fontSize, fontWeight: '700' as const, color: Colors.text },
+  closeBtn: { width: 32, height: 32, borderRadius: Tokens.radius.panel, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
+  modalSubtitle: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, marginBottom: 16 },
   memberRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -478,9 +480,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  memberAvatarText: { fontSize: 16, fontWeight: '700' as const, color: Colors.primary },
+  memberAvatarText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.primary },
   memberInfo: { flex: 1, gap: 2 },
-  memberName: { fontSize: 15, fontWeight: '600' as const, color: Colors.text },
-  memberTrade: { fontSize: 13, color: Colors.textSecondary },
-  allClockedIn: { textAlign: 'center' as const, color: Colors.textMuted, paddingVertical: 20, fontSize: 14 },
+  memberName: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: Colors.text },
+  memberTrade: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary },
+  allClockedIn: { textAlign: 'center' as const, color: Colors.textMuted, paddingVertical: 20, fontSize: Type.bodyCompact.fontSize },
 });

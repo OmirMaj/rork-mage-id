@@ -802,7 +802,7 @@ function parseArgs() {
 async function main() {
   const { only, size } = parseArgs();
   const cases = only ? CASES.filter(c => only.includes(c.name)) : CASES;
-  const sizes: Array<'tiny' | 'medium' | 'huge'> = size ? [size] : ['tiny', 'medium', 'huge'];
+  const sizes: ('tiny' | 'medium' | 'huge')[] = size ? [size] : ['tiny', 'medium', 'huge'];
 
   console.log(`\nStress-testing ${cases.length} AI features × ${sizes.length} sizes = ${cases.length * sizes.length} calls`);
   console.log(`Endpoint: ${AI_URL}\n`);

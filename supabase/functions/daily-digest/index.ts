@@ -339,6 +339,15 @@ serve(async (req) => {
     };
     console.log('[daily-digest] run complete', summary);
 
+    // Heartbeat: ping BetterStack so its uptime monitor confirms this
+    // cron actually ran. If it doesn't see a ping within 24h + 1h
+    // grace, BetterStack alerts. Best-effort — never block the response
+    // on the heartbeat call.
+    const heartbeatUrl = Deno.env.get('BETTERSTACK_HEARTBEAT_DAILY_DIGEST');
+    if (heartbeatUrl) {
+      await fetch(heartbeatUrl).catch(() => {});
+    }
+
     return jsonResponse({ ok: true, ...summary, results });
   } catch (e) {
     console.error('[daily-digest] crash', e);

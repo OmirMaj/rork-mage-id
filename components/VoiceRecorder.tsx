@@ -20,6 +20,8 @@ import {
 import { Mic, MicOff, Lock } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import VoiceCaptureModal from './VoiceCaptureModal';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 interface VoiceRecorderProps {
   onTranscriptReady: (transcript: string) => void;
@@ -42,7 +44,7 @@ interface VoiceRecorderProps {
    * of fields the user should cover during dictation. Pairs with the
    * voice parser so a single dictation can fill the whole form.
    */
-  topicChecklist?: Array<{ label: string; hint?: string }>;
+  topicChecklist?: { label: string; hint?: string }[];
 }
 
 export default function VoiceRecorder({
@@ -116,7 +118,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
     backgroundColor: Colors.surface,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     padding: 14,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
@@ -137,16 +139,16 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.fillTertiary,
   },
   label: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     fontWeight: '500' as const,
     color: Colors.text,
   },
   webLabel: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: Colors.textMuted,
   },
   lockedLabel: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: Colors.textMuted,
     fontStyle: 'italic',
   },

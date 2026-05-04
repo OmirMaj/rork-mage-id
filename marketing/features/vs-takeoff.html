@@ -1,0 +1,632 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>MAGE ID Takeoff vs. other AI takeoff tools — read drawings, ship estimates</title>
+  <meta name="description" content="MAGE ID's AI quantity takeoff reads architectural PDFs and produces editable LF/SF/EA quantities with confidence per row, source-page tracing, spec book matching, and one-tap conversion to sub-trade buyout packages — bundled into the Pro tier instead of priced as a standalone tool." />
+  <meta name="theme-color" content="#0B0D10" />
+
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="MAGE ID Takeoff vs. other AI takeoff tools" />
+  <meta property="og:description" content="Pro-grade AI quantity takeoff bundled into a contractor OS — instead of priced as a $200–500/mo standalone tool." />
+  <meta property="og:url" content="https://mageid.app/features/vs-takeoff.html" />
+  <meta property="og:site_name" content="MAGE ID" />
+  <meta property="og:image" content="https://mageid.app/assets/og-image.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:image" content="https://mageid.app/assets/og-image.png" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="/assets/favicon-16.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/assets/favicon-180.png" />
+  <link rel="icon" type="image/png" sizes="512x512" href="/assets/favicon-512.png" />
+  <link rel="stylesheet" href="/styles.css" />
+  <style>
+    /* Page-scoped — comparison table styling matches /features/vs-competitors.html */
+    .compare-card {
+      background: #FFFFFF;
+      border: 1px solid var(--bone);
+      border-radius: 18px;
+      padding: 8px;
+      margin: 36px auto;
+      max-width: 1100px;
+      overflow-x: auto;
+    }
+    .compare-table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      min-width: 880px;
+    }
+    .compare-table th, .compare-table td {
+      padding: 14px 18px;
+      text-align: left;
+      vertical-align: top;
+      border-bottom: 1px solid #F1EAD9;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    .compare-table thead th {
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+      color: #8B9099;
+      background: #FAF7F0;
+      border-bottom: 2px solid #E8DFCD;
+    }
+    .compare-table thead th:first-child { border-top-left-radius: 12px; }
+    .compare-table thead th:last-child { border-top-right-radius: 12px; }
+    .compare-table th.col-mage,
+    .compare-table td.col-mage {
+      background: #FFF1E6;
+      color: #0B0D10;
+      font-weight: 600;
+    }
+    .compare-table thead th.col-mage {
+      color: #FF6A1A;
+      background: #FFE8D5;
+    }
+    .compare-table tbody tr:last-child td { border-bottom: 0; }
+    .compare-table tbody tr:nth-child(even) td { background: #FCFAF4; }
+    .compare-table tbody tr:nth-child(even) td.col-mage { background: #FFEEDE; }
+    .compare-row-feature { font-weight: 700; color: #0B0D10; }
+    .compare-yes { color: #1E8E4A; font-weight: 700; }
+    .compare-no  { color: #8B9099; font-weight: 600; }
+    .compare-partial { color: #C26A00; font-weight: 600; }
+
+    .feature-tile-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 16px;
+      margin: 32px auto;
+      max-width: 1100px;
+    }
+    .feature-tile {
+      background: #FFFFFF;
+      border: 1px solid var(--bone);
+      border-radius: 16px;
+      padding: 22px;
+      color: #0B0D10;
+    }
+    .feature-tile h3 {
+      font-family: var(--ff-serif);
+      font-size: 1.1rem;
+      margin: 0 0 6px;
+      letter-spacing: -0.01em;
+    }
+    .feature-tile p {
+      font-size: 13px;
+      line-height: 1.55;
+      color: #4A5159;
+      margin: 0;
+    }
+    .feature-tile .tile-eyebrow {
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+      color: #FF6A1A;
+      margin-bottom: 10px;
+    }
+
+    .legend {
+      max-width: 880px;
+      margin: 22px auto 0;
+      padding: 14px 18px;
+      background: #FAF7F0;
+      border: 1px solid #E8DFCD;
+      border-radius: 12px;
+      font-size: 12px;
+      color: #4A5159;
+      line-height: 1.6;
+    }
+
+    .pricing-card {
+      background: linear-gradient(180deg, #0B0D10 0%, #1A1D22 100%);
+      color: #F4EFE6;
+      border-radius: 22px;
+      padding: 36px 32px;
+      margin: 48px auto;
+      max-width: 880px;
+      text-align: center;
+    }
+    .pricing-card h2 {
+      font-family: 'Fraunces', Georgia, serif;
+      font-size: clamp(1.6rem, 3.5vw, 2.4rem);
+      line-height: 1.15;
+      letter-spacing: -0.02em;
+      margin: 0 0 16px;
+    }
+    .pricing-card h2 em {
+      color: #FF6A1A;
+      font-style: italic;
+    }
+    .pricing-card p {
+      font-size: 0.95rem;
+      color: #C5BCAB;
+      max-width: 600px;
+      margin: 0 auto 20px;
+    }
+    .pricing-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 12px;
+      margin: 24px 0 6px;
+    }
+    .pricing-cell {
+      padding: 18px 14px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 14px;
+    }
+    .pricing-cell .pc-label {
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+      color: #8B9099;
+      margin-bottom: 8px;
+    }
+    .pricing-cell .pc-value {
+      font-family: 'Fraunces', Georgia, serif;
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: #F4EFE6;
+    }
+    .pricing-cell.is-mage {
+      background: rgba(255, 106, 26, 0.14);
+      border-color: rgba(255, 106, 26, 0.4);
+    }
+    .pricing-cell.is-mage .pc-value {
+      color: #FFB87A;
+    }
+  </style>
+</head>
+<body>
+  <header class="nav">
+    <div class="nav-inner">
+      <a href="/" class="brand"><img class="brand-mark" src="/assets/logo-mark-light.png" alt="" width="32" height="32" /><span>MAGE&nbsp;ID</span></a>
+      <nav class="links">
+        <a href="/playbook.html">How it works</a>
+        <a href="/features/post-a-project.html">Post a Project</a>
+        <a href="/features/client-experience.html">Client Experience</a>
+        <a href="/features/field.html">Field Ops</a>
+        <a href="/features/financials.html">Financials</a>
+        <a href="/features/scheduling.html">Scheduling</a>
+        <a href="/features/vs-competitors.html">vs. Software</a>
+        <a href="/features/vs-takeoff.html" class="active">vs. Takeoff Tools</a>
+        <a href="/demo.html">Demo</a>
+        <a href="/support.html">Support</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="sub-hero wrap">
+      <span class="eyebrow">Quantity takeoff</span>
+      <h1>Read the drawings. <br>Ship the estimate. <br>One app.</h1>
+      <p>
+        MAGE ID's AI Quantity Takeoff reads your architectural PDFs and returns editable
+        linear-feet, square-feet, and count quantities — with confidence per row, source-page
+        tracing, spec-book matching, and one-tap conversion to sub-trade buyout packages.
+        Bundled into the Pro tier instead of sold as a $200–$500/month standalone tool.
+      </p>
+
+      <div class="hero-stats">
+        <div class="hero-stat">
+          <div class="hero-stat-value">7</div>
+          <div class="hero-stat-label">categories of quantities (walls, floors, doors, windows, finishes, fixtures, bulk)</div>
+        </div>
+        <div class="hero-stat">
+          <div class="hero-stat-value">1-tap</div>
+          <div class="hero-stat-label">takeoff &rarr; 8–12 sub-trade buyout drafts</div>
+        </div>
+        <div class="hero-stat">
+          <div class="hero-stat-value">$0</div>
+          <div class="hero-stat-label">add-on fee — included in the Pro tier</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =====================================================================
+         Section 1: vs. other AI takeoff tools
+         ===================================================================== -->
+    <section class="section wrap-wide" style="padding-top: 24px;">
+      <h2 class="section-heading">vs. other AI takeoff tools.</h2>
+      <p class="section-sub">
+        We grouped the alternatives by what they actually are — a commercial takeoff platform,
+        a desktop legacy tool, or a residential AI estimator that bolts a plan-upload feature
+        onto a chatbot. Here&apos;s how MAGE ID compares to each.
+      </p>
+
+      <div class="compare-card">
+        <table class="compare-table">
+          <thead>
+            <tr>
+              <th>Capability</th>
+              <th class="col-mage">MAGE ID Takeoff</th>
+              <th>Tool A &mdash; commercial takeoff platform<sup>1</sup></th>
+              <th>Tool B &mdash; legacy desktop takeoff<sup>2</sup></th>
+              <th>Tool C &mdash; residential AI estimator<sup>3</sup></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="compare-row-feature">Reads PDF drawings (Vision AI)</td>
+              <td class="col-mage compare-yes">Yes — Gemini Vision</td>
+              <td class="compare-yes">Yes</td>
+              <td class="compare-no">No — manual point-and-click</td>
+              <td class="compare-partial">Partial — text-prompt-led</td>
+            </tr>
+            <tr>
+              <td class="compare-row-feature">Auto-detects scale (e.g. 1/4&quot; = 1&apos;-0&quot;)</td>
+              <td class="col-mage compare-yes">Yes</td>
+              <td class="compare-yes">Yes</td>
+              <td class="compare-partial">Manual scale-set required</td>
+              <td class="compare-no">No</td>
+            </tr>
+            <tr>
+              <td class="compare-row-feature">Returns LF / SF / EA / CY by category</td>
+              <td class="col-mage compare-yes">7 categories — walls, floors, doors, windows, finishes, fixtures, bulk</td>
+              <td class="compare-yes">Yes</td>
+              <td class="compare-yes">Yes (manual)</td>
+              <td class="compare-partial">Rolls into one estimate, not separated</td>
+            </tr>
+            <tr>
+              <td class="compare-row-feature">Per-row confidence rating</td>
+              <td class="col-mage compare-yes">High / medium / low — strict rules per item</td>
+              <td class="compare-no">No</td>
+              <td class="compare-no">No</td>
+              <td class="compare-no">No</td>
+            </tr>
+            <tr>
+              <td class="compare-row-feature">Source-page tracing (tap row &rarr; see drawing)</td>
+              <td class="col-mage compare-yes">Yes — Page Inspector with related-quantities sidebar</td>
+              <td class="compare-partial">Page reference only</td>
+              <td class="compare-no">No</td>
+              <td class="compare-no">No</td>
+            </tr>
+            <tr>
+              <td class="compare-row-feature">Spec-book matcher (PT-1 &rarr; manufacturer / product / SKU)</td>
+              <td class="col-mage compare-yes">Yes — separate AI pass on the spec PDF</td>
+              <td class="compare-no">No</td>
+              <td class="compare-no">No</td>
+              <td class="compare-no">No</td>
+            </tr>
+            <tr>
+              <td class="compare-row-feature">Wall categorization (interior partition / exterior / demising / foundation)</td>
+              <td class="col-mage compare-yes">Yes — drives buyout splits</td>
+              <td class="compare-partial">Generic wall-type tagging</td>
+              <td class="compare-no">No</td>
+              <td class="compare-no">No</td>
+            </tr>
+            <tr>
+              <td class="compare-row-feature">CSI MasterFormat tagging</td>
+              <td class="col-mage compare-yes">Yes — per item</td>
+              <td class="compare-partial">Manual</td>
+              <td class="compare-no">No</td>
+              <td class="compare-no">No</td>
+            </tr>
+            <tr>
+              <td class="compare-row-feature">Edit-after-AI (override quantities, &quot;edited&quot; badge)</td>
+              <td class="col-mage compare-yes">Inline edit per row, reset-to-AI button</td>
+              <td class="compare-yes">Yes</td>
+              <td class="compare-yes">Yes</td>
+              <td class="compare-partial">Edit pricing, not the structured quantity</td>
+            </tr>
+            <tr>
+              <td class="compare-row-feature">One-tap takeoff &rarr; sub-trade buyout packages</td>
+              <td class="col-mage compare-yes">Concrete, framing, doors, windows, drywall, painting, flooring, plumbing, electrical, HVAC, appliances</td>
+              <td class="compare-no">No</td>
+              <td class="compare-no">No</td>
+              <td class="compare-no">No</td>
+            </tr>
+            <tr>
+              <td class="compare-row-feature">Field verification (camera + GPS per row)</td>
+              <td class="col-mage compare-yes">AI vs. field delta with success / warning tone</td>
+              <td class="compare-no">No</td>
+              <td class="compare-no">No</td>
+              <td class="compare-no">No</td>
+            </tr>
+            <tr>
+              <td class="compare-row-feature">Drawing-revision compare (what changed)</td>
+              <td class="compare-partial">Roadmap</td>
+              <td class="compare-yes">Yes</td>
+              <td class="compare-no">No</td>
+              <td class="compare-no">No</td>
+            </tr>
+            <tr>
+              <td class="compare-row-feature">Bounding-box overlay on drawings</td>
+              <td class="compare-partial">Roadmap (region-level highlight)</td>
+              <td class="compare-yes">Yes</td>
+              <td class="compare-no">No</td>
+              <td class="compare-no">No</td>
+            </tr>
+            <tr>
+              <td class="compare-row-feature">Native iOS app for field use</td>
+              <td class="col-mage compare-yes">Native iOS + Android + web</td>
+              <td class="compare-partial">Web only</td>
+              <td class="compare-no">Windows desktop only</td>
+              <td class="compare-yes">Yes</td>
+            </tr>
+            <tr>
+              <td class="compare-row-feature">Offline-first sync (airplane mode safe)</td>
+              <td class="col-mage compare-yes">Every write through the offline queue</td>
+              <td class="compare-no">No</td>
+              <td class="compare-no">No</td>
+              <td class="compare-no">No</td>
+            </tr>
+            <tr>
+              <td class="compare-row-feature">Voice form fill (speak it, AI structures it)</td>
+              <td class="col-mage compare-yes">Universal mic + per-form parsers</td>
+              <td class="compare-no">No</td>
+              <td class="compare-no">No</td>
+              <td class="compare-no">No</td>
+            </tr>
+            <tr>
+              <td class="compare-row-feature">Bundled with the rest of the GC stack (estimating, scheduling, AIA pay app, RFI, submittals)</td>
+              <td class="col-mage compare-yes">All included</td>
+              <td class="compare-no">Takeoff only</td>
+              <td class="compare-no">Takeoff only</td>
+              <td class="compare-partial">Estimating + invoicing only</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p style="text-align: center; font-size: 14px; color: #8B9099; margin: 12px auto 0; max-width: 760px;">
+        Standalone takeoff tools are designed to do one thing well — measure drawings.
+        MAGE ID&apos;s takeoff is the front door of a complete contractor OS, so the quantities
+        flow into estimates, sub-trade buyouts, AIA pay applications, and field verification
+        without ever leaving the app.
+      </p>
+    </section>
+
+    <!-- =====================================================================
+         Section 2: pricing comparison
+         ===================================================================== -->
+    <section class="section wrap-wide" style="padding-top: 24px;">
+      <h2 class="section-heading">The price math.</h2>
+      <p class="section-sub">
+        Standalone takeoff tools price per user per year. MAGE ID&apos;s Pro tier includes the
+        takeoff plus the rest of the platform — at a lower monthly cost than most takeoff-only
+        subscriptions.
+      </p>
+
+      <div class="compare-card">
+        <table class="compare-table">
+          <thead>
+            <tr>
+              <th>Setup</th>
+              <th>Per user / year<sup>4</sup></th>
+              <th>What you get</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="compare-row-feature">Tool A &mdash; commercial takeoff platform</td>
+              <td class="compare-no">$3,500&ndash;$3,600</td>
+              <td>Takeoff only — no estimating, scheduling, RFI, AIA, etc.</td>
+            </tr>
+            <tr>
+              <td class="compare-row-feature">Tool A2 &mdash; commercial takeoff platform (mid)</td>
+              <td class="compare-no">$2,200&ndash;$3,000</td>
+              <td>Takeoff + plan markup</td>
+            </tr>
+            <tr>
+              <td class="compare-row-feature">Tool B &mdash; legacy desktop takeoff (Windows-only)</td>
+              <td class="compare-no">$1,750&ndash;$2,000</td>
+              <td>Manual takeoff, no AI, no mobile</td>
+            </tr>
+            <tr>
+              <td class="compare-row-feature">Tool C &mdash; residential AI estimator (mid tier)</td>
+              <td class="compare-no">$1,400&ndash;$1,500</td>
+              <td>AI estimating + photo upload, weak takeoff per published reviews</td>
+            </tr>
+            <tr>
+              <td class="compare-row-feature">Tool D &mdash; legacy PDF markup tool (industry-standard)</td>
+              <td class="compare-no">$440</td>
+              <td>Manual takeoff, no AI</td>
+            </tr>
+            <tr style="background: #FFF6E8;">
+              <td class="compare-row-feature col-mage" style="font-size: 15px;"><strong>MAGE ID Pro</strong> &mdash; AI takeoff bundled</td>
+              <td class="col-mage compare-yes" style="font-size: 15px;">$300/yr<sup>5</sup></td>
+              <td class="col-mage compare-yes" style="font-size: 14px;">Takeoff + estimating + scheduling + AIA + RFI + submittals + cash flow + portals</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="pricing-card">
+        <h2>$1,100&ndash;$3,300 cheaper per user per year. <br><em>And the rest of the platform&apos;s included.</em></h2>
+        <p>
+          Standalone takeoff tools are priced for an estimator who lives in one app all day.
+          MAGE ID Pro is priced for the owner-operator GC who wears six hats — one subscription
+          replaces the takeoff app, the estimator, the scheduler, the punch app, the
+          client portal, and the pay app.
+        </p>
+        <div class="pricing-grid">
+          <div class="pricing-cell">
+            <div class="pc-label">Tool A annual</div>
+            <div class="pc-value">$3,588</div>
+          </div>
+          <div class="pricing-cell">
+            <div class="pc-label">Tool B annual</div>
+            <div class="pc-value">$1,749</div>
+          </div>
+          <div class="pricing-cell is-mage">
+            <div class="pc-label">MAGE ID Pro annual</div>
+            <div class="pc-value">$300</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =====================================================================
+         Section 3: differentiator tiles
+         ===================================================================== -->
+    <section class="section wrap-wide">
+      <h2 class="section-heading">The four moves no other tool ships.</h2>
+      <p class="section-sub">
+        These are MAGE ID&apos;s real differentiators in the takeoff lane — features that
+        require the rest of the contractor OS to even make sense.
+      </p>
+
+      <div class="feature-tile-grid">
+        <div class="feature-tile">
+          <div class="tile-eyebrow">Spec book matcher</div>
+          <h3>PT-1 &rarr; Sherwin Williams Eggshell SW7036</h3>
+          <p>
+            Upload the architect&apos;s spec PDF and the AI pairs every callout code on
+            the drawings with the actual manufacturer, product, finish, and SKU. Unmatched
+            codes get flagged as RFIs before you bid them.
+          </p>
+        </div>
+        <div class="feature-tile">
+          <div class="tile-eyebrow">Takeoff &rarr; Buyout</div>
+          <h3>One tap. Eight to twelve sub-trade packages.</h3>
+          <p>
+            The takeoff turns into draft buyout packages — concrete, framing, doors,
+            drywall, plumbing, electrical, HVAC — with auto-written scope text including
+            quantities and matched specs. A Friday-afternoon job, in 60 seconds.
+          </p>
+        </div>
+        <div class="feature-tile">
+          <div class="tile-eyebrow">Field verification</div>
+          <h3>AI vs. field, side by side.</h3>
+          <p>
+            Tap a row on site, snap a photo with your iPhone, type what you measured.
+            GPS attaches automatically. Green if within 5%, yellow up to 15%, red beyond.
+            Patterns surface in the corrections panel.
+          </p>
+        </div>
+        <div class="feature-tile">
+          <div class="tile-eyebrow">Per-row confidence + source pages</div>
+          <h3>Trace any number to where it came from.</h3>
+          <p>
+            Every quantity carries a high / medium / low confidence rating with strict rules.
+            Tap the source-page badge to open Page Inspector — see the rendered drawing with
+            a sidebar of every other quantity from that page.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- =====================================================================
+         Section 4: where the alternatives still win — be honest
+         ===================================================================== -->
+    <section class="section wrap-wide">
+      <h2 class="section-heading">Where the others still win &mdash; for now.</h2>
+      <p class="section-sub">
+        We&apos;ll tell you straight where the alternatives have the edge. If any of these
+        matter more than what we ship today, pick them. We&apos;ll be back.
+      </p>
+
+      <div class="compare-card">
+        <table class="compare-table">
+          <thead>
+            <tr>
+              <th>If you need&hellip;</th>
+              <th class="col-mage">MAGE ID</th>
+              <th>Where it&apos;s better today</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="compare-row-feature">Bounding-box highlights on every measurement</td>
+              <td class="col-mage compare-partial">Roadmap &mdash; we return source pages today</td>
+              <td>Tool A (commercial takeoff)</td>
+            </tr>
+            <tr>
+              <td class="compare-row-feature">Drawing-revision comparison (set A vs. set B)</td>
+              <td class="col-mage compare-partial">Roadmap</td>
+              <td>Tool A (commercial takeoff)</td>
+            </tr>
+            <tr>
+              <td class="compare-row-feature">Five years of empirical accuracy on commercial sets</td>
+              <td class="col-mage compare-partial">Brand-new product, accuracy data publishing soon</td>
+              <td>Tool A &mdash; longest track record</td>
+            </tr>
+            <tr>
+              <td class="compare-row-feature">Excel quantity export with formulas</td>
+              <td class="col-mage compare-partial">CSV / PDF exports today; Excel formulas roadmap</td>
+              <td>Tool B (legacy desktop)</td>
+            </tr>
+            <tr>
+              <td class="compare-row-feature">Real-time supplier pricing by ZIP</td>
+              <td class="col-mage compare-partial">Materials database with regional factors today; live SKU feeds roadmap</td>
+              <td>Tool C (residential AI estimator)</td>
+            </tr>
+            <tr>
+              <td class="compare-row-feature">Cost catalog with assemblies tied to your historical jobs</td>
+              <td class="col-mage compare-partial">Roadmap once you have 5+ projects in the system</td>
+              <td>Tool B &mdash; deep custom assemblies</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p style="text-align: center; font-size: 14px; color: #8B9099; margin: 12px auto 0; max-width: 760px;">
+        Honesty earns trust. If you need a bounding-box overlay on every measurement today,
+        Tool A is the better fit. If you want a takeoff that&apos;s the front door of a complete
+        contractor operating system &mdash; field, finance, scheduling, RFI, AIA, portals,
+        all integrated &mdash; that&apos;s us.
+      </p>
+    </section>
+
+    <!-- =====================================================================
+         Section 5: CTA
+         ===================================================================== -->
+    <section class="section wrap-wide" style="padding-bottom: 80px;">
+      <div class="pricing-card" style="text-align: center;">
+        <h2>Want to see it on a real drawing? <br><em>30-minute live demo, on us.</em></h2>
+        <p>
+          Pick a 30-minute window. We&apos;ll walk you through the full flow on one of your own
+          plan sets &mdash; uploaded right there on the call. You keep the takeoff and the
+          spec-matched product list whether you sign up or not.
+        </p>
+        <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-top: 12px;">
+          <a class="btn btn-primary" href="/demo.html">
+            <span>Watch the demo videos</span>
+          </a>
+          <a class="btn btn-ghost" href="/#cta" style="border-color: rgba(255,255,255,0.3); color: #fff;">
+            <span>Get early access</span>
+          </a>
+        </div>
+      </div>
+
+      <div class="legend" style="text-align: left;">
+        <p style="margin: 0 0 8px 0;"><strong>Notes:</strong></p>
+        <p style="margin: 0 0 6px 0;"><sup>1</sup> &quot;Tool A&quot; refers to commercial-focused AI takeoff platforms typically priced $2,200&ndash;$3,600/user/yr, sold via demo-gated sales motions, marketed at $50M+ commercial GCs.</p>
+        <p style="margin: 0 0 6px 0;"><sup>2</sup> &quot;Tool B&quot; refers to legacy desktop takeoff applications running on Windows only, priced $1,749&ndash;$2,000/user/yr, with no AI auto-detection.</p>
+        <p style="margin: 0 0 6px 0;"><sup>3</sup> &quot;Tool C&quot; refers to residential AI estimators with photo / plan upload at $39&ndash;$299/month tiered pricing, where the AI primarily generates estimates from text descriptions plus reference imagery rather than running structured quantity takeoff with confidence ratings.</p>
+        <p style="margin: 0 0 6px 0;"><sup>4</sup> Annual prices reflect publicly-listed pricing and category buyer guides as of Q2 2026. Per-user, billed annually unless noted.</p>
+        <p style="margin: 0;"><sup>5</sup> MAGE ID Pro published price as of Q2 2026. Includes the AI Quantity Takeoff, AI Drawing Analyzer, AI Spec Book Matcher, AI Estimate Validator, AI Schedule Generator, AIA G702/G703, Cash Flow Forecaster, RFI / Submittal / Punch / Warranty modules, Client Portal, Sub Portal, and the rest of the platform &mdash; no add-on fees.</p>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      <div>
+        <a href="/" class="brand"><img class="brand-mark" src="/assets/logo-mark-light.png" alt="" width="28" height="28" /><span>MAGE&nbsp;ID</span></a>
+        <p style="font-size: 12px; color: var(--fog); margin-top: 12px; max-width: 360px;">
+          The operating system for general contractors. iOS, Android, web. Built for the GC who&apos;s on the ladder twice a week.
+        </p>
+      </div>
+      <div class="footer-links">
+        <a href="/playbook.html">How it works</a>
+        <a href="/features/">Explore</a>
+        <a href="/features/vs-competitors.html">vs. Software</a>
+        <a href="/features/vs-takeoff.html">vs. Takeoff Tools</a>
+        <a href="/demo.html">Demo</a>
+        <a href="/support.html">Support</a>
+        <a href="/privacy.html">Privacy</a>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>

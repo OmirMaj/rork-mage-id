@@ -17,6 +17,8 @@ import {
   type WeeklyUpdateDraft,
 } from '@/utils/weeklyClientUpdate';
 import { sendEmailNative } from '@/utils/emailService';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 export default function ClientUpdateScreen() {
   const insets = useSafeAreaInsets();
@@ -207,7 +209,7 @@ export default function ClientUpdateScreen() {
             <View key={email} style={styles.chip}>
               <Mail size={12} color={Colors.primary} />
               <Text style={styles.chipTxt} numberOfLines={1}>{email}</Text>
-              <TouchableOpacity onPress={() => removeRecipient(email)} hitSlop={8}>
+              <TouchableOpacity onPress={() => removeRecipient(email)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
                 <X size={14} color={Colors.textSecondary} />
               </TouchableOpacity>
             </View>
@@ -224,9 +226,7 @@ export default function ClientUpdateScreen() {
               onChangeText={setNewEmail}
               onSubmitEditing={addRecipient}
             />
-            <TouchableOpacity style={styles.addBtn} onPress={addRecipient} activeOpacity={0.7}>
-              <Plus size={14} color={Colors.textOnPrimary} />
-            </TouchableOpacity>
+            <TouchableOpacity style={styles.addBtn} onPress={addRecipient} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Add"><Plus size={14} color={Colors.textOnPrimary} /></TouchableOpacity>
           </View>
         </View>
 
@@ -408,7 +408,7 @@ function BulletEditor({
             placeholder="Type a bullet…"
             placeholderTextColor={Colors.textMuted}
           />
-          <TouchableOpacity onPress={() => onRemove(i)} hitSlop={8} style={styles.bulletRemove}>
+          <TouchableOpacity onPress={() => onRemove(i)} hitSlop={8} style={styles.bulletRemove} accessibilityRole="button" accessibilityLabel="Close">
             <X size={14} color={Colors.textSecondary} />
           </TouchableOpacity>
         </View>
@@ -425,24 +425,24 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   scroll: { padding: 16 },
   hero: {
-    backgroundColor: Colors.surface, borderRadius: 16, padding: 20,
+    backgroundColor: Colors.surface, borderRadius: Tokens.radius.panel, padding: 20,
     borderWidth: 1, borderColor: Colors.cardBorder, gap: 10, marginBottom: 8,
   },
   heroIcon: {
-    width: 44, height: 44, borderRadius: 12,
+    width: 44, height: 44, borderRadius: Tokens.radius.card,
     backgroundColor: `${Colors.primary}15`,
     alignItems: 'center', justifyContent: 'center',
   },
-  heroTitle: { fontSize: 22, fontWeight: '700', color: Colors.text },
-  heroSub: { fontSize: 14, color: Colors.textSecondary, lineHeight: 20 },
+  heroTitle: { fontSize: Type.title2.fontSize, fontWeight: '700', color: Colors.text },
+  heroSub: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, lineHeight: 20 },
 
   sectionLabel: {
-    fontSize: 11, fontWeight: '600', color: Colors.textSecondary,
+    fontSize: Type.caption2.fontSize, fontWeight: '600', color: Colors.textSecondary,
     letterSpacing: 0.8, marginBottom: 8, marginTop: 20,
   },
 
   projectList: {
-    backgroundColor: Colors.surface, borderRadius: 12,
+    backgroundColor: Colors.surface, borderRadius: Tokens.radius.card,
     borderWidth: 1, borderColor: Colors.cardBorder, overflow: 'hidden',
   },
   projectRow: {
@@ -450,48 +450,48 @@ const styles = StyleSheet.create({
     padding: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Colors.borderLight,
   },
   projectRowActive: { backgroundColor: `${Colors.primary}08` },
-  projectRowName: { fontSize: 15, fontWeight: '600', color: Colors.text },
+  projectRowName: { fontSize: Type.subhead.fontSize, fontWeight: '600', color: Colors.text },
   projectRowNameActive: { color: Colors.primary },
-  projectRowMeta: { fontSize: 12, color: Colors.textSecondary, marginTop: 2 },
-  emptyTxt: { fontSize: 13, color: Colors.textSecondary, padding: 14, textAlign: 'center' },
-  emptyInline: { fontSize: 12, color: Colors.textSecondary, paddingBottom: 8 },
+  projectRowMeta: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, marginTop: 2 },
+  emptyTxt: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, padding: 14, textAlign: 'center' },
+  emptyInline: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, paddingBottom: 8 },
 
   recipientCard: {
-    backgroundColor: Colors.surface, borderRadius: 12,
+    backgroundColor: Colors.surface, borderRadius: Tokens.radius.card,
     borderWidth: 1, borderColor: Colors.cardBorder,
     padding: 12, gap: 8, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center',
   },
   chip: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     backgroundColor: `${Colors.primary}10`,
-    paddingHorizontal: 10, paddingVertical: 6, borderRadius: 14,
+    paddingHorizontal: 10, paddingVertical: 6, borderRadius: Tokens.radius.lg,
     maxWidth: '100%',
   },
-  chipTxt: { fontSize: 12, color: Colors.text, maxWidth: 180 },
+  chipTxt: { fontSize: Type.caption1.fontSize, color: Colors.text, maxWidth: 180 },
 
   addRow: { flexDirection: 'row', alignItems: 'center', gap: 6, width: '100%', marginTop: 4 },
   emailInput: {
-    flex: 1, borderWidth: 1, borderColor: Colors.border, borderRadius: 8,
-    paddingHorizontal: 10, paddingVertical: 8, fontSize: 13, color: Colors.text,
+    flex: 1, borderWidth: 1, borderColor: Colors.border, borderRadius: Tokens.radius.sm,
+    paddingHorizontal: 10, paddingVertical: 8, fontSize: Type.footnote.fontSize, color: Colors.text,
     backgroundColor: Colors.background,
   },
   addBtn: {
-    backgroundColor: Colors.primary, width: 32, height: 32, borderRadius: 8,
+    backgroundColor: Colors.primary, width: 32, height: 32, borderRadius: Tokens.radius.sm,
     alignItems: 'center', justifyContent: 'center',
   },
 
   draftBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: Colors.primary, paddingVertical: 14, borderRadius: 12, marginTop: 20,
+    backgroundColor: Colors.primary, paddingVertical: 14, borderRadius: Tokens.radius.card, marginTop: 20,
   },
   draftBtnDisabled: { opacity: 0.6 },
-  draftBtnTxt: { color: Colors.textOnPrimary, fontWeight: '700', fontSize: 15 },
+  draftBtnTxt: { color: Colors.textOnPrimary, fontWeight: '700', fontSize: Type.subhead.fontSize },
 
   errorCard: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 8,
-    backgroundColor: '#FEE', padding: 12, borderRadius: 10, marginTop: 12,
+    backgroundColor: '#FEE', padding: 12, borderRadius: Tokens.radius.md, marginTop: 12,
   },
-  errorTxt: { flex: 1, fontSize: 12, color: '#D93025', lineHeight: 17 },
+  errorTxt: { flex: 1, fontSize: Type.caption1.fontSize, color: '#D93025', lineHeight: 17 },
 
   draftHeader: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
@@ -499,19 +499,19 @@ const styles = StyleSheet.create({
   regenBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     paddingHorizontal: 10, paddingVertical: 6,
-    backgroundColor: `${Colors.primary}10`, borderRadius: 10, marginTop: 20,
+    backgroundColor: `${Colors.primary}10`, borderRadius: Tokens.radius.md, marginTop: 20,
   },
-  regenTxt: { fontSize: 11, fontWeight: '600', color: Colors.primary },
+  regenTxt: { fontSize: Type.caption2.fontSize, fontWeight: '600', color: Colors.primary },
 
   field: { marginTop: 16 },
   fieldLabel: {
-    fontSize: 11, fontWeight: '600', color: Colors.textSecondary,
+    fontSize: Type.caption2.fontSize, fontWeight: '600', color: Colors.textSecondary,
     marginBottom: 6, letterSpacing: 0.5,
   },
   fieldInput: {
-    borderWidth: 1, borderColor: Colors.cardBorder, borderRadius: 10,
+    borderWidth: 1, borderColor: Colors.cardBorder, borderRadius: Tokens.radius.md,
     paddingHorizontal: 12, paddingVertical: 10,
-    fontSize: 14, color: Colors.text, backgroundColor: Colors.surface,
+    fontSize: Type.bodyCompact.fontSize, color: Colors.text, backgroundColor: Colors.surface,
   },
   multiline: { minHeight: 72 },
 
@@ -519,29 +519,29 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'flex-start', gap: 8,
     marginBottom: 6,
   },
-  bulletDot: { fontSize: 16, color: Colors.primary, paddingTop: 10, width: 10 },
+  bulletDot: { fontSize: Type.callout.fontSize, color: Colors.primary, paddingTop: 10, width: 10 },
   bulletInput: {
-    flex: 1, borderWidth: 1, borderColor: Colors.cardBorder, borderRadius: 10,
+    flex: 1, borderWidth: 1, borderColor: Colors.cardBorder, borderRadius: Tokens.radius.md,
     paddingHorizontal: 10, paddingVertical: 8,
-    fontSize: 13, color: Colors.text, backgroundColor: Colors.surface,
+    fontSize: Type.footnote.fontSize, color: Colors.text, backgroundColor: Colors.surface,
     minHeight: 40,
   },
   bulletRemove: { paddingTop: 10, paddingHorizontal: 4 },
   addBullet: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 6,
-    backgroundColor: `${Colors.primary}10`, borderRadius: 8, marginTop: 4,
+    backgroundColor: `${Colors.primary}10`, borderRadius: Tokens.radius.sm, marginTop: 4,
   },
-  addBulletTxt: { fontSize: 11, fontWeight: '600', color: Colors.primary },
+  addBulletTxt: { fontSize: Type.caption2.fontSize, fontWeight: '600', color: Colors.primary },
 
   previewCard: {
-    marginTop: 24, borderRadius: 12, backgroundColor: Colors.surface,
+    marginTop: 24, borderRadius: Tokens.radius.card, backgroundColor: Colors.surface,
     borderWidth: 1, borderColor: Colors.cardBorder, padding: 14,
   },
   previewHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 },
-  previewHeaderTxt: { fontSize: 11, fontWeight: '600', color: Colors.textSecondary, letterSpacing: 0.5 },
+  previewHeaderTxt: { fontSize: Type.caption2.fontSize, fontWeight: '600', color: Colors.textSecondary, letterSpacing: 0.5 },
   previewBody: {
-    fontSize: 13, color: Colors.text, lineHeight: 19,
+    fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 19,
     fontFamily: Platform.select({ ios: 'Menlo', default: 'monospace' }),
   },
 
@@ -553,8 +553,8 @@ const styles = StyleSheet.create({
   },
   sendBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: Colors.primary, paddingVertical: 16, borderRadius: 12,
+    backgroundColor: Colors.primary, paddingVertical: 16, borderRadius: Tokens.radius.card,
   },
   sendBtnDisabled: { opacity: 0.6 },
-  sendBtnTxt: { color: Colors.textOnPrimary, fontWeight: '700', fontSize: 15 },
+  sendBtnTxt: { color: Colors.textOnPrimary, fontWeight: '700', fontSize: Type.subhead.fontSize },
 });

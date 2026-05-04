@@ -68,11 +68,11 @@ export const Colors = {
   surfaceAlt: '#F2F2F7',
   surfaceElevated: '#FFFFFF',
   card: '#FFFFFF',
-  // Card outline. Bumped from rgba(60,60,67,0.1) (~10% gray) to solid
-  // black so cards on the home / summary / cash-flow / project surfaces
-  // read as crisply defined containers. Keep borderWidth: 1 in
-  // consumers — pure-black at 1px is sharp without being heavy.
-  cardBorder: '#000000',
+  // Card outline. Soft system-gray (Apple's default separator color) so
+  // cards group content without competing for attention. Reserve solid
+  // black for primary CTAs only — that way buttons users should press
+  // are the only hard-black thing on screen and actually pop.
+  cardBorder: 'rgba(60,60,67,0.18)',
 
   text: '#000000',
   textSecondary: 'rgba(60,60,67,0.6)',
@@ -85,12 +85,28 @@ export const Colors = {
 
   success: '#34C759',
   successLight: '#E8FAF0',
+  // Material-design dark variants — used as foreground text on a *Light
+  // tinted card (e.g. dark-green text on a pale-green chip). Audit found
+  // 26 inline `#2E7D32`s, 16 `#1E8E4A`s — both consolidate here.
+  successDark: '#2E7D32',
   warning: '#FF9500',
   warningLight: '#FFF3E0',
+  warningDark: '#E65100',   // 19 inline uses
   error: '#FF3B30',
   errorLight: '#FFF0EF',
+  errorDark: '#C62828',     // 19 inline uses
   info: '#007AFF',
   infoLight: '#EBF3FF',
+  infoDark: '#1565C0',      // 8 inline uses
+
+  // Apple iOS system purple. Used in a few places (system "Books," some
+  // status indicators). 18 inline uses — surfacing as a token.
+  purple: '#5856D6',
+  purpleLight: '#EBEAFA',
+
+  // Apple iOS system orange (slightly cooler than warning). Used on
+  // chips that aren't strictly "warning" semantically.
+  orange: '#FF6A1A',        // 11 inline uses
 
   shadow: 'rgba(0,0,0,0.05)',
   overlay: 'rgba(0,0,0,0.45)',

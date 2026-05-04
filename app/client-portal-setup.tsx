@@ -30,6 +30,8 @@ import { fetchSelectionsForProject } from '@/utils/selectionsEngine';
 import { fetchCloseoutBinder } from '@/utils/closeoutBinderEngine';
 import { LANGUAGES } from '@/utils/portalLanguages';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 const PORTAL_BASE_URL = 'https://mageid.app/portal';
 const DEEP_LINK_SCHEME = 'rork-app://client-view';
@@ -50,31 +52,31 @@ const PERMISSION_TOGGLES: PermissionToggle[] = [
     key: 'showSchedule',
     label: 'Project Schedule',
     description: 'Gantt chart & task progress',
-    icon: <CalendarDays size={18} color="#007AFF" />,
+    icon: <CalendarDays size={18} color={Colors.info} />,
   },
   {
     key: 'showBudgetSummary',
     label: 'Budget Summary',
     description: 'Overall spend vs. contract value',
-    icon: <BarChart3 size={18} color="#34C759" />,
+    icon: <BarChart3 size={18} color={Colors.success} />,
   },
   {
     key: 'showInvoices',
     label: 'Invoices',
     description: 'Invoice history & payment status',
-    icon: <DollarSign size={18} color="#FF9500" />,
+    icon: <DollarSign size={18} color={Colors.warning} />,
   },
   {
     key: 'showChangeOrders',
     label: 'Change Orders',
     description: 'Approved & pending change orders',
-    icon: <FileText size={18} color="#FF3B30" />,
+    icon: <FileText size={18} color={Colors.error} />,
   },
   {
     key: 'showPhotos',
     label: 'Site Photos',
     description: 'Progress photos from the field',
-    icon: <Image size={18} color="#5856D6" />,
+    icon: <Image size={18} color={Colors.purple} />,
   },
   {
     key: 'showDailyReports',
@@ -86,13 +88,13 @@ const PERMISSION_TOGGLES: PermissionToggle[] = [
     key: 'showPunchList',
     label: 'Punch List',
     description: 'Open items & completion status',
-    icon: <CheckCircle2 size={18} color="#34C759" />,
+    icon: <CheckCircle2 size={18} color={Colors.success} />,
   },
   {
     key: 'showRFIs',
     label: 'RFIs',
     description: 'Requests for information',
-    icon: <MessageSquare size={18} color="#FF9500" />,
+    icon: <MessageSquare size={18} color={Colors.warning} />,
   },
   {
     key: 'showDocuments',
@@ -537,7 +539,7 @@ export default function ClientPortalSetupScreen() {
         options={{
           title: 'Client Portal',
           headerLeft: () => (
-            <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }}>
+            <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }} accessibilityRole="button" accessibilityLabel="Back">
               <ChevronLeft size={24} color={Colors.primary} />
             </TouchableOpacity>
           ),
@@ -556,7 +558,7 @@ export default function ClientPortalSetupScreen() {
         {/* Portal Link */}
         <View style={styles.linkCard}>
           <View style={styles.linkCardHeader}>
-            <Globe size={20} color="#5856D6" />
+            <Globe size={20} color={Colors.purple} />
             <Text style={styles.linkCardTitle}>Portal Link</Text>
             <View style={styles.activeBadge}>
               <Text style={styles.activeBadgeText}>Active</Text>
@@ -610,7 +612,7 @@ export default function ClientPortalSetupScreen() {
           {portal.requirePasscode && (
             <>
               <TextInput
-                style={[styles.welcomeInput, { minHeight: 48, textAlign: 'center' as const, letterSpacing: 2, fontSize: 16, marginTop: 10 }]}
+                style={[styles.welcomeInput, { minHeight: 48, textAlign: 'center' as const, letterSpacing: 2, fontSize: Type.callout.fontSize, marginTop: 10 }]}
                 value={portal.passcode ?? ''}
                 onChangeText={val => setPortal(p => ({ ...p, passcode: val }))}
                 placeholder="Enter a passcode (4-12 chars)"
@@ -682,7 +684,7 @@ export default function ClientPortalSetupScreen() {
           <View style={[styles.togglesCard, { padding: 0 }]}>
             <View style={[styles.toggleRow, (project?.targetBudget || proposalQ.pending.length > 0) && styles.toggleRowBorder]}>
               <View style={styles.toggleLeft}>
-                <HandCoins size={18} color="#FF6A1A" />
+                <HandCoins size={18} color={Colors.orange} />
                 <View style={styles.toggleLabels}>
                   <Text style={styles.toggleLabel}>Allow client to suggest budget</Text>
                   <Text style={styles.toggleDesc}>Shows a &quot;Set your target budget&quot; card on the portal</Text>
@@ -700,7 +702,7 @@ export default function ClientPortalSetupScreen() {
             {project?.targetBudget && (
               <View style={[styles.budgetStatus, proposalQ.pending.length > 0 && { borderBottomWidth: 1, borderBottomColor: Colors.border }]}>
                 <View style={styles.budgetStatusBadge}>
-                  <Check size={14} color="#1E8E4A" />
+                  <Check size={14} color={Colors.successDark} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.budgetStatusLabel}>
@@ -743,8 +745,7 @@ export default function ClientPortalSetupScreen() {
                   <TouchableOpacity
                     style={styles.proposalBtnDecline}
                     onPress={() => handleDeclineProposal(p.id)}
-                    disabled={proposalQ.isResponding}
-                  >
+                    disabled={proposalQ.isResponding} accessibilityRole="button" accessibilityLabel="Close">
                     <X size={14} color={Colors.textMuted} />
                   </TouchableOpacity>
                 </View>
@@ -779,7 +780,7 @@ export default function ClientPortalSetupScreen() {
               <View key={a.id} style={[styles.coApprovalRow, idx < 4 && styles.toggleRowBorder]}>
                 <View style={[styles.budgetStatusBadge, a.decision === 'declined' && { backgroundColor: '#FBEAE7' }]}>
                   {a.decision === 'approved'
-                    ? <Check size={14} color="#1E8E4A" />
+                    ? <Check size={14} color={Colors.successDark} />
                     : <X size={14} color="#C0392B" />}
                 </View>
                 <View style={{ flex: 1 }}>
@@ -879,17 +880,17 @@ export default function ClientPortalSetupScreen() {
                   <View style={styles.inviteRight}>
                     <View style={[styles.inviteStatus, invite.status === 'viewed' && styles.inviteStatusViewed]}>
                       {invite.status === 'viewed'
-                        ? <Eye size={10} color="#34C759" />
-                        : <Clock size={10} color="#FF9500" />
+                        ? <Eye size={10} color={Colors.success} />
+                        : <Clock size={10} color={Colors.warning} />
                       }
-                      <Text style={[styles.inviteStatusText, invite.status === 'viewed' && { color: '#34C759' }]}>
+                      <Text style={[styles.inviteStatusText, invite.status === 'viewed' && { color: Colors.success }]}>
                         {invite.status === 'viewed' ? 'Viewed' : 'Pending'}
                       </Text>
                     </View>
-                    <TouchableOpacity onPress={() => handleEmailInvite(invite)} style={styles.emailInviteBtn} activeOpacity={0.7}>
+                    <TouchableOpacity onPress={() => handleEmailInvite(invite)} style={styles.emailInviteBtn} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Email">
                       <Mail size={14} color={Colors.primary} />
                     </TouchableOpacity>
-                    <TouchableOpacity onPress={() => handleRemoveInvite(invite.id)} style={styles.removeBtn}>
+                    <TouchableOpacity onPress={() => handleRemoveInvite(invite.id)} style={styles.removeBtn} accessibilityRole="button" accessibilityLabel="Delete">
                       <Trash2 size={14} color={Colors.error} />
                     </TouchableOpacity>
                   </View>
@@ -955,37 +956,37 @@ export default function ClientPortalSetupScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   headerSaveBtn: { paddingHorizontal: 4 },
-  headerSaveBtnText: { fontSize: 16, fontWeight: '600', color: Colors.primary },
+  headerSaveBtnText: { fontSize: Type.callout.fontSize, fontWeight: '600', color: Colors.primary },
 
   linkCard: {
     margin: 16,
     backgroundColor: Colors.card,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     padding: 16,
     borderWidth: 1,
     borderColor: '#5856D620',
   },
   linkCardHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
-  linkCardTitle: { fontSize: 16, fontWeight: '700', color: Colors.text, flex: 1 },
-  activeBadge: { backgroundColor: '#34C75920', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 2 },
-  activeBadgeText: { fontSize: 11, fontWeight: '600', color: '#34C759' },
-  linkRow: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: Colors.background, borderRadius: 8, padding: 10, marginBottom: 12 },
-  linkText: { fontSize: 12, color: Colors.info, flex: 1 },
+  linkCardTitle: { fontSize: Type.callout.fontSize, fontWeight: '700', color: Colors.text, flex: 1 },
+  activeBadge: { backgroundColor: '#34C75920', borderRadius: Tokens.radius.sm, paddingHorizontal: 8, paddingVertical: 2 },
+  activeBadgeText: { fontSize: Type.caption2.fontSize, fontWeight: '600', color: Colors.success },
+  linkRow: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: Colors.background, borderRadius: Tokens.radius.sm, padding: 10, marginBottom: 12 },
+  linkText: { fontSize: Type.caption1.fontSize, color: Colors.info, flex: 1 },
   linkActions: { flexDirection: 'row', gap: 10 },
-  linkActionBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: Colors.primary + '15', borderRadius: 10, paddingVertical: 10 },
-  linkActionText: { fontSize: 14, fontWeight: '600', color: Colors.primary },
+  linkActionBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: Colors.primary + '15', borderRadius: Tokens.radius.md, paddingVertical: 10 },
+  linkActionText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600', color: Colors.primary },
 
   section: { paddingHorizontal: 16, marginBottom: 24 },
-  sectionTitle: { fontSize: 17, fontWeight: '700', color: Colors.text, marginBottom: 4 },
-  sectionSubtitle: { fontSize: 13, color: Colors.textMuted, marginBottom: 12, lineHeight: 18 },
+  sectionTitle: { fontSize: Type.body.fontSize, fontWeight: '700', color: Colors.text, marginBottom: 4 },
+  sectionSubtitle: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, marginBottom: 12, lineHeight: 18 },
 
   welcomeInput: {
     backgroundColor: Colors.card,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     borderWidth: 1,
     borderColor: Colors.border,
     padding: 12,
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     color: Colors.text,
     minHeight: 80,
     textAlignVertical: 'top',
@@ -1000,14 +1001,14 @@ const styles = StyleSheet.create({
     minWidth: '47%', flexGrow: 1,
   },
   langChipActive: { borderColor: Colors.primary, backgroundColor: Colors.primary + '0F' },
-  langFlag: { fontSize: 22 },
-  langEndonym: { fontSize: 14, fontWeight: '700', color: Colors.text },
+  langFlag: { fontSize: Type.title2.fontSize },
+  langEndonym: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
   langEndonymActive: { color: Colors.primary },
-  langEnglish: { fontSize: 11, color: Colors.textMuted, marginTop: 1 },
+  langEnglish: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 1 },
 
   togglesCard: {
     backgroundColor: Colors.card,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     borderWidth: 1,
     borderColor: Colors.border,
     overflow: 'hidden',
@@ -1016,13 +1017,13 @@ const styles = StyleSheet.create({
   toggleRowBorder: { borderBottomWidth: 1, borderBottomColor: Colors.border },
   toggleLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
   toggleLabels: { flex: 1 },
-  toggleLabel: { fontSize: 14, fontWeight: '600', color: Colors.text },
-  toggleDesc: { fontSize: 12, color: Colors.textMuted, marginTop: 1 },
+  toggleLabel: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600', color: Colors.text },
+  toggleDesc: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 1 },
 
   budgetStatus: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 12,
     paddingHorizontal: 14, paddingVertical: 14,
-    backgroundColor: '#E8F5ED',
+    backgroundColor: Colors.successLight,
   },
   budgetStatusBadge: {
     width: 26, height: 26, borderRadius: 13,
@@ -1030,28 +1031,28 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
     marginTop: 1,
   },
-  budgetStatusLabel: { fontSize: 11, fontWeight: '700', color: '#1E8E4A', letterSpacing: 0.4, textTransform: 'uppercase' },
-  budgetStatusValue: { fontSize: 22, fontWeight: '800', color: Colors.text, marginTop: 2 },
-  budgetStatusMeta: { fontSize: 12, color: Colors.textMuted, marginTop: 2 },
+  budgetStatusLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.successDark, letterSpacing: 0.4, textTransform: 'uppercase' },
+  budgetStatusValue: { fontSize: Type.title2.fontSize, fontWeight: '800', color: Colors.text, marginTop: 2 },
+  budgetStatusMeta: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2 },
 
   proposalRow: {
     paddingHorizontal: 14, paddingVertical: 14,
     flexDirection: 'row', gap: 12, alignItems: 'flex-start',
     backgroundColor: '#FFF7EE',
   },
-  proposalAmount: { fontSize: 18, fontWeight: '800', color: Colors.text },
-  proposalMeta: { fontSize: 12, color: Colors.textMuted, marginTop: 2 },
-  proposalNote: { fontSize: 13, color: Colors.text, marginTop: 6, lineHeight: 18 },
+  proposalAmount: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: Colors.text },
+  proposalMeta: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2 },
+  proposalNote: { fontSize: Type.footnote.fontSize, color: Colors.text, marginTop: 6, lineHeight: 18 },
   proposalCtas: { flexDirection: 'row', gap: 6, alignItems: 'center' },
   proposalBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     paddingHorizontal: 12, paddingVertical: 8,
-    borderRadius: 8,
+    borderRadius: Tokens.radius.sm,
   },
   proposalBtnAccept: { backgroundColor: Colors.primary },
-  proposalBtnText: { fontSize: 13, fontWeight: '700', color: '#FFF' },
+  proposalBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: '#FFF' },
   proposalBtnDecline: {
-    width: 32, height: 32, borderRadius: 8,
+    width: 32, height: 32, borderRadius: Tokens.radius.sm,
     backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,
     alignItems: 'center', justifyContent: 'center',
   },
@@ -1060,83 +1061,83 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14, paddingVertical: 12,
     backgroundColor: '#F4FAF6',
   },
-  coApprovalLabel: { fontSize: 13, fontWeight: '700', color: Colors.text },
-  coApprovalMeta: { fontSize: 11, color: Colors.textMuted, marginTop: 2 },
-  coApprovalNote: { fontSize: 12, color: Colors.text, marginTop: 4, fontStyle: 'italic' },
+  coApprovalLabel: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.text },
+  coApprovalMeta: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 2 },
+  coApprovalNote: { fontSize: Type.caption1.fontSize, color: Colors.text, marginTop: 4, fontStyle: 'italic' },
   messagesPreview: {
-    marginTop: 10, padding: 12, borderRadius: 12,
+    marginTop: 10, padding: 12, borderRadius: Tokens.radius.card,
     backgroundColor: Colors.primary + '08',
     borderWidth: 1, borderColor: Colors.primary + '20',
   },
   messagesPreviewHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
-  messagesPreviewLabel: { fontSize: 12, fontWeight: '700', color: Colors.primary },
+  messagesPreviewLabel: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: Colors.primary },
   messageBubble: {
-    backgroundColor: Colors.card, borderRadius: 10, padding: 10,
+    backgroundColor: Colors.card, borderRadius: Tokens.radius.md, padding: 10,
     borderWidth: 1, borderColor: Colors.border,
     marginBottom: 6,
   },
-  messageAuthor: { fontSize: 11, fontWeight: '700', color: Colors.textMuted, marginBottom: 2, textTransform: 'uppercase', letterSpacing: 0.4 },
-  messageBody: { fontSize: 13, color: Colors.text, lineHeight: 18 },
+  messageAuthor: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.textMuted, marginBottom: 2, textTransform: 'uppercase', letterSpacing: 0.4 },
+  messageBody: { fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 18 },
 
   inviteForm: { gap: 8 },
   input: {
     backgroundColor: Colors.card,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     borderWidth: 1,
     borderColor: Colors.border,
     padding: 12,
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     color: Colors.text,
   },
   inviteBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: Colors.primary, borderRadius: 12, paddingVertical: 13,
+    backgroundColor: Colors.primary, borderRadius: Tokens.radius.card, paddingVertical: 13,
   },
-  inviteBtnText: { fontSize: 15, fontWeight: '700', color: '#FFF' },
+  inviteBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700', color: '#FFF' },
 
   inviteList: {
     marginTop: 12,
     backgroundColor: Colors.card,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     borderWidth: 1,
     borderColor: Colors.border,
     overflow: 'hidden',
   },
   inviteRow: { flexDirection: 'row', alignItems: 'center', padding: 12, borderBottomWidth: 1, borderBottomColor: Colors.border },
   inviteAvatar: {
-    width: 36, height: 36, borderRadius: 18,
+    width: 36, height: 36, borderRadius: Tokens.radius.xl,
     backgroundColor: Colors.primary + '25',
     alignItems: 'center', justifyContent: 'center', marginRight: 10,
   },
-  inviteAvatarText: { fontSize: 15, fontWeight: '700', color: Colors.primary },
+  inviteAvatarText: { fontSize: Type.subhead.fontSize, fontWeight: '700', color: Colors.primary },
   inviteInfo: { flex: 1 },
-  inviteName: { fontSize: 14, fontWeight: '600', color: Colors.text },
-  inviteEmail: { fontSize: 12, color: Colors.textMuted, marginTop: 1 },
+  inviteName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600', color: Colors.text },
+  inviteEmail: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 1 },
   inviteRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   inviteStatus: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
-    backgroundColor: '#FF950020', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 3,
+    backgroundColor: '#FF950020', borderRadius: Tokens.radius.xs, paddingHorizontal: 6, paddingVertical: 3,
   },
   inviteStatusViewed: { backgroundColor: '#34C75920' },
-  inviteStatusText: { fontSize: 10, fontWeight: '600', color: '#FF9500' },
+  inviteStatusText: { fontSize: 10, fontWeight: '600', color: Colors.warning },
   removeBtn: { padding: 4 },
   emailInviteBtn: { padding: 4 },
   resetPasscodeBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 6, marginTop: 10, paddingVertical: 10, borderRadius: 10,
+    gap: 6, marginTop: 10, paddingVertical: 10, borderRadius: Tokens.radius.md,
     backgroundColor: Colors.primary + '12', borderWidth: 1, borderColor: Colors.primary + '30',
   },
-  resetPasscodeText: { fontSize: 13, fontWeight: '600', color: Colors.primary },
+  resetPasscodeText: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: Colors.primary },
 
   disableBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     marginHorizontal: 16, marginBottom: 16,
     borderWidth: 1, borderColor: Colors.error + '40',
-    borderRadius: 12, paddingVertical: 14,
+    borderRadius: Tokens.radius.card, paddingVertical: 14,
   },
-  disableBtnText: { fontSize: 15, fontWeight: '600', color: Colors.error },
+  disableBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '600', color: Colors.error },
   sizeWarning: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     color: Colors.warning,
     marginTop: -6,
     marginBottom: 10,
@@ -1146,18 +1147,18 @@ const styles = StyleSheet.create({
   weeklyUpdateBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     marginHorizontal: 16, marginBottom: 16,
-    backgroundColor: Colors.card, borderRadius: 14,
+    backgroundColor: Colors.card, borderRadius: Tokens.radius.lg,
     borderWidth: 1, borderColor: Colors.primary + '25',
     padding: 14,
   },
   weeklyUpdateIcon: {
-    width: 36, height: 36, borderRadius: 10,
+    width: 36, height: 36, borderRadius: Tokens.radius.md,
     backgroundColor: Colors.primary + '12',
     alignItems: 'center', justifyContent: 'center',
   },
-  weeklyUpdateTitle: { fontSize: 15, fontWeight: '700', color: Colors.text, marginBottom: 2 },
-  weeklyUpdateSub: { fontSize: 12, color: Colors.textMuted, lineHeight: 16 },
-  weeklyUpdateArrow: { fontSize: 22, color: Colors.textMuted, paddingHorizontal: 4 },
+  weeklyUpdateTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700', color: Colors.text, marginBottom: 2 },
+  weeklyUpdateSub: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, lineHeight: 16 },
+  weeklyUpdateArrow: { fontSize: Type.title2.fontSize, color: Colors.textMuted, paddingHorizontal: 4 },
 
   unreadPill: {
     minWidth: 22, height: 22, borderRadius: 11,
@@ -1165,5 +1166,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: 7, alignItems: 'center', justifyContent: 'center',
     marginRight: 4,
   },
-  unreadPillTxt: { color: '#fff', fontWeight: '800', fontSize: 11 },
+  unreadPillTxt: { color: '#fff', fontWeight: '800', fontSize: Type.caption2.fontSize },
 });

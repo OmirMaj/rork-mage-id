@@ -132,7 +132,7 @@ export async function answerBidQuestion(id: string, answer: string): Promise<boo
         .select('contractor_user_id')
         .eq('bid_id', qRow.bid_id);
       const ids = Array.from(new Set((responses ?? []).map((r: any) => r.contractor_user_id).filter(Boolean)));
-      let recipients: Array<{ user_id: string; email: string | null; push_token: string | null }> = [];
+      let recipients: { user_id: string; email: string | null; push_token: string | null }[] = [];
       if (ids.length > 0) {
         const { data: profiles } = await supabase
           .from('profiles')

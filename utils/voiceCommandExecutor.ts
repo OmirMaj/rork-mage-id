@@ -28,6 +28,12 @@ export interface VoiceUpdateFunctions {
   handleProgressUpdate: (task: ScheduleTask, progress: number) => void;
   handleSaveTask?: (draft: any, editing: ScheduleTask | null) => void;
   onAddNote?: (task: ScheduleTask, note: string) => void;
+  /** Move a task's startDay (and ripple successors via CPM). Either pass
+   *  a new absolute startDay, or `deltaDays` to add. The schedule screen
+   *  is responsible for re-running CPM after this mutation. */
+  onRescheduleTask?: (task: ScheduleTask, args: { newStartDay?: number; deltaDays?: number; newDurationDays?: number }) => void;
+  /** Assign / reassign crew (free-text) on a task. */
+  onAssignCrew?: (task: ScheduleTask, crew: string) => void;
 }
 
 export function findTaskByName(name: string | undefined, tasks: ScheduleTask[]): ScheduleTask | null {
@@ -187,6 +193,98 @@ export function executeVoiceCommand(
       };
     }
 
+    case 'reschedule_task': {
+      const matches = findAllMatchingTasks(parsed.taskName, tasks);
+      if (matches.length === 0) {
+        return { success: false, message: `Couldn't find task "${parsed.taskName}"` };
+      }
+      if (matches.length > 1) {
+        return {
+          success: false,
+          message: `Found ${matches.length} matching tasks`,
+          matchedTasks: matches,
+          needsClarification: true,
+        };
+      }
+      const task = matches[0];
+      if (!updateFunctions.onRescheduleTask) {
+        return { success: false, message: 'Reschedule not wired in this view.' };
+      }
+      const prevStartDay = task.startDay;
+      const prevDuration = task.durationDays;
+
+      // Two paths:
+      //   (a) parsed.value present → "push X by N days" → delta
+      //   (b) parsed.date present → "move X to Tuesday" → absolute date
+      // We resolve absolute dates client-side because the parser doesn't
+      // know the project start. The schedule screen will recalc start
+      // days after the mutation.
+      if (typeof parsed.value === 'number' && parsed.value !== 0) {
+        const delta = Math.round(parsed.value);
+        updateFunctions.onRescheduleTask(task, { deltaDays: delta });
+        return {
+          success: true,
+          message: delta > 0
+            ? `Pushed "${task.title}" by ${delta} day${delta === 1 ? '' : 's'}`
+            : `Pulled "${task.title}" forward by ${Math.abs(delta)} day${Math.abs(delta) === 1 ? '' : 's'}`,
+          undoAction: () => updateFunctions.onRescheduleTask?.(task, { newStartDay: prevStartDay }),
+        };
+      }
+      // No usable date/value — fall through. Caller can prompt for a date.
+      return {
+        success: false,
+        message: `Tell me how many days to move "${task.title}" — e.g. "push it by 3 days".`,
+        needsClarification: true,
+      };
+      void prevDuration;
+    }
+
+    case 'assign_crew': {
+      const matches = findAllMatchingTasks(parsed.taskName, tasks);
+      if (matches.length === 0) {
+        return { success: false, message: `Couldn't find task "${parsed.taskName}"` };
+      }
+      if (matches.length > 1) {
+        return {
+          success: false,
+          message: `Found ${matches.length} matching tasks`,
+          matchedTasks: matches,
+          needsClarification: true,
+        };
+      }
+      const task = matches[0];
+      if (!updateFunctions.onAssignCrew) {
+        return { success: false, message: 'Crew assignment not wired in this view.' };
+      }
+      const crew = parsed.crewName?.trim();
+      if (!crew) {
+        return {
+          success: false,
+          message: `Tell me which crew — e.g. "assign Volt Bros to electrical rough".`,
+          needsClarification: true,
+        };
+      }
+      const prevCrew = task.crew;
+      updateFunctions.onAssignCrew(task, crew);
+      return {
+        success: true,
+        message: `Assigned ${crew} to "${task.title}"`,
+        undoAction: () => updateFunctions.onAssignCrew?.(task, prevCrew),
+      };
+    }
+
+    case 'create_task': {
+      // Stub: parser has the action, but task creation needs more
+      // structured fields (phase, duration, dependencies) than voice can
+      // reliably capture. Surface an explicit clarification so the user
+      // either uses the form or speaks more details.
+      return {
+        success: false,
+        message: 'New tasks need a phase + duration. Open the schedule and tap +.',
+        needsClarification: true,
+      };
+    }
+
     case 'ask_question':
     case 'status_update':
     case 'weather_check': {
@@ -271,7 +369,7 @@ export async function saveVoiceIssue(projectId: string, issue: string): Promise<
   try {
     const key = `${VOICE_ISSUES_KEY}_${projectId}`;
     const stored = await AsyncStorage.getItem(key);
-    const issues: Array<{ text: string; timestamp: string }> = stored ? JSON.parse(stored) : [];
+    const issues: { text: string; timestamp: string }[] = stored ? JSON.parse(stored) : [];
     issues.unshift({ text: issue, timestamp: new Date().toISOString() });
     await AsyncStorage.setItem(key, JSON.stringify(issues.slice(0, 50)));
   } catch (err) {

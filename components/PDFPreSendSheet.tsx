@@ -11,6 +11,8 @@ import {
 import { Colors } from '@/constants/colors';
 import ContactPickerModal from '@/components/ContactPickerModal';
 import type { Contact, PDFNamingSettings } from '@/types';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 export type PDFDocumentType = 'estimate' | 'invoice' | 'change_order' | 'schedule' | 'daily_report' | 'status_report' | 'closeout';
 
@@ -225,9 +227,7 @@ export default function PDFPreSendSheet({
                 <Text style={styles.headerTitle}>Send {docLabel}</Text>
                 <Text style={styles.headerSubtitle}>{projectName}</Text>
               </View>
-              <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-                <X size={18} color={Colors.textMuted} />
-              </TouchableOpacity>
+              <TouchableOpacity onPress={onClose} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={Colors.textMuted} /></TouchableOpacity>
             </View>
 
             <ScrollView
@@ -289,8 +289,7 @@ export default function PDFPreSendSheet({
                   </View>
                   <TouchableOpacity
                     onPress={() => { setRecipient(''); setRecipientName(''); }}
-                    style={styles.clearRecipientBtn}
-                  >
+                    style={styles.clearRecipientBtn} accessibilityRole="button" accessibilityLabel="Close">
                     <X size={12} color={Colors.textMuted} />
                   </TouchableOpacity>
                 </View>
@@ -416,12 +415,12 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.borderLight,
   },
   headerTitle: {
-    fontSize: 20,
+    fontSize: Type.title3.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
   },
   headerSubtitle: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: Colors.textSecondary,
     marginTop: 2,
   },
@@ -438,7 +437,7 @@ const styles = StyleSheet.create({
     paddingTop: 16,
   },
   fieldLabel: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     fontWeight: '700' as const,
     color: Colors.textMuted,
     letterSpacing: 0.8,
@@ -449,7 +448,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.surfaceAlt,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     paddingHorizontal: 12,
     gap: 8,
     borderWidth: 1,
@@ -458,12 +457,12 @@ const styles = StyleSheet.create({
   fileNameInput: {
     flex: 1,
     height: 48,
-    fontSize: 15,
+    fontSize: Type.subhead.fontSize,
     color: Colors.text,
     fontWeight: '500' as const,
   },
   pdfExt: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: Colors.textMuted,
     fontWeight: '600' as const,
   },
@@ -472,20 +471,20 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     backgroundColor: Colors.surfaceAlt,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     paddingHorizontal: 14,
     paddingVertical: 12,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
   },
   sectionsToggleText: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     color: Colors.text,
     fontWeight: '500' as const,
   },
   sectionsList: {
     backgroundColor: Colors.surfaceAlt,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     marginTop: 6,
     paddingHorizontal: 14,
     borderWidth: 1,
@@ -500,7 +499,7 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.borderLight,
   },
   sectionLabel: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     color: Colors.text,
     fontWeight: '500' as const,
   },
@@ -508,7 +507,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.surfaceAlt,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     paddingHorizontal: 12,
     gap: 8,
     borderWidth: 1,
@@ -517,14 +516,14 @@ const styles = StyleSheet.create({
   recipientInput: {
     flex: 1,
     height: 48,
-    fontSize: 15,
+    fontSize: Type.subhead.fontSize,
     color: Colors.text,
   },
   selectedRecipient: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.primary + '10',
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     paddingHorizontal: 12,
     paddingVertical: 10,
     gap: 10,
@@ -536,18 +535,18 @@ const styles = StyleSheet.create({
     gap: 1,
   },
   selectedRecipientName: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     fontWeight: '600' as const,
     color: Colors.text,
   },
   selectedRecipientEmail: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     color: Colors.textSecondary,
   },
   clearRecipientBtn: {
     width: 24,
     height: 24,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     backgroundColor: Colors.fillTertiary,
     alignItems: 'center',
     justifyContent: 'center',
@@ -560,21 +559,21 @@ const styles = StyleSheet.create({
     marginTop: 6,
     paddingVertical: 6,
     paddingHorizontal: 10,
-    borderRadius: 8,
+    borderRadius: Tokens.radius.sm,
     backgroundColor: Colors.primary + '10',
   },
   pickContactText: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
     color: Colors.primary,
   },
   messageInput: {
     minHeight: 80,
     backgroundColor: Colors.surfaceAlt,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     paddingHorizontal: 14,
     paddingTop: 12,
-    fontSize: 15,
+    fontSize: Type.subhead.fontSize,
     color: Colors.text,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
@@ -594,11 +593,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     backgroundColor: Colors.primary,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     paddingVertical: 14,
   },
   emailBtnText: {
-    fontSize: 15,
+    fontSize: Type.subhead.fontSize,
     fontWeight: '700' as const,
     color: Colors.textOnPrimary,
   },
@@ -609,7 +608,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 6,
     backgroundColor: Colors.primary + '12',
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     paddingVertical: 14,
   },
   shareBtnFull: {
@@ -617,7 +616,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
   },
   shareBtnText: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     fontWeight: '700' as const,
     color: Colors.primary,
   },

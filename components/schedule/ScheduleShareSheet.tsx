@@ -22,6 +22,8 @@ import {
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ScheduleTask, ProjectSchedule } from '@/types';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 import {
   formatShortDate,
   getPhaseColor,
@@ -176,9 +178,7 @@ function ScheduleShareSheet({
               <Share2 size={18} color={Colors.primary} />
               <Text style={st.headerTitle}>Share Schedule</Text>
             </View>
-            <TouchableOpacity onPress={onClose}>
-              <X size={20} color={Colors.textMuted} />
-            </TouchableOpacity>
+            <TouchableOpacity onPress={onClose} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={Colors.textMuted} /></TouchableOpacity>
           </View>
 
           <View style={st.modeRow}>
@@ -248,7 +248,7 @@ const st = StyleSheet.create({
   handle: { width: 36, height: 4, borderRadius: 2, backgroundColor: Colors.fillTertiary, alignSelf: 'center', marginBottom: 4 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  headerTitle: { fontSize: 18, fontWeight: '700' as const, color: Colors.text },
+  headerTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: Colors.text },
 
   modeRow: { flexDirection: 'row', gap: 8 },
   modeBtn: {
@@ -258,11 +258,11 @@ const st = StyleSheet.create({
     justifyContent: 'center',
     gap: 6,
     paddingVertical: 12,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     backgroundColor: Colors.fillTertiary,
   },
   modeBtnActive: { backgroundColor: Colors.primary },
-  modeBtnText: { fontSize: 14, fontWeight: '600' as const, color: Colors.textSecondary },
+  modeBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.textSecondary },
   modeBtnTextActive: { color: '#FFF' },
 
   phaseScroll: { marginVertical: 2 },
@@ -273,12 +273,12 @@ const st = StyleSheet.create({
     gap: 5,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
     backgroundColor: Colors.fillTertiary,
   },
   phaseChipActive: { backgroundColor: Colors.primary + '18', borderWidth: 1, borderColor: Colors.primary },
   phaseChipDot: { width: 6, height: 6, borderRadius: 3 },
-  phaseChipText: { fontSize: 12, fontWeight: '600' as const, color: Colors.textSecondary },
+  phaseChipText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.textSecondary },
   phaseChipTextActive: { color: Colors.primary },
 
   shareBtn: {
@@ -287,10 +287,10 @@ const st = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     minHeight: 52,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     backgroundColor: Colors.primary,
   },
-  shareBtnText: { fontSize: 15, fontWeight: '700' as const, color: '#FFF' },
+  shareBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: '#FFF' },
 });
 
 export default React.memo(ScheduleShareSheet);

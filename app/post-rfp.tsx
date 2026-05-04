@@ -38,6 +38,8 @@ import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { uploadRfpAttachment } from '@/utils/storage';
 import { generateUUID } from '@/utils/generateId';
 import type { BidCategory } from '@/types';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 interface PickedAttachment {
   uri: string;
@@ -269,7 +271,7 @@ export default function PostRfpScreen() {
       <Stack.Screen options={{ headerShown: false }} />
 
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={8}>
+        <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
           <ChevronLeft size={26} color={Colors.primary} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
@@ -385,7 +387,7 @@ export default function PostRfpScreen() {
             {photos.map(p => (
               <View key={p.uri} style={styles.attachmentTile}>
                 <Image source={{ uri: p.uri }} style={styles.attachmentImage} />
-                <TouchableOpacity style={styles.attachmentRemove} onPress={() => removeAttachment(p.uri)}>
+                <TouchableOpacity style={styles.attachmentRemove} onPress={() => removeAttachment(p.uri)} accessibilityRole="button" accessibilityLabel="Close">
                   <X size={12} color="#FFF" />
                 </TouchableOpacity>
               </View>
@@ -414,7 +416,7 @@ export default function PostRfpScreen() {
                   <FileText size={20} color={Colors.primary} />
                   <Text style={styles.drawingTileName} numberOfLines={2}>{d.name}</Text>
                 </View>
-                <TouchableOpacity style={styles.attachmentRemove} onPress={() => removeAttachment(d.uri)}>
+                <TouchableOpacity style={styles.attachmentRemove} onPress={() => removeAttachment(d.uri)} accessibilityRole="button" accessibilityLabel="Close">
                   <X size={12} color="#FFF" />
                 </TouchableOpacity>
               </View>
@@ -532,23 +534,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, paddingTop: 14, paddingBottom: 16,
     borderBottomWidth: 1, borderBottomColor: Colors.border,
   },
-  eyebrow: { fontSize: 11, fontWeight: '700', color: Colors.primary, letterSpacing: 1.4, textTransform: 'uppercase' },
-  title: { fontSize: 22, fontWeight: '800', color: Colors.text, letterSpacing: -0.4, marginTop: 4 },
+  eyebrow: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.primary, letterSpacing: 1.4, textTransform: 'uppercase' },
+  title: { fontSize: Type.title2.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.4, marginTop: 4 },
 
   card: {
-    backgroundColor: Colors.card, borderRadius: 14, padding: 14,
+    backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 14,
     borderWidth: 1, borderColor: Colors.border, marginBottom: 14,
   },
   cardHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 8 },
-  label:  { fontSize: 12, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 6 },
-  helper: { fontSize: 12, color: Colors.textMuted, marginBottom: 10, lineHeight: 17 },
-  charCount: { fontSize: 11, color: Colors.textMuted, alignSelf: 'flex-end', marginTop: 4 },
+  label:  { fontSize: Type.caption1.fontSize, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 6 },
+  helper: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginBottom: 10, lineHeight: 17 },
+  charCount: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, alignSelf: 'flex-end', marginTop: 4 },
 
   input: {
     backgroundColor: Colors.background,
-    borderWidth: 1, borderColor: Colors.border, borderRadius: 10,
+    borderWidth: 1, borderColor: Colors.border, borderRadius: Tokens.radius.md,
     paddingHorizontal: 12, paddingVertical: 11,
-    fontSize: 14, color: Colors.text,
+    fontSize: Type.bodyCompact.fontSize, color: Colors.text,
   },
   inputMultiline: { minHeight: 100, paddingTop: 11 },
 
@@ -558,28 +560,28 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border,
   },
   chipActive: { backgroundColor: Colors.text, borderColor: Colors.text },
-  chipText:  { fontSize: 13, fontWeight: '600', color: Colors.text },
+  chipText:  { fontSize: Type.footnote.fontSize, fontWeight: '600', color: Colors.text },
   chipTextActive: { color: '#FFF' },
 
   addressRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   verifyBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingHorizontal: 14, paddingVertical: 11, borderRadius: 10,
+    paddingHorizontal: 14, paddingVertical: 11, borderRadius: Tokens.radius.md,
     backgroundColor: Colors.primary,
   },
-  verifyBtnText: { fontSize: 13, fontWeight: '700', color: '#FFF' },
+  verifyBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: '#FFF' },
   verifiedRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 },
-  verifiedText: { fontSize: 12, color: Colors.success, fontWeight: '600' },
+  verifiedText: { fontSize: Type.caption1.fontSize, color: Colors.success, fontWeight: '600' },
 
   attachmentGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 4 },
   attachmentTile: {
-    width: 88, height: 88, borderRadius: 10, overflow: 'hidden',
+    width: 88, height: 88, borderRadius: Tokens.radius.md, overflow: 'hidden',
     backgroundColor: Colors.background, position: 'relative',
   },
   attachmentImage: { width: '100%', height: '100%' },
   attachmentRemove: {
     position: 'absolute', top: 4, right: 4,
-    width: 20, height: 20, borderRadius: 10,
+    width: 20, height: 20, borderRadius: Tokens.radius.md,
     backgroundColor: 'rgba(0,0,0,0.6)',
     alignItems: 'center', justifyContent: 'center',
   },
@@ -588,37 +590,37 @@ const styles = StyleSheet.create({
   },
   drawingTileName: { fontSize: 9, color: Colors.text, textAlign: 'center', lineHeight: 11 },
   addTile: {
-    width: 88, height: 88, borderRadius: 10,
+    width: 88, height: 88, borderRadius: Tokens.radius.md,
     backgroundColor: Colors.primary + '0D',
     borderWidth: 1.5, borderColor: Colors.primary + '40', borderStyle: 'dashed',
     alignItems: 'center', justifyContent: 'center', gap: 4,
   },
-  addTileText: { fontSize: 11, fontWeight: '700', color: Colors.primary },
+  addTileText: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.primary },
 
   budgetRow:    { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  budgetField:  { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: Colors.background, borderRadius: 10, borderWidth: 1, borderColor: Colors.border, paddingHorizontal: 10 },
-  budgetInput:  { flex: 1, paddingVertical: 11, fontSize: 14, color: Colors.text },
-  budgetDash:   { fontSize: 16, color: Colors.textMuted },
+  budgetField:  { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: Colors.background, borderRadius: Tokens.radius.md, borderWidth: 1, borderColor: Colors.border, paddingHorizontal: 10 },
+  budgetInput:  { flex: 1, paddingVertical: 11, fontSize: Type.bodyCompact.fontSize, color: Colors.text },
+  budgetDash:   { fontSize: Type.callout.fontSize, color: Colors.textMuted },
   dateRow:      { flexDirection: 'row', alignItems: 'center' },
 
   errorCard: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 10,
-    padding: 14, borderRadius: 12,
+    padding: 14, borderRadius: Tokens.radius.card,
     backgroundColor: Colors.error + '0D',
     borderWidth: 1, borderColor: Colors.error + '30',
     marginBottom: 14,
   },
-  errorText: { flex: 1, fontSize: 13, color: Colors.error, lineHeight: 18 },
+  errorText: { flex: 1, fontSize: Type.footnote.fontSize, color: Colors.error, lineHeight: 18 },
 
   submitBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    paddingVertical: 14, borderRadius: 12,
+    paddingVertical: 14, borderRadius: Tokens.radius.card,
     backgroundColor: Colors.primary,
     shadowColor: Colors.primary, shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3, shadowRadius: 8, elevation: 4,
   },
   submitBtnDisabled: { opacity: 0.6 },
-  submitBtnText: { fontSize: 15, fontWeight: '800', color: '#FFF', letterSpacing: 0.2 },
+  submitBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '800', color: '#FFF', letterSpacing: 0.2 },
 
-  disclaimer: { fontSize: 11, color: Colors.textMuted, textAlign: 'center', marginTop: 14, fontStyle: 'italic', paddingHorizontal: 16, lineHeight: 16 },
+  disclaimer: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, textAlign: 'center', marginTop: 14, fontStyle: 'italic', paddingHorizontal: 16, lineHeight: 16 },
 });

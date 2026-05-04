@@ -23,6 +23,8 @@ import {
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ScheduleTask } from '@/types';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 /**
  * Clarifier opened from Quick Field Update when the parser couldn't
@@ -184,10 +186,7 @@ export default function QuickUpdateClarifier({
             <TouchableOpacity
               style={styles.closeBtn}
               onPress={onClose}
-              testID="clarifier-close"
-            >
-              <X size={18} color={Colors.textSecondary} />
-            </TouchableOpacity>
+              testID="clarifier-close" accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={Colors.textSecondary} /></TouchableOpacity>
           </View>
 
           {/* Action chips */}
@@ -383,12 +382,12 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   title: {
-    fontSize: 17,
+    fontSize: Type.body.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
   },
   subtitle: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     color: Colors.textSecondary,
     marginTop: 2,
   },
@@ -407,7 +406,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   sectionLabel: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     fontWeight: '700' as const,
     color: Colors.textSecondary,
     letterSpacing: 0.5,
@@ -415,7 +414,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   sectionHint: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     color: Colors.primary,
     fontWeight: '600' as const,
     marginLeft: 8,
@@ -432,13 +431,13 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
     backgroundColor: Colors.surfaceAlt,
     borderWidth: 1,
     borderColor: 'transparent',
   },
   actionChipLabel: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: Colors.textSecondary,
     fontWeight: '500' as const,
   },
@@ -449,7 +448,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   valueLabel: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     fontWeight: '600' as const,
     color: Colors.textSecondary,
   },
@@ -457,19 +456,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.surfaceAlt,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
     paddingHorizontal: 10,
     minWidth: 80,
   },
   valueInput: {
     flex: 1,
     minHeight: 40,
-    fontSize: 16,
+    fontSize: Type.callout.fontSize,
     color: Colors.text,
     fontWeight: '700' as const,
   },
   valueSuffix: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     color: Colors.textSecondary,
     fontWeight: '600' as const,
     marginLeft: 2,
@@ -482,9 +481,9 @@ const styles = StyleSheet.create({
     minHeight: 60,
     maxHeight: 120,
     backgroundColor: Colors.surfaceAlt,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
     padding: 10,
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     color: Colors.text,
     textAlignVertical: 'top',
   },
@@ -493,14 +492,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     backgroundColor: Colors.surfaceAlt,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
     paddingHorizontal: 10,
     marginBottom: 6,
   },
   searchInput: {
     flex: 1,
     minHeight: 36,
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: Colors.text,
   },
   taskList: {
@@ -511,7 +510,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 10,
     paddingHorizontal: 12,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
     backgroundColor: Colors.surfaceAlt,
     marginBottom: 6,
   },
@@ -526,7 +525,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   taskTitle: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     fontWeight: '600' as const,
     color: Colors.text,
     flexShrink: 1,
@@ -535,7 +534,7 @@ const styles = StyleSheet.create({
     color: Colors.primary,
   },
   taskMeta: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     color: Colors.textMuted,
     marginTop: 2,
   },
@@ -556,7 +555,7 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   emptyTasks: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     color: Colors.textMuted,
     paddingVertical: 14,
     textAlign: 'center',
@@ -564,7 +563,7 @@ const styles = StyleSheet.create({
   applyBtn: {
     marginTop: 12,
     height: 48,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     backgroundColor: Colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
@@ -573,7 +572,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.textMuted + '60',
   },
   applyBtnLabel: {
-    fontSize: 15,
+    fontSize: Type.subhead.fontSize,
     fontWeight: '700' as const,
     color: Colors.textOnPrimary,
   },

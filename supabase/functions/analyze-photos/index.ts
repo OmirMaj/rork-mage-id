@@ -22,6 +22,7 @@
 // }
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
+import { requireTier, aiUsageIncrement, MONTHLY_CAPS } from "../_shared/auth.ts";
 
 const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY") || "";
 const MODEL = 'gemini-2.5-flash';
@@ -46,7 +47,7 @@ interface AnalyzePhotosRequest {
    *  Client-side camera / library picks are file:// URIs that the
    *  server can't fetch — those callers send inline base64 instead. */
   photoUrls?: string[];
-  photos?: Array<{ base64: string; mimeType?: string }>;
+  photos?: { base64: string; mimeType?: string }[];
   projectName?: string;
   projectType?: string;
   notes?: string;
@@ -116,11 +117,32 @@ serve(async (req) => {
   if (req.method !== 'POST') return jsonResponse({ success: false, error: 'POST only' }, 405);
   if (!GEMINI_API_KEY) return jsonResponse({ success: false, error: 'GEMINI_API_KEY not configured' }, 500);
 
+  // Server-side paywall: punch-list AI + DFR auto-summarize are Pro-tier
+  // features. Without this gate, anyone with the URL can curl us for free
+  // Gemini Vision passes (12 photos × ~1500 tokens each = noticeable cost
+  // at scale).
+  const auth = await requireTier(req, ['pro', 'business'], 'analyze_photos');
+  if (!auth.ok) return jsonResponse(auth.body, auth.status);
+
   let body: AnalyzePhotosRequest;
   try { body = await req.json(); } catch { return jsonResponse({ success: false, error: 'Invalid JSON body' }, 400); }
 
   if (!body.task || !['punch', 'dfr'].includes(body.task)) {
     return jsonResponse({ success: false, error: 'task must be "punch" or "dfr"' }, 400);
+  }
+
+  // Monthly cap for this user. Increment first; if we exceeded, deny
+  // BEFORE the expensive Gemini call. Counts both punch and dfr together
+  // since they're the same underlying API spend.
+  const used = await aiUsageIncrement(auth.userId, 'analyze_photos');
+  const cap = MONTHLY_CAPS[auth.tier].analyze_photos;
+  if (used > cap) {
+    return jsonResponse({
+      success: false,
+      error: `Monthly photo-analysis limit reached (${cap} on ${auth.tier}). Resets on the 1st.`,
+      code: 'monthly_cap_reached',
+      used, cap,
+    }, 429);
   }
 
   const usingInline = Array.isArray(body.photos) && body.photos.length > 0;
@@ -138,7 +160,7 @@ serve(async (req) => {
   // library picks where the URI is file://). URL-based photos fetch
   // server-side; failures are skipped rather than aborting the whole
   // call so a single expired signed URL doesn't kill the request.
-  let goodPhotos: Array<{ data: string; mimeType: string; originalIndex: number }> = [];
+  let goodPhotos: { data: string; mimeType: string; originalIndex: number }[] = [];
   if (usingInline) {
     // Per-photo + total payload size guards (code-review #6). Supabase
     // Functions cap requests at ~10MB; we reject before forwarding so
@@ -195,7 +217,7 @@ serve(async (req) => {
   const basePrompt = body.task === 'punch' ? PUNCH_PROMPT : DFR_PROMPT;
   const prompt = ctxLine ? `${ctxLine}\n\n${basePrompt}` : basePrompt;
 
-  const parts: Array<Record<string, unknown>> = [{ text: prompt }];
+  const parts: Record<string, unknown>[] = [{ text: prompt }];
   for (const p of goodPhotos) {
     parts.push({ inline_data: { mime_type: p.mimeType, data: p.data } });
   }

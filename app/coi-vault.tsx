@@ -27,10 +27,13 @@ import {
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
+import { FeatureHeader } from '@/components/FeatureHeader';
 import Paywall from '@/components/Paywall';
 import { generateUUID } from '@/utils/generateId';
 import { validateCOIImage, recomputeValidation } from '@/utils/coiValidator';
 import type { CertificateOfInsurance, COIValidationResult, Subcontractor } from '@/types';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 export default function COIVaultScreen() {
   const router = useRouter();
@@ -179,11 +182,23 @@ function COIVaultInner() {
   // List mode
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      <Stack.Screen options={{ title: 'COI Vault' }} />
+      <Stack.Screen options={{ title: 'Sub Insurance' }} />
+      <FeatureHeader
+        eyebrow="COI Tracker"
+        title="Make sure your subs are insured"
+        subtitle="Every sub on your jobsite needs to prove they're covered. Upload their certificate; we read it, flag what's missing, and remind you 30 days before it expires."
+        explainer={{
+          term: 'Certificate of Insurance (COI)',
+          definition: 'A COI is a one-page document a subcontractor\'s insurer issues showing what coverage the sub carries — General Liability, Workers\' Comp, Auto, sometimes specialty endorsements like "Additional Insured" naming you. If a sub causes damage or injury and isn\'t insured, it can come back on you.',
+          whenToUse: [
+            'Before letting a sub start work on your site',
+            'Annually when each sub\'s policy renews',
+            'When the project owner or your bond requires proof',
+          ],
+        }}
+      />
       <View style={styles.listHeader}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.eyebrow}>Insurance vault</Text>
-          <Text style={styles.title}>Certificates of Insurance</Text>
           <Text style={styles.subtitle}>{subcontractors.length} sub{subcontractors.length === 1 ? '' : 's'} tracked</Text>
         </View>
       </View>
@@ -253,9 +268,7 @@ function COICard({
           <Text style={styles.coiTitle}>Certificate uploaded {new Date(coi.uploadedAt).toLocaleDateString()}</Text>
           <Text style={styles.coiMeta}>{label}{v?.confidence != null ? ` · AI confidence ${v.confidence}%` : ''}</Text>
         </View>
-        <TouchableOpacity onPress={onDelete} hitSlop={6} style={styles.deleteBtn}>
-          <Trash2 size={14} color={Colors.error} />
-        </TouchableOpacity>
+        <TouchableOpacity onPress={onDelete} hitSlop={6} style={styles.deleteBtn} accessibilityRole="button" accessibilityLabel="Delete"><Trash2 size={14} color={Colors.error} /></TouchableOpacity>
       </View>
 
       {coi.fileUri ? (
@@ -347,8 +360,8 @@ function humanizeCoverage(t: string): string {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   emptyState: { alignItems: 'center', paddingTop: 60, gap: 10 },
-  emptyTitle: { fontSize: 18, fontWeight: '800' as const, color: Colors.text },
-  emptyBody: { fontSize: 13, color: Colors.textSecondary, textAlign: 'center', lineHeight: 19, paddingHorizontal: 32 },
+  emptyTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '800' as const, color: Colors.text },
+  emptyBody: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, textAlign: 'center', lineHeight: 19, paddingHorizontal: 32 },
 
   listHeader: {
     paddingHorizontal: 16,
@@ -360,25 +373,25 @@ const styles = StyleSheet.create({
     fontSize: 10, fontWeight: '800' as const, color: Colors.textMuted,
     letterSpacing: 0.7, textTransform: 'uppercase' as const,
   },
-  title: { fontSize: 22, fontWeight: '800' as const, color: Colors.text, marginTop: 2, letterSpacing: -0.4 },
-  subtitle: { fontSize: 12, color: Colors.textMuted, marginTop: 2 },
+  title: { fontSize: Type.title2.fontSize, fontWeight: '800' as const, color: Colors.text, marginTop: 2, letterSpacing: -0.4 },
+  subtitle: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2 },
 
   subRow: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     gap: 12,
     backgroundColor: Colors.surface,
-    borderRadius: 12, padding: 12, marginBottom: 8,
+    borderRadius: Tokens.radius.card, padding: 12, marginBottom: 8,
     borderWidth: 1, borderColor: Colors.cardBorder,
   },
   subStatusIcon: {
-    width: 40, height: 40, borderRadius: 12,
+    width: 40, height: 40, borderRadius: Tokens.radius.card,
     alignItems: 'center', justifyContent: 'center',
   },
-  subName: { fontSize: 14, fontWeight: '700' as const, color: Colors.text },
-  subMeta: { fontSize: 11, color: Colors.textMuted, marginTop: 2 },
+  subName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
+  subMeta: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 2 },
   statusPill: {
-    paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999,
+    paddingHorizontal: 10, paddingVertical: 4, borderRadius: Tokens.radius.full,
   },
   statusPillText: { fontSize: 10, fontWeight: '800' as const, letterSpacing: 0.4, textTransform: 'uppercase' as const },
 
@@ -390,40 +403,40 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   headerBack: { flexDirection: 'row', alignItems: 'center', gap: 4, flex: 1 },
-  headerBackText: { fontSize: 14, fontWeight: '600' as const, color: Colors.primary },
+  headerBackText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.primary },
   uploadBtn: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     gap: 6,
     paddingHorizontal: 12, paddingVertical: 8,
-    backgroundColor: Colors.primary, borderRadius: 10,
+    backgroundColor: Colors.primary, borderRadius: Tokens.radius.md,
   },
-  uploadBtnText: { color: '#fff', fontWeight: '800' as const, fontSize: 12 },
+  uploadBtnText: { color: '#fff', fontWeight: '800' as const, fontSize: Type.caption1.fontSize },
   btnDisabled: { opacity: 0.5 },
   titleBlock: { marginBottom: 16 },
 
   coiCard: {
     backgroundColor: Colors.surface,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     padding: 14,
     marginBottom: 12,
     borderWidth: 1, borderColor: Colors.cardBorder,
   },
   coiHeader: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10 },
-  coiStatusIcon: { width: 32, height: 32, borderRadius: 10, alignItems: 'center' as const, justifyContent: 'center' as const },
-  coiTitle: { fontSize: 13, fontWeight: '700' as const, color: Colors.text },
-  coiMeta: { fontSize: 11, color: Colors.textMuted, marginTop: 2 },
+  coiStatusIcon: { width: 32, height: 32, borderRadius: Tokens.radius.md, alignItems: 'center' as const, justifyContent: 'center' as const },
+  coiTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.text },
+  coiMeta: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 2 },
   deleteBtn: { padding: 6 },
   coiImage: {
     width: '100%' as const,
     height: 200,
     backgroundColor: Colors.background,
-    borderRadius: 10, marginTop: 10,
+    borderRadius: Tokens.radius.md, marginTop: 10,
   },
 
   findingsCard: {
     backgroundColor: Colors.background,
-    borderRadius: 10, padding: 12,
+    borderRadius: Tokens.radius.md, padding: 12,
     marginTop: 10,
     borderWidth: 1, borderColor: Colors.borderLight,
   },
@@ -434,16 +447,16 @@ const styles = StyleSheet.create({
   },
   findingRow: { flexDirection: 'row' as const, gap: 8, paddingVertical: 4, alignItems: 'flex-start' as const },
   findingDot: { width: 6, height: 6, borderRadius: 3, marginTop: 6 },
-  findingText: { flex: 1, fontSize: 12, color: Colors.text, lineHeight: 16 },
+  findingText: { flex: 1, fontSize: Type.caption1.fontSize, color: Colors.text, lineHeight: 16 },
 
   coveragesCard: {
     backgroundColor: Colors.background,
-    borderRadius: 10, padding: 12, marginTop: 8,
+    borderRadius: Tokens.radius.md, padding: 12, marginTop: 8,
     borderWidth: 1, borderColor: Colors.borderLight,
   },
   coverageRow: { paddingVertical: 4 },
-  coverageType: { fontSize: 12, fontWeight: '700' as const, color: Colors.text },
-  coverageMeta: { fontSize: 11, color: Colors.textMuted, marginTop: 2 },
+  coverageType: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: Colors.text },
+  coverageMeta: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 2 },
 
   notesLabel: {
     fontSize: 10, fontWeight: '800' as const, color: Colors.textMuted,
@@ -453,8 +466,8 @@ const styles = StyleSheet.create({
   notesInput: {
     backgroundColor: Colors.background,
     borderWidth: 1, borderColor: Colors.border,
-    borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10,
-    fontSize: 12, color: Colors.text,
+    borderRadius: Tokens.radius.md, paddingHorizontal: 12, paddingVertical: 10,
+    fontSize: Type.caption1.fontSize, color: Colors.text,
     minHeight: 50,
   },
 });

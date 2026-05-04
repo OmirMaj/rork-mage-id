@@ -17,6 +17,8 @@ import { Colors } from '@/constants/colors';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { formatMoney } from '@/utils/formatters';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 interface MyRfpRow {
   id: string;
@@ -102,7 +104,7 @@ export default function MyRfpsScreen() {
       <Stack.Screen options={{ headerShown: false }} />
 
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={8}>
+        <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
           <ChevronLeft size={26} color={Colors.primary} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
@@ -248,50 +250,50 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, paddingTop: 14, paddingBottom: 16,
     borderBottomWidth: 1, borderBottomColor: Colors.border,
   },
-  eyebrow: { fontSize: 11, fontWeight: '700', color: Colors.primary, letterSpacing: 1.4, textTransform: 'uppercase' },
-  title:   { fontSize: 22, fontWeight: '800', color: Colors.text, letterSpacing: -0.4, marginTop: 4 },
+  eyebrow: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.primary, letterSpacing: 1.4, textTransform: 'uppercase' },
+  title:   { fontSize: Type.title2.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.4, marginTop: 4 },
   headerCta: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
     paddingHorizontal: 12, paddingVertical: 8, borderRadius: 9,
     backgroundColor: Colors.primary,
   },
-  headerCtaText: { fontSize: 13, fontWeight: '700', color: '#FFF' },
+  headerCtaText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: '#FFF' },
 
   statsRow: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: Colors.card, borderRadius: 14, padding: 16,
+    backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 16,
     borderWidth: 1, borderColor: Colors.border,
     marginBottom: 14,
   },
   statItem: { flex: 1, alignItems: 'center' },
-  statValue: { fontSize: 22, fontWeight: '800', color: Colors.text, letterSpacing: -0.5 },
-  statLabel: { fontSize: 11, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.6, marginTop: 4 },
+  statValue: { fontSize: Type.title2.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.5 },
+  statLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.6, marginTop: 4 },
   statDivider: { width: 1, alignSelf: 'stretch', backgroundColor: Colors.border, marginVertical: 6 },
 
   loadingCard: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 18, justifyContent: 'center' },
-  loadingText: { fontSize: 13, color: Colors.textMuted },
+  loadingText: { fontSize: Type.footnote.fontSize, color: Colors.textMuted },
 
   emptyCard: {
-    backgroundColor: Colors.card, borderRadius: 16, padding: 28,
+    backgroundColor: Colors.card, borderRadius: Tokens.radius.panel, padding: 28,
     borderWidth: 1, borderColor: Colors.border,
     alignItems: 'center', gap: 8, marginTop: 22,
   },
   emptyIconWrap: {
-    width: 64, height: 64, borderRadius: 18,
+    width: 64, height: 64, borderRadius: Tokens.radius.xl,
     backgroundColor: Colors.primary + '15',
     alignItems: 'center', justifyContent: 'center', marginBottom: 6,
   },
-  emptyTitle: { fontSize: 18, fontWeight: '800', color: Colors.text, marginTop: 4 },
-  emptyBody: { fontSize: 13, color: Colors.text, textAlign: 'center', lineHeight: 19, maxWidth: 320 },
+  emptyTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: Colors.text, marginTop: 4 },
+  emptyBody: { fontSize: Type.footnote.fontSize, color: Colors.text, textAlign: 'center', lineHeight: 19, maxWidth: 320 },
   emptyCta: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingHorizontal: 18, paddingVertical: 11, borderRadius: 12,
+    paddingHorizontal: 18, paddingVertical: 11, borderRadius: Tokens.radius.card,
     backgroundColor: Colors.primary, marginTop: 12,
   },
-  emptyCtaText: { color: '#FFF', fontSize: 14, fontWeight: '700' },
+  emptyCtaText: { color: '#FFF', fontSize: Type.bodyCompact.fontSize, fontWeight: '700' },
 
   rfpCard: {
-    backgroundColor: Colors.card, borderRadius: 14, overflow: 'hidden',
+    backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, overflow: 'hidden',
     borderWidth: 1, borderColor: Colors.border,
     marginBottom: 12,
   },
@@ -299,15 +301,15 @@ const styles = StyleSheet.create({
   rfpHeroPlaceholder: { alignItems: 'center', justifyContent: 'center' },
   rfpBody: { padding: 14, gap: 6 },
   rfpHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-  rfpTitle: { flex: 1, fontSize: 15, fontWeight: '700', color: Colors.text, lineHeight: 21 },
-  statusPill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 999 },
+  rfpTitle: { flex: 1, fontSize: Type.subhead.fontSize, fontWeight: '700', color: Colors.text, lineHeight: 21 },
+  statusPill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 7, paddingVertical: 3, borderRadius: Tokens.radius.full },
   statusPillText: { fontSize: 9, fontWeight: '800', letterSpacing: 0.6 },
   rfpMeta: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  rfpMetaText: { flex: 1, fontSize: 12, color: Colors.textMuted, fontWeight: '600' },
-  rfpBudget: { fontSize: 12, color: Colors.text, fontWeight: '600' },
+  rfpMetaText: { flex: 1, fontSize: Type.caption1.fontSize, color: Colors.textMuted, fontWeight: '600' },
+  rfpBudget: { fontSize: Type.caption1.fontSize, color: Colors.text, fontWeight: '600' },
   rfpFoot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 6, paddingTop: 8, borderTopWidth: 1, borderTopColor: Colors.border },
   rfpResponseChip: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  rfpResponseChipText: { fontSize: 12, fontWeight: '700', color: Colors.text },
-  unreadDot: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: 999, backgroundColor: Colors.primary, minWidth: 18, alignItems: 'center' },
+  rfpResponseChipText: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: Colors.text },
+  unreadDot: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: Tokens.radius.full, backgroundColor: Colors.primary, minWidth: 18, alignItems: 'center' },
   unreadDotText: { fontSize: 10, fontWeight: '800', color: '#FFF' },
 });

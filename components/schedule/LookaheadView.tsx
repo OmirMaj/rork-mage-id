@@ -24,6 +24,8 @@ import {
 } from '@/utils/scheduleEngine';
 import { getSimulatedForecast, getConditionIcon } from '@/utils/weatherService';
 import type { DayForecast } from '@/utils/weatherService';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 interface LookaheadViewProps {
   tasks: ScheduleTask[];
@@ -149,7 +151,7 @@ const SwipeableLookaheadCard = React.memo(function SwipeableLookaheadCard({
               <Text style={s.taskCardTitle} numberOfLines={1}>{task.title}</Text>
               {isBlocked && (
                 <View style={s.blockedTag}>
-                  <AlertTriangle size={9} color="#FF3B30" />
+                  <AlertTriangle size={9} color={Colors.error} />
                   <Text style={s.blockedTagText}>BLOCKED</Text>
                 </View>
               )}
@@ -165,9 +167,7 @@ const SwipeableLookaheadCard = React.memo(function SwipeableLookaheadCard({
                 <View style={[s.taskCardProgressFill, { width: `${task.progress}%` as any, backgroundColor: phaseColor }]} />
               </View>
               <Text style={s.taskCardProgressText}>{task.progress}%</Text>
-              <TouchableOpacity style={s.incrementBtn} onPress={handleIncrement}>
-                <Plus size={12} color={Colors.primary} />
-              </TouchableOpacity>
+              <TouchableOpacity style={s.incrementBtn} onPress={handleIncrement} accessibilityRole="button" accessibilityLabel="Add"><Plus size={12} color={Colors.primary} /></TouchableOpacity>
             </View>
           </View>
         </TouchableOpacity>
@@ -325,17 +325,17 @@ const s = StyleSheet.create({
   segmentControl: {
     flexDirection: 'row',
     backgroundColor: Colors.fillTertiary,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     padding: 3,
     alignSelf: 'flex-start',
   },
   segmentBtn: {
     paddingHorizontal: 16,
     paddingVertical: 8,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
   },
   segmentBtnActive: { backgroundColor: Colors.primary },
-  segmentBtnText: { fontSize: 13, fontWeight: '600' as const, color: Colors.textSecondary },
+  segmentBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.textSecondary },
   segmentBtnTextActive: { color: '#FFF' },
 
   weekList: { gap: 16 },
@@ -343,7 +343,7 @@ const s = StyleSheet.create({
   weekSection: { gap: 8 },
   weekHeader: {
     backgroundColor: Colors.surface,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     padding: 12,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
@@ -354,49 +354,49 @@ const s = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  weekLabel: { fontSize: 15, fontWeight: '800' as const, color: Colors.text },
-  weekSummary: { fontSize: 11, color: Colors.textSecondary, fontWeight: '500' as const },
+  weekLabel: { fontSize: Type.subhead.fontSize, fontWeight: '800' as const, color: Colors.text },
+  weekSummary: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, fontWeight: '500' as const },
 
   weekWeatherRow: { flexDirection: 'row', gap: 6, justifyContent: 'space-around' },
   weekWeatherDay: { alignItems: 'center', gap: 1 },
   weekWeatherDayBad: { opacity: 0.5 },
   weekWeatherDayName: { fontSize: 10, fontWeight: '600' as const, color: Colors.textMuted },
-  weekWeatherIcon: { fontSize: 14 },
+  weekWeatherIcon: { fontSize: Type.bodyCompact.fontSize },
   weatherRisk: { fontSize: 10 },
 
   weekEmpty: {
     alignItems: 'center',
     paddingVertical: 16,
     backgroundColor: Colors.fillSecondary,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
   },
-  weekEmptyText: { fontSize: 13, color: Colors.textMuted },
+  weekEmptyText: { fontSize: Type.footnote.fontSize, color: Colors.textMuted },
 
   swipeWrapper: {
     position: 'relative' as const,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     overflow: 'hidden' as const,
   },
   swipeBg: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#34C759',
-    borderRadius: 14,
+    backgroundColor: Colors.success,
+    borderRadius: Tokens.radius.lg,
     flexDirection: 'row',
     alignItems: 'center',
     paddingLeft: 12,
     gap: 3,
   },
-  swipeBgText: { fontSize: 12, fontWeight: '800' as const, color: '#FFF' },
+  swipeBgText: { fontSize: Type.caption1.fontSize, fontWeight: '800' as const, color: '#FFF' },
   flashOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: '#34C75920',
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
   },
 
   taskCard: {
     flexDirection: 'row',
     backgroundColor: Colors.surface,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     overflow: 'hidden' as const,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
@@ -409,7 +409,7 @@ const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  taskCardTitle: { fontSize: 14, fontWeight: '700' as const, color: Colors.text, flex: 1, marginRight: 8 },
+  taskCardTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text, flex: 1, marginRight: 8 },
   blockedTag: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -417,12 +417,12 @@ const s = StyleSheet.create({
     backgroundColor: '#FF3B3012',
     paddingHorizontal: 6,
     paddingVertical: 2,
-    borderRadius: 6,
+    borderRadius: Tokens.radius.xs,
   },
-  blockedTagText: { fontSize: 9, fontWeight: '800' as const, color: '#FF3B30' },
+  blockedTagText: { fontSize: 9, fontWeight: '800' as const, color: Colors.error },
   taskCardMeta: { flexDirection: 'row', gap: 10 },
-  taskCardCrewText: { fontSize: 11, color: Colors.textSecondary, fontWeight: '500' as const },
-  taskCardDayText: { fontSize: 11, color: Colors.textMuted },
+  taskCardCrewText: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, fontWeight: '500' as const },
+  taskCardDayText: { fontSize: Type.caption2.fontSize, color: Colors.textMuted },
   taskCardProgressRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   taskCardProgressTrack: {
     flex: 1,
@@ -432,7 +432,7 @@ const s = StyleSheet.create({
     overflow: 'hidden' as const,
   },
   taskCardProgressFill: { height: '100%', borderRadius: 3 },
-  taskCardProgressText: { fontSize: 11, fontWeight: '700' as const, color: Colors.text, minWidth: 28, textAlign: 'right' as const },
+  taskCardProgressText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: Colors.text, minWidth: 28, textAlign: 'right' as const },
   incrementBtn: {
     width: 26,
     height: 26,

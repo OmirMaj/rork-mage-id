@@ -32,9 +32,10 @@ import React, { useCallback, useMemo, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, useWindowDimensions, Platform, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { ChevronLeft, Zap, Activity, Share2, Undo2, Redo2, Columns, Table2, BarChart2, Sparkles, RefreshCcw, Bookmark, Download, CalendarX, Settings, Users, FileText } from 'lucide-react-native';
+import { ChevronLeft, Zap, Activity, Share2, Undo2, Redo2, Columns, Table2, BarChart2, Sparkles, RefreshCcw, Bookmark, Download, CalendarX, Settings, Users, FileText, Mic } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import GridPane from '@/components/schedule/GridPane';
@@ -44,9 +45,19 @@ import ClosuresModal from '@/components/schedule/ClosuresModal';
 import ScheduleSettingsMenu from '@/components/schedule/ScheduleSettingsMenu';
 import TaskInspector from '@/components/schedule/TaskInspector';
 import ResourceSwimlanes from '@/components/schedule/ResourceSwimlanes';
-import { exportSchedulePdf } from '@/utils/exportSchedulePdf';
+import VoiceCommandModal from '@/components/VoiceCommandModal';
+import { ScheduleHealthBadge, ScheduleHealthDetail } from '@/components/schedule/ScheduleHealthScore';
+import { computeScheduleHealthScore } from '@/utils/scheduleHealthScore';
+import { EarnedValuePanel } from '@/components/schedule/EarnedValuePanel';
+import { buildEarnedValueSnapshot } from '@/utils/scheduleEarnedValue';
+import { WeatherReschedulePrompt } from '@/components/schedule/WeatherReschedulePrompt';
+import { getSimulatedForecast } from '@/utils/weatherService';
+import { SubUpdatesPanel } from '@/components/schedule/SubUpdatesPanel';
+import { exportSchedulePdf, type SchedulePdfPaperSize } from '@/utils/exportSchedulePdf';
 import { runCpm, type CpmResult } from '@/utils/cpm';
 import { computeSummaryRollup } from '@/utils/summaryRollup';
+import { applyLevelOfEffortSpans, hasAnyLevelOfEffort } from '@/utils/scheduleLoeEngine';
+import { appendAuditToAsyncStorage, buildAuditEntry, summarizeTaskDiff } from '@/utils/scheduleAudit';
 import { buildScheduleFromTasks, createId, generateWbsCodes } from '@/utils/scheduleEngine';
 import { seedDemoSchedule } from '@/utils/demoSchedule';
 import {
@@ -61,6 +72,8 @@ import {
   type NamedBaseline,
 } from '@/utils/scheduleOps';
 import type { ScheduleTask, ProjectSchedule } from '@/types';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 // Desktop/tablet-landscape breakpoint. Below this we send users to the
 // classic mobile experience — the grid is genuinely unusable under 900px.
@@ -98,8 +111,9 @@ function ScheduleProScreenInner() {
   // gate covers full Schedule Pro access — this is the export-specific
   // gate should we split the bundle in the future).
   const { canAccess } = useTierAccess();
+  const { user } = useAuth();
 
-  const { projects, updateProject } = useProjects();
+  const { projects, updateProject, getInvoicesForProject } = useProjects();
 
   const project = useMemo(
     () => projects.find(p => p.id === projectId) ?? null,
@@ -124,6 +138,12 @@ function ScheduleProScreenInner() {
   const [showAI, setShowAI] = useState(false);
   const [showClosures, setShowClosures] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  // Voice → schedule mutations. Tap mic, speak ("push framing by 3 days"),
+  // executor mutates via handleEdit. Closes the loop on the field-side
+  // wedge — Houzz Pro is the only competitor with voice-to-schedule and
+  // theirs only creates, doesn't mutate.
+  const [showVoice, setShowVoice] = useState(false);
+  const [showHealth, setShowHealth] = useState(false);
 
   // Named baselines captured over the life of the schedule. Persisted into
   // `project.schedule.baselines` so variance comparisons survive reloads;
@@ -166,6 +186,50 @@ function ScheduleProScreenInner() {
       criticalFloatThresholdDays,
     }),
     [rolledTasks, scheduleStartIso, criticalFloatThresholdDays],
+  );
+
+  // Level-of-Effort post-process: stretch LOE tasks to span their linked
+  // work. Cheap when no LOE tasks exist (early-return). The result feeds
+  // the Gantt + grid views, which call this `loeAdjustedTasks` instead
+  // of `rolledTasks` for rendering.
+  const loeAdjustedTasks = useMemo(
+    () => hasAnyLevelOfEffort(rolledTasks)
+      ? applyLevelOfEffortSpans(rolledTasks, cpm)
+      : rolledTasks,
+    [rolledTasks, cpm],
+  );
+  void loeAdjustedTasks; // exposed for future view wiring; rolledTasks
+  // is still the authoritative source for the existing render paths.
+
+  // Schedule health score — pure compute over current tasks + cpm.
+  // Cheap to recompute on every edit.
+  const healthScore = useMemo(
+    () => computeScheduleHealthScore({ tasks: rolledTasks, cpm }),
+    [rolledTasks, cpm],
+  );
+
+  // Earned-value snapshot — turns the linked-estimate per-task carry into
+  // PV/EV/SPI. The day-cursor approximates "today" relative to project
+  // start so PV is the rolling sum of "should be earned by now."
+  const dayCursor = useMemo(() => {
+    if (!project?.createdAt) return 1;
+    const start = new Date(project.createdAt).getTime();
+    const now = Date.now();
+    if (now <= start) return 1;
+    return Math.floor((now - start) / (1000 * 60 * 60 * 24)) + 1;
+  }, [project?.createdAt]);
+  // Project invoices feed the Actual Cost leg of EVM (CPI calc).
+  const projectInvoices = useMemo(
+    () => project?.id ? getInvoicesForProject(project.id) : [],
+    [project?.id, getInvoicesForProject],
+  );
+  const evSnapshot = useMemo(
+    () => buildEarnedValueSnapshot(
+      rolledTasks,
+      project?.linkedEstimate ?? undefined,
+      { dayCursor, invoices: projectInvoices },
+    ),
+    [rolledTasks, project?.linkedEstimate, dayCursor, projectInvoices],
   );
 
   // Anchored early so the export/share/AI handlers below can reference it
@@ -275,8 +339,76 @@ function ScheduleProScreenInner() {
   }, [schedulePersist]);
 
   const handleEdit = useCallback((taskId: string, patch: Partial<ScheduleTask>) => {
+    // Log to the audit before applying so we have the "before" snapshot.
+    const before = workingTasks.find(t => t.id === taskId);
+    if (before && project?.id) {
+      const isLogicChange = 'dependencies' in patch || 'dependencyLinks' in patch;
+      const isProgressChange = 'progress' in patch && patch.progress !== before.progress;
+      const entry = buildAuditEntry({
+        user: user?.email ?? user?.name ?? 'anonymous',
+        taskId,
+        taskTitle: before.title,
+        kind: isLogicChange ? 'dependency_edit'
+          : isProgressChange ? 'progress_update'
+          : 'task_edit',
+        summary: summarizeTaskDiff(before as unknown as Record<string, unknown>, { ...before, ...patch } as unknown as Record<string, unknown>),
+        before: before as unknown as Record<string, unknown>,
+        after: { ...before, ...patch } as unknown as Record<string, unknown>,
+      });
+      void appendAuditToAsyncStorage(project.id, entry);
+    }
     commit(prev => prev.map(t => (t.id === taskId ? { ...t, ...patch } : t)));
+  }, [commit, workingTasks, project?.id, user]);
+
+  // 14-day forecast keyed off project start. Used for the weather-aware
+  // reschedule prompt — surfaces tasks that hit un-workable days.
+  const forecast = useMemo(
+    () => getSimulatedForecast(projectStartDate, 14),
+    [projectStartDate],
+  );
+
+  // Bulk push handler — moves multiple tasks in a single commit. Each
+  // task's startDay shifts by deltaDays; CPM cascades successors via the
+  // existing recompute on rolledTasks.
+  const handleWeatherPush = useCallback((patches: { taskId: string; deltaDays: number }[]) => {
+    commit(prev => prev.map(t => {
+      const p = patches.find(x => x.taskId === t.id);
+      if (!p) return t;
+      return { ...t, startDay: Math.max(1, t.startDay + p.deltaDays) };
+    }));
   }, [commit]);
+
+  // Voice → mutation adapter. The voice executor calls these; CPM re-runs
+  // on each commit so successors ripple automatically. Each mutation is
+  // a single `commit()` so undo/redo treats voice edits identically to
+  // manual ones.
+  const voiceUpdateFunctions = useMemo(() => ({
+    handleProgressUpdate: (task: ScheduleTask, progress: number) => {
+      handleEdit(task.id, { progress });
+    },
+    onAddNote: (task: ScheduleTask, note: string) => {
+      const existing = task.notes ? `${task.notes}\n` : '';
+      handleEdit(task.id, { notes: `${existing}${note}` });
+    },
+    onRescheduleTask: (
+      task: ScheduleTask,
+      args: { newStartDay?: number; deltaDays?: number; newDurationDays?: number },
+    ) => {
+      const patch: Partial<ScheduleTask> = {};
+      if (typeof args.newStartDay === 'number') {
+        patch.startDay = Math.max(1, args.newStartDay);
+      } else if (typeof args.deltaDays === 'number') {
+        patch.startDay = Math.max(1, task.startDay + args.deltaDays);
+      }
+      if (typeof args.newDurationDays === 'number') {
+        patch.durationDays = Math.max(1, args.newDurationDays);
+      }
+      handleEdit(task.id, patch);
+    },
+    onAssignCrew: (task: ScheduleTask, crew: string) => {
+      handleEdit(task.id, { crew });
+    },
+  }), [handleEdit]);
 
   const handleAddTask = useCallback(() => {
     commit(prev => {
@@ -533,7 +665,10 @@ function ScheduleProScreenInner() {
   // When baselines exist, we pop a picker so the PM can export a variance
   // report. Skipping ("Current plan only") reverts to the classic single-
   // plan export. No picker appears if there are no baselines.
-  const runPdfExport = useCallback(async (baseline?: NamedBaseline) => {
+  const runPdfExport = useCallback(async (
+    baseline?: NamedBaseline,
+    paperSize: SchedulePdfPaperSize = 'a3',
+  ) => {
     try {
       await exportSchedulePdf({
         projectName: project?.name ?? 'Schedule',
@@ -541,6 +676,7 @@ function ScheduleProScreenInner() {
         tasks: rolledTasks,
         cpm,
         baseline,
+        paperSize,
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -549,13 +685,37 @@ function ScheduleProScreenInner() {
     }
   }, [project?.name, project?.schedule?.startDate, rolledTasks, cpm]);
 
+  // Paper-size picker → baseline picker → export. Keeps the dialog stack
+  // shallow on mobile (Alert can't nest deeply) by routing through a
+  // single chooser. Web confirms inline.
+  const promptPaperSize = useCallback(async (then: (size: SchedulePdfPaperSize) => void | Promise<void>) => {
+    if (Platform.OS === 'web') {
+      const msg = 'Pick paper size:\n\nOK → Arch D (24×36, field-grade)\nCancel → A3 (default)';
+      const yes = window.confirm?.(msg);
+      then(yes ? 'arch_d' : 'a3');
+      return;
+    }
+    Alert.alert(
+      'Paper size',
+      'Pick the paper size for this PDF.',
+      [
+        { text: 'A3 (default)', onPress: () => { void then('a3'); } },
+        { text: 'Letter', onPress: () => { void then('letter'); } },
+        { text: 'Arch D — 24×36', onPress: () => { void then('arch_d'); } },
+        { text: 'Arch E — 36×48', onPress: () => { void then('arch_e'); } },
+        { text: 'Cancel', style: 'cancel' as const },
+      ],
+      { cancelable: true },
+    );
+  }, []);
+
   const handleExportPdf = useCallback(async () => {
     if (!canAccess('schedule_gantt_pdf')) {
       Alert.alert('Pro feature', 'PDF export is available on the Pro plan. Upgrade to unlock it.');
       return;
     }
     if (namedBaselines.length === 0) {
-      await runPdfExport();
+      await promptPaperSize(size => { void runPdfExport(undefined, size); });
       return;
     }
     // Offer the most-recent baseline as the default compare target. Show
@@ -566,23 +726,23 @@ function ScheduleProScreenInner() {
     if (Platform.OS === 'web') {
       const msg = `Compare against a baseline?\n\nOK → ${recent[0]?.name ?? 'most recent'}\nCancel → current plan only`;
       const yes = window.confirm?.(msg);
-      await runPdfExport(yes ? recent[0] : undefined);
+      await promptPaperSize(size => { void runPdfExport(yes ? recent[0] : undefined, size); });
       return;
     }
     Alert.alert(
       'Export PDF',
       'Include baseline variance in the export?',
       [
-        { text: 'Current plan only', onPress: () => { void runPdfExport(); } },
+        { text: 'Current plan only', onPress: () => { void promptPaperSize(size => { void runPdfExport(undefined, size); }); } },
         ...recent.map(b => ({
           text: `vs ${b.name}`,
-          onPress: () => { void runPdfExport(b); },
+          onPress: () => { void promptPaperSize(size => { void runPdfExport(b, size); }); },
         })),
         { text: 'Cancel', style: 'cancel' as const },
       ],
       { cancelable: true },
     );
-  }, [canAccess, namedBaselines, runPdfExport]);
+  }, [canAccess, namedBaselines, runPdfExport, promptPaperSize]);
 
   // -------------------------------------------------------------------------
   // Share link — base64 payload in URL, no backend
@@ -590,7 +750,12 @@ function ScheduleProScreenInner() {
 
   const handleShare = useCallback(() => {
     if (!project) return;
-    const payload = buildSharePayload(project.name ?? 'Schedule', projectStartDate, workingTasks);
+    const payload = buildSharePayload(
+      project.name ?? 'Schedule',
+      projectStartDate,
+      workingTasks,
+      { projectId: project.id },
+    );
     const token = encodeShareToken(payload);
     let url = `/shared-schedule?t=${token}`;
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
@@ -787,6 +952,8 @@ function ScheduleProScreenInner() {
 
           {/* AI first — the headline feature. Highlighted style so it stands out. */}
           <HeaderBtn icon={Sparkles} label="AI" onPress={() => setShowAI(true)} highlighted />
+          <HeaderBtn icon={Mic} label="Voice" onPress={() => setShowVoice(true)} />
+          <ScheduleHealthBadge result={healthScore} onPress={() => setShowHealth(true)} size="compact" />
           <HeaderBtn icon={RefreshCcw} label="Reflow" onPress={handleReflow} />
           <HeaderBtn icon={Bookmark} label="Baseline" onPress={handleCaptureBaseline} onLongPress={handleCompareBaseline} />
           <HeaderBtn icon={Download} label="CSV" onPress={handleExportCsv} />
@@ -808,6 +975,35 @@ function ScheduleProScreenInner() {
           <HeaderBtn icon={Share2} label="Share" onPress={handleShare} />
         </View>
       </View>
+
+      {/* Earned-value rollup — only renders when there's a linked estimate
+          with budget-bearing items, otherwise zero-gracefully hides. */}
+      {evSnapshot.totalBudget > 0 && (
+        <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
+          <EarnedValuePanel snapshot={evSnapshot} tasks={rolledTasks} />
+        </View>
+      )}
+
+      {/* Sub Schedule Collab — surfaces a tile when subs have posted
+          daily updates via the shared URL. Hidden when nothing's been
+          posted yet (component returns null). */}
+      {project?.id && (
+        <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
+          <SubUpdatesPanel
+            projectId={project.id}
+            tasks={rolledTasks}
+          />
+        </View>
+      )}
+
+      {/* Weather-aware reschedule prompt — silent when forecast is clean,
+          banner when weather-sensitive tasks land on un-workable days. */}
+      <WeatherReschedulePrompt
+        tasks={rolledTasks}
+        forecasts={forecast}
+        projectStartDate={projectStartDate}
+        onPushTasks={handleWeatherPush}
+      />
 
       {/* Body — renders grid, gantt, both, or the resource swim-lanes
           depending on pane mode. Resource mode replaces the grid+gantt
@@ -901,6 +1097,28 @@ function ScheduleProScreenInner() {
           });
           setShowClosures(false);
         }}
+      />
+
+      {/* Voice → schedule mutations. The modal handles transcription +
+          parsing + executor; we provide the update functions. CPM re-runs
+          on every commit so successors ripple automatically. */}
+      <VoiceCommandModal
+        visible={showVoice}
+        onClose={() => setShowVoice(false)}
+        tasks={workingTasks}
+        projectName={project?.name ?? 'Schedule'}
+        projectId={project?.id ?? ''}
+        updateFunctions={voiceUpdateFunctions}
+      />
+
+      {/* Schedule health score detail. Tap a flagged task → opens it
+          in the inspector. (Inspector wiring uses an existing dispatch
+          to setSelectedTaskId, hooked elsewhere — passing a no-op for
+          now keeps the modal self-contained.) */}
+      <ScheduleHealthDetail
+        visible={showHealth}
+        onClose={() => setShowHealth(false)}
+        result={healthScore}
       />
 
       {/* Schedule settings (critical threshold + working days per week). */}
@@ -1008,13 +1226,13 @@ function HeaderBtn({
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   centered: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, gap: 12 },
-  emptyTitle: { fontSize: 18, fontWeight: '700', color: Colors.text, marginTop: 8 },
-  emptyBody: { fontSize: 14, color: Colors.textSecondary, textAlign: 'center', lineHeight: 20, maxWidth: 440 },
+  emptyTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700', color: Colors.text, marginTop: 8 },
+  emptyBody: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, textAlign: 'center', lineHeight: 20, maxWidth: 440 },
   primaryBtn: {
     backgroundColor: Colors.primary,
-    paddingHorizontal: 20, paddingVertical: 12, borderRadius: 10, marginTop: 12,
+    paddingHorizontal: 20, paddingVertical: 12, borderRadius: Tokens.radius.md, marginTop: 12,
   },
-  primaryBtnText: { color: Colors.textOnPrimary, fontWeight: '700', fontSize: 14 },
+  primaryBtnText: { color: Colors.textOnPrimary, fontWeight: '700', fontSize: Type.bodyCompact.fontSize },
 
   header: {
     flexDirection: 'row',
@@ -1029,20 +1247,20 @@ const styles = StyleSheet.create({
   headerBack: {
     flexDirection: 'row', alignItems: 'center', gap: 2,
   },
-  headerBackText: { color: Colors.primary, fontSize: 14, fontWeight: '600' },
+  headerBackText: { color: Colors.primary, fontSize: Type.bodyCompact.fontSize, fontWeight: '600' },
   headerTitleWrap: { flex: 1, marginHorizontal: 12 },
-  headerTitle: { fontSize: 16, fontWeight: '700', color: Colors.text },
-  headerSub: { fontSize: 11, color: Colors.textSecondary, marginTop: 2 },
+  headerTitle: { fontSize: Type.callout.fontSize, fontWeight: '700', color: Colors.text },
+  headerSub: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, marginTop: 2 },
   headerActions: { flexDirection: 'row', gap: 8 },
   headerBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
     paddingHorizontal: 10, paddingVertical: 6,
-    borderRadius: 8,
+    borderRadius: Tokens.radius.sm,
     backgroundColor: Colors.primary + '12',
   },
   headerBtnDisabled: { backgroundColor: Colors.fillTertiary, opacity: 0.6 },
   headerBtnHighlighted: { backgroundColor: Colors.primary },
-  headerBtnText: { fontSize: 12, fontWeight: '700', color: Colors.primary },
+  headerBtnText: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: Colors.primary },
 
   body: {
     flex: 1,
@@ -1060,7 +1278,7 @@ const styles = StyleSheet.create({
   paneToggle: {
     flexDirection: 'row',
     backgroundColor: Colors.fillTertiary,
-    borderRadius: 8,
+    borderRadius: Tokens.radius.sm,
     padding: 2,
     marginRight: 4,
   },
@@ -1070,7 +1288,7 @@ const styles = StyleSheet.create({
     gap: 4,
     paddingHorizontal: 8,
     paddingVertical: 5,
-    borderRadius: 6,
+    borderRadius: Tokens.radius.xs,
   },
   paneBtnActive: {
     backgroundColor: Colors.surface,
@@ -1080,7 +1298,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
   },
   paneBtnText: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     fontWeight: '700',
     color: Colors.textSecondary,
   },

@@ -13,6 +13,8 @@ import {
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
 import type { Subcontractor } from '@/types';
 import type { SubscriptionTierKey } from '@/utils/aiRateLimiter';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 interface Props {
   sub: Subcontractor;
@@ -117,7 +119,7 @@ export default React.memo(function AISubEvaluator({ sub, projectContext, subscri
           <Text style={styles.sectionLabel}>Red Flags to Watch</Text>
           {(result.redFlags ?? []).map((flag, idx) => (
             <View key={idx} style={styles.flagRow}>
-              <AlertTriangle size={12} color="#FF3B30" />
+              <AlertTriangle size={12} color={Colors.error} />
               <Text style={styles.flagText}>{flag}</Text>
             </View>
           ))}
@@ -134,20 +136,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     backgroundColor: Colors.primary + '10',
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     paddingVertical: 14,
     marginTop: 12,
     borderWidth: 1,
     borderColor: Colors.primary + '25',
   },
   triggerText: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     fontWeight: '600' as const,
     color: Colors.primary,
   },
   container: {
     backgroundColor: Colors.surface,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     padding: 14,
     marginTop: 12,
     borderWidth: 1,
@@ -160,7 +162,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   headerTitle: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
     flex: 1,
@@ -170,7 +172,7 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
   },
   recommendation: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     color: Colors.text,
     lineHeight: 20,
     marginBottom: 12,
@@ -181,18 +183,18 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     gap: 6,
     backgroundColor: Colors.successLight,
-    borderRadius: 8,
+    borderRadius: Tokens.radius.sm,
     padding: 10,
     marginBottom: 12,
   },
   trackText: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: Colors.success,
     flex: 1,
     lineHeight: 18,
   },
   sectionLabel: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     fontWeight: '700' as const,
     color: Colors.textMuted,
     textTransform: 'uppercase' as const,
@@ -207,7 +209,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   questionText: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: Colors.text,
     flex: 1,
     lineHeight: 18,
@@ -220,7 +222,7 @@ const styles = StyleSheet.create({
   rateItem: {
     flex: 1,
     backgroundColor: Colors.fillSecondary,
-    borderRadius: 8,
+    borderRadius: Tokens.radius.sm,
     padding: 10,
     alignItems: 'center',
   },
@@ -230,7 +232,7 @@ const styles = StyleSheet.create({
     fontWeight: '500' as const,
   },
   rateValue: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
   },
@@ -241,7 +243,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   flagText: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: '#D32F2F',
     flex: 1,
     lineHeight: 18,

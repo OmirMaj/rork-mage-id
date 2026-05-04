@@ -3,12 +3,6 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Platform, Modal,
   TextInput, Pressable, KeyboardAvoidingView, Image, LayoutAnimation, UIManager,
 } from 'react-native';
-
-// Enable LayoutAnimation on Android (no-op on iOS — already enabled).
-// Without this, the smooth collapse/expand animation only works on iOS.
-if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
-  UIManager.setLayoutAnimationEnabledExperimental(true);
-}
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
@@ -53,6 +47,14 @@ import { fetchLienWaiversForProject } from '@/utils/lienWaiverEngine';
 import { STATUS_TONES } from '@/utils/statusPill';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { buildPortalSnapshot } from '@/utils/portalSnapshot';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
+
+// Enable LayoutAnimation on Android (no-op on iOS — already enabled).
+// Without this, the smooth collapse/expand animation only works on iOS.
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 // Same constants as in app/client-portal-setup.tsx — kept in sync with that
 // file so the snapshot rebuilt from project-detail matches the one rebuilt
@@ -100,11 +102,11 @@ export default function ProjectDetailScreen() {
   // already be on disk before the user walks out of wifi range. Fire-and-
   // forget \u2014 no spinner, no blocking.
   useEffect(() => {
-    if (projectPlans.length > 0) prefetchProjectPlans(projectPlans);
+    if (Array.isArray(projectPlans) && projectPlans.length > 0) prefetchProjectPlans(projectPlans);
     // We only care about the URI list \u2014 re-prefetching when sheet metadata
     // changes (e.g. a sheet number rename) is wasted bandwidth.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, projectPlans.map((p) => p.imageUri).join('|')]);
+  }, [id, Array.isArray(projectPlans) ? projectPlans.map((p) => p.imageUri).join('|') : '']);
 
   // Load status badges for the Money-group tiles so the GC sees what's
   // blocking handover at a glance: contract awaiting signature,
@@ -423,12 +425,13 @@ export default function ProjectDetailScreen() {
       body += `Total: $${linked.grandTotal.toFixed(2)} (${linked.items.length} items)\n`;
     } else if (legacy) {
       body += `\nCost Summary:\n`;
-      body += `Materials: $${legacy.materialTotal.toLocaleString()}\n`;
-      body += `Labor: $${legacy.laborTotal.toLocaleString()}\n`;
-      body += `Grand Total: $${legacy.grandTotal.toLocaleString()}\n`;
+      body += `Materials: ${formatMoney(legacy.materialTotal)}\n`;
+      body += `Labor: ${formatMoney(legacy.laborTotal)}\n`;
+      body += `Grand Total: ${formatMoney(legacy.grandTotal)}\n`;
     }
     if (project.schedule) {
-      body += `\nSchedule: ${project.schedule.totalDurationDays} days, ${project.schedule.tasks.length} tasks\n`;
+      const taskCount = Array.isArray(project.schedule.tasks) ? project.schedule.tasks.length : 0;
+      body += `\nSchedule: ${project.schedule.totalDurationDays ?? 0} days, ${taskCount} tasks\n`;
     }
     if (branding.contactName) body += `\nContact: ${branding.contactName}`;
     if (branding.phone) body += `\nPhone: ${branding.phone}`;
@@ -638,12 +641,16 @@ export default function ProjectDetailScreen() {
 
   const savingsBreakdown = useMemo(() => {
     if (!estimate) return null;
-    const itemsWithSavings = estimate.materials.filter(m => m.savings > 0);
-    const topSavers = [...itemsWithSavings].sort((a, b) => b.savings - a.savings).slice(0, 8);
-    const totalBulkSavings = estimate.bulkSavingsTotal;
-    const savingsRate = estimate.grandTotal > 0 ? (totalBulkSavings / (estimate.grandTotal + totalBulkSavings)) * 100 : 0;
+    // Defensive: a persisted estimate from an older schema may be missing
+    // .materials. Treat missing/non-array as empty so the savings panel
+    // renders zeros instead of crashing on .filter/.length.
+    const materials = Array.isArray(estimate.materials) ? estimate.materials : [];
+    const itemsWithSavings = materials.filter(m => (m.savings ?? 0) > 0);
+    const topSavers = [...itemsWithSavings].sort((a, b) => (b.savings ?? 0) - (a.savings ?? 0)).slice(0, 8);
+    const totalBulkSavings = estimate.bulkSavingsTotal ?? 0;
+    const savingsRate = (estimate.grandTotal ?? 0) > 0 ? (totalBulkSavings / ((estimate.grandTotal ?? 0) + totalBulkSavings)) * 100 : 0;
     const itemsAtBulk = itemsWithSavings.length;
-    const totalItems = estimate.materials.length;
+    const totalItems = materials.length;
     return { topSavers, totalBulkSavings, savingsRate, itemsAtBulk, totalItems };
   }, [estimate]);
 
@@ -655,9 +662,9 @@ export default function ProjectDetailScreen() {
   const renderTotalDetailModal = useCallback(() => {
     if (!estimate || !totalBreakdown) return null;
     const rows = [
-      { label: 'Materials', value: estimate.materialTotal, pct: totalBreakdown.materialPct, color: '#1A6B3C', icon: Package },
-      { label: 'Labor', value: estimate.laborTotal, pct: totalBreakdown.laborPct, color: '#007AFF', icon: Users },
-      { label: 'Permits & Fees', value: estimate.permits, pct: totalBreakdown.permitPct, color: '#FF9500', icon: Shield },
+      { label: 'Materials', value: estimate.materialTotal, pct: totalBreakdown.materialPct, color: Colors.successDark, icon: Package },
+      { label: 'Labor', value: estimate.laborTotal, pct: totalBreakdown.laborPct, color: Colors.info, icon: Users },
+      { label: 'Permits & Fees', value: estimate.permits, pct: totalBreakdown.permitPct, color: Colors.warning, icon: Shield },
       { label: 'Overhead', value: estimate.overhead, pct: totalBreakdown.overheadPct, color: '#AF52DE', icon: Layers },
     ];
     const maxPct = Math.max(...rows.map(r => r.pct));
@@ -668,15 +675,15 @@ export default function ProjectDetailScreen() {
           <View style={detailStyles.heroIconWrap}>
             <BarChart3 size={28} color={Colors.primary} />
           </View>
-          <Text style={detailStyles.heroAmount}>${estimate.grandTotal.toLocaleString()}</Text>
+          <Text style={detailStyles.heroAmount}>{formatMoney(estimate.grandTotal)}</Text>
           <Text style={detailStyles.heroSubtitle}>Total Project Value</Text>
           <View style={detailStyles.heroChips}>
             <View style={detailStyles.heroChip}>
-              <Text style={detailStyles.heroChipLabel}>${estimate.pricePerSqFt.toFixed(2)}</Text>
+              <Text style={detailStyles.heroChipLabel}>${(estimate.pricePerSqFt ?? 0).toFixed(2)}</Text>
               <Text style={detailStyles.heroChipSub}>per sq ft</Text>
             </View>
             <View style={[detailStyles.heroChip, { backgroundColor: Colors.successLight }]}>
-              <Text style={[detailStyles.heroChipLabel, { color: Colors.success }]}>-${estimate.bulkSavingsTotal.toLocaleString()}</Text>
+              <Text style={[detailStyles.heroChipLabel, { color: Colors.success }]}>-{formatMoney(estimate.bulkSavingsTotal)}</Text>
               <Text style={[detailStyles.heroChipSub, { color: Colors.success }]}>savings applied</Text>
             </View>
           </View>
@@ -694,7 +701,7 @@ export default function ProjectDetailScreen() {
               <View style={detailStyles.barTrack}>
                 <View style={[detailStyles.barFill, { width: `${maxPct > 0 ? (row.pct / maxPct) * 100 : 0}%`, backgroundColor: row.color }]} />
               </View>
-              <Text style={detailStyles.barValue}>${row.value.toLocaleString()}</Text>
+              <Text style={detailStyles.barValue}>{formatMoney(row.value)}</Text>
             </View>
           ))}
         </View>
@@ -707,7 +714,7 @@ export default function ProjectDetailScreen() {
               <Text style={detailStyles.additionalLabel}>Tax</Text>
             </View>
             <View style={detailStyles.additionalRight}>
-              <Text style={detailStyles.additionalValue}>${estimate.tax.toLocaleString()}</Text>
+              <Text style={detailStyles.additionalValue}>{formatMoney(estimate.tax)}</Text>
               <Text style={detailStyles.additionalPct}>{totalBreakdown.taxRate.toFixed(1)}%</Text>
             </View>
           </View>
@@ -718,7 +725,7 @@ export default function ProjectDetailScreen() {
               <Text style={detailStyles.additionalLabel}>Contingency</Text>
             </View>
             <View style={detailStyles.additionalRight}>
-              <Text style={detailStyles.additionalValue}>${estimate.contingency.toLocaleString()}</Text>
+              <Text style={detailStyles.additionalValue}>{formatMoney(estimate.contingency)}</Text>
               <Text style={detailStyles.additionalPct}>{totalBreakdown.contingencyRate.toFixed(1)}%</Text>
             </View>
           </View>
@@ -729,7 +736,7 @@ export default function ProjectDetailScreen() {
               <Text style={[detailStyles.additionalLabel, { color: Colors.success }]}>Bulk Savings</Text>
             </View>
             <View style={detailStyles.additionalRight}>
-              <Text style={[detailStyles.additionalValue, { color: Colors.success }]}>-${estimate.bulkSavingsTotal.toLocaleString()}</Text>
+              <Text style={[detailStyles.additionalValue, { color: Colors.success }]}>-{formatMoney(estimate.bulkSavingsTotal)}</Text>
             </View>
           </View>
         </View>
@@ -745,7 +752,7 @@ export default function ProjectDetailScreen() {
             <View key={idx}>
               <View style={detailStyles.breakdownRow}>
                 <Text style={detailStyles.breakdownLabel}>{item.label}</Text>
-                <Text style={detailStyles.breakdownValue}>${item.value.toLocaleString()}</Text>
+                <Text style={detailStyles.breakdownValue}>{formatMoney(item.value)}</Text>
               </View>
               {idx < 3 && <View style={detailStyles.breakdownDivider} />}
             </View>
@@ -753,24 +760,24 @@ export default function ProjectDetailScreen() {
           <View style={detailStyles.breakdownDividerThick} />
           <View style={detailStyles.breakdownRow}>
             <Text style={detailStyles.breakdownLabelBold}>Subtotal</Text>
-            <Text style={detailStyles.breakdownValueBold}>${estimate.subtotal.toLocaleString()}</Text>
+            <Text style={detailStyles.breakdownValueBold}>{formatMoney(estimate.subtotal)}</Text>
           </View>
           <View style={detailStyles.breakdownRow}>
             <Text style={detailStyles.breakdownLabel}>+ Tax</Text>
-            <Text style={detailStyles.breakdownValue}>${estimate.tax.toLocaleString()}</Text>
+            <Text style={detailStyles.breakdownValue}>{formatMoney(estimate.tax)}</Text>
           </View>
           <View style={detailStyles.breakdownRow}>
             <Text style={detailStyles.breakdownLabel}>+ Contingency</Text>
-            <Text style={detailStyles.breakdownValue}>${estimate.contingency.toLocaleString()}</Text>
+            <Text style={detailStyles.breakdownValue}>{formatMoney(estimate.contingency)}</Text>
           </View>
           <View style={detailStyles.breakdownRow}>
             <Text style={[detailStyles.breakdownLabel, { color: Colors.success }]}>- Bulk Savings</Text>
-            <Text style={[detailStyles.breakdownValue, { color: Colors.success }]}>-${estimate.bulkSavingsTotal.toLocaleString()}</Text>
+            <Text style={[detailStyles.breakdownValue, { color: Colors.success }]}>-{formatMoney(estimate.bulkSavingsTotal)}</Text>
           </View>
           <View style={detailStyles.breakdownDividerThick} />
           <View style={detailStyles.breakdownRow}>
             <Text style={detailStyles.grandLabel}>Grand Total</Text>
-            <Text style={detailStyles.grandValue}>${estimate.grandTotal.toLocaleString()}</Text>
+            <Text style={detailStyles.grandValue}>{formatMoney(estimate.grandTotal)}</Text>
           </View>
         </View>
       </ScrollView>
@@ -786,11 +793,11 @@ export default function ProjectDetailScreen() {
           <View style={[detailStyles.heroIconWrap, { backgroundColor: Colors.successLight }]}>
             <TrendingDown size={28} color={Colors.success} />
           </View>
-          <Text style={[detailStyles.heroAmount, { color: Colors.success }]}>${savingsBreakdown.totalBulkSavings.toLocaleString()}</Text>
+          <Text style={[detailStyles.heroAmount, { color: Colors.success }]}>{formatMoney(savingsBreakdown.totalBulkSavings)}</Text>
           <Text style={detailStyles.heroSubtitle}>Total Bulk Savings</Text>
           <View style={detailStyles.heroChips}>
             <View style={[detailStyles.heroChip, { backgroundColor: Colors.successLight }]}>
-              <Text style={[detailStyles.heroChipLabel, { color: Colors.success }]}>{savingsBreakdown.savingsRate.toFixed(1)}%</Text>
+              <Text style={[detailStyles.heroChipLabel, { color: Colors.success }]}>{(savingsBreakdown.savingsRate ?? 0).toFixed(1)}%</Text>
               <Text style={[detailStyles.heroChipSub, { color: Colors.success }]}>savings rate</Text>
             </View>
             <View style={detailStyles.heroChip}>
@@ -893,22 +900,37 @@ export default function ProjectDetailScreen() {
   }
 
   const linkedEstimate = project.linkedEstimate;
-  const hasAnyEstimate = !!(linkedEstimate && linkedEstimate.items.length > 0) || !!estimate;
+  // Defensive: linkedEstimate can come back with .items undefined if the
+  // record was persisted before items became a required array (legacy
+  // data, or AI tool failures partway through). The naive `.items.length`
+  // crashes the whole screen. Treat missing/non-array items as empty.
+  const linkedItems = Array.isArray(linkedEstimate?.items) ? linkedEstimate!.items : [];
+  const hasAnyEstimate = !!(linkedEstimate && linkedItems.length > 0) || !!estimate;
   const collaborators = project.collaborators ?? [];
 
   const heroTotal = linkedEstimate?.grandTotal ?? estimate?.grandTotal ?? 0;
-  const heroLabel = linkedEstimate ? `${linkedEstimate.items.length} items` : estimate ? `${estimate.materials.length} materials` : '';
+  const heroLabel = linkedEstimate ? `${linkedItems.length} items` : estimate ? `${Array.isArray(estimate.materials) ? estimate.materials.length : 0} materials` : '';
+
+  // Memoized so the options object reference is stable between renders.
+  // Inline `<Stack.Screen options={{ headerRight: () => ... }} />` allocates
+  // a fresh object + function every render, which caused react-navigation's
+  // useNavigationCache to call setOptions on every render and triggered
+  // "Maximum update depth exceeded" in production (Sentry RN-1). Both the
+  // object and the headerRight function need stable identity.
+  const headerRight = useCallback(
+    () => (
+      <TouchableOpacity onPress={openEditModal} style={{ padding: 6 }} activeOpacity={0.7} testID="edit-project-btn" accessibilityRole="button" accessibilityLabel="Edit"><Pencil size={20} color={Colors.primary} /></TouchableOpacity>
+    ),
+    [openEditModal],
+  );
+  const stackScreenOptions = useMemo(
+    () => ({ title: project.name || 'Project Details', headerRight }),
+    [project.name, headerRight],
+  );
 
   return (
     <View style={styles.container}>
-      <Stack.Screen options={{
-        title: project.name || 'Project Details',
-        headerRight: () => (
-          <TouchableOpacity onPress={openEditModal} style={{ padding: 6 }} activeOpacity={0.7} testID="edit-project-btn">
-            <Pencil size={20} color={Colors.primary} />
-          </TouchableOpacity>
-        ),
-      }} />
+      <Stack.Screen options={stackScreenOptions} />
       <ScrollView
         contentContainerStyle={[{ paddingBottom: insets.bottom + 40 }, layout.isDesktop && { maxWidth: 1200, alignSelf: 'center' as const, width: '100%' as any }]}
         showsVerticalScrollIndicator={false}
@@ -1110,37 +1132,44 @@ export default function ProjectDetailScreen() {
             tile counts so you can spot a busy section without expanding it. */}
         {(() => {
           type Tile = { key: SectionKey; label: string; icon: React.ComponentType<{ size?: number; color?: string }>; color: string; count: number | null };
+          // Tile icons are intentionally NEUTRAL (Colors.textSecondary).
+          // Color earns its way onto the screen by communicating STATE,
+          // not by decorating workflow categories. The status badge under
+          // each tile is the only colored thing — that's what the user
+          // should scan for "what needs me right now?". Group headers keep
+          // their soft category tint to differentiate workflow domains.
+          const NEUTRAL = Colors.textSecondary;
           const allTiles: Tile[] = [
-            ...(hasAnyEstimate ? [{ key: 'linkedEstimate' as SectionKey, label: 'Estimate Items', icon: ShoppingCart, color: Colors.primary, count: linkedEstimate?.items.length ?? estimate?.materials.length ?? 0 }] : []),
-            ...(project.schedule ? [{ key: 'schedule' as SectionKey, label: 'Schedule', icon: CalendarDays, color: Colors.info, count: project.schedule.tasks.length }] : []),
-            { key: 'collaborators', label: 'Team', icon: Users, color: Colors.info, count: collaborators.length + 1 },
-            { key: 'contract', label: 'Contract', icon: FileText, color: Colors.primary, count: null as number | null },
-            { key: 'selections', label: 'Selections', icon: ShoppingCart, color: Colors.accent, count: null as number | null },
-            { key: 'lienWaivers', label: 'Lien Waivers', icon: ScrollText, color: '#5856D6', count: null as number | null },
-            { key: 'closeoutBinder', label: 'Closeout Binder', icon: BookOpen, color: Colors.accent, count: null as number | null },
-            { key: 'handover', label: 'Handover Checklist', icon: Footprints, color: '#1E8E4A', count: null as number | null },
-            { key: 'changeOrders', label: 'Change Orders', icon: Repeat, color: Colors.accent, count: changeOrders.length },
-            { key: 'invoices', label: 'Invoices', icon: Receipt, color: Colors.success, count: projectInvoices.length },
-            { key: 'dailyReports', label: 'Daily Reports', icon: ClipboardList, color: Colors.primary, count: dailyReports.length },
-            { key: 'punchList', label: 'Punch List', icon: CheckSquare, color: Colors.accent, count: punchItems.length },
-            { key: 'rfis', label: 'RFIs', icon: FileText, color: Colors.info, count: projectRFIs.length },
-            { key: 'submittals', label: 'Submittals', icon: FileText, color: '#5856D6', count: projectSubmittals.length },
-            { key: 'oacMeetings', label: 'OAC Meetings', icon: Users, color: '#0891b2', count: projectOACMeetings.length },
-            { key: 'permits', label: 'Permits', icon: Shield, color: '#FF9500', count: projectPermits.length },
-            ...(hasAnyEstimate ? [{ key: 'budget' as SectionKey, label: 'Financial Health', icon: DollarSign, color: Colors.success, count: null as number | null }] : []),
-            { key: 'photos', label: 'Photos', icon: Camera, color: Colors.info, count: projectPhotos.length },
-            { key: 'plans', label: 'Plans', icon: Layers, color: Colors.primary, count: projectPlans.length },
-            { key: 'clientPortal', label: 'Client Portal', icon: Globe, color: '#5856D6', count: null as number | null },
-            { key: 'communications', label: 'Communications', icon: Mail, color: Colors.info, count: commEvents.length },
-            { key: 'activity', label: 'Activity', icon: Activity, color: Colors.accent, count: null as number | null },
-            { key: 'calendar', label: 'Calendar Feed', icon: CalendarDays, color: Colors.info, count: null as number | null },
+            ...(hasAnyEstimate ? [{ key: 'linkedEstimate' as SectionKey, label: 'Estimate Items', icon: ShoppingCart, color: NEUTRAL, count: linkedItems.length || estimate?.materials.length || 0 }] : []),
+            ...(project.schedule ? [{ key: 'schedule' as SectionKey, label: 'Schedule', icon: CalendarDays, color: NEUTRAL, count: Array.isArray(project.schedule.tasks) ? project.schedule.tasks.length : 0 }] : []),
+            { key: 'collaborators', label: 'Team', icon: Users, color: NEUTRAL, count: collaborators.length + 1 },
+            { key: 'contract', label: 'Contract', icon: FileText, color: NEUTRAL, count: null as number | null },
+            { key: 'selections', label: 'Selections', icon: ShoppingCart, color: NEUTRAL, count: null as number | null },
+            { key: 'lienWaivers', label: 'Lien Waivers', icon: ScrollText, color: NEUTRAL, count: null as number | null },
+            { key: 'closeoutBinder', label: 'Closeout Binder', icon: BookOpen, color: NEUTRAL, count: null as number | null },
+            { key: 'handover', label: 'Handover Checklist', icon: Footprints, color: NEUTRAL, count: null as number | null },
+            { key: 'changeOrders', label: 'Change Orders', icon: Repeat, color: NEUTRAL, count: changeOrders.length },
+            { key: 'invoices', label: 'Invoices', icon: Receipt, color: NEUTRAL, count: projectInvoices.length },
+            { key: 'dailyReports', label: 'Daily Reports', icon: ClipboardList, color: NEUTRAL, count: dailyReports.length },
+            { key: 'punchList', label: 'Punch List', icon: CheckSquare, color: NEUTRAL, count: punchItems.length },
+            { key: 'rfis', label: 'RFIs', icon: FileText, color: NEUTRAL, count: projectRFIs.length },
+            { key: 'submittals', label: 'Submittals', icon: FileText, color: NEUTRAL, count: projectSubmittals.length },
+            { key: 'oacMeetings', label: 'OAC Meetings', icon: Users, color: NEUTRAL, count: projectOACMeetings.length },
+            { key: 'permits', label: 'Permits', icon: Shield, color: NEUTRAL, count: projectPermits.length },
+            ...(hasAnyEstimate ? [{ key: 'budget' as SectionKey, label: 'Financial Health', icon: DollarSign, color: NEUTRAL, count: null as number | null }] : []),
+            { key: 'photos', label: 'Photos', icon: Camera, color: NEUTRAL, count: projectPhotos.length },
+            { key: 'plans', label: 'Plans', icon: Layers, color: NEUTRAL, count: projectPlans.length },
+            { key: 'clientPortal', label: 'Client Portal', icon: Globe, color: NEUTRAL, count: null as number | null },
+            { key: 'communications', label: 'Communications', icon: Mail, color: NEUTRAL, count: commEvents.length },
+            { key: 'activity', label: 'Activity', icon: Activity, color: NEUTRAL, count: null as number | null },
+            { key: 'calendar', label: 'Calendar Feed', icon: CalendarDays, color: NEUTRAL, count: null as number | null },
           ];
 
           const groups: { key: TileGroupKey; label: string; icon: React.ComponentType<{ size?: number; color?: string }>; color: string; tileKeys: SectionKey[] }[] = [
             { key: 'field', label: 'Field Ops', icon: HardHat, color: Colors.primary, tileKeys: ['dailyReports', 'punchList', 'photos', 'plans', 'schedule'] },
-            { key: 'money', label: 'Money', icon: DollarSign, color: Colors.success, tileKeys: ['contract', 'selections', 'linkedEstimate', 'changeOrders', 'invoices', 'lienWaivers', 'closeoutBinder', 'handover', 'budget'] },
+            { key: 'money', label: 'Money', icon: DollarSign, color: Colors.success, tileKeys: ['budget', 'contract', 'selections', 'linkedEstimate', 'changeOrders', 'invoices', 'lienWaivers', 'closeoutBinder', 'handover'] },
             { key: 'docs', label: 'Documentation', icon: FolderOpen, color: Colors.info, tileKeys: ['rfis', 'submittals', 'permits', 'activity', 'calendar'] },
-            { key: 'people', label: 'People & Communication', icon: Users, color: '#5856D6', tileKeys: ['collaborators', 'clientPortal', 'oacMeetings', 'communications'] },
+            { key: 'people', label: 'People & Communication', icon: Users, color: Colors.purple, tileKeys: ['collaborators', 'clientPortal', 'oacMeetings', 'communications'] },
           ];
 
           const tileByKey = new Map<SectionKey, Tile>(allTiles.map(t => [t.key, t]));
@@ -1280,7 +1309,7 @@ export default function ProjectDetailScreen() {
               showsVerticalScrollIndicator={false}
             >
 
-        {linkedEstimate && linkedEstimate.items.length > 0 && activeTile === 'linkedEstimate' && (
+        {linkedEstimate && linkedItems.length > 0 && activeTile === 'linkedEstimate' && (
           <View style={styles.section}>
             <TouchableOpacity
               style={styles.sectionHeader}
@@ -1307,7 +1336,7 @@ export default function ProjectDetailScreen() {
                   <Text style={[styles.tableHeaderText, { flex: 1 }]}>Markup</Text>
                   <Text style={[styles.tableHeaderText, { flex: 1, textAlign: 'right' as const }]}>Total</Text>
                 </View>
-                {linkedEstimate.items.map((item, idx) => {
+                {linkedItems.map((item, idx) => {
                   // Defensive coercion: legacy estimates (or rows persisted
                   // before lineTotal/markup/quantity were canonical) can
                   // arrive without these fields, which used to crash with
@@ -1384,7 +1413,7 @@ export default function ProjectDetailScreen() {
                     testID="estimate-view-schedule-link"
                   >
                     <CalendarDays size={16} color={Colors.info} />
-                    <Text style={styles.crossLinkText}>View Schedule ({project.schedule.tasks.length} tasks · {project.schedule.totalDurationDays}d)</Text>
+                    <Text style={styles.crossLinkText}>View Schedule ({Array.isArray(project.schedule.tasks) ? project.schedule.tasks.length : 0} tasks · {project.schedule.totalDurationDays ?? 0}d)</Text>
                     <ChevronRight size={16} color={Colors.textMuted} />
                   </TouchableOpacity>
                 )}
@@ -1428,7 +1457,7 @@ export default function ProjectDetailScreen() {
                 </View>
 
                 <Text style={styles.scheduleSectionTitle}>Tasks</Text>
-                {project.schedule.tasks.map(task => (
+                {(Array.isArray(project.schedule.tasks) ? project.schedule.tasks : []).map(task => (
                   <View key={task.id} style={styles.scheduleTaskRow}>
                     <View style={[styles.scheduleStatusDot, { backgroundColor: task.status === 'done' ? Colors.success : task.status === 'in_progress' ? Colors.info : Colors.warning }]} />
                     <View style={styles.scheduleTaskTextWrap}>
@@ -1489,7 +1518,7 @@ export default function ProjectDetailScreen() {
               >
                 <Package size={20} color={Colors.primary} />
                 <Text style={styles.sectionTitle}>
-                  Materials — ${estimate.materialTotal.toLocaleString()}
+                  Materials — {formatMoney(estimate.materialTotal)}
                 </Text>
                 {expanded.materials ? (
                   <ChevronUp size={18} color={Colors.textMuted} />
@@ -1506,14 +1535,14 @@ export default function ProjectDetailScreen() {
                     <Text style={[styles.tableHeaderText, { flex: 1, textAlign: 'right' as const }]}>Unit $</Text>
                     <Text style={[styles.tableHeaderText, { flex: 1, textAlign: 'right' as const }]}>Total</Text>
                   </View>
-                  {estimate.materials.map((item, idx) => (
+                  {(Array.isArray(estimate.materials) ? estimate.materials : []).map((item, idx) => (
                     <View key={idx} style={[styles.tableRow, idx % 2 === 0 && styles.tableRowAlt]}>
                       <View style={{ flex: 2 }}>
                         <Text style={styles.tableCellName} numberOfLines={1}>{item.name}</Text>
-                        {item.savings > 0 && (
+                        {(item.savings ?? 0) > 0 && (
                           <View style={styles.savingsBadge}>
                             <TrendingDown size={10} color={Colors.success} />
-                            <Text style={styles.savingsText}>Save ${item.savings.toFixed(0)}</Text>
+                            <Text style={styles.savingsText}>Save ${(item.savings ?? 0).toFixed(0)}</Text>
                           </View>
                         )}
                       </View>
@@ -1521,10 +1550,10 @@ export default function ProjectDetailScreen() {
                         {item.quantity} {item.unit}
                       </Text>
                       <Text style={[styles.tableCell, { flex: 1, textAlign: 'right' as const }]}>
-                        ${item.unitPrice.toFixed(2)}
+                        ${(item.unitPrice ?? 0).toFixed(2)}
                       </Text>
                       <Text style={[styles.tableCellBold, { flex: 1, textAlign: 'right' as const }]}>
-                        ${item.totalPrice.toLocaleString()}
+                        {formatMoney(item.totalPrice)}
                       </Text>
                     </View>
                   ))}
@@ -1540,7 +1569,7 @@ export default function ProjectDetailScreen() {
               >
                 <Users size={20} color={Colors.primary} />
                 <Text style={styles.sectionTitle}>
-                  Labor — ${estimate.laborTotal.toLocaleString()}
+                  Labor — {formatMoney(estimate.laborTotal)}
                 </Text>
                 {expanded.labor ? (
                   <ChevronUp size={18} color={Colors.textMuted} />
@@ -1557,13 +1586,13 @@ export default function ProjectDetailScreen() {
                     <Text style={[styles.tableHeaderText, { flex: 1 }]}>Hours</Text>
                     <Text style={[styles.tableHeaderText, { flex: 1, textAlign: 'right' as const }]}>Total</Text>
                   </View>
-                  {estimate.labor.map((item, idx) => (
+                  {(Array.isArray(estimate.labor) ? estimate.labor : []).map((item, idx) => (
                     <View key={idx} style={[styles.tableRow, idx % 2 === 0 && styles.tableRowAlt]}>
                       <Text style={[styles.tableCellName, { flex: 2 }]} numberOfLines={1}>{item.role}</Text>
-                      <Text style={[styles.tableCell, { flex: 1 }]}>${item.hourlyRate}</Text>
-                      <Text style={[styles.tableCell, { flex: 1 }]}>{item.hours}h</Text>
+                      <Text style={[styles.tableCell, { flex: 1 }]}>${item.hourlyRate ?? 0}</Text>
+                      <Text style={[styles.tableCell, { flex: 1 }]}>{item.hours ?? 0}h</Text>
                       <Text style={[styles.tableCellBold, { flex: 1, textAlign: 'right' as const }]}>
-                        ${item.totalCost.toLocaleString()}
+                        {formatMoney(item.totalCost)}
                       </Text>
                     </View>
                   ))}
@@ -1590,32 +1619,32 @@ export default function ProjectDetailScreen() {
                 <View style={styles.summaryCard}>
                   <View style={styles.summaryRow}>
                     <Text style={styles.summaryLabel}>Materials</Text>
-                    <Text style={styles.summaryValue}>${estimate.materialTotal.toLocaleString()}</Text>
+                    <Text style={styles.summaryValue}>{formatMoney(estimate.materialTotal)}</Text>
                   </View>
                   <View style={styles.summaryRow}>
                     <Text style={styles.summaryLabel}>Labor</Text>
-                    <Text style={styles.summaryValue}>${estimate.laborTotal.toLocaleString()}</Text>
+                    <Text style={styles.summaryValue}>{formatMoney(estimate.laborTotal)}</Text>
                   </View>
                   <View style={styles.summaryRow}>
                     <Text style={styles.summaryLabel}>Permits</Text>
-                    <Text style={styles.summaryValue}>${estimate.permits.toLocaleString()}</Text>
+                    <Text style={styles.summaryValue}>{formatMoney(estimate.permits)}</Text>
                   </View>
                   <View style={styles.summaryRow}>
                     <Text style={styles.summaryLabel}>Overhead</Text>
-                    <Text style={styles.summaryValue}>${estimate.overhead.toLocaleString()}</Text>
+                    <Text style={styles.summaryValue}>{formatMoney(estimate.overhead)}</Text>
                   </View>
                   <View style={styles.summaryDivider} />
                   <View style={styles.summaryRow}>
                     <Text style={styles.summaryLabel}>Subtotal</Text>
-                    <Text style={styles.summaryValue}>${estimate.subtotal.toLocaleString()}</Text>
+                    <Text style={styles.summaryValue}>{formatMoney(estimate.subtotal)}</Text>
                   </View>
                   <View style={styles.summaryRow}>
                     <Text style={styles.summaryLabel}>Tax</Text>
-                    <Text style={styles.summaryValue}>${estimate.tax.toLocaleString()}</Text>
+                    <Text style={styles.summaryValue}>{formatMoney(estimate.tax)}</Text>
                   </View>
                   <View style={styles.summaryRow}>
                     <Text style={styles.summaryLabel}>Contingency</Text>
-                    <Text style={styles.summaryValue}>${estimate.contingency.toLocaleString()}</Text>
+                    <Text style={styles.summaryValue}>{formatMoney(estimate.contingency)}</Text>
                   </View>
                   <View style={styles.summaryRow}>
                     <View style={styles.savingsHighlight}>
@@ -1623,19 +1652,19 @@ export default function ProjectDetailScreen() {
                       <Text style={[styles.summaryLabel, { color: Colors.success }]}>Bulk Savings</Text>
                     </View>
                     <Text style={[styles.summaryValue, { color: Colors.success }]}>
-                      -${estimate.bulkSavingsTotal.toLocaleString()}
+                      -{formatMoney(estimate.bulkSavingsTotal)}
                     </Text>
                   </View>
                   <View style={styles.grandTotalDivider} />
                   <View style={styles.summaryRow}>
                     <Text style={styles.grandTotalLabel}>Grand Total</Text>
-                    <Text style={styles.grandTotalValue}>${estimate.grandTotal.toLocaleString()}</Text>
+                    <Text style={styles.grandTotalValue}>{formatMoney(estimate.grandTotal)}</Text>
                   </View>
                 </View>
               )}
             </View>
 
-            {estimate.notes.length > 0 && (
+            {Array.isArray(estimate.notes) && estimate.notes.length > 0 && (
               <View style={styles.section}>
                 <TouchableOpacity
                   style={styles.sectionHeader}
@@ -1653,7 +1682,7 @@ export default function ProjectDetailScreen() {
 
                 {expanded.notes && (
                   <View style={styles.notesContainer}>
-                    {estimate.notes.map((note, idx) => (
+                    {(estimate.notes ?? []).map((note, idx) => (
                       <View key={idx} style={styles.noteRow}>
                         <View style={styles.noteBullet} />
                         <Text style={styles.noteText}>{note}</Text>
@@ -1722,8 +1751,7 @@ export default function ProjectDetailScreen() {
                     <TouchableOpacity
                       style={styles.collabRemoveBtn}
                       onPress={() => handleRemoveCollaborator(collab.id, collab.name)}
-                      activeOpacity={0.7}
-                    >
+                      activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Close">
                       <X size={14} color={Colors.error} />
                     </TouchableOpacity>
                   </View>
@@ -1804,8 +1832,8 @@ export default function ProjectDetailScreen() {
                     <Text style={styles.coDesc} numberOfLines={1}>{co.description}</Text>
                   </View>
                   <View style={styles.coRight}>
-                    <Text style={[styles.coAmount, { color: co.changeAmount >= 0 ? Colors.accent : Colors.success }]}>
-                      {co.changeAmount >= 0 ? '+' : '-'}${Math.abs(co.changeAmount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    <Text style={[styles.coAmount, { color: (co.changeAmount ?? 0) >= 0 ? Colors.accent : Colors.success }]}>
+                      {(co.changeAmount ?? 0) >= 0 ? '+' : ''}{formatMoney(co.changeAmount, 2)}
                     </Text>
                     <View style={[styles.coBadge, {
                       backgroundColor: co.status === 'approved' ? Colors.successLight : co.status === 'rejected' ? Colors.errorLight : co.status === 'submitted' ? Colors.infoLight : Colors.fillTertiary
@@ -1956,7 +1984,7 @@ export default function ProjectDetailScreen() {
                       </Text>
                     </View>
                     <View style={styles.coRight}>
-                      <Text style={styles.invAmount}>${inv.totalDue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
+                      <Text style={styles.invAmount}>{formatMoney(inv.totalDue, 2)}</Text>
                       <View style={[styles.coBadge, {
                         backgroundColor: displayStatus === 'paid' ? Colors.successLight : displayStatus === 'overdue' ? Colors.errorLight : displayStatus === 'partially_paid' ? Colors.warningLight : displayStatus === 'sent' ? Colors.infoLight : Colors.fillTertiary
                       }]}>
@@ -2279,7 +2307,7 @@ export default function ProjectDetailScreen() {
                       <Text style={styles.coDesc} numberOfLines={1}>{rfi.assignedTo || 'Unassigned'} · {rfi.priority}</Text>
                     </View>
                     <View style={styles.coRight}>
-                      {isOverdue && <Text style={{ fontSize: 11, color: Colors.error, fontWeight: '600' as const }}>Overdue</Text>}
+                      {isOverdue && <Text style={{ fontSize: Type.caption2.fontSize, color: Colors.error, fontWeight: '600' as const }}>Overdue</Text>}
                       <View style={[styles.coBadge, {
                         backgroundColor: rfi.status === 'open' ? Colors.warningLight : rfi.status === 'answered' ? Colors.infoLight : rfi.status === 'closed' ? Colors.successLight : Colors.fillTertiary
                       }]}>
@@ -2328,7 +2356,7 @@ export default function ProjectDetailScreen() {
             activeOpacity={0.7}
             testID="submittals-section"
           >
-            <FileText size={20} color={'#5856D6'} />
+            <FileText size={20} color={Colors.purple} />
             <Text style={styles.sectionTitle}>
               Submittals ({projectSubmittals.length})
             </Text>
@@ -2372,8 +2400,8 @@ export default function ProjectDetailScreen() {
                 activeOpacity={0.7}
                 testID="add-submittal-btn"
               >
-                <Plus size={16} color={'#5856D6'} />
-                <Text style={[styles.coAddBtnText, { color: '#5856D6' }]}>New Submittal</Text>
+                <Plus size={16} color={Colors.purple} />
+                <Text style={[styles.coAddBtnText, { color: Colors.purple }]}>New Submittal</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -2400,16 +2428,16 @@ export default function ProjectDetailScreen() {
             {expanded.budget && (
               <View style={styles.coCard}>
                 <View style={{ flexDirection: 'row', gap: 10, marginBottom: 8 }}>
-                  <View style={{ flex: 1, backgroundColor: Colors.successLight, borderRadius: 10, padding: 12, alignItems: 'center' as const }}>
-                    <Text style={{ fontSize: 11, fontWeight: '600' as const, color: Colors.success }}>Budget</Text>
-                    <Text style={{ fontSize: 16, fontWeight: '800' as const, color: Colors.success }}>
-                      ${(project.linkedEstimate?.grandTotal ?? project.estimate?.grandTotal ?? 0).toLocaleString()}
+                  <View style={{ flex: 1, backgroundColor: Colors.successLight, borderRadius: Tokens.radius.md, padding: 12, alignItems: 'center' as const }}>
+                    <Text style={{ fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: Colors.success }}>Budget</Text>
+                    <Text style={{ fontSize: Type.callout.fontSize, fontWeight: '800' as const, color: Colors.success }}>
+                      {formatMoney(project.linkedEstimate?.grandTotal ?? project.estimate?.grandTotal ?? 0)}
                     </Text>
                   </View>
-                  <View style={{ flex: 1, backgroundColor: Colors.infoLight, borderRadius: 10, padding: 12, alignItems: 'center' as const }}>
-                    <Text style={{ fontSize: 11, fontWeight: '600' as const, color: Colors.info }}>Spent</Text>
-                    <Text style={{ fontSize: 16, fontWeight: '800' as const, color: Colors.info }}>
-                      ${allInvoices.filter(inv => inv.projectId === id).reduce((s, inv) => s + inv.amountPaid, 0).toLocaleString()}
+                  <View style={{ flex: 1, backgroundColor: Colors.infoLight, borderRadius: Tokens.radius.md, padding: 12, alignItems: 'center' as const }}>
+                    <Text style={{ fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: Colors.info }}>Spent</Text>
+                    <Text style={{ fontSize: Type.callout.fontSize, fontWeight: '800' as const, color: Colors.info }}>
+                      {formatMoney(allInvoices.filter(inv => inv.projectId === id).reduce((s, inv) => s + (inv.amountPaid ?? 0), 0))}
                     </Text>
                   </View>
                 </View>
@@ -2506,7 +2534,7 @@ export default function ProjectDetailScreen() {
                           )}
                           {(photo.markup?.length ?? 0) > 0 && (
                             <View style={styles.photoThumbMarkupBadge}>
-                              <Pencil size={10} color={'#FFFFFF'} />
+                              <Pencil size={10} color={Colors.surface} />
                             </View>
                           )}
                           <View style={styles.photoThumbDateOverlay}>
@@ -2534,7 +2562,7 @@ export default function ProjectDetailScreen() {
             activeOpacity={0.7}
             testID="client-portal-section"
           >
-            <Globe size={20} color={'#5856D6'} />
+            <Globe size={20} color={Colors.purple} />
             <Text style={styles.sectionTitle}>Client Portal</Text>
             {expanded.clientPortal ? (
               <ChevronUp size={18} color={Colors.textMuted} />
@@ -2546,7 +2574,7 @@ export default function ProjectDetailScreen() {
           {expanded.clientPortal && (
             <View style={styles.coCard}>
               <View style={styles.portalInfo}>
-                <Globe size={24} color={'#5856D6'} />
+                <Globe size={24} color={Colors.purple} />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.portalTitle}>Share Project with Client</Text>
                   <Text style={styles.portalDesc}>Give clients a read-only link to view schedule, invoices, photos & more. Control exactly what they see.</Text>
@@ -2559,7 +2587,7 @@ export default function ProjectDetailScreen() {
                       <Link size={12} color={Colors.info} />
                       <Text style={styles.portalLinkText} numberOfLines={1}>mageid.app/portal/{project.clientPortal.portalId}</Text>
                     </View>
-                    <TouchableOpacity style={styles.portalCopyBtn} onPress={() => { Alert.alert('Copied', 'Portal link copied to clipboard.'); }}>
+                    <TouchableOpacity style={styles.portalCopyBtn} onPress={() => { Alert.alert('Copied', 'Portal link copied to clipboard.'); }} accessibilityRole="button" accessibilityLabel="Copy">
                       <Copy size={14} color={Colors.primary} />
                     </TouchableOpacity>
                   </View>
@@ -2574,7 +2602,7 @@ export default function ProjectDetailScreen() {
                     onPress={() => navigateFromTile({ pathname: '/client-portal-setup', params: { id } })}
                     activeOpacity={0.7}
                   >
-                    <Globe size={16} color={'#5856D6'} />
+                    <Globe size={16} color={Colors.purple} />
                     <Text style={styles.portalEnableBtnText}>Manage Portal Settings</Text>
                   </TouchableOpacity>
                 </>
@@ -2603,7 +2631,7 @@ export default function ProjectDetailScreen() {
                   }}
                   activeOpacity={0.7}
                 >
-                  <Globe size={16} color={'#5856D6'} />
+                  <Globe size={16} color={Colors.purple} />
                   <Text style={styles.portalEnableBtnText}>Enable Client Portal</Text>
                 </TouchableOpacity>
               )}
@@ -2765,8 +2793,7 @@ export default function ProjectDetailScreen() {
               style={detailStyles.modalCloseBtn}
               onPress={() => setDetailModal(null)}
               activeOpacity={0.7}
-              testID="close-detail-modal"
-            >
+              testID="close-detail-modal" accessibilityRole="button" accessibilityLabel="Close">
               <X size={20} color={Colors.text} />
             </TouchableOpacity>
           </View>
@@ -2785,7 +2812,7 @@ export default function ProjectDetailScreen() {
           <Pressable style={styles.shareModalCard} onPress={() => undefined}>
             <View style={styles.shareModalHeader}>
               <Text style={styles.shareModalTitle}>Share Estimate</Text>
-              <TouchableOpacity onPress={() => setShowShareModal(false)}>
+              <TouchableOpacity onPress={() => setShowShareModal(false)} accessibilityRole="button" accessibilityLabel="Close">
                 <X size={20} color={Colors.textMuted} />
               </TouchableOpacity>
             </View>
@@ -2826,8 +2853,8 @@ export default function ProjectDetailScreen() {
 
             {project.schedule && (
               <TouchableOpacity style={styles.shareOption} onPress={handleShareSchedulePDF} activeOpacity={0.7} testID="share-schedule-option">
-                <View style={[styles.shareOptionIcon, { backgroundColor: '#FF9500' + '12' }]}>
-                  <CalendarDays size={20} color="#FF9500" />
+                <View style={[styles.shareOptionIcon, { backgroundColor: Colors.warning + '12' }]}>
+                  <CalendarDays size={20} color={Colors.warning} />
                 </View>
                 <View style={styles.shareOptionInfo}>
                   <Text style={styles.shareOptionTitle}>Schedule PDF</Text>
@@ -2855,7 +2882,7 @@ export default function ProjectDetailScreen() {
               <View style={[styles.inviteModalCard, { paddingBottom: insets.bottom + 20 }]}>
                 <View style={styles.inviteModalHeader}>
                   <Text style={styles.inviteModalTitle}>Edit Project</Text>
-                  <TouchableOpacity onPress={() => setShowEditModal(false)}>
+                  <TouchableOpacity onPress={() => setShowEditModal(false)} accessibilityRole="button" accessibilityLabel="Close">
                     <X size={20} color={Colors.textMuted} />
                   </TouchableOpacity>
                 </View>
@@ -2946,7 +2973,7 @@ export default function ProjectDetailScreen() {
             <View style={[styles.inviteModalCard, { paddingBottom: insets.bottom + 20 }]}>
               <View style={styles.inviteModalHeader}>
                 <Text style={styles.inviteModalTitle}>Invite Collaborator</Text>
-                <TouchableOpacity onPress={() => setShowInviteModal(false)}>
+                <TouchableOpacity onPress={() => setShowInviteModal(false)} accessibilityRole="button" accessibilityLabel="Close">
                   <X size={20} color={Colors.textMuted} />
                 </TouchableOpacity>
               </View>
@@ -3050,9 +3077,8 @@ export default function ProjectDetailScreen() {
             style={styles.lightboxClose}
             onPress={() => setLightboxPhoto(null)}
             activeOpacity={0.7}
-            testID="photo-lightbox-close"
-          >
-            <X size={20} color="#FFFFFF" />
+            testID="photo-lightbox-close" accessibilityRole="button" accessibilityLabel="Close">
+            <X size={20} color={Colors.surface} />
           </TouchableOpacity>
           {lightboxPhoto && (
             <TouchableOpacity
@@ -3067,7 +3093,7 @@ export default function ProjectDetailScreen() {
               activeOpacity={0.85}
               testID="photo-lightbox-markup"
             >
-              <Pencil size={14} color={'#FFFFFF'} />
+              <Pencil size={14} color={Colors.surface} />
               <Text style={styles.lightboxMarkupBtnText}>{(lightboxPhoto.markup?.length ?? 0) > 0 ? 'Edit markup' : 'Add markup'}</Text>
             </TouchableOpacity>
           )}
@@ -3095,6 +3121,9 @@ const COLOR_HEX_MARKUP: Record<'red' | 'yellow' | 'green', string> = {
 };
 function PhotoMarkupOverlay({ markup }: { markup: PhotoMarkup[] }) {
   const [size, setSize] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
+  // Defensive: a photo persisted before markup support, or a partial AI
+  // tool failure, can leave `markup` undefined. Treat non-array as empty.
+  const safeMarkup = Array.isArray(markup) ? markup : [];
   return (
     <View
       style={StyleSheet.absoluteFill}
@@ -3102,7 +3131,7 @@ function PhotoMarkupOverlay({ markup }: { markup: PhotoMarkup[] }) {
     >
       {size.w > 0 && size.h > 0 && (
         <Svg width={size.w} height={size.h} style={StyleSheet.absoluteFill}>
-          {markup.map((m, i) => {
+          {safeMarkup.map((m, i) => {
             const stroke = COLOR_HEX_MARKUP[m.color];
             // Use the smaller dimension as the normalization basis so a
             // square-canvas overlay still works on a non-square image.
@@ -3148,7 +3177,7 @@ function PhotoMarkupOverlay({ markup }: { markup: PhotoMarkup[] }) {
                     fill={stroke}
                     opacity={0.92}
                   />
-                  <SvgTextEl x={x + 8} y={y + 2} fill="#FFFFFF" fontSize={13} fontWeight="700">{m.text}</SvgTextEl>
+                  <SvgTextEl x={x + 8} y={y + 2} fill={Colors.surface} fontSize={13} fontWeight="700">{m.text}</SvgTextEl>
                 </React.Fragment>
               );
             }
@@ -3163,25 +3192,25 @@ function PhotoMarkupOverlay({ markup }: { markup: PhotoMarkup[] }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   center: { alignItems: 'center', justifyContent: 'center' },
-  notFoundText: { fontSize: 18, color: Colors.textSecondary, marginBottom: 16 },
-  backBtn: { backgroundColor: Colors.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 10 },
-  backBtnText: { color: Colors.textOnPrimary, fontSize: 15, fontWeight: '600' as const },
+  notFoundText: { fontSize: Type.subheadline.fontSize, color: Colors.textSecondary, marginBottom: 16 },
+  backBtn: { backgroundColor: Colors.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: Tokens.radius.md },
+  backBtnText: { color: Colors.textOnPrimary, fontSize: Type.subhead.fontSize, fontWeight: '600' as const },
   heroCard: { backgroundColor: Colors.primary, marginHorizontal: 20, marginTop: 16, borderRadius: 20, padding: 22, shadowColor: Colors.primaryDark, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.25, shadowRadius: 16, elevation: 8 },
   heroHeader: { marginBottom: 16 },
   heroTitleBlock: {},
-  heroName: { fontSize: 22, fontWeight: '800' as const, color: Colors.textOnPrimary, letterSpacing: -0.3 },
+  heroName: { fontSize: Type.title2.fontSize, fontWeight: '800' as const, color: Colors.textOnPrimary, letterSpacing: -0.3 },
   heroMeta: { flexDirection: 'row', alignItems: 'center', marginTop: 6, gap: 4 },
-  heroMetaText: { fontSize: 14, color: 'rgba(255,255,255,0.75)' },
-  heroDesc: { fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 6, lineHeight: 18 },
+  heroMetaText: { fontSize: Type.bodyCompact.fontSize, color: 'rgba(255,255,255,0.75)' },
+  heroDesc: { fontSize: Type.footnote.fontSize, color: 'rgba(255,255,255,0.6)', marginTop: 6, lineHeight: 18 },
   heroStats: {},
-  heroStatMain: { backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 14, padding: 16, alignItems: 'center', marginBottom: 12 },
+  heroStatMain: { backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: Tokens.radius.lg, padding: 16, alignItems: 'center', marginBottom: 12 },
   heroTapHint: { fontSize: 10, color: 'rgba(255,255,255,0.45)', fontWeight: '500' as const, marginTop: 4, letterSpacing: 0.3 },
-  heroStatLabel: { fontSize: 13, color: 'rgba(255,255,255,0.7)', fontWeight: '500' as const, marginBottom: 4 },
+  heroStatLabel: { fontSize: Type.footnote.fontSize, color: 'rgba(255,255,255,0.7)', fontWeight: '500' as const, marginBottom: 4 },
   heroStatValue: { fontSize: 32, fontWeight: '800' as const, color: Colors.textOnPrimary, letterSpacing: -1 },
   heroStatsRow: { flexDirection: 'row', gap: 8 },
-  heroStatSmall: { flex: 1, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 10, padding: 10, alignItems: 'center' },
-  smallStatLabel: { fontSize: 11, color: 'rgba(255,255,255,0.6)', fontWeight: '500' as const, marginBottom: 2 },
-  smallStatValue: { fontSize: 14, fontWeight: '700' as const, color: Colors.textOnPrimary },
+  heroStatSmall: { flex: 1, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: Tokens.radius.md, padding: 10, alignItems: 'center' },
+  smallStatLabel: { fontSize: Type.caption2.fontSize, color: 'rgba(255,255,255,0.6)', fontWeight: '500' as const, marginBottom: 2 },
+  smallStatValue: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.textOnPrimary },
   section: { marginHorizontal: 20, marginTop: 18 },
   // Section headers across project-detail. Bumped border weight 1 → 1.5px
   // and ink-tinted color so each section reads as its own card with a
@@ -3191,7 +3220,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.card,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     padding: 16,
     borderWidth: 1.5,
     borderColor: Colors.text + '12',
@@ -3204,150 +3233,150 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     flex: 1,
-    fontSize: 17,
+    fontSize: Type.body.fontSize,
     fontWeight: '800' as const,
     color: Colors.text,
     letterSpacing: -0.3,
   },
-  tableContainer: { backgroundColor: Colors.card, borderRadius: 12, marginTop: 8, borderWidth: 1, borderColor: Colors.cardBorder, overflow: 'hidden' },
+  tableContainer: { backgroundColor: Colors.card, borderRadius: Tokens.radius.card, marginTop: 8, borderWidth: 1, borderColor: Colors.cardBorder, overflow: 'hidden' },
   tableHeader: { flexDirection: 'row', backgroundColor: Colors.surfaceAlt, paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.borderLight },
-  tableHeaderText: { fontSize: 12, fontWeight: '600' as const, color: Colors.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.5 },
+  tableHeaderText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.5 },
   tableRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.borderLight },
   tableRowAlt: { backgroundColor: Colors.surfaceAlt },
-  tableCellName: { fontSize: 14, fontWeight: '500' as const, color: Colors.text },
-  tableCellSub: { fontSize: 11, color: Colors.textMuted, marginTop: 2 },
-  tableCell: { fontSize: 13, color: Colors.textSecondary },
-  tableCellBold: { fontSize: 14, fontWeight: '600' as const, color: Colors.text },
+  tableCellName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '500' as const, color: Colors.text },
+  tableCellSub: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 2 },
+  tableCell: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary },
+  tableCellBold: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
   bulkBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 3 },
   bulkBadgeText: { fontSize: 10, fontWeight: '600' as const, color: Colors.success },
   savingsBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 2 },
-  savingsText: { fontSize: 11, fontWeight: '600' as const, color: Colors.success },
+  savingsText: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: Colors.success },
   linkedSummaryRow: { flexDirection: 'row', paddingHorizontal: 14, paddingVertical: 12, gap: 8, backgroundColor: Colors.primary + '06', borderTopWidth: 1, borderTopColor: Colors.primary + '15' },
   linkedSummaryItem: { flex: 1, alignItems: 'center', gap: 2 },
-  linkedSummaryLabel: { fontSize: 11, fontWeight: '500' as const, color: Colors.textSecondary },
-  linkedSummaryValue: { fontSize: 15, fontWeight: '700' as const, color: Colors.text },
-  summaryCard: { backgroundColor: Colors.card, borderRadius: 12, padding: 18, marginTop: 8, borderWidth: 1, borderColor: Colors.cardBorder },
-  scheduleCard: { backgroundColor: Colors.card, borderRadius: 12, padding: 16, marginTop: 8, borderWidth: 1, borderColor: Colors.cardBorder },
+  linkedSummaryLabel: { fontSize: Type.caption2.fontSize, fontWeight: '500' as const, color: Colors.textSecondary },
+  linkedSummaryValue: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text },
+  summaryCard: { backgroundColor: Colors.card, borderRadius: Tokens.radius.card, padding: 18, marginTop: 8, borderWidth: 1, borderColor: Colors.cardBorder },
+  scheduleCard: { backgroundColor: Colors.card, borderRadius: Tokens.radius.card, padding: 16, marginTop: 8, borderWidth: 1, borderColor: Colors.cardBorder },
   scheduleTopRow: { flexDirection: 'row', gap: 8, marginBottom: 14 },
-  scheduleMetric: { flex: 1, backgroundColor: Colors.surfaceAlt, borderRadius: 12, padding: 12 },
-  scheduleMetricLabel: { fontSize: 11, fontWeight: '600' as const, color: Colors.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.5, marginBottom: 4 },
-  scheduleMetricValue: { fontSize: 15, fontWeight: '700' as const, color: Colors.text },
-  scheduleSectionTitle: { fontSize: 14, fontWeight: '700' as const, color: Colors.text, marginBottom: 10 },
+  scheduleMetric: { flex: 1, backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.card, padding: 12 },
+  scheduleMetricLabel: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: Colors.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.5, marginBottom: 4 },
+  scheduleMetricValue: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text },
+  scheduleSectionTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text, marginBottom: 10 },
   scheduleTaskRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, borderTopWidth: 1, borderTopColor: Colors.borderLight },
   scheduleStatusDot: { width: 8, height: 8, borderRadius: 4 },
   scheduleTaskTextWrap: { flex: 1 },
-  scheduleTaskName: { fontSize: 14, fontWeight: '600' as const, color: Colors.text, marginBottom: 2 },
-  scheduleTaskMeta: { fontSize: 12, color: Colors.textSecondary },
-  scheduleTaskProgress: { fontSize: 13, fontWeight: '700' as const, color: Colors.info },
-  crossLinkBtn: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, paddingHorizontal: 14, marginTop: 10, backgroundColor: Colors.surfaceAlt, borderRadius: 12, borderWidth: 1, borderColor: Colors.cardBorder },
-  crossLinkText: { flex: 1, fontSize: 13, fontWeight: '600' as const, color: Colors.text },
+  scheduleTaskName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text, marginBottom: 2 },
+  scheduleTaskMeta: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary },
+  scheduleTaskProgress: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.info },
+  crossLinkBtn: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, paddingHorizontal: 14, marginTop: 10, backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.card, borderWidth: 1, borderColor: Colors.cardBorder },
+  crossLinkText: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.text },
   summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6 },
-  summaryLabel: { fontSize: 15, color: Colors.textSecondary },
-  summaryValue: { fontSize: 15, fontWeight: '600' as const, color: Colors.text },
+  summaryLabel: { fontSize: Type.subhead.fontSize, color: Colors.textSecondary },
+  summaryValue: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: Colors.text },
   summaryDivider: { height: 1, backgroundColor: Colors.borderLight, marginVertical: 8 },
   savingsHighlight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   grandTotalDivider: { height: 2, backgroundColor: Colors.primary, marginVertical: 10, borderRadius: 1 },
-  grandTotalLabel: { fontSize: 18, fontWeight: '800' as const, color: Colors.text },
-  grandTotalValue: { fontSize: 22, fontWeight: '800' as const, color: Colors.primary },
-  notesContainer: { backgroundColor: Colors.card, borderRadius: 12, padding: 16, marginTop: 8, borderWidth: 1, borderColor: Colors.cardBorder, gap: 12 },
+  grandTotalLabel: { fontSize: Type.subheadline.fontSize, fontWeight: '800' as const, color: Colors.text },
+  grandTotalValue: { fontSize: Type.title2.fontSize, fontWeight: '800' as const, color: Colors.primary },
+  notesContainer: { backgroundColor: Colors.card, borderRadius: Tokens.radius.card, padding: 16, marginTop: 8, borderWidth: 1, borderColor: Colors.cardBorder, gap: 12 },
   noteRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   noteBullet: { width: 6, height: 6, borderRadius: 3, backgroundColor: Colors.accent, marginTop: 7 },
-  noteText: { flex: 1, fontSize: 14, color: Colors.textSecondary, lineHeight: 20 },
+  noteText: { flex: 1, fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, lineHeight: 20 },
   noEstimate: { alignItems: 'center', paddingVertical: 40, paddingHorizontal: 40, marginTop: 20 },
-  noEstimateTitle: { fontSize: 18, fontWeight: '700' as const, color: Colors.text, marginTop: 12 },
-  noEstimateText: { fontSize: 15, color: Colors.textSecondary, textAlign: 'center' as const, marginTop: 8, lineHeight: 22 },
-  collabCard: { backgroundColor: Colors.card, borderRadius: 12, marginTop: 8, borderWidth: 1, borderColor: Colors.cardBorder, padding: 14, gap: 10 },
+  noEstimateTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: Colors.text, marginTop: 12 },
+  noEstimateText: { fontSize: Type.subhead.fontSize, color: Colors.textSecondary, textAlign: 'center' as const, marginTop: 8, lineHeight: 22 },
+  collabCard: { backgroundColor: Colors.card, borderRadius: Tokens.radius.card, marginTop: 8, borderWidth: 1, borderColor: Colors.cardBorder, padding: 14, gap: 10 },
   collabMember: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 6 },
-  collabAvatar: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  collabAvatar: { width: 36, height: 36, borderRadius: Tokens.radius.xl, alignItems: 'center', justifyContent: 'center' },
   collabInfo: { flex: 1, gap: 2 },
-  collabName: { fontSize: 14, fontWeight: '600' as const, color: Colors.text },
-  collabEmail: { fontSize: 12, color: Colors.textSecondary },
+  collabName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
+  collabEmail: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary },
   collabActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  collabRoleBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
-  collabRoleText: { fontSize: 11, fontWeight: '700' as const },
-  collabRemoveBtn: { width: 28, height: 28, borderRadius: 14, backgroundColor: Colors.errorLight, alignItems: 'center', justifyContent: 'center' },
-  inviteBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12, borderRadius: 12, backgroundColor: Colors.primary + '10', borderWidth: 1, borderColor: Colors.primary + '20', marginTop: 4 },
-  inviteBtnText: { fontSize: 14, fontWeight: '600' as const, color: Colors.primary },
-  shareSection: { marginHorizontal: 20, marginTop: 18, backgroundColor: Colors.card, borderRadius: 16, padding: 18, borderWidth: 1, borderColor: Colors.cardBorder, gap: 12 },
-  shareSectionTitle: { fontSize: 16, fontWeight: '700' as const, color: Colors.text },
-  shareBrandingNote: { fontSize: 12, color: Colors.textMuted, marginTop: -6 },
+  collabRoleBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: Tokens.radius.sm },
+  collabRoleText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const },
+  collabRemoveBtn: { width: 28, height: 28, borderRadius: Tokens.radius.lg, backgroundColor: Colors.errorLight, alignItems: 'center', justifyContent: 'center' },
+  inviteBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12, borderRadius: Tokens.radius.card, backgroundColor: Colors.primary + '10', borderWidth: 1, borderColor: Colors.primary + '20', marginTop: 4 },
+  inviteBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.primary },
+  shareSection: { marginHorizontal: 20, marginTop: 18, backgroundColor: Colors.card, borderRadius: Tokens.radius.panel, padding: 18, borderWidth: 1, borderColor: Colors.cardBorder, gap: 12 },
+  shareSectionTitle: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.text },
+  shareBrandingNote: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: -6 },
   signatureNote: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: -4 },
-  signatureNoteText: { fontSize: 12, color: Colors.primary, fontWeight: '500' as const },
-  shareBtnPrimary: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: Colors.primary, borderRadius: 14, paddingVertical: 14, shadowColor: Colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 12, elevation: 3 },
-  shareBtnPrimaryText: { fontSize: 16, fontWeight: '700' as const, color: Colors.textOnPrimary },
-  editButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.primary + '10', borderRadius: 12, paddingVertical: 16, gap: 8, marginHorizontal: 20, marginTop: 24, borderWidth: 1, borderColor: Colors.primary + '20' },
-  editButtonText: { fontSize: 16, fontWeight: '600' as const, color: Colors.primary },
+  signatureNoteText: { fontSize: Type.caption1.fontSize, color: Colors.primary, fontWeight: '500' as const },
+  shareBtnPrimary: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: Colors.primary, borderRadius: Tokens.radius.lg, paddingVertical: 14, shadowColor: Colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 12, elevation: 3 },
+  shareBtnPrimaryText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.textOnPrimary },
+  editButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.primary + '10', borderRadius: Tokens.radius.card, paddingVertical: 16, gap: 8, marginHorizontal: 20, marginTop: 24, borderWidth: 1, borderColor: Colors.primary + '20' },
+  editButtonText: { fontSize: Type.callout.fontSize, fontWeight: '600' as const, color: Colors.primary },
   editTypeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
-  editTypeChip: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 12, backgroundColor: Colors.fillTertiary },
+  editTypeChip: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: Tokens.radius.card, backgroundColor: Colors.fillTertiary },
   editTypeChipActive: { backgroundColor: Colors.primary },
-  editTypeChipLabel: { fontSize: 13, fontWeight: '600' as const, color: Colors.textSecondary },
+  editTypeChipLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.textSecondary },
   editTypeChipLabelActive: { color: Colors.textOnPrimary },
-  deleteButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.errorLight, borderRadius: 12, paddingVertical: 16, gap: 8, marginHorizontal: 20, marginTop: 14, borderWidth: 1, borderColor: Colors.error + '30' },
-  deleteButtonText: { fontSize: 16, fontWeight: '600' as const, color: Colors.error },
+  deleteButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.errorLight, borderRadius: Tokens.radius.card, paddingVertical: 16, gap: 8, marginHorizontal: 20, marginTop: 14, borderWidth: 1, borderColor: Colors.error + '30' },
+  deleteButtonText: { fontSize: Type.callout.fontSize, fontWeight: '600' as const, color: Colors.error },
   shareModalOverlay: { flex: 1, backgroundColor: Colors.overlay, justifyContent: 'center', padding: 20 },
-  shareModalCard: { backgroundColor: Colors.surface, borderRadius: 24, padding: 22, gap: 14, maxWidth: 400, width: '100%', alignSelf: 'center' as const },
+  shareModalCard: { backgroundColor: Colors.surface, borderRadius: Tokens.radius["2xl"], padding: 22, gap: 14, maxWidth: 400, width: '100%', alignSelf: 'center' as const },
   shareModalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  shareModalTitle: { fontSize: 20, fontWeight: '700' as const, color: Colors.text },
-  shareModalDesc: { fontSize: 14, color: Colors.textSecondary, lineHeight: 20 },
-  shareOption: { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: Colors.surfaceAlt, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: Colors.cardBorder },
-  shareOptionIcon: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  shareModalTitle: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: Colors.text },
+  shareModalDesc: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, lineHeight: 20 },
+  shareOption: { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.panel, padding: 16, borderWidth: 1, borderColor: Colors.cardBorder },
+  shareOptionIcon: { width: 44, height: 44, borderRadius: Tokens.radius.card, alignItems: 'center', justifyContent: 'center' },
   shareOptionInfo: { flex: 1, gap: 2 },
-  shareOptionTitle: { fontSize: 15, fontWeight: '600' as const, color: Colors.text },
-  shareOptionDesc: { fontSize: 12, color: Colors.textSecondary },
+  shareOptionTitle: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: Colors.text },
+  shareOptionDesc: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary },
   inviteModalOverlay: { flex: 1, backgroundColor: Colors.overlay, justifyContent: 'flex-end' },
   inviteModalCard: { backgroundColor: Colors.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 22, gap: 10 },
   inviteModalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
-  inviteModalTitle: { fontSize: 20, fontWeight: '700' as const, color: Colors.text },
-  inviteDesc: { fontSize: 14, color: Colors.textSecondary, lineHeight: 20 },
-  inviteFieldLabel: { fontSize: 13, fontWeight: '600' as const, color: Colors.textSecondary, marginTop: 4 },
-  inviteInput: { minHeight: 48, borderRadius: 14, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 14, fontSize: 15, color: Colors.text },
+  inviteModalTitle: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: Colors.text },
+  inviteDesc: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, lineHeight: 20 },
+  inviteFieldLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.textSecondary, marginTop: 4 },
+  inviteInput: { minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 14, fontSize: Type.subhead.fontSize, color: Colors.text },
   inviteRoleRow: { flexDirection: 'row', gap: 10, marginTop: 4 },
-  inviteRoleBtn: { flex: 1, alignItems: 'center', gap: 4, paddingVertical: 14, borderRadius: 14, backgroundColor: Colors.fillTertiary },
+  inviteRoleBtn: { flex: 1, alignItems: 'center', gap: 4, paddingVertical: 14, borderRadius: Tokens.radius.lg, backgroundColor: Colors.fillTertiary },
   inviteRoleBtnActive: { backgroundColor: Colors.primary },
-  inviteRoleBtnText: { fontSize: 14, fontWeight: '700' as const, color: Colors.text },
+  inviteRoleBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
   inviteRoleBtnTextActive: { color: Colors.textOnPrimary },
-  inviteRoleDesc: { fontSize: 11, color: Colors.textSecondary },
+  inviteRoleDesc: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary },
   inviteActionRow: { flexDirection: 'row', gap: 10, marginTop: 8 },
-  inviteCancelBtn: { flex: 1, minHeight: 48, borderRadius: 14, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
-  inviteCancelBtnText: { fontSize: 14, fontWeight: '700' as const, color: Colors.text },
-  inviteSendBtn: { flex: 1, minHeight: 48, borderRadius: 14, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 },
-  inviteSendBtnText: { fontSize: 14, fontWeight: '700' as const, color: Colors.textOnPrimary },
-  coCard: { backgroundColor: Colors.card, borderRadius: 12, marginTop: 8, borderWidth: 1, borderColor: Colors.cardBorder, padding: 14, gap: 4 },
-  coEmptyText: { fontSize: 13, color: Colors.textMuted, fontStyle: 'italic' as const, paddingVertical: 8 },
+  inviteCancelBtn: { flex: 1, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
+  inviteCancelBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
+  inviteSendBtn: { flex: 1, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 },
+  inviteSendBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.textOnPrimary },
+  coCard: { backgroundColor: Colors.card, borderRadius: Tokens.radius.card, marginTop: 8, borderWidth: 1, borderColor: Colors.cardBorder, padding: 14, gap: 4 },
+  coEmptyText: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, fontStyle: 'italic' as const, paddingVertical: 8 },
   coRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.borderLight, gap: 10 },
   coInfo: { flex: 1, gap: 2 },
-  coNumber: { fontSize: 14, fontWeight: '600' as const, color: Colors.text },
-  coDesc: { fontSize: 12, color: Colors.textSecondary },
+  coNumber: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
+  coDesc: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary },
   coRight: { alignItems: 'flex-end', gap: 4 },
-  coAmount: { fontSize: 14, fontWeight: '700' as const },
-  invAmount: { fontSize: 14, fontWeight: '700' as const, color: Colors.text },
-  coBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  coAmount: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const },
+  invAmount: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
+  coBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.xs },
   coBadgeText: { fontSize: 10, fontWeight: '700' as const, textTransform: 'uppercase' as const, letterSpacing: 0.3 },
   coApproveRow: { flexDirection: 'row', gap: 8, paddingTop: 8 },
-  coApproveBtn: { flex: 1, paddingVertical: 10, borderRadius: 10, backgroundColor: Colors.successLight, alignItems: 'center', borderWidth: 1, borderColor: Colors.success + '30' },
-  coApproveBtnText: { fontSize: 13, fontWeight: '700' as const, color: Colors.success },
-  coRejectBtn: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: 10, backgroundColor: Colors.errorLight, alignItems: 'center', borderWidth: 1, borderColor: Colors.error + '30' },
-  coRejectBtnText: { fontSize: 13, fontWeight: '700' as const, color: Colors.error },
-  coAddBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 10, backgroundColor: Colors.primary + '10', borderWidth: 1, borderColor: Colors.primary + '20', marginTop: 8 },
-  coAddBtnText: { fontSize: 13, fontWeight: '600' as const, color: Colors.primary },
+  coApproveBtn: { flex: 1, paddingVertical: 10, borderRadius: Tokens.radius.md, backgroundColor: Colors.successLight, alignItems: 'center', borderWidth: 1, borderColor: Colors.success + '30' },
+  coApproveBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.success },
+  coRejectBtn: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: Tokens.radius.md, backgroundColor: Colors.errorLight, alignItems: 'center', borderWidth: 1, borderColor: Colors.error + '30' },
+  coRejectBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.error },
+  coAddBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: Tokens.radius.md, backgroundColor: Colors.primary + '10', borderWidth: 1, borderColor: Colors.primary + '20', marginTop: 8 },
+  coAddBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.primary },
   invBtnRow: { flexDirection: 'row', gap: 8 },
   punchProgress: { marginBottom: 8 },
   punchProgressHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
-  punchProgressLabel: { fontSize: 12, fontWeight: '600' as const, color: Colors.textSecondary },
-  punchProgressPercent: { fontSize: 14, fontWeight: '800' as const, color: Colors.primary },
+  punchProgressLabel: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.textSecondary },
+  punchProgressPercent: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800' as const, color: Colors.primary },
   punchProgressTrack: { height: 6, backgroundColor: Colors.fillTertiary, borderRadius: 3, overflow: 'hidden' as const },
   punchProgressFill: { height: 6, backgroundColor: Colors.primary, borderRadius: 3 },
   punchDot: { width: 8, height: 8, borderRadius: 4, marginTop: 6 },
-  punchMoreText: { fontSize: 12, color: Colors.textMuted, fontStyle: 'italic' as const, paddingVertical: 4 },
+  punchMoreText: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, fontStyle: 'italic' as const, paddingVertical: 4 },
   dfrWeekBucket: { marginBottom: 8 },
   dfrWeekHeader: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, paddingHorizontal: 4, paddingVertical: 6 },
-  dfrWeekLabel: { flex: 1, fontSize: 11, fontWeight: '700' as const, color: Colors.textSecondary, letterSpacing: 0.6, textTransform: 'uppercase' as const },
-  dfrWeekBadge: { backgroundColor: Colors.fillSecondary, borderRadius: 8, paddingHorizontal: 7, paddingVertical: 1, minWidth: 20, alignItems: 'center' as const },
+  dfrWeekLabel: { flex: 1, fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: Colors.textSecondary, letterSpacing: 0.6, textTransform: 'uppercase' as const },
+  dfrWeekBadge: { backgroundColor: Colors.fillSecondary, borderRadius: Tokens.radius.sm, paddingHorizontal: 7, paddingVertical: 1, minWidth: 20, alignItems: 'center' as const },
   dfrWeekBadgeText: { fontSize: 10, fontWeight: '700' as const, color: Colors.textSecondary },
   photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
-  photoThumb: { width: 72, height: 72, borderRadius: 10, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center', gap: 4, overflow: 'hidden' as const, position: 'relative' as const },
+  photoThumb: { width: 72, height: 72, borderRadius: Tokens.radius.md, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center', gap: 4, overflow: 'hidden' as const, position: 'relative' as const },
   photoThumbImage: { width: '100%', height: '100%' },
-  photoThumbDate: { fontSize: 9, color: '#FFFFFF', fontWeight: '700' as const },
+  photoThumbDate: { fontSize: 9, color: Colors.surface, fontWeight: '700' as const },
   photoThumbDateOverlay: { position: 'absolute' as const, bottom: 4, left: 4, right: 4, backgroundColor: 'rgba(0,0,0,0.55)', paddingVertical: 1, paddingHorizontal: 4, borderRadius: 5, alignItems: 'center' as const },
   photoThumbMarkupBadge: {
     position: 'absolute' as const, top: 4, right: 4,
@@ -3357,41 +3386,41 @@ const styles = StyleSheet.create({
   lightboxOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.92)', alignItems: 'center' as const, justifyContent: 'center' as const, padding: 16 },
   lightboxImageWrap: { width: '100%', height: '80%', alignItems: 'center' as const, justifyContent: 'center' as const, position: 'relative' as const },
   lightboxImage: { width: '100%', height: '100%' },
-  lightboxClose: { position: 'absolute' as const, top: 50, right: 20, padding: 12, backgroundColor: 'rgba(255,255,255,0.18)', borderRadius: 24 },
+  lightboxClose: { position: 'absolute' as const, top: 50, right: 20, padding: 12, backgroundColor: 'rgba(255,255,255,0.18)', borderRadius: Tokens.radius["2xl"] },
   lightboxMarkupBtn: {
     position: 'absolute' as const, bottom: 60, alignSelf: 'center' as const,
     flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8,
-    paddingHorizontal: 18, paddingVertical: 12, borderRadius: 999,
+    paddingHorizontal: 18, paddingVertical: 12, borderRadius: Tokens.radius.full,
     backgroundColor: 'rgba(255,106,26,0.95)',
   },
-  lightboxMarkupBtnText: { color: '#FFFFFF', fontWeight: '800' as const, fontSize: 13 },
+  lightboxMarkupBtnText: { color: Colors.surface, fontWeight: '800' as const, fontSize: Type.footnote.fontSize },
   portalInfo: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 8 },
-  portalTitle: { fontSize: 15, fontWeight: '700' as const, color: Colors.text, marginBottom: 2 },
-  portalDesc: { fontSize: 13, color: Colors.textSecondary, lineHeight: 18 },
-  portalBadge: { alignSelf: 'flex-start' as const, backgroundColor: '#5856D6' + '15', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, marginBottom: 8 },
-  portalBadgeText: { fontSize: 11, fontWeight: '700' as const, color: '#5856D6' },
+  portalTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text, marginBottom: 2 },
+  portalDesc: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, lineHeight: 18 },
+  portalBadge: { alignSelf: 'flex-start' as const, backgroundColor: '#5856D6' + '15', paddingHorizontal: 10, paddingVertical: 4, borderRadius: Tokens.radius.sm, marginBottom: 8 },
+  portalBadgeText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: Colors.purple },
   portalLinkRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  portalLinkBox: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: Colors.surfaceAlt, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
-  portalLinkText: { flex: 1, fontSize: 13, color: Colors.info },
-  portalCopyBtn: { width: 40, height: 40, borderRadius: 10, backgroundColor: Colors.primary + '12', alignItems: 'center', justifyContent: 'center' },
-  portalEnableBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12, borderRadius: 10, backgroundColor: '#5856D6' + '12', borderWidth: 1, borderColor: '#5856D6' + '20' },
-  portalEnableBtnText: { fontSize: 14, fontWeight: '600' as const, color: '#5856D6' },
+  portalLinkBox: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.md, paddingHorizontal: 12, paddingVertical: 10 },
+  portalLinkText: { flex: 1, fontSize: Type.footnote.fontSize, color: Colors.info },
+  portalCopyBtn: { width: 40, height: 40, borderRadius: Tokens.radius.md, backgroundColor: Colors.primary + '12', alignItems: 'center', justifyContent: 'center' },
+  portalEnableBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12, borderRadius: Tokens.radius.md, backgroundColor: '#5856D6' + '12', borderWidth: 1, borderColor: '#5856D6' + '20' },
+  portalEnableBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.purple },
   portalInviteCount: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 5, marginBottom: 10 },
-  portalInviteCountText: { fontSize: 12, color: Colors.textMuted },
+  portalInviteCountText: { fontSize: Type.caption1.fontSize, color: Colors.textMuted },
   commEmpty: { alignItems: 'center' as const, paddingVertical: 20, gap: 8 },
-  commEmptyText: { fontSize: 13, color: Colors.textMuted, textAlign: 'center' as const, lineHeight: 18 },
+  commEmptyText: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, textAlign: 'center' as const, lineHeight: 18 },
   commEventRow: { flexDirection: 'row' as const, alignItems: 'flex-start' as const, gap: 10, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.borderLight },
   commEventDot: { width: 8, height: 8, borderRadius: 4, marginTop: 5 },
   commEventContent: { flex: 1, gap: 2 },
-  commEventSummary: { fontSize: 13, fontWeight: '500' as const, color: Colors.text, lineHeight: 18 },
-  commEventTime: { fontSize: 11, color: Colors.textMuted },
-  commAddNoteBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 6, paddingVertical: 10, borderRadius: 10, backgroundColor: Colors.infoLight, marginTop: 8 },
-  commAddNoteBtnText: { fontSize: 13, fontWeight: '600' as const, color: Colors.info },
+  commEventSummary: { fontSize: Type.footnote.fontSize, fontWeight: '500' as const, color: Colors.text, lineHeight: 18 },
+  commEventTime: { fontSize: Type.caption2.fontSize, color: Colors.textMuted },
+  commAddNoteBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 6, paddingVertical: 10, borderRadius: Tokens.radius.md, backgroundColor: Colors.infoLight, marginTop: 8 },
+  commAddNoteBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.info },
   quickActions: { flexDirection: 'row' as const, paddingHorizontal: 20, marginTop: 12, gap: 10, flexWrap: 'wrap' as const },
-  quickActionBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, backgroundColor: Colors.surface, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, borderWidth: 1, borderColor: Colors.cardBorder, flexGrow: 1, flexShrink: 1, flexBasis: '47%' as const, minHeight: 56 },
+  quickActionBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, backgroundColor: Colors.surface, borderRadius: Tokens.radius.card, paddingHorizontal: 14, paddingVertical: 12, borderWidth: 1, borderColor: Colors.cardBorder, flexGrow: 1, flexShrink: 1, flexBasis: '47%' as const, minHeight: 56 },
   quickActionBtnFull: { flexBasis: '100%' as const },
-  quickActionIcon: { width: 32, height: 32, borderRadius: 8, alignItems: 'center' as const, justifyContent: 'center' as const },
-  quickActionLabel: { fontSize: 14, fontWeight: '600' as const, color: Colors.text, flexShrink: 1 },
+  quickActionIcon: { width: 32, height: 32, borderRadius: Tokens.radius.sm, alignItems: 'center' as const, justifyContent: 'center' as const },
+  quickActionLabel: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text, flexShrink: 1 },
   sectionGrid: { paddingHorizontal: 20, marginTop: 18, gap: 8 },
   // Tight, predictable spacing: collapsed groups stack snugly. The body
   // has no marginBottom — separation between groups comes ONLY from
@@ -3399,81 +3428,81 @@ const styles = StyleSheet.create({
   sectionGroups: { paddingHorizontal: 20, marginTop: 14, gap: 6 },
   tileGroup: { gap: 6 },
   tileGroupHeader: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, paddingHorizontal: 4, paddingVertical: 6, minHeight: 40 },
-  tileGroupHeaderIcon: { width: 28, height: 28, borderRadius: 8, alignItems: 'center' as const, justifyContent: 'center' as const },
-  tileGroupHeaderLabel: { flex: 1, fontSize: 13, fontWeight: '700' as const, color: Colors.textSecondary, letterSpacing: 0.6, textTransform: 'uppercase' as const },
+  tileGroupHeaderIcon: { width: 28, height: 28, borderRadius: Tokens.radius.sm, alignItems: 'center' as const, justifyContent: 'center' as const },
+  tileGroupHeaderLabel: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.textSecondary, letterSpacing: 0.6, textTransform: 'uppercase' as const },
   tileGroupBadge: { backgroundColor: Colors.fillSecondary, borderRadius: 9, paddingHorizontal: 7, paddingVertical: 1, minWidth: 22, alignItems: 'center' as const },
-  tileGroupBadgeText: { fontSize: 11, fontWeight: '700' as const, color: Colors.textSecondary },
+  tileGroupBadgeText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: Colors.textSecondary },
   tileGroupBody: { gap: 8 },
-  sectionTile: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 12, backgroundColor: Colors.card, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, borderWidth: 1, borderColor: Colors.cardBorder, minHeight: 56 },
-  sectionTileIcon: { width: 36, height: 36, borderRadius: 10, alignItems: 'center' as const, justifyContent: 'center' as const },
-  sectionTileLabel: { fontSize: 15, fontWeight: '600' as const, color: Colors.text },
-  sectionTileStatus: { fontSize: 11, fontWeight: '700' as const, marginTop: 2, letterSpacing: 0.1 },
-  sectionTileBadge: { backgroundColor: Colors.fillTertiary, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2, minWidth: 24, alignItems: 'center' as const },
-  sectionTileBadgeText: { fontSize: 12, fontWeight: '700' as const, color: Colors.textSecondary },
+  sectionTile: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 12, backgroundColor: Colors.card, borderRadius: Tokens.radius.card, paddingHorizontal: 14, paddingVertical: 12, borderWidth: 1, borderColor: Colors.cardBorder, minHeight: 56 },
+  sectionTileIcon: { width: 36, height: 36, borderRadius: Tokens.radius.md, alignItems: 'center' as const, justifyContent: 'center' as const },
+  sectionTileLabel: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: Colors.text },
+  sectionTileStatus: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, marginTop: 2, letterSpacing: 0.1 },
+  sectionTileBadge: { backgroundColor: Colors.fillTertiary, borderRadius: Tokens.radius.md, paddingHorizontal: 8, paddingVertical: 2, minWidth: 24, alignItems: 'center' as const },
+  sectionTileBadgeText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: Colors.textSecondary },
   sectionModalHeader: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'space-between' as const, paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight },
   sectionModalBack: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 2, paddingVertical: 6, paddingHorizontal: 4, minWidth: 72 },
-  sectionModalBackText: { fontSize: 16, fontWeight: '500' as const, color: Colors.primary },
-  sectionModalTitle: { flex: 1, textAlign: 'center' as const, fontSize: 17, fontWeight: '700' as const, color: Colors.text },
+  sectionModalBackText: { fontSize: Type.callout.fontSize, fontWeight: '500' as const, color: Colors.primary },
+  sectionModalTitle: { flex: 1, textAlign: 'center' as const, fontSize: Type.body.fontSize, fontWeight: '700' as const, color: Colors.text },
 });
 
 const detailStyles = StyleSheet.create({
   modalContainer: { flex: 1, backgroundColor: Colors.background },
   modalHandle: { width: 36, height: 5, borderRadius: 3, backgroundColor: Colors.border, alignSelf: 'center', marginBottom: 8 },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingBottom: 14, borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight, backgroundColor: Colors.background },
-  modalTitle: { fontSize: 20, fontWeight: '700' as const, color: Colors.text, letterSpacing: -0.3 },
-  modalCloseBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
+  modalTitle: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: Colors.text, letterSpacing: -0.3 },
+  modalCloseBtn: { width: 32, height: 32, borderRadius: Tokens.radius.panel, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
   heroSection: { alignItems: 'center', paddingVertical: 28, paddingHorizontal: 20, gap: 6 },
   heroIconWrap: { width: 56, height: 56, borderRadius: 28, backgroundColor: Colors.primary + '12', alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
   heroAmount: { fontSize: 38, fontWeight: '800' as const, color: Colors.text, letterSpacing: -1.5 },
-  heroSubtitle: { fontSize: 14, color: Colors.textSecondary, fontWeight: '500' as const },
+  heroSubtitle: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, fontWeight: '500' as const },
   heroChips: { flexDirection: 'row', gap: 10, marginTop: 14 },
-  heroChip: { backgroundColor: Colors.fillTertiary, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 8, alignItems: 'center', gap: 2 },
-  heroChipLabel: { fontSize: 16, fontWeight: '700' as const, color: Colors.text },
-  heroChipSub: { fontSize: 11, color: Colors.textMuted, fontWeight: '500' as const },
-  sectionLabel: { fontSize: 13, fontWeight: '600' as const, color: Colors.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.8, paddingHorizontal: 20, marginBottom: 8, marginTop: 4 },
-  barChartWrap: { marginHorizontal: 20, backgroundColor: Colors.surface, borderRadius: 16, padding: 16, gap: 16, marginBottom: 20, borderWidth: 1, borderColor: Colors.cardBorder },
+  heroChip: { backgroundColor: Colors.fillTertiary, borderRadius: Tokens.radius.card, paddingHorizontal: 14, paddingVertical: 8, alignItems: 'center', gap: 2 },
+  heroChipLabel: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.text },
+  heroChipSub: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontWeight: '500' as const },
+  sectionLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.8, paddingHorizontal: 20, marginBottom: 8, marginTop: 4 },
+  barChartWrap: { marginHorizontal: 20, backgroundColor: Colors.surface, borderRadius: Tokens.radius.panel, padding: 16, gap: 16, marginBottom: 20, borderWidth: 1, borderColor: Colors.cardBorder },
   barRow: { gap: 6 },
   barLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  barLabel: { flex: 1, fontSize: 14, fontWeight: '500' as const, color: Colors.text },
-  barPct: { fontSize: 13, fontWeight: '700' as const, color: Colors.textSecondary },
+  barLabel: { flex: 1, fontSize: Type.bodyCompact.fontSize, fontWeight: '500' as const, color: Colors.text },
+  barPct: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.textSecondary },
   barTrack: { height: 8, borderRadius: 4, backgroundColor: Colors.fillTertiary, overflow: 'hidden' as const },
   barFill: { height: 8, borderRadius: 4 },
-  barValue: { fontSize: 13, fontWeight: '600' as const, color: Colors.text },
-  additionalCard: { marginHorizontal: 20, backgroundColor: Colors.surface, borderRadius: 16, padding: 16, marginBottom: 20, borderWidth: 1, borderColor: Colors.cardBorder },
+  barValue: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.text },
+  additionalCard: { marginHorizontal: 20, backgroundColor: Colors.surface, borderRadius: Tokens.radius.panel, padding: 16, marginBottom: 20, borderWidth: 1, borderColor: Colors.cardBorder },
   additionalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6 },
   additionalLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   additionalDot: { width: 8, height: 8, borderRadius: 4 },
-  additionalLabel: { fontSize: 15, color: Colors.text, fontWeight: '500' as const },
+  additionalLabel: { fontSize: Type.subhead.fontSize, color: Colors.text, fontWeight: '500' as const },
   additionalRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  additionalValue: { fontSize: 15, fontWeight: '600' as const, color: Colors.text },
-  additionalPct: { fontSize: 12, fontWeight: '600' as const, color: Colors.textMuted, backgroundColor: Colors.fillTertiary, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, overflow: 'hidden' as const },
+  additionalValue: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: Colors.text },
+  additionalPct: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.textMuted, backgroundColor: Colors.fillTertiary, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, overflow: 'hidden' as const },
   additionalDivider: { height: 1, backgroundColor: Colors.borderLight, marginVertical: 4 },
-  fullBreakdownCard: { marginHorizontal: 20, backgroundColor: Colors.surface, borderRadius: 16, padding: 18, gap: 8, marginBottom: 20, borderWidth: 1, borderColor: Colors.cardBorder },
+  fullBreakdownCard: { marginHorizontal: 20, backgroundColor: Colors.surface, borderRadius: Tokens.radius.panel, padding: 18, gap: 8, marginBottom: 20, borderWidth: 1, borderColor: Colors.cardBorder },
   breakdownRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  breakdownLabel: { fontSize: 14, color: Colors.textSecondary },
-  breakdownValue: { fontSize: 14, fontWeight: '600' as const, color: Colors.text },
-  breakdownLabelBold: { fontSize: 15, fontWeight: '700' as const, color: Colors.text },
-  breakdownValueBold: { fontSize: 15, fontWeight: '700' as const, color: Colors.text },
+  breakdownLabel: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary },
+  breakdownValue: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
+  breakdownLabelBold: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text },
+  breakdownValueBold: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text },
   breakdownDivider: { height: 1, backgroundColor: Colors.borderLight },
   breakdownDividerThick: { height: 2, backgroundColor: Colors.primary + '30', borderRadius: 1, marginVertical: 4 },
-  grandLabel: { fontSize: 18, fontWeight: '800' as const, color: Colors.text },
-  grandValue: { fontSize: 22, fontWeight: '800' as const, color: Colors.primary },
-  infoCard: { marginHorizontal: 20, backgroundColor: Colors.surface, borderRadius: 16, padding: 16, gap: 16, marginBottom: 20, borderWidth: 1, borderColor: Colors.cardBorder },
+  grandLabel: { fontSize: Type.subheadline.fontSize, fontWeight: '800' as const, color: Colors.text },
+  grandValue: { fontSize: Type.title2.fontSize, fontWeight: '800' as const, color: Colors.primary },
+  infoCard: { marginHorizontal: 20, backgroundColor: Colors.surface, borderRadius: Tokens.radius.panel, padding: 16, gap: 16, marginBottom: 20, borderWidth: 1, borderColor: Colors.cardBorder },
   infoRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
-  infoStep: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  infoStepNum: { fontSize: 13, fontWeight: '700' as const },
+  infoStep: { width: 28, height: 28, borderRadius: Tokens.radius.lg, alignItems: 'center', justifyContent: 'center' },
+  infoStepNum: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const },
   infoTextWrap: { flex: 1 },
-  infoTitle: { fontSize: 14, fontWeight: '600' as const, color: Colors.text },
-  infoDesc: { fontSize: 13, color: Colors.textSecondary, lineHeight: 19, marginTop: 2 },
-  topSaversCard: { marginHorizontal: 20, backgroundColor: Colors.surface, borderRadius: 16, padding: 14, marginBottom: 20, borderWidth: 1, borderColor: Colors.cardBorder },
+  infoTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
+  infoDesc: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, lineHeight: 19, marginTop: 2 },
+  topSaversCard: { marginHorizontal: 20, backgroundColor: Colors.surface, borderRadius: Tokens.radius.panel, padding: 14, marginBottom: 20, borderWidth: 1, borderColor: Colors.cardBorder },
   saverRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10 },
   saverRank: { width: 26, height: 26, borderRadius: 13, backgroundColor: Colors.successLight, alignItems: 'center', justifyContent: 'center' },
-  saverRankText: { fontSize: 11, fontWeight: '700' as const, color: Colors.success },
+  saverRankText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: Colors.success },
   saverInfo: { flex: 1, gap: 2 },
-  saverName: { fontSize: 14, fontWeight: '500' as const, color: Colors.text },
-  saverMeta: { fontSize: 12, color: Colors.textMuted },
+  saverName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '500' as const, color: Colors.text },
+  saverMeta: { fontSize: Type.caption1.fontSize, color: Colors.textMuted },
   saverSavings: { alignItems: 'flex-end', gap: 1 },
-  saverAmount: { fontSize: 15, fontWeight: '700' as const, color: Colors.success },
-  saverPct: { fontSize: 11, fontWeight: '600' as const, color: Colors.success },
+  saverAmount: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.success },
+  saverPct: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: Colors.success },
   saverDivider: { height: 1, backgroundColor: Colors.borderLight },
 });

@@ -16,7 +16,7 @@ import type { SubTrade, Subcontractor } from '@/types';
  * earlier). This mirrors how a PM actually routes: the noun (outlet,
  * leak) beats the adjective.
  */
-const TRADE_KEYWORDS: Array<{ trade: SubTrade; keywords: string[] }> = [
+const TRADE_KEYWORDS: { trade: SubTrade; keywords: string[] }[] = [
   { trade: 'Electrical', keywords: ['electrical', 'outlet', 'switch', 'wiring', 'breaker', 'panel', 'circuit', 'gfci', 'receptacle', 'fixture', 'light', 'lamp', 'sconce'] },
   { trade: 'Plumbing',   keywords: ['plumb', 'leak', 'faucet', 'toilet', 'drain', 'sink', 'valve', 'pipe', 'supply line', 'p-trap', 'shutoff', 'water heater', 'sewer'] },
   { trade: 'HVAC',       keywords: ['hvac', 'vent', 'duct', 'thermostat', 'ac unit', 'air handler', 'register', 'return air', 'furnace', 'condenser', 'heat pump'] },

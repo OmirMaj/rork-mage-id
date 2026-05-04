@@ -19,6 +19,8 @@ import {
 import { Mic, X, Square, Lightbulb, AlertCircle } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import * as Haptics from 'expo-haptics';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 type Step = 'idle' | 'recording' | 'transcribing' | 'error';
 
@@ -39,7 +41,7 @@ interface Props {
    * exactly what topics to talk about and won't leave fields blank.
    * Each entry: { label, hint? } — hint is a short example/sub-text.
    */
-  topicChecklist?: Array<{ label: string; hint?: string }>;
+  topicChecklist?: { label: string; hint?: string }[];
 }
 
 export default function VoiceCaptureModal({
@@ -269,9 +271,7 @@ export default function VoiceCaptureModal({
             <Text style={styles.title}>{title}</Text>
             {!!contextLine && <Text style={styles.contextLine}>{contextLine}</Text>}
           </View>
-          <TouchableOpacity onPress={onClose} hitSlop={12} style={styles.closeBtn}>
-            <X size={22} color={Colors.text} />
-          </TouchableOpacity>
+          <TouchableOpacity onPress={onClose} hitSlop={12} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={22} color={Colors.text} /></TouchableOpacity>
         </View>
 
         <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
@@ -394,19 +394,19 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.cardBorder,
   },
   title: {
-    fontSize: 20,
+    fontSize: Type.title3.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
   },
   contextLine: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: Colors.textMuted,
     marginTop: 2,
   },
   closeBtn: {
     width: 32,
     height: 32,
-    borderRadius: 16,
+    borderRadius: Tokens.radius.panel,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: Colors.surface,
@@ -417,7 +417,7 @@ const styles = StyleSheet.create({
   },
   suggestionsCard: {
     backgroundColor: Colors.surface,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     padding: 16,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
@@ -430,20 +430,20 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   suggestionsHeader: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     fontWeight: '700' as const,
     color: Colors.primary,
     letterSpacing: 0.5,
     textTransform: 'uppercase',
   },
   suggestionItem: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     color: Colors.text,
     lineHeight: 20,
     fontStyle: 'italic',
   },
   suggestionItemHero: {
-    fontSize: 16,
+    fontSize: Type.callout.fontSize,
     color: Colors.text,
     lineHeight: 22,
     fontStyle: 'italic',
@@ -467,7 +467,7 @@ const styles = StyleSheet.create({
   },
   checklistCard: {
     backgroundColor: Colors.surface,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     padding: 16,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
@@ -475,7 +475,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   checklistHeader: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     fontWeight: '800' as const,
     color: Colors.textSecondary,
     letterSpacing: 1,
@@ -496,17 +496,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   checklistBulletText: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     fontWeight: '800' as const,
     color: Colors.primary,
   },
   checklistLabel: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
   },
   checklistHint: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     color: Colors.textMuted,
     marginTop: 2,
     lineHeight: 16,
@@ -542,7 +542,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0,
   },
   bigBtnLabel: {
-    fontSize: 16,
+    fontSize: Type.callout.fontSize,
     fontWeight: '600' as const,
     color: Colors.text,
     textAlign: 'center',
@@ -552,7 +552,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     gap: 8,
     backgroundColor: Colors.error + '15',
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     padding: 12,
     marginTop: 4,
     borderWidth: 1,
@@ -561,7 +561,7 @@ const styles = StyleSheet.create({
   },
   errorText: {
     flex: 1,
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: Colors.text,
     lineHeight: 18,
   },

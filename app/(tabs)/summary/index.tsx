@@ -8,17 +8,21 @@ import * as Haptics from 'expo-haptics';
 import {
   ClipboardList, DollarSign, AlertTriangle, CheckCircle2, ChevronRight,
   Receipt, Wrench, Calendar, TrendingUp, FolderOpen, FileDown,
+  Inbox, Wallet, UserPlus, Gavel,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import ConstructionLoader from '@/components/ConstructionLoader';
 import EmptyState from '@/components/EmptyState';
+import { NavRow } from '@/components/NavRow';
 import CashFlowGlance from '@/components/CashFlowGlance';
 import CashFlowAlerts from '@/components/CashFlowAlerts';
 import { generateForecast, type CashFlowWeek } from '@/utils/cashFlowEngine';
 import { loadCashFlowData, isSetupComplete } from '@/utils/cashFlowStorage';
 import { formatMoney, formatMoneyShort } from '@/utils/formatters';
 import type { Project } from '@/types';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 // Summary tab: a bird's-eye "what's happening across all my projects" view.
 // Each card collapses the key operational numbers (budget, outstanding invoices,
@@ -262,6 +266,52 @@ export default function SummaryScreen() {
           </TouchableOpacity>
         )}
 
+        {/* Tools — entry points for actions that used to live in the
+            8-icon home navbar. Single column, neutral tone, in the
+            place users naturally come to look at portfolio-level work. */}
+        <View style={styles.toolsGroup}>
+          <Text style={styles.toolsHeader}>Tools</Text>
+          <View style={styles.toolsCard}>
+            {projects.length > 0 && (
+              <NavRow
+                Icon={Inbox}
+                title="Reports inbox"
+                subtitle="Daily field reports waiting for review"
+                onPress={() => router.push('/report-inbox' as any)}
+                testID="summary-reports-inbox"
+              />
+            )}
+            {projects.length > 0 && (
+              <View style={styles.toolsDivider} />
+            )}
+            {projects.length > 0 && (
+              <NavRow
+                Icon={Wallet}
+                title="Cash flow"
+                subtitle="Multi-week forecast across all projects"
+                onPress={() => router.push('/cash-flow' as any)}
+                testID="summary-cash-flow"
+              />
+            )}
+            <View style={styles.toolsDivider} />
+            <NavRow
+              Icon={UserPlus}
+              title="Pipeline"
+              subtitle="Inquiries → qualified → proposal → won"
+              onPress={() => router.push('/leads' as never)}
+              testID="summary-pipeline"
+            />
+            <View style={styles.toolsDivider} />
+            <NavRow
+              Icon={Gavel}
+              title="Buyout"
+              subtitle="Sub package builder + bid award flow"
+              onPress={() => router.push('/buyout' as never)}
+              testID="summary-buyout"
+            />
+          </View>
+        </View>
+
         {stats.length === 0 ? (
           <View style={styles.emptyCard}>
             <CheckCircle2 size={32} color={Colors.success} />
@@ -303,7 +353,7 @@ function SummaryCard({ stats, onPress }: { stats: ProjectSummaryStats; onPress: 
         <View style={{ flex: 1 }}>
           <Text style={styles.cardTitle} numberOfLines={1}>{project.name}</Text>
           <Text style={styles.cardSubtitle} numberOfLines={1}>
-            {project.location || 'No location'} · {project.status.replace('_', ' ')}
+            {project.location || 'No location'} · {project.status.replace(/_/g, ' ')}
           </Text>
         </View>
         <View style={[styles.healthPill, { backgroundColor: healthTint + '18' }]}>
@@ -379,39 +429,39 @@ function Stat({ icon: Icon, label, value, tint }: { icon: typeof DollarSign; lab
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   center: { alignItems: 'center', justifyContent: 'center' },
-  heading: { fontSize: 34, fontWeight: '800' as const, color: Colors.text, paddingHorizontal: 20, letterSpacing: -0.5 },
-  subheading: { fontSize: 14, color: Colors.textMuted, paddingHorizontal: 20, marginTop: 2, marginBottom: 16 },
+  heading: { fontSize: Type.largeTitle.fontSize, fontWeight: '800' as const, color: Colors.text, paddingHorizontal: 20, letterSpacing: -0.5 },
+  subheading: { fontSize: Type.bodyCompact.fontSize, color: Colors.textMuted, paddingHorizontal: 20, marginTop: 2, marginBottom: 16 },
   portfolioRow: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 12, gap: 8, marginBottom: 16 },
-  portfolioStat: { flex: 1, minWidth: '46%' as any, backgroundColor: Colors.surface, borderRadius: 14, borderWidth: 1, borderColor: Colors.cardBorder, paddingVertical: 12, paddingHorizontal: 14, gap: 4 },
-  portfolioValue: { fontSize: 20, fontWeight: '800' as const, letterSpacing: -0.3 },
-  portfolioLabel: { fontSize: 11, fontWeight: '600' as const, color: Colors.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.6 },
-  card: { marginHorizontal: 16, marginBottom: 12, backgroundColor: Colors.surface, borderRadius: 18, borderWidth: 1, borderColor: Colors.cardBorder, padding: 14, gap: 10 },
+  portfolioStat: { flex: 1, minWidth: '46%' as any, backgroundColor: Colors.surface, borderRadius: Tokens.radius.lg, borderWidth: 1, borderColor: Colors.cardBorder, paddingVertical: 12, paddingHorizontal: 14, gap: 4 },
+  portfolioValue: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, letterSpacing: -0.3 },
+  portfolioLabel: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: Colors.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.6 },
+  card: { marginHorizontal: 16, marginBottom: 12, backgroundColor: Colors.surface, borderRadius: Tokens.radius.xl, borderWidth: 1, borderColor: Colors.cardBorder, padding: 14, gap: 10 },
   cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  cardTitle: { fontSize: 17, fontWeight: '700' as const, color: Colors.text, letterSpacing: -0.2 },
-  cardSubtitle: { fontSize: 12, color: Colors.textMuted, marginTop: 2, textTransform: 'capitalize' as const },
-  healthPill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
-  healthPillText: { fontSize: 11, fontWeight: '700' as const, textTransform: 'uppercase' as const, letterSpacing: 0.4 },
-  healthReason: { fontSize: 12, color: Colors.textSecondary, marginTop: -4 },
+  cardTitle: { fontSize: Type.body.fontSize, fontWeight: '700' as const, color: Colors.text, letterSpacing: -0.2 },
+  cardSubtitle: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2, textTransform: 'capitalize' as const },
+  healthPill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: Tokens.radius.sm },
+  healthPillText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, textTransform: 'uppercase' as const, letterSpacing: 0.4 },
+  healthReason: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, marginTop: -4 },
   statGrid: { flexDirection: 'row', gap: 8 },
-  stat: { flex: 1, backgroundColor: Colors.surfaceAlt, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 8, gap: 2, alignItems: 'flex-start' as const },
-  statValue: { fontSize: 14, fontWeight: '800' as const },
+  stat: { flex: 1, backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.md, paddingVertical: 8, paddingHorizontal: 8, gap: 2, alignItems: 'flex-start' as const },
+  statValue: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800' as const },
   statLabel: { fontSize: 10, color: Colors.textMuted, fontWeight: '500' as const, textTransform: 'uppercase' as const, letterSpacing: 0.3 },
   billedRow: { gap: 6 },
-  billedLabel: { fontSize: 11, color: Colors.textMuted, fontWeight: '500' as const },
+  billedLabel: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontWeight: '500' as const },
   billedBar: { height: 5, backgroundColor: Colors.fillTertiary, borderRadius: 3, overflow: 'hidden' as const },
   billedFill: { height: '100%' as any, backgroundColor: Colors.primary, borderRadius: 3 },
-  milestoneRow: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: Colors.primary + '10', borderRadius: 10, paddingVertical: 8, paddingHorizontal: 10 },
-  milestoneText: { flex: 1, fontSize: 12, fontWeight: '600' as const, color: Colors.text },
-  milestoneDate: { fontSize: 12, fontWeight: '700' as const, color: Colors.primary },
+  milestoneRow: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: Colors.primary + '10', borderRadius: Tokens.radius.md, paddingVertical: 8, paddingHorizontal: 10 },
+  milestoneText: { flex: 1, fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.text },
+  milestoneDate: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: Colors.primary },
   cardFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 4, marginTop: -2 },
-  openDetailText: { fontSize: 12, fontWeight: '600' as const, color: Colors.primary },
-  emptyCard: { marginHorizontal: 16, padding: 24, alignItems: 'center' as const, gap: 10, backgroundColor: Colors.surface, borderRadius: 18, borderWidth: 1, borderColor: Colors.cardBorder },
-  emptyTitle: { fontSize: 17, fontWeight: '700' as const, color: Colors.text },
-  emptyDesc: { fontSize: 13, color: Colors.textMuted, textAlign: 'center' as const, lineHeight: 18 },
+  openDetailText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.primary },
+  emptyCard: { marginHorizontal: 16, padding: 24, alignItems: 'center' as const, gap: 10, backgroundColor: Colors.surface, borderRadius: Tokens.radius.xl, borderWidth: 1, borderColor: Colors.cardBorder },
+  emptyTitle: { fontSize: Type.body.fontSize, fontWeight: '700' as const, color: Colors.text },
+  emptyDesc: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, textAlign: 'center' as const, lineHeight: 18 },
   reportsCard: {
     flexDirection: 'row' as const, alignItems: 'center' as const, gap: 12,
     marginHorizontal: 16, marginBottom: 12,
-    padding: 14, borderRadius: 14,
+    padding: 14, borderRadius: Tokens.radius.lg,
     backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.cardBorder,
   },
   reportsIcon: {
@@ -419,6 +469,27 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary + '15',
     alignItems: 'center' as const, justifyContent: 'center' as const,
   },
-  reportsTitle: { fontSize: 14, fontWeight: '800' as const, color: Colors.text, letterSpacing: -0.2 },
-  reportsBody:  { fontSize: 12, color: Colors.textSecondary, marginTop: 2, lineHeight: 16 },
+  reportsTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800' as const, color: Colors.text, letterSpacing: -0.2 },
+  reportsBody:  { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, marginTop: 2, lineHeight: 16 },
+
+  // Tools group — the dropped 8-icon navbar items live here as a clean
+  // grouped list, iOS-Settings-style. Subtle visual weight; users come
+  // here when they want to navigate, not as a default destination.
+  toolsGroup: { marginHorizontal: 16, marginTop: 18, marginBottom: 6 },
+  toolsHeader: {
+    fontSize: Type.caption2.fontSize, fontWeight: '700' as const,
+    color: Colors.textMuted, letterSpacing: 0.6,
+    textTransform: 'uppercase' as const,
+    paddingHorizontal: 4, marginBottom: 8,
+  },
+  toolsCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: Tokens.radius.lg,
+    borderWidth: 1, borderColor: Colors.cardBorder,
+    overflow: 'hidden' as const,
+  },
+  toolsDivider: {
+    height: 1, backgroundColor: Colors.cardBorder,
+    marginLeft: 64,
+  },
 });

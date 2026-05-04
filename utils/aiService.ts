@@ -76,8 +76,8 @@ export interface CopilotMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string;
-  actionItems?: Array<{ text: string; priority: 'urgent' | 'important' | 'suggestion' }>;
-  dataPoints?: Array<{ label: string; value: string }>;
+  actionItems?: { text: string; priority: 'urgent' | 'important' | 'suggestion' }[];
+  dataPoints?: { label: string; value: string }[];
   timestamp: string;
 }
 
@@ -619,7 +619,7 @@ export type ChangeOrderImpactResult = z.infer<typeof changeOrderImpactSchema>;
 
 export async function analyzeChangeOrderImpact(
   changeDescription: string,
-  lineItems: Array<{ name: string; quantity: number; unitPrice: number; total: number }>,
+  lineItems: { name: string; quantity: number; unitPrice: number; total: number }[],
   schedule: ProjectSchedule | null,
 ): Promise<ChangeOrderImpactResult> {
   console.log('[AI CO] Analyzing change order impact...');
@@ -693,7 +693,7 @@ export type WeeklySummaryResult = z.infer<typeof weeklySummarySchema>;
 export async function rateLimitedGenerate<T extends z.ZodType>(
   subscriptionTier: SubscriptionTierKey,
   requestTier: RequestTier,
-  messages: Array<{ role: 'user' | 'assistant'; content: string }>,
+  messages: { role: 'user' | 'assistant'; content: string }[],
   schema: T,
 ): Promise<{ success: true; data: z.infer<T> } | { success: false; data: null; error: string }> {
   try {

@@ -9,12 +9,15 @@ import * as Haptics from 'expo-haptics';
 import { Save, ChevronDown, Link2, X, CheckCircle2, Send } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
+import { FeatureHeader } from '@/components/FeatureHeader';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import InlineVoiceFill from '@/components/InlineVoiceFill';
 import { parseRFIFromTranscript, mergeText, pickIfEmpty } from '@/utils/voiceFormParsers';
 import { sendEmail, buildRFIEmailHtml } from '@/utils/emailService';
 import type { RFIStatus, RFIPriority } from '@/types';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 const PRIORITY_OPTIONS: RFIPriority[] = ['low', 'normal', 'urgent'];
 const STATUS_OPTIONS: RFIStatus[] = ['open', 'answered', 'closed', 'void'];
@@ -45,7 +48,7 @@ function RFIScreenInner() {
   }>();
   const ctx = useProjects();
   const { getProject, getRFIsForProject, addRFI, updateRFI, settings } = ctx;
-  const projectPhotos = (ctx as any).projectPhotos as Array<{ id: string; uri: string }> | undefined;
+  const projectPhotos = (ctx as any).projectPhotos as { id: string; uri: string }[] | undefined;
 
   const project = useMemo(() => getProject(projectId ?? ''), [projectId, getProject]);
   const existingRFIs = useMemo(() => getRFIsForProject(projectId ?? ''), [projectId, getRFIsForProject]);
@@ -209,12 +212,28 @@ function RFIScreenInner() {
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-      <Stack.Screen options={{ title: existingRFI ? `RFI #${existingRFI.number}` : 'New RFI' }} />
+      <Stack.Screen options={{ title: existingRFI ? `RFI #${existingRFI.number}` : 'Ask the Architect' }} />
       <ScrollView
         style={styles.container}
         contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
         keyboardShouldPersistTaps="handled"
       >
+        {!existingRFI && (
+          <FeatureHeader
+            eyebrow="RFI · Request for Information"
+            title="Ask a question. Get a paper trail."
+            subtitle="Send the design team (architect, engineer, owner) a question with a deadline. Every answer is logged with a timestamp — protects you when scope drifts later."
+            explainer={{
+              term: 'Request for Information (RFI)',
+              definition: 'An RFI is the formal way you ask the architect, engineer, or owner a question during construction. It creates a clock (when do you need the answer?) and a permanent record. RFIs are how you protect yourself when a detail is unclear or missing — a delayed RFI answer is documented evidence for a schedule extension.',
+              whenToUse: [
+                'A drawing detail is unclear, missing, or contradicts another sheet',
+                'You need a substitution approved on a spec\'d product',
+                'A field condition doesn\'t match the design and you need direction',
+              ],
+            }}
+          />
+        )}
         {project && (
           <Text style={styles.projectLabel}>{project.name}</Text>
         )}
@@ -393,7 +412,7 @@ function RFIScreenInner() {
               <View style={styles.linkedTaskBadge}>
                 <Text style={styles.linkedTaskPhase}>{linkedTask.phase}</Text>
                 <Text style={styles.linkedTaskName} numberOfLines={1}>{linkedTask.title}</Text>
-                <TouchableOpacity onPress={() => setLinkedTaskId('')} style={styles.unlinkBtn}>
+                <TouchableOpacity onPress={() => setLinkedTaskId('')} style={styles.unlinkBtn} accessibilityRole="button" accessibilityLabel="Close">
                   <X size={14} color={Colors.error} />
                 </TouchableOpacity>
               </View>
@@ -429,7 +448,7 @@ function RFIScreenInner() {
           <Pressable style={styles.sendCard} onPress={() => undefined}>
             <View style={styles.sendCardHeader}>
               <Text style={styles.sendCardTitle}>Send RFI #{existingRFI?.number}</Text>
-              <TouchableOpacity onPress={() => setShowSendModal(false)} hitSlop={8}>
+              <TouchableOpacity onPress={() => setShowSendModal(false)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
                 <X size={20} color={Colors.textMuted} />
               </TouchableOpacity>
             </View>
@@ -486,7 +505,7 @@ function RFIScreenInner() {
           <Pressable style={styles.taskPickerCard} onPress={() => undefined}>
             <View style={styles.taskPickerHeader}>
               <Text style={styles.taskPickerTitle}>Link Schedule Task</Text>
-              <TouchableOpacity onPress={() => setShowTaskPicker(false)}><X size={20} color={Colors.textMuted} /></TouchableOpacity>
+              <TouchableOpacity onPress={() => setShowTaskPicker(false)} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={Colors.textMuted} /></TouchableOpacity>
             </View>
             <ScrollView style={{ maxHeight: 360 }}>
               <TouchableOpacity
@@ -523,13 +542,13 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   projectLabel: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
     color: Colors.primary,
     marginBottom: 16,
   },
   fieldLabel: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
     color: Colors.textSecondary,
     marginBottom: 6,
@@ -537,10 +556,10 @@ const styles = StyleSheet.create({
   },
   input: {
     backgroundColor: Colors.surface,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    fontSize: 15,
+    fontSize: Type.subhead.fontSize,
     color: Colors.text,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
@@ -561,7 +580,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     backgroundColor: Colors.surface,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     paddingHorizontal: 14,
     paddingVertical: 12,
     borderWidth: 1,
@@ -569,7 +588,7 @@ const styles = StyleSheet.create({
   },
   pickerBtnText: {
     flex: 1,
-    fontSize: 15,
+    fontSize: Type.subhead.fontSize,
     color: Colors.text,
   },
   priorityDot: {
@@ -587,14 +606,14 @@ const styles = StyleSheet.create({
   pickerOption: {
     paddingHorizontal: 14,
     paddingVertical: 8,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
     backgroundColor: Colors.fillTertiary,
   },
   pickerOptionActive: {
     backgroundColor: Colors.primary,
   },
   pickerOptionText: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
     color: Colors.textSecondary,
   },
@@ -607,7 +626,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     backgroundColor: Colors.primary,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     paddingVertical: 16,
     marginTop: 28,
     shadowColor: Colors.primary,
@@ -617,7 +636,7 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   saveBtnText: {
-    fontSize: 17,
+    fontSize: Type.body.fontSize,
     fontWeight: '600' as const,
     color: '#fff',
   },
@@ -630,12 +649,12 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
     borderWidth: 1.5,
     borderColor: Colors.primary + '40',
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     paddingVertical: 14,
     marginTop: 12,
   },
   sendToProBtnText: {
-    fontSize: 15,
+    fontSize: Type.subhead.fontSize,
     fontWeight: '700' as const,
     color: Colors.primary,
     letterSpacing: 0.2,
@@ -644,7 +663,7 @@ const styles = StyleSheet.create({
     width: '90%' as const,
     maxWidth: 440,
     backgroundColor: Colors.surface,
-    borderRadius: 16,
+    borderRadius: Tokens.radius.panel,
     padding: 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 8 },
@@ -659,18 +678,18 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   sendCardTitle: {
-    fontSize: 17,
+    fontSize: Type.body.fontSize,
     fontWeight: '800' as const,
     color: Colors.text,
   },
   sendCardHelper: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     color: Colors.textMuted,
     lineHeight: 17,
     marginBottom: 14,
   },
   sendFieldLabel: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     fontWeight: '800' as const,
     color: Colors.textMuted,
     letterSpacing: 0.7,
@@ -682,10 +701,10 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     color: Colors.text,
   },
   sendInputMulti: {
@@ -697,30 +716,30 @@ const styles = StyleSheet.create({
     justifyContent: 'center' as const,
     gap: 8,
     backgroundColor: Colors.primary,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     paddingVertical: 14,
     marginTop: 16,
   },
   sendSubmitBtnText: {
-    fontSize: 15,
+    fontSize: Type.subhead.fontSize,
     fontWeight: '700' as const,
     color: '#fff',
   },
   linkedTaskBadge: {
     flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8,
-    backgroundColor: Colors.primary + '10', borderRadius: 8,
+    backgroundColor: Colors.primary + '10', borderRadius: Tokens.radius.sm,
     paddingHorizontal: 10, paddingVertical: 8, marginTop: 6,
   },
-  linkedTaskPhase: { fontSize: 11, fontWeight: '700' as const, color: Colors.primary },
-  linkedTaskName: { flex: 1, fontSize: 13, color: Colors.text },
+  linkedTaskPhase: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: Colors.primary },
+  linkedTaskName: { flex: 1, fontSize: Type.footnote.fontSize, color: Colors.text },
   unlinkBtn: { padding: 2 },
   modalOverlay: { flex: 1, backgroundColor: '#00000060', justifyContent: 'center', alignItems: 'center', padding: 24 },
-  taskPickerCard: { backgroundColor: Colors.card ?? Colors.surface, borderRadius: 16, width: '100%', overflow: 'hidden' },
+  taskPickerCard: { backgroundColor: Colors.card ?? Colors.surface, borderRadius: Tokens.radius.panel, width: '100%', overflow: 'hidden' },
   taskPickerHeader: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'space-between' as const, padding: 16, borderBottomWidth: 1, borderBottomColor: Colors.cardBorder },
-  taskPickerTitle: { fontSize: 16, fontWeight: '700' as const, color: Colors.text },
+  taskPickerTitle: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.text },
   taskOption: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, padding: 12, borderBottomWidth: 1, borderBottomColor: Colors.cardBorder + '80' },
   taskOptionActive: { backgroundColor: Colors.primary + '10' },
-  taskOptionText: { fontSize: 14, fontWeight: '500' as const, color: Colors.text },
+  taskOptionText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '500' as const, color: Colors.text },
   taskOptionTextActive: { fontWeight: '700' as const, color: Colors.primary },
-  taskOptionMeta: { fontSize: 11, color: Colors.textSecondary ?? Colors.textMuted, marginTop: 1 },
+  taskOptionMeta: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary ?? Colors.textMuted, marginTop: 1 },
 });

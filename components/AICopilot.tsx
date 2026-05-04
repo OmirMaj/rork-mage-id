@@ -16,6 +16,8 @@ import {
 } from '@/utils/aiService';
 import { checkAILimit, recordAIUsage, getAIUsageStats } from '@/utils/aiRateLimiter';
 import { useSubscription } from '@/contexts/SubscriptionContext';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 const SUGGESTED_PROMPTS = [
   "What should I focus on today?",
@@ -27,16 +29,16 @@ const SUGGESTED_PROMPTS = [
 ];
 
 const PRIORITY_COLORS = {
-  urgent: { bg: '#FFF0EF', text: '#FF3B30', border: '#FF3B30' },
-  important: { bg: '#FFF3E0', text: '#FF9500', border: '#FF9500' },
-  suggestion: { bg: '#EBF3FF', text: '#007AFF', border: '#007AFF' },
+  urgent: { bg: Colors.errorLight, text: Colors.error, border: Colors.error },
+  important: { bg: Colors.warningLight, text: Colors.warning, border: Colors.warning },
+  suggestion: { bg: Colors.infoLight, text: Colors.info, border: Colors.info },
 } as const;
 
 function createMsgId(): string {
   return `msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
 }
 
-const MessageBubble = React.memo(({ message }: { message: CopilotMessage }) => {
+const MessageBubble = React.memo(function MessageBubble({ message }: { message: CopilotMessage }) {
   const isUser = message.role === 'user';
 
   return (
@@ -79,6 +81,7 @@ const MessageBubble = React.memo(({ message }: { message: CopilotMessage }) => {
     </View>
   );
 });
+MessageBubble.displayName = 'MessageBubble';
 
 function buildFullContext(projects: any[], bids: any[], subs: any[], equipment: any[], invoices: any[], changeOrders: any[]): string {
   const projectsSummary = projects.map(p => {
@@ -242,10 +245,7 @@ export default function AICopilot() {
           onPress={handleOpen}
           style={styles.fabButton}
           activeOpacity={0.8}
-          testID="ai-copilot-fab"
-        >
-          <Sparkles size={22} color="#FFFFFF" />
-        </TouchableOpacity>
+          testID="ai-copilot-fab" accessibilityRole="button" accessibilityLabel="AI"><Sparkles size={22} color={Colors.surface} /></TouchableOpacity>
       </Animated.View>
 
       <Modal visible={isOpen} animationType="slide" transparent>
@@ -259,9 +259,7 @@ export default function AICopilot() {
                 <Sparkles size={18} color={Colors.primary} />
                 <Text style={styles.headerTitle}>MAGE AI Copilot</Text>
               </View>
-              <TouchableOpacity onPress={handleClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                <X size={22} color={Colors.textSecondary} />
-              </TouchableOpacity>
+              <TouchableOpacity onPress={handleClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} accessibilityRole="button" accessibilityLabel="Close"><X size={22} color={Colors.textSecondary} /></TouchableOpacity>
             </View>
 
             <View style={styles.projectBadge}>
@@ -329,9 +327,8 @@ export default function AICopilot() {
                 <TouchableOpacity
                   onPress={() => handleSend()}
                   style={[styles.sendBtn, (!input.trim() || isLoading) && styles.sendBtnDisabled]}
-                  disabled={!input.trim() || isLoading}
-                >
-                  <Send size={18} color={input.trim() && !isLoading ? '#FFFFFF' : Colors.textMuted} />
+                  disabled={!input.trim() || isLoading} accessibilityRole="button" accessibilityLabel="Send">
+                  <Send size={18} color={input.trim() && !isLoading ? Colors.surface : Colors.textMuted} />
                 </TouchableOpacity>
               </View>
             </View>
@@ -391,7 +388,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   headerTitle: {
-    fontSize: 17,
+    fontSize: Type.body.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
   },
@@ -401,7 +398,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.fillSecondary,
   },
   projectBadgeText: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     color: Colors.textSecondary,
     fontWeight: '500' as const,
   },
@@ -421,14 +418,14 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   emptyTitle: {
-    fontSize: 18,
+    fontSize: Type.subheadline.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
     marginBottom: 6,
     textAlign: 'center',
   },
   emptySubtitle: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     color: Colors.textSecondary,
     textAlign: 'center',
     marginBottom: 20,
@@ -444,12 +441,12 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 16,
     backgroundColor: Colors.surface,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     borderWidth: 1,
     borderColor: Colors.borderLight,
   },
   suggestText: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     color: Colors.text,
     flex: 1,
   },
@@ -469,7 +466,7 @@ const styles = StyleSheet.create({
   bubble: {
     maxWidth: '85%',
     padding: 12,
-    borderRadius: 16,
+    borderRadius: Tokens.radius.panel,
   },
   userBubble: {
     backgroundColor: Colors.primary,
@@ -494,11 +491,11 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   bubbleText: {
-    fontSize: 15,
+    fontSize: Type.subhead.fontSize,
     lineHeight: 21,
   },
   userText: {
-    color: '#FFFFFF',
+    color: Colors.surface,
   },
   aiText: {
     color: Colors.text,
@@ -513,11 +510,11 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingVertical: 6,
     paddingHorizontal: 10,
-    borderRadius: 8,
+    borderRadius: Tokens.radius.sm,
     borderWidth: 0.5,
   },
   actionChipText: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '500' as const,
     flex: 1,
   },
@@ -531,7 +528,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.fillSecondary,
     paddingVertical: 6,
     paddingHorizontal: 10,
-    borderRadius: 8,
+    borderRadius: Tokens.radius.sm,
     minWidth: 80,
   },
   dataLabel: {
@@ -540,7 +537,7 @@ const styles = StyleSheet.create({
     fontWeight: '500' as const,
   },
   dataValue: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
   },
@@ -550,7 +547,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   typingText: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: Colors.textSecondary,
     fontStyle: 'italic' as const,
   },
@@ -560,7 +557,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
   },
   usageCounter: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     color: Colors.textMuted,
     textAlign: 'center',
     paddingTop: 6,
@@ -579,7 +576,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     paddingHorizontal: 16,
     paddingVertical: 10,
-    fontSize: 15,
+    fontSize: Type.subhead.fontSize,
     color: Colors.text,
     maxHeight: 80,
   },

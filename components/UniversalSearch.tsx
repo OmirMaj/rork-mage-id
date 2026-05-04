@@ -25,6 +25,8 @@ import { useSearch } from '@/contexts/SearchContext';
 import { useUniversalSearch, type SearchResult } from '@/hooks/useUniversalSearch';
 import { useEntityNavigation } from '@/hooks/useEntityNavigation';
 import type { EntityKind } from '@/types';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 // ---------------------------------------------------------------------------
 // Storage
@@ -380,14 +382,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.fillTertiary,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
     paddingHorizontal: 10,
     gap: 8,
     height: 40,
   },
   input: {
     flex: 1,
-    fontSize: 16,
+    fontSize: Type.callout.fontSize,
     color: Colors.text,
     paddingVertical: 0,
   } as any,
@@ -397,7 +399,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.border,
   },
   cancelBtn: { paddingHorizontal: 6, paddingVertical: 8 },
-  cancelText: { fontSize: 15, color: Colors.primary, fontWeight: '500' },
+  cancelText: { fontSize: Type.subhead.fontSize, color: Colors.primary, fontWeight: '500' },
 
   body: { flex: 1 },
   bodyContent: { paddingTop: 8, paddingBottom: 32 },
@@ -411,14 +413,14 @@ const styles = StyleSheet.create({
     paddingBottom: 6,
   },
   sectionHeader: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     fontWeight: '700',
     color: Colors.textSecondary,
     letterSpacing: 0.7,
     textTransform: 'uppercase',
   },
   sectionAction: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: Colors.primary,
     fontWeight: '500',
   },
@@ -433,14 +435,14 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   resultIcon: {
-    width: 34, height: 34, borderRadius: 10,
+    width: 34, height: 34, borderRadius: Tokens.radius.md,
     backgroundColor: Colors.primary + '15',
     alignItems: 'center', justifyContent: 'center',
   },
   resultBody: { flex: 1 },
-  resultTitle: { fontSize: 15, fontWeight: '600', color: Colors.text },
-  resultSubtitle: { fontSize: 12, color: Colors.textSecondary, marginTop: 2 },
-  resultSnippet: { fontSize: 12, color: Colors.textMuted, marginTop: 2 },
+  resultTitle: { fontSize: Type.subhead.fontSize, fontWeight: '600', color: Colors.text },
+  resultSubtitle: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, marginTop: 2 },
+  resultSnippet: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2 },
 
   recentRow: {
     flexDirection: 'row',
@@ -450,11 +452,11 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   recentIcon: {
-    width: 30, height: 30, borderRadius: 8,
+    width: 30, height: 30, borderRadius: Tokens.radius.sm,
     backgroundColor: Colors.fillTertiary,
     alignItems: 'center', justifyContent: 'center',
   },
-  recentText: { flex: 1, fontSize: 15, color: Colors.text },
+  recentText: { flex: 1, fontSize: Type.subhead.fontSize, color: Colors.text },
 
   searchingRow: {
     flexDirection: 'row',
@@ -463,7 +465,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     gap: 10,
   },
-  searchingText: { fontSize: 13, color: Colors.textSecondary },
+  searchingText: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary },
 
   emptyState: {
     alignItems: 'center',
@@ -472,12 +474,12 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   emptyIcon: {
-    width: 56, height: 56, borderRadius: 16,
+    width: 56, height: 56, borderRadius: Tokens.radius.panel,
     backgroundColor: Colors.fillTertiary,
     alignItems: 'center', justifyContent: 'center',
     marginBottom: 4,
   },
-  emptyTitle: { fontSize: 17, fontWeight: '700', color: Colors.text, textAlign: 'center' },
-  emptyBody: { fontSize: 14, color: Colors.textSecondary, textAlign: 'center', lineHeight: 20 },
+  emptyTitle: { fontSize: Type.body.fontSize, fontWeight: '700', color: Colors.text, textAlign: 'center' },
+  emptyBody: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, textAlign: 'center', lineHeight: 20 },
 });
 

@@ -12,6 +12,8 @@ import {
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 import {
   buildExportPayload, exportUserData, shareExportedFile, summarizeExport,
   type DataExportOptions, type DataExportSummary,
@@ -299,7 +301,7 @@ const styles = StyleSheet.create({
   scroll: { padding: 16, gap: 0 },
   hero: {
     backgroundColor: Colors.surface,
-    borderRadius: 16,
+    borderRadius: Tokens.radius.panel,
     padding: 20,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
@@ -307,33 +309,33 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   heroIcon: {
-    width: 44, height: 44, borderRadius: 12,
+    width: 44, height: 44, borderRadius: Tokens.radius.card,
     backgroundColor: `${Colors.primary}15`,
     alignItems: 'center', justifyContent: 'center',
   },
-  heroTitle: { fontSize: 22, fontWeight: '700', color: Colors.text },
-  heroSub: { fontSize: 14, color: Colors.textSecondary, lineHeight: 20 },
+  heroTitle: { fontSize: Type.title2.fontSize, fontWeight: '700', color: Colors.text },
+  heroSub: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, lineHeight: 20 },
 
   sectionLabel: {
-    fontSize: 11, fontWeight: '600', color: Colors.textSecondary,
+    fontSize: Type.caption2.fontSize, fontWeight: '600', color: Colors.textSecondary,
     letterSpacing: 0.8, marginBottom: 8, marginTop: 20,
   },
 
   segment: {
     flexDirection: 'row', backgroundColor: Colors.surface,
-    borderRadius: 12, padding: 4, borderWidth: 1, borderColor: Colors.cardBorder,
+    borderRadius: Tokens.radius.card, padding: 4, borderWidth: 1, borderColor: Colors.cardBorder,
     gap: 4,
   },
   segmentBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    paddingVertical: 10, borderRadius: 8, gap: 6,
+    paddingVertical: 10, borderRadius: Tokens.radius.sm, gap: 6,
   },
   segmentBtnActive: { backgroundColor: Colors.primary },
-  segmentTxt: { fontSize: 13, fontWeight: '600', color: Colors.text },
+  segmentTxt: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: Colors.text },
   segmentTxtActive: { color: Colors.textOnPrimary },
 
   projectList: {
-    backgroundColor: Colors.surface, borderRadius: 12,
+    backgroundColor: Colors.surface, borderRadius: Tokens.radius.card,
     borderWidth: 1, borderColor: Colors.cardBorder,
     marginTop: 8, overflow: 'hidden',
   },
@@ -342,33 +344,33 @@ const styles = StyleSheet.create({
     padding: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Colors.borderLight,
   },
   projectRowActive: { backgroundColor: `${Colors.primary}08` },
-  projectRowName: { fontSize: 15, fontWeight: '600', color: Colors.text },
+  projectRowName: { fontSize: Type.subhead.fontSize, fontWeight: '600', color: Colors.text },
   projectRowNameActive: { color: Colors.primary },
-  projectRowMeta: { fontSize: 12, color: Colors.textSecondary, marginTop: 2 },
-  emptyTxt: { fontSize: 13, color: Colors.textSecondary, padding: 14, textAlign: 'center' },
+  projectRowMeta: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, marginTop: 2 },
+  emptyTxt: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, padding: 14, textAlign: 'center' },
 
   hintCard: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 8,
     backgroundColor: `${Colors.primary}08`, padding: 12,
-    borderRadius: 10, marginTop: 8,
+    borderRadius: Tokens.radius.md, marginTop: 8,
   },
-  hintTxt: { flex: 1, fontSize: 12, color: Colors.textSecondary, lineHeight: 17 },
+  hintTxt: { flex: 1, fontSize: Type.caption1.fontSize, color: Colors.textSecondary, lineHeight: 17 },
 
   row: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: Colors.surface, borderRadius: 12,
+    backgroundColor: Colors.surface, borderRadius: Tokens.radius.card,
     padding: 14, borderWidth: 1, borderColor: Colors.cardBorder,
   },
   rowIcon: {
-    width: 32, height: 32, borderRadius: 8,
+    width: 32, height: 32, borderRadius: Tokens.radius.sm,
     backgroundColor: `${Colors.primary}12`,
     alignItems: 'center', justifyContent: 'center',
   },
-  rowLabel: { fontSize: 14, fontWeight: '600', color: Colors.text },
-  rowSub: { fontSize: 12, color: Colors.textSecondary, marginTop: 2 },
+  rowLabel: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600', color: Colors.text },
+  rowSub: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, marginTop: 2 },
 
   summaryCard: {
-    backgroundColor: Colors.surface, borderRadius: 12,
+    backgroundColor: Colors.surface, borderRadius: Tokens.radius.card,
     borderWidth: 1, borderColor: Colors.cardBorder, overflow: 'hidden',
   },
   summaryRow: {
@@ -376,21 +378,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14, paddingVertical: 12,
     borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Colors.borderLight,
   },
-  summaryLabel: { fontSize: 14, color: Colors.text },
-  summaryValue: { fontSize: 14, fontWeight: '700', color: Colors.text },
+  summaryLabel: { fontSize: Type.bodyCompact.fontSize, color: Colors.text },
+  summaryValue: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
 
   resultCard: {
-    backgroundColor: Colors.surface, borderRadius: 12,
+    backgroundColor: Colors.surface, borderRadius: Tokens.radius.card,
     borderWidth: 1, borderColor: Colors.cardBorder,
     padding: 14, gap: 10,
   },
-  resultHeader: { fontSize: 13, fontWeight: '600', color: Colors.text, marginBottom: 4 },
+  resultHeader: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: Colors.text, marginBottom: 4 },
   fileRow: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     paddingVertical: 10, paddingHorizontal: 12,
-    backgroundColor: Colors.background, borderRadius: 8,
+    backgroundColor: Colors.background, borderRadius: Tokens.radius.sm,
   },
-  fileName: { flex: 1, fontSize: 12, color: Colors.text, fontFamily: Platform.select({ ios: 'Menlo', default: 'monospace' }) },
+  fileName: { flex: 1, fontSize: Type.caption1.fontSize, color: Colors.text, fontFamily: Platform.select({ ios: 'Menlo', default: 'monospace' }) },
 
   bottomBar: {
     position: 'absolute', left: 0, right: 0, bottom: 0,
@@ -400,8 +402,8 @@ const styles = StyleSheet.create({
   },
   primaryBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: Colors.primary, paddingVertical: 16, borderRadius: 12,
+    backgroundColor: Colors.primary, paddingVertical: 16, borderRadius: Tokens.radius.card,
   },
   primaryBtnDisabled: { opacity: 0.6 },
-  primaryBtnTxt: { color: Colors.textOnPrimary, fontWeight: '700', fontSize: 15 },
+  primaryBtnTxt: { color: Colors.textOnPrimary, fontWeight: '700', fontSize: Type.subhead.fontSize },
 });

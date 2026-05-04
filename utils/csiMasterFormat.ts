@@ -127,10 +127,10 @@ export function classifyToCSIDivision(text: string): string | null {
 }
 
 /** Group items by CSI division for a SOV-style display. */
-export function groupByCSIDivision<T extends { csiDivision?: string | null }>(items: T[]): Array<{
+export function groupByCSIDivision<T extends { csiDivision?: string | null }>(items: T[]): {
   division: CSIDivision | null;
   items: T[];
-}> {
+}[] {
   const buckets = new Map<string, T[]>();
   for (const it of items) {
     const key = it.csiDivision || '__unassigned__';

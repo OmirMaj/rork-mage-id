@@ -63,10 +63,7 @@ export default function VoiceFieldButton({
           style={styles.button}
           onPress={handlePress}
           activeOpacity={0.8}
-          testID="voice-field-btn"
-        >
-          <Mic size={24} color="#fff" />
-        </TouchableOpacity>
+          testID="voice-field-btn" accessibilityRole="button" accessibilityLabel="Record"><Mic size={24} color="#fff" /></TouchableOpacity>
       </Animated.View>
 
       <VoiceCommandModal

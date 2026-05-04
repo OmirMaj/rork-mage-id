@@ -24,6 +24,8 @@ import { Colors } from '@/constants/colors';
 import type { ProjectSchedule, ScheduleScenario, ScheduleTask } from '@/types';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 /**
  * What-If Scenarios manager.
@@ -169,8 +171,7 @@ export default function ScenariosModal({
             style={styles.newBtn}
             onPress={() => setShowCreate(true)}
             activeOpacity={0.85}
-            testID="scenarios-new-btn"
-          >
+            testID="scenarios-new-btn" accessibilityRole="button" accessibilityLabel="Add">
             <Plus size={16} color={Colors.textOnPrimary} strokeWidth={2.5} />
           </TouchableOpacity>
         </View>
@@ -244,8 +245,7 @@ export default function ScenariosModal({
                   style={styles.deleteBtn}
                   onPress={() => handleDelete(s.id)}
                   activeOpacity={0.7}
-                  testID={`scenarios-delete-${s.id}`}
-                >
+                  testID={`scenarios-delete-${s.id}`} accessibilityRole="button" accessibilityLabel="Delete">
                   <Trash2 size={14} color={Colors.error} />
                 </TouchableOpacity>
               </View>
@@ -340,12 +340,12 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.borderLight,
   },
   backBtn: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingVertical: 8, paddingRight: 12 },
-  backText: { fontSize: 15, color: Colors.primary, fontWeight: '500' as const },
-  title: { fontSize: 17, fontWeight: '700' as const, color: Colors.text },
+  backText: { fontSize: Type.subhead.fontSize, color: Colors.primary, fontWeight: '500' as const },
+  title: { fontSize: Type.body.fontSize, fontWeight: '700' as const, color: Colors.text },
   newBtn: {
     width: 32,
     height: 32,
-    borderRadius: 16,
+    borderRadius: Tokens.radius.panel,
     backgroundColor: Colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
@@ -357,12 +357,12 @@ const styles = StyleSheet.create({
     gap: 10,
     padding: 12,
     backgroundColor: Colors.primary + '10',
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     marginBottom: 6,
   },
   helpText: {
     flex: 1,
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     color: Colors.textSecondary,
     lineHeight: 17,
   },
@@ -370,7 +370,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.surface,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     padding: 14,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
@@ -389,24 +389,24 @@ const styles = StyleSheet.create({
   },
   rowName: {
     flex: 1,
-    fontSize: 15,
+    fontSize: Type.subhead.fontSize,
     fontWeight: '600' as const,
     color: Colors.text,
   },
   rowNameActive: { color: Colors.primary, fontWeight: '700' as const },
-  rowNote: { fontSize: 12, color: Colors.textSecondary, lineHeight: 17 },
-  rowMeta: { fontSize: 11, color: Colors.textMuted },
+  rowNote: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, lineHeight: 17 },
+  rowMeta: { fontSize: Type.caption2.fontSize, color: Colors.textMuted },
   deleteBtn: {
     width: 32,
     height: 32,
-    borderRadius: 16,
+    borderRadius: Tokens.radius.panel,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: Colors.error + '10',
   },
   empty: { padding: 24, alignItems: 'center' },
   emptyText: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: Colors.textMuted,
     textAlign: 'center',
     lineHeight: 19,
@@ -435,18 +435,18 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   createTitle: {
-    fontSize: 18,
+    fontSize: Type.subheadline.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
   },
   createHint: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     color: Colors.textSecondary,
     marginBottom: 8,
     lineHeight: 17,
   },
   fieldLabel: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     fontWeight: '600' as const,
     color: Colors.textSecondary,
     marginTop: 10,
@@ -454,10 +454,10 @@ const styles = StyleSheet.create({
   },
   input: {
     minHeight: 42,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
     backgroundColor: Colors.surfaceAlt,
     paddingHorizontal: 12,
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     color: Colors.text,
   },
   inputMulti: { minHeight: 70, paddingTop: 10, textAlignVertical: 'top' as const },
@@ -469,26 +469,26 @@ const styles = StyleSheet.create({
   cancelBtn: {
     flex: 1,
     height: 44,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     backgroundColor: Colors.fillTertiary,
     alignItems: 'center',
     justifyContent: 'center',
   },
   cancelBtnText: {
-    fontSize: 15,
+    fontSize: Type.subhead.fontSize,
     fontWeight: '600' as const,
     color: Colors.textSecondary,
   },
   saveBtn: {
     flex: 1,
     height: 44,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     backgroundColor: Colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
   saveBtnText: {
-    fontSize: 15,
+    fontSize: Type.subhead.fontSize,
     fontWeight: '700' as const,
     color: Colors.textOnPrimary,
   },

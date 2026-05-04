@@ -17,6 +17,8 @@ import { useSubscription } from '@/contexts/SubscriptionContext';
 import AISubEvaluator from '@/components/AISubEvaluator';
 import type { Subcontractor, SubTrade, ComplianceStatus } from '@/types';
 import { SUB_TRADES } from '@/types';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 function createId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -230,9 +232,7 @@ export default function SubsScreen() {
           <View>
             <View style={styles.headerRow}>
               <Text style={styles.largeTitle}>Subs</Text>
-              <TouchableOpacity style={styles.addBtn} onPress={openCreate} activeOpacity={0.7} testID="add-sub">
-                <Plus size={20} color="#fff" />
-              </TouchableOpacity>
+              <TouchableOpacity style={styles.addBtn} onPress={openCreate} activeOpacity={0.7} testID="add-sub" accessibilityRole="button" accessibilityLabel="Add"><Plus size={20} color="#fff" /></TouchableOpacity>
             </View>
 
             <TouchableOpacity
@@ -378,7 +378,7 @@ export default function SubsScreen() {
               <View style={[styles.formCard, { paddingBottom: insets.bottom + 20 }]}>
                 <View style={styles.formHeader}>
                   <Text style={styles.formTitle}>{editingSub ? 'Edit Subcontractor' : 'Add Subcontractor'}</Text>
-                  <TouchableOpacity onPress={() => { setShowForm(false); resetForm(); }}>
+                  <TouchableOpacity onPress={() => { setShowForm(false); resetForm(); }} accessibilityRole="button" accessibilityLabel="Close">
                     <X size={20} color={Colors.textMuted} />
                   </TouchableOpacity>
                 </View>
@@ -467,7 +467,7 @@ export default function SubsScreen() {
                 <ScrollView showsVerticalScrollIndicator={false}>
                   <View style={styles.formHeader}>
                     <Text style={styles.formTitle}>{sub.companyName}</Text>
-                    <TouchableOpacity onPress={() => setShowDetail(null)}>
+                    <TouchableOpacity onPress={() => setShowDetail(null)} accessibilityRole="button" accessibilityLabel="Close">
                       <X size={20} color={Colors.textMuted} />
                     </TouchableOpacity>
                   </View>
@@ -548,86 +548,86 @@ export default function SubsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 4, marginBottom: 16 },
-  largeTitle: { fontSize: 34, fontWeight: '700' as const, color: Colors.text, letterSpacing: -0.5 },
+  largeTitle: { fontSize: Type.largeTitle.fontSize, fontWeight: '700' as const, color: Colors.text, letterSpacing: -0.5 },
   addBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center', shadowColor: Colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
   prequalBanner: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     marginHorizontal: 16, marginBottom: 12,
-    paddingHorizontal: 14, paddingVertical: 12, borderRadius: 14,
+    paddingHorizontal: 14, paddingVertical: 12, borderRadius: Tokens.radius.lg,
     backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.cardBorder,
   },
   prequalIcon: {
-    width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center',
+    width: 34, height: 34, borderRadius: Tokens.radius.md, alignItems: 'center', justifyContent: 'center',
     backgroundColor: `${Colors.primary}15`,
   },
-  prequalTitle: { fontSize: 14, fontWeight: '700' as const, color: Colors.text },
-  prequalSub: { fontSize: 11, color: Colors.textSecondary, marginTop: 1 },
+  prequalTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
+  prequalSub: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, marginTop: 1 },
   statsRow: { flexDirection: 'row', paddingHorizontal: 16, gap: 8, marginBottom: 16 },
-  statCard: { flex: 1, backgroundColor: Colors.surface, borderRadius: 12, padding: 14, borderLeftWidth: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 1 },
+  statCard: { flex: 1, backgroundColor: Colors.surface, borderRadius: Tokens.radius.card, padding: 14, borderLeftWidth: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 1 },
   statNum: { fontSize: 24, fontWeight: '800' as const },
-  statLabel: { fontSize: 11, fontWeight: '600' as const, color: Colors.textMuted, marginTop: 2 },
+  statLabel: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: Colors.textMuted, marginTop: 2 },
   searchWrap: { paddingHorizontal: 16, marginBottom: 12 },
-  searchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.fillTertiary, borderRadius: 12, paddingHorizontal: 12, gap: 8, height: 40 },
-  searchInput: { flex: 1, fontSize: 15, color: Colors.text },
+  searchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.fillTertiary, borderRadius: Tokens.radius.card, paddingHorizontal: 12, gap: 8, height: 40 },
+  searchInput: { flex: 1, fontSize: Type.subhead.fontSize, color: Colors.text },
   clearBtn: { width: 18, height: 18, borderRadius: 9, backgroundColor: Colors.textMuted, alignItems: 'center', justifyContent: 'center' },
   filterRow: { paddingHorizontal: 16, gap: 6, marginBottom: 16 },
   filterChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: Colors.fillTertiary },
   filterChipActive: { backgroundColor: Colors.primary },
-  filterChipText: { fontSize: 13, fontWeight: '600' as const, color: Colors.textSecondary },
+  filterChipText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.textSecondary },
   filterChipTextActive: { color: '#fff' },
-  subCard: { marginHorizontal: 16, marginBottom: 8, backgroundColor: Colors.surface, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: Colors.cardBorder, gap: 10 },
+  subCard: { marginHorizontal: 16, marginBottom: 8, backgroundColor: Colors.surface, borderRadius: Tokens.radius.lg, padding: 16, borderWidth: 1, borderColor: Colors.cardBorder, gap: 10 },
   subCardTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  tradeIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  tradeIcon: { width: 40, height: 40, borderRadius: Tokens.radius.card, alignItems: 'center', justifyContent: 'center' },
   subCardInfo: { flex: 1, gap: 2 },
-  subName: { fontSize: 16, fontWeight: '700' as const, color: Colors.text },
-  subContact: { fontSize: 13, color: Colors.textSecondary },
-  statusBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
+  subName: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.text },
+  subContact: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary },
+  statusBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: Tokens.radius.sm },
   statusDot: { width: 6, height: 6, borderRadius: 3 },
-  statusText: { fontSize: 11, fontWeight: '700' as const },
+  statusText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const },
   subCardMeta: { flexDirection: 'row', gap: 16, paddingLeft: 52 },
   metaItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  metaText: { fontSize: 12, color: Colors.textMuted },
+  metaText: { fontSize: Type.caption1.fontSize, color: Colors.textMuted },
   emptyState: { alignItems: 'center', paddingVertical: 60, paddingHorizontal: 40, gap: 10 },
-  emptyTitle: { fontSize: 20, fontWeight: '700' as const, color: Colors.text },
-  emptyDesc: { fontSize: 15, color: Colors.textSecondary, textAlign: 'center' as const, lineHeight: 22 },
-  emptyBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: Colors.primary, paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12, marginTop: 8 },
-  emptyBtnText: { fontSize: 15, fontWeight: '700' as const, color: '#fff' },
+  emptyTitle: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: Colors.text },
+  emptyDesc: { fontSize: Type.subhead.fontSize, color: Colors.textSecondary, textAlign: 'center' as const, lineHeight: 22 },
+  emptyBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: Colors.primary, paddingHorizontal: 20, paddingVertical: 12, borderRadius: Tokens.radius.card, marginTop: 8 },
+  emptyBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: '#fff' },
   modalOverlay: { flex: 1, backgroundColor: Colors.overlay, justifyContent: 'flex-end' },
   formCard: { backgroundColor: Colors.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 22, gap: 8, maxHeight: '90%' },
   formHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  formTitle: { fontSize: 20, fontWeight: '700' as const, color: Colors.text },
-  fieldLabel: { fontSize: 13, fontWeight: '600' as const, color: Colors.textSecondary, marginTop: 4 },
-  input: { minHeight: 44, borderRadius: 12, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 14, fontSize: 15, color: Colors.text },
+  formTitle: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: Colors.text },
+  fieldLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.textSecondary, marginTop: 4 },
+  input: { minHeight: 44, borderRadius: Tokens.radius.card, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 14, fontSize: Type.subhead.fontSize, color: Colors.text },
   tradeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4 },
-  tradeChip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, backgroundColor: Colors.fillTertiary },
+  tradeChip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: Tokens.radius.md, backgroundColor: Colors.fillTertiary },
   tradeChipActive: { backgroundColor: Colors.primary },
-  tradeChipText: { fontSize: 12, fontWeight: '600' as const, color: Colors.textSecondary },
+  tradeChipText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.textSecondary },
   tradeChipTextActive: { color: '#fff' },
-  sectionDivider: { fontSize: 11, fontWeight: '700' as const, color: Colors.textMuted, letterSpacing: 0.5, marginTop: 12, marginBottom: 4 },
-  switchRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 44, paddingHorizontal: 14, backgroundColor: Colors.surfaceAlt, borderRadius: 12 },
-  switchLabel: { fontSize: 15, color: Colors.text },
+  sectionDivider: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: Colors.textMuted, letterSpacing: 0.5, marginTop: 12, marginBottom: 4 },
+  switchRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 44, paddingHorizontal: 14, backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.card },
+  switchLabel: { fontSize: Type.subhead.fontSize, color: Colors.text },
   formActions: { flexDirection: 'row', gap: 10, marginTop: 12 },
-  cancelBtn: { flex: 1, minHeight: 48, borderRadius: 14, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
-  cancelBtnText: { fontSize: 15, fontWeight: '700' as const, color: Colors.text },
-  saveBtn: { flex: 2, minHeight: 48, borderRadius: 14, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
-  saveBtnText: { fontSize: 15, fontWeight: '700' as const, color: '#fff' },
+  cancelBtn: { flex: 1, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
+  cancelBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text },
+  saveBtn: { flex: 2, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
+  saveBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: '#fff' },
   detailCard: { backgroundColor: Colors.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 22, maxHeight: '85%' },
-  detailStatusBar: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, borderRadius: 12, borderLeftWidth: 3, marginBottom: 16 },
-  detailStatusText: { fontSize: 14, fontWeight: '700' as const },
+  detailStatusBar: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, borderRadius: Tokens.radius.card, borderLeftWidth: 3, marginBottom: 16 },
+  detailStatusText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const },
   detailSection: { marginBottom: 20, gap: 8 },
-  detailSectionTitle: { fontSize: 11, fontWeight: '700' as const, color: Colors.textMuted, letterSpacing: 0.5 },
+  detailSectionTitle: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: Colors.textMuted, letterSpacing: 0.5 },
   detailRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  detailRowText: { fontSize: 15, color: Colors.text },
+  detailRowText: { fontSize: Type.subhead.fontSize, color: Colors.text },
   bidRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: Colors.borderLight },
-  bidProject: { fontSize: 14, fontWeight: '600' as const, color: Colors.text },
-  bidDate: { fontSize: 12, color: Colors.textMuted },
-  bidAmount: { fontSize: 14, fontWeight: '700' as const, color: Colors.text },
-  bidOutcome: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  bidProject: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
+  bidDate: { fontSize: Type.caption1.fontSize, color: Colors.textMuted },
+  bidAmount: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
+  bidOutcome: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.xs },
   bidOutcomeText: { fontSize: 10, fontWeight: '700' as const },
-  detailNotes: { fontSize: 14, color: Colors.textSecondary, lineHeight: 20 },
+  detailNotes: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, lineHeight: 20 },
   detailActions: { flexDirection: 'row', gap: 10, marginTop: 16 },
-  editDetailBtn: { flex: 1, minHeight: 48, borderRadius: 14, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
-  editDetailBtnText: { fontSize: 15, fontWeight: '700' as const, color: '#fff' },
-  deleteDetailBtn: { flexDirection: 'row', minHeight: 48, paddingHorizontal: 20, borderRadius: 14, backgroundColor: Colors.errorLight, alignItems: 'center', justifyContent: 'center', gap: 6 },
-  deleteDetailBtnText: { fontSize: 15, fontWeight: '700' as const, color: Colors.error },
+  editDetailBtn: { flex: 1, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
+  editDetailBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: '#fff' },
+  deleteDetailBtn: { flexDirection: 'row', minHeight: 48, paddingHorizontal: 20, borderRadius: Tokens.radius.lg, backgroundColor: Colors.errorLight, alignItems: 'center', justifyContent: 'center', gap: 6 },
+  deleteDetailBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.error },
 });

@@ -25,6 +25,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { useUserLocation, getDistanceMiles } from '@/utils/location';
 import { formatMoney } from '@/utils/formatters';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 interface BrowseRow {
   id: string;
@@ -447,24 +449,24 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   eyebrow: { fontSize: 10, fontWeight: '800', color: Colors.primary, letterSpacing: 1.4, textTransform: 'uppercase' },
-  title:   { fontSize: 18, fontWeight: '800', color: Colors.text, letterSpacing: -0.3, marginTop: 2 },
+  title:   { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.3, marginTop: 2 },
   postCta: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
     paddingHorizontal: 12, paddingVertical: 9, borderRadius: 9,
     backgroundColor: Colors.primary,
   },
-  postCtaText: { fontSize: 12, fontWeight: '800', color: '#FFF' },
+  postCtaText: { fontSize: Type.caption1.fontSize, fontWeight: '800', color: '#FFF' },
 
   segmentRow: { flexDirection: 'row', paddingHorizontal: 16, paddingTop: 12, gap: 8 },
   segment: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-    paddingVertical: 9, borderRadius: 10,
+    paddingVertical: 9, borderRadius: Tokens.radius.md,
     backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,
   },
   segmentActive: { backgroundColor: Colors.primary + '12', borderColor: Colors.primary },
-  segmentText:  { fontSize: 13, fontWeight: '700', color: Colors.textMuted },
+  segmentText:  { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.textMuted },
   segmentTextActive: { color: Colors.primary },
-  unreadDot: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: 999, backgroundColor: Colors.primary, minWidth: 18, alignItems: 'center' },
+  unreadDot: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: Tokens.radius.full, backgroundColor: Colors.primary, minWidth: 18, alignItems: 'center' },
   unreadDotText: { fontSize: 10, fontWeight: '800', color: '#FFF' },
 
   controls: {
@@ -473,70 +475,70 @@ const styles = StyleSheet.create({
   },
   locBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingHorizontal: 10, paddingVertical: 7, borderRadius: 8,
+    paddingHorizontal: 10, paddingVertical: 7, borderRadius: Tokens.radius.sm,
     backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,
     alignSelf: 'flex-start',
   },
-  locBtnText: { fontSize: 11, color: Colors.text, fontWeight: '600' },
+  locBtnText: { fontSize: Type.caption2.fontSize, color: Colors.text, fontWeight: '600' },
   radiusRow: { flexDirection: 'row', gap: 5 },
   radiusChip: {
     paddingHorizontal: 9, paddingVertical: 5, borderRadius: 7,
     backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,
   },
   radiusChipActive: { backgroundColor: Colors.text, borderColor: Colors.text },
-  radiusChipText:  { fontSize: 11, fontWeight: '700', color: Colors.text },
+  radiusChipText:  { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.text },
   radiusChipTextActive: { color: '#FFF' },
 
   loading: { padding: 30, alignItems: 'center' },
   emptyCard: {
-    backgroundColor: Colors.card, borderRadius: 14, padding: 28,
+    backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 28,
     alignItems: 'center', gap: 8, marginTop: 22,
     borderWidth: 1, borderColor: Colors.border,
   },
-  emptyTitle: { fontSize: 16, fontWeight: '800', color: Colors.text, marginTop: 4, textAlign: 'center' },
-  emptyBody: { fontSize: 13, color: Colors.textMuted, textAlign: 'center', lineHeight: 19, maxWidth: 340 },
+  emptyTitle: { fontSize: Type.callout.fontSize, fontWeight: '800', color: Colors.text, marginTop: 4, textAlign: 'center' },
+  emptyBody: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, textAlign: 'center', lineHeight: 19, maxWidth: 340 },
   bigCta: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: 18, paddingVertical: 11, borderRadius: 11,
     backgroundColor: Colors.primary, marginTop: 10,
   },
-  bigCtaText: { color: '#FFF', fontSize: 14, fontWeight: '800' },
+  bigCtaText: { color: '#FFF', fontSize: Type.bodyCompact.fontSize, fontWeight: '800' },
 
   statsRow: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: Colors.card, borderRadius: 14, padding: 14,
+    backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 14,
     borderWidth: 1, borderColor: Colors.border, marginBottom: 12,
   },
   statItem: { flex: 1, alignItems: 'center' },
-  statValue: { fontSize: 18, fontWeight: '800', color: Colors.text, letterSpacing: -0.3 },
+  statValue: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.3 },
   statLabel: { fontSize: 10, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 3 },
   statDiv: { width: 1, alignSelf: 'stretch', backgroundColor: Colors.border, marginVertical: 4 },
 
   rfpCard: {
-    backgroundColor: Colors.card, borderRadius: 14, overflow: 'hidden',
+    backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, overflow: 'hidden',
     borderWidth: 1, borderColor: Colors.border, marginBottom: 12,
   },
   rfpHero: { width: '100%', height: 130, backgroundColor: Colors.background },
   rfpBody: { padding: 14, gap: 6 },
   rfpHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-  rfpTitle: { flex: 1, fontSize: 15, fontWeight: '700', color: Colors.text, lineHeight: 21 },
+  rfpTitle: { flex: 1, fontSize: Type.subhead.fontSize, fontWeight: '700', color: Colors.text, lineHeight: 21 },
   verifyDot: { width: 22, height: 22, borderRadius: 11, backgroundColor: Colors.success + '15', alignItems: 'center', justifyContent: 'center' },
-  rfpScope: { fontSize: 12, color: Colors.textMuted, lineHeight: 17 },
+  rfpScope: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, lineHeight: 17 },
   rfpMeta: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  rfpMetaText: { flex: 1, fontSize: 11, color: Colors.textMuted, fontWeight: '600' },
-  rfpBudget: { fontSize: 12, color: Colors.text, fontWeight: '600' },
+  rfpMetaText: { flex: 1, fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontWeight: '600' },
+  rfpBudget: { fontSize: Type.caption1.fontSize, color: Colors.text, fontWeight: '600' },
   rfpFoot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 6, paddingTop: 8, borderTopWidth: 1, borderTopColor: Colors.border, gap: 8 },
   footChip: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
-    paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999,
+    paddingHorizontal: 8, paddingVertical: 4, borderRadius: Tokens.radius.full,
     backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border,
   },
-  footChipText: { fontSize: 11, fontWeight: '700', color: Colors.text },
+  footChipText: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.text },
 
-  statusPill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 999 },
+  statusPill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 7, paddingVertical: 3, borderRadius: Tokens.radius.full },
   statusPillText: { fontSize: 9, fontWeight: '800', letterSpacing: 0.6 },
   responseChip: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  responseChipText: { fontSize: 12, fontWeight: '700', color: Colors.text },
-  unreadDotSm: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: 999, backgroundColor: Colors.primary, minWidth: 18, alignItems: 'center' },
+  responseChipText: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: Colors.text },
+  unreadDotSm: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: Tokens.radius.full, backgroundColor: Colors.primary, minWidth: 18, alignItems: 'center' },
   unreadDotSmText: { fontSize: 10, fontWeight: '800', color: '#FFF' },
 });

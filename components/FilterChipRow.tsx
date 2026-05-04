@@ -12,6 +12,8 @@ import React, { useCallback } from 'react';
 import { ScrollView, Text, TouchableOpacity, StyleSheet, View, Platform } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { Colors } from '@/constants/colors';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 export interface FilterChip<T extends string = string> {
   /** Stable identifier — what gets passed back via onChange. */
@@ -109,7 +111,7 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
   },
   label: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '600',
     color: Colors.textSecondary,
   },
@@ -118,12 +120,12 @@ const styles = StyleSheet.create({
     minWidth: 20,
     paddingHorizontal: 5,
     paddingVertical: 1,
-    borderRadius: 8,
+    borderRadius: Tokens.radius.sm,
     alignItems: 'center',
     justifyContent: 'center',
   },
   countText: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     fontWeight: '700',
     color: Colors.textSecondary,
   },

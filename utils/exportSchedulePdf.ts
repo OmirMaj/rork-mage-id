@@ -25,6 +25,21 @@ import type { ScheduleTask } from '@/types';
 import type { CpmResult } from '@/utils/cpm';
 import type { NamedBaseline } from '@/utils/scheduleOps';
 
+/**
+ * Paper sizes the PDF export supports.
+ *   'a3'    — 11.7" × 16.5" landscape. The default. Fits most schedules
+ *             and prints on any office printer.
+ *   'letter'— 8.5" × 11" landscape. For when the GC just wants to email
+ *             a one-page snapshot.
+ *   'arch_d'— 24" × 36" landscape (Architectural D). The "field Gantt"
+ *             — print at the local FedEx, tape to the trailer wall, the
+ *             foreman + every sub reads it without squinting. Bluebeam
+ *             ships D-size by default; we close that gap.
+ *   'arch_e'— 36" × 48" landscape (Architectural E). For mega-schedules
+ *             with 100+ tasks where Arch D still feels cramped.
+ */
+export type SchedulePdfPaperSize = 'a3' | 'letter' | 'arch_d' | 'arch_e';
+
 interface ExportOpts {
   projectName: string;
   scheduleStartIso: string | undefined;
@@ -37,6 +52,34 @@ interface ExportOpts {
    * classic single-plan export.
    */
   baseline?: NamedBaseline;
+  /** Paper size — defaults to A3 landscape (existing behavior). */
+  paperSize?: SchedulePdfPaperSize;
+}
+
+/** Map paper size key → CSS @page size declaration. Landscape on all
+ *  paper sizes — the Gantt is wider than it is tall. */
+function cssPageSize(size: SchedulePdfPaperSize): string {
+  switch (size) {
+    case 'letter': return '11in 8.5in';     // Letter landscape
+    case 'arch_d': return '36in 24in';      // Arch D landscape
+    case 'arch_e': return '48in 36in';      // Arch E landscape
+    case 'a3':
+    default:       return 'A3 landscape';
+  }
+}
+
+/** Pixel scaling per paper size — bigger paper = bigger labels so the
+ *  PDF stays readable at print scale. */
+function paperScale(size: SchedulePdfPaperSize): {
+  body: number; h1: number; cellLabel: number; cellHead: number;
+} {
+  switch (size) {
+    case 'letter': return { body: 10, h1: 18, cellLabel: 10, cellHead: 9 };
+    case 'arch_d': return { body: 16, h1: 32, cellLabel: 16, cellHead: 13 };
+    case 'arch_e': return { body: 20, h1: 40, cellLabel: 20, cellHead: 16 };
+    case 'a3':
+    default:       return { body: 11, h1: 20, cellLabel: 11, cellHead: 10 };
+  }
 }
 
 function addDays(iso: string | undefined, days: number): string {
@@ -56,7 +99,9 @@ function escapeHtml(s: string): string {
     .replace(/'/g, '&#39;');
 }
 
-function buildHtml({ projectName, scheduleStartIso, tasks, cpm, baseline }: ExportOpts): string {
+function buildHtml({ projectName, scheduleStartIso, tasks, cpm, baseline, paperSize = 'a3' }: ExportOpts): string {
+  const pageSize = cssPageSize(paperSize);
+  const scale = paperScale(paperSize);
   const totalDays = Math.max(1, cpm.projectFinish);
   // Fast lookup from task id → baseline snapshot. Missing means the task
   // was added after baseline was captured — we show em-dashes rather
@@ -69,7 +114,7 @@ function buildHtml({ projectName, scheduleStartIso, tasks, cpm, baseline }: Expo
   // task that slipped (|endDelta| > 0) and rank by absolute slip so the
   // PM sees the worst offenders first. Cap at 5 so the summary doesn't
   // crowd out the Gantt.
-  const variances: Array<{ title: string; endDelta: number }> = [];
+  const variances: { title: string; endDelta: number }[] = [];
   if (baselineById) {
     for (const t of tasks) {
       const b = baselineById.get(t.id);
@@ -214,15 +259,15 @@ function buildHtml({ projectName, scheduleStartIso, tasks, cpm, baseline }: Expo
 <meta charset="utf-8" />
 <title>${escapeHtml(projectName)} — MAGE Schedule${baseline ? ' — Baseline comparison' : ''}</title>
 <style>
-  @page { size: A3 landscape; margin: 18mm; }
-  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #111; margin: 0; }
+  @page { size: ${pageSize}; margin: ${paperSize === 'arch_d' || paperSize === 'arch_e' ? '24mm' : '18mm'}; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #111; margin: 0; font-size: ${scale.body}px; }
   header { display: flex; justify-content: space-between; align-items: flex-end; padding-bottom: 12px; border-bottom: 2px solid #FF9500; margin-bottom: 18px; }
-  header .brand { font-size: 12px; font-weight: 800; color: #FF9500; letter-spacing: 3px; text-transform: uppercase; }
-  header h1 { font-size: 20px; margin: 4px 0 0; }
-  header .meta { text-align: right; font-size: 11px; color: #555; line-height: 1.5; }
+  header .brand { font-size: ${Math.max(10, scale.cellHead)}px; font-weight: 800; color: #FF9500; letter-spacing: 3px; text-transform: uppercase; }
+  header h1 { font-size: ${scale.h1}px; margin: 4px 0 0; }
+  header .meta { text-align: right; font-size: ${scale.cellHead}px; color: #555; line-height: 1.5; }
   table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-  thead th { font-size: 10px; text-transform: uppercase; color: #666; text-align: left; padding: 6px 10px; border-bottom: 1.5px solid #ccc; letter-spacing: 0.5px; }
-  td { font-size: 11px; padding: 5px 10px; border-bottom: 1px solid #eee; vertical-align: middle; }
+  thead th { font-size: ${scale.cellHead}px; text-transform: uppercase; color: #666; text-align: left; padding: 6px 10px; border-bottom: 1.5px solid #ccc; letter-spacing: 0.5px; }
+  td { font-size: ${scale.cellLabel}px; padding: 5px 10px; border-bottom: 1px solid #eee; vertical-align: middle; }
   td.num { text-align: right; font-variant-numeric: tabular-nums; }
   td.title { max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   td.timeline { position: relative; height: 24px; background: repeating-linear-gradient(to right, transparent 0 calc(100% / 30 - 1px), #f4f4f4 calc(100% / 30 - 1px) calc(100% / 30)); }

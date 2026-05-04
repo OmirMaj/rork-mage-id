@@ -63,12 +63,12 @@ export interface ParsedVoiceCommand {
 }
 
 export interface ParsedBatchCommand {
-  commands: Array<{
+  commands: {
     action: 'update_progress' | 'mark_complete' | 'add_note' | 'log_issue' | 'start_task';
     taskName: string;
     value?: number;
     text?: string;
-  }>;
+  }[];
   confidence: number;
 }
 
@@ -84,7 +84,7 @@ export interface ParsedDailyReport {
   tomorrowPlan?: string[];
 }
 
-function buildTaskContext(tasks: Array<{ title: string; phase: string; progress: number; status: string; crew: string }>): string {
+function buildTaskContext(tasks: { title: string; phase: string; progress: number; status: string; crew: string }[]): string {
   return tasks.map(t => `- "${t.title}" (${t.phase}) — ${t.progress}% complete, status: ${t.status}, crew: ${t.crew}`).join('\n');
 }
 
@@ -112,7 +112,7 @@ function isDailyReport(text: string): boolean {
 
 export async function parseVoiceCommand(
   spokenText: string,
-  currentTasks: Array<{ title: string; phase: string; progress: number; status: string; crew: string }>,
+  currentTasks: { title: string; phase: string; progress: number; status: string; crew: string }[],
   projectName: string
 ): Promise<ParsedVoiceCommand> {
   console.log('[VoiceCmd] Parsing command:', spokenText.substring(0, 80));
@@ -165,7 +165,7 @@ Set confidence 0-100. Below 60 means you should include a clarification.`,
 
 export async function parseBatchVoiceCommand(
   spokenText: string,
-  currentTasks: Array<{ title: string; phase: string; progress: number; status: string; crew: string }>,
+  currentTasks: { title: string; phase: string; progress: number; status: string; crew: string }[],
   projectName: string
 ): Promise<ParsedBatchCommand> {
   console.log('[VoiceCmd] Parsing batch command:', spokenText.substring(0, 80));

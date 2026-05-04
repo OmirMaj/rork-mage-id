@@ -22,6 +22,8 @@ import { useProjects } from '@/contexts/ProjectContext';
 import FilterChipRow, { type FilterChip } from '@/components/FilterChipRow';
 import EmptyState from '@/components/EmptyState';
 import { formatMoney } from '@/utils/formatters';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 type ReportKind = 'all' | 'dfr' | 'rfi' | 'submittal' | 'invoice' | 'changeOrder';
 type StatusFilter = 'all' | 'open' | 'closed' | 'overdue';
@@ -319,21 +321,21 @@ export default function ReportInboxScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   headerBack: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingVertical: 6, paddingLeft: 4, minWidth: 72 },
-  headerBackText: { fontSize: 16, fontWeight: '500', color: Colors.primary },
+  headerBackText: { fontSize: Type.callout.fontSize, fontWeight: '500', color: Colors.primary },
   filtersBar: { backgroundColor: Colors.surface, borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight, paddingBottom: 4 },
   listContent: { padding: 12, gap: 8 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: Colors.card, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderColor: Colors.cardBorder },
-  rowIcon: { width: 32, height: 32, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: Colors.card, borderRadius: Tokens.radius.card, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderColor: Colors.cardBorder },
+  rowIcon: { width: 32, height: 32, borderRadius: Tokens.radius.sm, alignItems: 'center', justifyContent: 'center' },
   rowMain: { flex: 1 },
-  rowPrimary: { fontSize: 14, fontWeight: '700', color: Colors.text },
-  rowProject: { fontSize: 11, color: Colors.textMuted, fontWeight: '600', marginTop: 1 },
-  rowSecondary: { fontSize: 12, color: Colors.textSecondary, marginTop: 1 },
+  rowPrimary: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
+  rowProject: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontWeight: '600', marginTop: 1 },
+  rowSecondary: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, marginTop: 1 },
   rowRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  badge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
-  badgeText: { fontSize: 11, fontWeight: '700' },
-  overduePill: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: Colors.errorLight, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
+  badge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.sm },
+  badgeText: { fontSize: Type.caption2.fontSize, fontWeight: '700' },
+  overduePill: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: Colors.errorLight, paddingHorizontal: 6, paddingVertical: 2, borderRadius: Tokens.radius.xs },
   overduePillText: { fontSize: 9, fontWeight: '800', color: Colors.error, letterSpacing: 0.5 },
   emptyWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 30, gap: 8 },
-  emptyTitle: { fontSize: 17, fontWeight: '700', color: Colors.text },
-  emptySub: { fontSize: 13, color: Colors.textSecondary, textAlign: 'center', maxWidth: 280 },
+  emptyTitle: { fontSize: Type.body.fontSize, fontWeight: '700', color: Colors.text },
+  emptySub: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, textAlign: 'center', maxWidth: 280 },
 });

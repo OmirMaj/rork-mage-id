@@ -15,7 +15,7 @@ import {
   Mail, MessageSquare, FolderOpen, FileText, Send,
   HardHat, Boxes, ClipboardList, Ruler, Calculator, Gauge, GitCompare,
   ChevronRight,
-} from 'lucide-react-native';
+ Sparkles, Wifi, PlusCircle, History, Star, FileUp } from 'lucide-react-native';
 import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
 import { Colors } from '@/constants/colors';
@@ -28,7 +28,6 @@ import {
   getPopularCustomMaterials, aiResultToSavedMaterial, addRecentMaterial,
   getRecentMaterials, type SavedMaterial, type RecentMaterial,
 } from '@/utils/materialDatabase';
-import { Sparkles, Wifi, PlusCircle, History, Star, FileUp } from 'lucide-react-native';
 import { generateAndSharePDF, generateEstimatePDFUri } from '@/utils/pdfGenerator';
 import * as Sharing from 'expo-sharing';
 import PDFPreSendSheet from '@/components/PDFPreSendSheet';
@@ -47,6 +46,8 @@ import AICopilot from '@/components/AICopilot';
 import AIQuickEstimate from '@/components/AIQuickEstimate';
 import { CATEGORY_COST_FACTORS } from '@/constants/materials';
 import { formatMoney } from '@/utils/formatters';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 interface CartItem {
   material: MaterialItem;
@@ -1142,11 +1143,11 @@ export default function EstimateScreen() {
             <View style={styles.cartQtyRow}>
               <Text style={styles.cartExpandLabel}>Quantity</Text>
               <View style={styles.qtyControl}>
-                <TouchableOpacity style={styles.qtyBtn} onPress={() => updateQuantity(item.material.id, -1)}>
+                <TouchableOpacity style={styles.qtyBtn} onPress={() => updateQuantity(item.material.id, -1)} accessibilityRole="button" accessibilityLabel="Remove">
                   <Minus size={14} color={Colors.primary} />
                 </TouchableOpacity>
                 <Text style={styles.qtyValue}>{item.quantity}</Text>
-                <TouchableOpacity style={styles.qtyBtn} onPress={() => updateQuantity(item.material.id, 1)}>
+                <TouchableOpacity style={styles.qtyBtn} onPress={() => updateQuantity(item.material.id, 1)} accessibilityRole="button" accessibilityLabel="Add">
                   <Plus size={14} color={Colors.primary} />
                 </TouchableOpacity>
               </View>
@@ -1195,13 +1196,13 @@ export default function EstimateScreen() {
         testID="wizard-cta"
       >
         <View style={styles.wizardCtaIcon}>
-          <Sparkles size={18} color="#FFFFFF" />
+          <Sparkles size={18} color={Colors.surface} />
         </View>
         <View style={styles.wizardCtaText}>
           <Text style={styles.wizardCtaTitle}>Quick Estimate Wizard</Text>
           <Text style={styles.wizardCtaSubtitle}>Answer 8 questions, get an AI-generated estimate</Text>
         </View>
-        <ChevronRight size={18} color="#FFFFFF" />
+        <ChevronRight size={18} color={Colors.surface} />
       </TouchableOpacity>
       <View style={styles.header}>
         <View style={styles.headerTop}>
@@ -1221,6 +1222,15 @@ export default function EstimateScreen() {
             >
               <FileUp size={13} color={Colors.textOnPrimary} />
               <Text style={styles.aiEstimateBtnText}>Plans</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.aiEstimateBtn}
+              onPress={() => router.push('/takeoff' as never)}
+              activeOpacity={0.8}
+              testID="takeoff-btn"
+            >
+              <Ruler size={13} color={Colors.textOnPrimary} />
+              <Text style={styles.aiEstimateBtnText}>Takeoff</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.aiEstimateBtn}
@@ -1251,10 +1261,7 @@ export default function EstimateScreen() {
               style={styles.refreshIconBtn}
               onPress={refreshPrices}
               activeOpacity={0.7}
-              testID="refresh-btn"
-            >
-              <RefreshCw size={15} color={Colors.textSecondary} />
-            </TouchableOpacity>
+              testID="refresh-btn" accessibilityRole="button" accessibilityLabel="Refresh"><RefreshCw size={15} color={Colors.textSecondary} /></TouchableOpacity>
             <TouchableOpacity
               style={styles.cartButton}
               onPress={() => setShowCart(true)}
@@ -1318,7 +1325,7 @@ export default function EstimateScreen() {
             testID="search-input"
           />
           {query.length > 0 && (
-            <TouchableOpacity onPress={() => setQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <TouchableOpacity onPress={() => setQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel="Close">
               <X size={16} color={Colors.textMuted} />
             </TouchableOpacity>
           )}
@@ -1466,7 +1473,7 @@ export default function EstimateScreen() {
               <Sparkles size={14} color={Colors.primary} />
               <Text style={aiStyles.aiResultsTitle}>Live Search: "{query}"</Text>
             </View>
-            <TouchableOpacity onPress={() => { setShowAiResults(false); setAiSearchResults([]); }}>
+            <TouchableOpacity onPress={() => { setShowAiResults(false); setAiSearchResults([]); }} accessibilityRole="button" accessibilityLabel="Close">
               <X size={16} color={Colors.textMuted} />
             </TouchableOpacity>
           </View>
@@ -1504,7 +1511,7 @@ export default function EstimateScreen() {
                       </View>
                     </View>
                   </View>
-                  <TouchableOpacity style={aiStyles.aiAddBtn} onPress={() => handleAddAiMaterial(aiMat)} activeOpacity={0.7}>
+                  <TouchableOpacity style={aiStyles.aiAddBtn} onPress={() => handleAddAiMaterial(aiMat)} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Add">
                     <Plus size={18} color={Colors.textOnPrimary} />
                   </TouchableOpacity>
                 </View>
@@ -1834,9 +1841,7 @@ export default function EstimateScreen() {
             <TouchableOpacity style={styles.refreshIconBtn} onPress={() => setShowProductivityCalc(true)} activeOpacity={0.7}>
               <Gauge size={15} color={Colors.textSecondary} />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.refreshIconBtn} onPress={refreshPrices} activeOpacity={0.7}>
-              <RefreshCw size={15} color={Colors.textSecondary} />
-            </TouchableOpacity>
+            <TouchableOpacity style={styles.refreshIconBtn} onPress={refreshPrices} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Refresh"><RefreshCw size={15} color={Colors.textSecondary} /></TouchableOpacity>
             <TouchableOpacity style={styles.cartButton} onPress={() => setShowCart(true)} activeOpacity={0.8}>
               <ShoppingCart size={20} color={Colors.surface} />
               {totalItemCount > 0 && (
@@ -1864,7 +1869,7 @@ export default function EstimateScreen() {
                     returnKeyType="search"
                   />
                   {query.length > 0 && (
-                    <TouchableOpacity onPress={() => setQuery('')}>
+                    <TouchableOpacity onPress={() => setQuery('')} accessibilityRole="button" accessibilityLabel="Close">
                       <X size={16} color={Colors.textMuted} />
                     </TouchableOpacity>
                   )}
@@ -2006,7 +2011,7 @@ export default function EstimateScreen() {
                               <Text style={[dStyles.wsCell, { flex: 1 }]}>${base.toFixed(2)}</Text>
                               <Text style={[dStyles.wsCell, { flex: 1 }]}>{item.markup}%</Text>
                               <Text style={[dStyles.wsCell, { flex: 1, textAlign: 'right' as const, fontWeight: '700' as const }]}>${lineTotal.toFixed(2)}</Text>
-                              <TouchableOpacity style={{ width: 32, alignItems: 'center' as const }} onPress={() => removeFromCart(item.material.id)}>
+                              <TouchableOpacity style={{ width: 32, alignItems: 'center' as const }} onPress={() => removeFromCart(item.material.id)} accessibilityRole="button" accessibilityLabel="Delete">
                                 <Trash2 size={14} color={Colors.error} />
                               </TouchableOpacity>
                             </View>
@@ -2032,7 +2037,7 @@ export default function EstimateScreen() {
                             <Text style={[dStyles.wsCell, { flex: 1 }]}>{item.hours}</Text>
                             <Text style={[dStyles.wsCell, { flex: 1 }]}>${item.adjustedRate.toFixed(2)}</Text>
                             <Text style={[dStyles.wsCell, { flex: 1, textAlign: 'right' as const, fontWeight: '700' as const }]}>${(item.adjustedRate * item.hours).toFixed(2)}</Text>
-                            <TouchableOpacity style={{ width: 32, alignItems: 'center' as const }} onPress={() => removeLaborItem(item.labor.id)}>
+                            <TouchableOpacity style={{ width: 32, alignItems: 'center' as const }} onPress={() => removeLaborItem(item.labor.id)} accessibilityRole="button" accessibilityLabel="Delete">
                               <Trash2 size={14} color={Colors.error} />
                             </TouchableOpacity>
                           </View>
@@ -2059,7 +2064,7 @@ export default function EstimateScreen() {
                             <Text style={[dStyles.wsCell, { flex: 1 }]}>${item.materialsCost.toFixed(0)}</Text>
                             <Text style={[dStyles.wsCell, { flex: 1 }]}>${item.laborCost.toFixed(0)}</Text>
                             <Text style={[dStyles.wsCell, { flex: 1, textAlign: 'right' as const, fontWeight: '700' as const }]}>${item.totalCost.toFixed(2)}</Text>
-                            <TouchableOpacity style={{ width: 32, alignItems: 'center' as const }} onPress={() => removeAssemblyItem(item.assembly.id)}>
+                            <TouchableOpacity style={{ width: 32, alignItems: 'center' as const }} onPress={() => removeAssemblyItem(item.assembly.id)} accessibilityRole="button" accessibilityLabel="Delete">
                               <Trash2 size={14} color={Colors.error} />
                             </TouchableOpacity>
                           </View>
@@ -2163,17 +2168,17 @@ export default function EstimateScreen() {
                 <>
                   <View style={styles.popupHeader}>
                     <Text style={styles.popupTitle} numberOfLines={2}>{selectedMaterial.name}</Text>
-                    <TouchableOpacity onPress={() => setShowItemPopup(false)} style={styles.popupCloseBtn}>
+                    <TouchableOpacity onPress={() => setShowItemPopup(false)} style={styles.popupCloseBtn} accessibilityRole="button" accessibilityLabel="Close">
                       <X size={18} color={Colors.textMuted} />
                     </TouchableOpacity>
                   </View>
                   <Text style={styles.popupFieldLabel}>Quantity</Text>
                   <View style={styles.popupQtyRow}>
-                    <TouchableOpacity style={styles.popupQtyBtn} onPress={() => setItemQty(String(Math.max(1, (parseInt(itemQty, 10) || 1) - 1)))}>
+                    <TouchableOpacity style={styles.popupQtyBtn} onPress={() => setItemQty(String(Math.max(1, (parseInt(itemQty, 10) || 1) - 1)))} accessibilityRole="button" accessibilityLabel="Remove">
                       <Minus size={18} color={Colors.primary} />
                     </TouchableOpacity>
                     <TextInput style={styles.popupQtyInput} value={itemQty} onChangeText={setItemQty} keyboardType="number-pad" textAlign="center" />
-                    <TouchableOpacity style={styles.popupQtyBtn} onPress={() => setItemQty(String((parseInt(itemQty, 10) || 0) + 1))}>
+                    <TouchableOpacity style={styles.popupQtyBtn} onPress={() => setItemQty(String((parseInt(itemQty, 10) || 0) + 1))} accessibilityRole="button" accessibilityLabel="Add">
                       <Plus size={18} color={Colors.primary} />
                     </TouchableOpacity>
                   </View>
@@ -2199,7 +2204,7 @@ export default function EstimateScreen() {
                 <>
                   <View style={styles.popupHeader}>
                     <Text style={styles.popupTitle}>{selectedLabor.trade}</Text>
-                    <TouchableOpacity onPress={() => setShowLaborPopup(false)} style={styles.popupCloseBtn}>
+                    <TouchableOpacity onPress={() => setShowLaborPopup(false)} style={styles.popupCloseBtn} accessibilityRole="button" accessibilityLabel="Close">
                       <X size={18} color={Colors.textMuted} />
                     </TouchableOpacity>
                   </View>
@@ -2224,7 +2229,7 @@ export default function EstimateScreen() {
                 <>
                   <View style={styles.popupHeader}>
                     <Text style={styles.popupTitle} numberOfLines={2}>{selectedAssembly.name}</Text>
-                    <TouchableOpacity onPress={() => setShowAssemblyPopup(false)} style={styles.popupCloseBtn}>
+                    <TouchableOpacity onPress={() => setShowAssemblyPopup(false)} style={styles.popupCloseBtn} accessibilityRole="button" accessibilityLabel="Close">
                       <X size={18} color={Colors.textMuted} />
                     </TouchableOpacity>
                   </View>
@@ -2244,7 +2249,7 @@ export default function EstimateScreen() {
             <Pressable style={styles.addToProjectCard} onPress={() => undefined}>
               <View style={styles.addToProjectHeader}>
                 <Text style={styles.addToProjectTitle}>Link to Project</Text>
-                <TouchableOpacity onPress={() => setShowAddToProject(false)}>
+                <TouchableOpacity onPress={() => setShowAddToProject(false)} accessibilityRole="button" accessibilityLabel="Close">
                   <X size={20} color={Colors.textMuted} />
                 </TouchableOpacity>
               </View>
@@ -2277,7 +2282,7 @@ export default function EstimateScreen() {
             <Pressable style={styles.addToProjectCard} onPress={() => undefined}>
               <View style={styles.addToProjectHeader}>
                 <Text style={styles.addToProjectTitle}>Confirm</Text>
-                <TouchableOpacity onPress={() => setShowConfirmLink(false)}><X size={20} color={Colors.textMuted} /></TouchableOpacity>
+                <TouchableOpacity onPress={() => setShowConfirmLink(false)} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={Colors.textMuted} /></TouchableOpacity>
               </View>
               {pendingLinkProject && (
                 <TouchableOpacity style={styles.addToProjectConfirmBtn} onPress={() => handleConfirmLink('replace')} activeOpacity={0.85}>
@@ -2406,7 +2411,7 @@ export default function EstimateScreen() {
               <>
                 <View style={styles.popupHeader}>
                   <Text style={styles.popupTitle} numberOfLines={2}>{selectedMaterial.name}</Text>
-                  <TouchableOpacity onPress={() => setShowItemPopup(false)} style={styles.popupCloseBtn}>
+                  <TouchableOpacity onPress={() => setShowItemPopup(false)} style={styles.popupCloseBtn} accessibilityRole="button" accessibilityLabel="Close">
                     <X size={18} color={Colors.textMuted} />
                   </TouchableOpacity>
                 </View>
@@ -2443,8 +2448,7 @@ export default function EstimateScreen() {
                     onPress={() => {
                       const q = Math.max(1, (parseInt(itemQty, 10) || 1) - 1);
                       setItemQty(String(q));
-                    }}
-                  >
+                    }} accessibilityRole="button" accessibilityLabel="Remove">
                     <Minus size={18} color={Colors.primary} />
                   </TouchableOpacity>
                   <TextInput
@@ -2460,8 +2464,7 @@ export default function EstimateScreen() {
                     onPress={() => {
                       const q = (parseInt(itemQty, 10) || 0) + 1;
                       setItemQty(String(q));
-                    }}
-                  >
+                    }} accessibilityRole="button" accessibilityLabel="Add">
                     <Plus size={18} color={Colors.primary} />
                   </TouchableOpacity>
                 </View>
@@ -2570,7 +2573,7 @@ export default function EstimateScreen() {
           <View style={[styles.modalContainer, { paddingTop: insets.top + 8 }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Estimate</Text>
-              <TouchableOpacity onPress={() => setShowCart(false)} style={styles.modalClose} testID="close-cart">
+              <TouchableOpacity onPress={() => setShowCart(false)} style={styles.modalClose} testID="close-cart" accessibilityRole="button" accessibilityLabel="Close">
                 <X size={22} color={Colors.text} />
               </TouchableOpacity>
             </View>
@@ -2628,7 +2631,7 @@ export default function EstimateScreen() {
                               </View>
                               <View style={styles.cartItemRight}>
                                 <Text style={styles.cartItemTotal}>{formatMoney(item.adjustedRate * item.hours, 2)}</Text>
-                                <TouchableOpacity onPress={() => removeLaborItem(item.labor.id)}>
+                                <TouchableOpacity onPress={() => removeLaborItem(item.labor.id)} accessibilityRole="button" accessibilityLabel="Delete">
                                   <Trash2 size={14} color={Colors.error} />
                                 </TouchableOpacity>
                               </View>
@@ -2652,7 +2655,7 @@ export default function EstimateScreen() {
                               </View>
                               <View style={styles.cartItemRight}>
                                 <Text style={styles.cartItemTotal}>{formatMoney(item.totalCost, 2)}</Text>
-                                <TouchableOpacity onPress={() => removeAssemblyItem(item.assembly.id)}>
+                                <TouchableOpacity onPress={() => removeAssemblyItem(item.assembly.id)} accessibilityRole="button" accessibilityLabel="Delete">
                                   <Trash2 size={14} color={Colors.error} />
                                 </TouchableOpacity>
                               </View>
@@ -2763,8 +2766,7 @@ export default function EstimateScreen() {
                         setCart([]);
                         setLaborCart([]);
                         setAssemblyCart([]);
-                      }}
-                    >
+                      }} accessibilityRole="button" accessibilityLabel="Delete">
                       <Trash2 size={16} color={Colors.error} />
                     </TouchableOpacity>
                   </View>
@@ -2786,7 +2788,7 @@ export default function EstimateScreen() {
           <Pressable style={styles.addToProjectCard} onPress={() => undefined}>
             <View style={styles.addToProjectHeader}>
               <Text style={styles.addToProjectTitle}>Link to Project</Text>
-              <TouchableOpacity onPress={() => setShowAddToProject(false)}>
+              <TouchableOpacity onPress={() => setShowAddToProject(false)} accessibilityRole="button" accessibilityLabel="Close">
                 <X size={20} color={Colors.textMuted} />
               </TouchableOpacity>
             </View>
@@ -2866,7 +2868,7 @@ export default function EstimateScreen() {
           <Pressable style={styles.addToProjectCard} onPress={() => undefined}>
             <View style={styles.addToProjectHeader}>
               <Text style={styles.addToProjectTitle}>Confirm Estimate Link</Text>
-              <TouchableOpacity onPress={() => setShowConfirmLink(false)}>
+              <TouchableOpacity onPress={() => setShowConfirmLink(false)} accessibilityRole="button" accessibilityLabel="Close">
                 <X size={20} color={Colors.textMuted} />
               </TouchableOpacity>
             </View>
@@ -2952,7 +2954,7 @@ export default function EstimateScreen() {
               <>
                 <View style={styles.popupHeader}>
                   <Text style={styles.popupTitle}>{selectedLabor.trade}</Text>
-                  <TouchableOpacity onPress={() => setShowLaborPopup(false)} style={styles.popupCloseBtn}>
+                  <TouchableOpacity onPress={() => setShowLaborPopup(false)} style={styles.popupCloseBtn} accessibilityRole="button" accessibilityLabel="Close">
                     <X size={18} color={Colors.textMuted} />
                   </TouchableOpacity>
                 </View>
@@ -2972,11 +2974,11 @@ export default function EstimateScreen() {
                 <TextInput style={styles.popupQtyInput} value={laborRateInput} onChangeText={setLaborRateInput} keyboardType="decimal-pad" textAlign="center" />
                 <Text style={styles.popupFieldLabel}>Hours</Text>
                 <View style={styles.popupQtyRow}>
-                  <TouchableOpacity style={styles.popupQtyBtn} onPress={() => setLaborHoursInput(String(Math.max(1, (parseFloat(laborHoursInput) || 1) - 1)))}>
+                  <TouchableOpacity style={styles.popupQtyBtn} onPress={() => setLaborHoursInput(String(Math.max(1, (parseFloat(laborHoursInput) || 1) - 1)))} accessibilityRole="button" accessibilityLabel="Remove">
                     <Minus size={18} color={Colors.primary} />
                   </TouchableOpacity>
                   <TextInput style={styles.popupQtyInput} value={laborHoursInput} onChangeText={setLaborHoursInput} keyboardType="decimal-pad" textAlign="center" />
-                  <TouchableOpacity style={styles.popupQtyBtn} onPress={() => setLaborHoursInput(String((parseFloat(laborHoursInput) || 0) + 1))}>
+                  <TouchableOpacity style={styles.popupQtyBtn} onPress={() => setLaborHoursInput(String((parseFloat(laborHoursInput) || 0) + 1))} accessibilityRole="button" accessibilityLabel="Add">
                     <Plus size={18} color={Colors.primary} />
                   </TouchableOpacity>
                 </View>
@@ -3006,7 +3008,7 @@ export default function EstimateScreen() {
               <>
                 <View style={styles.popupHeader}>
                   <Text style={styles.popupTitle} numberOfLines={2}>{selectedAssembly.name}</Text>
-                  <TouchableOpacity onPress={() => setShowAssemblyPopup(false)} style={styles.popupCloseBtn}>
+                  <TouchableOpacity onPress={() => setShowAssemblyPopup(false)} style={styles.popupCloseBtn} accessibilityRole="button" accessibilityLabel="Close">
                     <X size={18} color={Colors.textMuted} />
                   </TouchableOpacity>
                 </View>
@@ -3033,11 +3035,11 @@ export default function EstimateScreen() {
                 </View>
                 <Text style={styles.popupFieldLabel}>Quantity ({selectedAssembly.unit.replace('per ', '')})</Text>
                 <View style={styles.popupQtyRow}>
-                  <TouchableOpacity style={styles.popupQtyBtn} onPress={() => setAssemblyQtyInput(String(Math.max(1, (parseFloat(assemblyQtyInput) || 1) - 1)))}>
+                  <TouchableOpacity style={styles.popupQtyBtn} onPress={() => setAssemblyQtyInput(String(Math.max(1, (parseFloat(assemblyQtyInput) || 1) - 1)))} accessibilityRole="button" accessibilityLabel="Remove">
                     <Minus size={18} color={Colors.primary} />
                   </TouchableOpacity>
                   <TextInput style={styles.popupQtyInput} value={assemblyQtyInput} onChangeText={setAssemblyQtyInput} keyboardType="decimal-pad" textAlign="center" />
-                  <TouchableOpacity style={styles.popupQtyBtn} onPress={() => setAssemblyQtyInput(String((parseFloat(assemblyQtyInput) || 0) + 1))}>
+                  <TouchableOpacity style={styles.popupQtyBtn} onPress={() => setAssemblyQtyInput(String((parseFloat(assemblyQtyInput) || 0) + 1))} accessibilityRole="button" accessibilityLabel="Add">
                     <Plus size={18} color={Colors.primary} />
                   </TouchableOpacity>
                 </View>
@@ -3109,13 +3111,13 @@ export default function EstimateScreen() {
           <Pressable style={styles.popupCard} onPress={() => undefined}>
             <View style={styles.popupHeader}>
               <Text style={styles.popupTitle}>Add Custom Material</Text>
-              <TouchableOpacity onPress={() => setShowCustomForm(false)} style={styles.popupCloseBtn}>
+              <TouchableOpacity onPress={() => setShowCustomForm(false)} style={styles.popupCloseBtn} accessibilityRole="button" accessibilityLabel="Close">
                 <X size={18} color={Colors.textMuted} />
               </TouchableOpacity>
             </View>
             <Text style={styles.popupFieldLabel}>Material Name</Text>
             <TextInput
-              style={[styles.popupQtyInput, { textAlign: 'left' as const, paddingHorizontal: 14, fontSize: 15 }]}
+              style={[styles.popupQtyInput, { textAlign: 'left' as const, paddingHorizontal: 14, fontSize: Type.subhead.fontSize }]}
               value={customName}
               onChangeText={setCustomName}
               placeholder="e.g., PEX Manifold 8-Port"
@@ -3157,13 +3159,13 @@ export default function EstimateScreen() {
                   style={[styles.categoryChip, customCategory === cat.id && styles.categoryChipActive, { paddingHorizontal: 9, paddingVertical: 5 }]}
                   onPress={() => setCustomCategory(cat.id)}
                 >
-                  <Text style={[styles.categoryChipText, customCategory === cat.id && styles.categoryChipTextActive, { fontSize: 11 }]}>{cat.label}</Text>
+                  <Text style={[styles.categoryChipText, customCategory === cat.id && styles.categoryChipTextActive, { fontSize: Type.caption2.fontSize }]}>{cat.label}</Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>
             <Text style={styles.popupFieldLabel}>Notes (optional)</Text>
             <TextInput
-              style={[styles.popupQtyInput, { textAlign: 'left' as const, paddingHorizontal: 14, fontSize: 14, height: 40 }]}
+              style={[styles.popupQtyInput, { textAlign: 'left' as const, paddingHorizontal: 14, fontSize: Type.bodyCompact.fontSize, height: 40 }]}
               value={customNotes}
               onChangeText={setCustomNotes}
               placeholder="Any notes about this material"
@@ -3205,7 +3207,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
     paddingVertical: 12,
     paddingHorizontal: 14,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     backgroundColor: '#5E5CE6',
     shadowColor: '#5E5CE6',
     shadowOffset: { width: 0, height: 4 },
@@ -3216,7 +3218,7 @@ const styles = StyleSheet.create({
   wizardCtaIcon: {
     width: 34,
     height: 34,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
     backgroundColor: 'rgba(255,255,255,0.18)',
     alignItems: 'center',
     justifyContent: 'center',
@@ -3225,13 +3227,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   wizardCtaTitle: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: Colors.surface,
     letterSpacing: 0.2,
   },
   wizardCtaSubtitle: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     color: 'rgba(255,255,255,0.85)',
     marginTop: 1,
   },
@@ -3247,7 +3249,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 2,
     backgroundColor: Colors.fillSecondary,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     padding: 3,
   },
   tabItem: {
@@ -3257,7 +3259,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 4,
     paddingVertical: 8,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
   },
   tabItemActive: {
     backgroundColor: Colors.surface,
@@ -3268,7 +3270,7 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   tabLabel: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     fontWeight: '500' as const,
     color: Colors.textMuted,
   },
@@ -3278,7 +3280,7 @@ const styles = StyleSheet.create({
   },
   tabBadge: {
     backgroundColor: Colors.fillTertiary,
-    borderRadius: 8,
+    borderRadius: Tokens.radius.sm,
     paddingHorizontal: 5,
     paddingVertical: 1,
     minWidth: 18,
@@ -3304,7 +3306,7 @@ const styles = StyleSheet.create({
   summaryMiniCard: {
     flex: 1,
     backgroundColor: Colors.surface,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     padding: 12,
     borderLeftWidth: 3,
     gap: 2,
@@ -3317,7 +3319,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
   summaryMiniValue: {
-    fontSize: 16,
+    fontSize: Type.callout.fontSize,
     fontWeight: '800' as const,
     color: Colors.text,
   },
@@ -3326,7 +3328,7 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
   },
   cartSectionTitle: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
     paddingHorizontal: 16,
@@ -3358,7 +3360,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.success,
   },
   liveLabel: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     color: Colors.success,
     fontWeight: '500' as const,
   },
@@ -3377,7 +3379,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
   },
   aiEstimateBtnText: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     fontWeight: '700' as const,
     color: Colors.textOnPrimary,
   },
@@ -3392,7 +3394,7 @@ const styles = StyleSheet.create({
   cartButton: {
     width: 36,
     height: 36,
-    borderRadius: 18,
+    borderRadius: Tokens.radius.xl,
     backgroundColor: Colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
@@ -3403,7 +3405,7 @@ const styles = StyleSheet.create({
     right: -3,
     width: 16,
     height: 16,
-    borderRadius: 8,
+    borderRadius: Tokens.radius.sm,
     backgroundColor: Colors.error,
     alignItems: 'center',
     justifyContent: 'center',
@@ -3419,7 +3421,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.fillTertiary,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     paddingHorizontal: 12,
     gap: 8,
     height: 46,
@@ -3437,7 +3439,7 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
-    fontSize: 15,
+    fontSize: Type.subhead.fontSize,
     color: Colors.text,
   },
   markupRow: {
@@ -3447,7 +3449,7 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap' as const,
   },
   markupLabel: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '500' as const,
     color: Colors.textSecondary,
     marginRight: 2,
@@ -3467,7 +3469,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
   },
   markupChipText: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '500' as const,
     color: Colors.textSecondary,
   },
@@ -3485,13 +3487,13 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   markupCustomInput: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '500' as const,
     color: Colors.text,
     width: 42,
   },
   markupCustomSuffix: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: Colors.textSecondary,
   },
   categoriesWrapper: {
@@ -3517,7 +3519,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
   },
   categoryChipText: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     fontWeight: '500' as const,
     color: Colors.textSecondary,
   },
@@ -3538,13 +3540,13 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   resultsCount: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     fontWeight: '500' as const,
     color: Colors.textSecondary,
     letterSpacing: 0.2,
   },
   resultsMicroCopy: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     color: Colors.info,
     fontWeight: '600' as const,
   },
@@ -3556,7 +3558,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     marginBottom: 10,
     backgroundColor: Colors.surface,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     padding: 12,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
@@ -3574,19 +3576,19 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   opportunityTitle: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
   },
   opportunitySubtitle: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     color: Colors.textMuted,
   },
   opportunityGrid: {
     gap: 8,
   },
   opportunityCard: {
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
     padding: 10,
     gap: 6,
   },
@@ -3596,17 +3598,17 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   opportunityCardTitle: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     fontWeight: '700' as const,
   },
   opportunityCardDetail: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     color: Colors.textSecondary,
     lineHeight: 17,
   },
   materialCard: {
     backgroundColor: Colors.surface,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     padding: 14,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
@@ -3625,7 +3627,7 @@ const styles = StyleSheet.create({
     gap: 5,
   },
   materialName: {
-    fontSize: 15,
+    fontSize: Type.subhead.fontSize,
     fontWeight: '500' as const,
     color: Colors.text,
     lineHeight: 20,
@@ -3651,7 +3653,7 @@ const styles = StyleSheet.create({
     gap: 4,
     paddingHorizontal: 7,
     paddingVertical: 3,
-    borderRadius: 999,
+    borderRadius: Tokens.radius.full,
     backgroundColor: Colors.infoLight,
   },
   rsMeansBadgeText: {
@@ -3665,7 +3667,7 @@ const styles = StyleSheet.create({
     gap: 3,
   },
   supplierText: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     color: Colors.textMuted,
   },
   addButton: {
@@ -3683,7 +3685,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.background,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
     padding: 10,
     gap: 8,
   },
@@ -3702,19 +3704,19 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
   retailPrice: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     fontWeight: '600' as const,
     color: Colors.textSecondary,
     textDecorationLine: 'line-through' as const,
   },
   bulkPrice: {
-    fontSize: 16,
+    fontSize: Type.callout.fontSize,
     fontWeight: '700' as const,
     color: Colors.success,
     letterSpacing: -0.3,
   },
   priceUnit: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     color: Colors.textMuted,
   },
   priceDivider: {
@@ -3726,7 +3728,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   bulkSavingsText: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     fontWeight: '700' as const,
     color: Colors.success,
   },
@@ -3752,7 +3754,7 @@ const styles = StyleSheet.create({
     gap: 4,
     paddingHorizontal: 7,
     paddingVertical: 4,
-    borderRadius: 999,
+    borderRadius: Tokens.radius.full,
     backgroundColor: Colors.fillSecondary,
   },
   materialSignalText: {
@@ -3766,7 +3768,7 @@ const styles = StyleSheet.create({
     gap: 5,
   },
   inCartText: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     color: Colors.success,
     fontWeight: '500' as const,
   },
@@ -3776,12 +3778,12 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   emptyTitle: {
-    fontSize: 17,
+    fontSize: Type.body.fontSize,
     fontWeight: '600' as const,
     color: Colors.text,
   },
   emptyDesc: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     color: Colors.textMuted,
     textAlign: 'center' as const,
   },
@@ -3790,7 +3792,7 @@ const styles = StyleSheet.create({
     left: 16,
     right: 16,
     backgroundColor: Colors.primary,
-    borderRadius: 18,
+    borderRadius: Tokens.radius.xl,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 20,
@@ -3809,12 +3811,12 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   floatingCartItems: {
-    fontSize: 15,
+    fontSize: Type.subhead.fontSize,
     fontWeight: '600' as const,
     color: Colors.textOnPrimary,
   },
   floatingCartTotal: {
-    fontSize: 17,
+    fontSize: Type.body.fontSize,
     fontWeight: '700' as const,
     color: 'rgba(255,255,255,0.9)',
     marginRight: 4,
@@ -3834,7 +3836,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
   },
   modalTitle: {
-    fontSize: 20,
+    fontSize: Type.title3.fontSize,
     fontWeight: '600' as const,
     color: Colors.text,
     letterSpacing: -0.3,
@@ -3858,12 +3860,12 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     marginTop: 14,
     marginBottom: 6,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
     padding: 12,
   },
   markupBannerText: {
     flex: 1,
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: Colors.info,
     lineHeight: 18,
   },
@@ -3873,7 +3875,7 @@ const styles = StyleSheet.create({
   },
   cartItem: {
     backgroundColor: Colors.surface,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
     overflow: 'hidden' as const,
@@ -3889,12 +3891,12 @@ const styles = StyleSheet.create({
     gap: 3,
   },
   cartItemName: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     fontWeight: '600' as const,
     color: Colors.text,
   },
   cartItemSub: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     color: Colors.textMuted,
   },
   cartItemRight: {
@@ -3902,7 +3904,7 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   cartItemTotal: {
-    fontSize: 16,
+    fontSize: Type.callout.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
   },
@@ -3919,7 +3921,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   cartExpandLabel: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
     color: Colors.textSecondary,
   },
@@ -3928,7 +3930,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
     backgroundColor: Colors.surface,
-    borderRadius: 8,
+    borderRadius: Tokens.radius.sm,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderWidth: 1,
@@ -3938,7 +3940,7 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   qtyValue: {
-    fontSize: 15,
+    fontSize: Type.subhead.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
     minWidth: 24,
@@ -3951,7 +3953,7 @@ const styles = StyleSheet.create({
   markupMiniChip: {
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 6,
+    borderRadius: Tokens.radius.xs,
     backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: Colors.border,
@@ -3961,7 +3963,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.accent,
   },
   markupMiniText: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     fontWeight: '600' as const,
     color: Colors.textSecondary,
   },
@@ -3973,11 +3975,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     backgroundColor: Colors.successLight,
-    borderRadius: 8,
+    borderRadius: Tokens.radius.sm,
     padding: 8,
   },
   bulkActiveTxt: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     color: Colors.success,
     fontWeight: '500' as const,
   },
@@ -3988,21 +3990,21 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-end' as const,
   },
   removeBtnText: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: Colors.error,
     fontWeight: '600' as const,
   },
   summaryCard: {
     margin: 16,
     backgroundColor: Colors.card,
-    borderRadius: 16,
+    borderRadius: Tokens.radius.panel,
     padding: 18,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
     gap: 10,
   },
   summaryTitle: {
-    fontSize: 17,
+    fontSize: Type.body.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
     marginBottom: 2,
@@ -4013,11 +4015,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   summaryLabel: {
-    fontSize: 15,
+    fontSize: Type.subhead.fontSize,
     color: Colors.textSecondary,
   },
   summaryValue: {
-    fontSize: 15,
+    fontSize: Type.subhead.fontSize,
     fontWeight: '600' as const,
     color: Colors.text,
   },
@@ -4026,12 +4028,12 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.borderLight,
   },
   summaryTotal: {
-    fontSize: 17,
+    fontSize: Type.body.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
   },
   summaryTotalValue: {
-    fontSize: 22,
+    fontSize: Type.title2.fontSize,
     fontWeight: '800' as const,
     color: Colors.primary,
   },
@@ -4041,7 +4043,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   bulkNoteText: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     color: Colors.success,
   },
   cartFooter: {
@@ -4060,12 +4062,12 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   cartFooterLabel: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
     color: Colors.textSecondary,
   },
   cartFooterValue: {
-    fontSize: 20,
+    fontSize: Type.title3.fontSize,
     fontWeight: '800' as const,
     color: Colors.primary,
     letterSpacing: -0.3,
@@ -4077,7 +4079,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     backgroundColor: Colors.primary,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     paddingVertical: 14,
     shadowColor: Colors.primary,
     shadowOffset: { width: 0, height: 4 },
@@ -4086,7 +4088,7 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   addToProjectBtnText: {
-    fontSize: 16,
+    fontSize: Type.callout.fontSize,
     fontWeight: '700' as const,
     color: Colors.textOnPrimary,
   },
@@ -4103,11 +4105,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 6,
     backgroundColor: Colors.primary + '10',
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     paddingVertical: 10,
   },
   cartShareBtnText: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
     color: Colors.primary,
   },
@@ -4117,7 +4119,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: Colors.errorLight,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
   },
   cartFooterBtnRow: {
     flexDirection: 'row',
@@ -4130,7 +4132,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: Colors.primary + '12',
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     borderWidth: 1,
     borderColor: Colors.primary + '25',
   },
@@ -4145,7 +4147,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.fillSecondary,
   },
   costBreakdownToggleText: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     fontWeight: '500' as const,
     color: Colors.textSecondary,
     letterSpacing: 0.1,
@@ -4170,7 +4172,7 @@ const styles = StyleSheet.create({
   },
   costBreakdownLabel: {
     flex: 1,
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     fontWeight: '500' as const,
     color: Colors.textSecondary,
   },
@@ -4181,7 +4183,7 @@ const styles = StyleSheet.create({
     textAlign: 'right' as const,
   },
   costBreakdownValue: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     fontWeight: '600' as const,
     color: Colors.text,
     width: 70,
@@ -4200,12 +4202,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 40,
   },
   cartEmptyTitle: {
-    fontSize: 20,
+    fontSize: Type.title3.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
   },
   cartEmptyDesc: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     color: Colors.textMuted,
     textAlign: 'center' as const,
     lineHeight: 20,
@@ -4215,10 +4217,10 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
     paddingHorizontal: 24,
     paddingVertical: 14,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
   },
   cartEmptyBtnText: {
-    fontSize: 15,
+    fontSize: Type.subhead.fontSize,
     fontWeight: '700' as const,
     color: Colors.textOnPrimary,
   },
@@ -4230,7 +4232,7 @@ const styles = StyleSheet.create({
   },
   popupCard: {
     backgroundColor: Colors.surface,
-    borderRadius: 24,
+    borderRadius: Tokens.radius["2xl"],
     padding: 20,
     gap: 14,
     maxHeight: '80%',
@@ -4242,7 +4244,7 @@ const styles = StyleSheet.create({
   },
   popupTitle: {
     flex: 1,
-    fontSize: 18,
+    fontSize: Type.subheadline.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
     lineHeight: 24,
@@ -4267,7 +4269,7 @@ const styles = StyleSheet.create({
   popupPriceBlock: {
     flex: 1,
     backgroundColor: Colors.background,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     padding: 12,
     flexDirection: 'row',
     alignItems: 'baseline',
@@ -4281,22 +4283,22 @@ const styles = StyleSheet.create({
     marginRight: 4,
   },
   popupRetail: {
-    fontSize: 16,
+    fontSize: Type.callout.fontSize,
     fontWeight: '600' as const,
     color: Colors.textSecondary,
     textDecorationLine: 'line-through' as const,
   },
   popupBulk: {
-    fontSize: 18,
+    fontSize: Type.subheadline.fontSize,
     fontWeight: '700' as const,
     color: Colors.success,
   },
   popupPriceUnit: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     color: Colors.textMuted,
   },
   popupFieldLabel: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
     color: Colors.textSecondary,
     marginTop: 2,
@@ -4309,7 +4311,7 @@ const styles = StyleSheet.create({
   popupQtyBtn: {
     width: 44,
     height: 44,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     backgroundColor: Colors.primary + '12',
     alignItems: 'center',
     justifyContent: 'center',
@@ -4318,8 +4320,8 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 48,
     backgroundColor: Colors.background,
-    borderRadius: 12,
-    fontSize: 20,
+    borderRadius: Tokens.radius.card,
+    fontSize: Type.title3.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
     borderWidth: 1,
@@ -4330,24 +4332,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     backgroundColor: Colors.successLight,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
     padding: 10,
   },
   popupBulkText: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
     color: Colors.success,
   },
   popupBreakdown: {
     backgroundColor: Colors.surfaceAlt,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
     padding: 12,
     gap: 6,
   },
   popupBreakdownTitle: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     fontWeight: '700' as const,
     color: Colors.textMuted,
     textTransform: 'uppercase' as const,
@@ -4360,21 +4362,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   popupBreakdownLabel: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: Colors.textSecondary,
   },
   popupBreakdownLabelBold: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
   },
   popupBreakdownValue: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontVariant: ['tabular-nums'] as any,
     color: Colors.text,
   },
   popupBreakdownValueBold: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     fontWeight: '800' as const,
     fontVariant: ['tabular-nums'] as any,
     color: Colors.text,
@@ -4390,16 +4392,16 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     backgroundColor: Colors.primary + '08',
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     padding: 14,
   },
   popupTotalLabel: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     fontWeight: '600' as const,
     color: Colors.textSecondary,
   },
   popupTotalValue: {
-    fontSize: 22,
+    fontSize: Type.title2.fontSize,
     fontWeight: '800' as const,
     color: Colors.primary,
   },
@@ -4410,11 +4412,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   popupRunningLabel: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     color: Colors.textMuted,
   },
   popupRunningValue: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     fontWeight: '600' as const,
     color: Colors.textSecondary,
   },
@@ -4424,7 +4426,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     backgroundColor: Colors.primary,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     paddingVertical: 16,
     marginTop: 4,
     shadowColor: Colors.primary,
@@ -4434,13 +4436,13 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   popupAddBtnText: {
-    fontSize: 16,
+    fontSize: Type.callout.fontSize,
     fontWeight: '700' as const,
     color: Colors.textOnPrimary,
   },
   addToProjectCard: {
     backgroundColor: Colors.surface,
-    borderRadius: 24,
+    borderRadius: Tokens.radius["2xl"],
     padding: 20,
     gap: 14,
     maxHeight: '70%',
@@ -4451,12 +4453,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   addToProjectTitle: {
-    fontSize: 20,
+    fontSize: Type.title3.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
   },
   addToProjectDesc: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     color: Colors.textSecondary,
     lineHeight: 20,
   },
@@ -4466,7 +4468,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   addToProjectEmptyText: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     color: Colors.textMuted,
     textAlign: 'center' as const,
   },
@@ -4474,7 +4476,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.background,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     padding: 14,
     gap: 12,
     marginTop: 6,
@@ -4489,12 +4491,12 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   projectOptionName: {
-    fontSize: 15,
+    fontSize: Type.subhead.fontSize,
     fontWeight: '600' as const,
     color: Colors.text,
   },
   projectOptionMeta: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     color: Colors.textSecondary,
   },
   addToProjectConfirmBtn: {
@@ -4503,12 +4505,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     backgroundColor: Colors.primary,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     paddingVertical: 16,
     marginTop: 4,
   },
   addToProjectConfirmText: {
-    fontSize: 16,
+    fontSize: Type.callout.fontSize,
     fontWeight: '700' as const,
     color: Colors.textOnPrimary,
   },
@@ -4516,7 +4518,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   confirmFieldLabel: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
     color: Colors.textSecondary,
     textTransform: 'uppercase' as const,
@@ -4524,17 +4526,17 @@ const styles = StyleSheet.create({
   },
   confirmInput: {
     minHeight: 48,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     backgroundColor: Colors.surfaceAlt,
     paddingHorizontal: 14,
-    fontSize: 15,
+    fontSize: Type.subhead.fontSize,
     color: Colors.text,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
   },
   confirmSummaryCard: {
     backgroundColor: Colors.surfaceAlt,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     padding: 14,
     gap: 8,
   },
@@ -4544,16 +4546,16 @@ const styles = StyleSheet.create({
     alignItems: 'center' as const,
   },
   confirmSummaryLabel: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     color: Colors.textSecondary,
   },
   confirmSummaryValue: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     fontWeight: '600' as const,
     color: Colors.text,
   },
   confirmSummaryValueBold: {
-    fontSize: 18,
+    fontSize: Type.subheadline.fontSize,
     fontWeight: '800' as const,
     color: Colors.primary,
   },
@@ -4566,12 +4568,12 @@ const styles = StyleSheet.create({
     alignItems: 'center' as const,
     gap: 8,
     backgroundColor: Colors.warningLight,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
     padding: 12,
   },
   existingEstimateText: {
     flex: 1,
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: Colors.warning,
     fontWeight: '500' as const,
   },
@@ -4586,13 +4588,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center' as const,
     gap: 6,
     backgroundColor: Colors.infoLight,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     paddingVertical: 14,
     borderWidth: 1,
     borderColor: Colors.info + '30',
   },
   confirmMergeBtnText: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     fontWeight: '700' as const,
     color: Colors.info,
   },
@@ -4603,11 +4605,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center' as const,
     gap: 6,
     backgroundColor: Colors.primary,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     paddingVertical: 14,
   },
   confirmReplaceBtnText: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     fontWeight: '700' as const,
     color: Colors.textOnPrimary,
   },
@@ -4644,12 +4646,12 @@ const dStyles = StyleSheet.create({
     gap: 8,
   },
   catalogItemName: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '500' as const,
     color: Colors.text,
   },
   catalogItemPrice: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     color: Colors.success,
     fontWeight: '600' as const,
   },
@@ -4662,14 +4664,14 @@ const dStyles = StyleSheet.create({
     paddingTop: 16,
   },
   wsSectionTitle: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
     marginBottom: 8,
   },
   wsTable: {
     backgroundColor: Colors.surface,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
     overflow: 'hidden' as const,
@@ -4684,7 +4686,7 @@ const dStyles = StyleSheet.create({
     borderBottomColor: Colors.borderLight,
   },
   wsHeaderCell: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     fontWeight: '700' as const,
     color: Colors.textMuted,
     textTransform: 'uppercase' as const,
@@ -4702,7 +4704,7 @@ const dStyles = StyleSheet.create({
     backgroundColor: Colors.fillSecondary,
   },
   wsCell: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: Colors.text,
   },
   wsGrandTotal: {
@@ -4714,17 +4716,17 @@ const dStyles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
     backgroundColor: Colors.primary + '0A',
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     borderWidth: 1,
     borderColor: Colors.primary + '20',
   },
   wsGrandTotalLabel: {
-    fontSize: 16,
+    fontSize: Type.callout.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
   },
   wsGrandTotalValue: {
-    fontSize: 22,
+    fontSize: Type.title2.fontSize,
     fontWeight: '800' as const,
     color: Colors.primary,
   },
@@ -4737,7 +4739,7 @@ const dStyles = StyleSheet.create({
     gap: 10,
   },
   summaryTitle: {
-    fontSize: 16,
+    fontSize: Type.callout.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
     marginBottom: 4,
@@ -4749,11 +4751,11 @@ const dStyles = StyleSheet.create({
     paddingVertical: 4,
   },
   summaryLabel: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     color: Colors.textSecondary,
   },
   summaryValue: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     fontWeight: '600' as const,
     color: Colors.text,
   },
@@ -4763,19 +4765,19 @@ const dStyles = StyleSheet.create({
     marginVertical: 4,
   },
   summaryGrand: {
-    fontSize: 20,
+    fontSize: Type.title3.fontSize,
     fontWeight: '800' as const,
     color: Colors.primary,
   },
   summaryMetrics: {
     marginTop: 12,
     backgroundColor: Colors.fillSecondary,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     padding: 14,
     gap: 8,
   },
   summaryMetricTitle: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     fontWeight: '700' as const,
     color: Colors.textMuted,
     textTransform: 'uppercase' as const,
@@ -4788,11 +4790,11 @@ const dStyles = StyleSheet.create({
     alignItems: 'center',
   },
   summaryMetricLabel: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: Colors.textSecondary,
   },
   summaryMetricValue: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
     color: Colors.text,
   },
@@ -4806,11 +4808,11 @@ const dStyles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     backgroundColor: Colors.primary,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     paddingVertical: 12,
   },
   summaryActionText: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     fontWeight: '700' as const,
     color: Colors.textOnPrimary,
   },
@@ -4831,7 +4833,7 @@ const aiStyles = StyleSheet.create({
     marginBottom: 8,
   },
   recentTitle: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     fontWeight: '700' as const,
     color: Colors.textSecondary,
     textTransform: 'uppercase' as const,
@@ -4843,7 +4845,7 @@ const aiStyles = StyleSheet.create({
   },
   recentChip: {
     backgroundColor: Colors.fillTertiary,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderWidth: 1,
@@ -4851,13 +4853,13 @@ const aiStyles = StyleSheet.create({
     maxWidth: 180,
   },
   recentChipName: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     fontWeight: '600' as const,
     color: Colors.text,
     marginBottom: 2,
   },
   recentChipPrice: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     fontWeight: '500' as const,
     color: Colors.success,
   },
@@ -4867,7 +4869,7 @@ const aiStyles = StyleSheet.create({
     marginHorizontal: 16,
     marginVertical: 8,
     backgroundColor: Colors.primary + '08',
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     padding: 14,
     borderWidth: 1,
     borderColor: Colors.primary + '18',
@@ -4876,7 +4878,7 @@ const aiStyles = StyleSheet.create({
   aiSearchPromptIcon: {
     width: 40,
     height: 40,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     backgroundColor: Colors.primary + '15',
     alignItems: 'center',
     justifyContent: 'center',
@@ -4886,12 +4888,12 @@ const aiStyles = StyleSheet.create({
     gap: 2,
   },
   aiSearchPromptTitle: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
   },
   aiSearchPromptDesc: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     color: Colors.textSecondary,
   },
   aiSearchBtn: {
@@ -4899,12 +4901,12 @@ const aiStyles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     backgroundColor: Colors.primary,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
     paddingHorizontal: 14,
     paddingVertical: 10,
   },
   aiSearchBtnText: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '700' as const,
     color: Colors.textOnPrimary,
   },
@@ -4912,7 +4914,7 @@ const aiStyles = StyleSheet.create({
     marginHorizontal: 16,
     marginVertical: 8,
     backgroundColor: Colors.surface,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     borderWidth: 1,
     borderColor: Colors.primary + '20',
     overflow: 'hidden' as const,
@@ -4933,7 +4935,7 @@ const aiStyles = StyleSheet.create({
     gap: 6,
   },
   aiResultsTitle: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '700' as const,
     color: Colors.primary,
   },
@@ -4945,7 +4947,7 @@ const aiStyles = StyleSheet.create({
     justifyContent: 'center',
   },
   aiLoadingText: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: Colors.primary,
     fontWeight: '500' as const,
   },
@@ -4957,7 +4959,7 @@ const aiStyles = StyleSheet.create({
     backgroundColor: Colors.errorLight,
   },
   aiErrorText: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: Colors.error,
     flex: 1,
   },
@@ -4974,7 +4976,7 @@ const aiStyles = StyleSheet.create({
     gap: 10,
   },
   aiResultName: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     fontWeight: '600' as const,
     color: Colors.text,
     lineHeight: 19,
@@ -4986,12 +4988,12 @@ const aiStyles = StyleSheet.create({
     marginTop: 3,
   },
   aiResultPrice: {
-    fontSize: 15,
+    fontSize: Type.subhead.fontSize,
     fontWeight: '700' as const,
     color: Colors.success,
   },
   aiResultBrand: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     color: Colors.textMuted,
     fontWeight: '500' as const,
   },
@@ -5007,7 +5009,7 @@ const aiStyles = StyleSheet.create({
     gap: 4,
     paddingHorizontal: 7,
     paddingVertical: 3,
-    borderRadius: 6,
+    borderRadius: Tokens.radius.xs,
   },
   aiSourceTagText: {
     fontSize: 10,
@@ -5019,7 +5021,7 @@ const aiStyles = StyleSheet.create({
     gap: 4,
     paddingHorizontal: 7,
     paddingVertical: 3,
-    borderRadius: 6,
+    borderRadius: Tokens.radius.xs,
   },
   aiConfDot: {
     width: 5,
@@ -5033,13 +5035,13 @@ const aiStyles = StyleSheet.create({
   aiAddBtn: {
     width: 36,
     height: 36,
-    borderRadius: 18,
+    borderRadius: Tokens.radius.xl,
     backgroundColor: Colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
   aiResultDesc: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     color: Colors.textSecondary,
     lineHeight: 17,
   },
@@ -5051,7 +5053,7 @@ const aiStyles = StyleSheet.create({
     backgroundColor: Colors.infoLight,
   },
   aiRelatedText: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     color: Colors.info,
     fontWeight: '500' as const,
     flex: 1,
@@ -5065,21 +5067,21 @@ const aiStyles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 11,
     backgroundColor: Colors.surface,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
     borderStyle: 'dashed' as const,
   },
   customEntryBtnText: {
     flex: 1,
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
     color: Colors.primary,
   },
   unitChip: {
     paddingHorizontal: 10,
     paddingVertical: 5,
-    borderRadius: 8,
+    borderRadius: Tokens.radius.sm,
     backgroundColor: Colors.fillTertiary,
     borderWidth: 1,
     borderColor: 'transparent',
@@ -5089,7 +5091,7 @@ const aiStyles = StyleSheet.create({
     borderColor: Colors.primary,
   },
   unitChipText: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     fontWeight: '600' as const,
     color: Colors.textSecondary,
   },

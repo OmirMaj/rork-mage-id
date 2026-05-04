@@ -34,6 +34,8 @@ import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import type { DrawingPin, DrawingPinKind } from '@/types';
 import { stampPhotoLocation } from '@/utils/photoGeoStamp';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 type Mode = 'pin' | 'draw' | 'measure' | 'calibrate';
 
@@ -264,7 +266,7 @@ function PlanViewerScreenInner() {
       <View style={[styles.root, { paddingTop: insets.top }]}>
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn} hitSlop={12}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back">
             <ChevronLeft size={22} color={Colors.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Sheet not found</Text>
@@ -279,7 +281,7 @@ function PlanViewerScreenInner() {
 
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn} hitSlop={12}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back">
           <ChevronLeft size={22} color={Colors.text} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
@@ -379,7 +381,7 @@ function PlanViewerScreenInner() {
             {imgLayout && (mode === 'measure' || mode === 'calibrate') && pointBuffer.length > 0 ? (
               <Svg style={StyleSheet.absoluteFill} width={imgLayout.w} height={imgLayout.h} pointerEvents="none">
                 {pointBuffer.map((p, i) => (
-                  <Circle key={`pt-${i}`} cx={p.x * imgLayout.w} cy={p.y * imgLayout.h} r={5} fill={Colors.primary} stroke="#FFFFFF" strokeWidth={2} />
+                  <Circle key={`pt-${i}`} cx={p.x * imgLayout.w} cy={p.y * imgLayout.h} r={5} fill={Colors.primary} stroke={Colors.surface} strokeWidth={2} />
                 ))}
                 {pointBuffer.length === 2 ? (
                   <>
@@ -399,8 +401,8 @@ function PlanViewerScreenInner() {
                           y={(pointBuffer[0].y + pointBuffer[1].y) / 2 * imgLayout.h - 8}
                           fontSize="14"
                           fontWeight="700"
-                          fill="#FFFFFF"
-                          stroke="#FFFFFF"
+                          fill={Colors.surface}
+                          stroke={Colors.surface}
                           strokeWidth="4"
                           textAnchor="middle"
                         >
@@ -454,9 +456,8 @@ function PlanViewerScreenInner() {
                   },
                 ]}
                 onPress={() => setSelectedPinId(pin.id)}
-                hitSlop={8}
-              >
-                <MapPin size={14} color="#FFFFFF" strokeWidth={2.5} />
+                hitSlop={8} accessibilityRole="button" accessibilityLabel="View location">
+                <MapPin size={14} color={Colors.surface} strokeWidth={2.5} />
               </TouchableOpacity>
             ))}
           </View>
@@ -477,7 +478,7 @@ function PlanViewerScreenInner() {
               : (pointBuffer.length === 0 ? 'Tap one end of a known reference (e.g. a dimensioned wall).' :
                  pointBuffer.length === 1 ? 'Now tap the other end.' : 'Got it \u2014 enter the distance.')}
           </Text>
-          <TouchableOpacity onPress={() => { setPointBuffer([]); setMode('pin'); }} hitSlop={8}>
+          <TouchableOpacity onPress={() => { setPointBuffer([]); setMode('pin'); }} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
             <X size={14} color={Colors.textSecondary} />
           </TouchableOpacity>
         </View>
@@ -591,7 +592,7 @@ function PlanViewerScreenInner() {
                 <Ruler size={16} color={Colors.primary} />
                 <Text style={styles.modalTitle}>Set scale</Text>
               </View>
-              <TouchableOpacity onPress={() => { setCalibrationInput(null); setPointBuffer([]); }} style={styles.iconBtn}>
+              <TouchableOpacity onPress={() => { setCalibrationInput(null); setPointBuffer([]); }} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel="Close">
                 <X size={18} color={Colors.text} />
               </TouchableOpacity>
             </View>
@@ -659,15 +660,13 @@ function PinDetailModal({
           <View style={styles.modalHeader}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <View style={[styles.modalPinBadge, { backgroundColor: pin.color ?? PIN_COLORS[pin.kind] }]}>
-                <MapPin size={12} color="#FFFFFF" />
+                <MapPin size={12} color={Colors.surface} />
               </View>
               <Text style={styles.modalTitle}>
                 {view === 'main' ? 'Pin' : view === 'photo' ? 'Link a photo' : 'Link a punch item'}
               </Text>
             </View>
-            <TouchableOpacity onPress={onClose} style={styles.iconBtn}>
-              <X size={18} color={Colors.text} />
-            </TouchableOpacity>
+            <TouchableOpacity onPress={onClose} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={Colors.text} /></TouchableOpacity>
           </View>
 
           {view === 'main' && (
@@ -707,7 +706,7 @@ function PinDetailModal({
                 <View style={styles.linkedRow}>
                   <Image source={{ uri: linkedPhoto.uri }} style={styles.linkedThumb} />
                   <Text style={styles.linkedText}>Photo linked</Text>
-                  <TouchableOpacity onPress={() => onUpdate({ linkedPhotoId: undefined, kind: 'note' })} style={styles.iconBtn}>
+                  <TouchableOpacity onPress={() => onUpdate({ linkedPhotoId: undefined, kind: 'note' })} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel="Close">
                     <X size={14} color={Colors.textSecondary} />
                   </TouchableOpacity>
                 </View>
@@ -716,7 +715,7 @@ function PinDetailModal({
                 <View style={styles.linkedRow}>
                   <ClipboardList size={14} color={Colors.accent} />
                   <Text style={styles.linkedText} numberOfLines={2}>{linkedPunch.description}</Text>
-                  <TouchableOpacity onPress={() => onUpdate({ linkedPunchItemId: undefined, kind: 'note' })} style={styles.iconBtn}>
+                  <TouchableOpacity onPress={() => onUpdate({ linkedPunchItemId: undefined, kind: 'note' })} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel="Close">
                     <X size={14} color={Colors.textSecondary} />
                   </TouchableOpacity>
                 </View>
@@ -771,7 +770,7 @@ function PhotoPicker({ photos, onPick, onBack }: {
       ) : (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 8 }}>
           {photos.map(p => (
-            <TouchableOpacity key={p.id} onPress={() => onPick(p.id)} style={styles.photoTile}>
+            <TouchableOpacity key={p.id} onPress={() => onPick(p.id)} style={styles.photoTile} accessibilityRole="button" accessibilityLabel="Add image">
               <Image source={{ uri: p.uri }} style={styles.photoTileImg} />
             </TouchableOpacity>
           ))}
@@ -822,11 +821,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14, paddingVertical: 10,
     backgroundColor: Colors.surface, borderBottomColor: Colors.borderLight, borderBottomWidth: 1,
   },
-  headerBtn: { padding: 6, borderRadius: 8 },
-  headerEyebrow: { color: Colors.textSecondary, fontSize: 11, fontWeight: '600', letterSpacing: 0.6, textTransform: 'uppercase' },
-  headerTitle: { color: Colors.text, fontSize: 16, fontWeight: '700' },
-  modePill: { backgroundColor: Colors.surfaceAlt, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 },
-  modePillText: { color: Colors.text, fontSize: 12, fontWeight: '600' },
+  headerBtn: { padding: 6, borderRadius: Tokens.radius.sm },
+  headerEyebrow: { color: Colors.textSecondary, fontSize: Type.caption2.fontSize, fontWeight: '600', letterSpacing: 0.6, textTransform: 'uppercase' },
+  headerTitle: { color: Colors.text, fontSize: Type.callout.fontSize, fontWeight: '700' },
+  modePill: { backgroundColor: Colors.surfaceAlt, paddingHorizontal: 10, paddingVertical: 5, borderRadius: Tokens.radius.md },
+  modePillText: { color: Colors.text, fontSize: Type.caption1.fontSize, fontWeight: '600' },
 
   canvasWrap: { flex: 1, backgroundColor: '#1C1C1E', overflow: 'hidden' },
   canvasScroll: { flexGrow: 1, justifyContent: 'center', alignItems: 'center' },
@@ -835,7 +834,7 @@ const styles = StyleSheet.create({
 
   pin: {
     position: 'absolute',
-    width: 28, height: 28, borderRadius: 14,
+    width: 28, height: 28, borderRadius: Tokens.radius.lg,
     alignItems: 'center', justifyContent: 'center',
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.35, shadowRadius: 3,
     elevation: 4,
@@ -849,10 +848,10 @@ const styles = StyleSheet.create({
   },
   toolBtn: {
     flex: 1, alignItems: 'center', gap: 2,
-    paddingVertical: 8, paddingHorizontal: 6, borderRadius: 10,
+    paddingVertical: 8, paddingHorizontal: 6, borderRadius: Tokens.radius.md,
   },
   toolBtnActive: { backgroundColor: Colors.primary },
-  toolBtnText: { color: Colors.text, fontSize: 11, fontWeight: '600', marginTop: 2 },
+  toolBtnText: { color: Colors.text, fontSize: Type.caption2.fontSize, fontWeight: '600', marginTop: 2 },
   toolBtnTextActive: { color: Colors.textOnPrimary },
   toolBtnTextDisabled: { color: Colors.textMuted },
 
@@ -863,66 +862,66 @@ const styles = StyleSheet.create({
     borderTopColor: Colors.borderLight, borderTopWidth: 1,
     borderBottomColor: Colors.borderLight, borderBottomWidth: 1,
   },
-  hintText: { flex: 1, color: Colors.text, fontSize: 12, fontWeight: '500' },
+  hintText: { flex: 1, color: Colors.text, fontSize: Type.caption1.fontSize, fontWeight: '500' },
 
   distanceRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 },
-  unitLabel: { color: Colors.textSecondary, fontSize: 13, fontWeight: '600' },
+  unitLabel: { color: Colors.textSecondary, fontSize: Type.footnote.fontSize, fontWeight: '600' },
   primaryBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-    backgroundColor: Colors.primary, paddingHorizontal: 14, paddingVertical: 11, borderRadius: 10,
+    backgroundColor: Colors.primary, paddingHorizontal: 14, paddingVertical: 11, borderRadius: Tokens.radius.md,
   },
-  primaryBtnText: { color: Colors.textOnPrimary, fontSize: 14, fontWeight: '700' },
+  primaryBtnText: { color: Colors.textOnPrimary, fontSize: Type.bodyCompact.fontSize, fontWeight: '700' },
 
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
   modalCard: {
     backgroundColor: Colors.surface, padding: 16, borderTopLeftRadius: 20, borderTopRightRadius: 20,
     gap: 10, maxHeight: '80%',
-    ...Platform.select({ web: { maxWidth: 520, alignSelf: 'center', width: '100%', borderRadius: 16, marginBottom: 20 } as object, default: {} as object }),
+    ...Platform.select({ web: { maxWidth: 520, alignSelf: 'center', width: '100%', borderRadius: Tokens.radius.panel, marginBottom: 20 } as object, default: {} as object }),
   },
   modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
-  modalTitle: { color: Colors.text, fontSize: 16, fontWeight: '700' },
-  modalPinBadge: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  iconBtn: { padding: 6, borderRadius: 8 },
-  label: { color: Colors.textSecondary, fontSize: 12, fontWeight: '600' },
+  modalTitle: { color: Colors.text, fontSize: Type.callout.fontSize, fontWeight: '700' },
+  modalPinBadge: { width: 24, height: 24, borderRadius: Tokens.radius.card, alignItems: 'center', justifyContent: 'center' },
+  iconBtn: { padding: 6, borderRadius: Tokens.radius.sm },
+  label: { color: Colors.textSecondary, fontSize: Type.caption1.fontSize, fontWeight: '600' },
   input: {
-    backgroundColor: Colors.surfaceAlt, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10,
-    color: Colors.text, fontSize: 14, borderColor: Colors.borderLight, borderWidth: 1, minHeight: 44,
+    backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.md, paddingHorizontal: 12, paddingVertical: 10,
+    color: Colors.text, fontSize: Type.bodyCompact.fontSize, borderColor: Colors.borderLight, borderWidth: 1, minHeight: 44,
   },
 
   linkRow: { flexDirection: 'row', gap: 8, marginTop: 6 },
   linkCell: {
-    flex: 1, backgroundColor: Colors.surfaceAlt, padding: 10, borderRadius: 10,
+    flex: 1, backgroundColor: Colors.surfaceAlt, padding: 10, borderRadius: Tokens.radius.md,
     borderColor: Colors.borderLight, borderWidth: 1, gap: 3,
   },
-  linkCellTitle: { color: Colors.text, fontSize: 12, fontWeight: '700', marginTop: 4 },
+  linkCellTitle: { color: Colors.text, fontSize: Type.caption1.fontSize, fontWeight: '700', marginTop: 4 },
   linkCellSub: { color: Colors.textSecondary, fontSize: 10 },
 
   linkedRow: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
-    backgroundColor: Colors.successLight, padding: 10, borderRadius: 10, marginTop: 6,
+    backgroundColor: Colors.successLight, padding: 10, borderRadius: Tokens.radius.md, marginTop: 6,
   },
-  linkedThumb: { width: 36, height: 36, borderRadius: 6 },
-  linkedText: { flex: 1, color: Colors.text, fontSize: 12, fontWeight: '600' },
+  linkedThumb: { width: 36, height: 36, borderRadius: Tokens.radius.xs },
+  linkedText: { flex: 1, color: Colors.text, fontSize: Type.caption1.fontSize, fontWeight: '600' },
 
   deleteBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     justifyContent: 'center',
-    paddingVertical: 10, borderRadius: 10, marginTop: 8,
+    paddingVertical: 10, borderRadius: Tokens.radius.md, marginTop: 8,
     borderColor: Colors.errorLight, borderWidth: 1,
   },
-  deleteBtnText: { color: Colors.error, fontSize: 13, fontWeight: '700' },
+  deleteBtnText: { color: Colors.error, fontSize: Type.footnote.fontSize, fontWeight: '700' },
 
   backLink: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingVertical: 4 },
-  backLinkText: { color: Colors.primary, fontSize: 13, fontWeight: '600' },
-  emptyHint: { color: Colors.textSecondary, fontSize: 13, padding: 20, textAlign: 'center' },
+  backLinkText: { color: Colors.primary, fontSize: Type.footnote.fontSize, fontWeight: '600' },
+  emptyHint: { color: Colors.textSecondary, fontSize: Type.footnote.fontSize, padding: 20, textAlign: 'center' },
 
-  photoTile: { width: 80, height: 80, borderRadius: 8, overflow: 'hidden', backgroundColor: Colors.surfaceAlt },
+  photoTile: { width: 80, height: 80, borderRadius: Tokens.radius.sm, overflow: 'hidden', backgroundColor: Colors.surfaceAlt },
   photoTileImg: { width: '100%', height: '100%' },
 
   punchRow: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
-    backgroundColor: Colors.surfaceAlt, padding: 10, borderRadius: 10, marginBottom: 6,
+    backgroundColor: Colors.surfaceAlt, padding: 10, borderRadius: Tokens.radius.md, marginBottom: 6,
   },
-  punchRowTitle: { color: Colors.text, fontSize: 13, fontWeight: '600' },
-  punchRowSub: { color: Colors.textSecondary, fontSize: 11, marginTop: 2 },
+  punchRowTitle: { color: Colors.text, fontSize: Type.footnote.fontSize, fontWeight: '600' },
+  punchRowSub: { color: Colors.textSecondary, fontSize: Type.caption2.fontSize, marginTop: 2 },
 });

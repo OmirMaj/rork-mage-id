@@ -40,6 +40,8 @@ import { parseBidFromTranscript } from '@/utils/voiceFormParsers';
 import { levelBids, type LevelingResult } from '@/utils/bidLevelingEngine';
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
 import { useSubscription } from '@/contexts/SubscriptionContext';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 const STATUS_COLORS: Record<BidPackageStatus, string> = {
   open: '#FF6A1A',
@@ -521,7 +523,7 @@ export default function BuyoutPackageScreen() {
                         )}
                         {!!bid.terms && <Text style={styles.bidTerms} numberOfLines={1}>{bid.terms}</Text>}
                       </View>
-                      <TouchableOpacity onPress={() => deleteBidPackageBid(bid.id)} hitSlop={10} style={styles.bidDelete}>
+                      <TouchableOpacity onPress={() => deleteBidPackageBid(bid.id)} hitSlop={10} style={styles.bidDelete} accessibilityRole="button" accessibilityLabel="Delete">
                         <Trash2 size={14} color={Colors.textMuted} />
                       </TouchableOpacity>
                     </View>
@@ -646,7 +648,7 @@ export default function BuyoutPackageScreen() {
           suggestions={[
             "Joe's Plumbing came in at forty-eight hundred, includes everything except fixtures",
             "ABC Mechanical at twelve thousand five hundred, all-in, ten percent deposit",
-            "Henderson Electric, six thousand two hundred, excludes permits and trim work",
+            "Westside Electric, six thousand two hundred, excludes permits and trim work",
             "Mike's Drywall at thirty-two hundred, hang and finish only, no paint",
           ]}
         />
@@ -656,7 +658,7 @@ export default function BuyoutPackageScreen() {
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, backgroundColor: Colors.background }}>
             <View style={styles.modalHead}>
               <Text style={styles.modalTitle}>Log a bid</Text>
-              <TouchableOpacity onPress={() => setShowAddBid(false)} hitSlop={12}>
+              <TouchableOpacity onPress={() => setShowAddBid(false)} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close">
                 <X size={22} color={Colors.text} />
               </TouchableOpacity>
             </View>
@@ -688,12 +690,12 @@ export default function BuyoutPackageScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: Colors.background },
   notFound: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  notFoundText: { fontSize: 15, color: Colors.textMuted },
+  notFoundText: { fontSize: Type.subhead.fontSize, color: Colors.textMuted },
 
   hero: {
     margin: 16,
     padding: 18,
-    borderRadius: 18,
+    borderRadius: Tokens.radius.xl,
     backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
@@ -701,18 +703,18 @@ const styles = StyleSheet.create({
   heroTopRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
   statusPill: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, borderWidth: 1 },
   statusDot: { width: 8, height: 8, borderRadius: 4 },
-  statusPillText: { fontSize: 11, fontWeight: '700' as const, letterSpacing: 0.3, textTransform: 'uppercase' },
-  heroPhase: { fontSize: 12, color: Colors.textMuted, fontWeight: '600' as const },
+  statusPillText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, letterSpacing: 0.3, textTransform: 'uppercase' },
+  heroPhase: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, fontWeight: '600' as const },
   heroName: { fontSize: 24, fontWeight: '800' as const, color: Colors.text, letterSpacing: -0.5, marginBottom: 14 },
   heroBudgetRow: { flexDirection: 'row', gap: 16 },
   heroBudgetCell: { flex: 1 },
-  heroBudgetLabel: { fontSize: 11, fontWeight: '700' as const, color: Colors.textMuted, letterSpacing: 0.5, textTransform: 'uppercase', marginBottom: 4 },
-  heroBudgetValue: { fontSize: 22, fontWeight: '800' as const, color: Colors.text },
+  heroBudgetLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: Colors.textMuted, letterSpacing: 0.5, textTransform: 'uppercase', marginBottom: 4 },
+  heroBudgetValue: { fontSize: Type.title2.fontSize, fontWeight: '800' as const, color: Colors.text },
 
   section: { paddingHorizontal: 16, paddingBottom: 8 },
   sectionHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 12, marginTop: 4 },
-  sectionTitle: { fontSize: 18, fontWeight: '700' as const, color: Colors.text, letterSpacing: -0.3 },
-  sectionSub: { fontSize: 12, color: Colors.textMuted },
+  sectionTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: Colors.text, letterSpacing: -0.3 },
+  sectionSub: { fontSize: Type.caption1.fontSize, color: Colors.textMuted },
 
   levelBtn: {
     flexDirection: 'row',
@@ -721,83 +723,83 @@ const styles = StyleSheet.create({
     gap: 8,
     backgroundColor: Colors.text,
     paddingVertical: 14,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
   },
-  levelBtnText: { color: '#FFF', fontSize: 14, fontWeight: '700' as const },
+  levelBtnText: { color: '#FFF', fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const },
   levelingSummary: {
     marginTop: 12,
     backgroundColor: Colors.primary + '0F',
     borderLeftWidth: 4,
     borderLeftColor: Colors.primary,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     padding: 14,
     gap: 6,
   },
   levelingSummaryHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  levelingSummaryHeadText: { fontSize: 11, fontWeight: '700' as const, color: Colors.primary, textTransform: 'uppercase', letterSpacing: 0.5 },
-  levelingSummaryBody: { fontSize: 13, color: Colors.text, lineHeight: 19 },
-  recommendation: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4, padding: 8, backgroundColor: Colors.success + '15', borderRadius: 8 },
-  recommendationText: { flex: 1, fontSize: 12, color: Colors.text, lineHeight: 17, fontWeight: '600' as const },
+  levelingSummaryHeadText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: Colors.primary, textTransform: 'uppercase', letterSpacing: 0.5 },
+  levelingSummaryBody: { fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 19 },
+  recommendation: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4, padding: 8, backgroundColor: Colors.success + '15', borderRadius: Tokens.radius.sm },
+  recommendationText: { flex: 1, fontSize: Type.caption1.fontSize, color: Colors.text, lineHeight: 17, fontWeight: '600' as const },
 
-  emptyBids: { backgroundColor: Colors.surface, borderRadius: 14, padding: 22, borderWidth: 1, borderColor: Colors.cardBorder },
-  emptyBidsText: { fontSize: 13, color: Colors.textMuted, textAlign: 'center', lineHeight: 19 },
+  emptyBids: { backgroundColor: Colors.surface, borderRadius: Tokens.radius.lg, padding: 22, borderWidth: 1, borderColor: Colors.cardBorder },
+  emptyBidsText: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, textAlign: 'center', lineHeight: 19 },
 
-  bidCard: { backgroundColor: Colors.surface, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: Colors.cardBorder, marginBottom: 10, gap: 10 },
+  bidCard: { backgroundColor: Colors.surface, borderRadius: Tokens.radius.lg, padding: 14, borderWidth: 1, borderColor: Colors.cardBorder, marginBottom: 10, gap: 10 },
   bidCardWinner: { borderColor: Colors.success, borderWidth: 2, backgroundColor: Colors.success + '08' },
   bidCardAwarded: { borderColor: Colors.success, borderWidth: 2 },
   bidCardOutlier: { borderColor: Colors.warning + '80', borderWidth: 1.5 },
-  outlierBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: Colors.warning, paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6 },
+  outlierBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: Colors.warning, paddingHorizontal: 6, paddingVertical: 3, borderRadius: Tokens.radius.xs },
   outlierBadgeText: { fontSize: 9, fontWeight: '800' as const, color: '#FFF', letterSpacing: 0.5 },
-  outlierHint: { fontSize: 11, color: Colors.warning, marginTop: 4, lineHeight: 15, fontWeight: '600' as const },
-  warningCard: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, backgroundColor: Colors.warning + '12', borderLeftWidth: 4, borderLeftColor: Colors.warning, padding: 12, borderRadius: 10, marginBottom: 8 },
-  warningTitle: { fontSize: 13, fontWeight: '700' as const, color: Colors.text },
-  warningBody: { fontSize: 12, color: Colors.textMuted, marginTop: 2, lineHeight: 17 },
+  outlierHint: { fontSize: Type.caption2.fontSize, color: Colors.warning, marginTop: 4, lineHeight: 15, fontWeight: '600' as const },
+  warningCard: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, backgroundColor: Colors.warning + '12', borderLeftWidth: 4, borderLeftColor: Colors.warning, padding: 12, borderRadius: Tokens.radius.md, marginBottom: 8 },
+  warningTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.text },
+  warningBody: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2, lineHeight: 17 },
   bidHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
   bidNameRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
-  bidVendor: { fontSize: 16, fontWeight: '700' as const, color: Colors.text },
-  bidTerms: { fontSize: 12, color: Colors.textMuted, marginTop: 2 },
+  bidVendor: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.text },
+  bidTerms: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2 },
   bidDelete: { padding: 4 },
-  winnerBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: Colors.success, paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6 },
+  winnerBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: Colors.success, paddingHorizontal: 6, paddingVertical: 3, borderRadius: Tokens.radius.xs },
   winnerBadgeText: { fontSize: 9, fontWeight: '800' as const, color: '#FFF', letterSpacing: 0.5 },
-  lowestBadge: { backgroundColor: Colors.primary + '22', paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6 },
+  lowestBadge: { backgroundColor: Colors.primary + '22', paddingHorizontal: 6, paddingVertical: 3, borderRadius: Tokens.radius.xs },
   lowestBadgeText: { fontSize: 9, fontWeight: '800' as const, color: Colors.primary, letterSpacing: 0.5 },
-  awardedBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: Colors.success, paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6 },
+  awardedBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: Colors.success, paddingHorizontal: 6, paddingVertical: 3, borderRadius: Tokens.radius.xs },
   awardedBadgeText: { fontSize: 9, fontWeight: '800' as const, color: '#FFF', letterSpacing: 0.5 },
 
   bidAmountsRow: { flexDirection: 'row', gap: 14, paddingVertical: 8, borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: Colors.cardBorder },
   bidAmountCell: { flex: 1 },
   bidAmountLabel: { fontSize: 10, fontWeight: '700' as const, color: Colors.textMuted, letterSpacing: 0.5, textTransform: 'uppercase', marginBottom: 4 },
-  bidAmountValue: { fontSize: 16, fontWeight: '700' as const, color: Colors.text },
-  bidAmountValueTotal: { fontSize: 18, fontWeight: '800' as const },
+  bidAmountValue: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.text },
+  bidAmountValueTotal: { fontSize: Type.subheadline.fontSize, fontWeight: '800' as const },
 
-  bidScopeBlock: { backgroundColor: Colors.fillTertiary, borderLeftWidth: 4, borderLeftColor: Colors.success, borderRadius: 8, padding: 10, gap: 4 },
+  bidScopeBlock: { backgroundColor: Colors.fillTertiary, borderLeftWidth: 4, borderLeftColor: Colors.success, borderRadius: Tokens.radius.sm, padding: 10, gap: 4 },
   bidScopeLabel: { fontSize: 10, fontWeight: '700' as const, color: Colors.success, letterSpacing: 0.5, textTransform: 'uppercase' },
-  bidScopeText: { fontSize: 13, color: Colors.text, lineHeight: 18 },
+  bidScopeText: { fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 18 },
 
-  adjReason: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, padding: 10, backgroundColor: Colors.primary + '08', borderRadius: 8 },
-  adjReasonText: { flex: 1, fontSize: 12, color: Colors.text, lineHeight: 17, fontStyle: 'italic' },
+  adjReason: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, padding: 10, backgroundColor: Colors.primary + '08', borderRadius: Tokens.radius.sm },
+  adjReasonText: { flex: 1, fontSize: Type.caption1.fontSize, color: Colors.text, lineHeight: 17, fontStyle: 'italic' },
 
-  awardBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: Colors.success, paddingVertical: 12, borderRadius: 12 },
-  awardBtnText: { color: '#FFF', fontSize: 14, fontWeight: '700' as const },
+  awardBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: Colors.success, paddingVertical: 12, borderRadius: Tokens.radius.card },
+  awardBtnText: { color: '#FFF', fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const },
 
-  openCommitmentBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: Colors.primary + '15', paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: Colors.primary + '40' },
-  openCommitmentText: { color: Colors.primary, fontSize: 14, fontWeight: '600' as const },
+  openCommitmentBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: Colors.primary + '15', paddingVertical: 14, borderRadius: Tokens.radius.card, borderWidth: 1, borderColor: Colors.primary + '40' },
+  openCommitmentText: { color: Colors.primary, fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const },
 
   deletePkgBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12 },
-  deletePkgText: { fontSize: 13, color: Colors.error, fontWeight: '600' as const },
+  deletePkgText: { fontSize: Type.footnote.fontSize, color: Colors.error, fontWeight: '600' as const },
 
   fabRow: { position: 'absolute', left: 16, right: 16, flexDirection: 'row', gap: 8 },
-  fabSecondary: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: Colors.surface, paddingHorizontal: 14, paddingVertical: 14, borderRadius: 14, borderWidth: 1, borderColor: Colors.cardBorder },
-  fabSecondaryText: { fontSize: 13, fontWeight: '600' as const, color: Colors.text },
-  fabPrimary: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: Colors.primary, paddingVertical: 14, borderRadius: 14, shadowColor: Colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 5 },
-  fabPrimaryText: { color: '#FFF', fontSize: 14, fontWeight: '700' as const },
+  fabSecondary: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: Colors.surface, paddingHorizontal: 14, paddingVertical: 14, borderRadius: Tokens.radius.lg, borderWidth: 1, borderColor: Colors.cardBorder },
+  fabSecondaryText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.text },
+  fabPrimary: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: Colors.primary, paddingVertical: 14, borderRadius: Tokens.radius.lg, shadowColor: Colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 5 },
+  fabPrimaryText: { color: '#FFF', fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const },
 
   modalHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 18, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Colors.cardBorder },
-  modalTitle: { fontSize: 18, fontWeight: '700' as const, color: Colors.text },
-  fieldLabel: { fontSize: 13, fontWeight: '600' as const, color: Colors.textMuted, marginTop: 14, marginBottom: 6 },
-  input: { backgroundColor: Colors.surface, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: Colors.cardBorder, fontSize: 15, color: Colors.text },
+  modalTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: Colors.text },
+  fieldLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.textMuted, marginTop: 14, marginBottom: 6 },
+  input: { backgroundColor: Colors.surface, paddingHorizontal: 14, paddingVertical: 12, borderRadius: Tokens.radius.card, borderWidth: 1, borderColor: Colors.cardBorder, fontSize: Type.subhead.fontSize, color: Colors.text },
   multilineInput: { minHeight: 70 },
   modalFoot: { padding: 16, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: Colors.cardBorder },
-  saveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: Colors.primary, paddingVertical: 14, borderRadius: 12 },
-  saveBtnText: { color: '#FFF', fontSize: 15, fontWeight: '700' as const },
+  saveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: Colors.primary, paddingVertical: 14, borderRadius: Tokens.radius.card },
+  saveBtnText: { color: '#FFF', fontSize: Type.subhead.fontSize, fontWeight: '700' as const },
 });

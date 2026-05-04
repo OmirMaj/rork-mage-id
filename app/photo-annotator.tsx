@@ -8,23 +8,19 @@
 // or the static portal.
 
 import React, { useState, useRef, useCallback, useMemo } from 'react';
-import {
-  View, Text, StyleSheet, TouchableOpacity, Image, Platform,
-  PanResponder, Alert, ScrollView,
-  TextInput,
-} from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, Platform, PanResponder, Alert, ScrollView, TextInput, } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
-  ChevronLeft, ArrowRight, Circle as CircleIcon,
-  Pen, Type, Undo2, Trash2, Check, X,
-} from 'lucide-react-native';
+  ChevronLeft, ArrowRight, Circle as CircleIcon, Pen, Type as TypeIcon, Undo2, Trash2, Check, X } from 'lucide-react-native';
 import Svg, { Path, Circle, Line, Polygon, Text as SvgText } from 'react-native-svg';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import type { PhotoMarkup } from '@/types';
 import { generateUUID } from '@/utils/generateId';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 type Tool = 'arrow' | 'circle' | 'freehand' | 'text';
 type AnnotationColor = 'red' | 'yellow' | 'green';
@@ -250,7 +246,7 @@ export default function PhotoAnnotatorScreen() {
             fill={stroke}
             opacity={0.92}
           />
-          <SvgText x={x + 8} y={y + 2} fill="#FFFFFF" fontSize={13} fontWeight="700">{m.text}</SvgText>
+          <SvgText x={x + 8} y={y + 2} fill={Colors.surface} fontSize={13} fontWeight="700">{m.text}</SvgText>
         </React.Fragment>
       );
     }
@@ -270,12 +266,12 @@ export default function PhotoAnnotatorScreen() {
       <Stack.Screen options={{ headerShown: false }} />
 
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.back}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.back} accessibilityRole="button" accessibilityLabel="Back">
           <ChevronLeft size={22} color={Colors.text} />
         </TouchableOpacity>
         <Text style={styles.title}>Markup</Text>
         <TouchableOpacity onPress={handleSave} style={styles.saveBtn}>
-          <Check size={16} color={'#FFFFFF'} />
+          <Check size={16} color={Colors.surface} />
           <Text style={styles.saveText}>Save</Text>
         </TouchableOpacity>
       </View>
@@ -289,7 +285,7 @@ export default function PhotoAnnotatorScreen() {
           onTouchEnd={handleCanvasPress}
           {...panResponder.panHandlers}
         >
-          <Image source={{ uri: photo.uri }} style={[StyleSheet.absoluteFill, { borderRadius: 12 }]} resizeMode="cover" />
+          <Image source={{ uri: photo.uri }} style={[StyleSheet.absoluteFill, { borderRadius: Tokens.radius.card }]} resizeMode="cover" />
           <Svg width={canvasW} height={canvasW} style={StyleSheet.absoluteFill}>
             {markups.map((m, i) => renderMarkup(m, `m-${i}`))}
             {drawing ? renderMarkup(drawing, 'd-current') : null}
@@ -311,10 +307,8 @@ export default function PhotoAnnotatorScreen() {
               maxLength={28}
               testID="annotator-text-input"
             />
-            <TouchableOpacity onPress={commitText} style={styles.textOk}>
-              <Check size={16} color={'#FFFFFF'} />
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => { setPendingText(null); setTextValue(''); }} style={styles.textCancel}>
+            <TouchableOpacity onPress={commitText} style={styles.textOk} accessibilityRole="button" accessibilityLabel="Confirm"><Check size={16} color={Colors.surface} /></TouchableOpacity>
+            <TouchableOpacity onPress={() => { setPendingText(null); setTextValue(''); }} style={styles.textCancel} accessibilityRole="button" accessibilityLabel="Close">
               <X size={16} color={Colors.textMuted} />
             </TouchableOpacity>
           </View>
@@ -333,7 +327,7 @@ export default function PhotoAnnotatorScreen() {
                 style={[styles.toolBtn, active && styles.toolBtnActive]}
                 testID={`tool-${t.tool}`}
               >
-                <TIcon size={18} color={active ? '#FFFFFF' : Colors.text} />
+                <TIcon size={18} color={active ? Colors.surface : Colors.text} />
                 <Text style={[styles.toolText, active && styles.toolTextActive]}>{t.label}</Text>
               </TouchableOpacity>
             );
@@ -380,8 +374,8 @@ export default function PhotoAnnotatorScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: Colors.background },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, backgroundColor: Colors.background },
-  emptyText: { fontSize: 15, color: Colors.textMuted, marginBottom: 12 },
-  emptyBack: { fontSize: 14, color: Colors.primary, fontWeight: '700' },
+  emptyText: { fontSize: Type.subhead.fontSize, color: Colors.textMuted, marginBottom: 12 },
+  emptyBack: { fontSize: Type.bodyCompact.fontSize, color: Colors.primary, fontWeight: '700' },
 
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
@@ -389,45 +383,45 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.border, backgroundColor: Colors.surface,
   },
   back: { padding: 4 },
-  title: { fontSize: 17, fontWeight: '700', color: Colors.text },
+  title: { fontSize: Type.body.fontSize, fontWeight: '700', color: Colors.text },
   saveBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: 14, paddingVertical: 8,
-    backgroundColor: Colors.primary, borderRadius: 10,
+    backgroundColor: Colors.primary, borderRadius: Tokens.radius.md,
   },
-  saveText: { color: '#FFFFFF', fontWeight: '800', fontSize: 13 },
+  saveText: { color: Colors.surface, fontWeight: '800', fontSize: Type.footnote.fontSize },
 
   body: { padding: 16, gap: 14 },
   canvas: {
-    aspectRatio: 1, borderRadius: 12, overflow: 'hidden',
+    aspectRatio: 1, borderRadius: Tokens.radius.card, overflow: 'hidden',
     backgroundColor: '#000', borderWidth: 1, borderColor: Colors.border,
   },
 
   textRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: -4 },
   textInput: {
     flex: 1, paddingHorizontal: 12, paddingVertical: 10,
-    backgroundColor: Colors.surface, borderRadius: 10,
-    borderWidth: 1, borderColor: Colors.border, fontSize: 14, color: Colors.text,
+    backgroundColor: Colors.surface, borderRadius: Tokens.radius.md,
+    borderWidth: 1, borderColor: Colors.border, fontSize: Type.bodyCompact.fontSize, color: Colors.text,
   },
-  textOk: { padding: 10, borderRadius: 10, backgroundColor: Colors.primary },
-  textCancel: { padding: 10, borderRadius: 10, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border },
+  textOk: { padding: 10, borderRadius: Tokens.radius.md, backgroundColor: Colors.primary },
+  textCancel: { padding: 10, borderRadius: Tokens.radius.md, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border },
 
-  sectionLabel: { fontSize: 11, fontWeight: '800', letterSpacing: 0.6, color: Colors.textMuted, textTransform: 'uppercase', marginTop: 6 },
+  sectionLabel: { fontSize: Type.caption2.fontSize, fontWeight: '800', letterSpacing: 0.6, color: Colors.textMuted, textTransform: 'uppercase', marginTop: 6 },
 
   toolRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   toolBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: 12, paddingVertical: 9,
-    borderRadius: 10, borderWidth: 1, borderColor: Colors.border,
+    borderRadius: Tokens.radius.md, borderWidth: 1, borderColor: Colors.border,
     backgroundColor: Colors.surface,
   },
   toolBtnActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  toolText: { fontSize: 13, fontWeight: '700', color: Colors.text },
-  toolTextActive: { color: '#FFFFFF' },
+  toolText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.text },
+  toolTextActive: { color: Colors.surface },
 
   colorRow: { flexDirection: 'row', gap: 12 },
   colorSwatch: {
-    width: 36, height: 36, borderRadius: 18,
+    width: 36, height: 36, borderRadius: Tokens.radius.xl,
     borderWidth: 2, borderColor: 'transparent',
   },
   colorSwatchActive: { borderColor: Colors.text },
@@ -435,11 +429,11 @@ const styles = StyleSheet.create({
   actionRow: { flexDirection: 'row', gap: 10, marginTop: 4 },
   actionBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-    paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: Colors.border,
+    paddingVertical: 10, borderRadius: Tokens.radius.md, borderWidth: 1, borderColor: Colors.border,
     backgroundColor: Colors.surface,
   },
   actionDisabled: { opacity: 0.5 },
-  actionText: { fontSize: 13, fontWeight: '700', color: Colors.text },
+  actionText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.text },
   actionTextDisabled: { color: Colors.textMuted },
-  helper: { fontSize: 12, color: Colors.textMuted, textAlign: 'center', marginTop: 4 },
+  helper: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, textAlign: 'center', marginTop: 4 },
 });

@@ -11,6 +11,8 @@ import {
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useNotificationFeed, type NotificationFeedItem } from '@/hooks/useNotificationFeed';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 // Friendly metadata for every event that can land in the inbox. Keep
 // the eyebrow labels SHORT (≤16 chars) so they fit on narrow screens
@@ -18,22 +20,22 @@ import { useNotificationFeed, type NotificationFeedItem } from '@/hooks/useNotif
 // not a button.
 const EVENT_META: Record<string, { icon: React.ReactNode; tint: string; label: string }> = {
   // Client → GC
-  portal_message:        { icon: <MessageSquare size={16} color="#007AFF" />, tint: '#E7F0FA', label: 'Client message' },
-  budget_proposal:       { icon: <HandCoins   size={16} color="#FF6A1A" />, tint: '#FFF1E6', label: 'Budget proposal' },
-  co_approval:           { icon: <CheckCircle2 size={16} color="#1E8E4A" />, tint: '#E8F5ED', label: 'Change order' },
-  contract_signed:       { icon: <PenTool     size={16} color="#1E8E4A" />, tint: '#E8F5ED', label: 'Contract signed' },
-  selection_chosen:      { icon: <ShoppingCart size={16} color="#FF6A1A" />, tint: '#FFF1E6', label: 'Selection picked' },
-  closeout_binder_sent:  { icon: <Package     size={16} color="#1E8E4A" />, tint: '#E8F5ED', label: 'Closeout delivered' },
+  portal_message:        { icon: <MessageSquare size={16} color={Colors.info} />, tint: '#E7F0FA', label: 'Client message' },
+  budget_proposal:       { icon: <HandCoins   size={16} color={Colors.orange} />, tint: '#FFF1E6', label: 'Budget proposal' },
+  co_approval:           { icon: <CheckCircle2 size={16} color={Colors.successDark} />, tint: Colors.successLight, label: 'Change order' },
+  contract_signed:       { icon: <PenTool     size={16} color={Colors.successDark} />, tint: Colors.successLight, label: 'Contract signed' },
+  selection_chosen:      { icon: <ShoppingCart size={16} color={Colors.orange} />, tint: '#FFF1E6', label: 'Selection picked' },
+  closeout_binder_sent:  { icon: <Package     size={16} color={Colors.successDark} />, tint: Colors.successLight, label: 'Closeout delivered' },
 
   // Sub → GC
   sub_invoice_submitted: { icon: <Inbox       size={16} color="#AF52DE" />, tint: '#F4ECFA', label: 'Sub invoice' },
   sub_invoice_reviewed:  { icon: <Inbox       size={16} color="#AF52DE" />, tint: '#F4ECFA', label: 'Invoice update' },
 
   // Marketplace
-  nearby_rfp_posted:     { icon: <Hammer      size={16} color="#5856D6" />, tint: '#EFEFFA', label: 'New project nearby' },
-  rfp_awarded:           { icon: <Trophy      size={16} color="#1E8E4A" />, tint: '#E8F5ED', label: 'You won the bid' },
-  bid_question_asked:    { icon: <HelpCircle  size={16} color="#5856D6" />, tint: '#EFEFFA', label: 'Pre-bid question' },
-  bid_question_answered: { icon: <HelpCircle  size={16} color="#5856D6" />, tint: '#EFEFFA', label: 'Bid Q&A' },
+  nearby_rfp_posted:     { icon: <Hammer      size={16} color={Colors.purple} />, tint: '#EFEFFA', label: 'New project nearby' },
+  rfp_awarded:           { icon: <Trophy      size={16} color={Colors.successDark} />, tint: Colors.successLight, label: 'You won the bid' },
+  bid_question_asked:    { icon: <HelpCircle  size={16} color={Colors.purple} />, tint: '#EFEFFA', label: 'Pre-bid question' },
+  bid_question_answered: { icon: <HelpCircle  size={16} color={Colors.purple} />, tint: '#EFEFFA', label: 'Bid Q&A' },
 };
 
 function fmtAgo(iso: string): string {
@@ -281,7 +283,7 @@ export default function NotificationsInboxScreen() {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={8}>
+        <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
           <ChevronLeft size={26} color={Colors.primary} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
@@ -299,8 +301,7 @@ export default function NotificationsInboxScreen() {
         <TouchableOpacity
           style={styles.headerIconBtn}
           onPress={() => router.push('/notifications-settings' as never)}
-          hitSlop={6}
-        >
+          hitSlop={6} accessibilityRole="button" accessibilityLabel="Settings">
           <Settings size={18} color={Colors.textMuted} />
         </TouchableOpacity>
       </View>
@@ -353,8 +354,7 @@ export default function NotificationsInboxScreen() {
               <TouchableOpacity
                 style={styles.dismissBtn}
                 onPress={(e) => { e.stopPropagation(); feed.dismiss(item.id); }}
-                hitSlop={6}
-              >
+                hitSlop={6} accessibilityRole="button" accessibilityLabel="Close">
                 <X size={14} color={Colors.textMuted} />
               </TouchableOpacity>
             </TouchableOpacity>
@@ -372,15 +372,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, paddingVertical: 12,
     borderBottomWidth: 1, borderBottomColor: Colors.border,
   },
-  title: { fontSize: 22, fontWeight: '800', color: Colors.text, letterSpacing: -0.4 },
-  subtitle: { fontSize: 12, color: Colors.primary, fontWeight: '700', marginTop: 2 },
+  title: { fontSize: Type.title2.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.4 },
+  subtitle: { fontSize: Type.caption1.fontSize, color: Colors.primary, fontWeight: '700', marginTop: 2 },
   headerAction: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
     paddingHorizontal: 10, paddingVertical: 6,
-    backgroundColor: Colors.card, borderRadius: 10,
+    backgroundColor: Colors.card, borderRadius: Tokens.radius.md,
     borderWidth: 1, borderColor: Colors.border,
   },
-  headerActionText: { fontSize: 12, fontWeight: '700', color: Colors.text },
+  headerActionText: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: Colors.text },
   headerIconBtn: {
     width: 32, height: 32, borderRadius: 9,
     backgroundColor: Colors.card,
@@ -391,7 +391,7 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row', gap: 12,
     paddingHorizontal: 14, paddingVertical: 14, marginVertical: 4,
-    backgroundColor: Colors.card, borderRadius: 14,
+    backgroundColor: Colors.card, borderRadius: Tokens.radius.lg,
     borderWidth: 1, borderColor: Colors.border,
   },
   rowUnread: { borderColor: Colors.primary + '40', backgroundColor: '#FFF7EE' },
@@ -407,11 +407,11 @@ const styles = StyleSheet.create({
   },
   rowHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
   rowEyebrow: { fontSize: 10, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.6 },
-  rowTime: { fontSize: 11, color: Colors.textMuted, fontWeight: '600' },
-  rowTitle: { fontSize: 14, fontWeight: '700', color: Colors.text },
-  rowBody: { fontSize: 13, color: Colors.text, marginTop: 3, lineHeight: 18 },
+  rowTime: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontWeight: '600' },
+  rowTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
+  rowBody: { fontSize: Type.footnote.fontSize, color: Colors.text, marginTop: 3, lineHeight: 18 },
   dismissBtn: {
-    width: 28, height: 28, borderRadius: 8,
+    width: 28, height: 28, borderRadius: Tokens.radius.sm,
     alignItems: 'center', justifyContent: 'center',
     alignSelf: 'flex-start',
   },
@@ -420,12 +420,12 @@ const styles = StyleSheet.create({
     alignItems: 'center', padding: 40, marginTop: 40,
     gap: 10,
   },
-  emptyTitle: { fontSize: 16, fontWeight: '700', color: Colors.text, marginTop: 4 },
-  emptyBody: { fontSize: 13, color: Colors.textMuted, textAlign: 'center', lineHeight: 19, maxWidth: 280 },
+  emptyTitle: { fontSize: Type.callout.fontSize, fontWeight: '700', color: Colors.text, marginTop: 4 },
+  emptyBody: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, textAlign: 'center', lineHeight: 19, maxWidth: 280 },
 
   clearAll: {
     flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6,
     paddingVertical: 16, marginTop: 6,
   },
-  clearAllText: { fontSize: 13, fontWeight: '600', color: Colors.error },
+  clearAllText: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: Colors.error },
 });

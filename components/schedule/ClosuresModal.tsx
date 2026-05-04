@@ -23,6 +23,8 @@ import {
 } from 'react-native';
 import { Colors } from '@/constants/colors';
 import { ChevronLeft, ChevronRight, X, CalendarX, Trash2 } from 'lucide-react-native';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 export interface ClosuresModalProps {
   visible: boolean;
@@ -74,7 +76,7 @@ export default function ClosuresModal({
 
   // Build a 6x7 grid. null = leading/trailing padding.
   const grid = useMemo(() => {
-    const cells: Array<{ iso: string; day: number; dow: number } | null> = [];
+    const cells: ({ iso: string; day: number; dow: number } | null)[] = [];
     for (let i = 0; i < firstDow; i++) cells.push(null);
     for (let d = 1; d <= totalDays; d++) {
       const date = new Date(year, month0, d);
@@ -112,9 +114,7 @@ export default function ClosuresModal({
             <Text style={styles.subtitle} numberOfLines={1}>
               Holidays, rain days, site lockdowns — skipped in CPM math.
             </Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-              <X size={18} color={Colors.textSecondary} />
-            </TouchableOpacity>
+            <TouchableOpacity onPress={onClose} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={Colors.textSecondary} /></TouchableOpacity>
           </View>
 
           <View style={styles.body}>
@@ -124,16 +124,14 @@ export default function ClosuresModal({
                 <TouchableOpacity
                   onPress={() => setCursor(new Date(year, month0 - 1, 1))}
                   style={styles.navBtn}
-                  activeOpacity={0.7}
-                >
+                  activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Back">
                   <ChevronLeft size={16} color={Colors.text} />
                 </TouchableOpacity>
                 <Text style={styles.monthLabel}>{monthLabel}</Text>
                 <TouchableOpacity
                   onPress={() => setCursor(new Date(year, month0 + 1, 1))}
                   style={styles.navBtn}
-                  activeOpacity={0.7}
-                >
+                  activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Open">
                   <ChevronRight size={16} color={Colors.text} />
                 </TouchableOpacity>
               </View>
@@ -205,8 +203,7 @@ export default function ClosuresModal({
                         <TouchableOpacity
                           onPress={() => toggle(iso)}
                           style={styles.removeBtn}
-                          activeOpacity={0.7}
-                        >
+                          activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Close">
                           <X size={12} color={Colors.textSecondary} />
                         </TouchableOpacity>
                       </View>
@@ -243,7 +240,7 @@ const styles = StyleSheet.create({
     maxWidth: '94%',
     maxHeight: '88%',
     backgroundColor: Colors.surface,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     overflow: 'hidden',
     shadowColor: '#000',
     shadowOpacity: 0.18,
@@ -259,8 +256,8 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
   },
-  title: { fontSize: 15, fontWeight: '700', color: Colors.text },
-  subtitle: { flex: 1, fontSize: 12, color: Colors.textSecondary, marginLeft: 4 },
+  title: { fontSize: Type.subhead.fontSize, fontWeight: '700', color: Colors.text },
+  subtitle: { flex: 1, fontSize: Type.caption1.fontSize, color: Colors.textSecondary, marginLeft: 4 },
   closeBtn: { padding: 4 },
   body: {
     flexDirection: 'row',
@@ -280,10 +277,10 @@ const styles = StyleSheet.create({
   },
   navBtn: {
     padding: 6,
-    borderRadius: 6,
+    borderRadius: Tokens.radius.xs,
     backgroundColor: Colors.fillTertiary,
   },
-  monthLabel: { fontSize: 14, fontWeight: '700', color: Colors.text },
+  monthLabel: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
   dowRow: {
     flexDirection: 'row',
     marginBottom: 6,
@@ -291,7 +288,7 @@ const styles = StyleSheet.create({
   dowLabel: {
     flex: 1,
     textAlign: 'center',
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     fontWeight: '600',
     color: Colors.textSecondary,
   },
@@ -312,12 +309,12 @@ const styles = StyleSheet.create({
   },
   cellMarked: {
     backgroundColor: Colors.primary,
-    borderRadius: 8,
+    borderRadius: Tokens.radius.sm,
   },
-  cellText: { fontSize: 13, fontWeight: '500', color: Colors.text },
+  cellText: { fontSize: Type.footnote.fontSize, fontWeight: '500', color: Colors.text },
   cellTextWeekend: { color: Colors.textMuted },
   cellTextMarked: { color: '#fff', fontWeight: '700' },
-  hint: { fontSize: 11, color: Colors.textSecondary, marginTop: 10, lineHeight: 16 },
+  hint: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, marginTop: 10, lineHeight: 16 },
   list: {
     width: 240,
     padding: 12,
@@ -332,10 +329,10 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: Colors.borderLight,
   },
-  listTitle: { fontSize: 13, fontWeight: '700', color: Colors.text },
+  listTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.text },
   clearBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, padding: 4 },
-  clearText: { fontSize: 11, fontWeight: '600', color: Colors.error },
-  emptyText: { fontSize: 12, color: Colors.textSecondary, fontStyle: 'italic', marginTop: 20, textAlign: 'center' },
+  clearText: { fontSize: Type.caption2.fontSize, fontWeight: '600', color: Colors.error },
+  emptyText: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, fontStyle: 'italic', marginTop: 20, textAlign: 'center' },
   listRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -344,7 +341,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: Colors.borderLight,
   },
-  listRowText: { flex: 1, fontSize: 12, color: Colors.text },
+  listRowText: { flex: 1, fontSize: Type.caption1.fontSize, color: Colors.text },
   removeBtn: { padding: 4 },
   footer: {
     flexDirection: 'row',
@@ -355,8 +352,8 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: Colors.border,
   },
-  btnGhost: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 6 },
-  btnGhostText: { fontSize: 13, fontWeight: '600', color: Colors.textSecondary },
-  btnPrimary: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 6, backgroundColor: Colors.primary },
-  btnPrimaryText: { fontSize: 13, fontWeight: '700', color: '#fff' },
+  btnGhost: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: Tokens.radius.xs },
+  btnGhostText: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: Colors.textSecondary },
+  btnPrimary: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: Tokens.radius.xs, backgroundColor: Colors.primary },
+  btnPrimaryText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: '#fff' },
 });

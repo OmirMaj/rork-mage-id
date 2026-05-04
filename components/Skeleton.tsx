@@ -18,6 +18,7 @@
 import React, { useEffect, useRef, useMemo } from 'react';
 import { Animated, Easing, StyleSheet, View, ViewStyle } from 'react-native';
 import { Colors } from '@/constants/colors';
+import { Tokens } from '@/constants/designTokens';
 
 interface SkeletonProps {
   width?: number | `${number}%`;
@@ -119,11 +120,11 @@ const rowStyles = StyleSheet.create({
   avatar: {
     width: 40,
     height: 40,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     backgroundColor: Colors.fillTertiary,
   },
   lines: { flex: 1, gap: 6 },
-  lineLong: { height: 12, backgroundColor: Colors.fillTertiary, borderRadius: 6, width: '70%' as const },
+  lineLong: { height: 12, backgroundColor: Colors.fillTertiary, borderRadius: Tokens.radius.xs, width: '70%' as const },
   lineShort: { height: 10, backgroundColor: Colors.fillTertiary, borderRadius: 5, width: '40%' as const },
 });
 
@@ -132,7 +133,7 @@ const cardStyles = StyleSheet.create({
     marginHorizontal: 16,
     marginBottom: 10,
     backgroundColor: Colors.surface,
-    borderRadius: 16,
+    borderRadius: Tokens.radius.panel,
     overflow: 'hidden' as const,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
@@ -146,7 +147,7 @@ const cardStyles = StyleSheet.create({
   icon: {
     width: 42,
     height: 42,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     backgroundColor: Colors.fillTertiary,
   },
   title: { flex: 1, gap: 6 },
@@ -163,7 +164,7 @@ const cardStyles = StyleSheet.create({
   metaBlock: {
     flex: 1,
     height: 30,
-    borderRadius: 8,
+    borderRadius: Tokens.radius.sm,
     backgroundColor: Colors.fillTertiary,
   },
 });

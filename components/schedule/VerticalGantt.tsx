@@ -15,6 +15,8 @@ import {
   getTaskDateRange,
 } from '@/utils/scheduleEngine';
 import { getSimulatedForecast, getConditionIcon } from '@/utils/weatherService';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 interface VerticalGanttProps {
   schedule: ProjectSchedule;
@@ -196,12 +198,12 @@ const s = StyleSheet.create({
   },
   dayWeekdayToday: { color: Colors.error, fontWeight: '800' as const },
   dayDate: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
     color: Colors.text,
   },
   dayDateToday: { color: Colors.error, fontWeight: '800' as const },
-  dayWeather: { fontSize: 12, marginTop: 1 },
+  dayWeather: { fontSize: Type.caption1.fontSize, marginTop: 1 },
   dayTasks: {
     flex: 1,
     paddingVertical: 4,
@@ -211,7 +213,7 @@ const s = StyleSheet.create({
   },
   emptyDay: { height: 20 },
   taskBar: {
-    borderRadius: 8,
+    borderRadius: Tokens.radius.sm,
     overflow: 'hidden' as const,
     position: 'relative' as const,
   },
@@ -220,7 +222,7 @@ const s = StyleSheet.create({
     top: 0,
     left: 0,
     bottom: 0,
-    borderRadius: 8,
+    borderRadius: Tokens.radius.sm,
   },
   taskBarContent: {
     flexDirection: 'row',
@@ -232,7 +234,7 @@ const s = StyleSheet.create({
   taskBarIcons: { flexDirection: 'row', gap: 2 },
   taskBarTitle: {
     flex: 1,
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     fontWeight: '600' as const,
   },
   taskBarPercent: {

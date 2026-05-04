@@ -7,6 +7,8 @@ import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useSubSubmittedInvoices } from '@/hooks/useSubSubmittedInvoices';
 import { formatMoney } from '@/utils/formatters';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 interface PairRow {
   key: string;
@@ -59,7 +61,7 @@ export default function SubPortalsListScreen() {
         options={{
           title: 'Sub Portals',
           headerLeft: () => (
-            <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }}>
+            <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }} accessibilityRole="button" accessibilityLabel="Back">
               <ChevronLeft size={24} color={Colors.primary} />
             </TouchableOpacity>
           ),
@@ -124,36 +126,36 @@ function PairRowItem({ item, onPress }: { item: PairRow; onPress: () => void }) 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   headerWrap: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 18 },
-  title: { fontSize: 28, fontWeight: '800', color: Colors.text, letterSpacing: -0.5 },
-  subtitle: { fontSize: 14, color: Colors.textMuted, marginTop: 6, lineHeight: 20 },
+  title: { fontSize: Type.title1.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.5 },
+  subtitle: { fontSize: Type.bodyCompact.fontSize, color: Colors.textMuted, marginTop: 6, lineHeight: 20 },
 
   empty: {
     alignItems: 'center', padding: 36, marginTop: 32,
-    backgroundColor: Colors.card, borderRadius: 14,
+    backgroundColor: Colors.card, borderRadius: Tokens.radius.lg,
     borderWidth: 1, borderColor: Colors.border, borderStyle: 'dashed',
     gap: 8,
   },
-  emptyTitle: { fontSize: 16, fontWeight: '700', color: Colors.text },
-  emptyBody: { fontSize: 13, color: Colors.textMuted, textAlign: 'center', lineHeight: 18 },
+  emptyTitle: { fontSize: Type.callout.fontSize, fontWeight: '700', color: Colors.text },
+  emptyBody: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, textAlign: 'center', lineHeight: 18 },
 
   row: {
     flexDirection: 'row', alignItems: 'center', gap: 14,
     padding: 14, marginBottom: 10,
-    backgroundColor: Colors.card, borderRadius: 14,
+    backgroundColor: Colors.card, borderRadius: Tokens.radius.lg,
     borderWidth: 1, borderColor: Colors.border,
   },
   rowIcon: {
-    width: 42, height: 42, borderRadius: 12,
+    width: 42, height: 42, borderRadius: Tokens.radius.card,
     backgroundColor: Colors.primary + '15',
     alignItems: 'center', justifyContent: 'center',
   },
-  rowTitle: { fontSize: 15, fontWeight: '700', color: Colors.text },
-  rowMeta: { fontSize: 12, color: Colors.textMuted, marginTop: 2 },
+  rowTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700', color: Colors.text },
+  rowMeta: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2 },
   rowFoot: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 6 },
-  rowAmount: { fontSize: 14, fontWeight: '700', color: Colors.text },
+  rowAmount: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
   pendingBadge: {
-    paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999,
+    paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.full,
     backgroundColor: Colors.primary + '18',
   },
-  pendingBadgeText: { fontSize: 11, fontWeight: '700', color: Colors.primary },
+  pendingBadgeText: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.primary },
 });

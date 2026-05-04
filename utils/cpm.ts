@@ -392,7 +392,7 @@ function backwardPass(
   const result = new Map<string, { ls: number; lf: number }>();
 
   // Pre-compute successor list keyed by predecessor id.
-  const successors = new Map<string, Array<{ succ: ScheduleTask; link: DependencyLink }>>();
+  const successors = new Map<string, { succ: ScheduleTask; link: DependencyLink }[]>();
   all.forEach(t => successors.set(t.id, []));
   all.forEach(t => {
     for (const link of getLinks(t)) {
@@ -457,7 +457,7 @@ function computeFreeFloat(
   forward: Map<string, { es: number; ef: number }>,
 ): Map<string, number> {
   const byId = new Map(tasks.map(t => [t.id, t]));
-  const successors = new Map<string, Array<{ succ: ScheduleTask; link: DependencyLink }>>();
+  const successors = new Map<string, { succ: ScheduleTask; link: DependencyLink }[]>();
   tasks.forEach(t => successors.set(t.id, []));
   tasks.forEach(t => {
     for (const link of getLinks(t)) {

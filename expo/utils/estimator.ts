@@ -113,10 +113,10 @@ const materialCategorySchema = z.object({
 });
 
 export async function fetchMaterialPrices(location: string, category?: string): Promise<{
-  categories: Array<{
+  categories: {
     id: string;
     name: string;
-    items: Array<{
+    items: {
       name: string;
       unit: string;
       retailPrice: number;
@@ -124,8 +124,8 @@ export async function fetchMaterialPrices(location: string, category?: string): 
       bulkMinQty: number;
       supplier: string;
       lastUpdated: string;
-    }>;
-  }>;
+    }[];
+  }[];
 }> {
   console.log('[Estimator] Fetching material prices for:', location, category);
 
@@ -157,7 +157,7 @@ Use realistic, current market prices. Lumber prices should reflect current marke
     }
 
     console.log('[Estimator] Material prices fetched');
-    return aiResult.data as { categories: Array<{ id: string; name: string; items: Array<{ name: string; unit: string; retailPrice: number; bulkPrice: number; bulkMinQty: number; supplier: string; lastUpdated: string; }> }> };
+    return aiResult.data as { categories: { id: string; name: string; items: { name: string; unit: string; retailPrice: number; bulkPrice: number; bulkMinQty: number; supplier: string; lastUpdated: string; }[] }[] };
   } catch (error) {
     console.error('[Estimator] Error fetching materials:', error);
     throw new Error('Failed to fetch material prices.');

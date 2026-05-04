@@ -40,6 +40,8 @@ import EstimateLoadingOverlay from '@/components/EstimateLoadingOverlay';
 import { useProjects } from '@/contexts/ProjectContext';
 import { shareQuickEstimatePDF } from '@/utils/pdfGenerator';
 import type { CompanyBranding } from '@/types';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 interface WizardAnswers {
   projectType: string;
@@ -796,7 +798,7 @@ const styles = StyleSheet.create({
   },
   progressFill: { height: '100%' as const, backgroundColor: Colors.primary },
   progressLabel: {
-    fontSize: 12, color: Colors.textMuted, marginTop: 6, textAlign: 'center' as const,
+    fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 6, textAlign: 'center' as const,
   },
   stepIconWrap: {
     width: 64, height: 64, borderRadius: 32,
@@ -805,26 +807,26 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   stepTitle: { fontSize: 24, fontWeight: '700' as const, color: Colors.text, marginBottom: 6 },
-  stepSubtitle: { fontSize: 15, color: Colors.textMuted, lineHeight: 21 },
+  stepSubtitle: { fontSize: Type.subhead.fontSize, color: Colors.textMuted, lineHeight: 21 },
   chipWrap: { flexDirection: 'row' as const, flexWrap: 'wrap' as const, gap: 8 },
   chip: {
-    paddingHorizontal: 14, paddingVertical: 10, borderRadius: 18,
+    paddingHorizontal: 14, paddingVertical: 10, borderRadius: Tokens.radius.xl,
     backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.cardBorder,
   },
   chipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  chipText: { fontSize: 14, fontWeight: '600' as const, color: Colors.text },
+  chipText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
   chipTextActive: { color: '#FFF' },
   input: {
     backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.cardBorder,
-    borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12,
-    fontSize: 16, color: Colors.text,
+    borderRadius: Tokens.radius.card, paddingHorizontal: 14, paddingVertical: 12,
+    fontSize: Type.callout.fontSize, color: Colors.text,
   },
   textArea: {
     backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.cardBorder,
-    borderRadius: 12, padding: 12, minHeight: 120,
-    fontSize: 15, color: Colors.text,
+    borderRadius: Tokens.radius.card, padding: 12, minHeight: 120,
+    fontSize: Type.subhead.fontSize, color: Colors.text,
   },
-  hint: { fontSize: 12, color: Colors.textMuted, marginTop: 6 },
+  hint: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 6 },
   footer: {
     flexDirection: 'row' as const, gap: 12,
     paddingHorizontal: 20, paddingTop: 12,
@@ -834,39 +836,39 @@ const styles = StyleSheet.create({
   footerBtn: { flex: 1 },
   primaryBtn: {
     flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const,
-    gap: 6, backgroundColor: Colors.primary, borderRadius: 14, paddingVertical: 14,
+    gap: 6, backgroundColor: Colors.primary, borderRadius: Tokens.radius.lg, paddingVertical: 14,
   },
   primaryBtnDisabled: { opacity: 0.5 },
-  primaryText: { fontSize: 16, fontWeight: '700' as const, color: '#FFF' },
+  primaryText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: '#FFF' },
   secondaryBtn: {
     flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const,
-    gap: 6, backgroundColor: Colors.surface, borderRadius: 14, paddingVertical: 14,
+    gap: 6, backgroundColor: Colors.surface, borderRadius: Tokens.radius.lg, paddingVertical: 14,
     borderWidth: 1, borderColor: Colors.cardBorder,
   },
-  secondaryText: { fontSize: 15, fontWeight: '600' as const, color: Colors.text },
+  secondaryText: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: Colors.text },
   // Result view
   resultHero: {
     alignItems: 'center' as const, marginBottom: 24, gap: 4,
   },
   resultHeroTitle: {
-    fontSize: 14, fontWeight: '600' as const, color: Colors.textMuted, marginTop: 8,
+    fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.textMuted, marginTop: 8,
   },
   resultTotal: {
     fontSize: 44, fontWeight: '800' as const, color: Colors.text, marginTop: 4,
   },
-  resultSubtitle: { fontSize: 13, color: Colors.textMuted },
+  resultSubtitle: { fontSize: Type.footnote.fontSize, color: Colors.textMuted },
   resultCostPerSqft: {
-    fontSize: 13, fontWeight: '700' as const, color: Colors.primary,
+    fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.primary,
     marginTop: 4, letterSpacing: 0.3,
   },
-  resultBody: { fontSize: 14, color: Colors.text, lineHeight: 21, marginBottom: 20 },
+  resultBody: { fontSize: Type.bodyCompact.fontSize, color: Colors.text, lineHeight: 21, marginBottom: 20 },
   // At-a-glance stat tiles below hero
   statGrid: {
     flexDirection: 'row' as const, gap: 8,
     marginBottom: 16,
   },
   statTile: {
-    flex: 1, backgroundColor: Colors.surface, borderRadius: 12,
+    flex: 1, backgroundColor: Colors.surface, borderRadius: Tokens.radius.card,
     paddingVertical: 12, paddingHorizontal: 10,
     borderWidth: 1, borderColor: Colors.cardBorder,
     alignItems: 'center' as const, gap: 4,
@@ -875,24 +877,24 @@ const styles = StyleSheet.create({
     fontSize: 10, fontWeight: '700' as const, color: Colors.textMuted,
     letterSpacing: 0.6, textTransform: 'uppercase' as const,
   },
-  statValue: { fontSize: 18, fontWeight: '800' as const, color: Colors.text },
+  statValue: { fontSize: Type.subheadline.fontSize, fontWeight: '800' as const, color: Colors.text },
   // Scope summary card
   summaryCard: {
-    backgroundColor: Colors.surface, borderRadius: 14, padding: 14,
+    backgroundColor: Colors.surface, borderRadius: Tokens.radius.lg, padding: 14,
     borderWidth: 1, borderColor: Colors.cardBorder, marginBottom: 16, gap: 6,
   },
   summaryLabel: {
     fontSize: 10, fontWeight: '800' as const, color: Colors.textMuted,
     letterSpacing: 1, textTransform: 'uppercase' as const,
   },
-  summaryText: { fontSize: 14, color: Colors.text, lineHeight: 21 },
+  summaryText: { fontSize: Type.bodyCompact.fontSize, color: Colors.text, lineHeight: 21 },
   // Where-the-budget-goes breakdown card
   breakdownCard: {
-    backgroundColor: Colors.surface, borderRadius: 14, padding: 16,
+    backgroundColor: Colors.surface, borderRadius: Tokens.radius.lg, padding: 16,
     borderWidth: 1, borderColor: Colors.cardBorder, marginBottom: 20,
   },
   breakdownTitle: {
-    fontSize: 11, fontWeight: '800' as const, color: Colors.textMuted,
+    fontSize: Type.caption2.fontSize, fontWeight: '800' as const, color: Colors.textMuted,
     letterSpacing: 1.4, textTransform: 'uppercase' as const, marginBottom: 12,
   },
   breakdownRow: { marginBottom: 10 },
@@ -900,8 +902,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row' as const, justifyContent: 'space-between' as const,
     marginBottom: 4,
   },
-  breakdownCat: { fontSize: 13, fontWeight: '600' as const, color: Colors.text },
-  breakdownAmt: { fontSize: 13, fontWeight: '700' as const, color: Colors.text },
+  breakdownCat: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.text },
+  breakdownAmt: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.text },
   breakdownPct: { fontWeight: '500' as const, color: Colors.textMuted },
   breakdownBar: {
     height: 6, borderRadius: 3, overflow: 'hidden' as const,
@@ -910,7 +912,7 @@ const styles = StyleSheet.create({
   breakdownBarFill: { height: '100%' as const, backgroundColor: Colors.primary, borderRadius: 3 },
   // Per-category detailed cards
   categoryCard: {
-    backgroundColor: Colors.surface, borderRadius: 14,
+    backgroundColor: Colors.surface, borderRadius: Tokens.radius.lg,
     borderWidth: 1, borderColor: Colors.cardBorder,
     marginBottom: 12, overflow: 'hidden' as const,
   },
@@ -922,7 +924,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1, borderBottomColor: Colors.cardBorder,
   },
   categoryName: {
-    fontSize: 14, fontWeight: '800' as const, color: Colors.text,
+    fontSize: Type.bodyCompact.fontSize, fontWeight: '800' as const, color: Colors.text,
     letterSpacing: 0.2,
   },
   categoryHeadRight: { alignItems: 'flex-end' as const, gap: 2 },
@@ -930,18 +932,18 @@ const styles = StyleSheet.create({
     fontSize: 10, fontWeight: '700' as const, color: Colors.textMuted,
     letterSpacing: 0.6, textTransform: 'uppercase' as const,
   },
-  categoryTotal: { fontSize: 14, fontWeight: '800' as const, color: Colors.primary },
+  categoryTotal: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800' as const, color: Colors.primary },
   lineItemNew: {
     flexDirection: 'row' as const, alignItems: 'center' as const,
     paddingVertical: 10, paddingHorizontal: 14,
     borderBottomWidth: 1, borderBottomColor: Colors.cardBorder, gap: 12,
   },
   totalsBlockNew: {
-    marginTop: 8, padding: 16, borderRadius: 14,
+    marginTop: 8, padding: 16, borderRadius: Tokens.radius.lg,
     backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.cardBorder,
   },
   grandSubLabel: {
-    fontSize: 11, fontWeight: '600' as const, color: Colors.textMuted,
+    fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: Colors.textMuted,
     marginTop: 2, letterSpacing: 0.2,
   },
   // "Client preview" banner at top of result screen
@@ -949,14 +951,14 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary + '12',
     borderColor: Colors.primary + '30',
     borderWidth: 1,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
     paddingVertical: 10,
     paddingHorizontal: 14,
     marginBottom: 16,
     alignItems: 'center' as const,
   },
   previewBannerText: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     fontWeight: '700' as const,
     color: Colors.primary,
     letterSpacing: 0.4,
@@ -966,7 +968,7 @@ const styles = StyleSheet.create({
   metaCard: {
     flexDirection: 'row' as const,
     backgroundColor: Colors.surface,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     paddingVertical: 14,
     paddingHorizontal: 16,
     borderWidth: 1,
@@ -984,7 +986,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   metaValue: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
   },
@@ -997,7 +999,7 @@ const styles = StyleSheet.create({
   },
   // Scope summary extras
   summaryNote: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: Colors.textMuted,
     fontStyle: 'italic' as const,
     lineHeight: 20,
@@ -1005,7 +1007,7 @@ const styles = StyleSheet.create({
   },
   specialReq: {
     backgroundColor: Colors.background,
-    borderRadius: 8,
+    borderRadius: Tokens.radius.sm,
     padding: 10,
     marginTop: 10,
   },
@@ -1017,11 +1019,11 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase' as const,
     marginBottom: 4,
   },
-  specialReqText: { fontSize: 13, color: Colors.text, lineHeight: 19 },
+  specialReqText: { fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 19 },
   // Inclusions card
   includedCard: {
     backgroundColor: Colors.surface,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     padding: 16,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
@@ -1036,29 +1038,29 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   includedChip: {
-    backgroundColor: '#E8F5E9',
-    borderRadius: 999,
+    backgroundColor: Colors.successLight,
+    borderRadius: Tokens.radius.full,
     paddingVertical: 4,
     paddingHorizontal: 10,
   },
-  includedChipText: { fontSize: 11, fontWeight: '700' as const, color: '#1B5E20' },
-  includedFootnote: { fontSize: 12, color: Colors.textMuted, lineHeight: 18 },
+  includedChipText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: '#1B5E20' },
+  includedFootnote: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, lineHeight: 18 },
   // Exclusions card
   excludedCard: {
     backgroundColor: Colors.surface,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     padding: 16,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
     marginBottom: 12,
   },
   excludedItem: {
-    fontSize: 12, color: Colors.textMuted, lineHeight: 22, paddingLeft: 4,
+    fontSize: Type.caption1.fontSize, color: Colors.textMuted, lineHeight: 22, paddingLeft: 4,
   },
   // Payment terms card
   paymentCard: {
     backgroundColor: Colors.surface,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     paddingTop: 4,
     paddingBottom: 4,
     paddingHorizontal: 16,
@@ -1076,57 +1078,57 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   paymentRowLeft: { flex: 1 },
-  paymentRowTitle: { fontSize: 13, fontWeight: '700' as const, color: Colors.text },
-  paymentRowDesc: { fontSize: 11, color: Colors.textMuted, marginTop: 2, lineHeight: 16 },
-  paymentRowAmt: { fontSize: 14, fontWeight: '800' as const, color: Colors.primary },
+  paymentRowTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.text },
+  paymentRowDesc: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 2, lineHeight: 16 },
+  paymentRowAmt: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800' as const, color: Colors.primary },
   // Acceptance / next-steps card
   acceptanceCard: {
     backgroundColor: '#0F1216',
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     padding: 18,
     marginTop: 8,
     marginBottom: 16,
   },
   acceptanceTitle: {
-    fontSize: 16,
+    fontSize: Type.callout.fontSize,
     fontWeight: '800' as const,
     color: Colors.primary,
     marginBottom: 8,
   },
   acceptanceBody: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: '#E8E5DD',
     lineHeight: 20,
   },
   sectionTitle: {
-    fontSize: 14, fontWeight: '700' as const, color: Colors.text,
+    fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text,
     letterSpacing: 0.3, marginTop: 16, marginBottom: 10,
   },
   lineItem: {
     flexDirection: 'row' as const, alignItems: 'center' as const,
     paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.cardBorder, gap: 12,
   },
-  lineCategory: { fontSize: 11, color: Colors.primary, fontWeight: '700' as const, letterSpacing: 0.5 },
-  lineDesc: { fontSize: 14, color: Colors.text, marginTop: 2 },
-  lineMeta: { fontSize: 12, color: Colors.textMuted, marginTop: 2 },
-  lineTotal: { fontSize: 15, fontWeight: '700' as const, color: Colors.text },
+  lineCategory: { fontSize: Type.caption2.fontSize, color: Colors.primary, fontWeight: '700' as const, letterSpacing: 0.5 },
+  lineDesc: { fontSize: Type.bodyCompact.fontSize, color: Colors.text, marginTop: 2 },
+  lineMeta: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2 },
+  lineTotal: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text },
   totalsBlock: { marginTop: 16 },
   totalRow: {
     flexDirection: 'row' as const, justifyContent: 'space-between' as const,
     paddingVertical: 6,
   },
-  totalLabel: { fontSize: 14, color: Colors.textMuted },
-  totalValue: { fontSize: 14, color: Colors.text, fontWeight: '600' as const },
+  totalLabel: { fontSize: Type.bodyCompact.fontSize, color: Colors.textMuted },
+  totalValue: { fontSize: Type.bodyCompact.fontSize, color: Colors.text, fontWeight: '600' as const },
   totalRowGrand: {
     borderTopWidth: 1, borderTopColor: Colors.cardBorder,
     paddingTop: 10, marginTop: 6,
   },
-  grandLabel: { fontSize: 16, fontWeight: '700' as const, color: Colors.text },
-  grandValue: { fontSize: 20, fontWeight: '800' as const, color: Colors.primary },
+  grandLabel: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.text },
+  grandValue: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: Colors.primary },
   notesBlock: { marginTop: 8 },
-  noteRow: { fontSize: 13, color: Colors.textMuted, lineHeight: 20, marginBottom: 4 },
+  noteRow: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, lineHeight: 20, marginBottom: 4 },
   disclaimer: {
-    fontSize: 12, color: Colors.textMuted, fontStyle: 'italic' as const,
+    fontSize: Type.caption1.fontSize, color: Colors.textMuted, fontStyle: 'italic' as const,
     textAlign: 'center' as const, marginTop: 16, paddingHorizontal: 12,
   },
   actionRow: {
@@ -1146,7 +1148,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center' as const,
     gap: 10,
     backgroundColor: Colors.primary,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     paddingVertical: 18,
     paddingHorizontal: 20,
     shadowColor: Colors.primary,
@@ -1156,7 +1158,7 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   resultPrimaryText: {
-    fontSize: 16,
+    fontSize: Type.callout.fontSize,
     fontWeight: '800' as const,
     color: '#FFF',
     letterSpacing: 0.2,
@@ -1167,13 +1169,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center' as const,
     gap: 8,
     backgroundColor: Colors.surface,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     paddingVertical: 16,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
   },
   resultSecondaryText: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
   },

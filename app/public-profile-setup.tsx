@@ -16,6 +16,8 @@ import {
   buildPublicProfileSnapshot, buildPublicProfileUrl, slugify,
 } from '@/utils/publicProfileSnapshot';
 import { formatMoney } from '@/utils/formatters';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 const PUBLIC_BASE = 'https://mageid.app/builders';
 
@@ -93,7 +95,7 @@ export default function PublicProfileSetupScreen() {
         options={{
           title: 'Public Profile',
           headerLeft: () => (
-            <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }}>
+            <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }} accessibilityRole="button" accessibilityLabel="Back">
               <ChevronLeft size={24} color={Colors.primary} />
             </TouchableOpacity>
           ),
@@ -223,7 +225,7 @@ export default function PublicProfileSetupScreen() {
                 style={[styles.input, { marginTop: 8 }]}
                 value={profile.testimonialAuthor ?? ''}
                 onChangeText={v => persist({ testimonialAuthor: v })}
-                placeholder="— Sarah Henderson, Owner"
+                placeholder="— Sarah Patel, Owner"
                 placeholderTextColor={Colors.textMuted}
               />
             </View>
@@ -279,10 +281,10 @@ export default function PublicProfileSetupScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   center: { alignItems: 'center', justifyContent: 'center' },
-  muted: { color: Colors.textMuted, fontSize: 13, lineHeight: 18, fontStyle: 'italic' },
+  muted: { color: Colors.textMuted, fontSize: Type.footnote.fontSize, lineHeight: 18, fontStyle: 'italic' },
 
   hero: {
-    margin: 16, padding: 18, borderRadius: 16,
+    margin: 16, padding: 18, borderRadius: Tokens.radius.panel,
     backgroundColor: Colors.primary + '0D',
     borderWidth: 1, borderColor: Colors.primary + '20',
   },
@@ -292,52 +294,52 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
     marginBottom: 12,
   },
-  heroEyebrow: { fontSize: 11, fontWeight: '700', letterSpacing: 1.5, color: Colors.primary, textTransform: 'uppercase', marginBottom: 4 },
-  heroTitle: { fontSize: 22, fontWeight: '800', color: Colors.text, marginBottom: 8 },
-  heroBody: { fontSize: 13, color: Colors.text, lineHeight: 19 },
+  heroEyebrow: { fontSize: Type.caption2.fontSize, fontWeight: '700', letterSpacing: 1.5, color: Colors.primary, textTransform: 'uppercase', marginBottom: 4 },
+  heroTitle: { fontSize: Type.title2.fontSize, fontWeight: '800', color: Colors.text, marginBottom: 8 },
+  heroBody: { fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 19 },
 
   section: { marginHorizontal: 16, marginBottom: 22 },
-  sectionTitle: { fontSize: 16, fontWeight: '700', color: Colors.text, marginBottom: 4 },
-  sectionSubtitle: { fontSize: 13, color: Colors.textMuted, marginBottom: 10, lineHeight: 18 },
+  sectionTitle: { fontSize: Type.callout.fontSize, fontWeight: '700', color: Colors.text, marginBottom: 4 },
+  sectionSubtitle: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, marginBottom: 10, lineHeight: 18 },
 
   togglesCard: {
-    backgroundColor: Colors.card, borderRadius: 12,
+    backgroundColor: Colors.card, borderRadius: Tokens.radius.card,
     borderWidth: 1, borderColor: Colors.border, overflow: 'hidden',
   },
   toggleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 13 },
   toggleLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
   toggleLabels: { flex: 1 },
-  toggleLabel: { fontSize: 14, fontWeight: '600', color: Colors.text },
-  toggleDesc: { fontSize: 12, color: Colors.textMuted, marginTop: 1 },
+  toggleLabel: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600', color: Colors.text },
+  toggleDesc: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 1 },
 
-  label: { fontSize: 12, fontWeight: '600', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 6 },
+  label: { fontSize: Type.caption1.fontSize, fontWeight: '600', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 6 },
   input: {
-    backgroundColor: Colors.card, borderRadius: 10,
+    backgroundColor: Colors.card, borderRadius: Tokens.radius.md,
     borderWidth: 1, borderColor: Colors.border,
     paddingHorizontal: 12, paddingVertical: 12,
-    fontSize: 14, color: Colors.text,
+    fontSize: Type.bodyCompact.fontSize, color: Colors.text,
   },
   inputMulti: { minHeight: 90, textAlignVertical: 'top' as const },
 
   linkBox: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: Colors.card, borderRadius: 10,
+    backgroundColor: Colors.card, borderRadius: Tokens.radius.md,
     paddingHorizontal: 12, paddingVertical: 12,
     borderWidth: 1, borderColor: Colors.border, marginBottom: 10,
   },
-  linkText: { flex: 1, fontSize: 12, color: Colors.text },
+  linkText: { flex: 1, fontSize: Type.caption1.fontSize, color: Colors.text },
   shareRow: { flexDirection: 'row', gap: 8 },
   shareBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-    paddingVertical: 12, borderRadius: 10,
+    paddingVertical: 12, borderRadius: Tokens.radius.md,
     backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,
   },
   shareBtnPrimary: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  shareBtnText: { fontSize: 14, fontWeight: '700', color: Colors.text },
+  shareBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
 
   quoteRow: { flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
 
   statRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8 },
-  statLabel: { fontSize: 11, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 2 },
-  statValue: { fontSize: 16, fontWeight: '700', color: Colors.text },
+  statLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 2 },
+  statValue: { fontSize: Type.callout.fontSize, fontWeight: '700', color: Colors.text },
 });

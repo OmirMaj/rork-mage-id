@@ -25,6 +25,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { formatMoney } from '@/utils/formatters';
 import { fetchBidQuestions, askBidQuestion, answerBidQuestion, type BidQuestion } from '@/utils/bidQuestionsEngine';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 interface RfpRow {
   id: string;
@@ -181,7 +183,7 @@ export default function RfpDetailScreen() {
       <Stack.Screen options={{ headerShown: false }} />
 
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={8}>
+        <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
           <ChevronLeft size={26} color={Colors.primary} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
@@ -198,7 +200,7 @@ export default function RfpDetailScreen() {
         {rfp.photo_urls && rfp.photo_urls.length > 0 && (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.gallery}>
             {rfp.photo_urls.map(url => (
-              <TouchableOpacity key={url} onPress={() => openAttachment(url)} activeOpacity={0.85}>
+              <TouchableOpacity key={url} onPress={() => openAttachment(url)} activeOpacity={0.85} accessibilityRole="button" accessibilityLabel="Add image">
                 <Image source={{ uri: url }} style={styles.galleryImage} resizeMode="cover" />
               </TouchableOpacity>
             ))}
@@ -429,109 +431,109 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, paddingTop: 14, paddingBottom: 16,
     borderBottomWidth: 1, borderBottomColor: Colors.border,
   },
-  eyebrow: { fontSize: 11, fontWeight: '700', color: Colors.primary, letterSpacing: 1.4, textTransform: 'uppercase' },
-  title:   { fontSize: 20, fontWeight: '800', color: Colors.text, letterSpacing: -0.4, marginTop: 4 },
+  eyebrow: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.primary, letterSpacing: 1.4, textTransform: 'uppercase' },
+  title:   { fontSize: Type.title3.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.4, marginTop: 4 },
 
   gallery: { marginBottom: 14, marginHorizontal: -2 },
-  galleryImage: { width: 220, height: 160, borderRadius: 12, marginRight: 8, backgroundColor: Colors.background },
+  galleryImage: { width: 220, height: 160, borderRadius: Tokens.radius.card, marginRight: 8, backgroundColor: Colors.background },
 
   metaRow: { marginBottom: 14 },
   metaPills: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  pill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999 },
+  pill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: Tokens.radius.full },
   pillText: { fontSize: 9, fontWeight: '800', letterSpacing: 0.6 },
 
   card: {
-    backgroundColor: Colors.card, borderRadius: 14, padding: 14,
+    backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 14,
     borderWidth: 1, borderColor: Colors.border, marginBottom: 12, gap: 8,
   },
   cardRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-  cardRowText: { flex: 1, fontSize: 13, color: Colors.text, lineHeight: 19 },
-  cardRowMuted: { color: Colors.textMuted, fontSize: 12 },
-  cardLabel: { fontSize: 11, fontWeight: '800', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.6 },
-  scope: { fontSize: 14, color: Colors.text, lineHeight: 21 },
+  cardRowText: { flex: 1, fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 19 },
+  cardRowMuted: { color: Colors.textMuted, fontSize: Type.caption1.fontSize },
+  cardLabel: { fontSize: Type.caption2.fontSize, fontWeight: '800', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.6 },
+  scope: { fontSize: Type.bodyCompact.fontSize, color: Colors.text, lineHeight: 21 },
 
   drawingList: { gap: 6 },
   drawingItem: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
-    backgroundColor: Colors.background, borderRadius: 10,
+    backgroundColor: Colors.background, borderRadius: Tokens.radius.md,
     padding: 10, borderWidth: 1, borderColor: Colors.border,
   },
-  drawingName: { flex: 1, fontSize: 13, color: Colors.text, fontWeight: '600' },
+  drawingName: { flex: 1, fontSize: Type.footnote.fontSize, color: Colors.text, fontWeight: '600' },
 
   primaryCta: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    paddingVertical: 14, borderRadius: 12,
+    paddingVertical: 14, borderRadius: Tokens.radius.card,
     backgroundColor: Colors.primary, marginTop: 10,
     shadowColor: Colors.primary, shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3, shadowRadius: 8, elevation: 4,
   },
-  primaryCtaText: { fontSize: 15, fontWeight: '800', color: '#FFF', letterSpacing: 0.2 },
+  primaryCtaText: { fontSize: Type.subhead.fontSize, fontWeight: '800', color: '#FFF', letterSpacing: 0.2 },
 
   secondaryCta: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     paddingHorizontal: 18, paddingVertical: 13, borderRadius: 11,
     backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border, marginTop: 10,
   },
-  secondaryCtaText: { fontSize: 13, fontWeight: '700', color: Colors.text },
+  secondaryCtaText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.text },
   ownerActions: { flexDirection: 'row', gap: 10 },
 
   dimmedCta: {
-    paddingVertical: 16, borderRadius: 12, marginTop: 10,
+    paddingVertical: 16, borderRadius: Tokens.radius.card, marginTop: 10,
     backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border,
     alignItems: 'center',
   },
-  dimmedCtaText: { fontSize: 13, color: Colors.textMuted, fontStyle: 'italic' },
+  dimmedCtaText: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, fontStyle: 'italic' },
 
   responseCard: {
-    backgroundColor: Colors.success + '0D', borderRadius: 12, padding: 14,
+    backgroundColor: Colors.success + '0D', borderRadius: Tokens.radius.card, padding: 14,
     borderWidth: 1, borderColor: Colors.success + '30', marginTop: 10, gap: 6,
   },
   responseHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  responseTitle: { fontSize: 13, fontWeight: '800', color: Colors.text },
-  responseDetail: { fontSize: 13, color: Colors.text },
+  responseTitle: { fontSize: Type.footnote.fontSize, fontWeight: '800', color: Colors.text },
+  responseDetail: { fontSize: Type.footnote.fontSize, color: Colors.text },
   responseStatus: { fontWeight: '700', color: Colors.success },
 
   // ─── Q&A ───
   qaCard: {
-    backgroundColor: Colors.card, borderRadius: 14, padding: 14,
+    backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 14,
     borderWidth: 1, borderColor: Colors.border,
     marginTop: 4, marginBottom: 10, gap: 10,
   },
   qaHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  qaTitle: { flex: 1, fontSize: 14, fontWeight: '800', color: Colors.text, letterSpacing: -0.2 },
-  qaCount: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 999, backgroundColor: Colors.primary + '15' },
-  qaCountText: { fontSize: 11, fontWeight: '800', color: Colors.primary, letterSpacing: 0.4 },
-  qaHelper: { fontSize: 12, color: Colors.textMuted, lineHeight: 17 },
+  qaTitle: { flex: 1, fontSize: Type.bodyCompact.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.2 },
+  qaCount: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: Tokens.radius.full, backgroundColor: Colors.primary + '15' },
+  qaCountText: { fontSize: Type.caption2.fontSize, fontWeight: '800', color: Colors.primary, letterSpacing: 0.4 },
+  qaHelper: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, lineHeight: 17 },
 
   qaCompose: { gap: 6 },
   qaInput: {
-    backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border, borderRadius: 10,
+    backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border, borderRadius: Tokens.radius.md,
     paddingHorizontal: 12, paddingVertical: 10,
-    fontSize: 13, color: Colors.text, minHeight: 70,
+    fontSize: Type.footnote.fontSize, color: Colors.text, minHeight: 70,
   },
   qaAskBtn: {
     alignSelf: 'flex-end',
     flexDirection: 'row', alignItems: 'center', gap: 5,
-    paddingHorizontal: 14, paddingVertical: 9, borderRadius: 10,
+    paddingHorizontal: 14, paddingVertical: 9, borderRadius: Tokens.radius.md,
     backgroundColor: Colors.primary,
   },
-  qaAskBtnText: { fontSize: 13, fontWeight: '700', color: '#FFF' },
+  qaAskBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: '#FFF' },
 
-  qaEmpty: { fontSize: 12, color: Colors.textMuted, fontStyle: 'italic', paddingVertical: 8 },
+  qaEmpty: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, fontStyle: 'italic', paddingVertical: 8 },
   qaList: { gap: 10 },
   qaRow: {
-    backgroundColor: Colors.background, borderRadius: 10, padding: 11,
+    backgroundColor: Colors.background, borderRadius: Tokens.radius.md, padding: 11,
     borderWidth: 1, borderColor: Colors.border, gap: 8,
   },
   qaQuestion: { gap: 3 },
   qaAuthor: { fontSize: 10, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.6, textTransform: 'uppercase' },
-  qaText: { fontSize: 13, color: Colors.text, lineHeight: 18 },
+  qaText: { fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 18 },
   qaAnswer: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 6,
     paddingTop: 8, borderTopWidth: 1, borderTopColor: Colors.border,
   },
-  qaAnswerText: { flex: 1, fontSize: 13, color: Colors.text, fontWeight: '600', lineHeight: 18 },
+  qaAnswerText: { flex: 1, fontSize: Type.footnote.fontSize, color: Colors.text, fontWeight: '600', lineHeight: 18 },
   qaAnswerCta: { paddingTop: 6, alignSelf: 'flex-start' },
-  qaAnswerCtaText: { fontSize: 12, fontWeight: '700', color: Colors.primary },
-  qaPending: { fontSize: 11, color: Colors.textMuted, fontStyle: 'italic', paddingTop: 4 },
+  qaAnswerCtaText: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: Colors.primary },
+  qaPending: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontStyle: 'italic', paddingTop: 4 },
 });

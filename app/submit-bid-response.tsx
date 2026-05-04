@@ -20,6 +20,8 @@ import { Colors } from '@/constants/colors';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCompanies } from '@/contexts/CompaniesContext';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 interface RfpRow {
   id: string;
@@ -135,7 +137,7 @@ export default function SubmitBidResponseScreen() {
       <Stack.Screen options={{ headerShown: false }} />
 
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={8}>
+        <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
           <ChevronLeft size={26} color={Colors.primary} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
@@ -273,63 +275,63 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, paddingTop: 14, paddingBottom: 16,
     borderBottomWidth: 1, borderBottomColor: Colors.border,
   },
-  eyebrow: { fontSize: 11, fontWeight: '700', color: Colors.primary, letterSpacing: 1.4, textTransform: 'uppercase' },
-  title:   { fontSize: 20, fontWeight: '800', color: Colors.text, letterSpacing: -0.4, marginTop: 4 },
+  eyebrow: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.primary, letterSpacing: 1.4, textTransform: 'uppercase' },
+  title:   { fontSize: Type.title3.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.4, marginTop: 4 },
 
   card: {
-    backgroundColor: Colors.card, borderRadius: 14, padding: 14,
+    backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 14,
     borderWidth: 1, borderColor: Colors.border, marginBottom: 12,
   },
-  cardLabel: { fontSize: 12, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 6 },
-  helper: { fontSize: 12, color: Colors.textMuted, marginBottom: 10, lineHeight: 17 },
-  charCount: { fontSize: 11, color: Colors.textMuted, alignSelf: 'flex-end', marginTop: 4 },
+  cardLabel: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 6 },
+  helper: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginBottom: 10, lineHeight: 17 },
+  charCount: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, alignSelf: 'flex-end', marginTop: 4 },
 
   toggleRow: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
-    backgroundColor: Colors.background, borderRadius: 10,
+    backgroundColor: Colors.background, borderRadius: Tokens.radius.md,
     padding: 14, borderWidth: 1.5, borderColor: Colors.border,
   },
   toggleRowActive: { borderColor: Colors.primary, backgroundColor: Colors.primary + '08' },
-  toggleText: { flex: 1, fontSize: 13, color: Colors.text, fontWeight: '600' },
+  toggleText: { flex: 1, fontSize: Type.footnote.fontSize, color: Colors.text, fontWeight: '600' },
   toggleTextActive: { color: Colors.primary },
   toggleDot: { width: 14, height: 14, borderRadius: 7, backgroundColor: Colors.background, borderWidth: 1.5, borderColor: Colors.border },
   toggleDotActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
 
   amountField: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: Colors.background, borderRadius: 10, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: Colors.background, borderRadius: Tokens.radius.md, borderWidth: 1, borderColor: Colors.border,
     paddingHorizontal: 14, paddingVertical: 10,
   },
-  amountInput: { flex: 1, fontSize: 22, fontWeight: '800', color: Colors.text },
+  amountInput: { flex: 1, fontSize: Type.title2.fontSize, fontWeight: '800', color: Colors.text },
 
   input: {
-    backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border, borderRadius: 10,
-    paddingHorizontal: 12, paddingVertical: 11, fontSize: 14, color: Colors.text,
+    backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border, borderRadius: Tokens.radius.md,
+    paddingHorizontal: 12, paddingVertical: 11, fontSize: Type.bodyCompact.fontSize, color: Colors.text,
   },
   inputMultiline: { minHeight: 120, paddingTop: 11 },
 
   identityRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  identityText: { flex: 1, fontSize: 13, color: Colors.text, fontWeight: '600' },
-  identityHelper: { fontSize: 11, color: Colors.textMuted, marginTop: 8, fontStyle: 'italic', lineHeight: 16 },
+  identityText: { flex: 1, fontSize: Type.footnote.fontSize, color: Colors.text, fontWeight: '600' },
+  identityHelper: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 8, fontStyle: 'italic', lineHeight: 16 },
 
   errorCard: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 10,
-    padding: 14, borderRadius: 12,
+    padding: 14, borderRadius: Tokens.radius.card,
     backgroundColor: Colors.error + '0D',
     borderWidth: 1, borderColor: Colors.error + '30',
     marginBottom: 12,
   },
-  errorText: { flex: 1, fontSize: 13, color: Colors.error, lineHeight: 18 },
+  errorText: { flex: 1, fontSize: Type.footnote.fontSize, color: Colors.error, lineHeight: 18 },
 
   submitBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    paddingVertical: 14, borderRadius: 12,
+    paddingVertical: 14, borderRadius: Tokens.radius.card,
     backgroundColor: Colors.primary,
     shadowColor: Colors.primary, shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3, shadowRadius: 8, elevation: 4,
   },
   submitBtnDisabled: { opacity: 0.6 },
-  submitBtnText: { fontSize: 15, fontWeight: '800', color: '#FFF', letterSpacing: 0.2 },
+  submitBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '800', color: '#FFF', letterSpacing: 0.2 },
 
-  disclaimer: { fontSize: 11, color: Colors.textMuted, textAlign: 'center', marginTop: 14, fontStyle: 'italic', paddingHorizontal: 16, lineHeight: 16 },
+  disclaimer: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, textAlign: 'center', marginTop: 14, fontStyle: 'italic', paddingHorizontal: 16, lineHeight: 16 },
 });

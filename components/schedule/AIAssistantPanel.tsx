@@ -34,6 +34,8 @@ import {
 import { Colors } from '@/constants/colors';
 import type { ScheduleTask } from '@/types';
 import type { CpmResult } from '@/utils/cpm';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 import {
   aiDetectRisks,
   aiOptimizeSchedule,
@@ -69,7 +71,7 @@ export interface AIAssistantPanelProps {
   /** Currently selected task ids from the grid — scopes bulk AI ops. */
   selectedIds?: Set<string>;
   /** Apply a batch of AI-proposed patches as one commit (undoable as a unit). */
-  onApplyBulkPatches?: (patches: Array<{ taskId: string; patch: Partial<ScheduleTask> }>) => void;
+  onApplyBulkPatches?: (patches: { taskId: string; patch: Partial<ScheduleTask> }[]) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -90,7 +92,7 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
   const [riskResult, setRiskResult] = useState<{ summary: string; findings: AIRiskFinding[] } | null>(null);
   const [optResult, setOptResult] = useState<{ summary: string; ideas: AIOptimizationIdea[] } | null>(null);
   const [explainText, setExplainText] = useState<string>('');
-  const [chatHistory, setChatHistory] = useState<Array<{ q: string; a: string }>>([]);
+  const [chatHistory, setChatHistory] = useState<{ q: string; a: string }[]>([]);
   const [chatDraft, setChatDraft] = useState('');
   const [asBuiltDraft, setAsBuiltDraft] = useState('');
   const [asBuiltPatches, setAsBuiltPatches] = useState<AIAsBuiltPatch[]>([]);
@@ -278,9 +280,7 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
               </Text>
             </View>
           </View>
-          <TouchableOpacity onPress={onClose} style={styles.closeBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <X size={18} color={Colors.textSecondary} />
-          </TouchableOpacity>
+          <TouchableOpacity onPress={onClose} style={styles.closeBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={Colors.textSecondary} /></TouchableOpacity>
         </View>
 
         {/* Mode switcher (always visible) */}
@@ -373,11 +373,27 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
               {chatHistory.length === 0 && !busy && (
                 <View style={styles.emptyHint}>
                   <Text style={styles.emptyHintText}>
-                    Ask anything about the schedule. Try: {'\n'}
-                    "When does drywall start?" {'\n'}
-                    "What's on the critical path for week 6?" {'\n'}
-                    "Which crew is busiest?"
+                    Ask anything about the schedule. Tap a suggestion or type your own.
                   </Text>
+                  <View style={styles.suggestionRow}>
+                    {[
+                      'When does drywall start?',
+                      'What\'s slipping vs. baseline?',
+                      'Which crew is overloaded?',
+                      'If electrical pulls forward 3 days, what breaks?',
+                      'How is my SPI trending?',
+                      'What\'s the soonest I can hit dry-in?',
+                    ].map(s => (
+                      <TouchableOpacity
+                        key={s}
+                        style={styles.suggestion}
+                        onPress={() => setChatDraft(s)}
+                        activeOpacity={0.85}
+                      >
+                        <Text style={styles.suggestionText}>{s}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
                 </View>
               )}
             </View>
@@ -408,7 +424,7 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
                         <Text style={styles.patchDetail}>{describePatch(p.patch)}</Text>
                         {p.rationale ? <Text style={styles.patchRationale}>"{p.rationale}"</Text> : null}
                       </View>
-                      <TouchableOpacity style={styles.applyBtn} onPress={() => handleAsBuiltApply(p)}>
+                      <TouchableOpacity style={styles.applyBtn} onPress={() => handleAsBuiltApply(p)} accessibilityRole="button" accessibilityLabel="Confirm">
                         <Check size={12} color={Colors.primary} />
                       </TouchableOpacity>
                     </View>
@@ -471,7 +487,7 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
                         <Text style={styles.patchDetail}>{describePatch(p.patch)}</Text>
                         {p.rationale ? <Text style={styles.patchRationale}>"{p.rationale}"</Text> : null}
                       </View>
-                      <TouchableOpacity style={styles.applyBtn} onPress={() => handleBulkApplyOne(p)}>
+                      <TouchableOpacity style={styles.applyBtn} onPress={() => handleBulkApplyOne(p)} accessibilityRole="button" accessibilityLabel="Confirm">
                         <Check size={12} color={Colors.primary} />
                       </TouchableOpacity>
                     </View>
@@ -781,13 +797,13 @@ const styles = StyleSheet.create({
   headerIconWrap: {
     width: 28,
     height: 28,
-    borderRadius: 8,
+    borderRadius: Tokens.radius.sm,
     backgroundColor: Colors.primary + '1A',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  headerTitle: { fontSize: 14, fontWeight: '700', color: Colors.text },
-  headerSub: { fontSize: 11, color: Colors.textSecondary, marginTop: 1 },
+  headerTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
+  headerSub: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, marginTop: 1 },
   closeBtn: { padding: 4 },
 
   modeRow: {
@@ -803,46 +819,46 @@ const styles = StyleSheet.create({
     gap: 5,
     paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: 16,
+    borderRadius: Tokens.radius.panel,
     backgroundColor: Colors.primary + '14',
   },
   modeChipActive: { backgroundColor: Colors.primary },
-  modeChipText: { fontSize: 11, fontWeight: '700', color: Colors.primary },
+  modeChipText: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.primary },
 
   body: { flex: 1, padding: 12 },
 
   busyRow: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12 },
-  busyText: { fontSize: 12, color: Colors.textSecondary, fontStyle: 'italic' },
+  busyText: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, fontStyle: 'italic' },
 
   errorCard: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     padding: 10, marginBottom: 8,
-    borderRadius: 8,
+    borderRadius: Tokens.radius.sm,
     backgroundColor: Colors.errorLight,
     borderWidth: 1,
     borderColor: Colors.error + '33',
   },
-  errorText: { fontSize: 12, color: Colors.error, flex: 1 },
+  errorText: { fontSize: Type.caption1.fontSize, color: Colors.error, flex: 1 },
 
   statsRow: { flexDirection: 'row', gap: 10, marginBottom: 16 },
   statBox: {
     flex: 1,
     backgroundColor: Colors.fillSecondary,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
     padding: 14,
     alignItems: 'center',
   },
-  statNum: { fontSize: 22, fontWeight: '800', color: Colors.text },
-  statLabel: { fontSize: 11, color: Colors.textSecondary, marginTop: 2, fontWeight: '600' },
+  statNum: { fontSize: Type.title2.fontSize, fontWeight: '800', color: Colors.text },
+  statLabel: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, marginTop: 2, fontWeight: '600' },
 
-  sectionLabel: { fontSize: 11, fontWeight: '700', color: Colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 },
+  sectionLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 },
   quickGrid: { gap: 8 },
   quickBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     padding: 14,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
     backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
@@ -851,75 +867,82 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
     borderColor: Colors.primary,
   },
-  quickBtnTitle: { fontSize: 13, fontWeight: '700', color: Colors.text },
-  quickBtnSub: { fontSize: 11, color: Colors.textSecondary, marginTop: 1 },
+  quickBtnTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.text },
+  quickBtnSub: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, marginTop: 1 },
 
   card: {
     backgroundColor: Colors.surface,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
     padding: 12,
     marginBottom: 10,
   },
   cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
-  cardTitle: { fontSize: 13, fontWeight: '700', color: Colors.text },
-  cardBody: { fontSize: 12, color: Colors.text, lineHeight: 18 },
-  cardSuggestion: { fontSize: 12, color: Colors.primary, marginTop: 6, fontWeight: '600' },
+  cardTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.text },
+  cardBody: { fontSize: Type.caption1.fontSize, color: Colors.text, lineHeight: 18 },
+  cardSuggestion: { fontSize: Type.caption1.fontSize, color: Colors.primary, marginTop: 6, fontWeight: '600' },
   cardActions: { flexDirection: 'row', gap: 8, marginTop: 12 },
 
   severityDot: { width: 8, height: 8, borderRadius: 4 },
   severityLabel: { fontSize: 9, fontWeight: '800' },
 
   saveBadge: {
-    fontSize: 11, fontWeight: '800', color: Colors.success,
-    paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6,
+    fontSize: Type.caption2.fontSize, fontWeight: '800', color: Colors.success,
+    paddingHorizontal: 6, paddingVertical: 2, borderRadius: Tokens.radius.xs,
     backgroundColor: Colors.success + '20',
   },
 
   focusLink: { marginTop: 6 },
-  focusLinkText: { fontSize: 11, color: Colors.textSecondary, fontStyle: 'italic' },
+  focusLinkText: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, fontStyle: 'italic' },
 
   emptyHint: {
-    padding: 14, borderRadius: 10,
+    padding: 14, borderRadius: Tokens.radius.md,
     backgroundColor: Colors.fillSecondary,
     marginBottom: 10,
   },
-  emptyHintText: { fontSize: 12, color: Colors.textSecondary, lineHeight: 18 },
+  emptyHintText: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, lineHeight: 18 },
+  suggestionRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 10 },
+  suggestion: {
+    paddingHorizontal: 10, paddingVertical: 6, borderRadius: Tokens.radius.sm,
+    backgroundColor: Colors.primary + '12',
+    borderWidth: 1, borderColor: Colors.primary + '30',
+  },
+  suggestionText: { fontSize: Type.caption2.fontSize, color: Colors.primary, fontWeight: '700' },
 
   chatTurn: { marginBottom: 14 },
   chatQ: {
     backgroundColor: Colors.primary,
     paddingHorizontal: 12, paddingVertical: 8,
-    borderRadius: 12, alignSelf: 'flex-end',
+    borderRadius: Tokens.radius.card, alignSelf: 'flex-end',
     maxWidth: '90%', marginBottom: 4,
   },
-  chatQText: { color: '#fff', fontSize: 12 },
+  chatQText: { color: '#fff', fontSize: Type.caption1.fontSize },
   chatA: {
     backgroundColor: Colors.fillSecondary,
     paddingHorizontal: 12, paddingVertical: 8,
-    borderRadius: 12, alignSelf: 'flex-start',
+    borderRadius: Tokens.radius.card, alignSelf: 'flex-start',
     maxWidth: '95%',
   },
-  chatAText: { color: Colors.text, fontSize: 12, lineHeight: 18 },
+  chatAText: { color: Colors.text, fontSize: Type.caption1.fontSize, lineHeight: 18 },
 
   patchRow: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     paddingVertical: 8,
     borderTopWidth: 1, borderTopColor: Colors.borderLight,
   },
-  patchTitle: { fontSize: 12, fontWeight: '700', color: Colors.text },
-  patchDetail: { fontSize: 11, color: Colors.textSecondary, marginTop: 1 },
-  patchRationale: { fontSize: 11, color: Colors.textMuted, fontStyle: 'italic', marginTop: 2 },
+  patchTitle: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: Colors.text },
+  patchDetail: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, marginTop: 1 },
+  patchRationale: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontStyle: 'italic', marginTop: 2 },
 
   applyBtn: {
-    width: 28, height: 28, borderRadius: 14,
+    width: 28, height: 28, borderRadius: Tokens.radius.lg,
     backgroundColor: Colors.primary + '14',
     alignItems: 'center', justifyContent: 'center',
   },
   applyAllBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
-    paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12,
+    paddingHorizontal: 8, paddingVertical: 4, borderRadius: Tokens.radius.card,
     backgroundColor: Colors.primary,
   },
   applyAllBtnText: { color: '#fff', fontSize: 10, fontWeight: '700' },
@@ -927,18 +950,18 @@ const styles = StyleSheet.create({
   primaryBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     paddingHorizontal: 12, paddingVertical: 10,
-    borderRadius: 8, backgroundColor: Colors.primary,
+    borderRadius: Tokens.radius.sm, backgroundColor: Colors.primary,
   },
-  primaryBtnText: { color: '#fff', fontSize: 12, fontWeight: '700' },
+  primaryBtnText: { color: '#fff', fontSize: Type.caption1.fontSize, fontWeight: '700' },
   secondaryBtn: {
     paddingHorizontal: 12, paddingVertical: 10,
-    borderRadius: 8,
+    borderRadius: Tokens.radius.sm,
     borderWidth: 1, borderColor: Colors.cardBorder,
     backgroundColor: Colors.surface,
   },
-  secondaryBtnText: { color: Colors.text, fontSize: 12, fontWeight: '700' },
+  secondaryBtnText: { color: Colors.text, fontSize: Type.caption1.fontSize, fontWeight: '700' },
 
-  genPreviewRow: { fontSize: 11, color: Colors.text, paddingVertical: 3, borderBottomWidth: 1, borderBottomColor: Colors.borderLight },
+  genPreviewRow: { fontSize: Type.caption2.fontSize, color: Colors.text, paddingVertical: 3, borderBottomWidth: 1, borderBottomColor: Colors.borderLight },
 
   inputBar: {
     flexDirection: 'row',
@@ -955,15 +978,15 @@ const styles = StyleSheet.create({
     minHeight: 36,
     paddingHorizontal: 10,
     paddingVertical: 8,
-    borderRadius: 18,
+    borderRadius: Tokens.radius.xl,
     backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     color: Colors.text,
   },
   inputSend: {
-    width: 36, height: 36, borderRadius: 18,
+    width: 36, height: 36, borderRadius: Tokens.radius.xl,
     backgroundColor: Colors.primary,
     alignItems: 'center', justifyContent: 'center',
   },
@@ -979,7 +1002,7 @@ const styles = StyleSheet.create({
   },
   selectionStripText: {
     flex: 1,
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     color: Colors.textSecondary,
     lineHeight: 14,
   },
@@ -990,7 +1013,7 @@ const styles = StyleSheet.create({
   cachedPill: {
     paddingHorizontal: 8,
     paddingVertical: 3,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
     backgroundColor: Colors.textSecondary + '22',
   },
   cachedPillText: {
@@ -1007,14 +1030,14 @@ const styles = StyleSheet.create({
     padding: 8,
     marginTop: 4,
     marginBottom: 6,
-    borderRadius: 6,
+    borderRadius: Tokens.radius.xs,
     backgroundColor: Colors.warning + '18',
     borderWidth: 1,
     borderColor: Colors.warning + '40',
   },
   partialBannerText: {
     flex: 1,
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     color: Colors.warning,
     lineHeight: 15,
   },

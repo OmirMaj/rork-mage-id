@@ -9,6 +9,8 @@ import { DollarSign, Wallet, Clock, CheckCircle, ChevronRight, Plus, X, Trash2 }
 import { Colors } from '@/constants/colors';
 import type { CashFlowExpense, ExpenseCategory, ExpenseFrequency } from '@/utils/cashFlowEngine';
 import type { CashFlowData } from '@/utils/cashFlowStorage';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 interface CashFlowSetupProps {
   visible: boolean;
@@ -16,7 +18,7 @@ interface CashFlowSetupProps {
   onClose: () => void;
 }
 
-const EXPENSE_SUGGESTIONS: Array<{ name: string; category: ExpenseCategory; frequency: ExpenseFrequency }> = [
+const EXPENSE_SUGGESTIONS: { name: string; category: ExpenseCategory; frequency: ExpenseFrequency }[] = [
   { name: 'Payroll', category: 'payroll', frequency: 'weekly' },
   { name: 'Insurance', category: 'insurance', frequency: 'monthly' },
   { name: 'Office Overhead', category: 'overhead', frequency: 'monthly' },
@@ -168,7 +170,7 @@ export default function CashFlowSetup({ visible, onComplete, onClose }: CashFlow
                 placeholderTextColor={Colors.textMuted}
               />
             </View>
-            <TouchableOpacity onPress={() => handleRemoveExpense(exp.id)} style={styles.removeBtn}>
+            <TouchableOpacity onPress={() => handleRemoveExpense(exp.id)} style={styles.removeBtn} accessibilityRole="button" accessibilityLabel="Delete">
               <Trash2 size={14} color={Colors.error} />
             </TouchableOpacity>
           </View>
@@ -266,9 +268,7 @@ export default function CashFlowSetup({ visible, onComplete, onClose }: CashFlow
         <View style={[styles.container, { paddingTop: Platform.OS === 'ios' ? 12 : insets.top + 8 }]}>
           <View style={styles.handle} />
           <View style={styles.header}>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-              <X size={20} color={Colors.textMuted} />
-            </TouchableOpacity>
+            <TouchableOpacity onPress={onClose} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={Colors.textMuted} /></TouchableOpacity>
             <Text style={styles.headerTitle}>Cash Flow Setup</Text>
             <Text style={styles.stepIndicator}>{step + 1}/4</Text>
           </View>
@@ -311,45 +311,45 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   handle: { width: 36, height: 5, borderRadius: 3, backgroundColor: Colors.border, alignSelf: 'center', marginBottom: 8 },
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingBottom: 12, gap: 12 },
-  closeBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { flex: 1, fontSize: 18, fontWeight: '700' as const, color: Colors.text },
-  stepIndicator: { fontSize: 14, fontWeight: '600' as const, color: Colors.textMuted },
+  closeBtn: { width: 32, height: 32, borderRadius: Tokens.radius.panel, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { flex: 1, fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: Colors.text },
+  stepIndicator: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.textMuted },
   progressTrack: { height: 4, backgroundColor: Colors.fillTertiary, marginHorizontal: 20, borderRadius: 2, overflow: 'hidden' as const },
   progressFill: { height: 4, backgroundColor: Colors.primary, borderRadius: 2 },
   stepContent: { paddingHorizontal: 20, paddingTop: 32, alignItems: 'center' },
   stepIconWrap: { width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center', marginBottom: 20 },
   stepTitle: { fontSize: 24, fontWeight: '800' as const, color: Colors.text, textAlign: 'center', marginBottom: 8 },
-  stepDesc: { fontSize: 15, color: Colors.textSecondary, textAlign: 'center', lineHeight: 22, marginBottom: 24, paddingHorizontal: 16 },
-  balanceInputWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, borderRadius: 16, paddingHorizontal: 20, borderWidth: 2, borderColor: Colors.primary + '30', width: '100%', maxWidth: 280 },
-  dollarSign: { fontSize: 28, fontWeight: '800' as const, color: Colors.primary, marginRight: 4 },
+  stepDesc: { fontSize: Type.subhead.fontSize, color: Colors.textSecondary, textAlign: 'center', lineHeight: 22, marginBottom: 24, paddingHorizontal: 16 },
+  balanceInputWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, borderRadius: Tokens.radius.panel, paddingHorizontal: 20, borderWidth: 2, borderColor: Colors.primary + '30', width: '100%', maxWidth: 280 },
+  dollarSign: { fontSize: Type.title1.fontSize, fontWeight: '800' as const, color: Colors.primary, marginRight: 4 },
   balanceInput: { flex: 1, fontSize: 32, fontWeight: '800' as const, color: Colors.text, minHeight: 64, textAlign: 'center' },
   suggestionsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, width: '100%', marginBottom: 16 },
-  suggestionChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, backgroundColor: Colors.fillTertiary },
+  suggestionChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: Tokens.radius.md, backgroundColor: Colors.fillTertiary },
   suggestionChipAdded: { backgroundColor: Colors.successLight, borderWidth: 1, borderColor: Colors.success + '30' },
-  suggestionText: { fontSize: 13, fontWeight: '600' as const, color: Colors.text },
+  suggestionText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.text },
   expenseList: { width: '100%', maxHeight: 280 },
-  expenseRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, borderRadius: 12, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: Colors.cardBorder, gap: 10 },
+  expenseRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, borderRadius: Tokens.radius.card, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: Colors.cardBorder, gap: 10 },
   expenseInfo: { flex: 1, gap: 2 },
-  expenseName: { fontSize: 14, fontWeight: '600' as const, color: Colors.text },
-  expenseFreq: { fontSize: 12, color: Colors.textMuted },
-  expenseAmountWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surfaceAlt, borderRadius: 8, paddingHorizontal: 8 },
-  expenseDollar: { fontSize: 14, fontWeight: '700' as const, color: Colors.textSecondary },
-  expenseAmountInput: { width: 80, minHeight: 36, fontSize: 16, fontWeight: '700' as const, color: Colors.text, textAlign: 'right' },
+  expenseName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
+  expenseFreq: { fontSize: Type.caption1.fontSize, color: Colors.textMuted },
+  expenseAmountWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.sm, paddingHorizontal: 8 },
+  expenseDollar: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.textSecondary },
+  expenseAmountInput: { width: 80, minHeight: 36, fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.text, textAlign: 'right' },
   removeBtn: { padding: 6 },
-  emptyText: { fontSize: 14, color: Colors.textMuted, textAlign: 'center', paddingVertical: 20 },
+  emptyText: { fontSize: Type.bodyCompact.fontSize, color: Colors.textMuted, textAlign: 'center', paddingVertical: 20 },
   termsGrid: { width: '100%', gap: 10 },
-  termsChip: { paddingVertical: 16, paddingHorizontal: 20, borderRadius: 14, backgroundColor: Colors.surface, borderWidth: 1.5, borderColor: Colors.cardBorder, alignItems: 'center' },
+  termsChip: { paddingVertical: 16, paddingHorizontal: 20, borderRadius: Tokens.radius.lg, backgroundColor: Colors.surface, borderWidth: 1.5, borderColor: Colors.cardBorder, alignItems: 'center' },
   termsChipActive: { borderColor: Colors.primary, backgroundColor: Colors.primary + '08' },
-  termsChipText: { fontSize: 16, fontWeight: '600' as const, color: Colors.text },
+  termsChipText: { fontSize: Type.callout.fontSize, fontWeight: '600' as const, color: Colors.text },
   termsChipTextActive: { color: Colors.primary },
-  summaryCard: { width: '100%', backgroundColor: Colors.surface, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: Colors.cardBorder },
+  summaryCard: { width: '100%', backgroundColor: Colors.surface, borderRadius: Tokens.radius.panel, padding: 16, borderWidth: 1, borderColor: Colors.cardBorder },
   summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10 },
-  summaryLabel: { fontSize: 14, color: Colors.textSecondary },
-  summaryValue: { fontSize: 15, fontWeight: '700' as const, color: Colors.text },
+  summaryLabel: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary },
+  summaryValue: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text },
   summaryDivider: { height: 1, backgroundColor: Colors.borderLight },
   footer: { paddingHorizontal: 20, paddingTop: 12, flexDirection: 'row', gap: 10, backgroundColor: Colors.background, borderTopWidth: 0.5, borderTopColor: Colors.borderLight },
-  backButton: { flex: 1, minHeight: 50, borderRadius: 14, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
-  backButtonText: { fontSize: 16, fontWeight: '700' as const, color: Colors.text },
-  nextButton: { flex: 2, minHeight: 50, borderRadius: 14, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 6 },
-  nextButtonText: { fontSize: 16, fontWeight: '700' as const, color: Colors.textOnPrimary },
+  backButton: { flex: 1, minHeight: 50, borderRadius: Tokens.radius.lg, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
+  backButtonText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.text },
+  nextButton: { flex: 2, minHeight: 50, borderRadius: Tokens.radius.lg, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 6 },
+  nextButtonText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.textOnPrimary },
 });

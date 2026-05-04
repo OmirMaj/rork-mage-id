@@ -31,6 +31,8 @@ import { LEAD_STAGES, LEAD_STAGE_LABELS, LEAD_SOURCE_LABELS, type Lead, type Lea
 import VoiceCaptureModal from '@/components/VoiceCaptureModal';
 import { parseLeadFromTranscript } from '@/utils/voiceFormParsers';
 import { formatMoney } from '@/utils/formatters';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 const STAGE_COLORS: Record<LeadStage, string> = {
   new: '#FF6A1A',
@@ -112,7 +114,10 @@ export default function LeadsScreen() {
   return (
     <>
       <Stack.Screen options={{ title: 'Pipeline', headerLargeTitle: false }} />
-      <View style={[styles.root, { paddingTop: insets.top + 8 }]}>
+      {/* Native iOS header already accounts for the safe area (notch/
+          dynamic island). Manual `insets.top + 8` was double-counting
+          and producing a tall blank gap above the KPI strip. */}
+      <View style={[styles.root, { paddingTop: 8 }]}>
         {/* KPI bar */}
         <View style={styles.kpiBar}>
           <View style={styles.kpiBlock}>
@@ -199,7 +204,7 @@ export default function LeadsScreen() {
           suggestions={[
             'John Smith, 555 1234, kitchen remodel, found us on Houzz, eighty thousand budget, wants to start in spring',
             'Jane Garcia, jane at email dot com, full bathroom renovation, referral from Bob, twenty-five thousand',
-            'Henderson family, 312-555-0199, two-story addition, our website, two hundred thousand, no rush',
+            'Patel family, 312-555-0199, two-story addition, our website, two hundred thousand, no rush',
             'Mike Doe, walk-in this morning, ADU in the back yard, ballpark one fifty',
           ]}
         />
@@ -263,13 +268,13 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: Colors.cardBorder,
     marginHorizontal: 12,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     marginTop: 8,
   },
   kpiBlock: { flex: 1, alignItems: 'center' },
-  kpiNum: { fontSize: 22, fontWeight: '700' as const, color: Colors.text },
+  kpiNum: { fontSize: Type.title2.fontSize, fontWeight: '700' as const, color: Colors.text },
   kpiNumWarn: { color: Colors.warning },
-  kpiLabel: { fontSize: 11, color: Colors.textMuted, marginTop: 2, fontWeight: '500' as const },
+  kpiLabel: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 2, fontWeight: '500' as const },
   kpiDivider: { width: StyleSheet.hairlineWidth, height: 32, backgroundColor: Colors.cardBorder },
   columnsRow: { paddingHorizontal: 12, paddingTop: 12, paddingBottom: 100, gap: 12 },
   column: {
@@ -284,28 +289,28 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
   },
   stageDot: { width: 10, height: 10, borderRadius: 5 },
-  columnTitle: { flex: 1, fontSize: 14, fontWeight: '700' as const, color: Colors.text, letterSpacing: 0.5, textTransform: 'uppercase' },
+  columnTitle: { flex: 1, fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text, letterSpacing: 0.5, textTransform: 'uppercase' },
   countPill: {
     backgroundColor: Colors.surface,
     paddingHorizontal: 8,
     paddingVertical: 2,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
     minWidth: 24,
     alignItems: 'center',
   },
-  countPillText: { fontSize: 12, fontWeight: '700' as const, color: Colors.textMuted },
+  countPillText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: Colors.textMuted },
   cardsCol: { gap: 8, paddingBottom: 12 },
-  emptyColumn: { fontSize: 13, color: Colors.textMuted, textAlign: 'center', paddingTop: 16 },
+  emptyColumn: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, textAlign: 'center', paddingTop: 16 },
   card: {
     backgroundColor: Colors.surface,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     padding: 12,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
     gap: 6,
   },
   cardHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  cardName: { flex: 1, fontSize: 15, fontWeight: '700' as const, color: Colors.text },
+  cardName: { flex: 1, fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text },
   scoreBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -313,14 +318,14 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary + '15',
     paddingHorizontal: 7,
     paddingVertical: 3,
-    borderRadius: 8,
+    borderRadius: Tokens.radius.sm,
   },
   scoreBadgeHot: { backgroundColor: Colors.primary },
-  scoreBadgeText: { fontSize: 11, fontWeight: '700' as const, color: Colors.primary },
+  scoreBadgeText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: Colors.primary },
   scoreBadgeTextHot: { color: '#FFF' },
-  cardLine: { fontSize: 13, color: Colors.text },
+  cardLine: { fontSize: Type.footnote.fontSize, color: Colors.text },
   cardMeta: { flexDirection: 'row', gap: 10 },
-  cardMetaText: { fontSize: 12, color: Colors.textMuted },
+  cardMetaText: { fontSize: Type.caption1.fontSize, color: Colors.textMuted },
   waitingPill: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -329,14 +334,14 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.warning + '15',
     paddingHorizontal: 8,
     paddingVertical: 3,
-    borderRadius: 8,
+    borderRadius: Tokens.radius.sm,
     marginTop: 2,
   },
   waitingPillOverdue: { backgroundColor: Colors.error },
-  waitingText: { fontSize: 11, fontWeight: '600' as const, color: Colors.warning },
+  waitingText: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: Colors.warning },
   waitingTextOverdue: { color: '#FFF' },
   cardContactRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 },
-  cardContactText: { fontSize: 12, color: Colors.textMuted },
+  cardContactText: { fontSize: Type.caption1.fontSize, color: Colors.textMuted },
   fabRow: {
     position: 'absolute',
     left: 16,
@@ -352,14 +357,14 @@ const styles = StyleSheet.create({
     gap: 8,
     backgroundColor: Colors.primary,
     paddingVertical: 14,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     shadowColor: Colors.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 5,
   },
-  fabPrimaryText: { color: '#FFF', fontSize: 14, fontWeight: '700' as const },
+  fabPrimaryText: { color: '#FFF', fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const },
   fabSecondary: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -367,9 +372,9 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
     paddingHorizontal: 14,
     paddingVertical: 14,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
   },
-  fabSecondaryText: { fontSize: 13, fontWeight: '600' as const, color: Colors.text },
+  fabSecondaryText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.text },
 });

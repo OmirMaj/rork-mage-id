@@ -130,11 +130,11 @@ KINDS
 - rfi: A question that needs an answer from architect / engineer / owner. ("ask the architect about the steel beam size", "we need to know the tile pattern", "submit an RFI about knob-and-tube")
 - co: Out-of-scope work that needs a change order. ("owner wants the heat pump upgrade", "create a change order for forty-five hundred to redo the bath tile", "need to add a window in the basement")
 - note: Internal field note — no formal document needed. ("remind me to call the inspector tomorrow", "framing on second floor is half done")
-- project: Create a NEW project. ("new project: Smith kitchen remodel at 123 Main, eighty thousand budget", "start a project for the Henderson bathroom")
+- project: Create a NEW project. ("new project: Smith kitchen remodel at 123 Main, eighty thousand budget", "start a project for the Patel bathroom")
 - punch: Punch-list item discovered while walking the site. ("master bath, light fixture loose", "punch list item: hallway 2 paint touch-up", "kitchen GFCI outlet not working")
 - invoice: Bill the client / send a bill / collect payment for work performed. ("invoice them for demolition, twenty-eight hundred", "bill 850 square feet of drywall at 2.50 a foot", "send an invoice for the kitchen demo", "I need to bill the homeowner", "draft a bill for ten hours of labor", "invoice the client", "create an invoice", "charge them for materials")
 - submittal: A submittal package (cut sheets, shop drawings). ("submit door hardware schedule, spec 08 71 00", "light fixture cut sheets for the kitchen by Friday")
-- lead: A NEW homeowner inquiry / sales lead — a potential customer the GC just talked to or got a message from. ("new lead: John Smith, 555 1234, kitchen remodel, found us on Houzz", "got a lead from referral — Jane wants a bathroom reno around 25 grand", "Henderson family called about a two-story addition", "lead came in from Yelp, walk-in this morning")
+- lead: A NEW homeowner inquiry / sales lead — a potential customer the GC just talked to or got a message from. ("new lead: John Smith, 555 1234, kitchen remodel, found us on Houzz", "got a lead from referral — Jane wants a bathroom reno around 25 grand", "Patel family called about a two-story addition", "lead came in from Yelp, walk-in this morning")
 - unsure: The intent is ambiguous and the contractor should re-record.
 
 OUTPUT RULES

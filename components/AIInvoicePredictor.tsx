@@ -12,6 +12,8 @@ import {
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
 import type { Invoice } from '@/types';
 import type { SubscriptionTierKey } from '@/utils/aiRateLimiter';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 interface Props {
   invoice: Invoice;
@@ -23,8 +25,8 @@ interface Props {
 const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
 
 const CONFIDENCE_STYLES = {
-  high: { color: '#2E7D32', bg: '#E8F5E9', label: 'High' },
-  medium: { color: '#E65100', bg: '#FFF3E0', label: 'Medium' },
+  high: { color: Colors.successDark, bg: Colors.successLight, label: 'High' },
+  medium: { color: Colors.warningDark, bg: Colors.warningLight, label: 'Medium' },
   low: { color: '#757575', bg: '#F5F5F5', label: 'Low' },
 } as const;
 
@@ -152,7 +154,7 @@ export default React.memo(function AIInvoicePredictor({ invoice, projectName, al
 const styles = StyleSheet.create({
   container: {
     backgroundColor: Colors.surface,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     padding: 14,
     marginTop: 8,
     borderWidth: 1,
@@ -165,7 +167,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   headerTitle: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
     flex: 1,
@@ -184,26 +186,26 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   predLabel: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     color: Colors.textMuted,
     fontWeight: '500' as const,
   },
   predValue: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
   },
   confBadge: {
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 6,
+    borderRadius: Tokens.radius.xs,
   },
   confText: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     fontWeight: '700' as const,
   },
   reasoning: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: Colors.textSecondary,
     lineHeight: 18,
     marginBottom: 8,
@@ -213,11 +215,11 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     gap: 6,
     backgroundColor: Colors.infoLight,
-    borderRadius: 8,
+    borderRadius: Tokens.radius.sm,
     padding: 10,
   },
   tipText: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     color: Colors.info,
     flex: 1,
     lineHeight: 17,
@@ -226,7 +228,7 @@ const styles = StyleSheet.create({
   skeleton: {
     height: 12,
     backgroundColor: Colors.fillTertiary,
-    borderRadius: 6,
+    borderRadius: Tokens.radius.xs,
     marginBottom: 6,
   },
   skeletonShort: {

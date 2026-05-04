@@ -15,6 +15,8 @@ import { useProjects } from '@/contexts/ProjectContext';
 import { useEntityNavigation } from '@/hooks/useEntityNavigation';
 import EmptyState from '@/components/EmptyState';
 import type { Contact, ContactRole } from '@/types';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 function createId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -233,9 +235,7 @@ export default function ContactsScreen() {
         headerTintColor: Colors.primary,
         headerTitleStyle: { fontWeight: '700' as const, color: Colors.text },
         headerRight: () => (
-          <TouchableOpacity onPress={openAddModal} style={styles.headerAddBtn}>
-            <Plus size={20} color={Colors.primary} />
-          </TouchableOpacity>
+          <TouchableOpacity onPress={openAddModal} style={styles.headerAddBtn} accessibilityRole="button" accessibilityLabel="Add"><Plus size={20} color={Colors.primary} /></TouchableOpacity>
         ),
       }} />
 
@@ -251,7 +251,7 @@ export default function ContactsScreen() {
             testID="contacts-search"
           />
           {query.length > 0 && (
-            <TouchableOpacity onPress={() => setQuery('')}>
+            <TouchableOpacity onPress={() => setQuery('')} accessibilityRole="button" accessibilityLabel="Close">
               <X size={14} color={Colors.textMuted} />
             </TouchableOpacity>
           )}
@@ -303,7 +303,7 @@ export default function ContactsScreen() {
             <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }]}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>{editingContact ? 'Edit Contact' : 'New Contact'}</Text>
-                <TouchableOpacity onPress={() => { setShowAddModal(false); resetForm(); }}>
+                <TouchableOpacity onPress={() => { setShowAddModal(false); resetForm(); }} accessibilityRole="button" accessibilityLabel="Close">
                   <X size={20} color={Colors.textMuted} />
                 </TouchableOpacity>
               </View>
@@ -371,7 +371,7 @@ export default function ContactsScreen() {
                 <>
                   <View style={styles.modalHeader}>
                     <Text style={styles.modalTitle}>{displayName}</Text>
-                    <TouchableOpacity onPress={() => setShowDetailModal(false)}>
+                    <TouchableOpacity onPress={() => setShowDetailModal(false)} accessibilityRole="button" accessibilityLabel="Close">
                       <X size={20} color={Colors.textMuted} />
                     </TouchableOpacity>
                   </View>
@@ -487,67 +487,67 @@ export default function ContactsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
-  headerAddBtn: { marginRight: 8, width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.primary + '12', alignItems: 'center', justifyContent: 'center' },
+  headerAddBtn: { marginRight: 8, width: 36, height: 36, borderRadius: Tokens.radius.xl, backgroundColor: Colors.primary + '12', alignItems: 'center', justifyContent: 'center' },
   searchSection: { backgroundColor: Colors.surface, paddingBottom: 10, borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight },
-  searchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.fillTertiary, borderRadius: 12, marginHorizontal: 16, paddingHorizontal: 12, gap: 8, height: 42 },
-  searchInput: { flex: 1, fontSize: 15, color: Colors.text },
+  searchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.fillTertiary, borderRadius: Tokens.radius.card, marginHorizontal: 16, paddingHorizontal: 12, gap: 8, height: 42 },
+  searchInput: { flex: 1, fontSize: Type.subhead.fontSize, color: Colors.text },
   filterRow: { paddingHorizontal: 16, gap: 6, marginTop: 8 },
   filterChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: Colors.fillTertiary },
   filterChipActive: { backgroundColor: Colors.primary },
-  filterChipText: { fontSize: 12, fontWeight: '500' as const, color: Colors.textSecondary },
+  filterChipText: { fontSize: Type.caption1.fontSize, fontWeight: '500' as const, color: Colors.textSecondary },
   filterChipTextActive: { color: Colors.textOnPrimary, fontWeight: '600' as const },
   listContent: { paddingHorizontal: 16, paddingTop: 12, gap: 8 },
-  contactCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.card, borderRadius: 14, padding: 14, gap: 12, borderWidth: 1, borderColor: Colors.cardBorder },
+  contactCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 14, gap: 12, borderWidth: 1, borderColor: Colors.cardBorder },
   avatar: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
-  avatarText: { fontSize: 18, fontWeight: '700' as const },
+  avatarText: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const },
   contactInfo: { flex: 1, gap: 2 },
-  contactName: { fontSize: 15, fontWeight: '600' as const, color: Colors.text },
-  contactCompany: { fontSize: 12, color: Colors.textSecondary },
+  contactName: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: Colors.text },
+  contactCompany: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary },
   contactMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 },
-  roleBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
+  roleBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: Tokens.radius.xs },
   roleBadgeText: { fontSize: 10, fontWeight: '700' as const },
-  contactEmail: { fontSize: 11, color: Colors.textMuted, flex: 1 },
+  contactEmail: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, flex: 1 },
   emptyState: { alignItems: 'center', paddingVertical: 60, gap: 10 },
-  emptyTitle: { fontSize: 17, fontWeight: '600' as const, color: Colors.text },
-  emptyDesc: { fontSize: 14, color: Colors.textMuted, textAlign: 'center' as const },
+  emptyTitle: { fontSize: Type.body.fontSize, fontWeight: '600' as const, color: Colors.text },
+  emptyDesc: { fontSize: Type.bodyCompact.fontSize, color: Colors.textMuted, textAlign: 'center' as const },
   modalOverlay: { flex: 1, backgroundColor: Colors.overlay, justifyContent: 'flex-end' },
   modalCard: { backgroundColor: Colors.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 22 },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  modalTitle: { fontSize: 20, fontWeight: '700' as const, color: Colors.text },
+  modalTitle: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: Colors.text },
   formRow: { flexDirection: 'row', gap: 10 },
-  formLabel: { fontSize: 12, fontWeight: '600' as const, color: Colors.textSecondary, marginTop: 10, marginBottom: 4, textTransform: 'uppercase' as const, letterSpacing: 0.5 },
-  formInput: { minHeight: 44, borderRadius: 12, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 12, fontSize: 15, color: Colors.text, borderWidth: 1, borderColor: Colors.cardBorder },
+  formLabel: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.textSecondary, marginTop: 10, marginBottom: 4, textTransform: 'uppercase' as const, letterSpacing: 0.5 },
+  formInput: { minHeight: 44, borderRadius: Tokens.radius.card, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 12, fontSize: Type.subhead.fontSize, color: Colors.text, borderWidth: 1, borderColor: Colors.cardBorder },
   roleChipsRow: { gap: 6, paddingVertical: 2 },
-  roleChip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10, backgroundColor: Colors.fillTertiary },
+  roleChip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: Tokens.radius.md, backgroundColor: Colors.fillTertiary },
   roleChipActive: { backgroundColor: Colors.primary },
-  roleChipText: { fontSize: 13, fontWeight: '500' as const, color: Colors.textSecondary },
+  roleChipText: { fontSize: Type.footnote.fontSize, fontWeight: '500' as const, color: Colors.textSecondary },
   roleChipTextActive: { color: Colors.textOnPrimary, fontWeight: '600' as const },
-  saveBtn: { backgroundColor: Colors.primary, borderRadius: 14, paddingVertical: 14, alignItems: 'center', marginTop: 16 },
-  saveBtnText: { fontSize: 16, fontWeight: '700' as const, color: Colors.textOnPrimary },
-  detailRoleBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10, marginBottom: 12 },
-  detailRoleText: { fontSize: 13, fontWeight: '700' as const },
-  detailCompany: { fontSize: 12, color: Colors.textSecondary },
+  saveBtn: { backgroundColor: Colors.primary, borderRadius: Tokens.radius.lg, paddingVertical: 14, alignItems: 'center', marginTop: 16 },
+  saveBtnText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.textOnPrimary },
+  detailRoleBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 6, borderRadius: Tokens.radius.md, marginBottom: 12 },
+  detailRoleText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const },
+  detailCompany: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary },
   detailSection: { gap: 10, marginBottom: 16 },
   detailRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  detailText: { fontSize: 14, color: Colors.text },
-  financialCard: { backgroundColor: Colors.surfaceAlt, borderRadius: 14, padding: 14, gap: 8, marginBottom: 16 },
-  financialTitle: { fontSize: 13, fontWeight: '700' as const, color: Colors.textSecondary, textTransform: 'uppercase' as const, letterSpacing: 0.5, marginBottom: 4 },
+  detailText: { fontSize: Type.bodyCompact.fontSize, color: Colors.text },
+  financialCard: { backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.lg, padding: 14, gap: 8, marginBottom: 16 },
+  financialTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.textSecondary, textTransform: 'uppercase' as const, letterSpacing: 0.5, marginBottom: 4 },
   financialRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  financialLabel: { fontSize: 14, color: Colors.textSecondary },
-  financialValue: { fontSize: 14, fontWeight: '600' as const, color: Colors.text },
+  financialLabel: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary },
+  financialValue: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
   financialDivider: { height: 1, backgroundColor: Colors.borderLight },
-  financialLabelBold: { fontSize: 15, fontWeight: '700' as const, color: Colors.text },
-  financialValueBold: { fontSize: 17, fontWeight: '800' as const },
+  financialLabelBold: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text },
+  financialValueBold: { fontSize: Type.body.fontSize, fontWeight: '800' as const },
   linkedSection: { marginBottom: 16 },
-  linkedTitle: { fontSize: 13, fontWeight: '700' as const, color: Colors.textSecondary, textTransform: 'uppercase' as const, letterSpacing: 0.5, marginBottom: 8 },
-  linkedProjectRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: Colors.surfaceAlt, borderRadius: 10, padding: 12, marginBottom: 4 },
-  linkedProjectName: { fontSize: 14, fontWeight: '500' as const, color: Colors.text },
+  linkedTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.textSecondary, textTransform: 'uppercase' as const, letterSpacing: 0.5, marginBottom: 8 },
+  linkedProjectRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.md, padding: 12, marginBottom: 4 },
+  linkedProjectName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '500' as const, color: Colors.text },
   notesSection: { marginBottom: 16 },
-  notesTitle: { fontSize: 13, fontWeight: '700' as const, color: Colors.textSecondary, textTransform: 'uppercase' as const, letterSpacing: 0.5, marginBottom: 6 },
-  notesText: { fontSize: 14, color: Colors.text, lineHeight: 20 },
+  notesTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.textSecondary, textTransform: 'uppercase' as const, letterSpacing: 0.5, marginBottom: 6 },
+  notesText: { fontSize: Type.bodyCompact.fontSize, color: Colors.text, lineHeight: 20 },
   detailActions: { flexDirection: 'row', gap: 10, marginTop: 8 },
-  editBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: Colors.primary + '12', borderRadius: 12, paddingVertical: 12 },
-  editBtnText: { fontSize: 14, fontWeight: '600' as const, color: Colors.primary },
-  deleteBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: Colors.errorLight, borderRadius: 12, paddingVertical: 12 },
-  deleteBtnText: { fontSize: 14, fontWeight: '600' as const, color: Colors.error },
+  editBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: Colors.primary + '12', borderRadius: Tokens.radius.card, paddingVertical: 12 },
+  editBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.primary },
+  deleteBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: Colors.errorLight, borderRadius: Tokens.radius.card, paddingVertical: 12 },
+  deleteBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.error },
 });

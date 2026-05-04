@@ -36,6 +36,8 @@ import { PERMIT_TYPE_INFO, PERMIT_STATUS_INFO, SPECIAL_INSPECTION_LABELS } from 
 import type { Permit, PermitStatus, PermitType, SpecialInspectionCategory } from '@/types';
 import { formatMoney } from '@/utils/formatters';
 import { useProjects } from '@/contexts/ProjectContext';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 const PERMIT_TYPES: PermitType[] = ['building', 'electrical', 'plumbing', 'mechanical', 'demolition', 'grading', 'fire', 'occupancy', 'special_inspection', 'other'];
 
@@ -105,7 +107,7 @@ function PermitCard({ permit, onPress }: { permit: Permit; onPress: () => void }
 
         {isInspectionUpcoming && (
           <View style={styles.inspectionAlert}>
-            <Calendar size={13} color="#6A1B9A" />
+            <Calendar size={13} color={Colors.purple} />
             <Text style={styles.inspectionAlertText}>
               Inspection in {daysUntilInspection} day{daysUntilInspection !== 1 ? 's' : ''} — {new Date(permit.inspectionDate!).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
             </Text>
@@ -114,7 +116,7 @@ function PermitCard({ permit, onPress }: { permit: Permit; onPress: () => void }
 
         {permit.status === 'inspection_failed' && permit.inspectionNotes && (
           <View style={styles.failedAlert}>
-            <AlertTriangle size={13} color="#C62828" />
+            <AlertTriangle size={13} color={Colors.errorDark} />
             <Text style={styles.failedAlertText} numberOfLines={2}>{permit.inspectionNotes}</Text>
           </View>
         )}
@@ -362,9 +364,7 @@ export default function PermitsScreen() {
         headerTintColor: Colors.primary,
         headerTitleStyle: { fontWeight: '700' as const, color: Colors.text },
         headerRight: () => (
-          <TouchableOpacity onPress={openNewForm} style={{ paddingHorizontal: 12, paddingVertical: 6 }} testID="new-permit-btn">
-            <Plus size={22} color={Colors.primary} />
-          </TouchableOpacity>
+          <TouchableOpacity onPress={openNewForm} style={{ paddingHorizontal: 12, paddingVertical: 6 }} testID="new-permit-btn" accessibilityRole="button" accessibilityLabel="Add"><Plus size={22} color={Colors.primary} /></TouchableOpacity>
         ),
       }} />
       <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 30 }} showsVerticalScrollIndicator={false}>
@@ -385,8 +385,8 @@ export default function PermitsScreen() {
             >
               <View style={styles.nextInspectionTop}>
                 <View style={[styles.nextInspectionBadge, { backgroundColor: urgent ? '#FFEBEE' : '#F3E5F5' }]}>
-                  <Calendar size={14} color={urgent ? '#C62828' : '#6A1B9A'} />
-                  <Text style={[styles.nextInspectionBadgeText, { color: urgent ? '#C62828' : '#6A1B9A' }]}>
+                  <Calendar size={14} color={urgent ? Colors.errorDark : Colors.purple} />
+                  <Text style={[styles.nextInspectionBadgeText, { color: urgent ? Colors.errorDark : Colors.purple }]}>
                     Next inspection · {dayLabel}
                   </Text>
                 </View>
@@ -411,7 +411,7 @@ export default function PermitsScreen() {
         {blockers.length > 0 && (
           <View style={styles.blockersCard}>
             <View style={styles.blockersHeader}>
-              <AlertTriangle size={14} color="#C62828" />
+              <AlertTriangle size={14} color={Colors.errorDark} />
               <Text style={styles.blockersTitle}>
                 {blockers.length} permit{blockers.length === 1 ? '' : 's'} blocking work
               </Text>
@@ -439,23 +439,23 @@ export default function PermitsScreen() {
           </View>
           <View style={styles.statCard}>
             <View style={[styles.statIconWrap, { backgroundColor: '#F3E5F5' }]}>
-              <Calendar size={16} color="#6A1B9A" />
+              <Calendar size={16} color={Colors.purple} />
             </View>
-            <Text style={[styles.statValue, { color: '#6A1B9A' }]}>{stats.upcomingInspections}</Text>
+            <Text style={[styles.statValue, { color: Colors.purple }]}>{stats.upcomingInspections}</Text>
             <Text style={styles.statLabel}>Upcoming</Text>
           </View>
           <View style={styles.statCard}>
-            <View style={[styles.statIconWrap, { backgroundColor: '#FFF3E0' }]}>
-              <Clock size={16} color="#E65100" />
+            <View style={[styles.statIconWrap, { backgroundColor: Colors.warningLight }]}>
+              <Clock size={16} color={Colors.warningDark} />
             </View>
-            <Text style={[styles.statValue, { color: '#E65100' }]}>{stats.pending}</Text>
+            <Text style={[styles.statValue, { color: Colors.warningDark }]}>{stats.pending}</Text>
             <Text style={styles.statLabel}>Pending</Text>
           </View>
           <View style={styles.statCard}>
-            <View style={[styles.statIconWrap, { backgroundColor: '#E8F5E9' }]}>
-              <Check size={16} color="#2E7D32" />
+            <View style={[styles.statIconWrap, { backgroundColor: Colors.successLight }]}>
+              <Check size={16} color={Colors.successDark} />
             </View>
-            <Text style={[styles.statValue, { color: '#2E7D32' }]}>{stats.passed}</Text>
+            <Text style={[styles.statValue, { color: Colors.successDark }]}>{stats.passed}</Text>
             <Text style={styles.statLabel}>Passed</Text>
           </View>
         </View>
@@ -530,7 +530,7 @@ export default function PermitsScreen() {
             <Pressable style={[styles.modalCard, { paddingTop: Platform.OS === 'web' ? insetTopWeb : 16 }]} onPress={() => undefined}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>{editingPermit ? 'Edit Permit' : 'New Permit'}</Text>
-                <TouchableOpacity onPress={closeForm}><X size={22} color={Colors.textMuted} /></TouchableOpacity>
+                <TouchableOpacity onPress={closeForm} accessibilityRole="button" accessibilityLabel="Close"><X size={22} color={Colors.textMuted} /></TouchableOpacity>
               </View>
 
               <ScrollView style={{ maxHeight: 520 }} keyboardShouldPersistTaps="handled">
@@ -749,9 +749,7 @@ export default function PermitsScreen() {
 
               <View style={styles.formActions}>
                 {editingPermit && (
-                  <TouchableOpacity style={styles.deleteBtn} onPress={handleDelete}>
-                    <Trash2 size={16} color={Colors.error} />
-                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.deleteBtn} onPress={handleDelete} accessibilityRole="button" accessibilityLabel="Delete"><Trash2 size={16} color={Colors.error} /></TouchableOpacity>
                 )}
                 <TouchableOpacity style={styles.saveBtn} onPress={handleSave} testID="permit-save-btn">
                   <Save size={16} color="#fff" />
@@ -774,7 +772,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
     marginBottom: 8,
     backgroundColor: Colors.surface,
-    borderRadius: 16,
+    borderRadius: Tokens.radius.panel,
     padding: 16,
     borderWidth: 1.5,
     borderColor: '#6A1B9A' + '30',
@@ -803,33 +801,33 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingHorizontal: 10,
     paddingVertical: 5,
-    borderRadius: 999,
+    borderRadius: Tokens.radius.full,
   },
   nextInspectionBadgeText: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     fontWeight: '800' as const,
     letterSpacing: 0.4,
     textTransform: 'uppercase' as const,
   },
   nextInspectionDate: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     color: Colors.textSecondary,
     fontWeight: '600' as const,
   },
   nextInspectionType: {
-    fontSize: 22,
+    fontSize: Type.title2.fontSize,
     fontWeight: '800' as const,
     color: Colors.text,
     letterSpacing: -0.4,
     marginBottom: 4,
   },
   nextInspectionProject: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: Colors.textSecondary,
     fontWeight: '600' as const,
   },
   nextInspectionPermitNum: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     color: Colors.textMuted,
     fontWeight: '600' as const,
     marginTop: 4,
@@ -839,8 +837,8 @@ const styles = StyleSheet.create({
   blockersCard: {
     marginHorizontal: 16,
     marginBottom: 8,
-    backgroundColor: '#FFEBEE',
-    borderRadius: 12,
+    backgroundColor: Colors.errorLight,
+    borderRadius: Tokens.radius.card,
     paddingHorizontal: 14,
     paddingVertical: 12,
     borderWidth: 1,
@@ -853,15 +851,15 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   blockersTitle: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     fontWeight: '800' as const,
-    color: '#C62828',
+    color: Colors.errorDark,
     letterSpacing: 0.3,
     textTransform: 'uppercase' as const,
   },
   blockerRow: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 8,
+    borderRadius: Tokens.radius.sm,
     paddingHorizontal: 10,
     paddingVertical: 8,
     flexDirection: 'row',
@@ -871,14 +869,14 @@ const styles = StyleSheet.create({
   },
   blockerName: {
     flex: 1,
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
   },
   blockerStatus: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     fontWeight: '700' as const,
-    color: '#C62828',
+    color: Colors.errorDark,
   },
   statsRow: {
     flexDirection: 'row',
@@ -890,20 +888,20 @@ const styles = StyleSheet.create({
   statCard: {
     flex: 1,
     backgroundColor: Colors.surface,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     padding: 12,
     alignItems: 'center',
     gap: 6,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
   },
-  statIconWrap: { width: 30, height: 30, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
-  statValue: { fontSize: 18, fontWeight: '700' as const, color: Colors.text },
-  statLabel: { fontSize: 11, color: Colors.textSecondary },
+  statIconWrap: { width: 30, height: 30, borderRadius: Tokens.radius.sm, alignItems: 'center', justifyContent: 'center' },
+  statValue: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: Colors.text },
+  statLabel: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary },
   feeCard: {
     marginHorizontal: 16,
     backgroundColor: Colors.surface,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     padding: 16,
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -912,8 +910,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.cardBorder,
   },
-  feeLabel: { fontSize: 14, color: Colors.textSecondary, fontWeight: '500' as const },
-  feeValue: { fontSize: 20, fontWeight: '700' as const, color: Colors.text },
+  feeLabel: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, fontWeight: '500' as const },
+  feeValue: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: Colors.text },
   filterRow: { paddingHorizontal: 16, gap: 8, paddingBottom: 16 },
   filterChip: {
     paddingHorizontal: 16,
@@ -924,12 +922,12 @@ const styles = StyleSheet.create({
     borderColor: Colors.cardBorder,
   },
   filterChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  filterChipText: { fontSize: 13, fontWeight: '600' as const, color: Colors.textSecondary },
+  filterChipText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.textSecondary },
   filterChipTextActive: { color: '#fff' },
   listSection: { paddingHorizontal: 16 },
   permitCard: {
     marginBottom: 10,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     backgroundColor: Colors.surface,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
@@ -940,12 +938,12 @@ const styles = StyleSheet.create({
   permitCardInner: { padding: 14, gap: 4 },
   permitHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
   permitTypeDot: { width: 8, height: 8, borderRadius: 4 },
-  permitType: { fontSize: 12, fontWeight: '600' as const, color: Colors.textSecondary, flex: 1 },
-  statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
-  statusBadgeText: { fontSize: 11, fontWeight: '600' as const },
-  permitNumber: { fontSize: 13, fontWeight: '500' as const, color: Colors.textMuted },
-  permitProject: { fontSize: 15, fontWeight: '600' as const, color: Colors.text },
-  permitJurisdiction: { fontSize: 13, color: Colors.textSecondary },
+  permitType: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.textSecondary, flex: 1 },
+  statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: Tokens.radius.sm },
+  statusBadgeText: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const },
+  permitNumber: { fontSize: Type.footnote.fontSize, fontWeight: '500' as const, color: Colors.textMuted },
+  permitProject: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: Colors.text },
+  permitJurisdiction: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary },
   // IBC Ch.17 category chip — sits between permit number and project name
   // on Special Inspection cards. Color tied to PERMIT_TYPE_INFO.special_inspection.
   specialCategoryChip: {
@@ -953,17 +951,17 @@ const styles = StyleSheet.create({
     backgroundColor: '#3949AB' + '15',
     paddingHorizontal: 8,
     paddingVertical: 3,
-    borderRadius: 6,
+    borderRadius: Tokens.radius.xs,
     marginTop: 4,
   },
   specialCategoryText: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     fontWeight: '700' as const,
     color: '#3949AB',
     letterSpacing: 0.2,
   },
   specialInspectorLine: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     color: Colors.textMuted,
     marginTop: 2,
     fontStyle: 'italic' as const,
@@ -973,10 +971,10 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.fillTertiary,
     paddingHorizontal: 10,
     paddingVertical: 3,
-    borderRadius: 6,
+    borderRadius: Tokens.radius.xs,
     marginTop: 4,
   },
-  phaseTagText: { fontSize: 11, fontWeight: '700' as const, color: Colors.textSecondary, letterSpacing: 0.4 },
+  phaseTagText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: Colors.textSecondary, letterSpacing: 0.4 },
   inspectionAlert: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -984,37 +982,37 @@ const styles = StyleSheet.create({
     backgroundColor: '#F3E5F5',
     paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: 8,
+    borderRadius: Tokens.radius.sm,
     alignSelf: 'flex-start',
     marginTop: 4,
   },
-  inspectionAlertText: { fontSize: 12, fontWeight: '500' as const, color: '#6A1B9A' },
+  inspectionAlertText: { fontSize: Type.caption1.fontSize, fontWeight: '500' as const, color: Colors.purple },
   failedAlert: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 6,
-    backgroundColor: '#FFEBEE',
+    backgroundColor: Colors.errorLight,
     paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: 8,
+    borderRadius: Tokens.radius.sm,
     marginTop: 4,
   },
-  failedAlertText: { fontSize: 12, color: '#C62828', flex: 1 },
+  failedAlertText: { fontSize: Type.caption1.fontSize, color: Colors.errorDark, flex: 1 },
   attachRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
-  attachText: { fontSize: 11, color: Colors.textSecondary, fontWeight: '500' as const },
+  attachText: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, fontWeight: '500' as const },
   permitFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 },
-  permitFee: { fontSize: 14, fontWeight: '700' as const, color: Colors.text },
-  permitDate: { fontSize: 12, color: Colors.textMuted },
+  permitFee: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
+  permitDate: { fontSize: Type.caption1.fontSize, color: Colors.textMuted },
   emptyState: { alignItems: 'center', paddingVertical: 56, gap: 8 },
-  emptyTitle: { fontSize: 17, fontWeight: '600' as const, color: Colors.text },
-  emptySub: { fontSize: 13, color: Colors.textSecondary, textAlign: 'center', paddingHorizontal: 40, lineHeight: 18 },
+  emptyTitle: { fontSize: Type.body.fontSize, fontWeight: '600' as const, color: Colors.text },
+  emptySub: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, textAlign: 'center', paddingHorizontal: 40, lineHeight: 18 },
   emptyCta: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     marginTop: 12,
-    paddingHorizontal: 18, paddingVertical: 10, borderRadius: 999,
+    paddingHorizontal: 18, paddingVertical: 10, borderRadius: Tokens.radius.full,
     backgroundColor: Colors.primary,
   },
-  emptyCtaText: { color: '#fff', fontWeight: '700' as const, fontSize: 14 },
+  emptyCtaText: { color: '#fff', fontWeight: '700' as const, fontSize: Type.bodyCompact.fontSize },
 
   modalOverlay: { flex: 1, backgroundColor: '#00000080', justifyContent: 'flex-end' },
   modalCard: {
@@ -1023,51 +1021,51 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16, paddingBottom: 24,
   },
   modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12 },
-  modalTitle: { fontSize: 18, fontWeight: '700' as const, color: Colors.text },
-  formLabel: { fontSize: 12, fontWeight: '700' as const, color: Colors.textSecondary, marginTop: 12, marginBottom: 6, textTransform: 'uppercase' as const, letterSpacing: 0.5 },
+  modalTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: Colors.text },
+  formLabel: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: Colors.textSecondary, marginTop: 12, marginBottom: 6, textTransform: 'uppercase' as const, letterSpacing: 0.5 },
   formInput: {
     backgroundColor: Colors.surface,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
     paddingHorizontal: 12, paddingVertical: 10,
-    color: Colors.text, fontSize: 15,
+    color: Colors.text, fontSize: Type.subhead.fontSize,
     borderWidth: 1, borderColor: Colors.cardBorder,
   },
   formRow: { flexDirection: 'row', gap: 10 },
   formPicker: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     backgroundColor: Colors.surface,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
     paddingHorizontal: 12, paddingVertical: 12,
     borderWidth: 1, borderColor: Colors.cardBorder,
   },
-  formPickerText: { fontSize: 15, color: Colors.text, flex: 1 },
-  pickerOptions: { backgroundColor: Colors.surface, borderRadius: 10, marginTop: 6, borderWidth: 1, borderColor: Colors.cardBorder, maxHeight: 220 },
+  formPickerText: { fontSize: Type.subhead.fontSize, color: Colors.text, flex: 1 },
+  pickerOptions: { backgroundColor: Colors.surface, borderRadius: Tokens.radius.md, marginTop: 6, borderWidth: 1, borderColor: Colors.cardBorder, maxHeight: 220 },
   pickerRow: { paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.cardBorder + '60' },
   pickerRowActive: { backgroundColor: Colors.primary + '14' },
-  pickerRowText: { fontSize: 14, color: Colors.text },
+  pickerRowText: { fontSize: Type.bodyCompact.fontSize, color: Colors.text },
   pickerRowTextActive: { color: Colors.primary, fontWeight: '700' as const },
-  pickerEmpty: { padding: 14, fontSize: 13, color: Colors.textMuted, textAlign: 'center' },
+  pickerEmpty: { padding: 14, fontSize: Type.footnote.fontSize, color: Colors.textMuted, textAlign: 'center' },
   attachBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     backgroundColor: Colors.primary + '14',
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
     paddingHorizontal: 14, paddingVertical: 12,
   },
-  attachBtnText: { color: Colors.primary, fontWeight: '700' as const, fontSize: 14 },
-  attachHint: { fontSize: 11, color: Colors.textMuted, marginTop: 4, paddingHorizontal: 4 },
+  attachBtnText: { color: Colors.primary, fontWeight: '700' as const, fontSize: Type.bodyCompact.fontSize },
+  attachHint: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 4, paddingHorizontal: 4 },
   formActions: { flexDirection: 'row', gap: 10, marginTop: 16 },
   saveBtn: {
     flex: 1,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     backgroundColor: Colors.primary,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     paddingVertical: 14,
   },
-  saveBtnText: { color: '#fff', fontWeight: '700' as const, fontSize: 15 },
+  saveBtnText: { color: '#fff', fontWeight: '700' as const, fontSize: Type.subhead.fontSize },
   deleteBtn: {
     width: 50, height: 50,
     alignItems: 'center', justifyContent: 'center',
     backgroundColor: Colors.error + '14',
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
   },
 });

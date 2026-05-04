@@ -15,6 +15,8 @@ import {
 import { Colors } from '@/constants/colors';
 import { MOCK_INTEGRATIONS, INTEGRATION_CATEGORIES } from '@/mocks/integrations';
 import type { Integration, IntegrationCategory } from '@/types';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 function IntegrationCard({ item, onConnect }: { item: Integration; onConnect: (item: Integration) => void }) {
   const scaleAnim = useRef(new Animated.Value(1)).current;
@@ -22,13 +24,13 @@ function IntegrationCard({ item, onConnect }: { item: Integration; onConnect: (i
   const statusConfig = useMemo(() => {
     switch (item.status) {
       case 'connected':
-        return { label: 'Connected', color: '#2E7D32', bgColor: '#E8F5E9', icon: Check };
+        return { label: 'Connected', color: Colors.successDark, bgColor: Colors.successLight, icon: Check };
       case 'disconnected':
         return { label: item.tier === 'link' ? 'Open' : 'Connect', color: Colors.primary, bgColor: Colors.primary + '14', icon: Plug };
       case 'coming_soon':
         return { label: 'Coming Soon', color: '#9E9E9E', bgColor: '#F5F5F5', icon: Lock };
       case 'error':
-        return { label: 'Error', color: '#C62828', bgColor: '#FFEBEE', icon: WifiOff };
+        return { label: 'Error', color: Colors.errorDark, bgColor: Colors.errorLight, icon: WifiOff };
       default:
         return { label: 'Connect', color: Colors.primary, bgColor: Colors.primary + '14', icon: Plug };
     }
@@ -288,14 +290,14 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
   },
   heroSubtitle: {
-    fontSize: 15,
+    fontSize: Type.subhead.fontSize,
     color: Colors.textSecondary,
   },
   heroStats: {
     flexDirection: 'row',
     marginTop: 16,
     backgroundColor: Colors.surface,
-    borderRadius: 16,
+    borderRadius: Tokens.radius.panel,
     paddingVertical: 14,
     paddingHorizontal: 20,
     gap: 20,
@@ -306,8 +308,8 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   heroStat: { alignItems: 'center', flex: 1 },
-  heroStatValue: { fontSize: 22, fontWeight: '700' as const, color: Colors.text },
-  heroStatLabel: { fontSize: 11, color: Colors.textMuted, marginTop: 2 },
+  heroStatValue: { fontSize: Type.title2.fontSize, fontWeight: '700' as const, color: Colors.text },
+  heroStatLabel: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 2 },
   heroStatDivider: { width: 1, backgroundColor: Colors.borderLight },
   categoryRow: {
     paddingHorizontal: 16,
@@ -327,7 +329,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.primary,
   },
   categoryChipText: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
     color: Colors.textSecondary,
   },
@@ -338,7 +340,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   sectionLabel: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     fontWeight: '600' as const,
     color: Colors.textMuted,
     letterSpacing: 0.6,
@@ -347,7 +349,7 @@ const styles = StyleSheet.create({
   },
   card: {
     marginBottom: 8,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     backgroundColor: Colors.surface,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
@@ -364,33 +366,33 @@ const styles = StyleSheet.create({
   cardIcon: {
     width: 44,
     height: 44,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     alignItems: 'center',
     justifyContent: 'center',
   },
   cardIconLetter: {
-    fontSize: 20,
+    fontSize: Type.title3.fontSize,
     fontWeight: '700' as const,
   },
   cardInfo: { flex: 1, gap: 2 },
   cardNameRow: { flexDirection: 'row', alignItems: 'center' },
-  cardName: { fontSize: 15, fontWeight: '600' as const, color: Colors.text },
-  cardDesc: { fontSize: 12, color: Colors.textSecondary, lineHeight: 16 },
-  cardConnectedDate: { fontSize: 11, color: Colors.primary, fontWeight: '500' as const, marginTop: 2 },
+  cardName: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: Colors.text },
+  cardDesc: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, lineHeight: 16 },
+  cardConnectedDate: { fontSize: Type.caption2.fontSize, color: Colors.primary, fontWeight: '500' as const, marginTop: 2 },
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
     paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: 8,
+    borderRadius: Tokens.radius.sm,
   },
-  statusText: { fontSize: 11, fontWeight: '600' as const },
+  statusText: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const },
   emptyState: {
     alignItems: 'center',
     paddingVertical: 60,
     gap: 8,
   },
-  emptyTitle: { fontSize: 17, fontWeight: '600' as const, color: Colors.text },
-  emptyDesc: { fontSize: 14, color: Colors.textSecondary },
+  emptyTitle: { fontSize: Type.body.fontSize, fontWeight: '600' as const, color: Colors.text },
+  emptyDesc: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary },
 });

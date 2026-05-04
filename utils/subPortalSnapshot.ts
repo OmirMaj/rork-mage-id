@@ -45,7 +45,7 @@ export interface SubPortalSnapshot {
     trade?: string;
   };
 
-  commitments: Array<{
+  commitments: {
     id: string;
     number: string;
     description: string;
@@ -57,11 +57,11 @@ export interface SubPortalSnapshot {
     status: string;
     signedDate?: string;
     phase?: string;
-  }>;
+  }[];
 
   // Sub-submitted billing history (most recent first), so the sub sees
   // what they've already filed and the GC's review state.
-  submittedInvoices: Array<{
+  submittedInvoices: {
     id: string;
     invoiceNumber: string;
     amount: number;
@@ -71,11 +71,11 @@ export interface SubPortalSnapshot {
     reviewedAt?: string;
     paidAt?: string;
     notesFromGc?: string;
-  }>;
+  }[];
 
   // v2: open + in-progress punch items assigned to this sub. Helps
   // the sub answer "what's still on my list?" without calling the GC.
-  punchItems?: Array<{
+  punchItems?: {
     id: string;
     description: string;
     location?: string;
@@ -83,14 +83,14 @@ export interface SubPortalSnapshot {
     status: string;
     dueDate?: string;
     photoUri?: string;
-  }>;
+  }[];
 
   // v2: schedule tasks where this sub is assigned (or their trade
   // matches the task's crew). Includes the parent project's schedule
   // start date so the portal can render real calendar dates.
   scheduleSlice?: {
     projectStartDate?: string;
-    tasks: Array<{
+    tasks: {
       id: string;
       title: string;
       phase?: string;
@@ -99,7 +99,7 @@ export interface SubPortalSnapshot {
       durationDays: number;
       startDay: number;
       isMilestone?: boolean;
-    }>;
+    }[];
   };
 
   submitInvoice: {

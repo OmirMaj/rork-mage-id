@@ -22,6 +22,8 @@ import { View, Text, StyleSheet, ScrollView, Platform } from 'react-native';
 import { Users, AlertTriangle } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ScheduleTask, ProjectResource } from '@/types';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 interface ResourceSwimlanesProps {
   tasks: ScheduleTask[];
@@ -263,7 +265,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
     overflow: 'hidden',
@@ -278,9 +280,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
   },
-  toolbarTitle: { fontSize: 14, fontWeight: '700', color: Colors.text },
+  toolbarTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
   spacer: { flex: 1 },
-  zoomValue: { fontSize: 11, fontWeight: '600', color: Colors.textSecondary, minWidth: 48, textAlign: 'right' },
+  zoomValue: { fontSize: Type.caption2.fontSize, fontWeight: '600', color: Colors.textSecondary, minWidth: 48, textAlign: 'right' },
   scrollH: { flex: 1 },
   headerRow: {
     flexDirection: 'row',
@@ -291,7 +293,7 @@ const styles = StyleSheet.create({
   },
   monthTick: {
     position: 'absolute',
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     fontWeight: '700',
     color: Colors.textSecondary,
     textTransform: 'uppercase',
@@ -313,15 +315,15 @@ const styles = StyleSheet.create({
     height: '100%',
     backgroundColor: Colors.surface,
   },
-  laneName: { fontSize: 12, fontWeight: '700', color: Colors.text, flex: 1 },
+  laneName: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: Colors.text, flex: 1 },
   laneCap: { fontSize: 10, color: Colors.textSecondary, fontWeight: '600' },
   overloadBadge: {
     marginLeft: 4,
     padding: 2,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
     backgroundColor: Colors.error + '22',
   },
-  pillText: { fontSize: 11, fontWeight: '600', color: Colors.text },
+  pillText: { fontSize: Type.caption2.fontSize, fontWeight: '600', color: Colors.text },
   empty: {
     flex: 1,
     alignItems: 'center',
@@ -329,6 +331,6 @@ const styles = StyleSheet.create({
     padding: 24,
     gap: 8,
   },
-  emptyTitle: { fontSize: 14, fontWeight: '700', color: Colors.text, marginTop: 8 },
-  emptyText: { fontSize: 12, color: Colors.textSecondary, textAlign: 'center', maxWidth: 280 },
+  emptyTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text, marginTop: 8 },
+  emptyText: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, textAlign: 'center', maxWidth: 280 },
 });

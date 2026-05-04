@@ -16,6 +16,8 @@ import { useEntityNavigation } from '@/hooks/useEntityNavigation';
 import EntityActionSheet from '@/components/EntityActionSheet';
 import EmptyState from '@/components/EmptyState';
 import type { EntityRef } from '@/types';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 export default function ActivityFeedScreen() {
   const insets = useSafeAreaInsets();
@@ -191,8 +193,8 @@ const styles = StyleSheet.create({
   },
   headerBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
   headerTitleWrap: { flex: 1, alignItems: 'center' },
-  headerTitle: { fontSize: 17, fontWeight: '700', color: Colors.text },
-  headerSubtitle: { fontSize: 12, color: Colors.textMuted, marginTop: 2 },
+  headerTitle: { fontSize: Type.body.fontSize, fontWeight: '700', color: Colors.text },
+  headerSubtitle: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2 },
 
   listContent: { paddingVertical: 4 },
   row: {
@@ -203,10 +205,10 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
     gap: 12,
   },
-  rowIcon: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  rowIcon: { width: 36, height: 36, borderRadius: Tokens.radius.md, alignItems: 'center', justifyContent: 'center' },
   rowBody: { flex: 1 },
-  rowTitle: { fontSize: 15, fontWeight: '600', color: Colors.text, marginBottom: 2 },
-  rowMeta: { fontSize: 12, color: Colors.textSecondary },
+  rowTitle: { fontSize: Type.subhead.fontSize, fontWeight: '600', color: Colors.text, marginBottom: 2 },
+  rowMeta: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary },
   rowVerb: { fontWeight: '600' },
   rowDot: { color: Colors.textMuted },
   separator: { height: StyleSheet.hairlineWidth, backgroundColor: Colors.border, marginLeft: 64 },
@@ -219,11 +221,11 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   emptyIcon: {
-    width: 56, height: 56, borderRadius: 16,
+    width: 56, height: 56, borderRadius: Tokens.radius.panel,
     backgroundColor: Colors.fillTertiary,
     alignItems: 'center', justifyContent: 'center',
     marginBottom: 4,
   },
-  emptyTitle: { fontSize: 18, fontWeight: '700', color: Colors.text },
-  emptyBody: { fontSize: 14, color: Colors.textSecondary, textAlign: 'center', lineHeight: 20 },
+  emptyTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700', color: Colors.text },
+  emptyBody: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, textAlign: 'center', lineHeight: 20 },
 });

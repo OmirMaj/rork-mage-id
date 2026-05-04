@@ -80,7 +80,7 @@ function buildQuickEstimateHtml(
   // four metrics a homeowner and a contractor actually compare on:
   // total, cost-per-sqft, project size, timeline. "Line items: 23" tells
   // the client nothing useful.
-  const heroStats: Array<{ label: string; value: string; accent?: 'amber' | 'success' | 'error' }> = [
+  const heroStats: { label: string; value: string; accent?: 'amber' | 'success' | 'error' }[] = [
     { label: 'Estimated total', value: fmtMoney(result.total), accent: 'amber' },
   ];
   if (costPerSqft > 0) heroStats.push({ label: 'Cost per sqft', value: fmtMoney(costPerSqft, { decimals: 0 }) });

@@ -16,7 +16,7 @@ interface CashFlowSetupProps {
   onClose: () => void;
 }
 
-const EXPENSE_SUGGESTIONS: Array<{ name: string; category: ExpenseCategory; frequency: ExpenseFrequency }> = [
+const EXPENSE_SUGGESTIONS: { name: string; category: ExpenseCategory; frequency: ExpenseFrequency }[] = [
   { name: 'Payroll', category: 'payroll', frequency: 'weekly' },
   { name: 'Insurance', category: 'insurance', frequency: 'monthly' },
   { name: 'Office Overhead', category: 'overhead', frequency: 'monthly' },

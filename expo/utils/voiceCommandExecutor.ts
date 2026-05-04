@@ -271,7 +271,7 @@ export async function saveVoiceIssue(projectId: string, issue: string): Promise<
   try {
     const key = `${VOICE_ISSUES_KEY}_${projectId}`;
     const stored = await AsyncStorage.getItem(key);
-    const issues: Array<{ text: string; timestamp: string }> = stored ? JSON.parse(stored) : [];
+    const issues: { text: string; timestamp: string }[] = stored ? JSON.parse(stored) : [];
     issues.unshift({ text: issue, timestamp: new Date().toISOString() });
     await AsyncStorage.setItem(key, JSON.stringify(issues.slice(0, 50)));
   } catch (err) {

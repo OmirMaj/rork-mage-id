@@ -113,7 +113,7 @@ export function fireConfetti(opts?: { count?: number }): void {
 }
 
 export function ConfettiHost() {
-  const [bursts, setBursts] = useState<Array<{ id: number; count: number }>>([]);
+  const [bursts, setBursts] = useState<{ id: number; count: number }[]>([]);
   const counter = useRef(0);
 
   useEffect(() => {

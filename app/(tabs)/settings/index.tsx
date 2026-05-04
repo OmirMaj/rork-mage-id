@@ -1,36 +1,26 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  TextInput, Alert, Platform, Switch, Modal, Image, Dimensions,
-  KeyboardAvoidingView, ActivityIndicator,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, Platform, Switch, Modal, Image, Dimensions, KeyboardAvoidingView, ActivityIndicator, Linking } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import {
-  MapPin, Ruler, Percent, ShieldCheck, Info, Trash2, ChevronRight,
-  Building2, User, Phone, Mail, FileText, Award, Type, Camera,
-  PenTool, X, Image as ImageIcon, Store, Package, Truck, ScanFace, Bell,
-  Crown, Star, Zap, Check,
-} from 'lucide-react-native';
+  MapPin, Ruler, Percent, ShieldCheck, Info, Trash2, ChevronRight, Building2, User, Phone, Mail, FileText, Award, Type as TypeIcon, Camera, PenTool, X, Image as ImageIcon, Store, Package, Truck, ScanFace, Bell, Crown, Star, Zap, Check, Sparkles, Hash, Database, HelpCircle, MessageCircle, BookOpen, LogOut, UserCircle, Eye, EyeOff, FolderDown, Wallet } from 'lucide-react-native';
 import { Colors, setCustomColors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { isOwner } from '@/utils/owner';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { getAIUsageStats } from '@/utils/aiRateLimiter';
-import { Sparkles, Hash, Database } from 'lucide-react-native';
 import { THEME_PRESETS } from '@/types';
 import type { PDFNamingSettings } from '@/types';
 import SignaturePad from '@/components/SignaturePad';
 import Tutorial from '@/components/Tutorial';
 import Paywall from '@/components/Paywall';
-import { HelpCircle, MessageCircle, BookOpen } from 'lucide-react-native';
-import { Linking } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { LogOut, UserCircle, Eye, EyeOff, FolderDown, Wallet } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { track, AnalyticsEvents } from '@/utils/analytics';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
@@ -366,8 +356,7 @@ export default function SettingsScreen() {
                 ]);
               }}
               activeOpacity={0.7}
-              testID="logout-button"
-            >
+              testID="logout-button" accessibilityRole="button" accessibilityLabel="Sign out">
               <LogOut size={16} color={Colors.textSecondary} />
             </TouchableOpacity>
           </View>
@@ -402,12 +391,12 @@ export default function SettingsScreen() {
           </View>
           <View style={styles.rowSeparator} />
           <View style={[styles.row, { paddingVertical: 10 }]}>
-            <Text style={{ fontSize: 12, color: Colors.textMuted, flex: 1 }}>
+            <Text style={{ fontSize: Type.caption1.fontSize, color: Colors.textMuted, flex: 1 }}>
               Resets daily at midnight · Plan: {tier === 'free' ? 'Free' : tier === 'pro' ? 'Pro' : 'Business'}
             </Text>
             {tier === 'free' && (
               <TouchableOpacity onPress={() => router.push('/paywall' as any)} activeOpacity={0.7}>
-                <Text style={{ fontSize: 12, fontWeight: '600' as const, color: Colors.primary }}>Upgrade</Text>
+                <Text style={{ fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.primary }}>Upgrade</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -416,7 +405,7 @@ export default function SettingsScreen() {
         <Text style={styles.sectionHeader}>LOCATION & UNITS</Text>
         <View style={styles.group}>
           <View style={styles.row}>
-            <View style={[styles.iconWrap, { backgroundColor: '#FF3B30' }]}>
+            <View style={[styles.iconWrap, { backgroundColor: Colors.error }]}>
               <MapPin size={14} color="#fff" />
             </View>
             <Text style={styles.rowLabel}>Location</Text>
@@ -432,7 +421,7 @@ export default function SettingsScreen() {
           </View>
           <View style={styles.rowSeparator} />
           <TouchableOpacity style={styles.row} onPress={handleToggleUnits} activeOpacity={0.6}>
-            <View style={[styles.iconWrap, { backgroundColor: '#007AFF' }]}>
+            <View style={[styles.iconWrap, { backgroundColor: Colors.info }]}>
               <Ruler size={14} color="#fff" />
             </View>
             <Text style={styles.rowLabel}>Units</Text>
@@ -474,7 +463,7 @@ export default function SettingsScreen() {
           </View>
           <View style={styles.rowSeparator} />
           <View style={styles.row}>
-            <View style={[styles.iconWrap, { backgroundColor: '#34C759' }]}>
+            <View style={[styles.iconWrap, { backgroundColor: Colors.success }]}>
               <ShieldCheck size={14} color="#fff" />
             </View>
             <Text style={styles.rowLabel}>Contingency Rate</Text>
@@ -517,7 +506,7 @@ export default function SettingsScreen() {
           <View style={styles.rowSeparator} />
           <View style={styles.row}>
             <View style={[styles.iconWrap, { backgroundColor: '#5856D6' }]}>
-              <Type size={14} color="#fff" />
+              <TypeIcon size={14} color="#fff" />
             </View>
             <Text style={styles.rowLabel}>Tagline</Text>
             <TextInput
@@ -532,7 +521,7 @@ export default function SettingsScreen() {
           </View>
           <View style={styles.rowSeparator} />
           <View style={styles.row}>
-            <View style={[styles.iconWrap, { backgroundColor: '#007AFF' }]}>
+            <View style={[styles.iconWrap, { backgroundColor: Colors.info }]}>
               <User size={14} color="#fff" />
             </View>
             <Text style={styles.rowLabel}>Contact Name</Text>
@@ -548,7 +537,7 @@ export default function SettingsScreen() {
           </View>
           <View style={styles.rowSeparator} />
           <View style={styles.row}>
-            <View style={[styles.iconWrap, { backgroundColor: '#34C759' }]}>
+            <View style={[styles.iconWrap, { backgroundColor: Colors.success }]}>
               <Phone size={14} color="#fff" />
             </View>
             <Text style={styles.rowLabel}>Phone</Text>
@@ -565,7 +554,7 @@ export default function SettingsScreen() {
           </View>
           <View style={styles.rowSeparator} />
           <View style={styles.row}>
-            <View style={[styles.iconWrap, { backgroundColor: '#FF9500' }]}>
+            <View style={[styles.iconWrap, { backgroundColor: Colors.warning }]}>
               <Mail size={14} color="#fff" />
             </View>
             <Text style={styles.rowLabel}>Email</Text>
@@ -583,7 +572,7 @@ export default function SettingsScreen() {
           </View>
           <View style={styles.rowSeparator} />
           <View style={styles.row}>
-            <View style={[styles.iconWrap, { backgroundColor: '#FF3B30' }]}>
+            <View style={[styles.iconWrap, { backgroundColor: Colors.error }]}>
               <MapPin size={14} color="#fff" />
             </View>
             <Text style={styles.rowLabel}>Address</Text>
@@ -692,7 +681,7 @@ export default function SettingsScreen() {
               activeOpacity={0.7}
               testID="draw-signature"
             >
-              <View style={[styles.iconWrap, { backgroundColor: '#007AFF' }]}>
+              <View style={[styles.iconWrap, { backgroundColor: Colors.info }]}>
                 <PenTool size={14} color="#fff" />
               </View>
               <Text style={styles.rowLabel}>Draw Signature</Text>
@@ -741,8 +730,8 @@ export default function SettingsScreen() {
             <>
               <View style={styles.rowSeparator} />
               <View style={styles.row}>
-                <View style={[styles.iconWrap, { backgroundColor: '#FF9500' }]}>
-                  <Type size={14} color="#fff" />
+                <View style={[styles.iconWrap, { backgroundColor: Colors.warning }]}>
+                  <TypeIcon size={14} color="#fff" />
                 </View>
                 <Text style={styles.rowLabel}>Prefix</Text>
                 <TextInput
@@ -764,7 +753,7 @@ export default function SettingsScreen() {
                 }}
                 activeOpacity={0.6}
               >
-                <View style={[styles.iconWrap, { backgroundColor: '#34C759' }]}>
+                <View style={[styles.iconWrap, { backgroundColor: Colors.success }]}>
                   <Building2 size={14} color="#fff" />
                 </View>
                 <Text style={styles.rowLabel}>Include Project Name</Text>
@@ -788,7 +777,7 @@ export default function SettingsScreen() {
                 }}
                 activeOpacity={0.6}
               >
-                <View style={[styles.iconWrap, { backgroundColor: '#007AFF' }]}>
+                <View style={[styles.iconWrap, { backgroundColor: Colors.info }]}>
                   <FileText size={14} color="#fff" />
                 </View>
                 <Text style={styles.rowLabel}>Include Document Type</Text>
@@ -812,7 +801,7 @@ export default function SettingsScreen() {
                 }}
                 activeOpacity={0.6}
               >
-                <View style={[styles.iconWrap, { backgroundColor: '#FF3B30' }]}>
+                <View style={[styles.iconWrap, { backgroundColor: Colors.error }]}>
                   <Info size={14} color="#fff" />
                 </View>
                 <Text style={styles.rowLabel}>Include Date</Text>
@@ -857,7 +846,7 @@ export default function SettingsScreen() {
               </View>
               <View style={styles.rowSeparator} />
               <View style={styles.row}>
-                <View style={[styles.iconWrap, { backgroundColor: '#FF9500' }]}>
+                <View style={[styles.iconWrap, { backgroundColor: Colors.warning }]}>
                   <Hash size={14} color="#fff" />
                 </View>
                 <Text style={styles.rowLabel}>Next Number</Text>
@@ -938,7 +927,7 @@ export default function SettingsScreen() {
                 }}
                 activeOpacity={0.6}
               >
-                <View style={[styles.iconWrap, { backgroundColor: '#007AFF' }]}>
+                <View style={[styles.iconWrap, { backgroundColor: Colors.info }]}>
                   <ScanFace size={14} color="#fff" />
                 </View>
                 <Text style={styles.rowLabel}>Face ID / Touch ID</Text>
@@ -1099,12 +1088,12 @@ export default function SettingsScreen() {
               activeOpacity={0.7}
               testID="register-supplier"
             >
-              <View style={[styles.iconWrap, { backgroundColor: '#FF9500' }]}>
+              <View style={[styles.iconWrap, { backgroundColor: Colors.warning }]}>
                 <Store size={14} color="#fff" />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.rowLabel}>Register as Supplier</Text>
-                <Text style={{ fontSize: 12, color: Colors.textSecondary }}>List your materials for sale</Text>
+                <Text style={{ fontSize: Type.caption1.fontSize, color: Colors.textSecondary }}>List your materials for sale</Text>
               </View>
               <ChevronRight size={16} color={Colors.textMuted} />
             </TouchableOpacity>
@@ -1140,7 +1129,7 @@ export default function SettingsScreen() {
                 id: 'business' as const,
                 label: 'Business',
                 price: '$79/mo',
-                color: '#5856D6',
+                color: Colors.purple,
                 icon: Crown,
                 features: ['Everything in Pro', 'Subcontractor management', 'Punch list & closeout', 'Client portal (shareable link)', 'Unlimited collaborators', 'Custom branding + logos', 'Priority support'],
                 disabled: [],
@@ -1270,7 +1259,7 @@ export default function SettingsScreen() {
                 </TouchableOpacity>
                 {isOpen ? (
                   <View style={{ paddingHorizontal: 16, paddingBottom: 12, paddingTop: 0 }}>
-                    <Text style={{ fontSize: 13, color: Colors.textMuted, lineHeight: 19 }}>
+                    <Text style={{ fontSize: Type.footnote.fontSize, color: Colors.textMuted, lineHeight: 19 }}>
                       {item.a}
                     </Text>
                   </View>
@@ -1595,7 +1584,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   largeTitle: {
-    fontSize: 34,
+    fontSize: Type.largeTitle.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
     letterSpacing: -0.5,
@@ -1615,7 +1604,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     padding: 18,
     backgroundColor: Colors.surface,
-    borderRadius: 18,
+    borderRadius: Tokens.radius.xl,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
     shadowColor: '#000',
@@ -1633,25 +1622,25 @@ const styles = StyleSheet.create({
     justifyContent: 'center' as const,
   },
   profileAvatarText: {
-    fontSize: 20,
+    fontSize: Type.title3.fontSize,
     fontWeight: '800' as const,
-    color: '#FFFFFF',
+    color: Colors.surface,
     letterSpacing: -0.5,
   },
   profileMeta: { flex: 1, gap: 2 },
   profileName: {
-    fontSize: 18,
+    fontSize: Type.subheadline.fontSize,
     fontWeight: '800' as const,
     color: Colors.text,
     letterSpacing: -0.3,
   },
   profileCompany: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
     color: Colors.textSecondary,
   },
   profileEmail: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     color: Colors.textMuted,
   },
   profileBadgesRow: {
@@ -1663,7 +1652,7 @@ const styles = StyleSheet.create({
   profileTierPill: {
     paddingHorizontal: 8,
     paddingVertical: 2,
-    borderRadius: 8,
+    borderRadius: Tokens.radius.sm,
     borderWidth: 1,
   },
   profileTierText: {
@@ -1674,7 +1663,7 @@ const styles = StyleSheet.create({
   profileSignOutBtn: {
     width: 36,
     height: 36,
-    borderRadius: 18,
+    borderRadius: Tokens.radius.xl,
     backgroundColor: Colors.fillTertiary,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
@@ -1682,7 +1671,7 @@ const styles = StyleSheet.create({
   // Tightened section header — smaller, more refined, less visual weight.
   // Premium apps use small section labels as silent dividers, not headlines.
   sectionHeader: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     fontWeight: '700' as const,
     color: Colors.textMuted,
     letterSpacing: 0.8,
@@ -1692,7 +1681,7 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase' as const,
   },
   sectionSubtext: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: Colors.textMuted,
     paddingHorizontal: 20,
     marginBottom: 10,
@@ -1701,7 +1690,7 @@ const styles = StyleSheet.create({
   group: {
     backgroundColor: Colors.surface,
     marginHorizontal: 16,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     overflow: 'hidden' as const,
     marginBottom: 20,
     // Black outline matches every other card surface across the app.
@@ -1726,12 +1715,12 @@ const styles = StyleSheet.create({
   },
   rowLabel: {
     flex: 1,
-    fontSize: 16,
+    fontSize: Type.callout.fontSize,
     fontWeight: '400' as const,
     color: Colors.text,
   },
   rowSubtext: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     color: Colors.textMuted,
     marginTop: 2,
   },
@@ -1741,25 +1730,25 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   rowValue: {
-    fontSize: 15,
+    fontSize: Type.subhead.fontSize,
     color: Colors.textSecondary,
     marginRight: 4,
   },
   inlineInput: {
     flex: 1,
-    fontSize: 15,
+    fontSize: Type.subhead.fontSize,
     color: Colors.textSecondary,
     textAlign: 'right' as const,
     minWidth: 120,
   },
   numericInput: {
-    fontSize: 15,
+    fontSize: Type.subhead.fontSize,
     color: Colors.text,
     textAlign: 'right' as const,
     minWidth: 50,
   },
   suffix: {
-    fontSize: 15,
+    fontSize: Type.subhead.fontSize,
     color: Colors.textSecondary,
     fontWeight: '400' as const,
   },
@@ -1773,7 +1762,7 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   aboutDesc: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     color: Colors.textSecondary,
     lineHeight: 16,
   },
@@ -1784,7 +1773,7 @@ const styles = StyleSheet.create({
   logoPreview: {
     width: '100%',
     height: 80,
-    borderRadius: 8,
+    borderRadius: Tokens.radius.sm,
     backgroundColor: Colors.surfaceAlt,
   },
   logoActions: {
@@ -1797,11 +1786,11 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingHorizontal: 14,
     paddingVertical: 8,
-    borderRadius: 8,
+    borderRadius: Tokens.radius.sm,
     backgroundColor: Colors.primary + '12',
   },
   logoChangeBtnText: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
     color: Colors.primary,
   },
@@ -1811,11 +1800,11 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingHorizontal: 14,
     paddingVertical: 8,
-    borderRadius: 8,
+    borderRadius: Tokens.radius.sm,
     backgroundColor: Colors.errorLight,
   },
   logoRemoveBtnText: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
     color: Colors.error,
   },
@@ -1832,12 +1821,12 @@ const styles = StyleSheet.create({
   },
   signaturePreviewBox: {
     backgroundColor: Colors.surfaceAlt,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
     padding: 14,
     gap: 8,
   },
   signaturePreviewLabel: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     fontWeight: '600' as const,
     color: Colors.textMuted,
     textTransform: 'uppercase' as const,
@@ -1849,7 +1838,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   signatureSavedText: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     fontWeight: '500' as const,
     color: Colors.text,
   },
@@ -1864,11 +1853,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 6,
     paddingVertical: 10,
-    borderRadius: 8,
+    borderRadius: Tokens.radius.sm,
     backgroundColor: Colors.primary + '12',
   },
   signatureRedrawBtnText: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
     color: Colors.primary,
   },
@@ -1878,11 +1867,11 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingHorizontal: 14,
     paddingVertical: 10,
-    borderRadius: 8,
+    borderRadius: Tokens.radius.sm,
     backgroundColor: Colors.errorLight,
   },
   signatureRemoveBtnText: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
     color: Colors.error,
   },
@@ -1900,19 +1889,19 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     marginBottom: 20,
     backgroundColor: Colors.infoLight,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     padding: 14,
   },
   pdfPreviewNoteText: {
     flex: 1,
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: Colors.info,
     lineHeight: 18,
   },
   saveButton: {
     backgroundColor: Colors.primary,
     marginHorizontal: 16,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     paddingVertical: 16,
     alignItems: 'center',
     marginBottom: 28,
@@ -1923,13 +1912,13 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   saveButtonText: {
-    fontSize: 17,
+    fontSize: Type.body.fontSize,
     fontWeight: '600' as const,
     color: '#fff',
     letterSpacing: -0.2,
   },
   dangerNote: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     color: Colors.textMuted,
     paddingHorizontal: 20,
     marginTop: -12,
@@ -1946,7 +1935,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   supplierRegisteredSub: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     color: Colors.success,
     fontWeight: '500' as const,
   },
@@ -1961,10 +1950,10 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.fillTertiary,
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 6,
+    borderRadius: Tokens.radius.xs,
   },
   supplierMetaText: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     fontWeight: '500' as const,
     color: Colors.textSecondary,
   },
@@ -1974,11 +1963,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 6,
     paddingVertical: 10,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
     backgroundColor: Colors.primary + '12',
   },
   supplierEditBtnText: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
     color: Colors.primary,
   },
@@ -1991,10 +1980,10 @@ const styles = StyleSheet.create({
   },
   supplierInput: {
     minHeight: 44,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     backgroundColor: Colors.surfaceAlt,
     paddingHorizontal: 14,
-    fontSize: 15,
+    fontSize: Type.subhead.fontSize,
     color: Colors.text,
     marginBottom: 4,
   },
@@ -2007,14 +1996,14 @@ const styles = StyleSheet.create({
   supplierCatChip: {
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
     backgroundColor: Colors.fillTertiary,
   },
   supplierCatChipActive: {
     backgroundColor: Colors.primary,
   },
   supplierCatText: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     fontWeight: '600' as const,
     color: Colors.textSecondary,
   },
@@ -2059,13 +2048,13 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
   },
   supProfileTitle: {
-    fontSize: 20,
+    fontSize: Type.title3.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
     letterSpacing: -0.3,
   },
   supProfileDesc: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: Colors.textSecondary,
     lineHeight: 18,
     marginTop: 4,
@@ -2073,7 +2062,7 @@ const styles = StyleSheet.create({
   supProfileClose: {
     width: 32,
     height: 32,
-    borderRadius: 16,
+    borderRadius: Tokens.radius.panel,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: Colors.fillTertiary,
@@ -2089,18 +2078,18 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   supFieldLabel: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
     color: Colors.textSecondary,
     letterSpacing: -0.1,
   },
   supFieldInput: {
     minHeight: 44,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
     backgroundColor: Colors.surfaceAlt,
     paddingHorizontal: 12,
     paddingVertical: Platform.OS === 'ios' ? 12 : 8,
-    fontSize: 15,
+    fontSize: Type.subhead.fontSize,
     color: Colors.text,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: Colors.border,
@@ -2127,7 +2116,7 @@ const styles = StyleSheet.create({
   supCatChip: {
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 999,
+    borderRadius: Tokens.radius.full,
     backgroundColor: Colors.fillTertiary,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: Colors.border,
@@ -2137,7 +2126,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.primary,
   },
   supCatText: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
     color: Colors.textSecondary,
   },
@@ -2153,7 +2142,7 @@ const styles = StyleSheet.create({
   },
   supProfileSaveBtn: {
     backgroundColor: Colors.primary,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     paddingVertical: 14,
     alignItems: 'center',
     justifyContent: 'center',
@@ -2164,7 +2153,7 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   supProfileSaveBtnText: {
-    fontSize: 16,
+    fontSize: Type.callout.fontSize,
     fontWeight: '600' as const,
     color: Colors.textOnPrimary,
     letterSpacing: -0.2,
@@ -2178,7 +2167,7 @@ const styles = StyleSheet.create({
   },
   sigModalCard: {
     backgroundColor: Colors.surface,
-    borderRadius: 24,
+    borderRadius: Tokens.radius["2xl"],
     padding: 24,
     width: '100%',
     maxWidth: 400,
@@ -2190,12 +2179,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   sigModalTitle: {
-    fontSize: 20,
+    fontSize: Type.title3.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
   },
   sigModalDesc: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     color: Colors.textSecondary,
     lineHeight: 20,
   },
@@ -2211,7 +2200,7 @@ const styles = StyleSheet.create({
     gap: 10,
     paddingVertical: 10,
     paddingHorizontal: 12,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     backgroundColor: Colors.surfaceAlt,
     borderWidth: 2,
     borderColor: 'transparent',
@@ -2227,17 +2216,17 @@ const styles = StyleSheet.create({
   themeSwatch: {
     width: 20,
     height: 20,
-    borderRadius: 6,
+    borderRadius: Tokens.radius.xs,
   },
   themeChipLabel: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '500' as const,
     color: Colors.textSecondary,
     flexShrink: 1,
   },
   planCard: {
     backgroundColor: Colors.surface,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     padding: 16,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
@@ -2251,26 +2240,26 @@ const styles = StyleSheet.create({
   planIconWrap: {
     width: 36,
     height: 36,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
     alignItems: 'center',
     justifyContent: 'center',
   },
   planName: {
-    fontSize: 16,
+    fontSize: Type.callout.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
   },
   planPrice: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     fontWeight: '600' as const,
   },
   planActiveBadge: {
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 8,
+    borderRadius: Tokens.radius.sm,
   },
   planActiveBadgeText: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     fontWeight: '700' as const,
     color: '#fff',
   },
@@ -2284,7 +2273,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   planFeatureText: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: Colors.textSecondary,
     lineHeight: 18,
   },
@@ -2295,14 +2284,14 @@ const styles = StyleSheet.create({
   pdfSepChip: {
     paddingHorizontal: 14,
     paddingVertical: 6,
-    borderRadius: 8,
+    borderRadius: Tokens.radius.sm,
     backgroundColor: Colors.fillTertiary,
   },
   pdfSepChipActive: {
     backgroundColor: Colors.primary,
   },
   pdfSepChipText: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
     color: Colors.textSecondary,
   },

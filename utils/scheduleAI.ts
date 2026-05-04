@@ -118,13 +118,13 @@ Return up to 6 findings, most important first.`;
     return { findings: [], summary: 'AI risk check failed. Try again.', cached: res.cached };
   }
 
-  const raw = res.data as { summary?: string; findings?: Array<{
+  const raw = res.data as { summary?: string; findings?: {
     severity?: string;
     title?: string;
     detail?: string;
     affectedAliases?: string[];
     suggestion?: string;
-  }> };
+  }[] };
 
   const findings: AIRiskFinding[] = (raw.findings ?? []).map((f, i) => ({
     id: createId('risk'),
@@ -203,13 +203,13 @@ Return up to 5 ideas, highest impact first. Be specific — cite aliases.`;
     return { ideas: [], summary: 'AI optimizer failed.', cached: res.cached };
   }
 
-  const raw = res.data as { summary?: string; ideas?: Array<{
+  const raw = res.data as { summary?: string; ideas?: {
     title?: string;
     detail?: string;
     expectedDaysSaved?: number;
     action?: string;
     affectedAliases?: string[];
-  }> };
+  }[] };
 
   const ideas: AIOptimizationIdea[] = (raw.ideas ?? []).map(i => ({
     id: createId('opt'),
@@ -394,14 +394,14 @@ ${simplified}`;
     return { patches: [], summary: 'Could not parse that.' };
   }
 
-  const raw = res.data as { summary?: string; updates?: Array<{
+  const raw = res.data as { summary?: string; updates?: {
     alias?: string;
     progressPercent?: number;
     markDone?: boolean;
     actualStartToday?: boolean;
     actualEndToday?: boolean;
     rationale?: string;
-  }> };
+  }[] };
 
   const patches: AIAsBuiltPatch[] = [];
   for (const u of raw.updates ?? []) {
@@ -633,7 +633,7 @@ Rules:
 
   const raw = res.data as {
     summary?: string;
-    updates?: Array<{
+    updates?: {
       alias?: string;
       durationDays?: number;
       startDay?: number;
@@ -641,7 +641,7 @@ Rules:
       phase?: string;
       progressPercent?: number;
       rationale?: string;
-    }>;
+    }[];
   };
 
   const patches: AIBulkPatch[] = [];

@@ -17,6 +17,8 @@ import type { ScheduleTemplate } from '@/constants/scheduleTemplates';
 import type { Project, ScheduleTask, DependencyLink, DependencyType } from '@/types';
 import { mageAI } from '@/utils/mageAI';
 import { z } from 'zod';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 import {
   createId,
   buildScheduleFromTasks,
@@ -482,7 +484,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
           <Pressable style={s.modalCard} onPress={() => undefined}>
             <View style={s.modalHeader}>
               <Text style={s.modalTitle}>Select Project</Text>
-              <TouchableOpacity onPress={() => setShowProjectPicker(false)}>
+              <TouchableOpacity onPress={() => setShowProjectPicker(false)} accessibilityRole="button" accessibilityLabel="Close">
                 <X size={20} color={Colors.textMuted} />
               </TouchableOpacity>
             </View>
@@ -598,17 +600,17 @@ const s = StyleSheet.create({
     paddingBottom: 24,
   },
   heroIconWrap: {
-    width: 56, height: 56, borderRadius: 16,
+    width: 56, height: 56, borderRadius: Tokens.radius.panel,
     backgroundColor: '#FF9F0A' + '15',
     alignItems: 'center', justifyContent: 'center',
     marginBottom: 12,
   },
-  heroTitle: { fontSize: 22, fontWeight: '700' as const, color: Colors.text, marginBottom: 6 },
-  heroDesc: { fontSize: 14, color: Colors.textSecondary, textAlign: 'center', lineHeight: 20 },
+  heroTitle: { fontSize: Type.title2.fontSize, fontWeight: '700' as const, color: Colors.text, marginBottom: 6 },
+  heroDesc: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, textAlign: 'center', lineHeight: 20 },
   aiSection: {
     marginHorizontal: 16,
     backgroundColor: Colors.surface,
-    borderRadius: 18,
+    borderRadius: Tokens.radius.xl,
     padding: 18,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -617,16 +619,16 @@ const s = StyleSheet.create({
     elevation: 3,
   },
   aiHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
-  aiTitle: { fontSize: 17, fontWeight: '600' as const, color: Colors.text },
-  aiDesc: { fontSize: 13, color: Colors.textSecondary, marginBottom: 12, lineHeight: 18 },
+  aiTitle: { fontSize: Type.body.fontSize, fontWeight: '600' as const, color: Colors.text },
+  aiDesc: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, marginBottom: 12, lineHeight: 18 },
   aiInput: {
     minHeight: 100,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     backgroundColor: Colors.surfaceAlt,
     paddingHorizontal: 14,
     paddingTop: 14,
     paddingBottom: 14,
-    fontSize: 15,
+    fontSize: Type.subhead.fontSize,
     color: Colors.text,
     marginBottom: 14,
     textAlignVertical: 'top' as const,
@@ -638,7 +640,7 @@ const s = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     backgroundColor: '#FF9F0A',
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     paddingVertical: 15,
     shadowColor: '#FF9F0A',
     shadowOffset: { width: 0, height: 4 },
@@ -647,15 +649,15 @@ const s = StyleSheet.create({
     elevation: 3,
   },
   aiBtnDisabled: { opacity: 0.6 },
-  aiBtnText: { fontSize: 15, fontWeight: '700' as const, color: '#FFF' },
+  aiBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: '#FFF' },
   aiBtnSecondary: {
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: Colors.fillTertiary,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     paddingVertical: 14,
   },
-  aiBtnSecondaryText: { fontSize: 14, fontWeight: '600' as const, color: Colors.primary },
+  aiBtnSecondaryText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.primary },
   divider: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -664,9 +666,9 @@ const s = StyleSheet.create({
     gap: 12,
   },
   dividerLine: { flex: 1, height: 1, backgroundColor: Colors.cardBorder },
-  dividerText: { fontSize: 12, fontWeight: '600' as const, color: Colors.textMuted, letterSpacing: 0.5 },
+  dividerText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.textMuted, letterSpacing: 0.5 },
   sectionTitle: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
     color: Colors.textSecondary,
     letterSpacing: 0.5,
@@ -680,7 +682,7 @@ const s = StyleSheet.create({
     marginHorizontal: 16,
     marginBottom: 8,
     backgroundColor: Colors.surface,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     padding: 14,
     gap: 12,
     borderWidth: 1.5,
@@ -707,39 +709,39 @@ const s = StyleSheet.create({
     marginBottom: 12,
   },
   actionSheetTitle: { fontSize: 19, fontWeight: '800' as const, color: Colors.text, marginBottom: 4, paddingHorizontal: 6, letterSpacing: -0.3 },
-  actionSheetSub: { fontSize: 13, color: Colors.textSecondary, marginBottom: 18, paddingHorizontal: 6 },
+  actionSheetSub: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, marginBottom: 18, paddingHorizontal: 6 },
   actionRow: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     gap: 14,
     paddingVertical: 14,
     paddingHorizontal: 6,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
   },
   actionIcon: {
     width: 40,
     height: 40,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
   },
-  actionTitle: { fontSize: 15, fontWeight: '700' as const, color: Colors.text, marginBottom: 2 },
-  actionSub: { fontSize: 12, color: Colors.textSecondary },
+  actionTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text, marginBottom: 2 },
+  actionSub: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary },
   actionCancel: {
     marginTop: 8,
     paddingVertical: 14,
     alignItems: 'center' as const,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     backgroundColor: Colors.fillTertiary,
   },
-  actionCancelText: { fontSize: 15, fontWeight: '700' as const, color: Colors.textSecondary },
+  actionCancelText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.textSecondary },
   templateCard: {
     flexDirection: 'row',
     alignItems: 'center',
     marginHorizontal: 16,
     marginBottom: 8,
     backgroundColor: Colors.surface,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     padding: 14,
     gap: 12,
     // Black outline matches every other card across the app.
@@ -747,20 +749,20 @@ const s = StyleSheet.create({
     borderColor: Colors.cardBorder,
   },
   templateIconWrap: {
-    width: 44, height: 44, borderRadius: 12,
+    width: 44, height: 44, borderRadius: Tokens.radius.card,
     backgroundColor: Colors.primary + '12',
     alignItems: 'center', justifyContent: 'center',
   },
   templateInfo: { flex: 1, gap: 2 },
-  templateName: { fontSize: 15, fontWeight: '600' as const, color: Colors.text },
-  templateMeta: { fontSize: 12, color: Colors.textSecondary },
+  templateName: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: Colors.text },
+  templateMeta: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary },
   existingCard: {
     flexDirection: 'row',
     alignItems: 'center',
     marginHorizontal: 16,
     marginBottom: 8,
     backgroundColor: Colors.surface,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     padding: 14,
     gap: 12,
     // Black outline matches every other card across the app.
@@ -768,7 +770,7 @@ const s = StyleSheet.create({
     borderColor: Colors.cardBorder,
   },
   existingIconWrap: {
-    width: 44, height: 44, borderRadius: 12,
+    width: 44, height: 44, borderRadius: Tokens.radius.card,
     backgroundColor: Colors.success + '12',
     alignItems: 'center', justifyContent: 'center',
   },
@@ -776,9 +778,9 @@ const s = StyleSheet.create({
   healthBadge: {
     paddingHorizontal: 6,
     paddingVertical: 2,
-    borderRadius: 6,
+    borderRadius: Tokens.radius.xs,
   },
-  healthText: { fontSize: 11, fontWeight: '700' as const },
+  healthText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const },
   modalOverlay: {
     flex: 1,
     backgroundColor: Colors.overlay,
@@ -797,14 +799,14 @@ const s = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 16,
   },
-  modalTitle: { fontSize: 18, fontWeight: '700' as const, color: Colors.text },
+  modalTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: Colors.text },
   pickerOption: {
     paddingVertical: 14,
     paddingHorizontal: 16,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     backgroundColor: Colors.surfaceAlt,
     marginBottom: 8,
   },
-  pickerName: { fontSize: 15, fontWeight: '600' as const, color: Colors.text },
-  pickerMeta: { fontSize: 12, color: Colors.textSecondary, marginTop: 2 },
+  pickerName: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: Colors.text },
+  pickerMeta: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, marginTop: 2 },
 });

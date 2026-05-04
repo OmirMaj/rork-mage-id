@@ -88,7 +88,7 @@ export default function CreateScheduleScreen() {
   const [isAILoading, setIsAILoading] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<ScheduleTemplate | null>(null);
 
-  const [manualTasks, setManualTasks] = useState<Array<{ title: string; phase: string; duration: string }>>([
+  const [manualTasks, setManualTasks] = useState<{ title: string; phase: string; duration: string }[]>([
     { title: '', phase: 'General', duration: '5' },
   ]);
 

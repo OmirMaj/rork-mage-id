@@ -24,7 +24,7 @@ import * as ImagePicker from 'expo-image-picker';
 // expo-document-picker provides the native PDF picker. Pinned in package.json
 // at ~14.0.7 (matches Expo SDK 54). Run `bun install` after pulling this for
 // the first time so the native module is linked.
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+ 
 // @ts-ignore — types resolve after `bun install`
 import * as DocumentPicker from 'expo-document-picker';
 import {
@@ -36,6 +36,8 @@ import { useProjects } from '@/contexts/ProjectContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import { uploadAndRenderPdf } from '@/utils/pdfRenderClient';
 import type { PlanSheet } from '@/types';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 export default function PlansScreen() {
   const insets = useSafeAreaInsets();
@@ -180,7 +182,7 @@ export default function PlansScreen() {
       <Stack.Screen options={{ headerShown: false }} />
 
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn} hitSlop={12}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back">
           <ChevronLeft size={22} color={Colors.text} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
@@ -248,7 +250,7 @@ export default function PlansScreen() {
                     <Text style={styles.sheetDate}>{new Date(s.updatedAt).toLocaleDateString()}</Text>
                   </View>
                 </View>
-                <TouchableOpacity onPress={(e) => { e.stopPropagation(); handleDelete(s); }} style={styles.iconBtn} hitSlop={10}>
+                <TouchableOpacity onPress={(e) => { e.stopPropagation(); handleDelete(s); }} style={styles.iconBtn} hitSlop={10} accessibilityRole="button" accessibilityLabel="Delete">
                   <Trash2 size={16} color={Colors.error} />
                 </TouchableOpacity>
                 <ChevronRight size={16} color={Colors.textMuted} />
@@ -264,7 +266,7 @@ export default function PlansScreen() {
           <View style={styles.modalCard}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>New sheet</Text>
-              <TouchableOpacity onPress={() => setNewSheet(null)} style={styles.iconBtn}>
+              <TouchableOpacity onPress={() => setNewSheet(null)} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel="Close">
                 <X size={18} color={Colors.text} />
               </TouchableOpacity>
             </View>
@@ -310,9 +312,7 @@ function PlansProjectPicker({ projects, onPick, onBack }: {
     <View style={[styles.root, { paddingTop: insets.top }]}>
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} style={styles.headerBtn} hitSlop={12}>
-          <ChevronLeft size={22} color={Colors.text} />
-        </TouchableOpacity>
+        <TouchableOpacity onPress={onBack} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back"><ChevronLeft size={22} color={Colors.text} /></TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerEyebrow}>Plans</Text>
           <Text style={styles.headerTitle}>Pick a project</Text>
@@ -346,9 +346,7 @@ function PaywallView({ onUpgrade, onBack, insets }: { onUpgrade: () => void; onB
     <View style={[styles.root, { paddingTop: insets.top }]}>
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} style={styles.headerBtn} hitSlop={12}>
-          <ChevronLeft size={22} color={Colors.text} />
-        </TouchableOpacity>
+        <TouchableOpacity onPress={onBack} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back"><ChevronLeft size={22} color={Colors.text} /></TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerEyebrow}>Plans</Text>
           <Text style={styles.headerTitle}>Pro feature</Text>
@@ -377,22 +375,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14, paddingVertical: 10,
     backgroundColor: Colors.surface, borderBottomColor: Colors.borderLight, borderBottomWidth: 1,
   },
-  headerBtn: { padding: 6, borderRadius: 8 },
-  headerEyebrow: { color: Colors.textSecondary, fontSize: 11, fontWeight: '600', letterSpacing: 0.6, textTransform: 'uppercase' },
-  headerTitle: { color: Colors.text, fontSize: 18, fontWeight: '700' },
+  headerBtn: { padding: 6, borderRadius: Tokens.radius.sm },
+  headerEyebrow: { color: Colors.textSecondary, fontSize: Type.caption2.fontSize, fontWeight: '600', letterSpacing: 0.6, textTransform: 'uppercase' },
+  headerTitle: { color: Colors.text, fontSize: Type.subheadline.fontSize, fontWeight: '700' },
 
   primaryBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: Colors.primary, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 10,
+    backgroundColor: Colors.primary, paddingHorizontal: 14, paddingVertical: 9, borderRadius: Tokens.radius.md,
   },
-  primaryBtnText: { color: Colors.textOnPrimary, fontSize: 13, fontWeight: '700' },
+  primaryBtnText: { color: Colors.textOnPrimary, fontSize: Type.footnote.fontSize, fontWeight: '700' },
 
   ghostBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: Colors.surfaceAlt, paddingHorizontal: 12, paddingVertical: 9, borderRadius: 10,
+    backgroundColor: Colors.surfaceAlt, paddingHorizontal: 12, paddingVertical: 9, borderRadius: Tokens.radius.md,
     borderColor: Colors.borderLight, borderWidth: 1,
   },
-  ghostBtnText: { color: Colors.text, fontSize: 13, fontWeight: '600' },
+  ghostBtnText: { color: Colors.text, fontSize: Type.footnote.fontSize, fontWeight: '600' },
 
   emptyBtnRow: { flexDirection: 'row', gap: 8, marginTop: 14 },
   statusBar: {
@@ -400,44 +398,44 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14, paddingVertical: 9,
     backgroundColor: Colors.surfaceAlt, borderBottomColor: Colors.borderLight, borderBottomWidth: 1,
   },
-  statusBarText: { color: Colors.text, fontSize: 12, fontWeight: '600' },
+  statusBarText: { color: Colors.text, fontSize: Type.caption1.fontSize, fontWeight: '600' },
 
   sheetCard: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: Colors.surface, padding: 12, borderRadius: 14,
+    backgroundColor: Colors.surface, padding: 12, borderRadius: Tokens.radius.lg,
     borderColor: Colors.borderLight, borderWidth: 1, marginBottom: 10,
   },
   sheetThumbWrap: {
-    width: 72, height: 72, borderRadius: 10, overflow: 'hidden',
+    width: 72, height: 72, borderRadius: Tokens.radius.md, overflow: 'hidden',
     backgroundColor: Colors.surfaceAlt, justifyContent: 'center', alignItems: 'center',
   },
   sheetThumb: { width: '100%', height: '100%' },
-  sheetNumber: { color: Colors.primary, fontSize: 11, fontWeight: '700', letterSpacing: 0.4 },
-  sheetName: { color: Colors.text, fontSize: 15, fontWeight: '600', marginTop: 2 },
+  sheetNumber: { color: Colors.primary, fontSize: Type.caption2.fontSize, fontWeight: '700', letterSpacing: 0.4 },
+  sheetName: { color: Colors.text, fontSize: Type.subhead.fontSize, fontWeight: '600', marginTop: 2 },
   sheetMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 },
   metaPill: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
-    backgroundColor: Colors.surfaceAlt, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8,
+    backgroundColor: Colors.surfaceAlt, paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.sm,
   },
-  metaPillText: { color: Colors.text, fontSize: 11, fontWeight: '600' },
-  sheetDate: { color: Colors.textMuted, fontSize: 11 },
-  iconBtn: { padding: 6, borderRadius: 8 },
+  metaPillText: { color: Colors.text, fontSize: Type.caption2.fontSize, fontWeight: '600' },
+  sheetDate: { color: Colors.textMuted, fontSize: Type.caption2.fontSize },
+  iconBtn: { padding: 6, borderRadius: Tokens.radius.sm },
 
   emptyCard: {
-    backgroundColor: Colors.surface, padding: 24, borderRadius: 14, alignItems: 'center',
+    backgroundColor: Colors.surface, padding: 24, borderRadius: Tokens.radius.lg, alignItems: 'center',
     borderColor: Colors.borderLight, borderWidth: 1, gap: 6,
   },
-  emptyTitle: { color: Colors.text, fontSize: 16, fontWeight: '700', marginTop: 8 },
-  emptyText: { color: Colors.textSecondary, fontSize: 13, textAlign: 'center', lineHeight: 19 },
-  helperText: { color: Colors.textMuted, fontSize: 11, textAlign: 'center', marginTop: 12, lineHeight: 16 },
+  emptyTitle: { color: Colors.text, fontSize: Type.callout.fontSize, fontWeight: '700', marginTop: 8 },
+  emptyText: { color: Colors.textSecondary, fontSize: Type.footnote.fontSize, textAlign: 'center', lineHeight: 19 },
+  helperText: { color: Colors.textMuted, fontSize: Type.caption2.fontSize, textAlign: 'center', marginTop: 12, lineHeight: 16 },
 
   pickerRow: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
-    backgroundColor: Colors.surface, padding: 12, borderRadius: 10,
+    backgroundColor: Colors.surface, padding: 12, borderRadius: Tokens.radius.md,
     borderColor: Colors.borderLight, borderWidth: 1, marginBottom: 8,
   },
-  pickerRowTitle: { color: Colors.text, fontSize: 14, fontWeight: '600' },
-  pickerRowSub: { color: Colors.textSecondary, fontSize: 12, marginTop: 2 },
+  pickerRowTitle: { color: Colors.text, fontSize: Type.bodyCompact.fontSize, fontWeight: '600' },
+  pickerRowSub: { color: Colors.textSecondary, fontSize: Type.caption1.fontSize, marginTop: 2 },
 
   modalBackdrop: {
     flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end',
@@ -445,15 +443,15 @@ const styles = StyleSheet.create({
   modalCard: {
     backgroundColor: Colors.surface, padding: 16, borderTopLeftRadius: 20, borderTopRightRadius: 20,
     gap: 8,
-    ...Platform.select({ web: { maxWidth: 520, alignSelf: 'center', width: '100%', borderRadius: 16, marginBottom: 20 } as object, default: {} as object }),
+    ...Platform.select({ web: { maxWidth: 520, alignSelf: 'center', width: '100%', borderRadius: Tokens.radius.panel, marginBottom: 20 } as object, default: {} as object }),
   },
   modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
-  modalTitle: { color: Colors.text, fontSize: 16, fontWeight: '700' },
-  previewImg: { width: '100%', height: 180, backgroundColor: Colors.surfaceAlt, borderRadius: 10, marginBottom: 8 },
-  label: { color: Colors.textSecondary, fontSize: 12, fontWeight: '600', marginTop: 4 },
+  modalTitle: { color: Colors.text, fontSize: Type.callout.fontSize, fontWeight: '700' },
+  previewImg: { width: '100%', height: 180, backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.md, marginBottom: 8 },
+  label: { color: Colors.textSecondary, fontSize: Type.caption1.fontSize, fontWeight: '600', marginTop: 4 },
   input: {
-    backgroundColor: Colors.surfaceAlt, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10,
-    color: Colors.text, fontSize: 14, borderColor: Colors.borderLight, borderWidth: 1,
+    backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.md, paddingHorizontal: 12, paddingVertical: 10,
+    color: Colors.text, fontSize: Type.bodyCompact.fontSize, borderColor: Colors.borderLight, borderWidth: 1,
   },
 });
 

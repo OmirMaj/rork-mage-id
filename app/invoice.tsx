@@ -32,6 +32,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { nailIt } from '@/components/animations/NailItToast';
 import TapeRollNumber from '@/components/animations/TapeRollNumber';
 import type { InvoiceLineItem, Invoice, PaymentTerms, PaymentMethod, InvoicePayment, RetentionRelease } from '@/types';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 function createId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -128,7 +130,7 @@ function InvoiceInner() {
     // GC sees their dictation reflected immediately.
     if (prefillLines) {
       try {
-        const parsed = JSON.parse(prefillLines) as Array<{ name?: string; description?: string; quantity?: number; unit?: string; unitPrice?: number }>;
+        const parsed = JSON.parse(prefillLines) as { name?: string; description?: string; quantity?: number; unit?: string; unitPrice?: number }[];
         if (Array.isArray(parsed) && parsed.length > 0) {
           return parsed.map(li => ({
             id: createId('ili'),
@@ -868,7 +870,7 @@ function InvoiceInner() {
                 <View style={styles.lineItemHeader}>
                   <Text style={styles.lineItemName} numberOfLines={1}>{item.name}</Text>
                   {!isLocked && (
-                    <TouchableOpacity onPress={() => handleRemoveItem(item.id)} activeOpacity={0.7}>
+                    <TouchableOpacity onPress={() => handleRemoveItem(item.id)} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Delete">
                       <Trash2 size={14} color={Colors.error} />
                     </TouchableOpacity>
                   )}
@@ -1201,7 +1203,7 @@ function InvoiceInner() {
             <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }]}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Record Payment</Text>
-                <TouchableOpacity onPress={() => setShowPaymentModal(false)}>
+                <TouchableOpacity onPress={() => setShowPaymentModal(false)} accessibilityRole="button" accessibilityLabel="Close">
                   <X size={20} color={Colors.textMuted} />
                 </TouchableOpacity>
               </View>
@@ -1247,7 +1249,7 @@ function InvoiceInner() {
             <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }]}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Release Retention</Text>
-                <TouchableOpacity onPress={() => setShowRetentionModal(false)}>
+                <TouchableOpacity onPress={() => setShowRetentionModal(false)} accessibilityRole="button" accessibilityLabel="Close">
                   <X size={20} color={Colors.textMuted} />
                 </TouchableOpacity>
               </View>
@@ -1316,7 +1318,7 @@ function InvoiceInner() {
             <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }]}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Send Invoice To</Text>
-                <TouchableOpacity onPress={() => setShowSendRecipient(false)}>
+                <TouchableOpacity onPress={() => setShowSendRecipient(false)} accessibilityRole="button" accessibilityLabel="Close">
                   <X size={20} color={Colors.textMuted} />
                 </TouchableOpacity>
               </View>
@@ -1328,7 +1330,7 @@ function InvoiceInner() {
                     <Text style={styles.selectedRecipientName}>{sendRecipientName}</Text>
                     {sendRecipientEmail ? <Text style={styles.selectedRecipientEmail}>{sendRecipientEmail}</Text> : null}
                   </View>
-                  <TouchableOpacity onPress={() => { setSendRecipientName(''); setSendRecipientEmail(''); setContactPicked(false); }} style={styles.clearRecipientBtn}>
+                  <TouchableOpacity onPress={() => { setSendRecipientName(''); setSendRecipientEmail(''); setContactPicked(false); }} style={styles.clearRecipientBtn} accessibilityRole="button" accessibilityLabel="Close">
                     <X size={12} color={Colors.textMuted} />
                   </TouchableOpacity>
                 </View>
@@ -1426,139 +1428,139 @@ const invoiceStatusColors: Record<string, { bg: string; text: string }> = {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   center: { alignItems: 'center', justifyContent: 'center' },
-  notFoundText: { fontSize: 18, color: Colors.textSecondary, marginBottom: 16 },
-  backBtn: { backgroundColor: Colors.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 10 },
-  backBtnText: { color: Colors.textOnPrimary, fontSize: 15, fontWeight: '600' as const },
-  heroCard: { backgroundColor: Colors.primary, marginHorizontal: 20, marginTop: 16, borderRadius: 16, padding: 20, gap: 4 },
-  heroLabel: { fontSize: 13, fontWeight: '600' as const, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' as const, letterSpacing: 0.5 },
-  heroProject: { fontSize: 20, fontWeight: '700' as const, color: Colors.textOnPrimary },
-  statusBadge: { alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 8, marginTop: 6 },
-  statusText: { fontSize: 12, fontWeight: '700' as const },
-  progressSection: { marginHorizontal: 20, marginTop: 16, backgroundColor: Colors.card, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: Colors.cardBorder },
-  progressLabel: { fontSize: 13, fontWeight: '600' as const, color: Colors.textSecondary, marginBottom: 8 },
+  notFoundText: { fontSize: Type.subheadline.fontSize, color: Colors.textSecondary, marginBottom: 16 },
+  backBtn: { backgroundColor: Colors.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: Tokens.radius.md },
+  backBtnText: { color: Colors.textOnPrimary, fontSize: Type.subhead.fontSize, fontWeight: '600' as const },
+  heroCard: { backgroundColor: Colors.primary, marginHorizontal: 20, marginTop: 16, borderRadius: Tokens.radius.panel, padding: 20, gap: 4 },
+  heroLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' as const, letterSpacing: 0.5 },
+  heroProject: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: Colors.textOnPrimary },
+  statusBadge: { alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 4, borderRadius: Tokens.radius.sm, marginTop: 6 },
+  statusText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const },
+  progressSection: { marginHorizontal: 20, marginTop: 16, backgroundColor: Colors.card, borderRadius: Tokens.radius.panel, padding: 16, borderWidth: 1, borderColor: Colors.cardBorder },
+  progressLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.textSecondary, marginBottom: 8 },
   progressRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
-  progressInput: { width: 70, minHeight: 44, borderRadius: 10, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 12, fontSize: 18, fontWeight: '700' as const, color: Colors.primary, textAlign: 'center' as const },
-  progressSign: { fontSize: 14, color: Colors.textSecondary },
+  progressInput: { width: 70, minHeight: 44, borderRadius: Tokens.radius.md, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 12, fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: Colors.primary, textAlign: 'center' as const },
+  progressSign: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary },
   progressBarTrack: { height: 6, borderRadius: 3, backgroundColor: Colors.fillTertiary, overflow: 'hidden' as const },
   progressBarFill: { height: 6, borderRadius: 3, backgroundColor: Colors.primary },
-  termsRow: { marginHorizontal: 20, marginTop: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: Colors.card, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: Colors.cardBorder },
-  fieldLabelInline: { fontSize: 14, fontWeight: '600' as const, color: Colors.text },
-  termsSelector: { backgroundColor: Colors.surfaceAlt, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 },
-  termsSelectorText: { fontSize: 14, fontWeight: '600' as const, color: Colors.primary },
-  termsDropdown: { marginHorizontal: 20, marginTop: 4, backgroundColor: Colors.card, borderRadius: 12, borderWidth: 1, borderColor: Colors.cardBorder, overflow: 'hidden' as const },
+  termsRow: { marginHorizontal: 20, marginTop: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: Colors.card, borderRadius: Tokens.radius.card, padding: 14, borderWidth: 1, borderColor: Colors.cardBorder },
+  fieldLabelInline: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
+  termsSelector: { backgroundColor: Colors.surfaceAlt, paddingHorizontal: 12, paddingVertical: 8, borderRadius: Tokens.radius.sm },
+  termsSelectorText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.primary },
+  termsDropdown: { marginHorizontal: 20, marginTop: 4, backgroundColor: Colors.card, borderRadius: Tokens.radius.card, borderWidth: 1, borderColor: Colors.cardBorder, overflow: 'hidden' as const },
   termsOption: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: Colors.borderLight },
   termsOptionActive: { backgroundColor: Colors.primary + '08' },
-  termsOptionText: { fontSize: 15, color: Colors.text },
+  termsOptionText: { fontSize: Type.subhead.fontSize, color: Colors.text },
   termsOptionTextActive: { color: Colors.primary, fontWeight: '600' as const },
   fieldSection: { marginHorizontal: 20, marginTop: 18 },
-  fieldLabel: { fontSize: 13, fontWeight: '600' as const, color: Colors.textSecondary, marginBottom: 8, textTransform: 'uppercase' as const, letterSpacing: 0.5 },
-  lineItemCard: { backgroundColor: Colors.card, borderRadius: 10, padding: 12, marginBottom: 6, borderWidth: 1, borderColor: Colors.cardBorder },
+  fieldLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.textSecondary, marginBottom: 8, textTransform: 'uppercase' as const, letterSpacing: 0.5 },
+  lineItemCard: { backgroundColor: Colors.card, borderRadius: Tokens.radius.md, padding: 12, marginBottom: 6, borderWidth: 1, borderColor: Colors.cardBorder },
   lineItemHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
-  lineItemName: { fontSize: 14, fontWeight: '600' as const, color: Colors.text, flex: 1, marginRight: 8 },
+  lineItemName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text, flex: 1, marginRight: 8 },
   lineItemMeta: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  lineItemMetaText: { fontSize: 12, color: Colors.textSecondary },
-  lineItemTotal: { fontSize: 14, fontWeight: '700' as const, color: Colors.primary },
-  totalsCard: { marginHorizontal: 20, marginTop: 16, backgroundColor: Colors.card, borderRadius: 16, padding: 18, borderWidth: 1, borderColor: Colors.cardBorder },
+  lineItemMetaText: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary },
+  lineItemTotal: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.primary },
+  totalsCard: { marginHorizontal: 20, marginTop: 16, backgroundColor: Colors.card, borderRadius: Tokens.radius.panel, padding: 18, borderWidth: 1, borderColor: Colors.cardBorder },
   totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 5 },
-  totalLabel: { fontSize: 15, color: Colors.textSecondary, fontWeight: '500' as const },
-  totalValue: { fontSize: 15, fontWeight: '600' as const, color: Colors.text },
+  totalLabel: { fontSize: Type.subhead.fontSize, color: Colors.textSecondary, fontWeight: '500' as const },
+  totalValue: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: Colors.text },
   divider: { height: 1, backgroundColor: Colors.borderLight, marginVertical: 4 },
   dividerThick: { height: 2, backgroundColor: Colors.primary + '30', borderRadius: 1, marginVertical: 6 },
-  grandLabel: { fontSize: 17, fontWeight: '800' as const, color: Colors.text },
-  grandValue: { fontSize: 20, fontWeight: '800' as const, color: Colors.primary },
-  textArea: { minHeight: 80, borderRadius: 14, backgroundColor: Colors.card, paddingHorizontal: 14, paddingTop: 12, fontSize: 15, color: Colors.text, borderWidth: 1, borderColor: Colors.cardBorder },
-  paymentRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: Colors.card, borderRadius: 10, padding: 12, marginBottom: 6, borderWidth: 1, borderColor: Colors.cardBorder },
+  grandLabel: { fontSize: Type.body.fontSize, fontWeight: '800' as const, color: Colors.text },
+  grandValue: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: Colors.primary },
+  textArea: { minHeight: 80, borderRadius: Tokens.radius.lg, backgroundColor: Colors.card, paddingHorizontal: 14, paddingTop: 12, fontSize: Type.subhead.fontSize, color: Colors.text, borderWidth: 1, borderColor: Colors.cardBorder },
+  paymentRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: Colors.card, borderRadius: Tokens.radius.md, padding: 12, marginBottom: 6, borderWidth: 1, borderColor: Colors.cardBorder },
   paymentInfo: { gap: 2 },
-  paymentDate: { fontSize: 14, fontWeight: '600' as const, color: Colors.text },
-  paymentMethodText: { fontSize: 12, color: Colors.textSecondary },
-  paymentAmount: { fontSize: 15, fontWeight: '700' as const, color: Colors.success },
+  paymentDate: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
+  paymentMethodText: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary },
+  paymentAmount: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.success },
   bottomBar: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: Colors.surface, borderTopWidth: 0.5, borderTopColor: Colors.borderLight, paddingHorizontal: 20, paddingTop: 12, flexDirection: 'row', gap: 10 },
-  saveDraftBtn: { flex: 1, minHeight: 48, borderRadius: 14, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
-  saveDraftBtnText: { fontSize: 14, fontWeight: '700' as const, color: Colors.text },
-  saveProjectBtn: { flex: 1, minHeight: 48, borderRadius: 14, backgroundColor: Colors.primary + '15', borderWidth: 1.5, borderColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
-  saveProjectBtnText: { fontSize: 14, fontWeight: '700' as const, color: Colors.primary },
-  sendBtn: { flex: 1.2, minHeight: 48, borderRadius: 14, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 },
-  sendBtnText: { fontSize: 14, fontWeight: '700' as const, color: Colors.textOnPrimary },
+  saveDraftBtn: { flex: 1, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
+  saveDraftBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
+  saveProjectBtn: { flex: 1, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: Colors.primary + '15', borderWidth: 1.5, borderColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
+  saveProjectBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.primary },
+  sendBtn: { flex: 1.2, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 },
+  sendBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.textOnPrimary },
   aiaCtaCard: {
     flexDirection: 'row' as const, alignItems: 'center' as const, gap: 12,
     marginHorizontal: 20, marginTop: 8, marginBottom: 20, padding: 14,
     backgroundColor: Colors.primary + '10',
-    borderRadius: 14, borderWidth: 1, borderColor: Colors.primary + '25',
+    borderRadius: Tokens.radius.lg, borderWidth: 1, borderColor: Colors.primary + '25',
   },
   aiaCtaIconWrap: {
-    width: 40, height: 40, borderRadius: 10,
+    width: 40, height: 40, borderRadius: Tokens.radius.md,
     backgroundColor: Colors.primary + '20',
     alignItems: 'center' as const, justifyContent: 'center' as const,
   },
-  aiaCtaTitle: { fontSize: 14, fontWeight: '700' as const, color: Colors.text, marginBottom: 2 },
-  aiaCtaSub: { fontSize: 12, color: Colors.textMuted, lineHeight: 16 },
+  aiaCtaTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text, marginBottom: 2 },
+  aiaCtaSub: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, lineHeight: 16 },
   aiaCtaArrow: { fontSize: 24, color: Colors.primary, marginLeft: 4 },
-  selectedRecipientCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.primary + '10', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, gap: 10, borderWidth: 1, borderColor: Colors.primary + '25' },
-  selectedRecipientName: { fontSize: 14, fontWeight: '600' as const, color: Colors.text },
-  selectedRecipientEmail: { fontSize: 12, color: Colors.textSecondary },
-  clearRecipientBtn: { width: 24, height: 24, borderRadius: 12, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
-  pickContactBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', marginTop: 8, paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8, backgroundColor: Colors.primary + '10' },
-  pickContactText: { fontSize: 13, fontWeight: '600' as const, color: Colors.primary },
-  recipientModalInput: { minHeight: 44, borderRadius: 12, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 12, fontSize: 15, color: Colors.text, borderWidth: 1, borderColor: Colors.cardBorder },
-  markPaidBtn: { flex: 1, minHeight: 48, borderRadius: 14, backgroundColor: Colors.successLight, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8, borderWidth: 1, borderColor: Colors.success + '30' },
-  markPaidBtnText: { fontSize: 14, fontWeight: '700' as const, color: Colors.success },
+  selectedRecipientCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.primary + '10', borderRadius: Tokens.radius.card, paddingHorizontal: 12, paddingVertical: 10, gap: 10, borderWidth: 1, borderColor: Colors.primary + '25' },
+  selectedRecipientName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
+  selectedRecipientEmail: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary },
+  clearRecipientBtn: { width: 24, height: 24, borderRadius: Tokens.radius.card, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
+  pickContactBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', marginTop: 8, paddingVertical: 6, paddingHorizontal: 10, borderRadius: Tokens.radius.sm, backgroundColor: Colors.primary + '10' },
+  pickContactText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.primary },
+  recipientModalInput: { minHeight: 44, borderRadius: Tokens.radius.card, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 12, fontSize: Type.subhead.fontSize, color: Colors.text, borderWidth: 1, borderColor: Colors.cardBorder },
+  markPaidBtn: { flex: 1, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: Colors.successLight, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8, borderWidth: 1, borderColor: Colors.success + '30' },
+  markPaidBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.success },
   modalOverlay: { flex: 1, backgroundColor: Colors.overlay, justifyContent: 'flex-end' },
   modalCard: { backgroundColor: Colors.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 22, gap: 10 },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
-  modalTitle: { fontSize: 20, fontWeight: '700' as const, color: Colors.text },
-  modalFieldLabel: { fontSize: 12, fontWeight: '600' as const, color: Colors.textSecondary, marginTop: 4 },
-  modalInput: { minHeight: 48, borderRadius: 14, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 14, fontSize: 18, fontWeight: '700' as const, color: Colors.text },
+  modalTitle: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: Colors.text },
+  modalFieldLabel: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.textSecondary, marginTop: 4 },
+  modalInput: { minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 14, fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: Colors.text },
   methodGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
-  methodChip: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12, backgroundColor: Colors.fillTertiary },
+  methodChip: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: Tokens.radius.card, backgroundColor: Colors.fillTertiary },
   methodChipActive: { backgroundColor: Colors.primary },
-  methodChipText: { fontSize: 13, fontWeight: '600' as const, color: Colors.textSecondary },
+  methodChipText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.textSecondary },
   methodChipTextActive: { color: Colors.textOnPrimary },
-  modalSaveBtn: { backgroundColor: Colors.success, borderRadius: 14, paddingVertical: 14, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8, marginTop: 8 },
-  modalSaveBtnText: { fontSize: 16, fontWeight: '700' as const, color: Colors.textOnPrimary },
-  retentionInput: { minWidth: 60, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: Colors.surfaceAlt, borderWidth: 1, borderColor: Colors.border, fontSize: 14, fontWeight: '600' as const, color: Colors.text, textAlign: 'right' as const },
-  retentionPct: { fontSize: 14, fontWeight: '700' as const, color: Colors.textSecondary },
-  releaseRetentionBtn: { marginHorizontal: 16, marginBottom: 12, flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 12, backgroundColor: Colors.warning + '15', borderWidth: 1, borderColor: Colors.warning + '40' },
-  releaseRetentionBtnText: { flex: 1, fontSize: 14, fontWeight: '700' as const, color: Colors.warning },
-  releaseRetentionBtnMeta: { fontSize: 12, fontWeight: '600' as const, color: Colors.warning },
-  retentionModalMeta: { fontSize: 13, color: Colors.textSecondary, marginBottom: 12 },
-  fullReleaseBtn: { paddingHorizontal: 14, paddingVertical: 12, borderRadius: 10, backgroundColor: Colors.warning + '20', borderWidth: 1, borderColor: Colors.warning + '40' },
-  fullReleaseBtnText: { fontSize: 13, fontWeight: '700' as const, color: Colors.warning },
+  modalSaveBtn: { backgroundColor: Colors.success, borderRadius: Tokens.radius.lg, paddingVertical: 14, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8, marginTop: 8 },
+  modalSaveBtnText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.textOnPrimary },
+  retentionInput: { minWidth: 60, paddingHorizontal: 10, paddingVertical: 6, borderRadius: Tokens.radius.sm, backgroundColor: Colors.surfaceAlt, borderWidth: 1, borderColor: Colors.border, fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text, textAlign: 'right' as const },
+  retentionPct: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.textSecondary },
+  releaseRetentionBtn: { marginHorizontal: 16, marginBottom: 12, flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, paddingVertical: 12, paddingHorizontal: 14, borderRadius: Tokens.radius.card, backgroundColor: Colors.warning + '15', borderWidth: 1, borderColor: Colors.warning + '40' },
+  releaseRetentionBtnText: { flex: 1, fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.warning },
+  releaseRetentionBtnMeta: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.warning },
+  retentionModalMeta: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, marginBottom: 12 },
+  fullReleaseBtn: { paddingHorizontal: 14, paddingVertical: 12, borderRadius: Tokens.radius.md, backgroundColor: Colors.warning + '20', borderWidth: 1, borderColor: Colors.warning + '40' },
+  fullReleaseBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.warning },
   payLinkCard: {
-    marginHorizontal: 20, marginTop: 16, padding: 16, borderRadius: 16,
+    marginHorizontal: 20, marginTop: 16, padding: 16, borderRadius: Tokens.radius.panel,
     backgroundColor: Colors.primary + '08',
     borderWidth: 1, borderColor: Colors.primary + '25',
     gap: 12,
   },
   payLinkHeader: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 12 },
   payLinkIconWrap: {
-    width: 36, height: 36, borderRadius: 10,
+    width: 36, height: 36, borderRadius: Tokens.radius.md,
     backgroundColor: Colors.primary + '15',
     alignItems: 'center' as const, justifyContent: 'center' as const,
   },
-  payLinkTitle: { fontSize: 15, fontWeight: '700' as const, color: Colors.text, marginBottom: 2 },
-  payLinkSub: { fontSize: 12, color: Colors.textMuted, lineHeight: 16 },
+  payLinkTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text, marginBottom: 2 },
+  payLinkSub: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, lineHeight: 16 },
   payLinkUrlBox: {
     flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8,
     paddingHorizontal: 12, paddingVertical: 10,
-    backgroundColor: Colors.surface, borderRadius: 10,
+    backgroundColor: Colors.surface, borderRadius: Tokens.radius.md,
     borderWidth: 1, borderColor: Colors.borderLight,
   },
-  payLinkUrlText: { flex: 1, fontSize: 12, color: Colors.textSecondary, fontWeight: '500' as const },
+  payLinkUrlText: { flex: 1, fontSize: Type.caption1.fontSize, color: Colors.textSecondary, fontWeight: '500' as const },
   payLinkActions: { flexDirection: 'row' as const, gap: 8 },
   payLinkActionBtn: {
-    flex: 1, minHeight: 40, borderRadius: 10,
+    flex: 1, minHeight: 40, borderRadius: Tokens.radius.md,
     backgroundColor: Colors.primary + '15',
     alignItems: 'center' as const, justifyContent: 'center' as const,
     flexDirection: 'row' as const, gap: 6,
   },
-  payLinkActionText: { fontSize: 13, fontWeight: '700' as const, color: Colors.primary },
+  payLinkActionText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.primary },
   payLinkRegenBtn: { backgroundColor: Colors.fillTertiary },
-  payLinkRegenText: { fontSize: 13, fontWeight: '600' as const, color: Colors.textSecondary },
+  payLinkRegenText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.textSecondary },
   payLinkGenerateBtn: {
-    minHeight: 48, borderRadius: 12,
+    minHeight: 48, borderRadius: Tokens.radius.card,
     backgroundColor: Colors.primary,
     alignItems: 'center' as const, justifyContent: 'center' as const,
     flexDirection: 'row' as const, gap: 8,
   },
-  payLinkGenerateText: { fontSize: 15, fontWeight: '700' as const, color: Colors.textOnPrimary },
+  payLinkGenerateText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.textOnPrimary },
 });

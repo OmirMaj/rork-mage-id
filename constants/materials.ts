@@ -359,24 +359,29 @@ export function getMaterialCostBreakdown(material: MaterialItem): { laborCost: n
   return { laborCost: Number(laborCost.toFixed(2)), equipmentCost: Number(equipmentCost.toFixed(2)), materialCost: material.baseRetailPrice };
 }
 
-export const CATEGORY_META: Record<string, { color: string; emoji: string; label: string }> = {
-  lumber:     { color: '#92400E', emoji: '🪵', label: 'Lumber & Framing' },
-  concrete:   { color: '#6B7280', emoji: '🧱', label: 'Concrete & Masonry' },
-  roofing:    { color: '#1A6B3C', emoji: '🏠', label: 'Roofing' },
-  insulation: { color: '#0891B2', emoji: '🧊', label: 'Insulation' },
-  siding:     { color: '#B45309', emoji: '🏗️', label: 'Siding & Exterior' },
-  windows:    { color: '#6366F1', emoji: '🪟', label: 'Windows & Doors' },
-  flooring:   { color: '#7C3AED', emoji: '🪟', label: 'Flooring' },
-  plumbing:   { color: '#2563EB', emoji: '🔧', label: 'Plumbing' },
-  electrical: { color: '#D97706', emoji: '⚡', label: 'Electrical' },
-  hvac:       { color: '#0F766E', emoji: '❄️', label: 'HVAC' },
-  drywall:    { color: '#BE185D', emoji: '🔲', label: 'Drywall' },
-  paint:      { color: '#0F766E', emoji: '🎨', label: 'Paint & Finishes' },
-  decking:    { color: '#78350F', emoji: '🌳', label: 'Decking' },
-  fencing:    { color: '#4D7C0F', emoji: '🚧', label: 'Fencing' },
-  steel:      { color: '#475569', emoji: '🔩', label: 'Steel & Metal' },
-  hardware:   { color: '#374151', emoji: '🔨', label: 'Fasteners & Hardware' },
-  landscape:  { color: '#15803D', emoji: '🌿', label: 'Landscape' },
+// Each category gets a Lucide icon (semantically correct, visually
+// consistent with the rest of the app) instead of an emoji. The `iconName`
+// is a string that consumer files import from lucide-react-native by
+// the same name. We keep `emoji` as a fallback string for any code path
+// that hasn't been migrated yet, but new UI should use `iconName`.
+export const CATEGORY_META: Record<string, { color: string; emoji: string; iconName: string; label: string }> = {
+  lumber:     { color: '#92400E', emoji: '🪵',  iconName: 'TreePine',         label: 'Lumber & Framing' },
+  concrete:   { color: '#6B7280', emoji: '🧱',  iconName: 'Box',              label: 'Concrete & Masonry' },
+  roofing:    { color: '#1A6B3C', emoji: '🏠',  iconName: 'Home',             label: 'Roofing' },
+  insulation: { color: '#0891B2', emoji: '🧊',  iconName: 'Layers',           label: 'Insulation' },
+  siding:     { color: '#B45309', emoji: '🏗️', iconName: 'LayoutPanelLeft',  label: 'Siding & Exterior' },
+  windows:    { color: '#6366F1', emoji: '🪟',  iconName: 'AppWindow',        label: 'Windows & Doors' },
+  flooring:   { color: '#7C3AED', emoji: '🟫',  iconName: 'LayoutGrid',       label: 'Flooring' },
+  plumbing:   { color: '#2563EB', emoji: '🔧',  iconName: 'Wrench',           label: 'Plumbing' },
+  electrical: { color: '#D97706', emoji: '⚡',  iconName: 'Zap',              label: 'Electrical' },
+  hvac:       { color: '#0F766E', emoji: '❄️', iconName: 'Wind',             label: 'HVAC' },
+  drywall:    { color: '#BE185D', emoji: '🔲',  iconName: 'Square',           label: 'Drywall' },
+  paint:      { color: '#0F766E', emoji: '🎨',  iconName: 'Brush',            label: 'Paint & Finishes' },
+  decking:    { color: '#78350F', emoji: '🌳',  iconName: 'TreePine',         label: 'Decking' },
+  fencing:    { color: '#4D7C0F', emoji: '🚧',  iconName: 'Construction',     label: 'Fencing' },
+  steel:      { color: '#475569', emoji: '🔩',  iconName: 'HardHat',          label: 'Steel & Metal' },
+  hardware:   { color: '#374151', emoji: '🔨',  iconName: 'Hammer',           label: 'Fasteners & Hardware' },
+  landscape:  { color: '#15803D', emoji: '🌿',  iconName: 'Leaf',             label: 'Landscape' },
 };
 
 export const PRICE_VOLATILITY: Record<string, number> = {

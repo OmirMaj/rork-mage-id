@@ -5,12 +5,25 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArrowLeft, Tag, Truck, Search, X, Bell } from 'lucide-react-native';
+import {
+  ArrowLeft, Tag, Truck, Search, X, Bell,
+  // Category icons (rendered via lookup map below) — replaces emoji-as-icon
+  TreePine, Box, Home as HomeIcon, Layers, LayoutPanelLeft, AppWindow, LayoutGrid,
+  Wrench, Zap, Wind, Square, Brush, Construction, HardHat, Hammer, Leaf, Package,
+  type LucideIcon,
+} from 'lucide-react-native';
+
+const CATEGORY_ICONS: Record<string, LucideIcon> = {
+  TreePine, Box, Home: HomeIcon, Layers, LayoutPanelLeft, AppWindow, LayoutGrid,
+  Wrench, Zap, Wind, Square, Brush, Construction, HardHat, Hammer, Leaf, Package,
+};
 import * as Haptics from 'expo-haptics';
 import { Colors } from '@/constants/colors';
 import { CATEGORY_META, getLivePrices, type MaterialItem } from '@/constants/materials';
 import { useProjects } from '@/contexts/ProjectContext';
 import type { PriceAlert, AlertDirection } from '@/types';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 const PAGE_SIZE = 30;
 
@@ -44,7 +57,8 @@ export default function CategoryDetailScreen() {
     );
   }, [allMaterials, searchQuery]);
 
-  const meta = CATEGORY_META[category ?? ''] ?? { color: Colors.primary, emoji: '📦', label: category ?? 'Materials' };
+  const meta = CATEGORY_META[category ?? ''] ?? { color: Colors.primary, emoji: '📦', iconName: 'Package', label: category ?? 'Materials' };
+  const CategoryIcon = CATEGORY_ICONS[meta.iconName] ?? Package;
 
   const calcDiscount = (retail: number, bulk: number) => {
     if (retail <= 0) return 0;
@@ -154,12 +168,11 @@ export default function CategoryDetailScreen() {
           style={styles.backBtn}
           onPress={() => router.back()}
           activeOpacity={0.7}
-          testID="back-btn"
-        >
+          testID="back-btn" accessibilityRole="button" accessibilityLabel="Back">
           <ArrowLeft size={20} color={Colors.text} />
         </TouchableOpacity>
         <View style={[styles.headerEmoji, { backgroundColor: meta.color + '15' }]}>
-          <Text style={styles.headerEmojiText}>{meta.emoji}</Text>
+          <CategoryIcon size={22} color={meta.color} strokeWidth={2} />
         </View>
         <View style={styles.headerInfo}>
           <Text style={styles.headerTitle}>{meta.label}</Text>
@@ -229,7 +242,7 @@ export default function CategoryDetailScreen() {
           <View style={styles.modalCard}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Set Price Alert</Text>
-              <TouchableOpacity onPress={() => setAlertModal(null)}>
+              <TouchableOpacity onPress={() => setAlertModal(null)} accessibilityRole="button" accessibilityLabel="Close">
                 <X size={20} color={Colors.textMuted} />
               </TouchableOpacity>
             </View>
@@ -293,7 +306,7 @@ const styles = StyleSheet.create({
   backBtn: {
     width: 36,
     height: 36,
-    borderRadius: 18,
+    borderRadius: Tokens.radius.xl,
     backgroundColor: Colors.fillTertiary,
     alignItems: 'center',
     justifyContent: 'center',
@@ -301,25 +314,25 @@ const styles = StyleSheet.create({
   headerEmoji: {
     width: 40,
     height: 40,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  headerEmojiText: { fontSize: 20 },
+  headerEmojiText: { fontSize: Type.title3.fontSize },
   headerInfo: { flex: 1 },
-  headerTitle: { fontSize: 20, fontWeight: '700' as const, color: Colors.text },
-  headerCount: { fontSize: 13, color: Colors.textSecondary, marginTop: 1 },
+  headerTitle: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: Colors.text },
+  headerCount: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, marginTop: 1 },
   searchWrap: { paddingHorizontal: 16, paddingVertical: 12, backgroundColor: Colors.surface },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.fillTertiary,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     paddingHorizontal: 12,
     gap: 8,
     height: 40,
   },
-  searchInput: { flex: 1, fontSize: 15, color: Colors.text },
+  searchInput: { flex: 1, fontSize: Type.subhead.fontSize, color: Colors.text },
   clearBtn: {
     width: 18,
     height: 18,
@@ -337,24 +350,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     backgroundColor: Colors.accent + '12',
-    borderRadius: 8,
+    borderRadius: Tokens.radius.sm,
   },
-  alertsBarText: { fontSize: 12, fontWeight: '500' as const, color: Colors.accent },
+  alertsBarText: { fontSize: Type.caption1.fontSize, fontWeight: '500' as const, color: Colors.accent },
   listContent: { paddingTop: 8, paddingHorizontal: 16, gap: 8 },
   itemCard: {
     backgroundColor: Colors.surface,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     padding: 14,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
   },
   itemTop: { flexDirection: 'row', gap: 12 },
   itemLeft: { flex: 1, gap: 4 },
-  itemName: { fontSize: 14, fontWeight: '600' as const, color: Colors.text, lineHeight: 19 },
+  itemName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text, lineHeight: 19 },
   itemMeta: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  itemSupplier: { fontSize: 11, color: Colors.textMuted, flex: 1 },
-  itemDot: { fontSize: 11, color: Colors.textMuted },
-  itemUnit: { fontSize: 11, color: Colors.textMuted },
+  itemSupplier: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, flex: 1 },
+  itemDot: { fontSize: Type.caption2.fontSize, color: Colors.textMuted },
+  itemUnit: { fontSize: Type.caption2.fontSize, color: Colors.textMuted },
   skuRow: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   skuText: { fontSize: 10, color: Colors.textMuted },
   regionBadge: {
@@ -367,9 +380,9 @@ const styles = StyleSheet.create({
   },
   regionText: { fontSize: 10, fontWeight: '600' as const, color: Colors.info },
   itemRight: { alignItems: 'flex-end', gap: 2, minWidth: 80 },
-  retailPrice: { fontSize: 12, color: Colors.textMuted, textDecorationLine: 'line-through' as const },
+  retailPrice: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, textDecorationLine: 'line-through' as const },
   bulkRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  bulkPrice: { fontSize: 17, fontWeight: '700' as const, color: Colors.success, letterSpacing: -0.3 },
+  bulkPrice: { fontSize: Type.body.fontSize, fontWeight: '700' as const, color: Colors.success, letterSpacing: -0.3 },
   saveBadge: { backgroundColor: Colors.success + '18', paddingHorizontal: 5, paddingVertical: 2, borderRadius: 5 },
   saveBadgeText: { fontSize: 10, fontWeight: '700' as const, color: Colors.success },
   bulkMinLabel: { fontSize: 10, color: Colors.textMuted },
@@ -387,27 +400,27 @@ const styles = StyleSheet.create({
     gap: 5,
     paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: 8,
+    borderRadius: Tokens.radius.sm,
     backgroundColor: Colors.fillTertiary,
   },
   alertBtnActive: { backgroundColor: Colors.accent + '15' },
-  alertBtnText: { fontSize: 12, fontWeight: '500' as const, color: Colors.textMuted },
+  alertBtnText: { fontSize: Type.caption1.fontSize, fontWeight: '500' as const, color: Colors.textMuted },
   emptyState: { alignItems: 'center', paddingVertical: 60, gap: 8 },
-  emptyTitle: { fontSize: 18, fontWeight: '600' as const, color: Colors.text },
-  emptyDesc: { fontSize: 14, color: Colors.textMuted },
+  emptyTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '600' as const, color: Colors.text },
+  emptyDesc: { fontSize: Type.bodyCompact.fontSize, color: Colors.textMuted },
   modalOverlay: { flex: 1, backgroundColor: Colors.overlay, justifyContent: 'center', padding: 20 },
-  modalCard: { backgroundColor: Colors.surface, borderRadius: 24, padding: 22, gap: 12, maxWidth: 400, width: '100%', alignSelf: 'center' as const },
+  modalCard: { backgroundColor: Colors.surface, borderRadius: Tokens.radius["2xl"], padding: 22, gap: 12, maxWidth: 400, width: '100%', alignSelf: 'center' as const },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  modalTitle: { fontSize: 20, fontWeight: '700' as const, color: Colors.text },
-  modalMatName: { fontSize: 16, fontWeight: '600' as const, color: Colors.text },
-  modalCurrentPrice: { fontSize: 14, color: Colors.textSecondary },
-  modalFieldLabel: { fontSize: 13, fontWeight: '600' as const, color: Colors.textSecondary, marginTop: 4 },
+  modalTitle: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: Colors.text },
+  modalMatName: { fontSize: Type.callout.fontSize, fontWeight: '600' as const, color: Colors.text },
+  modalCurrentPrice: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary },
+  modalFieldLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.textSecondary, marginTop: 4 },
   directionRow: { flexDirection: 'row', gap: 8 },
-  directionBtn: { flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: Colors.fillTertiary, alignItems: 'center' },
+  directionBtn: { flex: 1, paddingVertical: 12, borderRadius: Tokens.radius.card, backgroundColor: Colors.fillTertiary, alignItems: 'center' },
   directionBtnActive: { backgroundColor: Colors.primary },
-  directionBtnText: { fontSize: 13, fontWeight: '600' as const, color: Colors.text },
+  directionBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.text },
   directionBtnTextActive: { color: '#fff' },
-  modalInput: { height: 48, borderRadius: 14, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 14, fontSize: 16, color: Colors.text },
-  modalSaveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: Colors.primary, borderRadius: 14, paddingVertical: 14 },
-  modalSaveBtnText: { fontSize: 16, fontWeight: '700' as const, color: '#fff' },
+  modalInput: { height: 48, borderRadius: Tokens.radius.lg, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 14, fontSize: Type.callout.fontSize, color: Colors.text },
+  modalSaveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: Colors.primary, borderRadius: Tokens.radius.lg, paddingVertical: 14 },
+  modalSaveBtnText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: '#fff' },
 });

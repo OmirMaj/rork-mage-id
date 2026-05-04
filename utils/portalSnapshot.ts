@@ -135,23 +135,23 @@ export interface PortalSnapshot {
     status: 'finalized' | 'sent';
     completionDate?: string;
     noteFromContractor?: string;
-    finishes: Array<{ category: string; productName: string; brand?: string; sku?: string; supplier?: string }>;
-    warranties: Array<{ title: string; provider?: string; durationMonths?: number; endDate?: string }>;
-    maintenance: Array<{ task: string; frequency: string; nextDate?: string; notes?: string }>;
-    tradeContacts: Array<{ company: string; scope?: string; phase?: string; phone?: string; email?: string }>;
+    finishes: { category: string; productName: string; brand?: string; sku?: string; supplier?: string }[];
+    warranties: { title: string; provider?: string; durationMonths?: number; endDate?: string }[];
+    maintenance: { task: string; frequency: string; nextDate?: string; notes?: string }[];
+    tradeContacts: { company: string; scope?: string; phase?: string; phone?: string; email?: string }[];
     emergencyEmail?: string;
     emergencyPhone?: string;
   };
   // AI-curated selections / allowances the homeowner picks. Flat list
   // because the portal renders a category card for each. Only categories
   // with options are bundled.
-  selections?: Array<{
+  selections?: {
     id: string;
     category: string;
     styleBrief: string;
     budget: number;
     status: 'pending' | 'browsing' | 'chosen' | 'exceeded';
-    options: Array<{
+    options: {
       id: string;
       productName: string;
       brand: string;
@@ -167,8 +167,8 @@ export interface PortalSnapshot {
       imageUrl?: string;
       highlights: string[];
       isChosen: boolean;
-    }>;
-  }>;
+    }[];
+  }[];
   // Open-book / GMP cost transparency. When set, the portal renders a
   // dedicated "Open Book" section showing real budget vs committed vs
   // actual cost — a thing enterprise PM software can't really do for
@@ -185,25 +185,25 @@ export interface PortalSnapshot {
     feePercent?: number;
     feeAmount?: number;
     // Per-phase breakdown so the client can see WHERE the money goes.
-    phases: Array<{
+    phases: {
       name: string;
       budget: number;
       committed: number;
       actual: number;
       projectedFinal: number;
       variance: number;       // negative = over budget
-    }>;
+    }[];
     asOf: string;             // ISO timestamp
   };
   // Recent message thread between GC and client (most recent last). Static
   // portal reloads to fetch new messages; for now we don't poll.
-  messages?: Array<{
+  messages?: {
     id: string;
     authorType: 'client' | 'gc';
     authorName?: string;
     body: string;
     createdAt: string;
-  }>;
+  }[];
   company: {
     name: string;
     primaryColor?: string;
@@ -233,19 +233,19 @@ export interface PortalSnapshot {
       startDate?: string;
       workingDaysPerWeek?: number;
       totalDurationDays?: number;
-      tasks: Array<{
+      tasks: {
         id: string; title: string; phase?: string; progress: number;
         status: string; durationDays: number;
         // Working-day offset from startDate. Used to position Gantt bars.
         startDay?: number;
         isMilestone?: boolean; isCriticalPath?: boolean;
-      }>;
+      }[];
     };
     budget?: {
       contractValue: number; paidToDate: number; outstanding: number;
       pctComplete: number; nextMilestone?: string;
     };
-    invoices?: Array<{
+    invoices?: {
       id: string; number: number | string; total: number; status: string;
       dueDate?: string; dateSubmitted?: string;
       // Remaining balance for the invoice (totalDue - amountPaid). Portal uses
@@ -259,18 +259,18 @@ export interface PortalSnapshot {
       // invoice; longer invoices are summarized).
       amountPaid?: number;
       issueDate?: string;
-      lineItems?: Array<{
+      lineItems?: {
         name: string; description?: string;
         quantity: number; unit: string; unitPrice: number; total: number;
-      }>;
+      }[];
       retentionPercent?: number;
       retentionAmount?: number;
       taxAmount?: number;
       subtotal?: number;
       paymentTerms?: string;
       notes?: string;
-    }>;
-    aiaPayApps?: Array<{
+    }[];
+    aiaPayApps?: {
       id: string;
       applicationNumber: number;
       applicationDate?: string;
@@ -287,45 +287,45 @@ export interface PortalSnapshot {
       totalEarnedLessRetainage: number;
       balanceToFinish: number;
       percentComplete: number;
-      lines: Array<{
+      lines: {
         itemNo: string; description: string;
         scheduledValue: number; fromPreviousApp: number;
         thisPeriod: number; materialsPresentlyStored: number;
         retainagePercent: number;
-      }>;
-    }>;
-    changeOrders?: Array<{
+      }[];
+    }[];
+    changeOrders?: {
       id: string; number: number | string; description: string;
       changeAmount: number; status: string; dateSubmitted?: string;
-    }>;
-    photos?: Array<{
+    }[];
+    photos?: {
       url: string;
       caption?: string;
       timestamp?: string;
       // Markup primitives drawn over the photo by the GC. Coords are
       // normalized 0..1 so the static portal can re-render them at any
       // display size. Only emitted when there's at least one annotation.
-      markup?: Array<{
+      markup?: {
         type: 'arrow' | 'rectangle' | 'circle' | 'freehand' | 'text';
         color: 'red' | 'yellow' | 'green';
-        points: Array<{ x: number; y: number }>;
+        points: { x: number; y: number }[];
         text?: string;
-      }>;
-    }>;
-    dailyReports?: Array<{
+      }[];
+    }[];
+    dailyReports?: {
       id: string; date: string; weather?: string;
       totalManpower?: number; totalManHours?: number;
       workPerformed?: string;
-    }>;
-    punchList?: Array<{
+    }[];
+    punchList?: {
       id: string; title: string; status: string;
       priority?: string; location?: string;
-    }>;
-    rfis?: Array<{
+    }[];
+    rfis?: {
       id: string; number: number | string; subject: string;
       status: string; dateSubmitted?: string;
-    }>;
-    documents?: Array<{ name: string; type?: string; dateSent?: string }>;
+    }[];
+    documents?: { name: string; type?: string; dateSent?: string }[];
   };
 }
 
@@ -342,13 +342,13 @@ interface BuildOpts {
   aiaPayApps?: SavedAIAPayApp[];
   invite?: ClientPortalInvite;
   // Optional message thread (most recent first; we'll trim to ~20).
-  messages?: Array<{
+  messages?: {
     id: string;
     authorType: 'client' | 'gc';
     authorName?: string;
     body: string;
     createdAt: string;
-  }>;
+  }[];
   // Optional Supabase + GC contact info baked into the snapshot so the
   // static portal can post a budget proposal back to the GC. These are
   // safe to include (anon key is public, RLS gates access).

@@ -367,6 +367,13 @@ export interface ScheduleTask {
   notes: string;
   status: TaskStatus;
   isMilestone?: boolean;
+  /** Level of Effort — task spans from earliest predecessor start to
+   *  latest successor finish. Used for "site supervision" / "PM
+   *  overhead" activities that should auto-stretch to cover linked
+   *  work. P6 / Asta call this Level of Effort or Hammock. CPM engine
+   *  treats LOE tasks specially: their duration is computed, not
+   *  authored. */
+  isLevelOfEffort?: boolean;
   wbsCode?: string;
   isCriticalPath?: boolean;
   isWeatherSensitive?: boolean;
@@ -416,11 +423,20 @@ export interface ScheduleTask {
   actualEndDay?: number;
   actualStartDate?: string;
   actualEndDate?: string;
-  photos?: Array<{
+  photos?: {
     uri: string;
     timestamp: string;
     note?: string;
-  }>;
+  }[];
+  /**
+   * Per-task notification subscribers — opt-in, opposite of Buildertrend's
+   * email-everyone default. When the task shifts (start changes, progress
+   * crosses a threshold, marked complete), only these subscribers get a
+   * push/email. Empty array = no notifications. Plain text identifiers
+   * (sub name, email, "+1-555-...") so the user can subscribe a sub
+   * without forcing them to register.
+   */
+  subscribers?: string[];
 }
 
 export interface ScheduleRiskItem {
@@ -436,6 +452,47 @@ export interface ScheduleBaseline {
 }
 
 /**
+ * Sub Schedule Collab — a single daily update a sub posts against a
+ * specific task on the GC's master schedule. Login-less: the sub opens
+ * the shared schedule URL with `?asSub=<name>`, taps a task, fills the
+ * update form, and we persist locally + push to the GC.
+ *
+ * Distinct from `TaskAuditEntry` (GC-side mutation log) and
+ * `TakeoffFieldVerification` (estimating-side photo proof).
+ */
+export interface SubScheduleUpdate {
+  id: string;
+  /** Project this update belongs to. */
+  projectId: string;
+  /** Master-schedule task id. Unique across schedule lives. */
+  taskId: string;
+  /** Sub identifier — name as drawn on the schedule. Plain text so a
+   *  sub can post without registering for an account. */
+  subName: string;
+  /** ISO YYYY-MM-DD — the day the update is *for* (not when it was posted). */
+  forDate: string;
+  /** % complete the sub is reporting today. 0-100. */
+  progressPercent: number;
+  /** Hours the crew worked today. Optional. */
+  hoursWorked?: number;
+  /** Crew size on site today. Optional. */
+  crewCount?: number;
+  /** Free-text note — what got done, what's coming up, etc. */
+  notes?: string;
+  /** Blocker the sub is flagging — drives a high-priority indicator on
+   *  the GC dashboard. */
+  blocker?: string;
+  /** Photos attached. URIs are local (from camera/library) — they upload
+   *  asynchronously via the offline queue. */
+  photos?: { uri: string; timestamp: string }[];
+  /** ISO timestamp the sub posted. Server-side once we add a backend. */
+  postedAt: string;
+  /** Optional: GPS at post time. Privacy-aware — sub opts in. */
+  latitude?: number;
+  longitude?: number;
+}
+
+/**
  * Structured resource for overallocation checks and the swim-lane view. We
  * keep `crew` (free text) for legacy projects; `ProjectResource` is the new
  * pool-member model: each resource has a capacity (how many concurrent tasks
@@ -446,7 +503,111 @@ export interface ProjectResource {
   name: string;
   color?: string;
   maxConcurrent?: number;
+  /** Default hourly rate (back-compat). New code should prefer `rateTable`. */
   ratePerHour?: number;
+  /** Multi-rate table — standard / OT / weekend / prevailing-wage / custom.
+   *  P6 supports up to 5; we expose the same. When set, this overrides
+   *  ratePerHour. Each entry is keyed by a stable `kind` so the EVM /
+   *  payroll engines can pick the right column. */
+  rateTable?: ResourceRate[];
+  /** Working calendar this resource follows. References a key in
+   *  `ProjectSchedule.resourceCalendars`. When unset the resource follows
+   *  the project calendar. P6 calls this Resource Calendars. */
+  calendarKey?: string;
+}
+
+/** A single rate column on a resource's rate table. */
+export interface ResourceRate {
+  /** Stable key — 'standard' is required; the rest are optional. */
+  kind: 'standard' | 'overtime' | 'weekend' | 'prevailing' | 'custom';
+  /** Display label override (e.g. "Davis-Bacon Tier 2"). */
+  label?: string;
+  /** Hourly rate in project currency. */
+  ratePerHour: number;
+  /** Effective-from ISO date. When omitted, rate is always effective. */
+  effectiveFrom?: string;
+}
+
+/**
+ * Per-resource calendar override. Different from project calendar:
+ * lets Drywall Sub work Mon-Thu while Framers work Mon-Fri half-Sat.
+ * Stored on `ProjectSchedule.resourceCalendars` keyed by the calendarKey
+ * referenced by `ProjectResource.calendarKey`.
+ */
+export interface ResourceCalendar {
+  key: string;
+  name: string;
+  /** Working days per week (e.g. 4 for Mon-Thu). */
+  workingDaysPerWeek: number;
+  /** Day-of-week indices treated as working (0=Sun). When omitted we
+   *  derive from workingDaysPerWeek (5 = Mon-Fri). */
+  workingDaysOfWeek?: number[];
+  /** Per-date closures specific to this resource (e.g. union holidays). */
+  closures?: string[];
+}
+
+/**
+ * Audit-log entry capturing who edited what + when. Catches the gap P6
+ * famously misses: dependency / logic edits aren't tracked in P6's
+ * built-in audit. We track them here from day one.
+ */
+export interface ScheduleAuditEntry {
+  id: string;
+  /** When the change happened. */
+  at: string;
+  /** Stable user identifier — email, name, or 'anonymous' for a
+   *  share-link sub. */
+  user: string;
+  /** What was touched. */
+  taskId?: string;
+  taskTitle?: string;
+  /** Type of change — drives icon + filter. */
+  kind:
+    | 'task_create'
+    | 'task_delete'
+    | 'task_edit'
+    | 'dependency_add'
+    | 'dependency_remove'
+    | 'dependency_edit'
+    | 'progress_update'
+    | 'baseline_capture'
+    | 'baseline_apply'
+    | 'voice_command'
+    | 'sub_update'
+    | 'reflow';
+  /** 1-line summary the audit viewer shows. */
+  summary: string;
+  /** Optional structured before/after for diff display. */
+  before?: Record<string, unknown>;
+  after?: Record<string, unknown>;
+}
+
+/**
+ * A fragnet — a reusable task template (e.g. "Bathroom rough-in" with 8
+ * pre-linked tasks). Drag onto a schedule and the tasks materialize with
+ * their dependency network intact. Asta calls these "task pools."
+ */
+export interface ScheduleFragnet {
+  id: string;
+  name: string;
+  category?: string;
+  description?: string;
+  /** Tasks in the fragnet. Day 1 is the fragnet's own day-1; ids are
+   *  fragnet-local and we remap them on apply. */
+  tasks: {
+    id: string;
+    title: string;
+    phase: string;
+    durationDays: number;
+    /** Day relative to fragnet start (1-indexed). */
+    startDay: number;
+    /** Local dependency ids referencing other fragnet tasks. */
+    dependencies: string[];
+    isMilestone?: boolean;
+  }[];
+  /** ISO timestamp for sort order in the library. */
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface WeatherAlert {
@@ -487,13 +648,13 @@ export interface ProjectSchedule {
    * type import (types/index.ts ← utils/scheduleOps.ts ← types/index.ts).
    * The callers in schedule-pro.tsx do a safe cast at the boundary.
    */
-  baselines?: Array<{
+  baselines?: {
     id: string;
     name: string;
     note?: string;
     savedAt: string;
     tasks: { id: string; startDay: number; endDay: number }[];
-  }>;
+  }[];
   weatherAlerts?: WeatherAlert[];
   /**
    * What-If scenarios — user-created alternate timelines branched off the
@@ -525,6 +686,17 @@ export interface ProjectSchedule {
   criticalFloatThresholdDays?: number;
   /** Resource pool for overallocation / swim-lane view. */
   resources?: ProjectResource[];
+  /** Per-resource calendar definitions, keyed by ResourceCalendar.key.
+   *  Resources opt in via `ProjectResource.calendarKey`. */
+  resourceCalendars?: ResourceCalendar[];
+  /** Append-only audit log of every change. P6 famously misses logic
+   *  changes; we don't. Bounded at 500 entries on read for performance. */
+  auditLog?: ScheduleAuditEntry[];
+  /** Saved fragnets (template task groups) the user can drag onto a
+   *  schedule. Project-scoped so a "bathroom rough-in" template can be
+   *  refined per-project, but they can also live in a global library
+   *  (separate storage). */
+  fragnets?: ScheduleFragnet[];
   updatedAt: string;
 }
 
@@ -1369,7 +1541,7 @@ export interface PrequalPacket {
   reviewedAt?: string;
   reviewedBy?: string;
   /** Auto-review results: which criteria passed/failed. */
-  autoReviewFindings?: Array<{ criterion: string; passed: boolean; note?: string }>;
+  autoReviewFindings?: { criterion: string; passed: boolean; note?: string }[];
   /** Human reviewer notes on top of auto-review. */
   reviewerNotes?: string;
   /** When this packet needs to be renewed. Usually 1 year from reviewedAt. */
@@ -2086,6 +2258,123 @@ export interface Integration {
   externalUrl?: string;
 }
 
+// ─────────────────────────────────────────────
+// Accounting integrations (QuickBooks Online + Xero)
+// ─────────────────────────────────────────────
+
+export type AccountingProvider = 'quickbooks' | 'xero';
+
+/** What's syncing in or out of the accounting system. */
+export type AccountingEntityType =
+  | 'invoice' | 'bill' | 'payment' | 'customer' | 'vendor'
+  | 'item' | 'expense' | 'account';
+
+export type AccountingSyncDirection = 'push' | 'pull';
+export type AccountingSyncStatus = 'pending' | 'running' | 'success' | 'failed' | 'partial';
+
+/** A single user's authenticated connection to QB/Xero. */
+export interface AccountingConnection {
+  id: string;
+  userId: string;
+  provider: AccountingProvider;
+  /** QB calls it realmId; Xero calls it tenantId. We just call it externalAccountId. */
+  externalAccountId: string;
+  /** Company display name pulled from the API after OAuth. */
+  externalCompanyName?: string;
+  /** OAuth scope string we were granted. */
+  scope?: string;
+  /** When the access token expires — UI shows a "reconnect" prompt before this. */
+  accessTokenExpiresAt?: string;
+  /** When we last successfully ran any sync against this connection. */
+  lastSyncedAt?: string;
+  /** If the most recent sync failed, the error message lives here. */
+  lastError?: string;
+  status: 'active' | 'expired' | 'revoked' | 'error';
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** A single sync attempt — appended-only audit log. */
+export interface AccountingSyncLog {
+  id: string;
+  connectionId: string;
+  entity: AccountingEntityType;
+  direction: AccountingSyncDirection;
+  status: AccountingSyncStatus;
+  /** Records processed in this run. */
+  itemsProcessed: number;
+  itemsFailed: number;
+  errorMessage?: string;
+  startedAt: string;
+  completedAt?: string;
+}
+
+/** local entity ↔ remote entity link. Lets us avoid duplicate pushes + reconcile updates. */
+export interface AccountingEntityMapping {
+  id: string;
+  connectionId: string;
+  entity: AccountingEntityType;
+  /** Local primary key (e.g. invoice.id, contact.id). */
+  localId: string;
+  /** Remote ID (QB Id / Xero ContactID). */
+  remoteId: string;
+  /** Last-known remote update timestamp from the provider — used to detect remote changes. */
+  remoteUpdatedAt?: string;
+  /** Last-known local update timestamp — used to decide push vs. pull. */
+  localUpdatedAt?: string;
+  createdAt: string;
+}
+
+// ─────────────────────────────────────────────
+// VIP onboarding (paid-tier white-glove)
+// ─────────────────────────────────────────────
+
+export type OnboardingBookingStatus = 'pending' | 'booked' | 'completed' | 'no_show' | 'cancelled';
+
+export interface OnboardingSpecialist {
+  id: string;
+  name: string;
+  email: string;
+  /** Calendly (or competitor) URL pre-filtered to this specialist's calendar. */
+  calendarUrl: string;
+  /** Public photo URL. */
+  photoUrl?: string;
+  /** Short pitch shown in the "your specialist" panel. */
+  bio?: string;
+}
+
+export interface OnboardingBooking {
+  id: string;
+  userId: string;
+  specialistId?: string;
+  status: OnboardingBookingStatus;
+  /** ISO datetime — when the call is scheduled (filled by Calendly webhook or user). */
+  scheduledAt?: string;
+  /** Calendly event URI for cancel/reschedule. */
+  externalEventId?: string;
+  /** "60-day support" window — counts down from first paid day. */
+  supportWindowEndsAt?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** A single setup-checklist item the new user works through. */
+export interface OnboardingChecklistItem {
+  id: string;
+  /** Stable key — used for completion tracking across users. */
+  key: 'first_project' | 'invite_team' | 'connect_accounting' | 'create_template'
+       | 'run_takeoff' | 'send_first_estimate' | 'set_up_buyout' | 'book_onboarding_call';
+  title: string;
+  description: string;
+  /** Route to push when the user taps the item. */
+  href: string;
+  /** Optional tier requirement — items shown only when user can access the feature. */
+  requiredTier?: 'pro' | 'business';
+  /** Stable order across users. */
+  order: number;
+}
+
 export type TimeEntryStatus = 'clocked_in' | 'clocked_out' | 'break';
 
 export interface TimeEntry {
@@ -2162,11 +2451,11 @@ export interface COIValidationResult {
    *   - "expires_within_30_days"       — warn
    *   - "expired"                      — critical
    */
-  issues: Array<{
+  issues: {
     code: string;
     severity: 'critical' | 'warning' | 'info';
     message: string;
-  }>;
+  }[];
   /** When AI extracted the data, confidence 0-100. */
   confidence?: number;
 }
@@ -2290,7 +2579,7 @@ export interface OACMeeting {
   /** When the GC distributed minutes to attendees. */
   distributedAt?: string;
   /** Email subjects/recipients touched in the most recent distribution. */
-  distributionLog?: Array<{ recipient: string; sentAt: string; ok: boolean; error?: string }>;
+  distributionLog?: { recipient: string; sentAt: string; ok: boolean; error?: string }[];
   createdAt: string;
   updatedAt: string;
 }
@@ -2461,4 +2750,281 @@ export interface EntityRef {
   projectId?: string;
   /** Optional precomputed display label — if absent, resolvers will look it up. */
   label?: string;
+}
+
+
+// ============================================================================
+// Takeoff — automated quantity extraction from construction drawings.
+// ----------------------------------------------------------------------------
+// A "takeoff" is the construction-industry term for measuring drawings to
+// produce quantities (linear feet of wall, square feet of flooring, count
+// of doors, etc). Historically done by hand or with desktop tools like
+// PlanSwift / Bluebeam Revu. Modern AI vision models (Gemini Vision, GPT-4V,
+// Togal.AI) can do an 60-75%-accurate first pass — useful as a "draft your
+// takeoff in 30 seconds, review and edit" tool.
+//
+// Schema is intentionally rich. The AI prompt asks for confidence per item
+// and source-page references so users can trace any quantity back to where
+// it came from.
+// ============================================================================
+
+/** Drawing scale. e.g. 1/4" = 1'-0" → { num: 0.25, unit: 'in', perValue: 1, perUnit: 'ft' }. */
+export interface TakeoffScale {
+  /** Numeric value of the scale ratio's drawing side. */
+  num: number;
+  /** Drawing-side unit. */
+  unit: 'in' | 'mm' | 'cm';
+  /** Real-world side numeric value (almost always 1). */
+  perValue: number;
+  /** Real-world unit. */
+  perUnit: 'ft' | 'm';
+  /** Free-form label as it appears on the drawing (e.g. '1/4" = 1'-0"'). */
+  label: string;
+  /** AI confidence the scale was correctly detected. */
+  confidence: TakeoffConfidence;
+  /** Page number(s) where the scale was found. */
+  sourcePages: number[];
+}
+
+/** Per-quantity confidence — drives UI badges + prompts user to review LOW items. */
+export type TakeoffConfidence = 'high' | 'medium' | 'low';
+
+/** Wall category — drives downstream cost-allocation (exterior gets siding, partitions don't). */
+export type TakeoffWallCategory =
+  | 'interior_partition'
+  | 'exterior_framed'
+  | 'exterior_masonry'
+  | 'demising'
+  | 'shaft'
+  | 'foundation'
+  | 'other';
+
+/** A measured wall — single segment, by type. */
+export interface TakeoffWall {
+  id: string;
+  /** Wall-type tag from the wall schedule (e.g. "W1", "INT-1") if visible. */
+  typeCode?: string;
+  /** Wall classification — drives buyout grouping (siding vs. drywall, etc.). */
+  category?: TakeoffWallCategory;
+  /** Plain-English description (e.g. "Interior 2x4 stud, 5/8 GWB both sides"). */
+  description: string;
+  /** Linear feet (or meters if metric) of this wall type. */
+  lengthFt: number;
+  /** Wall height in feet. Defaults to 9 if not visible — flagged low confidence. */
+  heightFt: number;
+  /** Square feet of wall surface (lengthFt × heightFt × sides). Computed; not from AI. */
+  areaSqFt?: number;
+  /** CSI MasterFormat division for buyout grouping (e.g. "06 1000" rough carpentry). */
+  csiDivision?: string;
+  confidence: TakeoffConfidence;
+  sourcePages: number[];
+  /** Free-form notes from the AI about ambiguity ("partial dimension visible"). */
+  notes?: string;
+}
+
+/** A floor area — usually one per room. */
+export interface TakeoffFloorArea {
+  id: string;
+  /** Room name from the plan label (e.g. "Master Bedroom"). */
+  roomName: string;
+  /** Floor finish callout (e.g. "T-1", "WOOD-A") if visible. */
+  finishCode?: string;
+  /** NET interior area (excluding walls) in square feet. */
+  areaSqFt: number;
+  /** Floor level (1 = ground, 2 = upper, 0 = basement, -1 = sub-basement). Optional. */
+  level?: number;
+  /** Ceiling height — pulled from section/elevation if visible, otherwise typical. */
+  ceilingHeightFt: number;
+  /** CSI MasterFormat division (e.g. "09 6000" floor finishes). */
+  csiDivision?: string;
+  confidence: TakeoffConfidence;
+  sourcePages: number[];
+  notes?: string;
+}
+
+/** A door entry — usually counted per type from the door schedule. */
+export interface TakeoffDoor {
+  id: string;
+  /** Door schedule mark (e.g. "D-1", "100A"). */
+  mark?: string;
+  /** Type description (e.g. "3'-0" x 6'-8" SC HC paint grade"). */
+  description: string;
+  /** Width in inches (e.g. 36 for 3'-0"). */
+  widthIn: number;
+  heightIn: number;
+  /** Optional flag — interior vs exterior (drives weather/hardware bidding). */
+  exterior?: boolean;
+  count: number;
+  /** CSI division (e.g. "08 1400" wood doors, "08 1100" metal doors). */
+  csiDivision?: string;
+  confidence: TakeoffConfidence;
+  sourcePages: number[];
+}
+
+/** A window entry. */
+export interface TakeoffWindow {
+  id: string;
+  mark?: string;
+  description: string;
+  widthIn: number;
+  heightIn: number;
+  count: number;
+  /** CSI division (e.g. "08 5000" windows). */
+  csiDivision?: string;
+  confidence: TakeoffConfidence;
+  sourcePages: number[];
+}
+
+/** A finish entry — by surface (floor/wall/ceiling/base/etc) and material. */
+export interface TakeoffFinish {
+  id: string;
+  surface: 'floor' | 'wall' | 'ceiling' | 'base' | 'casing' | 'crown' | 'trim' | 'other';
+  /** Finish callout if visible (e.g. "PT-1", "T-2"). */
+  code?: string;
+  description: string;
+  /** Quantity unit + value. Most finishes are sqft; trim/base/crown are linear ft. */
+  quantity: number;
+  unit: 'sqft' | 'lf' | 'ea';
+  /** CSI MasterFormat division for buyout grouping. */
+  csiDivision?: string;
+  confidence: TakeoffConfidence;
+  sourcePages: number[];
+}
+
+/** A fixture entry — toilets, sinks, light fixtures, HVAC units, etc. */
+export interface TakeoffFixture {
+  id: string;
+  category: 'plumbing' | 'electrical' | 'hvac' | 'appliance' | 'other';
+  /** Mark/tag (e.g. "WC-1", "L-3"). */
+  mark?: string;
+  description: string;
+  count: number;
+  /** CSI division (22 plumbing, 26 electrical, 23 HVAC, 11 appliances). */
+  csiDivision?: string;
+  confidence: TakeoffConfidence;
+  sourcePages: number[];
+}
+
+/** Concrete or other bulk material in volume terms. */
+export interface TakeoffBulkMaterial {
+  id: string;
+  /** What the material is (concrete, asphalt, gravel base, etc). */
+  description: string;
+  /** Quantity. */
+  quantity: number;
+  unit: 'cy' | 'sqft' | 'tons' | 'lbs' | 'cf';
+  confidence: TakeoffConfidence;
+  sourcePages: number[];
+  notes?: string;
+}
+
+/** Issues / unclear areas the AI flagged for human review. */
+export interface TakeoffConcern {
+  severity: 'critical' | 'moderate' | 'minor';
+  /** Short headline (e.g. "Wall heights not dimensioned"). */
+  topic: string;
+  /** Why it matters in 1-2 sentences. */
+  detail: string;
+  /** What the user should do (request RFI, dimension, get sub bid, etc). */
+  recommendation: string;
+  sourcePages: number[];
+}
+
+/** A callout / spec code seen on the plans (e.g. "PT-1", "T-2", "WC-1"). */
+export interface TakeoffCallout {
+  /** The exact code as drawn (e.g. "PT-1"). */
+  code: string;
+  /** What surface or category it labels — wall finish, floor finish, fixture, etc. */
+  context: 'wall_finish' | 'floor_finish' | 'ceiling_finish' | 'fixture' | 'door' | 'window' | 'other';
+  /** Times the code appeared across pages. */
+  occurrences: number;
+  sourcePages: number[];
+}
+
+/** Field-side verification: photo + GPS + note tied to a takeoff row. */
+export interface TakeoffFieldVerification {
+  id: string;
+  /** "section:id" of the row this verifies — same key the overrides map uses. */
+  rowKey: string;
+  /** Local file URI on mobile, blob URL on web. Not uploaded yet — mobile-only feature. */
+  photoUri: string;
+  /** "AI says X, I measured Y" note from the user. */
+  note?: string;
+  /** Decimal GPS coords if available. */
+  latitude?: number;
+  longitude?: number;
+  /** What the user actually measured if they entered it. */
+  measuredQuantity?: number;
+  /** ISO timestamp. */
+  capturedAt: string;
+}
+
+/** A single spec entry pulled from the architect's spec book. */
+export interface SpecEntry {
+  /** The callout code as written in the spec (e.g. "PT-1"). */
+  code: string;
+  /** CSI section if visible (e.g. "09 9123" interior painting). */
+  csiSection?: string;
+  manufacturer?: string;
+  product?: string;
+  /** SKU / model number if listed. */
+  sku?: string;
+  /** Color / finish description (e.g. "Eggshell SW7036 Accessible Beige"). */
+  finish?: string;
+  /** Free-form notes on installation, substrate prep, etc. */
+  notes?: string;
+  confidence: TakeoffConfidence;
+  sourcePages: number[];
+}
+
+/** Result of running the spec book through the AI. */
+export interface SpecMatchResult {
+  /** All extracted spec entries, keyed by code. */
+  entries: SpecEntry[];
+  /** Callout codes that appeared on the plans but had no spec match. */
+  unmatched: string[];
+  /** Quality / completeness signals. */
+  confidenceOverall: TakeoffConfidence;
+  confidenceExplanation: string;
+}
+
+/** The full takeoff result. */
+export interface TakeoffResult {
+  /** Summary of what these drawings represent (1-2 sentences). */
+  summary: string;
+  /** Detected drawing scale per page set. */
+  scale: TakeoffScale;
+  /** Per-page meta — what each page is and how readable it is. */
+  drawingsSeen: Array<{
+    page: number;
+    type: string;
+    scope: string;
+    readability: 'clear' | 'partial' | 'poor';
+  }>;
+  /** Estimated total square footage across the project (gross, ground floor + upper). */
+  estimatedSquareFootage?: number;
+  /** GROSS exterior envelope SF (separate from sum of room areas). */
+  grossEnvelopeSqFt?: number;
+
+  // Quantity rollups
+  walls: TakeoffWall[];
+  floorAreas: TakeoffFloorArea[];
+  doors: TakeoffDoor[];
+  windows: TakeoffWindow[];
+  finishes: TakeoffFinish[];
+  fixtures: TakeoffFixture[];
+  bulkMaterials: TakeoffBulkMaterial[];
+
+  /** Spec callouts seen on the drawings — feeds the Phase 2c spec matcher. */
+  callouts?: TakeoffCallout[];
+
+  // Quality signals
+  concerns: TakeoffConcern[];
+  /** Items the user should manually verify before relying on the takeoff. */
+  doubleCheck: string[];
+  /** Trades / scopes the AI couldn't extract (no MEP drawings, no site plan, etc). */
+  missingScopes: string[];
+  /** Rolled-up confidence on the entire takeoff. */
+  confidenceOverall: TakeoffConfidence;
+  confidenceExplanation: string;
 }

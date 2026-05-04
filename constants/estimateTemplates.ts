@@ -5,11 +5,11 @@ export interface EstimateTemplate {
   description: string;
   priceRange: string;
   defaultSqft: number;
-  assemblies: Array<{
+  assemblies: {
     assemblyId: string;
     defaultQuantity: number;
     unit: string;
-  }>;
+  }[];
 }
 
 export const ESTIMATE_TEMPLATES: EstimateTemplate[] = [

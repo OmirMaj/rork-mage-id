@@ -10,6 +10,8 @@ import {
   Plus, Search, Award, Sparkles, CalendarDays, ChevronRight, DollarSign,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 interface BidSource {
   name: string;
@@ -25,7 +27,7 @@ const LIVE_BID_SOURCES: BidSource[] = [
     name: 'SAM.gov',
     description: 'Federal contract opportunities — all US government bids',
     url: 'https://sam.gov/search/?index=opp&sort=-modifiedDate&page=1&pageSize=25',
-    color: '#1565C0',
+    color: Colors.infoDark,
     type: 'Federal',
     hideCount: true,
   },
@@ -33,21 +35,21 @@ const LIVE_BID_SOURCES: BidSource[] = [
     name: 'NY State Contract Reporter',
     description: 'All NYS agency procurement notices & bids',
     url: 'https://nyspro.ogs.ny.gov/content/nys-contract-reporter',
-    color: '#2E7D32',
+    color: Colors.successDark,
     type: 'State',
   },
   {
     name: 'NYC PASSPort',
     description: 'New York City procurement portal — municipal bids',
     url: 'https://passport.cityofnewyork.us/page.aspx/en/rfp/request_browse_public',
-    color: '#E65100',
+    color: Colors.warningDark,
     type: 'Municipal',
   },
   {
     name: 'BidNet Direct',
     description: 'State & local government bids across all 50 states',
     url: 'https://www.bidnetdirect.com/public/solicitations/open',
-    color: '#6A1B9A',
+    color: Colors.purple,
     type: 'Multi-State',
   },
   {
@@ -183,8 +185,8 @@ export default function DiscoverScreen() {
   return (
     <View style={styles.container}>
       <View style={[styles.headerArea, { paddingTop: insets.top }]}>
-        <Text style={styles.largeTitle}>Discover</Text>
-        <Text style={styles.headerSubtitle}>Bids, companies, tools & more</Text>
+        <Text style={styles.largeTitle}>Find Work</Text>
+        <Text style={styles.headerSubtitle}>Bids · companies · AI tools · marketplace</Text>
 
         <ScrollView
           ref={tabScrollRef}
@@ -225,7 +227,7 @@ export default function DiscoverScreen() {
             activeOpacity={0.7}
           >
             <View style={[styles.quickActionIcon, { backgroundColor: '#1565C015' }]}>
-              <Plus size={16} color="#1565C0" />
+              <Plus size={16} color={Colors.infoDark} />
             </View>
             <Text style={styles.quickActionLabel}>Post Bid</Text>
           </TouchableOpacity>
@@ -252,17 +254,21 @@ export default function DiscoverScreen() {
         </View>
 
         <View style={styles.sectionHeaderRow}>
-          <View style={[styles.sectionAccent, { backgroundColor: '#0A84FF' }]} />
+          <View style={[styles.sectionAccent, { backgroundColor: Colors.primary }]} />
           <View>
             <Text style={styles.sectionLabel}>SMART TOOLS</Text>
             <Text style={styles.sectionHint}>AI estimates, schedules, code checks & pricing</Text>
           </View>
         </View>
 
+        {/* Smart-tools group: all share the SAME tone (`primary`) so the
+            section reads as one coherent set of AI-powered tools. The
+            previous rainbow (5 different system-color hexes) was pure
+            decoration — color carried no meaning, just noise. */}
         <NavigationCard
           icon={Sparkles}
-          iconColor="#0A84FF"
-          iconBg="#0A84FF15"
+          iconColor={Colors.primary}
+          iconBg={Colors.primary + '15'}
           title="Estimator"
           subtitle="AI-powered quick estimates & templates"
           onPress={() => navigateTo('/(tabs)/discover/estimate')}
@@ -270,8 +276,8 @@ export default function DiscoverScreen() {
 
         <NavigationCard
           icon={Award}
-          iconColor="#5E5CE6"
-          iconBg="#5E5CE615"
+          iconColor={Colors.primary}
+          iconBg={Colors.primary + '15'}
           title="Quick Estimate Wizard"
           subtitle="Answer 8 questions, get an AI-generated estimate"
           onPress={() => navigateTo('/estimate-wizard')}
@@ -279,8 +285,8 @@ export default function DiscoverScreen() {
 
         <NavigationCard
           icon={Gavel}
-          iconColor="#AF52DE"
-          iconBg="#AF52DE15"
+          iconColor={Colors.primary}
+          iconBg={Colors.primary + '15'}
           title="Construction AI"
           subtitle="Ask building code questions, get instant answers"
           onPress={() => navigateTo('/(tabs)/construction-ai')}
@@ -288,8 +294,8 @@ export default function DiscoverScreen() {
 
         <NavigationCard
           icon={CalendarDays}
-          iconColor="#FF9F0A"
-          iconBg="#FF9F0A15"
+          iconColor={Colors.primary}
+          iconBg={Colors.primary + '15'}
           title="Schedule Maker"
           subtitle="AI-generate or template-based schedules"
           onPress={() => navigateTo('/(tabs)/discover/schedule')}
@@ -297,8 +303,8 @@ export default function DiscoverScreen() {
 
         <NavigationCard
           icon={DollarSign}
-          iconColor="#34C759"
-          iconBg="#34C75915"
+          iconColor={Colors.primary}
+          iconBg={Colors.primary + '15'}
           title="Materials Pricing"
           subtitle="Live prices, regional rates & cost tracking"
           onPress={() => navigateTo('/(tabs)/discover/materials')}
@@ -321,8 +327,11 @@ export default function DiscoverScreen() {
           onPress={() => navigateTo('/(tabs)/mage-id-bids')}
         />
 
+        {/* External-jobs group: all share `info` (blue) tone — they're
+            inbound opportunities you sift through. Keeps semantic
+            grouping while killing the unmotivated rainbow. */}
         <View style={[styles.sectionHeaderRow, { marginTop: 24 }]}>
-          <View style={[styles.sectionAccent, { backgroundColor: '#1565C0' }]} />
+          <View style={[styles.sectionAccent, { backgroundColor: Colors.info }]} />
           <View>
             <Text style={styles.sectionLabel}>ONLINE JOBS & BIDS</Text>
             <Text style={styles.sectionHint}>Government contracts, private bids & company listings</Text>
@@ -331,39 +340,41 @@ export default function DiscoverScreen() {
 
         <NavigationCard
           icon={Gavel}
-          iconColor="#1565C0"
-          iconBg="#1565C015"
+          iconColor={Colors.info}
+          iconBg={Colors.info + '15'}
           title="Public Bids"
           subtitle="Government & private bid opportunities"
           count={1317}
-          countColor="#1565C0"
+          countColor={Colors.info}
           onPress={() => navigateTo('/(tabs)/discover/bids')}
         />
 
         <NavigationCard
           icon={Building2}
-          iconColor={Colors.primary}
-          iconBg={Colors.primary + '15'}
+          iconColor={Colors.info}
+          iconBg={Colors.info + '15'}
           title="Companies"
           subtitle="Bond capacity & certifications"
           count={2957}
-          countColor={Colors.primary}
+          countColor={Colors.info}
           onPress={() => navigateTo('/(tabs)/discover/companies')}
         />
 
         <NavigationCard
           icon={Briefcase}
-          iconColor={Colors.accent}
-          iconBg={Colors.accent + '15'}
+          iconColor={Colors.info}
+          iconBg={Colors.info + '15'}
           title="Job Listings"
           subtitle="Construction jobs & direct hire openings"
           count={869}
-          countColor={Colors.accent}
+          countColor={Colors.info}
           onPress={() => navigateTo('/(tabs)/discover/hire')}
         />
 
+        {/* Live-databases group: third tone (`accent` orange) — these are
+            external resources you visit, not work happening in MAGE ID. */}
         <View style={[styles.sectionHeaderRow, { marginTop: 24 }]}>
-          <View style={[styles.sectionAccent, { backgroundColor: '#6A1B9A' }]} />
+          <View style={[styles.sectionAccent, { backgroundColor: Colors.accent }]} />
           <View>
             <Text style={styles.sectionLabel}>LIVE BID DATABASES</Text>
             <Text style={styles.sectionHint}>Browse real government & private bid portals — updated daily</Text>
@@ -417,8 +428,8 @@ const styles = StyleSheet.create({
     borderBottomWidth: 0.5,
     borderBottomColor: Colors.borderLight,
   },
-  largeTitle: { fontSize: 34, fontWeight: '700' as const, color: Colors.text, letterSpacing: -0.5, marginTop: 8 },
-  headerSubtitle: { fontSize: 15, color: Colors.textSecondary, marginTop: 2, marginBottom: 14 },
+  largeTitle: { fontSize: Type.largeTitle.fontSize, fontWeight: '700' as const, color: Colors.text, letterSpacing: -0.5, marginTop: 8 },
+  headerSubtitle: { fontSize: Type.subhead.fontSize, color: Colors.textSecondary, marginTop: 2, marginBottom: 14 },
   tabBarScroll: { marginHorizontal: -20 },
   tabBar: {
     flexDirection: 'row',
@@ -442,7 +453,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.text,
   },
   tabPillText: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
     color: Colors.textSecondary,
   },
@@ -460,7 +471,7 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     backgroundColor: Colors.surface,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     paddingVertical: 14,
     gap: 8,
     borderWidth: 1,
@@ -469,12 +480,12 @@ const styles = StyleSheet.create({
   quickActionIcon: {
     width: 36,
     height: 36,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
     alignItems: 'center',
     justifyContent: 'center',
   },
   quickActionLabel: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     fontWeight: '600' as const,
     color: Colors.text,
   },
@@ -493,13 +504,13 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
   },
   sectionLabel: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
     letterSpacing: 0.6,
   },
   sectionHint: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: Colors.textSecondary,
     lineHeight: 17,
     marginTop: 1,
@@ -507,7 +518,7 @@ const styles = StyleSheet.create({
   navCard: {
     marginHorizontal: 16,
     marginBottom: 10,
-    borderRadius: 16,
+    borderRadius: Tokens.radius.panel,
     backgroundColor: Colors.surface,
     // Black outline matches the rest of the app's card surfaces.
     // Drops the shadow — the defined edge carries enough weight.
@@ -523,13 +534,13 @@ const styles = StyleSheet.create({
   navIconWrap: {
     width: 48,
     height: 48,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     alignItems: 'center',
     justifyContent: 'center',
   },
   navInfo: { flex: 1, gap: 2 },
-  navTitle: { fontSize: 17, fontWeight: '700' as const, color: Colors.text },
-  navSubtitle: { fontSize: 13, color: Colors.textSecondary },
+  navTitle: { fontSize: Type.body.fontSize, fontWeight: '700' as const, color: Colors.text },
+  navSubtitle: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary },
   navRight: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -538,10 +549,10 @@ const styles = StyleSheet.create({
   navCountBadge: {
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
   },
   navCountText: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '700' as const,
   },
   bidSourcesGrid: {
@@ -554,7 +565,7 @@ const styles = StyleSheet.create({
   bidSourceCard: {
     width: '47.5%' as any,
     backgroundColor: Colors.surface,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     padding: 14,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
@@ -572,18 +583,18 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   bidSourceTypeText: { fontSize: 9, fontWeight: '700' as const, textTransform: 'uppercase' as const },
-  bidSourceName: { fontSize: 14, fontWeight: '700' as const, color: Colors.text, marginBottom: 4 },
-  bidSourceDesc: { fontSize: 11, color: Colors.textSecondary, lineHeight: 15, marginBottom: 10 },
+  bidSourceName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text, marginBottom: 4 },
+  bidSourceDesc: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, lineHeight: 15, marginBottom: 10 },
   bidSourceFooter: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
   },
-  bidSourceLink: { fontSize: 11, fontWeight: '600' as const },
+  bidSourceLink: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const },
   tipCard: {
     marginHorizontal: 16,
     backgroundColor: Colors.primary + '08',
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     padding: 16,
     borderWidth: 1,
     borderColor: Colors.primary + '18',
@@ -595,6 +606,6 @@ const styles = StyleSheet.create({
     gap: 8,
     marginBottom: 8,
   },
-  tipTitle: { fontSize: 14, fontWeight: '700' as const, color: Colors.primary },
-  tipText: { fontSize: 13, color: Colors.textSecondary, lineHeight: 19 },
+  tipTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.primary },
+  tipText: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, lineHeight: 19 },
 });

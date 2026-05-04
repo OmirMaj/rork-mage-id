@@ -50,6 +50,14 @@
         {
           "iosUrlScheme": "com.googleusercontent.apps.264795467031-qi8l5k0iliiqf5fg502jk94pbciu0bkt"
         }
+      ],
+      [
+        "@sentry/react-native/expo",
+        {
+          "url": "https://sentry.io/",
+          "project": "react-native",
+          "organization": "mage-id"
+        }
       ]
     ],
     "experiments": {

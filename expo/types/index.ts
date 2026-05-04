@@ -148,11 +148,11 @@ export interface ScheduleTask {
   baselineStartDay?: number;
   baselineEndDay?: number;
   linkedEstimateItems?: string[];
-  photos?: Array<{
+  photos?: {
     uri: string;
     timestamp: string;
     note?: string;
-  }>;
+  }[];
 }
 
 export interface ScheduleRiskItem {

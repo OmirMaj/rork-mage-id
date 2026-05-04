@@ -144,39 +144,74 @@ serve(async (req) => {
       return true;
     });
 
-    // Fan out via the existing notify dispatcher. Fire-and-forget per
-    // contractor — total time bounded by Promise.all but we don't wait
-    // longer than 10s for any one.
-    await Promise.all(uniq.map(async c => {
-      try {
-        await fetch(`${SUPABASE_URL}/functions/v1/notify`, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            event: 'nearby_rfp_posted',
-            source_table: 'public_bids',
-            source_id: rfp.id,
-            payload: {
-              contractor_user_id: c.user_id,
-              rfp_id: rfp.id,
-              title: rfp.title,
-              city: rfp.city,
-              state: rfp.state,
-              scope_excerpt: (rfp.scope_description ?? '').slice(0, 220),
-              budget_min: rfp.budget_min,
-              budget_max: rfp.budget_max,
-            },
-          }),
-        });
-      } catch (err) {
-        console.warn('[notify-nearby] dispatch failed for', c.user_id, err);
-      }
-    }));
+    // Fan out via the existing notify dispatcher, but PACE the starts so
+    // we don't burst Resend. Stress-1 found that firing 50 events in
+    // parallel hit Resend's 5/sec rate limit and lost 88% to 429s.
+    // Resend Pro is 10/sec, free is 5/sec — we stagger at 250ms (4/sec)
+    // so we stay safely under either tier. Each notify call still runs
+    // concurrently after its scheduled start; we just delay when each
+    // one *begins*. For 100 bidders: total wall time ≈ 25s + notify
+    // latency. The edge-function 150s budget covers up to ~580 bidders.
+    //
+    // We also cap at MAX_FAN_OUT to prevent a runaway broadcast from
+    // exhausting the function. If a homeowner's RFP somehow matches
+    // 600+ contractors, we notify the first 500 and log the rest;
+    // realistic match counts are 5–50.
+    const MAX_FAN_OUT = 500;
+    const SPACE_MS = 250;
+    const recipients = uniq.slice(0, MAX_FAN_OUT);
+    const skipped = uniq.length - recipients.length;
+    if (skipped > 0) {
+      console.warn(`[notify-nearby] capped fan-out at ${MAX_FAN_OUT}, skipped ${skipped} extra recipients for rfp ${rfp.id}`);
+    }
 
-    return jsonResponse({ success: true, matched_count: uniq.length });
+    let dispatched = 0;
+    let failed = 0;
+    const dispatchPromises = recipients.map((c, i) =>
+      new Promise<void>((resolve) => {
+        setTimeout(async () => {
+          try {
+            const resp = await fetch(`${SUPABASE_URL}/functions/v1/notify`, {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                event: 'nearby_rfp_posted',
+                source_table: 'public_bids',
+                source_id: rfp.id,
+                payload: {
+                  contractor_user_id: c.user_id,
+                  rfp_id: rfp.id,
+                  title: rfp.title,
+                  city: rfp.city,
+                  state: rfp.state,
+                  scope_excerpt: (rfp.scope_description ?? '').slice(0, 220),
+                  budget_min: rfp.budget_min,
+                  budget_max: rfp.budget_max,
+                },
+              }),
+            });
+            if (resp.ok) dispatched++; else failed++;
+          } catch (err) {
+            failed++;
+            console.warn('[notify-nearby] dispatch failed for', c.user_id, err);
+          } finally {
+            resolve();
+          }
+        }, i * SPACE_MS);
+      }),
+    );
+    await Promise.all(dispatchPromises);
+
+    return jsonResponse({
+      success: true,
+      matched_count: uniq.length,
+      dispatched,
+      failed,
+      skipped_over_cap: skipped,
+    });
   } catch (e) {
     console.error('[notify-nearby-contractors] failed', e);
     return jsonResponse({ success: false, error: String((e as Error).message ?? e) }, 500);

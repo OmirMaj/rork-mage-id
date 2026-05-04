@@ -13,6 +13,8 @@ import { CheckCircle2, ChevronRight } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ScheduleTask } from '@/types';
 import { getPhaseColor, getStatusColor } from '@/utils/scheduleEngine';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 interface SwipeableTaskCardProps {
   task: ScheduleTask;
@@ -178,12 +180,12 @@ const s = StyleSheet.create({
   wrapper: {
     position: 'relative' as const,
     overflow: 'hidden' as const,
-    borderRadius: 16,
+    borderRadius: Tokens.radius.panel,
   },
   swipeBackground: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#34C759',
-    borderRadius: 16,
+    backgroundColor: Colors.success,
+    borderRadius: Tokens.radius.panel,
     flexDirection: 'row',
     alignItems: 'center',
     paddingLeft: 16,
@@ -196,7 +198,7 @@ const s = StyleSheet.create({
     zIndex: 2,
   },
   swipeBgText: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '800' as const,
     color: '#FFF',
   },
@@ -208,15 +210,15 @@ const s = StyleSheet.create({
     zIndex: 1,
   },
   cardContainer: {
-    borderRadius: 16,
+    borderRadius: Tokens.radius.panel,
     overflow: 'hidden' as const,
   },
   cardTouchable: {
-    borderRadius: 16,
+    borderRadius: Tokens.radius.panel,
   },
   flashOverlay: {
     ...StyleSheet.absoluteFillObject,
-    borderRadius: 16,
+    borderRadius: Tokens.radius.panel,
   },
 });
 

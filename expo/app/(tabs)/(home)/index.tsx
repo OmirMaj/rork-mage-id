@@ -2,7 +2,7 @@ import React, { useCallback, useState, useMemo, useEffect } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator,
   Platform, Modal, TextInput, Pressable, ScrollView, Alert, KeyboardAvoidingView,
-} from 'react-native';
+ TouchableOpacity as TO } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -11,7 +11,6 @@ import {
   BarChart3, TrendingDown, Package, DollarSign, Percent, ShoppingCart, ArrowDownRight,
   Receipt, Wallet,
 } from 'lucide-react-native';
-import { TouchableOpacity as TO } from 'react-native';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import ProjectCard from '@/components/ProjectCard';

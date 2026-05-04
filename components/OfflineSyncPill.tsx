@@ -21,6 +21,8 @@ import { Alert, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react
 import { CloudOff } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useOfflineQueueDepth } from '@/hooks/useOfflineQueueDepth';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 interface Props {
   /** Optional: visual variant. 'compact' shows just the icon + number; 'full' adds the word "queued". */
@@ -58,12 +60,12 @@ const styles = StyleSheet.create({
   pill: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     backgroundColor: 'rgba(255, 159, 27, 0.12)',
-    paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999,
+    paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.full,
     borderWidth: 1, borderColor: 'rgba(255, 159, 27, 0.35)',
   },
   text: {
     color: Colors.warning,
-    fontSize: 11, fontWeight: '700',
+    fontSize: Type.caption2.fontSize, fontWeight: '700',
     fontVariant: ['tabular-nums'],
   },
 });

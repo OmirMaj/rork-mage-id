@@ -41,6 +41,8 @@ import { parsePunchFromTranscript, sentenceCase, titleCase } from '@/utils/voice
 import { stampPhotoLocation, type PhotoGeoStamp } from '@/utils/photoGeoStamp';
 import type { PunchItem, PunchItemPriority, SubTrade, Subcontractor } from '@/types';
 import { SUB_TRADES } from '@/types';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 // Map the loose AI-trade string to the strict SubTrade enum used in
 // the data model. Anything not recognized falls back to 'General'.
@@ -305,9 +307,7 @@ function WalkInner({ projectName, projectId, subcontractors, onAdd, onDelete, on
 
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} style={styles.headerBtn} hitSlop={12}>
-          <ChevronLeft size={22} color={Colors.text} />
-        </TouchableOpacity>
+        <TouchableOpacity onPress={onBack} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back"><ChevronLeft size={22} color={Colors.text} /></TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerEyebrow}>Walk Mode · Punch</Text>
           <Text style={styles.headerTitle} numberOfLines={1}>{projectName}</Text>
@@ -338,7 +338,7 @@ function WalkInner({ projectName, projectId, subcontractors, onAdd, onDelete, on
               testID="walk-location"
             />
             {draft.location.length > 0 && (
-              <TouchableOpacity onPress={() => setDraft(d => ({ ...d, location: '' }))} hitSlop={8}>
+              <TouchableOpacity onPress={() => setDraft(d => ({ ...d, location: '' }))} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
                 <X size={14} color={Colors.textMuted} />
               </TouchableOpacity>
             )}
@@ -382,7 +382,7 @@ function WalkInner({ projectName, projectId, subcontractors, onAdd, onDelete, on
             {draft.photoUri && (
               <View style={styles.photoPreview}>
                 <Image source={{ uri: draft.photoUri }} style={styles.photoImg} />
-                <TouchableOpacity style={styles.photoRemove} onPress={() => setDraft(d => ({ ...d, photoUri: undefined }))}>
+                <TouchableOpacity style={styles.photoRemove} onPress={() => setDraft(d => ({ ...d, photoUri: undefined }))} accessibilityRole="button" accessibilityLabel="Close">
                   <X size={12} color="#fff" />
                 </TouchableOpacity>
               </View>
@@ -479,7 +479,7 @@ function WalkInner({ projectName, projectId, subcontractors, onAdd, onDelete, on
           <View style={styles.modalSheet}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Pick trade</Text>
-              <TouchableOpacity onPress={() => setShowTradeOverride(false)} hitSlop={12}>
+              <TouchableOpacity onPress={() => setShowTradeOverride(false)} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close">
                 <X size={18} color={Colors.text} />
               </TouchableOpacity>
             </View>
@@ -519,9 +519,7 @@ function ProjectPicker({ projects, onPick, onBack }: {
     <View style={[styles.root, { paddingTop: insets.top }]}>
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} style={styles.headerBtn} hitSlop={12}>
-          <ChevronLeft size={22} color={Colors.text} />
-        </TouchableOpacity>
+        <TouchableOpacity onPress={onBack} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back"><ChevronLeft size={22} color={Colors.text} /></TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerEyebrow}>Walk Mode · Punch</Text>
           <Text style={styles.headerTitle}>Pick a project</Text>
@@ -581,49 +579,49 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1, borderBottomColor: Colors.borderLight,
   },
   headerBtn: {
-    width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center',
+    width: 36, height: 36, borderRadius: Tokens.radius.xl, alignItems: 'center', justifyContent: 'center',
     backgroundColor: Colors.fillTertiary,
   },
   headerEyebrow: { fontSize: 10, color: Colors.primary, fontWeight: '800', letterSpacing: 2, textTransform: 'uppercase' },
-  headerTitle: { fontSize: 17, fontWeight: '700', color: Colors.text },
+  headerTitle: { fontSize: Type.body.fontSize, fontWeight: '700', color: Colors.text },
   sessionChip: {
-    minWidth: 28, height: 28, borderRadius: 14, paddingHorizontal: 8,
+    minWidth: 28, height: 28, borderRadius: Tokens.radius.lg, paddingHorizontal: 8,
     backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center',
   },
-  sessionChipText: { color: Colors.textOnPrimary, fontWeight: '800', fontSize: 12 },
+  sessionChipText: { color: Colors.textOnPrimary, fontWeight: '800', fontSize: Type.caption1.fontSize },
 
   locationRow: {
     flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 14, marginTop: 14,
-    backgroundColor: Colors.card, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10,
+    backgroundColor: Colors.card, borderRadius: Tokens.radius.card, paddingHorizontal: 14, paddingVertical: 10,
     borderWidth: 1, borderColor: Colors.borderLight,
   },
-  locationInput: { flex: 1, fontSize: 14, color: Colors.text },
+  locationInput: { flex: 1, fontSize: Type.bodyCompact.fontSize, color: Colors.text },
 
   descCard: {
-    backgroundColor: Colors.card, borderRadius: 14, padding: 16, marginHorizontal: 14, marginTop: 12,
+    backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 16, marginHorizontal: 14, marginTop: 12,
     borderWidth: 1, borderColor: Colors.borderLight,
   },
   descInput: {
-    minHeight: 110, fontSize: 18, color: Colors.text, textAlignVertical: 'top',
+    minHeight: 110, fontSize: Type.subheadline.fontSize, color: Colors.text, textAlignVertical: 'top',
     lineHeight: 24, fontWeight: '500',
   },
 
   metaRow: { flexDirection: 'row', gap: 8, marginTop: 12, flexWrap: 'wrap' },
   metaChip: {
     flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 6,
-    borderRadius: 8, backgroundColor: Colors.fillSecondary,
+    borderRadius: Tokens.radius.sm, backgroundColor: Colors.fillSecondary,
   },
   metaDot: { width: 8, height: 8, borderRadius: 4 },
-  metaChipText: { fontSize: 12, fontWeight: '700', color: Colors.text },
+  metaChipText: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: Colors.text },
   metaChipHint: { fontSize: 10, color: Colors.textMuted },
   metaChipGhost: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 6 },
-  metaChipGhostText: { fontSize: 11, color: Colors.primary, fontWeight: '600' },
+  metaChipGhostText: { fontSize: Type.caption2.fontSize, color: Colors.primary, fontWeight: '600' },
 
   photoPreview: {
     marginTop: 12, position: 'relative', alignSelf: 'flex-start',
-    borderRadius: 10, overflow: 'hidden',
+    borderRadius: Tokens.radius.md, overflow: 'hidden',
   },
-  photoImg: { width: 110, height: 82, borderRadius: 10 },
+  photoImg: { width: 110, height: 82, borderRadius: Tokens.radius.md },
   photoRemove: {
     position: 'absolute', top: 4, right: 4, width: 22, height: 22, borderRadius: 11,
     backgroundColor: 'rgba(0,0,0,0.7)', alignItems: 'center', justifyContent: 'center',
@@ -633,64 +631,64 @@ const styles = StyleSheet.create({
   voiceWrap: { flex: 1, alignItems: 'center' },
   cameraBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 12,
-    borderRadius: 12, backgroundColor: Colors.fillSecondary,
+    borderRadius: Tokens.radius.card, backgroundColor: Colors.fillSecondary,
   },
-  cameraBtnText: { fontSize: 13, fontWeight: '700', color: Colors.text },
+  cameraBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.text },
   aiPunchBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
     backgroundColor: Colors.primary + '0F',
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     paddingHorizontal: 14,
     paddingVertical: 12,
     borderWidth: 1,
     borderColor: Colors.primary + '40',
     marginTop: 10,
   },
-  aiPunchBtnTitle: { fontSize: 14, fontWeight: '700' as const, color: Colors.primary },
-  aiPunchBtnSub: { fontSize: 12, color: Colors.textMuted, marginTop: 2 },
+  aiPunchBtnTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.primary },
+  aiPunchBtnSub: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2 },
 
   saveBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    marginHorizontal: 14, marginTop: 14, paddingVertical: 16, borderRadius: 14,
+    marginHorizontal: 14, marginTop: 14, paddingVertical: 16, borderRadius: Tokens.radius.lg,
     backgroundColor: Colors.primary,
   },
   saveBtnDisabled: { backgroundColor: Colors.textMuted },
-  saveBtnText: { color: Colors.textOnPrimary, fontWeight: '800', fontSize: 15 },
+  saveBtnText: { color: Colors.textOnPrimary, fontWeight: '800', fontSize: Type.subhead.fontSize },
 
-  hint: { fontSize: 11, color: Colors.textMuted, textAlign: 'center', marginHorizontal: 20, marginTop: 10, lineHeight: 15 },
+  hint: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, textAlign: 'center', marginHorizontal: 20, marginTop: 10, lineHeight: 15 },
 
   sessionCard: {
-    marginHorizontal: 14, marginTop: 20, padding: 14, borderRadius: 14,
+    marginHorizontal: 14, marginTop: 20, padding: 14, borderRadius: Tokens.radius.lg,
     backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.borderLight,
   },
-  sessionTitle: { fontSize: 11, color: Colors.primary, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 1.1, marginBottom: 10 },
+  sessionTitle: { fontSize: Type.caption2.fontSize, color: Colors.primary, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 1.1, marginBottom: 10 },
   sessionRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-start', paddingVertical: 8, borderTopWidth: 1, borderTopColor: Colors.borderLight },
   sessionDot: { width: 8, height: 8, borderRadius: 4, marginTop: 6 },
-  sessionDesc: { fontSize: 13, color: Colors.text, fontWeight: '600' },
-  sessionMeta: { fontSize: 11, color: Colors.textSecondary, marginTop: 2 },
+  sessionDesc: { fontSize: Type.footnote.fontSize, color: Colors.text, fontWeight: '600' },
+  sessionMeta: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, marginTop: 2 },
 
   emptyCard: {
     flexDirection: 'row', gap: 10, alignItems: 'flex-start',
-    marginHorizontal: 14, marginTop: 20, padding: 14, borderRadius: 14,
+    marginHorizontal: 14, marginTop: 20, padding: 14, borderRadius: Tokens.radius.lg,
     backgroundColor: Colors.fillSecondary,
   },
-  emptyText: { flex: 1, fontSize: 12, color: Colors.textSecondary, lineHeight: 17 },
+  emptyText: { flex: 1, fontSize: Type.caption1.fontSize, color: Colors.textSecondary, lineHeight: 17 },
 
   modalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: Colors.overlay },
   modalSheet: { backgroundColor: Colors.card, borderTopLeftRadius: 18, borderTopRightRadius: 18, maxHeight: '70%' },
   modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 14, borderBottomWidth: 1, borderBottomColor: Colors.borderLight },
-  modalTitle: { fontSize: 15, fontWeight: '700', color: Colors.text },
-  tradeOption: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 10 },
+  modalTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700', color: Colors.text },
+  tradeOption: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, paddingHorizontal: 14, borderRadius: Tokens.radius.md },
   tradeOptionActive: { backgroundColor: `${Colors.primary}15` },
-  tradeOptionText: { flex: 1, fontSize: 14, color: Colors.text, fontWeight: '600' },
+  tradeOptionText: { flex: 1, fontSize: Type.bodyCompact.fontSize, color: Colors.text, fontWeight: '600' },
 
   pickerRow: {
     flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14,
-    backgroundColor: Colors.card, borderRadius: 12, marginBottom: 8,
+    backgroundColor: Colors.card, borderRadius: Tokens.radius.card, marginBottom: 8,
     borderWidth: 1, borderColor: Colors.borderLight,
   },
-  pickerRowTitle: { fontSize: 14, fontWeight: '700', color: Colors.text },
-  pickerRowSub: { fontSize: 11, color: Colors.textSecondary, marginTop: 2 },
+  pickerRowTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
+  pickerRowSub: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, marginTop: 2 },
 });

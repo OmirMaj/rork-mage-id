@@ -12,7 +12,20 @@ Notifications.setNotificationHandler({
   }),
 });
 
-export async function registerForPushNotifications(): Promise<string | null> {
+/**
+ * Register for push notifications. The `prompt` flag controls whether
+ * we'll fire the iOS / Android system permission dialog.
+ *
+ * Audit found we were prompting on first authenticated render — before
+ * the user had done anything in the app. iOS denial is permanent (until
+ * Settings dive), so a cold-prompt with no rationale tanks acceptance.
+ *
+ * Default `prompt: false` means "register IF the user already said yes
+ * in a previous session." Pass `prompt: true` from a user-initiated
+ * action (Settings toggle, a "Get notified when this CO is signed?"
+ * inline button, etc.) so the prompt has context.
+ */
+export async function registerForPushNotifications(opts: { prompt?: boolean } = {}): Promise<string | null> {
   if (Platform.OS === 'web') {
     console.log('[Notifications] Web platform — skipping push registration');
     return null;
@@ -23,6 +36,12 @@ export async function registerForPushNotifications(): Promise<string | null> {
     let finalStatus = existingStatus;
 
     if (existingStatus !== 'granted') {
+      if (!opts.prompt) {
+        // Caller doesn't want to prompt cold — bail without firing the
+        // system dialog. The user can opt in later from Settings.
+        console.log('[Notifications] Permission not granted; not prompting (caller opted out).');
+        return null;
+      }
       const { status } = await Notifications.requestPermissionsAsync();
       finalStatus = status;
     }

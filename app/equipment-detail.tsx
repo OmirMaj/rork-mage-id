@@ -16,6 +16,8 @@ import { useProjects } from '@/contexts/ProjectContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import AIEquipmentAdvice from '@/components/AIEquipmentAdvice';
 import type { EquipmentCategory } from '@/types';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
   available: { label: 'Available', color: Colors.success },
@@ -289,7 +291,7 @@ export default function EquipmentDetailScreen() {
           <View style={styles.modalCard}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Log Usage</Text>
-              <TouchableOpacity onPress={() => setShowLogModal(false)}>
+              <TouchableOpacity onPress={() => setShowLogModal(false)} accessibilityRole="button" accessibilityLabel="Close">
                 <X size={20} color={Colors.textMuted} />
               </TouchableOpacity>
             </View>
@@ -317,12 +319,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   emptyText: {
-    fontSize: 16,
+    fontSize: Type.callout.fontSize,
     color: Colors.textSecondary,
   },
   headerCard: {
     backgroundColor: Colors.surface,
-    borderRadius: 16,
+    borderRadius: Tokens.radius.panel,
     padding: 20,
     alignItems: 'center',
     gap: 10,
@@ -331,7 +333,7 @@ const styles = StyleSheet.create({
   equipIconWrap: {
     width: 56,
     height: 56,
-    borderRadius: 16,
+    borderRadius: Tokens.radius.panel,
     backgroundColor: Colors.primary + '12',
     alignItems: 'center',
     justifyContent: 'center',
@@ -339,19 +341,19 @@ const styles = StyleSheet.create({
   statusBadge: {
     paddingHorizontal: 12,
     paddingVertical: 5,
-    borderRadius: 8,
+    borderRadius: Tokens.radius.sm,
   },
   statusBadgeText: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '700' as const,
   },
   rateText: {
-    fontSize: 18,
+    fontSize: Type.subheadline.fontSize,
     fontWeight: '700' as const,
     color: Colors.primary,
   },
   fieldLabel: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
     color: Colors.textSecondary,
     marginBottom: 6,
@@ -359,10 +361,10 @@ const styles = StyleSheet.create({
   },
   input: {
     backgroundColor: Colors.surface,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    fontSize: 15,
+    fontSize: Type.subhead.fontSize,
     color: Colors.text,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
@@ -376,7 +378,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     backgroundColor: Colors.surface,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     paddingHorizontal: 14,
     paddingVertical: 12,
     borderWidth: 1,
@@ -384,7 +386,7 @@ const styles = StyleSheet.create({
   },
   pickerBtnText: {
     flex: 1,
-    fontSize: 15,
+    fontSize: Type.subhead.fontSize,
     color: Colors.text,
   },
   statusDot: {
@@ -401,17 +403,17 @@ const styles = StyleSheet.create({
   optionChip: {
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 8,
+    borderRadius: Tokens.radius.sm,
     backgroundColor: Colors.fillTertiary,
   },
   optionChipText: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
     color: Colors.textSecondary,
   },
   projectList: {
     backgroundColor: Colors.surface,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     marginTop: 6,
     overflow: 'hidden',
     maxHeight: 200,
@@ -423,24 +425,24 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.borderLight,
   },
   projectItemText: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     color: Colors.text,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: Type.subheadline.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
     marginTop: 24,
     marginBottom: 12,
   },
   noDataText: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     color: Colors.textMuted,
     fontStyle: 'italic',
   },
   maintCard: {
     backgroundColor: Colors.surface,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     padding: 14,
     marginBottom: 8,
     gap: 4,
@@ -456,18 +458,18 @@ const styles = StyleSheet.create({
   },
   maintDesc: {
     flex: 1,
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     fontWeight: '600' as const,
     color: Colors.text,
   },
   maintDetail: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     color: Colors.textSecondary,
     paddingLeft: 22,
   },
   chartCard: {
     backgroundColor: Colors.surface,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     padding: 12,
     marginBottom: 12,
     overflow: 'hidden',
@@ -478,12 +480,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     paddingVertical: 14,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     backgroundColor: Colors.primary + '12',
     marginTop: 8,
   },
   logBtnText: {
-    fontSize: 15,
+    fontSize: Type.subhead.fontSize,
     fontWeight: '600' as const,
     color: Colors.primary,
   },
@@ -493,7 +495,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     backgroundColor: Colors.primary,
-    borderRadius: 14,
+    borderRadius: Tokens.radius.lg,
     paddingVertical: 16,
     marginTop: 24,
     shadowColor: Colors.primary,
@@ -503,7 +505,7 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   saveBtnText: {
-    fontSize: 17,
+    fontSize: Type.body.fontSize,
     fontWeight: '600' as const,
     color: '#fff',
   },
@@ -516,7 +518,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   deleteBtnText: {
-    fontSize: 15,
+    fontSize: Type.subhead.fontSize,
     fontWeight: '600' as const,
     color: Colors.error,
   },
@@ -542,7 +544,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   modalTitle: {
-    fontSize: 20,
+    fontSize: Type.title3.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
   },

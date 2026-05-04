@@ -12,6 +12,8 @@ import {
   type CompanyAIProfile, type BidScoreResult,
 } from '@/utils/aiService';
 import { AIProfileSetup } from '@/components/AIBidScorer';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 interface BidScoringInput {
   id: string;
@@ -205,10 +207,10 @@ export default function AIBidScorecard({ bid, testID }: AIBidScorecardProps) {
           <Text style={styles.title}>AI Go/No-Go Analysis</Text>
           <Text style={styles.subtitle}>Cached · tap refresh to re-score</Text>
         </View>
-        <TouchableOpacity onPress={() => void runScore(true)} activeOpacity={0.7} style={styles.refreshBtn} testID="ai-rescore-btn">
+        <TouchableOpacity onPress={() => void runScore(true)} activeOpacity={0.7} style={styles.refreshBtn} testID="ai-rescore-btn" accessibilityRole="button" accessibilityLabel="Refresh">
           <RefreshCw size={14} color={Colors.textMuted} />
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => setShowProfileSetup(true)} activeOpacity={0.7} style={styles.refreshBtn} testID="ai-edit-profile-btn">
+        <TouchableOpacity onPress={() => setShowProfileSetup(true)} activeOpacity={0.7} style={styles.refreshBtn} testID="ai-edit-profile-btn" accessibilityRole="button" accessibilityLabel="Settings">
           <Settings size={14} color={Colors.textMuted} />
         </TouchableOpacity>
       </View>
@@ -278,7 +280,7 @@ export default function AIBidScorecard({ bid, testID }: AIBidScorecardProps) {
 
       {/* Strategy */}
       {score.bidStrategy ? (
-        <View style={[styles.section, { backgroundColor: Colors.primary + '0C', borderRadius: 12, padding: 12 }]}>
+        <View style={[styles.section, { backgroundColor: Colors.primary + '0C', borderRadius: Tokens.radius.card, padding: 12 }]}>
           <View style={styles.sectionHeader}>
             <TrendingUp size={14} color={Colors.primary} />
             <Text style={[styles.sectionTitle, { color: Colors.primary }]}>Bid Strategy</Text>
@@ -302,39 +304,39 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     marginBottom: 16,
     backgroundColor: Colors.surface,
-    borderRadius: 16,
+    borderRadius: Tokens.radius.panel,
     padding: 16,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
     gap: 12,
   },
   loadingContainer: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 12, paddingVertical: 24 },
-  loadingText: { fontSize: 13, color: Colors.textSecondary, fontWeight: '500' as const },
+  loadingText: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, fontWeight: '500' as const },
   heroRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10 },
-  iconWrap: { width: 34, height: 34, borderRadius: 10, backgroundColor: Colors.primary + '15', alignItems: 'center' as const, justifyContent: 'center' as const },
-  title: { fontSize: 15, fontWeight: '700' as const, color: Colors.text },
-  subtitle: { fontSize: 12, color: Colors.textMuted, marginTop: 2 },
-  refreshBtn: { width: 30, height: 30, borderRadius: 8, backgroundColor: Colors.fillTertiary, alignItems: 'center' as const, justifyContent: 'center' as const },
-  runBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 6, paddingVertical: 12, borderRadius: 12, backgroundColor: Colors.primary },
-  runBtnText: { fontSize: 14, fontWeight: '700' as const, color: '#FFF' },
-  errorText: { fontSize: 13, color: Colors.textSecondary, marginBottom: 6 },
-  gaugeCard: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 14, backgroundColor: Colors.surfaceAlt, borderRadius: 14, padding: 14 },
+  iconWrap: { width: 34, height: 34, borderRadius: Tokens.radius.md, backgroundColor: Colors.primary + '15', alignItems: 'center' as const, justifyContent: 'center' as const },
+  title: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text },
+  subtitle: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2 },
+  refreshBtn: { width: 30, height: 30, borderRadius: Tokens.radius.sm, backgroundColor: Colors.fillTertiary, alignItems: 'center' as const, justifyContent: 'center' as const },
+  runBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 6, paddingVertical: 12, borderRadius: Tokens.radius.card, backgroundColor: Colors.primary },
+  runBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: '#FFF' },
+  errorText: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, marginBottom: 6 },
+  gaugeCard: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 14, backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.lg, padding: 14 },
   scoreBubble: { width: 72, height: 72, borderRadius: 36, alignItems: 'center' as const, justifyContent: 'center' as const, borderWidth: 2 },
   scoreNum: { fontSize: 24, fontWeight: '800' as const, letterSpacing: -0.5 },
   scoreOutOf: { fontSize: 9, fontWeight: '700' as const, marginTop: -2 },
-  decisionLabel: { fontSize: 15, fontWeight: '700' as const },
+  decisionLabel: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const },
   barTrack: { height: 6, borderRadius: 3, backgroundColor: Colors.fillSecondary, overflow: 'hidden' as const },
   barFill: { height: '100%' as const, borderRadius: 3 },
   winRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 5 },
-  winText: { fontSize: 11, color: Colors.textMuted, fontWeight: '500' as const },
+  winText: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontWeight: '500' as const },
   winPct: { fontWeight: '700' as const, color: Colors.text },
-  decisionPill: { alignSelf: 'flex-start' as const, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
-  decisionPillText: { fontSize: 12, fontWeight: '700' as const },
+  decisionPill: { alignSelf: 'flex-start' as const, paddingHorizontal: 12, paddingVertical: 6, borderRadius: Tokens.radius.sm },
+  decisionPillText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const },
   section: { gap: 6 },
   sectionHeader: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6, marginBottom: 4 },
-  sectionTitle: { fontSize: 12, fontWeight: '700' as const, color: Colors.text, textTransform: 'uppercase' as const, letterSpacing: 0.4 },
+  sectionTitle: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: Colors.text, textTransform: 'uppercase' as const, letterSpacing: 0.4 },
   bulletRow: { flexDirection: 'row' as const, alignItems: 'flex-start' as const, gap: 8, paddingLeft: 4, paddingVertical: 2 },
   bulletDot: { width: 5, height: 5, borderRadius: 2.5, marginTop: 7 },
-  bulletText: { flex: 1, fontSize: 13, color: Colors.text, lineHeight: 18 },
-  strategyText: { fontSize: 13, color: Colors.primary, lineHeight: 18, fontWeight: '500' as const },
+  bulletText: { flex: 1, fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 18 },
+  strategyText: { fontSize: Type.footnote.fontSize, color: Colors.primary, lineHeight: 18, fontWeight: '500' as const },
 });

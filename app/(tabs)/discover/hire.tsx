@@ -14,6 +14,8 @@ import MageRefreshControl from '@/components/MageRefreshControl';
 import { SkeletonRow } from '@/components/Skeleton';
 import { supabase } from '@/lib/supabase';
 import { useUserLocation, getDistanceMiles } from '@/utils/location';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 interface CachedJob {
   id: string;
@@ -216,7 +218,7 @@ export default function CachedHireScreen() {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
         <View style={styles.headerTop}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Back">
             <ArrowLeft size={20} color={Colors.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Direct Hire</Text>
@@ -291,40 +293,40 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   header: { backgroundColor: Colors.surface, borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight, paddingHorizontal: 16, paddingBottom: 12 },
   headerTop: { flexDirection: 'row', alignItems: 'center', marginBottom: 12, marginTop: 8, gap: 12 },
-  backBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
+  backBtn: { width: 36, height: 36, borderRadius: Tokens.radius.xl, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { flex: 1, fontSize: 24, fontWeight: '800' as const, color: Colors.text, letterSpacing: -0.5 },
-  countPill: { backgroundColor: Colors.accent + '15', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
-  countPillText: { fontSize: 13, fontWeight: '700' as const, color: Colors.accent },
-  filterSectionLabel: { fontSize: 11, fontWeight: '600' as const, color: Colors.textMuted, letterSpacing: 0.5, marginBottom: 6 },
+  countPill: { backgroundColor: Colors.accent + '15', paddingHorizontal: 10, paddingVertical: 4, borderRadius: Tokens.radius.card },
+  countPillText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.accent },
+  filterSectionLabel: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: Colors.textMuted, letterSpacing: 0.5, marginBottom: 6 },
   chipRow: { flexDirection: 'row', marginBottom: 4 },
-  chip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 18, backgroundColor: Colors.background, marginRight: 6 },
+  chip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: Tokens.radius.xl, backgroundColor: Colors.background, marginRight: 6 },
   chipActive: { backgroundColor: Colors.primary },
-  chipText: { fontSize: 13, color: Colors.textSecondary, fontWeight: '500' as const },
+  chipText: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, fontWeight: '500' as const },
   chipTextActive: { color: '#FFF' },
   list: { padding: 16, paddingBottom: 100 },
   card: {
-    backgroundColor: Colors.surface, borderRadius: 14, padding: 16, marginBottom: 12,
+    backgroundColor: Colors.surface, borderRadius: Tokens.radius.lg, padding: 16, marginBottom: 12,
     // Black outline matches every other card across the app.
     borderWidth: 1, borderColor: Colors.cardBorder,
   },
   cardTopRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
-  tradeBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
-  tradeBadgeText: { fontSize: 11, fontWeight: '700' as const, textTransform: 'uppercase' as const, letterSpacing: 0.3 },
-  contractBadge: { backgroundColor: Colors.fillTertiary, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
-  contractBadgeText: { fontSize: 11, fontWeight: '600' as const, color: Colors.textSecondary },
-  cardTitle: { fontSize: 16, fontWeight: '700' as const, color: Colors.text, marginBottom: 2, lineHeight: 22 },
-  cardCompany: { fontSize: 13, color: Colors.textSecondary, marginBottom: 10 },
+  tradeBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.xs },
+  tradeBadgeText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, textTransform: 'uppercase' as const, letterSpacing: 0.3 },
+  contractBadge: { backgroundColor: Colors.fillTertiary, paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.xs },
+  contractBadgeText: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: Colors.textSecondary },
+  cardTitle: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.text, marginBottom: 2, lineHeight: 22 },
+  cardCompany: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, marginBottom: 10 },
   cardMeta: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
   metaItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  metaText: { fontSize: 13, color: Colors.textSecondary },
+  metaText: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary },
   cardFooter: { flexDirection: 'row', alignItems: 'center', marginTop: 6, paddingTop: 8, borderTopWidth: 0.5, borderTopColor: Colors.borderLight },
-  distanceBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: Colors.infoLight, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
-  distanceText: { fontSize: 12, fontWeight: '600' as const, color: Colors.info },
+  distanceBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: Colors.infoLight, paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.xs },
+  distanceText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.info },
   applyHint: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  applyHintText: { fontSize: 12, fontWeight: '600' as const, color: Colors.primary },
+  applyHintText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.primary },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
-  loadingText: { fontSize: 14, color: Colors.textSecondary },
+  loadingText: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary },
   emptyContainer: { alignItems: 'center', paddingTop: 60, gap: 8 },
-  emptyTitle: { fontSize: 18, fontWeight: '700' as const, color: Colors.text },
-  emptySubtitle: { fontSize: 14, color: Colors.textSecondary, textAlign: 'center' as const, paddingHorizontal: 32 },
+  emptyTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: Colors.text },
+  emptySubtitle: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, textAlign: 'center' as const, paddingHorizontal: 32 },
 });

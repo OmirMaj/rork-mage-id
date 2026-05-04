@@ -45,6 +45,8 @@ import {
 import { addWorkingDays, formatShortDate, getPhaseColor } from '@/utils/scheduleEngine';
 import { getHiddenTaskIds } from '@/utils/summaryRollup';
 import { AlertTriangle, Plus, Trash2, Check, Circle, Pause, Play, GripVertical, Copy, CalendarRange, Users, Layers, Sparkles, X, Anchor } from 'lucide-react-native';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 // ---------------------------------------------------------------------------
 // Column definition — single source of truth for widths, alignment, editability
@@ -826,8 +828,7 @@ export default function GridPane({
                 ]);
               }
             }}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel="Delete">
             <Trash2 size={14} color={Colors.textMuted} />
           </TouchableOpacity>
         );
@@ -1051,9 +1052,7 @@ export default function GridPane({
     const n = selected.size;
     return (
       <View style={styles.bulkBar}>
-        <TouchableOpacity onPress={clearSelection} style={styles.bulkClear} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-          <X size={14} color={Colors.textSecondary} />
-        </TouchableOpacity>
+        <TouchableOpacity onPress={clearSelection} style={styles.bulkClear} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel="Close"><X size={14} color={Colors.textSecondary} /></TouchableOpacity>
         <Text style={styles.bulkCount}>{n} selected</Text>
         <View style={styles.bulkBtnRow}>
           {onBulkAskAI && (
@@ -1260,9 +1259,7 @@ function AnchorPickerModal({ task, onClose, onApply }: AnchorPickerModalProps) {
             <Anchor size={16} color={Colors.primary} />
             <Text style={anchorStyles.title}>Anchor</Text>
             <Text style={anchorStyles.subtitle} numberOfLines={1}>{task?.title || ''}</Text>
-            <TouchableOpacity onPress={onClose} style={anchorStyles.closeBtn}>
-              <X size={18} color={Colors.textSecondary} />
-            </TouchableOpacity>
+            <TouchableOpacity onPress={onClose} style={anchorStyles.closeBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={Colors.textSecondary} /></TouchableOpacity>
           </View>
           <ScrollView style={{ maxHeight: 360 }}>
             {ANCHOR_OPTIONS.map(opt => {
@@ -1298,9 +1295,9 @@ function AnchorPickerModal({ task, onClose, onApply }: AnchorPickerModalProps) {
                   onChange: (e: any) => setDate(e.target.value),
                   style: {
                     border: `1px solid ${Colors.border}`,
-                    borderRadius: 6,
+                    borderRadius: Tokens.radius.xs,
                     padding: '6px 8px',
-                    fontSize: 14,
+                    fontSize: Type.bodyCompact.fontSize,
                     fontFamily: 'inherit',
                     color: Colors.text,
                   },
@@ -1345,7 +1342,7 @@ const anchorStyles = StyleSheet.create({
     width: 420,
     maxWidth: '92%',
     backgroundColor: Colors.surface,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     shadowColor: '#000',
     shadowOpacity: 0.18,
     shadowRadius: 20,
@@ -1361,8 +1358,8 @@ const anchorStyles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
   },
-  title: { fontSize: 15, fontWeight: '700', color: Colors.text },
-  subtitle: { flex: 1, fontSize: 13, color: Colors.textSecondary, marginLeft: 4 },
+  title: { fontSize: Type.subhead.fontSize, fontWeight: '700', color: Colors.text },
+  subtitle: { flex: 1, fontSize: Type.footnote.fontSize, color: Colors.textSecondary, marginLeft: 4 },
   closeBtn: { padding: 4 },
   option: {
     flexDirection: 'row',
@@ -1375,14 +1372,14 @@ const anchorStyles = StyleSheet.create({
   },
   optionActive: { backgroundColor: Colors.primaryLight },
   radio: {
-    width: 16, height: 16, borderRadius: 8, borderWidth: 1.5, borderColor: Colors.border,
+    width: 16, height: 16, borderRadius: Tokens.radius.sm, borderWidth: 1.5, borderColor: Colors.border,
     alignItems: 'center', justifyContent: 'center', marginTop: 2,
   },
   radioActive: { borderColor: Colors.primary },
   radioDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.primary },
-  optionLabel: { fontSize: 13, fontWeight: '600', color: Colors.text },
+  optionLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: Colors.text },
   optionLabelActive: { color: Colors.primary },
-  optionHelp: { fontSize: 11, color: Colors.textSecondary, marginTop: 1 },
+  optionHelp: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, marginTop: 1 },
   dateRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1392,15 +1389,15 @@ const anchorStyles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: Colors.border,
   },
-  dateLabel: { fontSize: 13, fontWeight: '600', color: Colors.text },
+  dateLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: Colors.text },
   dateInput: {
     flex: 1,
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: 6,
+    borderRadius: Tokens.radius.xs,
     paddingHorizontal: 8,
     paddingVertical: 6,
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     color: Colors.text,
   },
   footer: {
@@ -1413,15 +1410,15 @@ const anchorStyles = StyleSheet.create({
     borderTopColor: Colors.border,
   },
   btnGhost: {
-    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 6,
+    paddingHorizontal: 14, paddingVertical: 8, borderRadius: Tokens.radius.xs,
   },
-  btnGhostText: { fontSize: 13, fontWeight: '600', color: Colors.textSecondary },
+  btnGhostText: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: Colors.textSecondary },
   btnPrimary: {
-    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 6,
+    paddingHorizontal: 14, paddingVertical: 8, borderRadius: Tokens.radius.xs,
     backgroundColor: Colors.primary,
   },
   btnDisabled: { opacity: 0.45 },
-  btnPrimaryText: { fontSize: 13, fontWeight: '700', color: '#fff' },
+  btnPrimaryText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: '#fff' },
 });
 
 // ---------------------------------------------------------------------------
@@ -1455,7 +1452,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
-    borderRadius: 12,
+    borderRadius: Tokens.radius.card,
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: Colors.cardBorder,
@@ -1476,7 +1473,7 @@ const styles = StyleSheet.create({
     borderRightColor: Colors.borderLight,
   },
   headerText: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     fontWeight: '700',
     color: Colors.textSecondary,
     textTransform: 'uppercase',
@@ -1518,11 +1515,11 @@ const styles = StyleSheet.create({
     borderColor: Colors.error,
   },
   cellText: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: Colors.text,
   },
   cellTextMuted: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: Colors.textMuted,
   },
   cellDate: {
@@ -1557,7 +1554,7 @@ const styles = StyleSheet.create({
   },
   cellInput: {
     flex: 1,
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     color: Colors.text,
     paddingVertical: 0,
     paddingHorizontal: 0,
@@ -1570,12 +1567,12 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.error,
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 6,
+    borderRadius: Tokens.radius.xs,
     zIndex: 100,
     minWidth: 180,
   },
   cellErrorText: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     color: '#fff',
     fontWeight: '600',
   },
@@ -1588,7 +1585,7 @@ const styles = StyleSheet.create({
     color: Colors.error,
   },
   milestoneDiamond: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     color: Colors.primary,
   },
   statusChip: {
@@ -1597,10 +1594,10 @@ const styles = StyleSheet.create({
     gap: 4,
     paddingHorizontal: 8,
     paddingVertical: 3,
-    borderRadius: 10,
+    borderRadius: Tokens.radius.md,
   },
   statusChipText: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     fontWeight: '700',
   },
   addRow: {
@@ -1613,7 +1610,7 @@ const styles = StyleSheet.create({
     borderTopColor: Colors.borderLight,
   },
   addRowText: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '600',
     color: Colors.primary,
   },
@@ -1635,12 +1632,12 @@ const styles = StyleSheet.create({
   },
   bannerText: {
     flex: 1,
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     color: Colors.text,
     fontWeight: '500',
   },
   bannerCount: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     fontWeight: '700',
     color: Colors.textMuted,
   },
@@ -1677,7 +1674,7 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   bulkCount: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     fontWeight: '700',
     color: Colors.text,
     marginRight: 4,
@@ -1695,7 +1692,7 @@ const styles = StyleSheet.create({
     gap: 4,
     paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: 8,
+    borderRadius: Tokens.radius.sm,
     backgroundColor: Colors.primary + '12',
   },
   bulkBtnAI: {
@@ -1705,7 +1702,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.error + '15',
   },
   bulkBtnText: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     fontWeight: '700',
     color: Colors.primary,
   },

@@ -20,6 +20,8 @@ import {
 import { Colors } from '@/constants/colors';
 import { useSmartInbox, type InboxItem, type InboxCategory } from '@/hooks/useSmartInbox';
 import { useEntityNavigation } from '@/hooks/useEntityNavigation';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 
 type FilterKey = 'all' | InboxCategory;
 
@@ -76,7 +78,7 @@ export default function SmartInbox() {
         </View>
         <View style={styles.emptyWrap}>
           <View style={styles.emptyIcon}>
-            <CheckCircle2 size={20} color="#34C759" strokeWidth={2.2} />
+            <CheckCircle2 size={20} color={Colors.success} strokeWidth={2.2} />
           </View>
           <Text style={styles.emptyText}>All caught up.</Text>
           <Text style={styles.emptySub}>Nothing urgent across your projects.</Text>
@@ -191,7 +193,7 @@ function InboxRow({
 const styles = StyleSheet.create({
   card: {
     backgroundColor: Colors.surface,
-    borderRadius: 16,
+    borderRadius: Tokens.radius.panel,
     padding: 16,
     marginHorizontal: 16,
     marginTop: 12,
@@ -206,13 +208,13 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   headerTitle: {
-    fontSize: 17,
+    fontSize: Type.body.fontSize,
     fontWeight: '700',
     color: Colors.text,
     letterSpacing: -0.3,
   },
   headerCount: {
-    fontSize: 15,
+    fontSize: Type.subhead.fontSize,
     fontWeight: '600',
     color: Colors.textSecondary,
   },
@@ -228,14 +230,14 @@ const styles = StyleSheet.create({
     gap: 4,
     paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: 999,
+    borderRadius: Tokens.radius.full,
     backgroundColor: Colors.fillTertiary,
   },
   chipActive: {
     backgroundColor: Colors.primary,
   },
   chipLabel: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     fontWeight: '600',
     color: Colors.textSecondary,
   },
@@ -288,12 +290,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   rowTitle: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     fontWeight: '600',
     color: Colors.text,
   },
   rowSub: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     color: Colors.textSecondary,
     marginTop: 2,
   },
@@ -310,7 +312,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   showAllText: {
-    fontSize: 13,
+    fontSize: Type.footnote.fontSize,
     fontWeight: '600',
     color: Colors.primary,
   },
@@ -322,18 +324,18 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#E8F5E9',
+    backgroundColor: Colors.successLight,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 8,
   },
   emptyText: {
-    fontSize: 14,
+    fontSize: Type.bodyCompact.fontSize,
     fontWeight: '600',
     color: Colors.text,
   },
   emptySub: {
-    fontSize: 12,
+    fontSize: Type.caption1.fontSize,
     color: Colors.textSecondary,
     marginTop: 2,
   },
