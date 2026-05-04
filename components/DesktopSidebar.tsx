@@ -24,17 +24,21 @@ interface NavItem {
   requires?: FeatureKey;
 }
 
+// The bids / companies / hire layouts under (tabs)/ were merged into the
+// discover/ folder when those features moved under the unified Find Work
+// shell. This sidebar pointed at the old (tabs)/bids etc. paths which now
+// 404 in production. Routes below now point to the live discover/* paths.
 const NAV_ITEMS: NavItem[] = [
   { key: 'summary', label: 'Summary', icon: LayoutDashboard, route: '/(tabs)/summary', section: 'PROJECT' },
   { key: 'home', label: 'Projects', icon: Home, route: '/(tabs)/(home)', section: 'PROJECT' },
   { key: 'estimate', label: 'Estimate', icon: BarChart3, route: '/(tabs)/discover/estimate', section: 'PROJECT' },
   { key: 'schedule', label: 'Schedule', icon: CalendarDays, route: '/(tabs)/discover/schedule', section: 'PROJECT', requires: 'schedule_gantt_pdf' },
   { key: 'mage-id-bids', label: 'MAGE ID Bids', icon: Hammer, route: '/(tabs)/mage-id-bids', section: 'MARKETPLACE' },
-  { key: 'bids', label: 'Public Bids', icon: FileText, route: '/(tabs)/bids', section: 'MARKETPLACE' },
+  { key: 'bids', label: 'Public Bids', icon: FileText, route: '/(tabs)/discover/bids', section: 'MARKETPLACE' },
   { key: 'equipment', label: 'Equipment', icon: Hammer, route: '/(tabs)/equipment', section: 'FIELD', requires: 'equipment_rental' },
-  { key: 'companies', label: 'Companies', icon: Building2, route: '/(tabs)/companies', section: 'NETWORK' },
+  { key: 'companies', label: 'Companies', icon: Building2, route: '/(tabs)/discover/companies', section: 'NETWORK' },
   { key: 'discover', label: 'Discover', icon: Search, route: '/(tabs)/discover', section: 'NETWORK' },
-  { key: 'hire', label: 'Hire', icon: HardHat, route: '/(tabs)/hire', section: 'NETWORK' },
+  { key: 'hire', label: 'Hire', icon: HardHat, route: '/(tabs)/discover/hire', section: 'NETWORK' },
   { key: 'construction-ai', label: 'Construction AI', icon: Gavel, route: '/(tabs)/construction-ai', section: 'NETWORK' },
   { key: 'settings', label: 'Settings', icon: Settings, route: '/(tabs)/settings', section: 'ACCOUNT' },
 ];

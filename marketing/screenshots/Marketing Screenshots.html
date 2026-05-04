@@ -1,0 +1,370 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>MAGE ID — Marketing Screenshots</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+  html, body { margin: 0; padding: 0; background: #1a1a1a; font-family: "Inter", -apple-system, system-ui, sans-serif; }
+  * { box-sizing: border-box; }
+</style>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="phone-frame.jsx"></script>
+<script type="text/babel" src="app-store-heroes.jsx"></script>
+<script type="text/babel" src="social-heroes.jsx"></script>
+<script type="text/babel">
+const S = (n) => `screens/${n}`;
+
+// Pick best screenshots for each marketing slot
+const SCREENS = {
+  projects: S("01-projects.png"),
+  henderson: S("02-henderson.png"),
+  selections: S("03-selections.png"),
+  dailyReport: S("04-daily-report.png"),
+  gantt: S("05-schedule-gantt.png"),
+  scheduleSummary: S("06-schedule-summary.png"),
+  crew: S("07-schedule-crew.png"),
+  copilot: S("08-ai-copilot.png"),
+  bulkSavings: S("09-bulk-savings.png"),
+  cashflow: S("10-cashflow.png"),
+  summary: S("11-summary.png"),
+  summaryTools: S("12-summary-tools.png"),
+  findWork: S("13-find-work.png"),
+  marketplace: S("14-marketplace.png"),
+  estimator: S("15-estimator.png"),
+  aiEstimator: S("16-ai-estimator.png"),
+  takeoff: S("17-takeoff.png"),
+  budget: S("18-budget-evm.png"),
+  walkthrough: S("19-walkthrough.png"),
+  portal: S("20-client-portal.png"),
+  portalHero: S("21-portal-hero.png"),
+  portalSelections: S("22-portal-selections.png"),
+  portalSchedule: S("23-portal-schedule.png"),
+  estimateHero: S("24-estimate-hero.png"),
+  postJob: S("26-post-job.png"),
+  directHire: S("27-direct-hire.png"),
+  companies: S("28-companies.png"),
+  postBid: S("29-post-bid.png"),
+};
+
+function App() {
+  return (
+    <DesignCanvas
+      title="MAGE ID — Marketing & App Store Screenshots"
+      subtitle="High-res polished marketing artboards using your real app screens. Click any artboard to focus."
+    >
+      {/* ============================================================ */}
+      {/* SECTION 1 — APP STORE HEROES (1290 x 2796, 6.7" iPhone) */}
+      {/* ============================================================ */}
+      <DCSection id="appstore" title="App Store — 6.7″ iPhone (1290×2796)" subtitle="Drop-in heroes for the App Store / Google Play. Five distinct treatments — pick the system, then I'll build the rest of the carousel slots.">
+
+        <DCArtboard id="as-1" label="Hero 1 — AI estimating" width={1290} height={2796}>
+          <AppStoreHeroA
+            eyebrow="Built for GCs"
+            title="Estimate a job in"
+            accent=" 8 questions."
+            src={SCREENS.aiEstimator}
+          />
+        </DCArtboard>
+
+        <DCArtboard id="as-2" label="Hero 2 — Schedule" width={1290} height={2796}>
+          <AppStoreHeroB
+            title="Plan, track, and ship."
+            accent="On time."
+            subtitle="Gantt, board, crew — all live."
+            src={SCREENS.gantt}
+          />
+        </DCArtboard>
+
+        <DCArtboard id="as-3" label="Hero 3 — Bulk savings" width={1290} height={2796}>
+          <AppStoreHeroE
+            stat="Save"
+            statLabel="bulk savings, project 1"
+            headline="Every project, automatically priced for bulk."
+            sub="20,000+ live materials. Updated daily."
+            src={SCREENS.bulkSavings}
+          />
+        </DCArtboard>
+
+        <DCArtboard id="as-4" label="Hero 4 — Client portal" width={1290} height={2796}>
+          <AppStoreHeroD
+            eyebrow="Client portal"
+            italicTitle="The portal"
+            restTitle="your clients ask for."
+            subtitle="Live schedule, selections, and messages — branded to you."
+            src={SCREENS.portalHero}
+          />
+        </DCArtboard>
+
+        <DCArtboard id="as-5" label="Hero 5 — Cash flow" width={1290} height={2796}>
+          <AppStoreHeroC
+            title="See cash before it's cash."
+            src={SCREENS.cashflow}
+            callouts={[
+              { label: "12-week forecast across all projects", position: { right: -80, top: 280 }, tail: { left: -10, top: 30 } },
+              { label: "Heads-up alerts when balance dips", position: { left: -80, top: 800 }, tail: { right: -10, top: 30 } },
+            ]}
+          />
+        </DCArtboard>
+
+        <DCArtboard id="as-6" label="Hero 6 — AI copilot" width={1290} height={2796}>
+          <AppStoreHeroA
+            eyebrow="Mage AI"
+            title="Ask anything"
+            accent=" about your project."
+            src={SCREENS.copilot}
+          />
+        </DCArtboard>
+
+        <DCArtboard id="as-7" label="Hero 7 — Takeoff" width={1290} height={2796}>
+          <AppStoreHeroB
+            title="Drop a PDF."
+            accent="Get a takeoff."
+            subtitle="AI reads schedules + dimensions. LF / SF / EA in seconds."
+            src={SCREENS.takeoff}
+          />
+        </DCArtboard>
+
+        <DCArtboard id="as-8" label="Hero 8 — Find work" width={1290} height={2796}>
+          <AppStoreHeroD
+            eyebrow="Find work"
+            italicTitle="Updated"
+            restTitle="public bids. Live."
+            subtitle="Federal, state, and private — all in one feed."
+            src={SCREENS.findWork}
+          />
+        </DCArtboard>
+
+      </DCSection>
+
+      {/* ============================================================ */}
+      {/* SECTION 2 — LANDING PAGE HEROES (1920x1080) */}
+      {/* ============================================================ */}
+      <DCSection id="landing" title="Landing page heroes (1920×1080)" subtitle="Above-the-fold compositions for the marketing site.">
+
+        <DCArtboard id="land-1" label="Landing — primary hero" width={1920} height={1080}>
+          <LandingHero3Phone
+            title="The OS for"
+            accent="general contractors."
+            subtitle="Estimate, schedule, source materials, and brief your clients — in one app, on the jobsite."
+            cta="Start free"
+            srcs={[SCREENS.gantt, SCREENS.henderson, SCREENS.cashflow]}
+          />
+        </DCArtboard>
+
+        <DCArtboard id="land-2" label="Landing — AI focused" width={1920} height={1080}>
+          <LandingHero3Phone
+            title="Mage AI does the"
+            accent="paperwork."
+            subtitle="AI estimates, AI takeoff, AI daily reports, AI copilot. You walk the site — Mage handles the rest."
+            cta="Watch a demo"
+            srcs={[SCREENS.aiEstimator, SCREENS.copilot, SCREENS.takeoff]}
+          />
+        </DCArtboard>
+
+      </DCSection>
+
+      {/* ============================================================ */}
+      {/* SECTION 3 — SOCIAL SQUARES (1080x1080) */}
+      {/* ============================================================ */}
+      <DCSection id="social" title="Social — square 1080×1080" subtitle="Instagram / LinkedIn feed posts.">
+
+        <DCArtboard id="sq-1" label="Square — savings" width={1080} height={1080}>
+          <SocialSquare
+            title="Track Bulk Savings"
+            accent="right in your pocket."
+            tag="Bulk pricing"
+            src={SCREENS.bulkSavings}
+          />
+        </DCArtboard>
+
+        <DCArtboard id="sq-2" label="Square — AI estimate" width={1080} height={1080}>
+          <SocialSquare
+            title="Quick Estimate."
+            accent="8 questions."
+            tag="AI estimate"
+            bg="#f1efe9" fg="#0e1a14" accentColor="#0e3d28"
+            src={SCREENS.estimateHero}
+          />
+        </DCArtboard>
+
+        <DCArtboard id="sq-3" label="Square — schedule" width={1080} height={1080}>
+          <SocialSquare
+            title="Gantt that actually fits"
+            accent="in your pocket."
+            tag="Schedule"
+            bg="#0a0e0c" fg="#fff" accentColor="#ff6b35"
+            src={SCREENS.gantt}
+          />
+        </DCArtboard>
+
+        <DCArtboard id="sq-4" label="Square — daily report" width={1080} height={1080}>
+          <SocialSquare
+            title="Talk to your phone."
+            accent="Get a daily report."
+            tag="Voice"
+            src={SCREENS.dailyReport}
+          />
+        </DCArtboard>
+
+      </DCSection>
+
+      {/* ============================================================ */}
+      {/* SECTION 4 — STORIES (1080x1920) */}
+      {/* ============================================================ */}
+      <DCSection id="stories" title="Social — story / reel cover (1080×1920)" subtitle="Vertical formats for IG/TikTok stories.">
+
+        <DCArtboard id="st-1" label="Story — portal" width={1080} height={1920}>
+          <SocialStory
+            title="The portal"
+            accent="your clients ask for."
+            sub="Live schedule, selections, and messages — branded to you."
+            src={SCREENS.portalHero}
+          />
+        </DCArtboard>
+
+        <DCArtboard id="st-2" label="Story — projects" width={1080} height={1920}>
+          <SocialStory
+            title="One screen,"
+            accent="every project."
+            sub="Total value. Bulk savings. What needs your attention today."
+            bg="#0e3d28" fg="#fff" accentColor="#7ed4a3"
+            src={SCREENS.projects}
+          />
+        </DCArtboard>
+
+        <DCArtboard id="st-3" label="Story — copilot" width={1080} height={1920}>
+          <SocialStory
+            title="Ask Mage"
+            accent="anything."
+            sub="What should I focus on today? Am I on budget? Which jobs are at risk?"
+            bg="#0a0e0c" fg="#fff" accentColor="#ff6b35"
+            src={SCREENS.copilot}
+          />
+        </DCArtboard>
+
+      </DCSection>
+
+      {/* ============================================================ */}
+      {/* SECTION 5 — SOCIAL CARDS (1600x900) */}
+      {/* ============================================================ */}
+      <DCSection id="cards" title="Twitter / OG cards (1600×900)" subtitle="Share cards for Twitter, LinkedIn, blog headers, and OG image meta tags.">
+
+        <DCArtboard id="tw-1" label="OG card — main" width={1600} height={900}>
+          <TwitterCard
+            title={<>The construction<br/>app that <em style={{ color: "#ff6b35" }}>actually</em><br/>uses AI.</>}
+            sub="Estimating, takeoff, scheduling, daily reports — all generated. All editable."
+            srcs={[SCREENS.estimator, SCREENS.aiEstimator]}
+          />
+        </DCArtboard>
+
+        <DCArtboard id="tw-2" label="OG card — portal" width={1600} height={900}>
+          <TwitterCard
+            title={<>A client portal<br/>they'll <em style={{ color: "#ff6b35" }}>actually</em> open.</>}
+            sub="Branded, dead simple. Live schedule, selections, messages."
+            srcs={[SCREENS.portalSchedule, SCREENS.portalHero]}
+          />
+        </DCArtboard>
+
+      </DCSection>
+
+      {/* ============================================================ */}
+      {/* SECTION 6 — HIRING & BIDS (mixed formats) */}
+      {/* ============================================================ */}
+      <DCSection id="hiring" title="Hiring & bids — mixed formats" subtitle="New screenshots: Direct Hire, Companies, Post a Job, Post a Bid. Same five layout systems applied across App Store, social, and OG card sizes.">
+
+        <DCArtboard id="hire-1" label="App Store — Direct Hire" width={1290} height={2796}>
+          <AppStoreHeroB
+            title="21 jobs"
+            accent="within 50 miles."
+            subtitle="Filter by trade, radius, pay. Tap to apply."
+            src={SCREENS.directHire}
+          />
+        </DCArtboard>
+
+        <DCArtboard id="hire-2" label="App Store — Companies" width={1290} height={2796}>
+          <AppStoreHeroA
+            eyebrow="Companies"
+            title="2,957 vetted"
+            accent=" subs & suppliers."
+            src={SCREENS.companies}
+          />
+        </DCArtboard>
+
+        <DCArtboard id="hire-3" label="App Store — Post a Job" width={1290} height={2796}>
+          <AppStoreHeroD
+            eyebrow="Post a job"
+            italicTitle="Hire"
+            restTitle="in five fields."
+            subtitle="Trade, location, pay range, type, level. That's it."
+            src={SCREENS.postJob}
+          />
+        </DCArtboard>
+
+        <DCArtboard id="hire-4" label="App Store — Post a Bid" width={1290} height={2796}>
+          <AppStoreHeroC
+            title="Get bids on your project."
+            src={SCREENS.postBid}
+            callouts={[
+              { label: "Federal, state, municipal, private", position: { right: -80, top: 320 }, tail: { left: -10, top: 30 } },
+              { label: "Bond requirements built in", position: { left: -80, top: 900 }, tail: { right: -10, top: 30 } },
+            ]}
+          />
+        </DCArtboard>
+
+        <DCArtboard id="hire-5" label="Square — Direct Hire" width={1080} height={1080}>
+          <SocialSquare
+            title="Find work"
+            accent="without the recruiter."
+            tag="Direct hire"
+            src={SCREENS.directHire}
+          />
+        </DCArtboard>
+
+        <DCArtboard id="hire-6" label="Square — Companies" width={1080} height={1080}>
+          <SocialSquare
+            title="Find Subs"
+            accent="One directory."
+            tag="Companies"
+            bg="#f1efe9" fg="#0e1a14" accentColor="#0e3d28"
+            src={SCREENS.companies}
+          />
+        </DCArtboard>
+
+        <DCArtboard id="hire-7" label="Story — Post a Job" width={1080} height={1920}>
+          <SocialStory
+            title="Post a job"
+            accent="in 60 seconds."
+            sub="Five fields. Goes live to qualified tradespeople nearby."
+            bg="#0e3d28" fg="#fff" accentColor="#7ed4a3"
+            src={SCREENS.postJob}
+          />
+        </DCArtboard>
+
+        <DCArtboard id="hire-8" label="OG — Post a Bid" width={1600} height={900}>
+          <TwitterCard
+            title={<>Post a bid.<br/>Get <em style={{ color: "#ff6b35" }}>real</em> contractors.</>}
+            sub="Federal, state, municipal, county, private — all in one form. Bond requirements built in."
+            srcs={[SCREENS.postBid, SCREENS.companies]}
+          />
+        </DCArtboard>
+
+      </DCSection>
+
+    </DesignCanvas>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

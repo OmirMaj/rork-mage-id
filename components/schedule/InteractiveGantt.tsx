@@ -90,14 +90,24 @@ export interface InteractiveGanttProps {
 // Layout constants
 // ---------------------------------------------------------------------------
 
-const ROW_HEIGHT = 40;
-const BAR_HEIGHT = 24;
+const ROW_HEIGHT = 44;             // bumped from 40 for breathing room — Apple-app row density
+const BAR_HEIGHT = 26;
 const BAR_VERTICAL_PADDING = (ROW_HEIGHT - BAR_HEIGHT) / 2;
-const HEADER_HEIGHT = 52;          // month row (22) + day-number row (30)
+const HEADER_HEIGHT = 56;          // month row (24) + day-number row (32)
 const LEFT_GUTTER = 240;           // task-name column baked into the scroller
 const RESIZE_HANDLE_WIDTH = 10;    // px on the right edge that triggers resize vs move
 const MIN_BAR_PX_WIDTH = 14;       // don't let bars collapse below this during drag
-const TODAY_COLOR = '#FF3B30';
+// Today line moved off stark red onto a desaturated indigo. Stark red on a
+// gridded view reads as "alarm" — it's just a position marker. Indigo reads
+// as neutral and lets the actual late/critical reds in the bars carry weight.
+const TODAY_COLOR = '#5E6AD2';
+// Soft weekend column tint — Apple-app convention is to whisper, not shout.
+// Slate at ~3% over the surface gives a barely-perceptible Sat/Sun band.
+const WEEKEND_TINT = 'rgba(60,60,67,0.025)';
+// Bar visual primitives — used inside the bar render below to give the
+// premium look (soft fill + colored accent stripe + restrained border).
+const BAR_RADIUS = 6;
+const BAR_ACCENT_WIDTH = 3;
 
 const PX_PER_DAY: Record<ZoomMode, number> = {
   day: 28,
@@ -163,6 +173,22 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
   });
   const zoom: ZoomMode = pxPerDay >= 16 ? 'day' : pxPerDay >= 6 ? 'week' : 'month';
   const setZoom = useCallback((z: ZoomMode) => setPxPerDay(PX_PER_DAY[z]), []);
+
+  // Animated sliding pill for the Day/Week/Month segmented control. The pill
+  // smoothly translates between segments instead of snapping background-color
+  // — that's the difference between an iOS-style segmented control and a row
+  // of toggled buttons. We drive `segmentAnim` from `zoom` and interpolate to
+  // a translateX. Spring physics for the actual UIKit feel.
+  const SEGMENT_WIDTH = 56;
+  const segmentAnim = useRef(new Animated.Value(zoom === 'day' ? 0 : zoom === 'week' ? 1 : 2)).current;
+  useEffect(() => {
+    Animated.spring(segmentAnim, {
+      toValue: zoom === 'day' ? 0 : zoom === 'week' ? 1 : 2,
+      useNativeDriver: true,
+      speed: 22,
+      bounciness: 8,
+    }).start();
+  }, [zoom, segmentAnim]);
 
   // --- Derived totals -------------------------------------------------------
   // Always render at least ~30 days to the right of project finish so users can
@@ -573,32 +599,44 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
         }
 
         const stub = 12;
-        // Step 1: move in exitDir for `stub` px. Step 2: vertical to y2. Step
-        // 3: approach x2 from enterDir. If the natural path would cross back
-        // over a bar, route above via yDetour.
+        // Bezier-curve dependency routing — replaces the old MS-Project-style
+        // right-angle (HVHV) elbows with smooth S-curves for the common case
+        // where the successor sits to the right of the predecessor. The bars
+        // exit horizontally then ease vertically to the next row, which reads
+        // far cleaner on a dense schedule than a 90° turn. Backward / crossing
+        // dependencies (rare, usually a re-plan) still fall back to the
+        // orthogonal detour because Beziers crossing back over their origin
+        // get visually noisy.
         const x1End = x1 + exitDir * stub;
         const x2End = x2 - enterDir * stub;
         const yDetour = Math.min(pred.y, succ.y) - 10;
+        // Tip offset — shrink the line so the arrowhead sits flush against the
+        // bar edge instead of overlapping it.
+        const tipOff = enterDir === 1 ? -3 : 3;
+        const tipX = x2 + tipOff;
         let d: string;
         if (exitDir === 1 && enterDir === 1) {
-          // FS-like: right then down/up then right-in.
+          // FS — predecessor finish → successor start. Common case.
           if (x2End >= x1End) {
-            const midX = Math.max(x1End, x2End);
-            d = `M ${x1} ${y1} H ${midX} V ${y2} H ${x2 - 3}`;
+            // Forward: single smooth S. Control points pull horizontally from
+            // each anchor by ~40% of the horizontal span, so the curve enters
+            // and exits perpendicular to the bar edges.
+            const dx = Math.max(stub, (tipX - x1) * 0.5);
+            d = `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${tipX - dx} ${y2}, ${tipX} ${y2}`;
           } else {
-            d = `M ${x1} ${y1} H ${x1End} V ${yDetour} H ${x2End} V ${y2} H ${x2 - 3}`;
+            // Backward: keep orthogonal detour (curve would loop back on itself).
+            d = `M ${x1} ${y1} H ${x1End} V ${yDetour} H ${x2End} V ${y2} H ${tipX}`;
           }
         } else if (exitDir === -1 && enterDir === 1) {
-          // SS-like: left then vertical then right-in (always via detour
-          // because we're heading backward before coming forward).
-          d = `M ${x1} ${y1} H ${x1End} V ${yDetour} H ${x2End} V ${y2} H ${x2 - 3}`;
+          // SS — heading backward before forward; orthogonal reads cleaner.
+          d = `M ${x1} ${y1} H ${x1End} V ${yDetour} H ${x2End} V ${y2} H ${tipX}`;
         } else if (exitDir === 1 && enterDir === -1) {
-          // FF-like: right then vertical then right-in (arrowhead at the
-          // right edge of successor, so entry comes from the right).
-          d = `M ${x1} ${y1} H ${x1End} V ${yDetour} H ${x2End} V ${y2} H ${x2 + 3}`;
+          // FF — both exit/enter on right edges. Smooth C-curve.
+          const dx = Math.max(stub, Math.abs(tipX - x1) * 0.5);
+          d = `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${tipX + dx} ${y2}, ${tipX} ${y2}`;
         } else {
-          // SF-like: left then vertical then right-in to the right edge.
-          d = `M ${x1} ${y1} H ${x1End} V ${yDetour} H ${x2End} V ${y2} H ${x2 + 3}`;
+          // SF — uncommon. Orthogonal detour.
+          d = `M ${x1} ${y1} H ${x1End} V ${yDetour} H ${x2End} V ${y2} H ${tipX}`;
         }
         out.push({
           id: `${pred.task.id}->${succ.task.id}`,
@@ -619,15 +657,17 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
   // Build day ticks. For zoom=day we label every day; week → every 7;
   // month → every 1st of month.
   const headerTicks = useMemo(() => {
-    const ticks: { x: number; label: string; bold?: boolean; month?: string }[] = [];
+    const ticks: { x: number; label: string; bold?: boolean; month?: string; isWeekend?: boolean }[] = [];
     if (zoom === 'day') {
       for (let d = 1; d <= totalDays; d++) {
         const date = addDays(projectStartDate, d - 1);
+        const dow = date.getDay();
         ticks.push({
           x: (d - 1) * pxPerDay,
           label: String(date.getDate()),
           bold: date.getDate() === 1,
           month: date.getDate() === 1 || d === 1 ? fmtMonth(date) : undefined,
+          isWeekend: dow === 0 || dow === 6,
         });
       }
     } else if (zoom === 'week') {
@@ -658,18 +698,58 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
     return ticks;
   }, [zoom, totalDays, projectStartDate, pxPerDay]);
 
+  // Pinch-to-zoom on web. Apple convention: cmd+scroll (Mac) / ctrl+scroll
+  // (other) zooms the chart timeline. We preventDefault so the browser
+  // doesn't try to zoom the whole page. deltaY < 0 (scroll up) zooms in;
+  // > 0 zooms out. The 1.5 step is small enough to feel like a continuous
+  // zoom but big enough that the user reaches the boundary in a few flicks.
+  // Native is currently served by the +/− stepper buttons in the toolbar;
+  // adding PinchGestureHandler would require wrapping the entire timeline
+  // in a gesture-handler tree which is a separate refactor.
+  const handleWheelZoom = useCallback((e: any) => {
+    if (Platform.OS !== 'web') return;
+    if (!(e.ctrlKey || e.metaKey)) return;
+    e.preventDefault?.();
+    const dy = e.deltaY ?? 0;
+    if (dy === 0) return;
+    const step = dy > 0 ? -1.5 : 1.5;
+    setPxPerDay(prev => Math.max(1, Math.min(40, prev + step)));
+  }, []);
+
   // --- Render ---------------------------------------------------------------
   return (
-    <View style={styles.container}>
+    <View
+      style={styles.container}
+      {...(Platform.OS === 'web' ? ({ onWheel: handleWheelZoom } as any) : {})}
+    >
       {/* Toolbar */}
       <View style={styles.toolbar}>
         <Text style={styles.toolbarTitle}>Gantt</Text>
+        {/* iOS-style segmented control with a sliding pill behind the active
+            segment. The pill is an Animated.View that translates between the
+            three positions on `zoom` change — feels live the way UIKit's
+            UISegmentedControl does, instead of snapping background colors. */}
         <View style={styles.zoomGroup}>
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              styles.zoomPill,
+              {
+                width: SEGMENT_WIDTH,
+                transform: [{
+                  translateX: segmentAnim.interpolate({
+                    inputRange: [0, 1, 2],
+                    outputRange: [0, SEGMENT_WIDTH, SEGMENT_WIDTH * 2],
+                  }),
+                }],
+              },
+            ]}
+          />
           {(['day', 'week', 'month'] as ZoomMode[]).map(z => (
             <TouchableOpacity
               key={z}
               onPress={() => setZoom(z)}
-              style={[styles.zoomBtn, zoom === z && styles.zoomBtnActive]}
+              style={[styles.zoomBtn, { width: SEGMENT_WIDTH }]}
               activeOpacity={0.7}
             >
               <Text style={[styles.zoomBtnText, zoom === z && styles.zoomBtnTextActive]}>
@@ -761,10 +841,14 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
           </TouchableOpacity>
         </View>
         <View style={styles.legend}>
-          <View style={[styles.legendDot, { backgroundColor: Colors.error }]} />
-          <Text style={styles.legendText}>Critical path</Text>
-          <View style={[styles.legendDot, { backgroundColor: Colors.primary, marginLeft: 10 }]} />
-          <Text style={styles.legendText}>Normal</Text>
+          <View style={styles.legendItem}>
+            <View style={[styles.legendStripe, { backgroundColor: Colors.error }]} />
+            <Text style={styles.legendText}>Critical</Text>
+          </View>
+          <View style={styles.legendItem}>
+            <View style={[styles.legendStripe, { backgroundColor: Colors.primary }]} />
+            <Text style={styles.legendText}>Normal</Text>
+          </View>
         </View>
       </View>
 
@@ -847,7 +931,10 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                 </View>
               </View>
 
-              {/* --- Row backgrounds + weekend shading + today line --- */}
+              {/* --- Row backgrounds: clean, no zebra striping. The old zebra
+                  alternation read as "Excel grid" — Apple-app convention is a
+                  single uniform surface with hairline separators between
+                  rows, so the bars themselves carry the visual rhythm. --- */}
               {tasks.map((t, i) => (
                 <View
                   key={`bg-${t.id}`}
@@ -857,13 +944,37 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                       top: HEADER_HEIGHT + i * ROW_HEIGHT,
                       width: timelineWidth,
                       height: ROW_HEIGHT,
-                      backgroundColor: i % 2 === 0 ? Colors.surface : Colors.surfaceAlt,
+                      backgroundColor: Colors.surface,
+                      borderBottomWidth: i < tasks.length - 1 ? 1 : 0,
+                      borderBottomColor: 'rgba(60,60,67,0.045)',
                     },
                   ]}
                 />
               ))}
 
-              {/* Vertical gridlines (every day for day-zoom, every week for week, every month for month) */}
+              {/* Weekend tint columns — only at day-zoom densities where Sat/Sun
+                  are individually visible. At week/month zoom the tint becomes
+                  noisy stripes, so we skip it. */}
+              {pxPerDay >= 8 && headerTicks.map((tick, i) => {
+                if (!tick.isWeekend) return null;
+                return (
+                  <View
+                    key={`wk-${i}`}
+                    style={{
+                      position: 'absolute',
+                      left: tick.x,
+                      top: HEADER_HEIGHT,
+                      width: pxPerDay,
+                      height: gridHeight - HEADER_HEIGHT,
+                      backgroundColor: WEEKEND_TINT,
+                      pointerEvents: 'none',
+                    }}
+                  />
+                );
+              })}
+
+              {/* Vertical gridlines + today marker. Hairline below, slightly
+                  more visible at major ticks (week/month boundaries). */}
               <Svg
                 width={timelineWidth}
                 height={gridHeight}
@@ -877,20 +988,32 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                     y1={HEADER_HEIGHT}
                     x2={tick.x}
                     y2={gridHeight}
-                    stroke={tick.bold ? 'rgba(60,60,67,0.16)' : 'rgba(60,60,67,0.06)'}
+                    stroke={tick.bold ? 'rgba(60,60,67,0.10)' : 'rgba(60,60,67,0.035)'}
                     strokeWidth={1}
                   />
                 ))}
                 {todayVisible && (
-                  <SvgLine
-                    x1={todayX}
-                    y1={0}
-                    x2={todayX}
-                    y2={gridHeight}
-                    stroke={TODAY_COLOR}
-                    strokeWidth={2}
-                    strokeDasharray="4,3"
-                  />
+                  <>
+                    {/* Soft halo behind the today line — gives it depth on a
+                        flat grid without resorting to a stark dashed pattern. */}
+                    <SvgLine
+                      x1={todayX}
+                      y1={HEADER_HEIGHT}
+                      x2={todayX}
+                      y2={gridHeight}
+                      stroke={TODAY_COLOR}
+                      strokeOpacity={0.18}
+                      strokeWidth={5}
+                    />
+                    <SvgLine
+                      x1={todayX}
+                      y1={HEADER_HEIGHT}
+                      x2={todayX}
+                      y2={gridHeight}
+                      stroke={TODAY_COLOR}
+                      strokeWidth={1.5}
+                    />
+                  </>
                 )}
               </Svg>
 
@@ -926,17 +1049,23 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
 
                 {dependencyPaths.map(dep => {
                   const color = dep.critical ? Colors.error : Colors.primary;
+                  // Lines render solid by default — calmer than constant
+                  // marching ants on every dependency. The "alive" feel
+                  // appears only when a connected bar is hovered or being
+                  // dragged, so the animation reads as feedback for an
+                  // intentional action instead of permanent decoration.
                   return (
                     <AnimatedPath
                       key={dep.id}
                       d={dep.d}
                       stroke={color}
-                      strokeWidth={dep.highlighted ? 2.2 : 1.5}
+                      strokeWidth={dep.highlighted ? 2 : 1.25}
+                      strokeLinecap="round"
                       fill="none"
-                      strokeDasharray="6,4"
-                      strokeDashoffset={dashOffset as unknown as number}
+                      strokeDasharray={dep.highlighted ? '5,4' : undefined}
+                      strokeDashoffset={dep.highlighted ? (dashOffset as unknown as number) : 0}
                       markerEnd={`url(#${dep.critical ? 'arrowRed' : 'arrowBlue'})`}
-                      opacity={dep.highlighted ? 1 : 0.75}
+                      opacity={dep.highlighted ? 1 : 0.55}
                     />
                   );
                 })}
@@ -1170,6 +1299,134 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                 );
               })()}
 
+              {/* --- Drag ghost: dashed outline at the bar's ORIGINAL position
+                  while the user is dragging it. Mirrors a Mail/Reminders-
+                  style "where was this?" affordance — the user always sees
+                  both the source position (ghost) and the proposed drop
+                  position (the live bar following the cursor). Disappears
+                  the instant the drop commits. --- */}
+              {dragState && (() => {
+                const bar = barById.get(dragState.taskId);
+                if (!bar) return null;
+                const origX = (dragState.originalStart - 1) * pxPerDay;
+                const origW = Math.max(
+                  MIN_BAR_PX_WIDTH,
+                  Math.max(0, dragState.originalDuration) * pxPerDay,
+                );
+                // Skip rendering if the bar hasn't actually moved yet — would
+                // just sit underneath the live bar and read as a stuck pixel.
+                const moved = dragState.currentStart !== dragState.originalStart
+                  || dragState.currentDuration !== dragState.originalDuration;
+                if (!moved) return null;
+                return (
+                  <View
+                    pointerEvents="none"
+                    style={{
+                      position: 'absolute',
+                      left: origX,
+                      top: bar.y,
+                      width: origW,
+                      height: BAR_HEIGHT,
+                      borderRadius: BAR_RADIUS,
+                      borderWidth: 1.5,
+                      borderStyle: 'dashed',
+                      borderColor: 'rgba(60,60,67,0.32)',
+                      backgroundColor: 'rgba(60,60,67,0.035)',
+                      zIndex: 5,
+                    }}
+                  />
+                );
+              })()}
+
+              {/* --- Rich hover preview card --- */}
+              {/* Apple-app-style hover affordance: when the cursor sits on a
+                  bar (and we're not actively dragging or wiring a link), a
+                  glassy card floats above the bar with the full task brief
+                  — title, dates, duration, % complete with progress bar,
+                  predecessor count, assigned crew, status. Replaces the
+                  thin black pill that only fired during drag. */}
+              {hoverTaskId && !dragState && !pendingLink && (() => {
+                const bar = barById.get(hoverTaskId);
+                if (!bar) return null;
+                const t = bar.task;
+                const startDate = addDays(projectStartDate, t.startDay - 1);
+                const finishDate = addDays(
+                  projectStartDate,
+                  t.startDay + Math.max(0, t.durationDays - 1) - 1,
+                );
+                const cardWidth = 268;
+                const tipX = Math.max(4, Math.min(timelineWidth - cardWidth - 4, bar.x));
+                // Float above the bar; if too close to the timeline header, drop below.
+                const above = bar.y - HEADER_HEIGHT > 110;
+                const tipY = above ? bar.y - 110 : bar.y + BAR_HEIGHT + 8;
+                const depCount = (t.dependencyLinks?.length ?? t.dependencies.length ?? 0);
+                const progressPct = Math.max(0, Math.min(100, t.progress ?? 0));
+                const accent = bar.isCritical ? Colors.error : Colors.primary;
+                const statusLabel = t.status === 'done' ? 'Complete'
+                  : t.status === 'in_progress' ? 'In Progress'
+                  : t.status === 'on_hold' ? 'On Hold'
+                  : 'Not started';
+                return (
+                  <View
+                    style={[styles.hoverCard, { left: tipX, top: tipY, width: cardWidth }]}
+                    pointerEvents="none"
+                  >
+                    <View style={styles.hoverCardHeader}>
+                      <View style={[styles.hoverCardAccent, { backgroundColor: accent }]} />
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <Text style={styles.hoverCardTitle} numberOfLines={1}>
+                          {t.title || 'Untitled task'}
+                        </Text>
+                        {t.phase ? (
+                          <Text style={styles.hoverCardPhase} numberOfLines={1}>
+                            {t.phase}
+                          </Text>
+                        ) : null}
+                      </View>
+                      {bar.isCritical ? (
+                        <View style={styles.hoverCardCriticalPill}>
+                          <Text style={styles.hoverCardCriticalText}>Critical</Text>
+                        </View>
+                      ) : null}
+                    </View>
+                    <View style={styles.hoverCardDateRow}>
+                      <Text style={styles.hoverCardDateText}>
+                        {fmtShort(startDate)} → {fmtShort(finishDate)}
+                      </Text>
+                      <Text style={styles.hoverCardDuration}>
+                        {t.durationDays}d
+                      </Text>
+                    </View>
+                    {/* Progress bar */}
+                    <View style={styles.hoverCardProgressTrack}>
+                      <View style={[
+                        styles.hoverCardProgressFill,
+                        { width: `${progressPct}%`, backgroundColor: accent },
+                      ]} />
+                    </View>
+                    <View style={styles.hoverCardMetaRow}>
+                      <View style={styles.hoverCardMeta}>
+                        <Text style={styles.hoverCardMetaLabel}>Status</Text>
+                        <Text style={styles.hoverCardMetaValue}>{statusLabel}</Text>
+                      </View>
+                      <View style={styles.hoverCardMeta}>
+                        <Text style={styles.hoverCardMetaLabel}>Progress</Text>
+                        <Text style={styles.hoverCardMetaValue}>{progressPct}%</Text>
+                      </View>
+                      <View style={styles.hoverCardMeta}>
+                        <Text style={styles.hoverCardMetaLabel}>Predecessors</Text>
+                        <Text style={styles.hoverCardMetaValue}>{depCount}</Text>
+                      </View>
+                    </View>
+                    {(t.crew || t.assignedSubName) ? (
+                      <Text style={styles.hoverCardCrew} numberOfLines={1}>
+                        {t.crew || t.assignedSubName}
+                      </Text>
+                    ) : null}
+                  </View>
+                );
+              })()}
+
               {/* --- Drag tooltip (floats by bar) --- */}
               {dragState && (() => {
                 const bar = barById.get(dragState.taskId);
@@ -1203,11 +1460,11 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
         </ScrollView>
       </View>
 
-      {/* Footer hints */}
+      {/* Footer hints — tightened from the verbose comma-soup so the band
+          reads at a glance instead of needing to be parsed. */}
       <View style={styles.footer}>
         <Text style={styles.footerText}>
-          Drag middle to move · right edge to resize · blue dot to link · hover for Start/Finish today
-          · grey stripe = baseline · green = actual
+          Drag to move · right edge to resize · blue dot to link · grey stripe = baseline · green = actual
         </Text>
       </View>
     </View>
@@ -1460,22 +1717,26 @@ function BarView({
         e?.stopPropagation?.();
         onFocus();
       } } as any) : {})}
+      // Bar redesign: drop the heavy 1.5-2.5px solid border (read as
+      // "Microsoft Project bar"), keep the tinted fill, and put a 3px solid
+      // accent stripe on the left to carry category color. Soft drop shadow
+      // appears on hover/drag instead of a colored outline. Reads as an
+      // Apple-app component rather than a spreadsheet cell.
       style={{
         position: 'absolute',
         left: bar.x,
         top: bar.y,
         width: bar.w,
         height: BAR_HEIGHT,
-        borderRadius: Tokens.radius.xs,
+        borderRadius: BAR_RADIUS,
         backgroundColor: barBg,
-        borderWidth: isFocusTarget ? 2.5 : 1.5,
-        borderColor: isFocusTarget ? Colors.accent : barColor,
+        borderWidth: 0,
         overflow: 'hidden',
-        opacity: dimmed ? 0.25 : 1,
-        shadowColor: isFocusTarget ? Colors.accent : barColor,
-        shadowOpacity: isFocusTarget ? 0.5 : (isHovered || isDragging ? 0.35 : 0),
+        opacity: dimmed ? 0.28 : 1,
+        shadowColor: '#000',
+        shadowOpacity: isFocusTarget ? 0.18 : (isHovered || isDragging ? 0.14 : 0),
         shadowRadius: isFocusTarget ? 10 : (isHovered || isDragging ? 8 : 0),
-        shadowOffset: { width: 0, height: 1 },
+        shadowOffset: { width: 0, height: isHovered || isDragging ? 4 : 1 },
         zIndex: isDragging ? 20 : (isFocusTarget ? 10 : 2),
         cursor: Platform.OS === 'web' ? 'grab' : undefined,
       } as any}
@@ -1483,6 +1744,36 @@ function BarView({
       onPointerLeave={onHoverOut as any}
       {...responder.panHandlers}
     >
+      {/* Left accent stripe — carries category color (critical = red,
+          normal = brand). Replaces the old full-perimeter colored border
+          which was the single biggest "Excel-y" tell. */}
+      <View
+        style={{
+          position: 'absolute',
+          left: 0,
+          top: 0,
+          bottom: 0,
+          width: BAR_ACCENT_WIDTH,
+          backgroundColor: barColor,
+        }}
+      />
+      {/* Focus ring — only when this bar is the selected one. Sits on top
+          of the fill but below the label so the click target stays clean. */}
+      {isFocusTarget && (
+        <View
+          style={{
+            position: 'absolute',
+            left: 0,
+            top: 0,
+            right: 0,
+            bottom: 0,
+            borderRadius: BAR_RADIUS,
+            borderWidth: 2,
+            borderColor: Colors.accent,
+          }}
+          pointerEvents="none"
+        />
+      )}
       {/* Progress overlay — MSP-style inner band. A thin solid bar centered
           vertically whose width tracks % complete. Reads cleanly against the
           tinted bar background even when the task title overflows, and the
@@ -1492,33 +1783,43 @@ function BarView({
         <View
           style={{
             position: 'absolute',
-            left: 0,
-            top: (BAR_HEIGHT - 8) / 2,
-            height: 8,
+            left: BAR_ACCENT_WIDTH + 2,
+            top: (BAR_HEIGHT - 6) / 2,
+            height: 6,
             width: `${progressPct * 100}%`,
             backgroundColor: progressColor,
-            borderRadius: 2,
-            opacity: 0.85,
+            borderRadius: 3,
+            opacity: 0.9,
           }}
         />
       )}
       {/* Title */}
-      <View style={styles.barLabel}>
+      <View style={[styles.barLabel, { paddingLeft: BAR_ACCENT_WIDTH + 8 }]}>
         <Text style={[styles.barLabelText, bar.isCritical && { color: Colors.error }]} numberOfLines={1}>
           {bar.task.title || 'Task'}
         </Text>
       </View>
-      {/* Resize handle visual */}
+      {/* Resize handle visual — subtle indicator on hover, no colored bar. */}
       <View
         style={{
           position: 'absolute',
-          right: 0, top: 0, bottom: 0,
+          right: 0, top: 4, bottom: 4,
           width: RESIZE_HANDLE_WIDTH,
-          backgroundColor: isHovered || isDragging ? barColor : 'transparent',
-          opacity: isHovered || isDragging ? 0.4 : 0,
+          alignItems: 'center',
+          justifyContent: 'center',
+          opacity: isHovered || isDragging ? 1 : 0,
           cursor: Platform.OS === 'web' ? 'ew-resize' : undefined,
         } as any}
-      />
+        pointerEvents="none"
+      >
+        <View style={{
+          width: 2,
+          height: BAR_HEIGHT - 12,
+          borderRadius: 1,
+          backgroundColor: barColor,
+          opacity: 0.55,
+        }} />
+      </View>
     </View>
 
     {/* --- Link handle (Phase 4): floats just off the right edge on hover.
@@ -1642,11 +1943,29 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.fillTertiary,
     borderRadius: Tokens.radius.sm,
     padding: 2,
+    position: 'relative',
+  },
+  // The animated white pill that sits behind the active segment. Soft shadow
+  // + 1px hairline border give it the lifted-tile feel iOS uses.
+  zoomPill: {
+    position: 'absolute',
+    top: 2,
+    left: 2,
+    bottom: 2,
+    backgroundColor: Colors.surface,
+    borderRadius: Tokens.radius.xs,
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 1 },
+    borderWidth: 1,
+    borderColor: 'rgba(60,60,67,0.05)',
   },
   zoomBtn: {
-    paddingHorizontal: 12,
     paddingVertical: 5,
     borderRadius: Tokens.radius.xs,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   zoomBtnActive: {
     backgroundColor: Colors.surface,
@@ -1711,7 +2030,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginLeft: 'auto',
-    gap: 4,
+    gap: 12,
+  },
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  // Mirror the new bar treatment — short colored stripe instead of a dot.
+  // Keeps the legend visually consistent with what's actually on the chart.
+  legendStripe: {
+    width: 3,
+    height: 14,
+    borderRadius: 1.5,
   },
   legendDot: {
     width: 10,
@@ -1722,6 +2053,7 @@ const styles = StyleSheet.create({
     fontSize: Type.caption2.fontSize,
     color: Colors.textSecondary,
     fontWeight: '600',
+    letterSpacing: 0.1,
   },
 
   body: {
@@ -1951,6 +2283,115 @@ const styles = StyleSheet.create({
   footerText: {
     fontSize: Type.caption2.fontSize,
     color: Colors.textSecondary,
+    fontStyle: 'italic',
+  },
+
+  // Rich hover preview card (Apple-app-style glassy panel) — replaces the
+  // thin black drag-only tooltip with a full mini-brief on hover. Subtle
+  // shadow + 1px border, no heavy outlines, generous interior padding so
+  // the metadata reads as a card not a pill.
+  hoverCard: {
+    position: 'absolute',
+    backgroundColor: Colors.surface,
+    borderRadius: Tokens.radius.md,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    shadowColor: '#000',
+    shadowOpacity: 0.16,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 8 },
+    zIndex: 999,
+    gap: 8,
+  },
+  hoverCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  hoverCardAccent: {
+    width: 3,
+    alignSelf: 'stretch',
+    minHeight: 26,
+    borderRadius: 1.5,
+  },
+  hoverCardTitle: {
+    fontSize: Type.subheadline.fontSize,
+    fontWeight: '700',
+    color: Colors.text,
+    letterSpacing: -0.2,
+  },
+  hoverCardPhase: {
+    fontSize: Type.caption2.fontSize,
+    color: Colors.textSecondary,
+    fontWeight: '500',
+    marginTop: 2,
+  },
+  hoverCardCriticalPill: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 999,
+    backgroundColor: Colors.errorLight,
+    alignSelf: 'flex-start',
+  },
+  hoverCardCriticalText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: Colors.error,
+    letterSpacing: 0.2,
+  },
+  hoverCardDateRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+  },
+  hoverCardDateText: {
+    fontSize: Type.footnote.fontSize,
+    color: Colors.text,
+    fontWeight: '600',
+  },
+  hoverCardDuration: {
+    fontSize: Type.caption1.fontSize,
+    color: Colors.textSecondary,
+    fontWeight: '600',
+  },
+  hoverCardProgressTrack: {
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: Colors.fillTertiary,
+    overflow: 'hidden',
+  },
+  hoverCardProgressFill: {
+    height: 4,
+    borderRadius: 2,
+  },
+  hoverCardMetaRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 2,
+  },
+  hoverCardMeta: {
+    flex: 1,
+    minWidth: 0,
+  },
+  hoverCardMetaLabel: {
+    fontSize: 10,
+    color: Colors.textMuted,
+    fontWeight: '500',
+    letterSpacing: 0.2,
+    textTransform: 'uppercase' as const,
+  },
+  hoverCardMetaValue: {
+    fontSize: Type.caption1.fontSize,
+    color: Colors.text,
+    fontWeight: '700',
+    marginTop: 2,
+  },
+  hoverCardCrew: {
+    fontSize: Type.caption2.fontSize,
+    color: Colors.textSecondary,
+    fontWeight: '500',
     fontStyle: 'italic',
   },
 

@@ -131,14 +131,20 @@ button { font: inherit; }
 img.brand-mark { max-width: 32px; max-height: 32px; }
 .foot-brand .brand-mark { width: 28px; height: 28px; max-width: 28px; max-height: 28px; }
 .nav-links {
-  display: flex; gap: clamp(16px, 2.5vw, 28px);
-  font-size: 14px;
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: clamp(12px, 2vw, 22px);
+  font-size: 13.5px;
 }
 .nav-links a {
   color: var(--fog);
   font-weight: 500;
   transition: color 0.2s;
   position: relative;
+  /* Mirror styles.css — keep multi-word labels on one line so the nav reads
+     as a single horizontal row instead of a wrapped grid. */
+  white-space: nowrap;
 }
 .nav-links a:hover { color: #fff; }
 .nav-cta {

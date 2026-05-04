@@ -97,14 +97,22 @@ header.nav {
 img.brand-mark { max-width: 32px; max-height: 32px; }
 footer .brand .brand-mark { width: 28px; height: 28px; max-width: 28px; max-height: 28px; }
 nav.links, .links {
-  display: flex; gap: clamp(16px, 2.5vw, 28px);
-  font-size: 14px;
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: clamp(12px, 2vw, 22px);
+  font-size: 13.5px;
 }
 nav.links a, .links a {
   color: var(--fog);
   font-weight: 500;
   transition: color 0.2s;
   border: none;
+  /* Prevent multi-word labels (e.g. "vs. Takeoff Tools", "Post a Project") from
+     breaking onto two lines and making the nav look choppy. The compromise on
+     narrow desktops is the row may overflow horizontally; the @720px media
+     rule below already hides the whole row on phone widths. */
+  white-space: nowrap;
 }
 nav.links a:hover, .links a:hover { color: #fff; }
 nav.links a.active, .links a.active { color: var(--amber); }
