@@ -1,0 +1,482 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Pricing — MAGE ID</title>
+  <meta name="description" content="One subscription. Every tool a GC needs — AI estimating, AI takeoff, schedule, cash flow, AIA pay apps, public bids, sub directory. No per-project fees, no add-ons, no enterprise sales call." />
+  <meta name="theme-color" content="#0B0D10" />
+
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="MAGE ID — Pricing" />
+  <meta property="og:description" content="One flat subscription. Every tool a GC needs. No per-project fees. No add-ons. No sales call." />
+  <meta property="og:url" content="https://mageid.app/pricing.html" />
+  <meta property="og:site_name" content="MAGE ID" />
+  <meta property="og:image" content="https://mageid.app/assets/og-image.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:image" content="https://mageid.app/assets/og-image.png" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="/assets/favicon-16.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/assets/favicon-180.png" />
+  <link rel="icon" type="image/png" sizes="512x512" href="/assets/favicon-512.png" />
+  <link rel="stylesheet" href="/styles.css?v=2026-05-04" />
+  <style>
+    /* Page-scoped — pricing tables + tier cards. */
+    .pricing-hero { padding: 80px 24px 32px; max-width: 880px; margin: 0 auto; text-align: center; }
+    .pricing-hero h1 {
+      font-family: var(--ff-serif);
+      font-size: clamp(2.4rem, 5vw, 3.6rem);
+      line-height: 1.05;
+      letter-spacing: -0.025em;
+      margin: 0 0 16px;
+      color: #fff;
+    }
+    .pricing-hero h1 em { font-style: italic; color: var(--amber); }
+    .pricing-hero p {
+      font-size: clamp(1rem, 1.4vw, 1.1rem);
+      color: var(--fog);
+      max-width: 600px;
+      margin: 0 auto 14px;
+      line-height: 1.55;
+    }
+
+    .tier-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 18px;
+      max-width: 1100px;
+      margin: 32px auto;
+      padding: 0 clamp(20px, 4vw, 40px);
+    }
+    .tier-card {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 22px;
+      padding: 30px 26px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      transition: transform 220ms ease, border-color 220ms ease, background 220ms ease;
+    }
+    .tier-card:hover {
+      transform: translateY(-3px);
+      border-color: rgba(255, 106, 26, 0.3);
+    }
+    .tier-card.featured {
+      background: linear-gradient(180deg, rgba(255, 106, 26, 0.10) 0%, rgba(255, 106, 26, 0.02) 100%);
+      border-color: rgba(255, 106, 26, 0.45);
+      box-shadow: 0 24px 60px -20px rgba(255, 106, 26, 0.20);
+    }
+    .tier-card .tier-eyebrow {
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 1.4px;
+      text-transform: uppercase;
+      color: var(--fog);
+    }
+    .tier-card.featured .tier-eyebrow { color: var(--amber); }
+    .tier-card h2 {
+      font-family: var(--ff-serif);
+      font-size: 1.8rem;
+      line-height: 1.1;
+      letter-spacing: -0.02em;
+      margin: 0;
+      color: #fff;
+    }
+    .tier-card .tier-pitch {
+      font-size: 14px;
+      color: var(--fog);
+      line-height: 1.55;
+      margin: 0;
+    }
+    .tier-price {
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin: 4px 0 0;
+    }
+    .tier-price .price-num {
+      font-family: var(--ff-serif);
+      font-size: 2.6rem;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: -0.02em;
+    }
+    .tier-card.featured .tier-price .price-num { color: var(--amber); }
+    .tier-price .price-period { font-size: 14px; color: var(--fog); font-weight: 500; }
+    .tier-price .price-extra { font-size: 13px; color: var(--fog); }
+
+    .tier-cta {
+      display: block;
+      text-align: center;
+      padding: 14px 18px;
+      border-radius: 12px;
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+      text-decoration: none;
+      transition: background 220ms ease, transform 150ms ease;
+    }
+    .tier-cta-primary {
+      background: var(--amber);
+      color: var(--ink);
+    }
+    .tier-cta-primary:hover { background: var(--amber-hot); transform: translateY(-1px); }
+    .tier-cta-ghost {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: #fff;
+    }
+    .tier-cta-ghost:hover { background: rgba(255, 255, 255, 0.08); }
+
+    .tier-features {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .tier-features li {
+      font-size: 14px;
+      color: var(--fog);
+      line-height: 1.5;
+      padding-left: 26px;
+      position: relative;
+    }
+    .tier-features li::before {
+      content: "✓";
+      position: absolute;
+      left: 0;
+      top: 0;
+      color: var(--amber);
+      font-weight: 800;
+    }
+    .tier-features li.muted { color: rgba(255, 255, 255, 0.35); }
+    .tier-features li.muted::before { content: "—"; color: rgba(255, 255, 255, 0.3); }
+    .tier-features li.section-break {
+      padding-left: 0;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 1.4px;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, 0.45);
+      margin: 8px 0 -2px;
+    }
+    .tier-features li.section-break::before { content: ""; }
+
+    .compare-section {
+      max-width: 1100px;
+      margin: 64px auto 96px;
+      padding: 0 clamp(20px, 4vw, 40px);
+    }
+    .compare-section h2 {
+      font-family: var(--ff-serif);
+      font-size: clamp(1.8rem, 3.5vw, 2.4rem);
+      letter-spacing: -0.02em;
+      text-align: center;
+      margin: 0 0 12px;
+      color: #fff;
+    }
+    .compare-section .compare-sub {
+      text-align: center;
+      color: var(--fog);
+      max-width: 640px;
+      margin: 0 auto 36px;
+      font-size: 1rem;
+    }
+
+    .stack-card {
+      background: linear-gradient(180deg, #0B0D10 0%, #1A1D22 100%);
+      color: #F4EFE6;
+      border-radius: 22px;
+      padding: 36px 32px;
+      max-width: 920px;
+      margin: 0 auto;
+      text-align: center;
+    }
+    .stack-card h3 {
+      font-family: var(--ff-serif);
+      font-size: clamp(1.5rem, 3vw, 2rem);
+      line-height: 1.15;
+      letter-spacing: -0.02em;
+      margin: 0 0 16px;
+    }
+    .stack-card h3 em { color: var(--amber); font-style: italic; }
+    .stack-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+      margin: 24px 0 6px;
+    }
+    .stack-cell {
+      padding: 18px 14px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 14px;
+    }
+    .stack-cell .sc-label {
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+      color: #8B9099;
+      margin-bottom: 8px;
+    }
+    .stack-cell .sc-value {
+      font-family: 'Fraunces', Georgia, serif;
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: #F4EFE6;
+    }
+    .stack-cell.is-mage {
+      background: rgba(255, 106, 26, 0.14);
+      border-color: rgba(255, 106, 26, 0.4);
+    }
+    .stack-cell.is-mage .sc-value { color: #FFB87A; }
+
+    .faq {
+      max-width: 880px;
+      margin: 80px auto 96px;
+      padding: 0 clamp(20px, 4vw, 40px);
+    }
+    .faq h2 {
+      font-family: var(--ff-serif);
+      font-size: clamp(1.6rem, 3vw, 2.1rem);
+      text-align: center;
+      letter-spacing: -0.02em;
+      color: #fff;
+      margin: 0 0 36px;
+    }
+    .faq-item {
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+      padding: 22px 0;
+    }
+    .faq-item:last-child { border-bottom: 1px solid rgba(255, 255, 255, 0.06); }
+    .faq-item h3 {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #fff;
+      margin: 0 0 8px;
+    }
+    .faq-item p {
+      font-size: 14px;
+      line-height: 1.6;
+      color: var(--fog);
+      margin: 0;
+    }
+  </style>
+</head>
+<body>
+  <header class="nav">
+    <div class="nav-inner">
+      <a href="/" class="brand"><img class="brand-mark" src="/assets/logo-mark-light.png" alt="" width="32" height="32" /><span>MAGE&nbsp;ID</span></a>
+      <nav class="links">
+        <a href="/playbook.html">How it works</a>
+        <a href="/features/">Features</a>
+        <a href="/features/vs-other-tools.html">Compare</a>
+        <a href="/pricing.html" class="active">Pricing</a>
+        <a href="/demo.html">Demo</a>
+        <a href="/support.html">Support</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="pricing-hero">
+      <h1>One subscription.<br><em>Every tool</em> you need.</h1>
+      <p>
+        AI estimating, AI takeoff, scheduling, cash flow, AIA pay apps, public bids, vetted
+        sub directory, client portal — all in one app, on a single flat plan. No per-project
+        fees, no add-on modules, no enterprise sales call.
+      </p>
+      <p style="font-size: 0.85rem; color: var(--fog); margin-top: 18px;">
+        14-day free trial · No credit card required · Cancel anytime
+      </p>
+    </section>
+
+    <section class="tier-grid">
+      <div class="tier-card">
+        <span class="tier-eyebrow">Starter</span>
+        <h2>Free</h2>
+        <p class="tier-pitch">Run one project end-to-end so you can see if MAGE ID fits.</p>
+        <div class="tier-price">
+          <span class="price-num">$0</span>
+          <span class="price-period">/ forever · 1 project</span>
+        </div>
+        <a href="/access.html" class="tier-cta tier-cta-ghost">Start free</a>
+        <ul class="tier-features">
+          <li>1 active project</li>
+          <li>Daily field reports with voice dictation</li>
+          <li>Basic schedule (manual Gantt)</li>
+          <li>Photo capture with geo-tag</li>
+          <li>Standard estimate templates</li>
+          <li>Client portal (1 homeowner)</li>
+          <li class="muted">AI estimating &amp; takeoff</li>
+          <li class="muted">Public bids feed</li>
+          <li class="muted">Vetted sub directory</li>
+          <li class="muted">EVM dashboard / cash flow</li>
+        </ul>
+      </div>
+
+      <div class="tier-card featured">
+        <span class="tier-eyebrow">Most popular</span>
+        <h2>Pro</h2>
+        <p class="tier-pitch">The full operating system for the GC running real jobs.</p>
+        <div class="tier-price">
+          <span class="price-num">$99</span>
+          <span class="price-period">/ month, per company</span>
+        </div>
+        <div class="tier-price" style="margin-top: -6px;">
+          <span class="price-extra">Subs are free. Unlimited projects.</span>
+        </div>
+        <a href="/access.html" class="tier-cta tier-cta-primary">Start 14-day trial</a>
+        <ul class="tier-features">
+          <li>Unlimited projects</li>
+          <li>Unlimited subcontractor logins</li>
+          <li class="section-break">Everything in Starter, plus —</li>
+          <li><strong>AI estimating</strong> · 8-question wizard, drawings analyzer</li>
+          <li><strong>AI takeoff</strong> · drop a PDF, get LF/SF/EA</li>
+          <li><strong>20,000+ live materials</strong> with bulk pricing</li>
+          <li><strong>Schedule Pro</strong> · CPM, baselines, DCMA score, weather reflow</li>
+          <li><strong>Cash flow + EVM</strong> · CPI, SPI, 12-week forecast</li>
+          <li><strong>AIA G702/G703 pay apps</strong> with retainage</li>
+          <li><strong>Mage AI copilot</strong> · ask anything about your project</li>
+          <li><strong>Construction AI</strong> · building-code Q&amp;A</li>
+          <li><strong>Public bids feed</strong> (federal, state, private)</li>
+          <li><strong>Vetted sub &amp; supplier directory</strong></li>
+          <li><strong>Client portal</strong> (custom branded, 6 languages)</li>
+          <li><strong>Lien waivers + closeout binder</strong></li>
+        </ul>
+      </div>
+
+      <div class="tier-card">
+        <span class="tier-eyebrow">Business</span>
+        <h2>Custom</h2>
+        <p class="tier-pitch">Multi-office GCs with bespoke integrations or compliance needs.</p>
+        <div class="tier-price">
+          <span class="price-num">Talk to us</span>
+        </div>
+        <a href="/support.html" class="tier-cta tier-cta-ghost">Contact sales</a>
+        <ul class="tier-features">
+          <li class="section-break">Everything in Pro, plus —</li>
+          <li>Multi-tenant org structure</li>
+          <li>SSO / SAML</li>
+          <li>QuickBooks / Sage / Foundation export</li>
+          <li>Custom data residency</li>
+          <li>Dedicated onboarding + training</li>
+          <li>Priority support + named CSM</li>
+          <li>Custom integrations</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="compare-section">
+      <h2>The real comparison.</h2>
+      <p class="compare-sub">
+        Most GCs already pay for a stack of point tools. Here's what that costs vs. one MAGE ID Pro.
+      </p>
+
+      <div class="stack-card">
+        <h3>Pro replaces <em>4 separate</em> subscriptions.</h3>
+        <div class="stack-grid">
+          <div class="stack-cell">
+            <div class="sc-label">Basic PM tracker</div>
+            <div class="sc-value">$10–20/mo</div>
+          </div>
+          <div class="stack-cell">
+            <div class="sc-label">Standalone takeoff</div>
+            <div class="sc-value">$200–500/mo</div>
+          </div>
+          <div class="stack-cell">
+            <div class="sc-label">Cost-book sub</div>
+            <div class="sc-value">$50–100/mo</div>
+          </div>
+          <div class="stack-cell">
+            <div class="sc-label">Bid lead service</div>
+            <div class="sc-value">$100–300/mo</div>
+          </div>
+          <div class="stack-cell is-mage">
+            <div class="sc-label">MAGE&nbsp;ID Pro · all of the above</div>
+            <div class="sc-value">$99/mo</div>
+          </div>
+        </div>
+        <p style="font-size: 14px; color: var(--fog); margin: 22px 0 0;">
+          Stacking the basic apps runs $360–920/month combined. MAGE ID Pro is one subscription, one bill, one app.
+        </p>
+      </div>
+    </section>
+
+    <section class="faq">
+      <h2>Pricing questions, answered.</h2>
+
+      <div class="faq-item">
+        <h3>Are subcontractors free?</h3>
+        <p>Yes. Subs you invite to a project never pay. They get the sub portal — daily progress, schedule, photos, COIs, prequal, RFIs — for free, on the GC's plan.</p>
+      </div>
+
+      <div class="faq-item">
+        <h3>Are clients (homeowners / owners) free?</h3>
+        <p>Yes. Homeowners get the client portal — schedule, selections, daily updates, contract, payments — without ever creating an account. Just a magic link.</p>
+      </div>
+
+      <div class="faq-item">
+        <h3>Are there per-project fees?</h3>
+        <p>No. Pro is unlimited projects. Most enterprise platforms charge $50–200 per active project; we don't.</p>
+      </div>
+
+      <div class="faq-item">
+        <h3>What does "Starter free forever" actually cover?</h3>
+        <p>One active project, the full DFR + photo + basic schedule + manual estimate workflows, and the client portal for one homeowner. AI features (estimating, takeoff, copilot, code Q&amp;A), public bids, the sub directory, and the EVM dashboard live in Pro.</p>
+      </div>
+
+      <div class="faq-item">
+        <h3>Is there an annual discount?</h3>
+        <p>Pay annually and Pro is $79/mo (effective). Starter and Business pricing don't change.</p>
+      </div>
+
+      <div class="faq-item">
+        <h3>Can I switch between tiers?</h3>
+        <p>Up or down anytime. Downgrade to Starter and Pro features become read-only on existing data — nothing is deleted, you can re-upgrade later.</p>
+      </div>
+
+      <div class="faq-item">
+        <h3>What about iOS / Android / web?</h3>
+        <p>One subscription works across iOS, Android, and the web app at app.mageid.app. Sign in once anywhere.</p>
+      </div>
+
+      <div class="faq-item">
+        <h3>Do you have an enterprise discount for $50M+ GCs?</h3>
+        <p>The Business tier is custom-priced and includes things big GCs care about (SSO, accounting export, dedicated CSM). <a href="/support.html" style="color: var(--amber);">Get in touch</a>.</p>
+      </div>
+
+      <div class="faq-item">
+        <h3>Refunds?</h3>
+        <p>14-day free trial means you don't pay until day 15. After that, monthly plans don't refund partial months; annual plans get a prorated refund within 30 days.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <div class="footer-brand">
+        <img src="/assets/logo-mark-light.png" width="32" height="32" alt="" />
+        <span>MAGE&nbsp;ID</span>
+      </div>
+      <nav class="footer-nav">
+        <a href="/playbook.html">How it works</a>
+        <a href="/features/">Features</a>
+        <a href="/features/vs-other-tools.html">Compare</a>
+        <a href="/pricing.html">Pricing</a>
+        <a href="/demo.html">Demo</a>
+        <a href="/support.html">Support</a>
+        <a href="/privacy.html">Privacy</a>
+      </nav>
+      <p class="footer-copy">© MAGE&nbsp;ID. Built for builders.</p>
+    </div>
+  </footer>
+</body>
+</html>
