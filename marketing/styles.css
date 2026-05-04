@@ -417,6 +417,12 @@ nav.links a.active, .links a.active { color: var(--amber); }
   border-radius: 44px;
   background: linear-gradient(135deg, #222 0%, #0a0a0a 100%);
   padding: 8px;
+  /* Safety net: clip oversized children to the phone shape. Without this
+     a raw <img> rendering at its natural 1290×2796 px would burst out of
+     the phone frame and break the page layout — happened on the first
+     deploy of the screenshot wiring when browser-cached old CSS was missing
+     the .screenshot.phone > img rule. */
+  overflow: hidden;
   box-shadow:
     0 0 0 1.5px rgba(255, 255, 255, 0.08),
     0 40px 80px -20px rgba(0, 0, 0, 0.7),
