@@ -10,7 +10,7 @@ import * as ImagePicker from 'expo-image-picker';
 import {
   Plus, Trash2, X, Send, Cloud, Wind, Thermometer, Camera, Users,
   HardHat, Package, AlertTriangle, Image as ImageIcon, BookUser, User,
-  Sparkles, Home as HomeIcon, RefreshCw,
+  Sparkles, Home as HomeIcon, RefreshCw, Copy, CheckCircle2,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
@@ -114,6 +114,63 @@ export default function DailyReportScreen() {
   const todayStr = useMemo(() => {
     return new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
   }, []);
+
+  // The most recent saved report, excluding the one being edited (if any).
+  // Drives the "Copy from yesterday" carry-forward affordance — the single
+  // most-requested feature in DFR app reviews. Most reports repeat 80% of
+  // yesterday's content (same subs, similar work areas, same crew sizes);
+  // making the user re-type all of it every day is the #1 friction point
+  // contractors cite in Raken / Procore reviews.
+  const lastReport = useMemo(() => {
+    const others = reportId ? existingReports.filter(r => r.id !== reportId) : existingReports;
+    return [...others].sort((a, b) => Date.parse(b.date) - Date.parse(a.date))[0];
+  }, [existingReports, reportId]);
+
+  const [carryFormFromId, setCarryFormFromId] = useState<string | null>(null);
+
+  const handleCarryForward = useCallback(() => {
+    if (!lastReport) return;
+    // Copy the fields most likely to repeat day-to-day. We DON'T copy
+    // weather (auto-fetched today is more accurate) or photos (different
+    // photos today) or the incident block (must be re-attested per day).
+    setManpower(lastReport.manpower ?? []);
+    if (lastReport.workPerformed) setWorkPerformed(lastReport.workPerformed);
+    setMaterialsDelivered(lastReport.materialsDelivered ?? []);
+    if (lastReport.issuesAndDelays) setIssuesAndDelays(lastReport.issuesAndDelays);
+    setCarryFormFromId(lastReport.id);
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    const dateLabel = new Date(lastReport.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+    nailIt(`Copied from ${dateLabel}. Edit anything that's different.`);
+  }, [lastReport]);
+
+  const lastReportLabel = useMemo(() => {
+    if (!lastReport) return '';
+    const d = new Date(lastReport.date);
+    const today = new Date();
+    const diffDays = Math.round((today.getTime() - d.getTime()) / 86400000);
+    if (diffDays === 1) return 'yesterday';
+    if (diffDays === 0) return 'earlier today';
+    if (diffDays < 7) return `${diffDays} days ago`;
+    return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  }, [lastReport]);
+
+  // Progress meter — "X of 5 sections filled". Five tracked items because
+  // five is what a contractor can hold in their head: weather, crew, work
+  // performed, materials, photos. Issues + incident don't count toward
+  // completion (they're "fill if relevant"). Drives a pill at the top so
+  // the GC knows at a glance how close they are to a sendable report.
+  const progressMeta = useMemo(() => {
+    const filled = [
+      (weather.temperature?.length ?? 0) > 0 || (weather.conditions?.length ?? 0) > 0,
+      manpower.length > 0,
+      workPerformed.trim().length > 0,
+      materialsDelivered.length > 0,
+      photos.length > 0,
+    ];
+    const done = filled.filter(Boolean).length;
+    const total = filled.length;
+    return { done, total, isReady: done >= 3 };
+  }, [weather, manpower, workPerformed, materialsDelivered, photos]);
 
   const fetchWeather = useCallback(async () => {
     if (!project?.location) return;
@@ -667,6 +724,47 @@ export default function DailyReportScreen() {
                 <Text style={[styles.statusText, { color: existingReport.status === 'sent' ? Colors.success : Colors.textSecondary }]}>
                   {existingReport.status === 'sent' ? 'Sent' : 'Saved'}
                 </Text>
+              </View>
+            )}
+          </View>
+
+          {/* Progress + carry-forward toolbar — sits between the hero and
+              the section forms. Progress pill on the left tells the GC how
+              close they are to a sendable report; "Copy from <last>" pill
+              on the right loads the last report's manpower / work / mats
+              / issues so the user only has to edit the deltas. The single
+              most-requested DFR feature in user reviews. */}
+          <View style={styles.dfrToolbar}>
+            <View style={[
+              styles.progressPill,
+              progressMeta.isReady ? styles.progressPillReady : null,
+            ]}>
+              {progressMeta.isReady ? (
+                <CheckCircle2 size={14} color={Colors.success} strokeWidth={2.2} />
+              ) : null}
+              <Text style={[
+                styles.progressPillText,
+                progressMeta.isReady ? { color: Colors.success } : null,
+              ]}>
+                {progressMeta.done} of {progressMeta.total} filled
+                {progressMeta.isReady ? ' · ready to send' : ''}
+              </Text>
+            </View>
+            {!isLocked && lastReport && !carryFormFromId && (
+              <TouchableOpacity
+                style={styles.carryBtn}
+                onPress={handleCarryForward}
+                activeOpacity={0.7}
+                testID="carry-forward-btn"
+              >
+                <Copy size={14} color={Colors.primary} strokeWidth={2.2} />
+                <Text style={styles.carryBtnText}>Copy from {lastReportLabel}</Text>
+              </TouchableOpacity>
+            )}
+            {carryFormFromId && (
+              <View style={styles.carriedBadge}>
+                <CheckCircle2 size={12} color={Colors.primary} strokeWidth={2.4} />
+                <Text style={styles.carriedBadgeText}>Carried forward</Text>
               </View>
             )}
           </View>
@@ -1394,4 +1492,70 @@ const styles = StyleSheet.create({
   modalRow: { flexDirection: 'row', gap: 10 },
   modalAddBtn: { backgroundColor: Colors.primary, borderRadius: Tokens.radius.lg, paddingVertical: 14, alignItems: 'center', marginTop: 8 },
   modalAddBtnText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.textOnPrimary },
+
+  // Toolbar between the hero card and the section forms — holds the
+  // progress pill and the carry-forward "Copy from <last>" affordance.
+  dfrToolbar: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'space-between' as const,
+    flexWrap: 'wrap' as const,
+    gap: 10,
+    paddingHorizontal: 16,
+    marginTop: -6,
+    marginBottom: 12,
+  },
+  progressPill: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 999,
+    backgroundColor: Colors.fillTertiary,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+  },
+  progressPillReady: {
+    backgroundColor: Colors.successLight,
+    borderColor: Colors.success + '40',
+  },
+  progressPillText: {
+    fontSize: Type.caption1.fontSize,
+    fontWeight: '600' as const,
+    color: Colors.textSecondary,
+    letterSpacing: 0.1,
+  },
+  carryBtn: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 999,
+    backgroundColor: Colors.primary + '12',
+    borderWidth: 1,
+    borderColor: Colors.primary + '40',
+  },
+  carryBtnText: {
+    fontSize: Type.caption1.fontSize,
+    fontWeight: '700' as const,
+    color: Colors.primary,
+    letterSpacing: 0.1,
+  },
+  carriedBadge: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: Colors.primary + '14',
+  },
+  carriedBadgeText: {
+    fontSize: Type.caption2.fontSize,
+    fontWeight: '700' as const,
+    color: Colors.primary,
+    letterSpacing: 0.2,
+  },
 });

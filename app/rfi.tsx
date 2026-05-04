@@ -13,6 +13,7 @@ import { FeatureHeader } from '@/components/FeatureHeader';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import InlineVoiceFill from '@/components/InlineVoiceFill';
+import { StatusPipeline, type PipelineStage } from '@/components/StatusPipeline';
 import { parseRFIFromTranscript, mergeText, pickIfEmpty } from '@/utils/voiceFormParsers';
 import { sendEmail, buildRFIEmailHtml } from '@/utils/emailService';
 import type { RFIStatus, RFIPriority } from '@/types';
@@ -21,6 +22,16 @@ import { Tokens } from '@/constants/designTokens';
 
 const PRIORITY_OPTIONS: RFIPriority[] = ['low', 'normal', 'urgent'];
 const STATUS_OPTIONS: RFIStatus[] = ['open', 'answered', 'closed', 'void'];
+
+// Pipeline stages for the StatusPipeline visualization at the top of an
+// existing RFI. We omit 'void' from the visual flow — it's a side branch
+// (an RFI was raised then withdrawn), not the next normal step. Users can
+// still set status=void via the status picker further down the form.
+const RFI_PIPELINE_STAGES: PipelineStage<RFIStatus>[] = [
+  { key: 'open', label: 'Open' },
+  { key: 'answered', label: 'Answered' },
+  { key: 'closed', label: 'Closed', terminal: true },
+];
 
 export default function RFIScreen() {
   const router = useRouter();
@@ -236,6 +247,32 @@ function RFIScreenInner() {
         )}
         {project && (
           <Text style={styles.projectLabel}>{project.name}</Text>
+        )}
+
+        {existingRFI && (
+          <View style={styles.pipelineWrap}>
+            <StatusPipeline
+              stages={RFI_PIPELINE_STAGES}
+              current={status === 'void' ? 'open' : status}
+              startedAt={existingRFI.dateSubmitted}
+              dueAt={dateRequired || undefined}
+              onAdvance={(next) => {
+                setStatus(next);
+                if (next === 'answered' && !response) {
+                  Alert.alert(
+                    'Mark as answered',
+                    'Add the response below before saving so the audit trail captures who said what.',
+                    [{ text: 'OK' }],
+                  );
+                }
+              }}
+              advanceLabel={
+                status === 'open' ? 'Mark answered'
+                : status === 'answered' ? 'Mark closed'
+                : undefined
+              }
+            />
+          </View>
         )}
 
         <InlineVoiceFill
@@ -742,4 +779,10 @@ const styles = StyleSheet.create({
   taskOptionText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '500' as const, color: Colors.text },
   taskOptionTextActive: { fontWeight: '700' as const, color: Colors.primary },
   taskOptionMeta: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary ?? Colors.textMuted, marginTop: 1 },
+
+  pipelineWrap: {
+    paddingHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 8,
+  },
 });

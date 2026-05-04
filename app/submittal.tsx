@@ -16,6 +16,7 @@ import { generateSubmittalPDF, generateSubmittalPDFUri, buildSubmittalEmailHtml 
 import { sendEmail } from '@/utils/emailService';
 import { nailIt } from '@/components/animations/NailItToast';
 import InlineVoiceFill from '@/components/InlineVoiceFill';
+import { StatusPipeline, type PipelineStage } from '@/components/StatusPipeline';
 import { parseSubmittalFromTranscript, pickIfEmpty } from '@/utils/voiceFormParsers';
 import type { SubmittalStatus } from '@/types';
 import { Type } from '@/constants/typography';
@@ -38,6 +39,24 @@ const STATUS_LABELS: Record<SubmittalStatus, string> = {
   revise_resubmit: 'Revise & Resubmit',
   rejected: 'Rejected',
 };
+
+// Pipeline stages for the StatusPipeline at the top of an existing submittal.
+// We show the happy path (Pending → In Review → Approved). Side-branches
+// (revise_resubmit, rejected, approved_as_noted) live in the existing review-
+// cycle modal — clicking the "Add Review Cycle" button is how a reviewer
+// branches out of the happy path. Approved_as_noted maps to "Approved" in
+// the visual since the project moves forward either way.
+const SUBMITTAL_PIPELINE_STAGES: PipelineStage<SubmittalStatus>[] = [
+  { key: 'pending', label: 'Pending' },
+  { key: 'in_review', label: 'In Review' },
+  { key: 'approved', label: 'Approved', terminal: true },
+];
+
+function mapToPipelineStage(s: SubmittalStatus): SubmittalStatus {
+  if (s === 'approved_as_noted') return 'approved';
+  if (s === 'revise_resubmit' || s === 'rejected') return 'in_review';
+  return s;
+}
 
 export default function SubmittalScreen() {
   const router = useRouter();
@@ -253,6 +272,17 @@ function SubmittalScreenInner() {
           />
         )}
         {project && <Text style={styles.projectLabel}>{project.name}</Text>}
+
+        {existingSubmittal && (
+          <View style={styles.pipelineWrap}>
+            <StatusPipeline
+              stages={SUBMITTAL_PIPELINE_STAGES}
+              current={mapToPipelineStage(existingSubmittal.currentStatus)}
+              startedAt={existingSubmittal.submittedDate}
+              dueAt={existingSubmittal.requiredDate || undefined}
+            />
+          </View>
+        )}
 
         <InlineVoiceFill
           title="Dictate this submittal"
@@ -706,4 +736,10 @@ const styles = StyleSheet.create({
   taskOptionText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '500' as const, color: Colors.text },
   taskOptionTextActive: { fontWeight: '700' as const, color: Colors.primary },
   taskOptionMeta: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary ?? Colors.textMuted, marginTop: 1 },
+
+  pipelineWrap: {
+    paddingHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 8,
+  },
 });
