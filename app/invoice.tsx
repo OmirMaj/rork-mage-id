@@ -24,6 +24,7 @@ import PDFPreSendSheet from '@/components/PDFPreSendSheet';
 import type { PDFSendOptions } from '@/components/PDFPreSendSheet';
 import { sendEmail, buildInvoiceEmailHtml } from '@/utils/emailService';
 import InlineVoiceFill from '@/components/InlineVoiceFill';
+import { StatusPipeline, type PipelineStage } from '@/components/StatusPipeline';
 import { parseInvoiceFromTranscript, mergeText } from '@/utils/voiceFormParsers';
 import { getEffectiveInvoiceStatus, getDaysPastDue } from '@/utils/projectFinancials';
 import { createPaymentLink } from '@/utils/stripe';
@@ -31,7 +32,23 @@ import { fetchStripeConnectStatus } from '@/utils/stripeConnect';
 import { useAuth } from '@/contexts/AuthContext';
 import { nailIt } from '@/components/animations/NailItToast';
 import TapeRollNumber from '@/components/animations/TapeRollNumber';
-import type { InvoiceLineItem, Invoice, PaymentTerms, PaymentMethod, InvoicePayment, RetentionRelease } from '@/types';
+import type { InvoiceLineItem, Invoice, InvoiceStatus, PaymentTerms, PaymentMethod, InvoicePayment, RetentionRelease } from '@/types';
+
+// Happy-path lifecycle for an invoice. partially_paid + overdue map back to
+// "Sent" in the visual since the invoice is mid-flight to "Paid"; the
+// dueAt prop on StatusPipeline already colors the days-pill red when past
+// the due date so overdue is communicated visually without breaking the
+// pipeline into a side branch.
+const INVOICE_PIPELINE_STAGES: PipelineStage<InvoiceStatus>[] = [
+  { key: 'draft', label: 'Draft' },
+  { key: 'sent', label: 'Sent' },
+  { key: 'paid', label: 'Paid', terminal: true },
+];
+
+function mapInvoiceStatus(s: InvoiceStatus): InvoiceStatus {
+  if (s === 'partially_paid' || s === 'overdue') return 'sent';
+  return s;
+}
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -750,6 +767,25 @@ function InvoiceInner() {
             )}
           </View>
 
+          {existingInvoice && (
+            <View style={styles.pipelineWrap}>
+              <StatusPipeline
+                stages={INVOICE_PIPELINE_STAGES}
+                current={mapInvoiceStatus(existingInvoice.status)}
+                startedAt={existingInvoice.issueDate}
+                dueAt={existingInvoice.dueDate}
+                onAdvance={(next) => {
+                  updateInvoice(existingInvoice.id, { status: next });
+                }}
+                advanceLabel={
+                  existingInvoice.status === 'draft' ? 'Mark sent'
+                  : existingInvoice.status === 'sent' || existingInvoice.status === 'partially_paid' || existingInvoice.status === 'overdue' ? 'Mark paid'
+                  : undefined
+                }
+              />
+            </View>
+          )}
+
           {isProgressType && !isLocked && (
             <View style={styles.progressSection}>
               <Text style={styles.progressLabel}>Billing Percentage</Text>
@@ -1426,6 +1462,7 @@ const invoiceStatusColors: Record<string, { bg: string; text: string }> = {
 };
 
 const styles = StyleSheet.create({
+  pipelineWrap: { paddingHorizontal: 16, marginTop: 12, marginBottom: 8 },
   container: { flex: 1, backgroundColor: Colors.background },
   center: { alignItems: 'center', justifyContent: 'center' },
   notFoundText: { fontSize: Type.subheadline.fontSize, color: Colors.textSecondary, marginBottom: 16 },

@@ -30,7 +30,22 @@ import {
 } from '@/types';
 import InlineVoiceFill from '@/components/InlineVoiceFill';
 import VoiceCaptureModal from '@/components/VoiceCaptureModal';
+import { StatusPipeline, type PipelineStage } from '@/components/StatusPipeline';
 import { parseLeadFromTranscript, pickIfEmpty, titleCase } from '@/utils/voiceFormParsers';
+
+// Lead lifecycle pipeline stages — happy path through the funnel.
+// 'lost' is a side branch (lead disqualified) and isn't shown in the
+// visual; the user can still tap the 'Lost' chip below to set it.
+const LEAD_PIPELINE_STAGES: PipelineStage<LeadStage>[] = [
+  { key: 'new', label: 'New' },
+  { key: 'qualified', label: 'Qualified' },
+  { key: 'proposal', label: 'Proposal' },
+  { key: 'won', label: 'Won', terminal: true },
+];
+
+function mapLeadStage(s: LeadStage): LeadStage {
+  return s === 'lost' ? 'new' : s;
+}
 import { buildMailtoUrl, mailSignOff } from '@/utils/mailtoComposer';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -213,9 +228,33 @@ export default function LeadDetailScreen() {
             </View>
           )}
 
-          {/* Stage chips */}
+          {/* Stage chips — pipeline visualization above for existing leads
+              showing days-in-pipeline + one-tap advance. The chip row below
+              keeps the "tap any stage to jump" affordance — useful when a
+              lead jumps from 'new' straight to 'won' (e.g. accepted on the
+              first call) or needs to be marked 'lost'. Two patterns serve
+              different intents: linear progression vs. arbitrary jump. */}
           <View style={styles.section}>
             <Text style={styles.sectionLabel}>Stage</Text>
+            {existing && stage !== 'lost' && (
+              <View style={{ marginBottom: 12 }}>
+                <StatusPipeline
+                  stages={LEAD_PIPELINE_STAGES}
+                  current={mapLeadStage(stage)}
+                  startedAt={existing.receivedAt ?? existing.createdAt}
+                  onAdvance={(next) => {
+                    setStage(next);
+                    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+                  }}
+                  advanceLabel={
+                    stage === 'new' ? 'Mark qualified'
+                    : stage === 'qualified' ? 'Move to proposal'
+                    : stage === 'proposal' ? 'Mark won'
+                    : undefined
+                  }
+                />
+              </View>
+            )}
             <View style={styles.chipRow}>
               {LEAD_STAGES.map(s => (
                 <TouchableOpacity

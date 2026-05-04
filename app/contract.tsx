@@ -36,7 +36,19 @@ import { statusPillStyle } from '@/utils/statusPill';
 import { syncAllowancesToSelections } from '@/utils/selectionsEngine';
 import SignaturePad from '@/components/SignaturePad';
 import { fireConfetti } from '@/components/animations/Confetti';
-import type { ProjectContract, PaymentMilestone, ContractAllowance } from '@/types';
+import { StatusPipeline, type PipelineStage } from '@/components/StatusPipeline';
+import type { ProjectContract, PaymentMilestone, ContractAllowance, ContractStatus } from '@/types';
+
+// Pipeline shown at the top of every saved contract. Void is omitted
+// from the visual (user can still set status=void via the existing UI);
+// it's a side branch, not a normal forward step. 'sent' is the period
+// after the GC sends the contract to the homeowner but before they
+// counter-sign — the homeowner-action waiting state.
+const CONTRACT_PIPELINE_STAGES: PipelineStage<ContractStatus>[] = [
+  { key: 'draft', label: 'Draft' },
+  { key: 'sent', label: 'Sent' },
+  { key: 'signed', label: 'Signed', terminal: true },
+];
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -282,6 +294,16 @@ export default function ContractScreen() {
       </View>
 
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 100 }}>
+        {contract.status !== 'void' && (
+          <View style={{ marginBottom: 12 }}>
+            <StatusPipeline
+              stages={CONTRACT_PIPELINE_STAGES}
+              current={contract.status}
+              startedAt={contract.sentAt ?? contract.createdAt}
+            />
+          </View>
+        )}
+
         {/* Title + value */}
         <View style={styles.card}>
           <Text style={styles.cardLabel}>Contract title</Text>

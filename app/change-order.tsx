@@ -15,6 +15,7 @@ import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import ContactPickerModal from '@/components/ContactPickerModal';
 import InlineVoiceFill from '@/components/InlineVoiceFill';
+import { StatusPipeline, type PipelineStage } from '@/components/StatusPipeline';
 import { parseCOFromTranscript, mergeText, pickIfEmpty } from '@/utils/voiceFormParsers';
 import { getLivePrices, getRegionMultiplier, CATEGORY_META, type MaterialItem } from '@/constants/materials';
 import { sendEmail, buildChangeOrderEmailHtml } from '@/utils/emailService';
@@ -22,7 +23,26 @@ import AIChangeOrderImpact from '@/components/AIChangeOrderImpact';
 import { nailIt } from '@/components/animations/NailItToast';
 import TapeRollNumber from '@/components/animations/TapeRollNumber';
 import { generateG714PDF, type G714Data, type CCDPaymentBasis } from '@/utils/aiaForms';
-import type { ChangeOrderLineItem, ChangeOrder } from '@/types';
+import type { ChangeOrderLineItem, ChangeOrder, ChangeOrderStatus } from '@/types';
+
+// Pipeline stages — happy path through the CO lifecycle. Side branches
+// (rejected, revised, void) live outside this visual; the user can still
+// flip into them via the status badge / approve-reject buttons elsewhere
+// on the screen. We map under_review → "Under Review" as the middle step
+// because in practice every submitted CO sits in review for a beat before
+// it gets approved or rejected.
+const CO_PIPELINE_STAGES: PipelineStage<ChangeOrderStatus>[] = [
+  { key: 'draft', label: 'Draft' },
+  { key: 'submitted', label: 'Submitted' },
+  { key: 'under_review', label: 'In Review' },
+  { key: 'approved', label: 'Approved', terminal: true },
+];
+
+function mapCOStatus(s: ChangeOrderStatus): ChangeOrderStatus {
+  if (s === 'rejected' || s === 'void') return 'submitted';
+  if (s === 'revised') return 'under_review';
+  return s;
+}
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -470,6 +490,28 @@ function ChangeOrderInner() {
               </View>
             )}
           </View>
+
+          {existingCO && (
+            <View style={styles.pipelineWrap}>
+              <StatusPipeline
+                stages={CO_PIPELINE_STAGES}
+                current={mapCOStatus(existingCO.status)}
+                startedAt={existingCO.createdAt}
+                onAdvance={(next) => {
+                  updateChangeOrder(existingCO.id, { status: next });
+                  if (next === 'approved') {
+                    nailIt(`CO #${existingCO.number} approved`);
+                  }
+                }}
+                advanceLabel={
+                  existingCO.status === 'draft' ? 'Mark submitted'
+                  : existingCO.status === 'submitted' ? 'Move to review'
+                  : existingCO.status === 'under_review' ? 'Mark approved'
+                  : undefined
+                }
+              />
+            </View>
+          )}
 
           <View style={styles.totalsCard}>
             <View style={styles.totalRow}>
@@ -1022,7 +1064,11 @@ const statusTextColors: Record<string, string> = {
   void: Colors.textMuted,
 };
 
+// Wraps the StatusPipeline component with the screen's standard side padding.
+const pipelineWrapStyle = { paddingHorizontal: 16, marginTop: 12, marginBottom: 8 } as const;
+
 const styles = StyleSheet.create({
+  pipelineWrap: pipelineWrapStyle,
   container: { flex: 1, backgroundColor: Colors.background },
   center: { alignItems: 'center', justifyContent: 'center' },
   notFoundText: { fontSize: Type.subheadline.fontSize, color: Colors.textSecondary, marginBottom: 16 },
