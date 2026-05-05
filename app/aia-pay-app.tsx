@@ -8,7 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import {
   ChevronLeft, FileText, Download, Info, Percent, Printer, TrendingUp, Check, Save,
-  ShieldAlert,
+  ShieldAlert, Copy, CheckCircle2,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import ConstructionLoader from '@/components/ConstructionLoader';
@@ -90,11 +90,55 @@ function AIAPayAppScreenInner() {
     } catch { /* ok */ }
   }, []);
 
+  // Most recent saved pay app for this project that is NOT this one. Drives
+  // the carry-forward affordance — every monthly AIA pay app should
+  // pre-populate `fromPreviousApp` and `lessPreviousCertificates` from the
+  // prior period's totals, otherwise the GC has to re-type every line's
+  // billed-to-date amount each month. That's the single biggest friction
+  // point GCs cite about pay-app software (Procore, Sage, Foundation
+  // reviews all complain about it).
+  const priorAIA = useMemo(() => {
+    if (!project || !invoice) return null;
+    const all = getAIAPayAppsForProject(project.id);
+    // Pick the highest applicationNumber that's strictly less than the one
+    // we're about to seed (which equals the count of prior apps + 1).
+    const others = all.filter(a => a.invoiceId !== invoice.id);
+    return [...others].sort((a, b) => b.applicationNumber - a.applicationNumber)[0] ?? null;
+  }, [project, invoice, getAIAPayAppsForProject]);
+
+  const [carriedFromAppNumber, setCarriedFromAppNumber] = useState<number | null>(null);
+
   useEffect(() => {
     if (!invoice || !project || !settings?.branding) return;
     const seeded = seedAIAPayApplicationFromInvoice(invoice, project, approvedCOs, settings.branding);
-    setApp(seeded);
-  }, [invoice, project, approvedCOs, settings?.branding]);
+    // Carry-forward: when there's a prior saved pay app, pre-fill each line's
+    // fromPreviousApp with what was billed through the end of the prior
+    // period (prior.fromPreviousApp + prior.thisPeriod), and pre-fill the
+    // G702 "less previous certificates" with the prior period's earned
+    // amount net of retainage. Match lines by itemNo first, falling back to
+    // description for SOVs that have been edited.
+    if (priorAIA && priorAIA.lines.length > 0) {
+      const priorByItem = new Map(priorAIA.lines.map(l => [l.itemNo, l]));
+      const priorByDesc = new Map(priorAIA.lines.map(l => [l.description.trim().toLowerCase(), l]));
+      const carriedLines = seeded.lines.map(line => {
+        const match = priorByItem.get(line.itemNo) ?? priorByDesc.get(line.description.trim().toLowerCase());
+        if (!match) return line;
+        const billedThrough = (match.fromPreviousApp || 0) + (match.thisPeriod || 0);
+        return { ...line, fromPreviousApp: billedThrough };
+      });
+      const carried = {
+        ...seeded,
+        applicationNumber: priorAIA.applicationNumber + 1,
+        lines: carriedLines,
+        lessPreviousCertificates: priorAIA.totals.totalEarnedLessRetainage || 0,
+      };
+      setApp(carried);
+      setCarriedFromAppNumber(priorAIA.applicationNumber);
+    } else {
+      setApp(seeded);
+      setCarriedFromAppNumber(null);
+    }
+  }, [invoice, project, approvedCOs, settings?.branding, priorAIA]);
 
   const totals = useMemo(() => (app ? computeAIATotals(app) : null), [app]);
 
@@ -277,6 +321,14 @@ function AIAPayAppScreenInner() {
               <Text style={styles.progressBadgeLabel}>Complete</Text>
             </View>
           </View>
+          {carriedFromAppNumber !== null && (
+            <View style={styles.carriedRow}>
+              <CheckCircle2 size={14} color={Colors.primary} strokeWidth={2.4} />
+              <Text style={styles.carriedText}>
+                Carried forward from Pay App #{carriedFromAppNumber} — every line&apos;s &ldquo;from previous&rdquo; amount and the G702 &ldquo;less previous certificates&rdquo; total are pre-filled. Just enter this period&apos;s percent-complete per line.
+              </Text>
+            </View>
+          )}
 
           <View style={styles.heroStats}>
             <View style={styles.heroStat}>
@@ -587,6 +639,28 @@ function Divider() {
 }
 
 const styles = StyleSheet.create({
+  // Carry-forward indicator — sits between the hero header and the stats
+  // strip. Tells the GC the prior period's billings were rolled in so they
+  // know NOT to manually re-enter them.
+  carriedRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'flex-start' as const,
+    gap: 8,
+    marginTop: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: Colors.primary + '12',
+    borderWidth: 1,
+    borderColor: Colors.primary + '30',
+  },
+  carriedText: {
+    flex: 1,
+    fontSize: 12.5,
+    lineHeight: 17,
+    color: Colors.text,
+    fontWeight: '500' as const,
+  },
   container: { flex: 1, backgroundColor: Colors.background },
   loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, backgroundColor: Colors.background },
   loadingText: { fontSize: Type.bodyCompact.fontSize, color: Colors.textMuted },

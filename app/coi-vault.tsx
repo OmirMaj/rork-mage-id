@@ -65,6 +65,39 @@ function COIVaultInner() {
   const activeSub = useMemo(() => subcontractors.find(s => s.id === activeSubId), [activeSubId, subcontractors]);
   const subCOIs = useMemo(() => cois.filter(c => c.subcontractorId === activeSubId), [cois, activeSubId]);
 
+  // Compliance summary across all subs — drives the top-of-list banner.
+  // Three tiers of urgency: expired (action required NOW), expiring within
+  // 30 days (action this month), missing entirely (sub on the project but
+  // no COI uploaded). The banner is the single most important affordance
+  // on this screen — bonded jobs require active COIs and a stale one is
+  // a real liability.
+  const complianceSummary = useMemo(() => {
+    const now = Date.now();
+    const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000;
+    let expired = 0;
+    let expiringSoon = 0;
+    let missing = 0;
+    for (const sub of subcontractors) {
+      const subC = cois.filter(c => c.subcontractorId === sub.id);
+      if (subC.length === 0) {
+        missing += 1;
+        continue;
+      }
+      // Pick most recent COI for this sub
+      const latest = [...subC].sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime())[0];
+      // Earliest expiry across the COI's coverages drives compliance — if any
+      // single policy has lapsed, the sub isn't covered for that line.
+      const expiryMs = (latest.coverages ?? [])
+        .map(c => c.expiresAt ? Date.parse(c.expiresAt) : NaN)
+        .filter(ms => Number.isFinite(ms))
+        .reduce<number | null>((min, ms) => min == null || ms < min ? ms : min, null);
+      if (expiryMs == null) continue;
+      if (expiryMs < now) expired += 1;
+      else if (expiryMs - now < THIRTY_DAYS) expiringSoon += 1;
+    }
+    return { expired, expiringSoon, missing };
+  }, [subcontractors, cois]);
+
   // ── Status rollup per sub for the list view ─────────────────
   const subStatus = useMemo(() => {
     const m = new Map<string, { worst: 'pass' | 'warn' | 'fail' | 'none'; latest?: CertificateOfInsurance }>();
@@ -197,6 +230,43 @@ function COIVaultInner() {
           ],
         }}
       />
+      {/* Compliance banner — only renders when there's something to act on.
+          Three urgency lanes (expired / expiring / missing) shown as colored
+          pills so the GC can scan and decide where to spend the next 5min. */}
+      {(complianceSummary.expired > 0 || complianceSummary.expiringSoon > 0 || complianceSummary.missing > 0) && (
+        <View style={styles.complianceBanner}>
+          <AlertTriangle size={16} color={complianceSummary.expired > 0 ? Colors.error : Colors.warning} strokeWidth={2.4} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.complianceBannerTitle}>
+              {complianceSummary.expired > 0 ? 'Action required' : 'Heads up'}
+            </Text>
+            <View style={styles.complianceBannerPillRow}>
+              {complianceSummary.expired > 0 && (
+                <View style={[styles.compliancePill, { backgroundColor: Colors.errorLight }]}>
+                  <Text style={[styles.compliancePillText, { color: Colors.error }]}>
+                    {complianceSummary.expired} expired
+                  </Text>
+                </View>
+              )}
+              {complianceSummary.expiringSoon > 0 && (
+                <View style={[styles.compliancePill, { backgroundColor: Colors.warningLight }]}>
+                  <Text style={[styles.compliancePillText, { color: Colors.warning }]}>
+                    {complianceSummary.expiringSoon} expiring &lt;30d
+                  </Text>
+                </View>
+              )}
+              {complianceSummary.missing > 0 && (
+                <View style={[styles.compliancePill, { backgroundColor: Colors.fillTertiary }]}>
+                  <Text style={[styles.compliancePillText, { color: Colors.textSecondary }]}>
+                    {complianceSummary.missing} no COI on file
+                  </Text>
+                </View>
+              )}
+            </View>
+          </View>
+        </View>
+      )}
+
       <View style={styles.listHeader}>
         <View style={{ flex: 1 }}>
           <Text style={styles.subtitle}>{subcontractors.length} sub{subcontractors.length === 1 ? '' : 's'} tracked</Text>
@@ -358,6 +428,40 @@ function humanizeCoverage(t: string): string {
 }
 
 const styles = StyleSheet.create({
+  complianceBanner: {
+    flexDirection: 'row' as const,
+    alignItems: 'flex-start' as const,
+    gap: 10,
+    marginHorizontal: 16,
+    marginTop: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: Tokens.radius.panel,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+  },
+  complianceBannerTitle: {
+    fontSize: Type.bodyCompact.fontSize,
+    fontWeight: '700' as const,
+    color: Colors.text,
+    marginBottom: 6,
+  },
+  complianceBannerPillRow: {
+    flexDirection: 'row' as const,
+    flexWrap: 'wrap' as const,
+    gap: 6,
+  },
+  compliancePill: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  compliancePillText: {
+    fontSize: Type.caption2.fontSize,
+    fontWeight: '700' as const,
+    letterSpacing: 0.1,
+  },
   container: { flex: 1, backgroundColor: Colors.background },
   emptyState: { alignItems: 'center', paddingTop: 60, gap: 10 },
   emptyTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '800' as const, color: Colors.text },

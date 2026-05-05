@@ -33,6 +33,7 @@ import {
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { PERMIT_TYPE_INFO, PERMIT_STATUS_INFO, SPECIAL_INSPECTION_LABELS } from '@/mocks/permits';
+import { StatusPipeline, type PipelineStage } from '@/components/StatusPipeline';
 import type { Permit, PermitStatus, PermitType, SpecialInspectionCategory } from '@/types';
 import { formatMoney } from '@/utils/formatters';
 import { useProjects } from '@/contexts/ProjectContext';
@@ -137,6 +138,23 @@ function PermitCard({ permit, onPress }: { permit: Permit; onPress: () => void }
       </TouchableOpacity>
     </Animated.View>
   );
+}
+
+// Permit acquisition + inspection lifecycle — happy path. Side branches
+// (denied, expired, inspection_failed) map back to the visual stage they
+// most resemble; the user can still pick those explicitly via the status
+// picker further down the form.
+const PERMIT_PIPELINE_STAGES: PipelineStage<PermitStatus>[] = [
+  { key: 'applied', label: 'Applied' },
+  { key: 'under_review', label: 'In Review' },
+  { key: 'approved', label: 'Approved' },
+  { key: 'inspection_passed', label: 'Inspected', terminal: true },
+];
+
+function mapPermitStatus(s: PermitStatus): PermitStatus {
+  if (s === 'denied') return 'under_review';
+  if (s === 'expired' || s === 'inspection_scheduled' || s === 'inspection_failed') return 'approved';
+  return s;
 }
 
 interface PermitFormState {
@@ -532,6 +550,26 @@ export default function PermitsScreen() {
                 <Text style={styles.modalTitle}>{editingPermit ? 'Edit Permit' : 'New Permit'}</Text>
                 <TouchableOpacity onPress={closeForm} accessibilityRole="button" accessibilityLabel="Close"><X size={22} color={Colors.textMuted} /></TouchableOpacity>
               </View>
+
+              {editingPermit && (
+                <View style={{ marginBottom: 12 }}>
+                  <StatusPipeline
+                    stages={PERMIT_PIPELINE_STAGES}
+                    current={mapPermitStatus(form.status)}
+                    startedAt={form.appliedDate ? new Date(form.appliedDate).toISOString() : undefined}
+                    dueAt={form.inspectionDate ? new Date(form.inspectionDate).toISOString() : undefined}
+                    onAdvance={(next) => {
+                      setForm(f => ({ ...f, status: next }));
+                    }}
+                    advanceLabel={
+                      form.status === 'applied' ? 'Move to review'
+                      : form.status === 'under_review' ? 'Mark approved'
+                      : form.status === 'approved' || form.status === 'inspection_scheduled' ? 'Mark inspection passed'
+                      : undefined
+                    }
+                  />
+                </View>
+              )}
 
               <ScrollView style={{ maxHeight: 520 }} keyboardShouldPersistTaps="handled">
                 <Text style={styles.formLabel}>Project *</Text>

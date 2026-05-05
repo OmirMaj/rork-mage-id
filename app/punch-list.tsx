@@ -151,6 +151,20 @@ function PunchListScreenInner() {
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
   }, [updatePunchItem]);
 
+  // Tap-the-badge quick toggle: advance to the next stage in the linear flow.
+  // open → in_progress → ready_for_review → closed. Closed is terminal.
+  const advanceStatus = useCallback((item: PunchItem) => {
+    const nextByStatus: Record<PunchItemStatus, PunchItemStatus | null> = {
+      open: 'in_progress',
+      in_progress: 'ready_for_review',
+      ready_for_review: 'closed',
+      closed: null,
+    };
+    const next = nextByStatus[item.status];
+    if (!next) return;
+    handleStatusChange(item, next);
+  }, [handleStatusChange]);
+
   const handleReject = useCallback((itemId: string) => {
     const note = rejectionNote.trim();
     updatePunchItem(itemId, { status: 'open', rejectionNote: note || 'Rejected — needs rework' });
@@ -231,9 +245,20 @@ function PunchListScreenInner() {
                   <Text style={styles.punchDesc}>{item.description}</Text>
                   {item.location ? <Text style={styles.punchLocation}>{item.location}</Text> : null}
                 </View>
-                <View style={[styles.punchBadge, { backgroundColor: sc.bg }]}>
+                <TouchableOpacity
+                  style={[styles.punchBadge, { backgroundColor: sc.bg }, item.status !== 'closed' && styles.punchBadgeTappable]}
+                  onPress={() => advanceStatus(item)}
+                  disabled={item.status === 'closed'}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel={item.status === 'closed' ? `Status: ${sc.label}` : `Status: ${sc.label}, tap to advance`}
+                  accessibilityHint={item.status === 'closed' ? undefined : 'Advances status one step'}
+                >
                   <Text style={[styles.punchBadgeText, { color: sc.color }]}>{sc.label}</Text>
-                </View>
+                  {item.status !== 'closed' && (
+                    <Text style={[styles.punchBadgeChevron, { color: sc.color }]}>›</Text>
+                  )}
+                </TouchableOpacity>
               </View>
 
               <View style={styles.punchMeta}>
@@ -498,8 +523,18 @@ const styles = StyleSheet.create({
   priorityDot: { width: 8, height: 8, borderRadius: 4, marginTop: 6 },
   punchDesc: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: Colors.text, lineHeight: 21 },
   punchLocation: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, marginTop: 2 },
-  punchBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: Tokens.radius.sm },
+  punchBadge: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 4,
+    paddingHorizontal: 10, paddingVertical: 4,
+    borderRadius: Tokens.radius.sm,
+  },
+  punchBadgeTappable: {
+    paddingRight: 8,
+  },
   punchBadgeText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const },
+  punchBadgeChevron: { fontSize: (Type.caption2.fontSize ?? 11) + 2, fontWeight: '900' as const, marginTop: -1, opacity: 0.85 },
   punchMeta: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, paddingLeft: 18 },
   punchMetaText: { fontSize: Type.caption1.fontSize, color: Colors.textMuted },
   rejectionBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, backgroundColor: Colors.errorLight, borderRadius: Tokens.radius.sm, padding: 10, marginLeft: 18 },
