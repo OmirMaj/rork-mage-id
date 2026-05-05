@@ -16,6 +16,154 @@ WebBrowser.maybeCompleteAuthSession();
 const AUTH_EMAIL_KEY = 'mageid_auth_email';
 const AUTH_PASSWORD_KEY = 'mageid_auth_password';
 
+// Google OAuth web client ID — same one referenced in the native flow
+// for the iOS SDK's webClientId param. Origins (NOT redirect URIs) for
+// this client must include every host the app runs on:
+//   - https://app.mageid.app
+//   - http://localhost:8081 (Expo web dev)
+const GOOGLE_WEB_CLIENT_ID = '264795467031-s1ivdn6c68bq4hh464bp0239hkh4k2oa.apps.googleusercontent.com';
+
+// ── Google Identity Services (GIS) loader ───────────────────────────
+//
+// Loads accounts.google.com/gsi/client and prompts the user to sign in,
+// returning the ID token (a signed JWT). Unlike the OAuth redirect flow,
+// GIS hands the token directly to the page via a JS callback — no
+// redirect URI, so Google's account chooser shows our app's origin
+// instead of the Supabase project URL.
+//
+// We use the explicit "render button + popup" approach via
+// google.accounts.id.prompt() because the One Tap UI only renders if the
+// user is already signed into Google in the same browser session. The
+// fallback is google.accounts.oauth2.initTokenClient with redirect-less
+// popup mode — but that returns an access token, not an ID token.
+//
+// This helper is web-only. Native iOS/Android use the @react-native-
+// google-signin SDK already (no Supabase URL ever shown there).
+
+interface GoogleIdentityServices {
+  accounts: {
+    id: {
+      initialize: (config: {
+        client_id: string;
+        callback: (response: { credential?: string }) => void;
+        auto_select?: boolean;
+        cancel_on_tap_outside?: boolean;
+        ux_mode?: 'popup' | 'redirect';
+      }) => void;
+      prompt: (cb?: (notification: { isNotDisplayed: () => boolean; isSkippedMoment: () => boolean; getNotDisplayedReason?: () => string; getSkippedReason?: () => string }) => void) => void;
+      renderButton: (parent: HTMLElement, opts: Record<string, unknown>) => void;
+    };
+  };
+}
+
+declare global {
+  interface Window {
+    google?: GoogleIdentityServices;
+  }
+}
+
+let gisLoadPromise: Promise<void> | null = null;
+
+function loadGisScript(): Promise<void> {
+  if (typeof window === 'undefined' || typeof document === 'undefined') {
+    return Promise.reject(new Error('GIS requires a browser environment.'));
+  }
+  if (window.google?.accounts?.id) return Promise.resolve();
+  if (gisLoadPromise) return gisLoadPromise;
+
+  gisLoadPromise = new Promise<void>((resolve, reject) => {
+    const existing = document.querySelector<HTMLScriptElement>('script[src="https://accounts.google.com/gsi/client"]');
+    if (existing) {
+      existing.addEventListener('load', () => resolve(), { once: true });
+      existing.addEventListener('error', () => reject(new Error('GIS script failed to load.')), { once: true });
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = 'https://accounts.google.com/gsi/client';
+    script.async = true;
+    script.defer = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error('GIS script failed to load.'));
+    document.head.appendChild(script);
+  });
+  return gisLoadPromise;
+}
+
+async function promptGoogleIdentityServices(): Promise<string | null> {
+  await loadGisScript();
+  if (!window.google?.accounts?.id) {
+    throw new Error('GIS unavailable after script load.');
+  }
+
+  return new Promise<string | null>((resolve, reject) => {
+    let settled = false;
+    // We render an OFF-SCREEN button and trigger its click programmatically.
+    // The official prompt() API is unreliable — it silently no-ops when
+    // FedCM is disabled, when the user has dismissed One Tap recently, or
+    // when third-party cookies are blocked. The renderButton + click path
+    // works in every browser config we've tested.
+    const host = document.createElement('div');
+    host.style.cssText = 'position:fixed;left:-10000px;top:-10000px;opacity:0;pointer-events:none;';
+    document.body.appendChild(host);
+
+    const cleanup = () => {
+      if (host.parentNode) host.parentNode.removeChild(host);
+    };
+
+    window.google!.accounts.id.initialize({
+      client_id: GOOGLE_WEB_CLIENT_ID,
+      callback: (response) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        if (response.credential) {
+          resolve(response.credential);
+        } else {
+          resolve(null);
+        }
+      },
+      ux_mode: 'popup',
+      auto_select: false,
+      cancel_on_tap_outside: true,
+    });
+
+    try {
+      window.google!.accounts.id.renderButton(host, {
+        type: 'standard',
+        theme: 'outline',
+        size: 'large',
+        text: 'continue_with',
+      });
+      // Wait one tick for the button to mount, then click it.
+      setTimeout(() => {
+        const btn = host.querySelector<HTMLElement>('div[role="button"]');
+        if (btn) {
+          btn.click();
+        } else {
+          settled = true;
+          cleanup();
+          reject(new Error('GIS button did not render.'));
+        }
+      }, 0);
+    } catch (e) {
+      settled = true;
+      cleanup();
+      reject(e);
+    }
+
+    // Safety timeout — if the user closes the popup without selecting an
+    // account, the callback never fires. Give up after 5 minutes so we
+    // don't leak the promise and the off-screen host.
+    setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        cleanup();
+        resolve(null);
+      }
+    }, 5 * 60 * 1000);
+  });
+}
+
 export interface AuthUser {
   id: string;
   email: string;
@@ -414,11 +562,50 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         }
       }
 
-      // ─── Web fallback ───
-      // For web (or if native flow above failed for a non-cancellation
-      // reason), use the existing Supabase OAuth flow. This is the
-      // path that shows "continue to supabase.co" — unavoidable on web
-      // without a custom auth domain.
+      // ─── Web flow: Google Identity Services (ID-token mode) ───
+      // The previous web path used Supabase's OAuth redirect, which is
+      // why the Google account chooser said "to continue to
+      // <project-ref>.supabase.co" — Google literally renders the
+      // redirect URI's host. With Google Identity Services (GIS) we use
+      // the ID-token flow: GIS returns a signed JWT directly to the
+      // page, no redirect, no callback URL exposed. The chooser shows
+      // our app's origin (app.mageid.app) instead of Supabase's URL.
+      //
+      // Then we hand the ID token to supabase.auth.signInWithIdToken;
+      // Supabase verifies the signature against Google's public keys
+      // and creates the session — same security as the redirect flow.
+      //
+      // Requirements (already configured in our GCP project):
+      //   - Web Client ID listed in code as GOOGLE_WEB_CLIENT_ID
+      //   - app.mageid.app + localhost added to Authorized JS origins
+      //     on the web client (NOT redirect URIs — origins only)
+      if (Platform.OS === 'web') {
+        try {
+          const idToken = await promptGoogleIdentityServices();
+          if (!idToken) {
+            console.log('[Auth] GIS sign-in cancelled or empty token');
+            return;
+          }
+          const { error } = await supabase.auth.signInWithIdToken({
+            provider: 'google',
+            token: idToken,
+          });
+          if (error) throw error;
+          console.log('[Auth] Google sign-in session set (web GIS flow)');
+          queryClient.clear();
+          return;
+        } catch (gisErr) {
+          // Fall through to the legacy redirect flow if GIS isn't
+          // available (script blocked, popup blocker, GCP misconfig).
+          // The redirect flow is degraded UX but at least functional.
+          console.warn('[Auth] GIS failed, falling back to redirect flow:', gisErr);
+        }
+      }
+
+      // ─── Legacy redirect flow (last-resort fallback) ───
+      // Reached only if GIS failed on web OR the native flow failed for
+      // a non-cancellation reason. Shows "continue to supabase.co" but
+      // beats no sign-in path.
       const redirectUrl = makeRedirectUri({ preferLocalhost: false });
       console.log('[Auth] Google redirect URL:', redirectUrl);
       const { data, error } = await supabase.auth.signInWithOAuth({
