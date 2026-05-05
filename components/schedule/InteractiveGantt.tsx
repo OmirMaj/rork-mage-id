@@ -1067,25 +1067,30 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                 pointerEvents="none"
               >
                 <Defs>
+                  {/* Arrow markers — bumped from 8→11 to read as proper
+                      "this connects to that" arrowheads instead of dots.
+                      A slight asymmetric notch (point at 11,5; tail tucked
+                      inward at 1,5) keeps the head pointed without the
+                      classic SVG triangle looking blunt. */}
                   <Marker
                     id="arrowRed"
-                    markerWidth={8}
-                    markerHeight={8}
-                    refX={6}
-                    refY={4}
+                    markerWidth={11}
+                    markerHeight={10}
+                    refX={9}
+                    refY={5}
                     orient="auto"
                   >
-                    <Polygon points="0,0 8,4 0,8" fill={Colors.error} />
+                    <Polygon points="1,1 11,5 1,9 3,5" fill={Colors.error} />
                   </Marker>
                   <Marker
                     id="arrowBlue"
-                    markerWidth={8}
-                    markerHeight={8}
-                    refX={6}
-                    refY={4}
+                    markerWidth={11}
+                    markerHeight={10}
+                    refX={9}
+                    refY={5}
                     orient="auto"
                   >
-                    <Polygon points="0,0 8,4 0,8" fill={Colors.primary} />
+                    <Polygon points="1,1 11,5 1,9 3,5" fill={Colors.primary} />
                   </Marker>
                 </Defs>
 
@@ -1096,18 +1101,21 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                   // appears only when a connected bar is hovered or being
                   // dragged, so the animation reads as feedback for an
                   // intentional action instead of permanent decoration.
+                  // Stroke + opacity bumped so resting-state lines read as
+                  // confident connectors instead of background hairlines.
                   return (
                     <AnimatedPath
                       key={dep.id}
                       d={dep.d}
                       stroke={color}
-                      strokeWidth={dep.highlighted ? 2 : 1.25}
+                      strokeWidth={dep.highlighted ? 2.5 : 1.9}
                       strokeLinecap="round"
+                      strokeLinejoin="round"
                       fill="none"
                       strokeDasharray={dep.highlighted ? '5,4' : undefined}
                       strokeDashoffset={dep.highlighted ? (dashOffset as unknown as number) : 0}
                       markerEnd={`url(#${dep.critical ? 'arrowRed' : 'arrowBlue'})`}
-                      opacity={dep.highlighted ? 1 : 0.55}
+                      opacity={dep.highlighted ? 1 : 0.85}
                     />
                   );
                 })}
