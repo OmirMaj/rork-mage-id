@@ -1077,6 +1077,25 @@ export interface SafetyToolboxTalk {
   conductedBy?: string;
 }
 
+/**
+ * Per-task progress entry on a Daily Field Report. Lets the GC mark
+ * "Concrete Pour — Level 2 was 100% complete today" as a structured chip
+ * instead of burying it in the workPerformed free-text. Read by the
+ * client portal's "Latest update" panel + the schedule's progress
+ * rollup so a saved DFR feeds task progress automatically.
+ */
+export interface DFRWorkProgress {
+  /** ScheduleTask.id — links the chip to the schedule. */
+  taskId: string;
+  /** Snapshot of the task title at the time of save (so historical DFRs
+   *  read correctly even if the task was renamed/deleted). */
+  taskName: string;
+  /** Snapshot of the task phase, drives chip color. */
+  phase: string;
+  /** Percent complete reported on this DFR's date (0-100). */
+  pct: number;
+}
+
 export interface DailyFieldReport {
   id: string;
   projectId: string;
@@ -1084,6 +1103,12 @@ export interface DailyFieldReport {
   weather: DFRWeather;
   manpower: ManpowerEntry[];
   workPerformed: string;
+  /**
+   * Structured per-task progress chips. Optional — older DFRs omit this.
+   * The schedule-progress rollup and the homeowner portal both consume it
+   * when present, falling back to workPerformed free-text otherwise.
+   */
+  workProgress?: DFRWorkProgress[];
   materialsDelivered: string[];
   issuesAndDelays: string;
   photos: DFRPhoto[];

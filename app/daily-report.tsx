@@ -11,6 +11,7 @@ import {
   Plus, Trash2, X, Send, Cloud, Wind, Thermometer, Camera, Users,
   HardHat, Package, AlertTriangle, Image as ImageIcon, BookUser, User,
   Sparkles, Home as HomeIcon, RefreshCw, Copy, CheckCircle2,
+  CalendarDays, ChevronLeft, Tractor, Wrench, ChartBar, BarChart3,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
@@ -21,7 +22,8 @@ import VoiceRecorder from '@/components/VoiceRecorder';
 import { parseDFRFromTranscript } from '@/utils/voiceDFRParser';
 import AIDailyReportGen from '@/components/AIDailyReportGen';
 import AIDFRFromPhotos from '@/components/AIDFRFromPhotos';
-import type { ManpowerEntry, DFRPhoto, DailyFieldReport, DFRWeather, IncidentReport, IncidentSeverity } from '@/types';
+import type { ManpowerEntry, DFRPhoto, DailyFieldReport, DFRWeather, IncidentReport, IncidentSeverity, DFRWorkProgress } from '@/types';
+import { PHASE_COLORS } from '@/utils/scheduleEngine';
 import { stampPhotoLocation } from '@/utils/photoGeoStamp';
 import type { DailyReportGenResult } from '@/utils/aiService';
 import { generateHomeownerSummary } from '@/utils/aiService';
@@ -75,6 +77,10 @@ export default function DailyReportScreen() {
   );
   const [manpower, setManpower] = useState<ManpowerEntry[]>(existingReport?.manpower ?? []);
   const [workPerformed, setWorkPerformed] = useState(existingReport?.workPerformed ?? '');
+  // Structured per-task progress chips. Each entry pins a task from the
+  // project schedule + a percent-complete the GC observed today.
+  const [workProgress, setWorkProgress] = useState<DFRWorkProgress[]>(existingReport?.workProgress ?? []);
+  const [showTaskPicker, setShowTaskPicker] = useState(false);
   const [materialsDelivered, setMaterialsDelivered] = useState<string[]>(
     existingReport?.materialsDelivered ?? []
   );
@@ -115,6 +121,23 @@ export default function DailyReportScreen() {
   const todayStr = useMemo(() => {
     return new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
   }, []);
+
+  // "Day 35 of 103" — the project's calendar day relative to the schedule's
+  // start date and total planned duration. Surfacing this on every DFR
+  // hero card builds confidence that the app understands the project's
+  // calendar, and gives the GC a constant pacing signal.
+  const projectDayInfo = useMemo(() => {
+    const start = project?.schedule?.startDate;
+    const total = project?.schedule?.totalDurationDays;
+    if (!start || !total || total <= 0) return null;
+    const startMs = Date.parse(start);
+    if (!Number.isFinite(startMs)) return null;
+    const elapsedMs = Date.now() - startMs;
+    const ONE_DAY = 86_400_000;
+    // 1-indexed: the start day itself is "Day 1", not "Day 0".
+    const day = Math.max(1, Math.min(total, Math.floor(elapsedMs / ONE_DAY) + 1));
+    return { day, total };
+  }, [project?.schedule?.startDate, project?.schedule?.totalDurationDays]);
 
   // The most recent saved report, excluding the one being edited (if any).
   // Drives the "Copy from yesterday" carry-forward affordance — the single
@@ -387,6 +410,30 @@ export default function DailyReportScreen() {
     return manpower.reduce((sum, m) => sum + m.headcount, 0);
   }, [manpower]);
 
+  // Workforce role rollup — bucket each manpower entry's `trade` into one of
+  // four high-level roles (Supervisors / Skilled Labor / Operators / Other),
+  // then sum headcount per bucket. Surfaces as 4 tiles above the manpower
+  // entries so the GC sees the day's labor mix at a glance — the mock's
+  // "premium DFR" pattern.
+  const workforceByRole = useMemo(() => {
+    const buckets = { supervisors: 0, skilled: 0, operators: 0, other: 0 };
+    for (const m of manpower) {
+      const t = (m.trade ?? '').toLowerCase();
+      if (/super(visor|intend|visor)|foreman|pm|project manager|site manager/.test(t)) {
+        buckets.supervisors += m.headcount;
+      } else if (/operator|driver|crane|excav|loader|forklift|dozer/.test(t)) {
+        buckets.operators += m.headcount;
+      } else if (/laborer|helper|cleaner|generic|misc/.test(t)) {
+        buckets.other += m.headcount;
+      } else {
+        // Default trades (Carpentry, Electrical, Plumbing, HVAC, Concrete,
+        // Masonry, Roofing, Drywall, Painting, Framer, etc.) → skilled.
+        buckets.skilled += m.headcount;
+      }
+    }
+    return buckets;
+  }, [manpower]);
+
   const totalManHours = useMemo(() => {
     return manpower.reduce((sum, m) => sum + (m.headcount * m.hoursWorked), 0);
   }, [manpower]);
@@ -413,6 +460,7 @@ export default function DailyReportScreen() {
         weather,
         manpower,
         workPerformed: workPerformed.trim(),
+        workProgress: workProgress.length > 0 ? workProgress : undefined,
         materialsDelivered,
         issuesAndDelays: issuesAndDelays.trim(),
         photos,
@@ -432,6 +480,7 @@ export default function DailyReportScreen() {
         weather,
         manpower,
         workPerformed: workPerformed.trim(),
+        workProgress: workProgress.length > 0 ? workProgress : undefined,
         materialsDelivered,
         issuesAndDelays: issuesAndDelays.trim(),
         photos,
@@ -460,7 +509,7 @@ export default function DailyReportScreen() {
       nailIt(status === 'sent' ? `Daily report sent${recipientInfo}` : 'Daily report saved.');
     }
     router.back();
-  }, [projectId, weather, manpower, workPerformed, materialsDelivered, issuesAndDelays, photos, incident, existingReport, homeownerSummary, hsGeneratedAt, hsPublished, addDailyReport, updateDailyReport, addProjectPhoto, router]);
+  }, [projectId, weather, manpower, workPerformed, workProgress, materialsDelivered, issuesAndDelays, photos, incident, existingReport, homeownerSummary, hsGeneratedAt, hsPublished, addDailyReport, updateDailyReport, addProjectPhoto, router]);
 
   const handleSendPress = useCallback(() => {
     setShowSendRecipient(true);
@@ -534,15 +583,63 @@ export default function DailyReportScreen() {
 
   return (
     <View style={styles.container}>
-      <Stack.Screen options={{
-        title: existingReport ? 'Edit Report' : 'New Daily Report',
-        headerStyle: { backgroundColor: Colors.background },
-        headerTintColor: Colors.primary,
-        headerTitleStyle: { fontWeight: '700' as const, color: Colors.text },
-      }} />
+      <Stack.Screen options={{ headerShown: false }} />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        {/* Custom top bar: back arrow on the left, "Daily Report" + date
+            stacked in the middle, Save Draft (text link) + Submit Report
+            (filled primary) on the right. Matches the mock's top-right
+            CTA pattern — "save vs submit" intent is explicit instead of
+            buried in two buttons of similar weight at the bottom. */}
+        <View style={[styles.topBar, { paddingTop: insets.top + 8 }]}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.topBarBack}
+            accessibilityRole="button"
+            accessibilityLabel="Back"
+            hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+          >
+            <ChevronLeft size={22} color={Colors.text} />
+          </TouchableOpacity>
+          <View style={styles.topBarTitleCol}>
+            <Text style={styles.topBarTitle}>Daily Report</Text>
+            <Text style={styles.topBarDate}>
+              {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+            </Text>
+          </View>
+          {!isLocked ? (
+            <View style={styles.topBarActions}>
+              <TouchableOpacity
+                onPress={() => handleSave('draft')}
+                style={styles.topBarDraftBtn}
+                accessibilityRole="button"
+                accessibilityLabel="Save draft"
+                testID="save-draft-btn"
+                activeOpacity={0.7}
+              >
+                <Text style={styles.topBarDraftText}>Save Draft</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleSendPress}
+                style={styles.topBarSubmitBtn}
+                accessibilityRole="button"
+                accessibilityLabel="Submit report"
+                testID="submit-report-btn"
+                activeOpacity={0.85}
+              >
+                <Text style={styles.topBarSubmitText}>Submit</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={styles.topBarActions}>
+              <View style={[styles.statusBadge, { backgroundColor: Colors.successLight, marginTop: 0 }]}>
+                <Text style={[styles.statusText, { color: Colors.success }]}>Sent</Text>
+              </View>
+            </View>
+          )}
+        </View>
+
         <ScrollView
-          contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
+          contentContainerStyle={{ paddingBottom: insets.bottom + 32 }}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
@@ -720,6 +817,14 @@ export default function DailyReportScreen() {
             <Text style={styles.heroLabel}>Daily Field Report</Text>
             <Text style={styles.heroProject}>{project.name}</Text>
             <Text style={styles.heroDate}>{todayStr}</Text>
+            {projectDayInfo && (
+              <View style={styles.heroDayRow}>
+                <CalendarDays size={13} color={Colors.textMuted} />
+                <Text style={styles.heroDayText}>
+                  Day {projectDayInfo.day} of {projectDayInfo.total}
+                </Text>
+              </View>
+            )}
             {existingReport && (
               <View style={[styles.statusBadge, { backgroundColor: existingReport.status === 'sent' ? Colors.successLight : Colors.fillTertiary }]}>
                 <Text style={[styles.statusText, { color: existingReport.status === 'sent' ? Colors.success : Colors.textSecondary }]}>
@@ -833,10 +938,69 @@ export default function DailyReportScreen() {
             </View>
           </View>
 
+          {/* Work Progress — structured per-task percent-complete chips.
+              Lets the GC log "Concrete Pour 100%, Steel Erection 60%" as
+              data, not free-text. Pulls candidate tasks from the project
+              schedule; falls back to a helper note if no schedule exists.
+              The schedule rollup + portal both consume the chips so the
+              data flows downstream without re-entry. */}
+          <View style={styles.sectionCard}>
+            <View style={styles.sectionHeader}>
+              <BarChart3 size={18} color={Colors.primary} />
+              <Text style={styles.sectionTitle}>Work Progress</Text>
+              <Text style={styles.sectionTotal}>{workProgress.length > 0 ? `${workProgress.length} task${workProgress.length === 1 ? '' : 's'}` : 'What was completed today?'}</Text>
+              {!isLocked && (project.schedule?.tasks?.length ?? 0) > 0 && (
+                <TouchableOpacity
+                  style={styles.addSmallBtn}
+                  onPress={() => setShowTaskPicker(true)}
+                  activeOpacity={0.7}
+                  testID="add-work-progress-btn" accessibilityRole="button" accessibilityLabel="Add work">
+                  <Plus size={14} color={Colors.primary} />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {(project.schedule?.tasks?.length ?? 0) === 0 ? (
+              <Text style={styles.emptyText}>
+                Build a project schedule first — Work Progress chips pull from your task list.
+              </Text>
+            ) : workProgress.length === 0 ? (
+              <Text style={styles.emptyText}>
+                No tasks logged yet — tap + to mark which schedule tasks made progress today.
+              </Text>
+            ) : (
+              <View style={styles.progressChipGrid}>
+                {workProgress.map(p => {
+                  const phaseColor = PHASE_COLORS[p.phase] ?? PHASE_COLORS.General;
+                  return (
+                    <View key={p.taskId} style={styles.progressChip}>
+                      <View style={[styles.progressChipDot, { backgroundColor: phaseColor }]} />
+                      <Text style={styles.progressChipName} numberOfLines={1}>{p.taskName}</Text>
+                      <View style={[styles.progressChipPctPill, { backgroundColor: phaseColor + '1A' }]}>
+                        <Text style={[styles.progressChipPctText, { color: phaseColor }]}>{p.pct}%</Text>
+                      </View>
+                      {!isLocked && (
+                        <TouchableOpacity
+                          onPress={() => setWorkProgress(prev => prev.filter(x => x.taskId !== p.taskId))}
+                          hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+                          accessibilityRole="button"
+                          accessibilityLabel="Remove"
+                        >
+                          <X size={14} color={Colors.textMuted} />
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+          </View>
+
           <View style={styles.sectionCard}>
             <View style={styles.sectionHeader}>
               <Users size={18} color={Colors.primary} />
-              <Text style={styles.sectionTitle}>Manpower ({totalManpower} workers · {totalManHours}h)</Text>
+              <Text style={styles.sectionTitle}>Workforce</Text>
+              <Text style={styles.sectionTotal}>Total · {totalManpower}</Text>
               {!isLocked && (
                 <TouchableOpacity
                   style={styles.addSmallBtn}
@@ -847,8 +1011,23 @@ export default function DailyReportScreen() {
                 </TouchableOpacity>
               )}
             </View>
+
+            {/* 4-tile role rollup. Tiles render even when empty (count=0)
+                so the layout doesn't shift as the GC adds entries — Apple
+                pattern: skeleton stays put, the numbers fill in. */}
+            <View style={styles.roleTileGrid}>
+              <RoleTile icon={User} label="Supervisors" count={workforceByRole.supervisors} color="#3B82F6" />
+              <RoleTile icon={HardHat} label="Skilled" count={workforceByRole.skilled} color="#10B981" />
+              <RoleTile icon={Tractor} label="Operators" count={workforceByRole.operators} color="#A855F7" />
+              <RoleTile icon={Users} label="Other" count={workforceByRole.other} color="#F59E0B" />
+            </View>
+
+            {totalManHours > 0 && (
+              <Text style={styles.workforceTotalLine}>{totalManHours} man-hours today</Text>
+            )}
+
             {manpower.length === 0 && (
-              <Text style={styles.emptyText}>No manpower entries yet.</Text>
+              <Text style={styles.emptyText}>No manpower entries yet — tap + to add a crew.</Text>
             )}
             {manpower.map((entry) => (
               <View key={entry.id} style={styles.mpRow}>
@@ -1187,27 +1366,8 @@ export default function DailyReportScreen() {
           </View>
         </ScrollView>
 
-        {!isLocked && (
-          <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]}>
-            <TouchableOpacity
-              style={styles.saveProjectBtn}
-              onPress={() => handleSave('draft')}
-              activeOpacity={0.7}
-              testID="save-to-project-btn"
-            >
-              <Text style={styles.saveProjectBtnText}>Save to Project</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.sendBtn}
-              onPress={handleSendPress}
-              activeOpacity={0.7}
-              testID="send-report-btn"
-            >
-              <Send size={16} color={Colors.textOnPrimary} />
-              <Text style={styles.sendBtnText}>Send & Save</Text>
-            </TouchableOpacity>
-          </View>
-        )}
+        {/* Bottom save bar removed — Save Draft + Submit now live in the
+            top bar where the Apple-style mock places them. */}
       </KeyboardAvoidingView>
 
       <Modal visible={showSendRecipient} transparent animationType="slide" onRequestClose={() => setShowSendRecipient(false)}>
@@ -1294,6 +1454,88 @@ export default function DailyReportScreen() {
         }}
       />
 
+      {/* Task picker for Work Progress chips. Lists every task in the
+          project schedule that isn't already on the DFR; tapping one
+          adds a chip seeded at the task's current progress. The user
+          can adjust pct via a quick-step row (0/25/50/75/100). */}
+      <Modal visible={showTaskPicker} transparent animationType="slide" onRequestClose={() => setShowTaskPicker(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Add Work Progress</Text>
+              <TouchableOpacity onPress={() => setShowTaskPicker(false)} accessibilityRole="button" accessibilityLabel="Close">
+                <X size={20} color={Colors.textMuted} />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.modalHelper}>Pick a task and the percent complete you observed today.</Text>
+            <ScrollView style={{ maxHeight: 420 }} contentContainerStyle={{ gap: 6 }} showsVerticalScrollIndicator={false}>
+              {(project?.schedule?.tasks ?? [])
+                .filter(t => !workProgress.some(p => p.taskId === t.id))
+                .map(t => {
+                  const phaseColor = PHASE_COLORS[t.phase] ?? PHASE_COLORS.General;
+                  return (
+                    <TouchableOpacity
+                      key={t.id}
+                      style={styles.pickerRow}
+                      onPress={() => {
+                        const fresh: DFRWorkProgress = {
+                          taskId: t.id,
+                          taskName: t.title || 'Untitled',
+                          phase: t.phase,
+                          pct: t.progress ?? 0,
+                        };
+                        setWorkProgress(prev => [...prev, fresh]);
+                        setShowTaskPicker(false);
+                      }}
+                      activeOpacity={0.85}
+                    >
+                      <View style={[styles.pickerDot, { backgroundColor: phaseColor }]} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.pickerTitle} numberOfLines={1}>{t.title || 'Untitled'}</Text>
+                        <Text style={styles.pickerMeta}>{t.phase} · {(t.progress ?? 0)}%</Text>
+                      </View>
+                      <Plus size={16} color={Colors.primary} />
+                    </TouchableOpacity>
+                  );
+                })}
+              {(project?.schedule?.tasks ?? []).filter(t => !workProgress.some(p => p.taskId === t.id)).length === 0 && (
+                <Text style={styles.emptyText}>Every scheduled task is already logged.</Text>
+              )}
+            </ScrollView>
+            {workProgress.length > 0 && (
+              <>
+                <Text style={[styles.modalHelper, { marginTop: 14 }]}>Adjust an existing chip&apos;s percent:</Text>
+                <ScrollView style={{ maxHeight: 200 }} contentContainerStyle={{ gap: 6 }}>
+                  {workProgress.map(p => {
+                    const phaseColor = PHASE_COLORS[p.phase] ?? PHASE_COLORS.General;
+                    return (
+                      <View key={p.taskId} style={styles.pickerRow}>
+                        <View style={[styles.pickerDot, { backgroundColor: phaseColor }]} />
+                        <Text style={[styles.pickerTitle, { flex: 1 }]} numberOfLines={1}>{p.taskName}</Text>
+                        <View style={styles.pctStepperRow}>
+                          {[0, 25, 50, 75, 100].map(v => (
+                            <TouchableOpacity
+                              key={v}
+                              onPress={() => setWorkProgress(prev => prev.map(x => x.taskId === p.taskId ? { ...x, pct: v } : x))}
+                              style={[styles.pctStepBtn, p.pct === v && { backgroundColor: phaseColor, borderColor: phaseColor }]}
+                            >
+                              <Text style={[styles.pctStepBtnText, p.pct === v && { color: '#fff' }]}>{v}</Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      </View>
+                    );
+                  })}
+                </ScrollView>
+              </>
+            )}
+            <TouchableOpacity style={styles.modalDoneBtn} onPress={() => setShowTaskPicker(false)} activeOpacity={0.85}>
+              <Text style={styles.modalDoneBtnText}>Done</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       <Modal visible={showManpowerModal} transparent animationType="slide" onRequestClose={() => setShowManpowerModal(false)}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <View style={styles.modalOverlay}>
@@ -1364,6 +1606,60 @@ function VoiceRow({ label, value, valueColor }: { label: string; value: string; 
   );
 }
 
+// Single role tile for the Workforce rollup — colored icon chip on the left,
+// role label + count stacked on the right. Stays visually consistent across
+// the 4 buckets so the eye reads them as a group.
+function RoleTile(props: {
+  icon: React.ComponentType<{ size: number; color: string; strokeWidth?: number }>;
+  label: string;
+  count: number;
+  color: string;
+}) {
+  const { icon: Icon, label, count, color } = props;
+  const dim = count === 0;
+  return (
+    <View style={[roleTileStyles.tile, dim && { opacity: 0.55 }]}>
+      <View style={[roleTileStyles.iconChip, { backgroundColor: color + '1A' }]}>
+        <Icon size={16} color={color} strokeWidth={2} />
+      </View>
+      <Text style={roleTileStyles.label} numberOfLines={1} adjustsFontSizeToFit>{label}</Text>
+      <Text style={roleTileStyles.count}>{count}</Text>
+    </View>
+  );
+}
+
+const roleTileStyles = StyleSheet.create({
+  // Vertical-stacked tile so the role label has room to breathe — narrow
+  // 4-up grid on phone width truncates a horizontal layout to "Sup...".
+  tile: {
+    alignItems: 'flex-start' as const,
+    gap: 4,
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    borderRadius: Tokens.radius.card,
+    backgroundColor: Colors.surfaceAlt,
+    flex: 1,
+    minWidth: 0,
+  },
+  iconChip: {
+    width: 28, height: 28, borderRadius: 8,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    marginBottom: 4,
+  },
+  label: {
+    fontSize: Type.caption2.fontSize,
+    color: Colors.textMuted,
+    fontWeight: '600' as const,
+  },
+  count: {
+    fontSize: Type.headline.fontSize,
+    fontWeight: '800' as const,
+    color: Colors.text,
+    letterSpacing: -0.3,
+  },
+});
+
 const voiceStyles = StyleSheet.create({
   previewCard: {
     marginHorizontal: 16, marginBottom: 8,
@@ -1414,17 +1710,103 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   center: { alignItems: 'center', justifyContent: 'center' },
   notFoundText: { fontSize: Type.subheadline.fontSize, color: Colors.textSecondary, marginBottom: 16 },
+
+  // Custom top bar — replaces the default Stack header so Save Draft +
+  // Submit can sit at the top right (matches the mock).
+  topBar: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    gap: 10,
+    backgroundColor: Colors.background,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.borderLight,
+  },
+  topBarBack: {
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: Colors.surface,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    borderWidth: 1, borderColor: Colors.cardBorder,
+  },
+  topBarTitleCol: {
+    flex: 1,
+    minWidth: 0,
+  },
+  topBarTitle: {
+    fontSize: Type.title3.fontSize,
+    fontWeight: '800' as const,
+    color: Colors.text,
+    letterSpacing: -0.4,
+  },
+  topBarDate: {
+    fontSize: Type.caption1.fontSize,
+    color: Colors.textMuted,
+    marginTop: 1,
+  },
+  topBarActions: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 8,
+  },
+  topBarDraftBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+  },
+  topBarDraftText: {
+    fontSize: Type.bodyCompact.fontSize,
+    fontWeight: '600' as const,
+    color: Colors.primary,
+  },
+  topBarSubmitBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: Tokens.radius.full,
+    backgroundColor: Colors.primary,
+  },
+  topBarSubmitText: {
+    fontSize: Type.bodyCompact.fontSize,
+    fontWeight: '800' as const,
+    color: Colors.textOnPrimary,
+    letterSpacing: -0.2,
+  },
   backBtn: { backgroundColor: Colors.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: Tokens.radius.md },
   backBtnText: { color: Colors.textOnPrimary, fontSize: Type.subhead.fontSize, fontWeight: '600' as const },
-  heroCard: { backgroundColor: Colors.primary, marginHorizontal: 20, marginTop: 16, borderRadius: Tokens.radius.panel, padding: 20, gap: 4 },
+  heroCard: { backgroundColor: Colors.primary, marginHorizontal: 20, marginTop: 12, borderRadius: Tokens.radius.panel, padding: 20, gap: 4 },
   heroLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' as const, letterSpacing: 0.5 },
   heroProject: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: Colors.textOnPrimary },
   heroDate: { fontSize: Type.bodyCompact.fontSize, color: 'rgba(255,255,255,0.8)', marginTop: 2 },
+  heroDayRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 5,
+    marginTop: 6,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.18)',
+  },
+  heroDayText: {
+    fontSize: Type.caption1.fontSize,
+    color: 'rgba(255,255,255,0.85)',
+    fontWeight: '600' as const,
+  },
   statusBadge: { alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 4, borderRadius: Tokens.radius.sm, marginTop: 6 },
   statusText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const },
-  sectionCard: { marginHorizontal: 20, marginTop: 14, backgroundColor: Colors.card, borderRadius: Tokens.radius.panel, padding: 16, borderWidth: 1, borderColor: Colors.cardBorder },
+  sectionCard: { marginHorizontal: 20, marginTop: 16, backgroundColor: Colors.card, borderRadius: Tokens.radius.panel, padding: 18, borderWidth: 1, borderColor: Colors.cardBorder },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
-  sectionTitle: { flex: 1, fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text },
+  sectionTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text },
+  sectionTotal: { flex: 1, fontSize: Type.caption1.fontSize, color: Colors.textMuted, fontWeight: '600' as const },
+  roleTileGrid: {
+    flexDirection: 'row' as const,
+    gap: 8,
+    marginBottom: 12,
+  },
+  workforceTotalLine: {
+    fontSize: Type.caption2.fontSize,
+    color: Colors.textMuted,
+    marginBottom: 8,
+  },
   refreshBtn: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: Tokens.radius.sm, backgroundColor: Colors.infoLight },
   refreshBtnText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.info },
   weatherGrid: { gap: 10 },
@@ -1493,6 +1875,102 @@ const styles = StyleSheet.create({
   modalRow: { flexDirection: 'row', gap: 10 },
   modalAddBtn: { backgroundColor: Colors.primary, borderRadius: Tokens.radius.lg, paddingVertical: 14, alignItems: 'center', marginTop: 8 },
   modalAddBtnText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.textOnPrimary },
+
+  modalHelper: {
+    fontSize: Type.footnote.fontSize,
+    color: Colors.textMuted,
+    marginBottom: 4,
+  },
+  modalDoneBtn: {
+    backgroundColor: Colors.primary,
+    borderRadius: Tokens.radius.lg,
+    paddingVertical: 14,
+    alignItems: 'center' as const,
+    marginTop: 12,
+  },
+  modalDoneBtnText: {
+    fontSize: Type.callout.fontSize,
+    fontWeight: '700' as const,
+    color: Colors.textOnPrimary,
+  },
+  pickerRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: Tokens.radius.card,
+    backgroundColor: Colors.surfaceAlt,
+  },
+  pickerDot: {
+    width: 10, height: 10, borderRadius: 5,
+  },
+  pickerTitle: {
+    fontSize: Type.bodyCompact.fontSize,
+    fontWeight: '600' as const,
+    color: Colors.text,
+  },
+  pickerMeta: {
+    fontSize: Type.caption2.fontSize,
+    color: Colors.textMuted,
+    marginTop: 2,
+  },
+  pctStepperRow: {
+    flexDirection: 'row' as const,
+    gap: 4,
+  },
+  pctStepBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: Tokens.radius.sm,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+    backgroundColor: Colors.surface,
+  },
+  pctStepBtnText: {
+    fontSize: Type.caption2.fontSize,
+    fontWeight: '700' as const,
+    color: Colors.text,
+  },
+
+  // Work Progress chips on the DFR section card.
+  progressChipGrid: {
+    flexDirection: 'row' as const,
+    flexWrap: 'wrap' as const,
+    gap: 6,
+  },
+  progressChip: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 6,
+    paddingVertical: 6,
+    paddingLeft: 10,
+    paddingRight: 8,
+    borderRadius: Tokens.radius.full,
+    backgroundColor: Colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+    maxWidth: '100%',
+  },
+  progressChipDot: {
+    width: 8, height: 8, borderRadius: 4,
+  },
+  progressChipName: {
+    fontSize: Type.caption1.fontSize,
+    fontWeight: '600' as const,
+    color: Colors.text,
+    maxWidth: 140,
+  },
+  progressChipPctPill: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: Tokens.radius.full,
+  },
+  progressChipPctText: {
+    fontSize: 10,
+    fontWeight: '800' as const,
+    letterSpacing: 0.2,
+  },
 
   // Toolbar between the hero card and the section forms — holds the
   // progress pill and the carry-forward "Copy from <last>" affordance.
