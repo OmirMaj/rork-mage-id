@@ -1618,13 +1618,12 @@ function BarView({
   }
 
   // Phase-driven fill (bright Apple palette in PHASE_COLORS). Critical-path
-  // tasks keep that fill, but pick up a red outline so the path still reads
-  // at a glance — the previous design wholesale-overwrote with red, which
-  // turned every dense schedule into a wall of error.
+  // is conveyed via the red gutter dot + red arrow lines — putting an outline
+  // on the bar itself made dense schedules where every task is critical (a
+  // common case) read as rectangular "loops" enclosing each bar.
   const barColor = colorForTask(bar.task);
   const barBg = barColor + '1A';
   const progressColor = barColor;
-  const criticalOutline = bar.isCritical ? Colors.error : null;
   const progressPct = Math.max(0, Math.min(1, (bar.task.progress ?? 0) / 100));
 
   // Summary bars: rendered as a dark span with inverted "fangs" at each end
@@ -1771,8 +1770,7 @@ function BarView({
         height: BAR_HEIGHT,
         borderRadius: BAR_RADIUS,
         backgroundColor: barBg,
-        borderWidth: criticalOutline ? 1.5 : 0,
-        borderColor: criticalOutline ?? 'transparent',
+        borderWidth: 0,
         overflow: 'hidden',
         opacity: dimmed ? 0.28 : 1,
         shadowColor: '#000',
