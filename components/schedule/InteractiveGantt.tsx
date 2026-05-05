@@ -634,14 +634,20 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
             // Same row, just walk over horizontally.
             d = `M ${x1} ${y1} H ${tipX}`;
           } else if (x2End >= x1End) {
-            // Forward stair-step: pick the midpoint between the two stubs
-            // for the vertical segment so the corner sits centered between
+            // Plenty of forward room — centered stair-step. Pick the
+            // midpoint between the two stubs so the elbow sits between
             // the bars rather than glued to one of them.
             const midX = (x1End + x2End) / 2;
             d = `M ${x1} ${y1} H ${midX} V ${y2} H ${tipX}`;
+          } else if (x2 >= x1) {
+            // Tight forward — successor starts within the stub-gap of the
+            // predecessor's end. Drop straight down at pred's right edge,
+            // then walk over to succ. Avoids the "detour over the top"
+            // path that turns dense critical chains into rectangular loops.
+            d = `M ${x1} ${y1} V ${y2} H ${tipX}`;
           } else {
-            // Backward: detour over the top so the path doesn't cut through
-            // the predecessor row.
+            // Truly backward (succ starts before pred ends): detour over
+            // the top so the path doesn't cut through the predecessor row.
             d = `M ${x1} ${y1} H ${x1End} V ${yDetour} H ${x2End} V ${y2} H ${tipX}`;
           }
         } else if (exitDir === -1 && enterDir === 1) {
