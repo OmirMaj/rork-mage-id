@@ -268,28 +268,66 @@ function LookaheadView({
     );
   }, [tasks]);
 
-  const renderItem = useCallback(({ item }: { item: WeekGroup }) => (
-    <View style={s.weekSection}>
-      {renderWeekHeader(item)}
-      {item.tasks.length === 0 ? (
-        <View style={s.weekEmpty}>
-          <Text style={s.weekEmptyText}>No tasks this week</Text>
-        </View>
-      ) : (
-        item.tasks.map(task => (
-          <SwipeableLookaheadCard
-            key={task.id}
-            task={task}
-            allTasks={tasks}
-            schedule={schedule}
-            projectStartDate={projectStartDate}
-            onProgressUpdate={onProgressUpdate}
-            onTaskPress={onTaskPress}
-          />
-        ))
-      )}
-    </View>
-  ), [tasks, schedule, projectStartDate, onProgressUpdate, onTaskPress, renderWeekHeader]);
+  const renderItem = useCallback(({ item }: { item: WeekGroup }) => {
+    // Group the week's tasks by crew/trade so handoffs read at a glance.
+    // GCs already mentally model the week as "framers Mon-Wed, electrical
+    // Thu, plumbing Fri" — flat lists force them to do that grouping in
+    // their head every time. Falls back to phase when crew is unset
+    // (which is most cases on a fresh schedule).
+    const groups = new Map<string, ScheduleTask[]>();
+    for (const t of item.tasks) {
+      const key = (t.crew?.trim() || t.phase || 'General').trim();
+      const arr = groups.get(key) ?? [];
+      arr.push(t);
+      groups.set(key, arr);
+    }
+    const orderedGroups = [...groups.entries()].sort((a, b) => {
+      // Sort by earliest task start within the group, so the week reads
+      // chronologically across handoffs.
+      const aStart = Math.min(...a[1].map(t => t.startDay));
+      const bStart = Math.min(...b[1].map(t => t.startDay));
+      return aStart - bStart;
+    });
+
+    return (
+      <View style={s.weekSection}>
+        {renderWeekHeader(item)}
+        {item.tasks.length === 0 ? (
+          <View style={s.weekEmpty}>
+            <Text style={s.weekEmptyText}>No tasks this week</Text>
+          </View>
+        ) : (
+          orderedGroups.map(([groupKey, groupTasks]) => {
+            const headcount = groupTasks.reduce((sum, t) => sum + (t.crewSize ?? 0), 0);
+            const groupColor = getPhaseColor(groupTasks[0].phase);
+            return (
+              <View key={groupKey} style={s.crewGroup}>
+                <View style={s.crewGroupHeader}>
+                  <View style={[s.crewGroupDot, { backgroundColor: groupColor }]} />
+                  <Text style={s.crewGroupName} numberOfLines={1}>{groupKey}</Text>
+                  <Text style={s.crewGroupMeta}>
+                    {groupTasks.length} task{groupTasks.length === 1 ? '' : 's'}
+                    {headcount > 0 ? ` · ${headcount} on crew` : ''}
+                  </Text>
+                </View>
+                {groupTasks.map(task => (
+                  <SwipeableLookaheadCard
+                    key={task.id}
+                    task={task}
+                    allTasks={tasks}
+                    schedule={schedule}
+                    projectStartDate={projectStartDate}
+                    onProgressUpdate={onProgressUpdate}
+                    onTaskPress={onTaskPress}
+                  />
+                ))}
+              </View>
+            );
+          })
+        )}
+      </View>
+    );
+  }, [tasks, schedule, projectStartDate, onProgressUpdate, onTaskPress, renderWeekHeader]);
 
   return (
     <View style={s.container}>
@@ -371,6 +409,35 @@ const s = StyleSheet.create({
     borderRadius: Tokens.radius.card,
   },
   weekEmptyText: { fontSize: Type.footnote.fontSize, color: Colors.textMuted },
+
+  // Crew/trade grouping inside each week. Hairline separator + small
+  // crew label keeps the visual weight tilted toward the task cards.
+  crewGroup: {
+    gap: 6,
+    marginTop: 4,
+  },
+  crewGroupHeader: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 8,
+    paddingHorizontal: 4,
+    paddingVertical: 4,
+  },
+  crewGroupDot: {
+    width: 8, height: 8, borderRadius: 4,
+  },
+  crewGroupName: {
+    fontSize: Type.caption1.fontSize,
+    fontWeight: '700' as const,
+    color: Colors.text,
+    letterSpacing: 0.1,
+  },
+  crewGroupMeta: {
+    flex: 1,
+    fontSize: Type.caption2.fontSize,
+    color: Colors.textMuted,
+    textAlign: 'right' as const,
+  },
 
   swipeWrapper: {
     position: 'relative' as const,

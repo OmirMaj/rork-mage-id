@@ -1132,10 +1132,39 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
     [prequalPackets],
   );
 
+  // DFR Work Progress chips → schedule task progress propagation.
+  // When the GC marks "Concrete Pour 100%" on a DFR, the linked schedule
+  // task's `progress` field updates to match. This is the single biggest
+  // "the app understands my work" moment: enter progress once on the DFR,
+  // see it ripple to the Gantt + earned value + lookahead automatically.
+  // Only ratchets UP — a later DFR that drops a task's percent doesn't
+  // regress the schedule (avoids accidental rollback on a partial-day
+  // report).
+  const propagateProgressFromDFR = useCallback((report: DailyFieldReport) => {
+    if (!report.workProgress || report.workProgress.length === 0) return;
+    const proj = projects.find(p => p.id === report.projectId);
+    if (!proj?.schedule?.tasks) return;
+    let touched = false;
+    const nextTasks = proj.schedule.tasks.map(t => {
+      const chip = report.workProgress!.find(p => p.taskId === t.id);
+      if (!chip) return t;
+      const incoming = Math.max(0, Math.min(100, chip.pct));
+      const current = t.progress ?? 0;
+      if (incoming <= current) return t;
+      touched = true;
+      return { ...t, progress: incoming };
+    });
+    if (!touched) return;
+    updateProject(proj.id, {
+      schedule: { ...proj.schedule, tasks: nextTasks, updatedAt: new Date().toISOString() },
+    });
+  }, [projects, updateProject]);
+
   const addDailyReport = useCallback((report: DailyFieldReport) => {
     const updated = [report, ...dailyReports];
     setDailyReports(updated);
     saveDailyReportsMutation.mutate(updated);
+    propagateProgressFromDFR(report);
     if (canSync) {
       void supabaseWrite('daily_reports', 'insert', {
         id: report.id, user_id: userId, project_id: report.projectId, date: report.date,
@@ -1148,15 +1177,16 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
         created_at: report.createdAt, updated_at: report.updatedAt,
       });
     }
-  }, [dailyReports, saveDailyReportsMutation, canSync, userId]);
+  }, [dailyReports, saveDailyReportsMutation, canSync, userId, propagateProgressFromDFR]);
 
   const updateDailyReport = useCallback((id: string, updates: Partial<DailyFieldReport>) => {
     const now = new Date().toISOString();
     const updated = dailyReports.map(dr => dr.id === id ? { ...dr, ...updates, updatedAt: now } : dr);
     setDailyReports(updated);
     saveDailyReportsMutation.mutate(updated);
+    const dr = updated.find(d => d.id === id);
+    if (dr) propagateProgressFromDFR(dr);
     if (canSync) {
-      const dr = updated.find(d => d.id === id);
       if (dr) {
         void supabaseWrite('daily_reports', 'update', {
           id, weather: dr.weather, manpower: dr.manpower, work_performed: dr.workPerformed,
@@ -1168,7 +1198,7 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
         });
       }
     }
-  }, [dailyReports, saveDailyReportsMutation, canSync]);
+  }, [dailyReports, saveDailyReportsMutation, canSync, propagateProgressFromDFR]);
 
   const getDailyReportsForProject = useCallback((projectId: string) => dailyReports.filter(dr => dr.projectId === projectId).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()), [dailyReports]);
 

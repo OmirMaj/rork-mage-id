@@ -43,6 +43,7 @@ import InteractiveGantt from '@/components/schedule/InteractiveGantt';
 import AIAssistantPanel from '@/components/schedule/AIAssistantPanel';
 import ClosuresModal from '@/components/schedule/ClosuresModal';
 import ScheduleSettingsMenu from '@/components/schedule/ScheduleSettingsMenu';
+import BaselineManagerModal from '@/components/schedule/BaselineManagerModal';
 import TaskInspector from '@/components/schedule/TaskInspector';
 import ResourceSwimlanes from '@/components/schedule/ResourceSwimlanes';
 import VoiceCommandModal from '@/components/VoiceCommandModal';
@@ -62,9 +63,7 @@ import { buildScheduleFromTasks, createId, generateWbsCodes } from '@/utils/sche
 import { seedDemoSchedule } from '@/utils/demoSchedule';
 import {
   reflowFromActuals,
-  captureBaseline,
   applyBaselineToTasks,
-  diffAgainstBaseline,
   exportTasksToCsv,
   downloadCsvInBrowser,
   encodeShareToken,
@@ -138,6 +137,7 @@ function ScheduleProScreenInner() {
   const [showAI, setShowAI] = useState(false);
   const [showClosures, setShowClosures] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showBaselineManager, setShowBaselineManager] = useState(false);
   // Voice → schedule mutations. Tap mic, speak ("push framing by 3 days"),
   // executor mutates via handleEdit. Closes the loop on the field-side
   // wedge — Houzz Pro is the only competitor with voice-to-schedule and
@@ -587,57 +587,12 @@ function ScheduleProScreenInner() {
   }, [workingTasks, commit]);
 
   // -------------------------------------------------------------------------
-  // Named baselines — capture the current plan as a named version, diff later
+  // Named baselines — capture / switch / compare via BaselineManagerModal.
+  // The previous tap=capture / long-press=compare-against-latest affordance
+  // collapsed multi-baseline workflows into one shortcut. The modal exposes
+  // all the moves users actually take (rename, delete, compare A vs B,
+  // activate as overlay) — see components/schedule/BaselineManagerModal.tsx.
   // -------------------------------------------------------------------------
-
-  const handleCaptureBaseline = useCallback(() => {
-    const defaultName = `v${namedBaselines.length + 1}`;
-    const promptMsg = `Name this baseline (e.g. "Signed", "Approved rev 2"):`;
-    let name: string | null = defaultName;
-    if (Platform.OS === 'web') {
-      name = window.prompt?.(promptMsg, defaultName) ?? null;
-      if (name == null) return; // user cancelled
-    }
-    const trimmed = (name || defaultName).trim() || defaultName;
-    const snap = captureBaseline(workingTasks, trimmed);
-    // Order matters: update the ref first so the `commit` below, which
-    // triggers a debounced persist, picks up the new baseline list. Without
-    // this, the first-ever capture flushed before the ref effect ran.
-    baselinesRef.current = [...baselinesRef.current, snap];
-    setNamedBaselines(prev => [...prev, snap]);
-    // Apply as the active baseline on each task so variance badges show
-    // immediately — the user's mental model of "capture baseline" is "lock in
-    // this plan as the target," and having the ghost stripes appear is the
-    // fastest visual confirmation that it worked.
-    commit(prev => applyBaselineToTasks(prev, snap));
-    const msg = `Baseline "${trimmed}" captured. ${workingTasks.length} tasks snapshotted.`;
-    if (Platform.OS === 'web') window.alert?.(msg);
-    else Alert.alert('Baseline saved', msg);
-  }, [namedBaselines.length, workingTasks, commit]);
-
-  const handleCompareBaseline = useCallback(() => {
-    if (namedBaselines.length === 0) {
-      const msg = 'Capture a baseline first (Baseline button). Then come back here to see what changed against it.';
-      if (Platform.OS === 'web') window.alert?.(msg);
-      else Alert.alert('No baselines', msg);
-      return;
-    }
-    const latest = namedBaselines[namedBaselines.length - 1];
-    const diffs = diffAgainstBaseline(workingTasks, latest);
-    if (diffs.length === 0) {
-      const msg = `No variance against "${latest.name}" — the plan matches the baseline exactly.`;
-      if (Platform.OS === 'web') window.alert?.(msg);
-      else Alert.alert('No variance', msg);
-      return;
-    }
-    const top = diffs.slice(0, 8).map(d => {
-      const sign = d.endDelta > 0 ? '+' : '';
-      return `  • ${d.title}: ${sign}${d.endDelta}d (finish)`;
-    }).join('\n');
-    const msg = `Variance vs "${latest.name}":\n\n${top}${diffs.length > 8 ? `\n  …and ${diffs.length - 8} more` : ''}`;
-    if (Platform.OS === 'web') window.alert?.(msg);
-    else Alert.alert('Baseline variance', msg);
-  }, [namedBaselines, workingTasks]);
 
   // -------------------------------------------------------------------------
   // CSV export
@@ -955,7 +910,7 @@ function ScheduleProScreenInner() {
           <HeaderBtn icon={Mic} label="Voice" onPress={() => setShowVoice(true)} />
           <ScheduleHealthBadge result={healthScore} onPress={() => setShowHealth(true)} size="compact" />
           <HeaderBtn icon={RefreshCcw} label="Reflow" onPress={handleReflow} />
-          <HeaderBtn icon={Bookmark} label="Baseline" onPress={handleCaptureBaseline} onLongPress={handleCompareBaseline} />
+          <HeaderBtn icon={Bookmark} label="Baseline" onPress={() => setShowBaselineManager(true)} />
           <HeaderBtn icon={Download} label="CSV" onPress={handleExportCsv} />
           <HeaderBtn icon={FileText} label="PDF" onPress={handleExportPdf} />
           <HeaderBtn icon={Sparkles} label="Demo" onPress={handleLoadDemo} />
@@ -1119,6 +1074,35 @@ function ScheduleProScreenInner() {
         visible={showHealth}
         onClose={() => setShowHealth(false)}
         result={healthScore}
+      />
+
+      {/* Multi-baseline manager — capture, switch, compare named baselines.
+          P6 / Asta parity replacing the old "tap to capture / long-press to
+          compare against latest" affordance which only allowed a single
+          baseline workflow. */}
+      <BaselineManagerModal
+        visible={showBaselineManager}
+        onClose={() => setShowBaselineManager(false)}
+        baselines={namedBaselines}
+        workingTasks={workingTasks}
+        activeBaselineId={namedBaselines.length > 0 ? namedBaselines[namedBaselines.length - 1].id : null}
+        onBaselinesChange={(next) => {
+          baselinesRef.current = next;
+          setNamedBaselines(next);
+          // No commit here — baselines aren't tasks; the commit happens
+          // through the persist debounce that picks up baselinesRef.
+          if (project) {
+            updateProject(project.id, {
+              schedule: {
+                ...(project.schedule as ProjectSchedule),
+                baselines: next,
+              },
+            });
+          }
+        }}
+        onActivate={(baseline) => {
+          commit(prev => applyBaselineToTasks(prev, baseline));
+        }}
       />
 
       {/* Schedule settings (critical threshold + working days per week). */}
