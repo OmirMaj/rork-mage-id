@@ -314,21 +314,29 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
     if (!EMAIL_REGEX.test(trimmed)) throw new Error('That email address looks off — please double-check.');
     console.log('[Auth] Sending magic link to', trimmed);
-    // The `emailRedirectTo` URL is the deep link the user hits when
-    // they tap the link from their inbox. Supabase appends the access
-    // token + refresh token to the URL fragment; the app intercepts
-    // it via expo-linking in _layout.tsx and calls setSession.
+
+    // Route through our auth-magic-link edge function so the user gets a
+    // brand-styled email instead of Supabase's generic "Magic Link →
+    // Log In" template. The function calls supabase.auth.admin.generateLink
+    // (same magic-link primitive) and then sends a Resend email built
+    // from the shared email helpers — same look + feel as DFR / invoice
+    // / portal mail.
+    //
+    // The deep-link target is `redirectUrl`; Supabase appends the access
+    // and refresh tokens to the URL fragment. _layout.tsx intercepts via
+    // expo-linking and calls setSession.
     const redirectUrl = makeRedirectUri({ preferLocalhost: false });
-    const { error } = await supabase.auth.signInWithOtp({
-      email: trimmed,
-      options: {
-        emailRedirectTo: redirectUrl,
-        shouldCreateUser: true,
-      },
+    const { data, error } = await supabase.functions.invoke('auth-magic-link', {
+      body: { email: trimmed, redirectTo: redirectUrl },
     });
     if (error) {
-      console.log('[Auth] Magic link error:', error.message);
+      console.log('[Auth] Magic link edge function error:', error.message);
       throw new Error(error.message);
+    }
+    if (!data?.ok) {
+      const msg = data?.error ?? 'Could not send sign-in email. Please try again.';
+      console.log('[Auth] Magic link edge function returned error:', msg);
+      throw new Error(msg);
     }
     console.log('[Auth] Magic link sent');
   }, []);

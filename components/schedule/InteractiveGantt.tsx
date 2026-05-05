@@ -644,10 +644,25 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
             d = `M ${x1} ${y1} H ${midX} V ${y2} H ${tipX}`;
           } else if (x2 >= x1) {
             // Tight forward — successor starts within the stub-gap of the
-            // predecessor's end. Drop straight down at pred's right edge,
-            // then walk over to succ. Avoids the "detour over the top"
-            // path that turns dense critical chains into rectangular loops.
-            d = `M ${x1} ${y1} V ${y2} H ${tipX}`;
+            // predecessor's end (common on critical chains where each
+            // task starts the day after the previous ends, so x2 ≈ x1).
+            //
+            // Naive `M x1 V y2 H tipX` cuts LEFT through the successor's
+            // body when tipX < x1 AND points the arrow backward. Instead,
+            // route through the row-gap so the line stays between bars
+            // and the final segment ALWAYS approaches the successor going
+            // right — arrowhead points INTO succ, line never crosses a
+            // bar body.
+            //
+            //     pred  ════│
+            //               │
+            //     ┌─────────┘   ← bend LEFT in the row gap
+            //     │
+            //     └──►  ════ succ
+            //
+            const midY = (y1 + y2) / 2;
+            const detourX = x2 - 14;
+            d = `M ${x1} ${y1} V ${midY} H ${detourX} V ${y2} H ${tipX}`;
           } else {
             // Truly backward (succ starts before pred ends): detour over
             // the top so the path doesn't cut through the predecessor row.
