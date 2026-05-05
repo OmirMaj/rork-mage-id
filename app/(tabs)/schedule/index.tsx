@@ -2127,6 +2127,19 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
             <Text style={styles.emptyTitle}>Build Your Schedule</Text>
             <Text style={styles.emptyDesc}>Choose how to get started:</Text>
 
+            <TouchableOpacity
+              style={styles.emptyAction}
+              onPress={() => router.push({ pathname: '/schedule-wizard', params: { projectId: selectedProjectId } } as any)}
+              testID="open-schedule-wizard"
+            >
+              <CalendarDays size={20} color={Colors.primary} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.emptyActionTitle}>Guided 4-step setup</Text>
+                <Text style={styles.emptyActionDesc}>Pick a template, tune tasks, preview the timeline, save</Text>
+              </View>
+              <ChevronRight size={16} color={Colors.textMuted} />
+            </TouchableOpacity>
+
             <TouchableOpacity style={styles.emptyAction} onPress={() => setIsAIBuilderOpen(true)}>
               <Sparkles size={20} color={Colors.warning} />
               <View style={{ flex: 1 }}>

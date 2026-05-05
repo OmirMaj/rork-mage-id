@@ -7,23 +7,29 @@ export const PHASE_OPTIONS = [
   'Drywall', 'Interior', 'Finishes', 'Landscaping', 'Inspections', 'General',
 ];
 
+// Phase colors — vibrant, Apple-friendly palette. Each phase reads as a
+// distinct hue at a glance even on a dense Gantt. Saturation is tuned for
+// light backgrounds; the bar fill uses the color directly, the row dot
+// uses the same color, and dimmed/baseline ghosts use the color at low
+// alpha. Pick colors with enough hue separation that two adjacent phases
+// don't blur together at small bar widths.
 export const PHASE_COLORS: Record<string, string> = {
-  'Site Work': '#8B6914',
-  'Demo': '#C75050',
-  'Foundation': '#6B7280',
-  'Framing': '#B45309',
-  'Roofing': '#7C3AED',
-  'MEP': '#0891B2',
-  'Plumbing': '#2563EB',
-  'Electrical': '#DC2626',
-  'HVAC': '#059669',
-  'Insulation': '#D97706',
-  'Drywall': '#9CA3AF',
-  'Interior': '#EC4899',
-  'Finishes': '#10B981',
-  'Landscaping': '#22C55E',
-  'Inspections': '#F59E0B',
-  'General': '#6366F1',
+  'Site Work':    '#3B82F6', // blue
+  'Demo':         '#EF4444', // red
+  'Foundation':   '#10B981', // emerald
+  'Framing':      '#A855F7', // purple
+  'Roofing':      '#06B6D4', // cyan
+  'MEP':          '#F59E0B', // amber
+  'Plumbing':     '#0EA5E9', // sky
+  'Electrical':   '#EAB308', // yellow
+  'HVAC':         '#14B8A6', // teal
+  'Insulation':   '#F97316', // orange
+  'Drywall':      '#94A3B8', // slate
+  'Interior':     '#EC4899', // pink
+  'Finishes':     '#22C55E', // green
+  'Landscaping':  '#84CC16', // lime
+  'Inspections':  '#F59E0B', // amber (matches MEP — they share the inspection cadence)
+  'General':      '#6366F1', // indigo
 };
 
 export function createId(_prefix: string): string {

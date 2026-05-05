@@ -47,6 +47,15 @@ import Svg, { Path, Defs, Marker, Polygon, Line as SvgLine, Rect as SvgRect } fr
 import { Colors } from '@/constants/colors';
 import type { ScheduleTask } from '@/types';
 import { wouldCreateCycle, type CpmResult } from '@/utils/cpm';
+import { PHASE_COLORS } from '@/utils/scheduleEngine';
+
+// Bar fill is driven by phase, NOT critical-path. Red-only fills made every
+// dense schedule look like an emergency. We pick by phase and let the critical
+// path show through as a red outline + a red dot in the gutter, so the GC
+// keeps the at-a-glance critical-path read without losing phase scannability.
+function colorForTask(task: ScheduleTask): string {
+  return PHASE_COLORS[task.phase ?? 'General'] ?? PHASE_COLORS.General;
+}
 import { getHiddenTaskIds } from '@/utils/summaryRollup';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -90,7 +99,7 @@ export interface InteractiveGanttProps {
 // Layout constants
 // ---------------------------------------------------------------------------
 
-const ROW_HEIGHT = 44;             // bumped from 40 for breathing room — Apple-app row density
+const ROW_HEIGHT = 56;             // 2-line gutter rows (title + date range / duration) — matches the mockup's premium row layout
 const BAR_HEIGHT = 26;
 const BAR_VERTICAL_PADDING = (ROW_HEIGHT - BAR_HEIGHT) / 2;
 const HEADER_HEIGHT = 56;          // month row (24) + day-number row (32)
@@ -875,6 +884,17 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
           {tasks.map((t, i) => {
             const isCritical = cpm.perTask.get(t.id)?.isCritical;
             const isHovered = hoverTaskId === t.id;
+            const phaseColor = colorForTask(t);
+            // Compact date label — "Mar 20 → Mar 24" style. startDay is a
+            // 1-indexed offset from projectStartDate (Day 1), durationDays is
+            // the count, so end is start + duration - 1.
+            const durationDays = t.durationDays ?? 0;
+            const start = addDays(projectStartDate, t.startDay - 1);
+            const end = addDays(projectStartDate, t.startDay + durationDays - 2);
+            const dateRange = durationDays > 0
+              ? `${fmtShort(start)} → ${fmtShort(end)}`
+              : fmtShort(start);
+            const durationLabel = durationDays === 0 ? 'milestone' : `${durationDays}d`;
             return (
               <Pressable
                 key={t.id}
@@ -887,13 +907,21 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                 ]}
               >
                 <Text style={styles.gutterIndex}>{i + 1}</Text>
-                {isCritical && <View style={styles.criticalDot} />}
-                <Text
-                  style={[styles.gutterName, isCritical && styles.gutterNameCritical]}
-                  numberOfLines={1}
-                >
-                  {t.title || 'Untitled'}
-                </Text>
+                <View style={[styles.phaseDot, { backgroundColor: phaseColor }]} />
+                <View style={styles.gutterTextCol}>
+                  <View style={styles.gutterTitleRow}>
+                    <Text
+                      style={[styles.gutterName, isCritical && styles.gutterNameCritical]}
+                      numberOfLines={1}
+                    >
+                      {t.title || 'Untitled'}
+                    </Text>
+                    {isCritical && <View style={styles.criticalDot} />}
+                  </View>
+                  <Text style={styles.gutterSubtitle} numberOfLines={1}>
+                    {dateRange ? `${dateRange} · ${durationLabel}` : durationLabel}
+                  </Text>
+                </View>
               </Pressable>
             );
           })}
@@ -1589,9 +1617,14 @@ function BarView({
     else varianceLabel = 'started on time';
   }
 
-  const barColor = bar.isCritical ? Colors.error : Colors.primary;
-  const barBg = bar.isCritical ? Colors.errorLight : Colors.primary + '1A';
-  const progressColor = bar.isCritical ? Colors.error : Colors.primary;
+  // Phase-driven fill (bright Apple palette in PHASE_COLORS). Critical-path
+  // tasks keep that fill, but pick up a red outline so the path still reads
+  // at a glance — the previous design wholesale-overwrote with red, which
+  // turned every dense schedule into a wall of error.
+  const barColor = colorForTask(bar.task);
+  const barBg = barColor + '1A';
+  const progressColor = barColor;
+  const criticalOutline = bar.isCritical ? Colors.error : null;
   const progressPct = Math.max(0, Math.min(1, (bar.task.progress ?? 0) / 100));
 
   // Summary bars: rendered as a dark span with inverted "fangs" at each end
@@ -1738,7 +1771,8 @@ function BarView({
         height: BAR_HEIGHT,
         borderRadius: BAR_RADIUS,
         backgroundColor: barBg,
-        borderWidth: 0,
+        borderWidth: criticalOutline ? 1.5 : 0,
+        borderColor: criticalOutline ?? 'transparent',
         overflow: 'hidden',
         opacity: dimmed ? 0.28 : 1,
         shadowColor: '#000',
@@ -1803,7 +1837,7 @@ function BarView({
       )}
       {/* Title */}
       <View style={[styles.barLabel, { paddingLeft: BAR_ACCENT_WIDTH + 8 }]}>
-        <Text style={[styles.barLabelText, bar.isCritical && { color: Colors.error }]} numberOfLines={1}>
+        <Text style={[styles.barLabelText, { color: barColor }]} numberOfLines={1}>
           {bar.task.title || 'Task'}
         </Text>
       </View>
@@ -2110,14 +2144,37 @@ const styles = StyleSheet.create({
     borderRadius: 3,
     backgroundColor: Colors.error,
   },
+  // Phase-colored dot leading the row name. Same hue as the task bar so the
+  // GC can flick between the table and the timeline without re-orienting.
+  phaseDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  gutterTextCol: {
+    flex: 1,
+    minWidth: 0,
+    gap: 1,
+  },
+  gutterTitleRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 6,
+  },
   gutterName: {
     flex: 1,
     fontSize: Type.footnote.fontSize,
+    fontWeight: '600' as const,
     color: Colors.text,
   },
   gutterNameCritical: {
     color: Colors.error,
     fontWeight: '700',
+  },
+  gutterSubtitle: {
+    fontSize: Type.caption2.fontSize,
+    color: Colors.textMuted,
+    fontWeight: '500' as const,
   },
 
   timelineScroll: {
