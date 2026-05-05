@@ -21,9 +21,16 @@ import { Colors, setCustomColors } from "@/constants/colors";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { processOfflineQueue } from "@/utils/offlineQueue";
+import { patchAlertForWeb } from "@/utils/webAlertPolyfill";
 import * as Linking from "expo-linking";
 import { supabase } from "@/lib/supabase";
 import * as Sentry from '@sentry/react-native';
+
+// Patch react-native's Alert.alert at module load so every existing call
+// site works on web. RN-Web's native Alert is a no-op for multi-button
+// alerts, which silently breaks every Cancel/Confirm flow (sign out,
+// delete, etc.). Routing through window.confirm restores the behavior.
+patchAlertForWeb();
 
 Sentry.init({
   dsn: 'https://f1ef45279647b4001040c1e2f9407faa@o4511315578388480.ingest.us.sentry.io/4511315581075456',
