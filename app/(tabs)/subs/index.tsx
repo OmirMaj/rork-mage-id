@@ -19,9 +19,10 @@ import type { Subcontractor, SubTrade, ComplianceStatus } from '@/types';
 import { SUB_TRADES } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { generateUUID } from '@/utils/generateId';
 
-function createId(prefix: string): string {
-  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+function createId(_prefix: string): string {
+  return generateUUID();
 }
 
 function getComplianceStatus(sub: Subcontractor): ComplianceStatus {

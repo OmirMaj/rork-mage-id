@@ -33,8 +33,10 @@ import { Tokens } from '@/constants/designTokens';
  * invoice line items created before this flow existed.
  */
 
-function createId(prefix: string): string {
-  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+import { generateUUID } from '@/utils/generateId';
+
+function createId(_prefix: string): string {
+  return generateUUID();
 }
 
 function money(n: number): string {

@@ -192,7 +192,7 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
       if (canSync) {
         try {
           const { data, error } = await supabase.from('change_orders').select('*').order('created_at', { ascending: false });
-          if (!error && data) {
+          if (!error && data && data.length > 0) {
             const mapped = data.map((r: Record<string, unknown>) => ({
               id: r.id as string, number: Number(r.number), projectId: r.project_id as string,
               date: r.date as string, description: (r.description as string) ?? '',
@@ -219,7 +219,7 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
       if (canSync) {
         try {
           const { data, error } = await supabase.from('invoices').select('*').order('created_at', { ascending: false });
-          if (!error && data) {
+          if (!error && data && data.length > 0) {
             const mapped = data.map((r: Record<string, unknown>) => ({
               id: r.id as string, number: Number(r.number), projectId: r.project_id as string,
               type: r.type as Invoice['type'], progressPercent: r.progress_percent as number | undefined,
@@ -260,7 +260,7 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
       if (canSync) {
         try {
           const { data, error } = await supabase.from('daily_reports').select('*').order('created_at', { ascending: false });
-          if (!error && data) {
+          if (!error && data && data.length > 0) {
             const mapped = data.map((r: Record<string, unknown>) => ({
               id: r.id as string, projectId: r.project_id as string, date: r.date as string,
               weather: r.weather as DailyFieldReport['weather'], manpower: r.manpower as DailyFieldReport['manpower'],
@@ -287,7 +287,7 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
       if (canSync) {
         try {
           const { data, error } = await supabase.from('leads').select('*').order('received_at', { ascending: false });
-          if (!error && data) {
+          if (!error && data && data.length > 0) {
             const mapped = data.map((r: Record<string, unknown>) => ({
               id: r.id as string,
               name: (r.name as string) ?? '',
@@ -328,7 +328,7 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
       if (canSync) {
         try {
           const { data, error } = await supabase.from('bid_packages').select('*').order('created_at', { ascending: false });
-          if (!error && data) {
+          if (!error && data && data.length > 0) {
             const mapped = data.map((r: Record<string, unknown>) => ({
               id: r.id as string,
               projectId: r.project_id as string,
@@ -363,7 +363,7 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
       if (canSync) {
         try {
           const { data, error } = await supabase.from('bid_package_bids').select('*').order('submitted_at', { ascending: false });
-          if (!error && data) {
+          if (!error && data && data.length > 0) {
             const mapped = data.map((r: Record<string, unknown>) => ({
               id: r.id as string,
               packageId: r.package_id as string,
@@ -397,7 +397,7 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
       if (canSync) {
         try {
           const { data, error } = await supabase.from('subcontractors').select('*').order('created_at', { ascending: false });
-          if (!error && data) {
+          if (!error && data && data.length > 0) {
             const mapped = data.map((r: Record<string, unknown>) => ({
               id: r.id as string, companyName: (r.company_name as string) ?? '', contactName: (r.contact_name as string) ?? '',
               phone: (r.phone as string) ?? '', email: (r.email as string) ?? '', address: (r.address as string) ?? '',
@@ -422,7 +422,7 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
       if (canSync) {
         try {
           const { data, error } = await supabase.from('punch_items').select('*').order('created_at', { ascending: false });
-          if (!error && data) {
+          if (!error && data && data.length > 0) {
             const mapped = data.map((r: Record<string, unknown>) => ({
               id: r.id as string, projectId: r.project_id as string, description: r.description as string,
               location: (r.location as string) ?? '', assignedSub: (r.assigned_sub as string) ?? '',
@@ -446,7 +446,7 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
       if (canSync) {
         try {
           const { data, error } = await supabase.from('photos').select('*').order('created_at', { ascending: false });
-          if (!error && data) {
+          if (!error && data && data.length > 0) {
             const mapped = data.map((r: Record<string, unknown>) => ({
               id: r.id as string, projectId: r.project_id as string, uri: r.uri as string,
               timestamp: r.timestamp as string, location: r.location as string | undefined,
@@ -469,7 +469,7 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
       if (canSync) {
         try {
           const { data, error } = await supabase.from('price_alerts').select('*').order('created_at', { ascending: false });
-          if (!error && data) {
+          if (!error && data && data.length > 0) {
             const mapped = data.map((r: Record<string, unknown>) => ({
               id: r.id as string, materialId: r.material_id as string, materialName: r.material_name as string,
               targetPrice: Number(r.target_price), direction: (r.direction as PriceAlert['direction']) ?? 'below',
@@ -491,7 +491,7 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
       if (canSync) {
         try {
           const { data, error } = await supabase.from('contacts').select('*').order('created_at', { ascending: false });
-          if (!error && data) {
+          if (!error && data && data.length > 0) {
             const mapped = data.map((r: Record<string, unknown>) => ({
               id: r.id as string, firstName: r.first_name as string, lastName: (r.last_name as string) ?? '',
               companyName: (r.company_name as string) ?? '', role: (r.role as Contact['role']) ?? 'Other',
@@ -515,7 +515,7 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
       if (canSync) {
         try {
           const { data, error } = await supabase.from('comm_events').select('*').order('timestamp', { ascending: false });
-          if (!error && data) {
+          if (!error && data && data.length > 0) {
             const mapped = data.map((r: Record<string, unknown>) => ({
               id: r.id as string, projectId: r.project_id as string, type: r.type as CommunicationEvent['type'],
               summary: (r.summary as string) ?? '', actor: (r.actor as string) ?? '',
@@ -537,7 +537,7 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
       if (canSync) {
         try {
           const { data, error } = await supabase.from('rfis').select('*').order('created_at', { ascending: false });
-          if (!error && data) {
+          if (!error && data && data.length > 0) {
             const mapped = data.map((r: Record<string, unknown>) => ({
               id: r.id as string, projectId: r.project_id as string, number: Number(r.number),
               subject: r.subject as string, question: (r.question as string) ?? '',
@@ -564,7 +564,7 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
       if (canSync) {
         try {
           const { data, error } = await supabase.from('submittals').select('*').order('created_at', { ascending: false });
-          if (!error && data) {
+          if (!error && data && data.length > 0) {
             const mapped = data.map((r: Record<string, unknown>) => ({
               id: r.id as string, projectId: r.project_id as string, number: Number(r.number),
               title: r.title as string, specSection: (r.spec_section as string) ?? '',
@@ -595,7 +595,7 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
       if (canSync) {
         try {
           const { data, error } = await supabase.from('oac_meetings').select('*').order('scheduled_at', { ascending: false });
-          if (!error && data) {
+          if (!error && data && data.length > 0) {
             const mapped = data.map((r: Record<string, unknown>) => ({
               id: r.id as string,
               projectId: r.project_id as string,
@@ -628,7 +628,7 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
       if (canSync) {
         try {
           const { data, error } = await supabase.from('cois').select('*').order('uploaded_at', { ascending: false });
-          if (!error && data) {
+          if (!error && data && data.length > 0) {
             const mapped = data.map((r: Record<string, unknown>) => ({
               id: r.id as string,
               subcontractorId: r.subcontractor_id as string,
@@ -654,7 +654,7 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
       if (canSync) {
         try {
           const { data, error } = await supabase.from('equipment').select('*').order('created_at', { ascending: false });
-          if (!error && data) {
+          if (!error && data && data.length > 0) {
             const mapped = data.map((r: Record<string, unknown>) => ({
               id: r.id as string, name: r.name as string, type: (r.type as Equipment['type']) ?? 'owned',
               category: (r.category as Equipment['category']) ?? 'other', make: (r.make as string) ?? '',
@@ -762,7 +762,7 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
         try {
           const { data, error } = await supabase
             .from('sub_portal_links').select('*');
-          if (!error && data) {
+          if (!error && data && data.length > 0) {
             const mapped = (data as Record<string, unknown>[]).map(r => ({
               id: r.id as string,
               projectId: r.project_id as string,

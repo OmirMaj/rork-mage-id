@@ -20,10 +20,12 @@ import type {
   DailyFieldReport, OACAgendaItem, OACAgendaSection,
 } from '@/types';
 
+import { generateUUID } from '@/utils/generateId';
+
 const ONE_DAY_MS = 86_400_000;
 
-function createId(prefix: string): string {
-  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+function createId(_prefix: string): string {
+  return generateUUID();
 }
 
 function daysBetween(iso: string, ref: number = Date.now()): number {

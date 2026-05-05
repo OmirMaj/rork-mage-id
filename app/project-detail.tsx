@@ -69,8 +69,8 @@ type TileGroupKey = 'field' | 'money' | 'docs' | 'people';
 type DetailModalType = 'total' | 'savings' | null;
 type EditModalType = boolean;
 
-function createId(prefix: string): string {
-  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+function createId(_prefix: string): string {
+  return generateUUID();
 }
 
 export default function ProjectDetailScreen() {

@@ -1,4 +1,5 @@
 import type { ScheduleTask, DependencyLink, ProjectSchedule, ScheduleRiskItem, ScheduleBaseline } from '@/types';
+import { generateUUID } from '@/utils/generateId';
 
 export const PHASE_OPTIONS = [
   'Site Work', 'Demo', 'Foundation', 'Framing', 'Roofing',
@@ -25,8 +26,8 @@ export const PHASE_COLORS: Record<string, string> = {
   'General': '#6366F1',
 };
 
-export function createId(prefix: string): string {
-  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+export function createId(_prefix: string): string {
+  return generateUUID();
 }
 
 export function getDepLinks(task: ScheduleTask): DependencyLink[] {

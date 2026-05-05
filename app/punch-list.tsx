@@ -18,9 +18,14 @@ import EmptyState from '@/components/EmptyState';
 import type { PunchItem, PunchItemStatus, PunchItemPriority } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { generateUUID } from '@/utils/generateId';
 
-function createId(prefix: string): string {
-  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+// Top-level row IDs (punch items) become Supabase PKs and MUST be UUIDs —
+// the punch_items.id column rejects anything else with "invalid input syntax
+// for type uuid", which is silently swallowed by supabaseWrite. Prefix is
+// kept as a debugging hint but the ID itself is always a real UUID.
+function createId(_prefix: string): string {
+  return generateUUID();
 }
 
 const STATUS_CONFIG: Record<PunchItemStatus, { label: string; color: string; bg: string }> = {

@@ -228,6 +228,31 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
       console.log('[Auth] Failed to clear offline queue:', err);
     }
 
+    // Drop the cached project/sub-collection data too. With the post-fix
+    // "don't wipe local on empty Supabase" guard in place, the next user
+    // would otherwise see the previous user's projects/DFRs/punch items
+    // until Supabase responds with their own non-empty data. Clear here
+    // so a fresh login starts from a clean local cache and pulls down
+    // the new user's rows from Supabase.
+    const cacheKeys = [
+      'buildwise_projects', 'buildwise_settings',
+      'tertiary_leads', 'tertiary_bid_packages', 'tertiary_bid_package_bids',
+      'tertiary_change_orders', 'tertiary_invoices', 'tertiary_daily_reports',
+      'tertiary_subcontractors', 'tertiary_punch_items', 'tertiary_photos',
+      'tertiary_price_alerts', 'tertiary_contacts', 'tertiary_comm_events',
+      'tertiary_rfis', 'tertiary_submittals', 'tertiary_oac_meetings',
+      'tertiary_cois', 'tertiary_equipment', 'tertiary_warranties',
+      'tertiary_portal_messages', 'tertiary_commitments', 'tertiary_prequal_packets',
+      'tertiary_drawing_pins', 'tertiary_plan_calibrations', 'tertiary_plan_sheets',
+      'tertiary_plan_markups', 'tertiary_permits', 'tertiary_aia_pay_apps',
+      'tertiary_sub_portal_links',
+    ];
+    try {
+      await AsyncStorage.multiRemove(cacheKeys);
+    } catch (err) {
+      console.log('[Auth] Failed to clear local data cache:', err);
+    }
+
     setSession(null);
     setUser(null);
     setIsAuthenticated(false);

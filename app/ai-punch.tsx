@@ -282,7 +282,7 @@ export default function AiPunchScreen() {
       ? `${item.editedLocation.trim()} — ${item.editedTrade}`
       : item.editedTrade;
     const punch: PunchItem = {
-      id: `pi-${generateUUID()}`,
+      id: generateUUID(),
       projectId: project.id,
       description: item.editedDescription.trim(),
       location: locationWithTrade,
