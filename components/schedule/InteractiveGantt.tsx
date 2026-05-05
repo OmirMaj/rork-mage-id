@@ -607,6 +607,24 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
             break;
         }
 
+        // Milestones render as 45°-rotated diamonds with point-to-point
+        // geometry — there's no flat "right edge" to attach to. Override
+        // the endpoints so incoming arrows land at the LEFT vertex and
+        // outgoing arrows leave from the RIGHT vertex (forward direction;
+        // mirrored for left-bound). This spreads pred/succ arrows to
+        // opposite corners of the diamond instead of bunching them at
+        // the centerline — the user-reported clutter when a milestone
+        // sits between two regular tasks.
+        const MILESTONE_HALF = BAR_HEIGHT / 2;
+        if (pred.isMilestone) {
+          x1 = exitDir === 1 ? pred.x + MILESTONE_HALF - 1 : pred.x - MILESTONE_HALF + 1;
+          y1 = pred.y + BAR_HEIGHT / 2;
+        }
+        if (succ.isMilestone) {
+          x2 = enterDir === 1 ? succ.x - MILESTONE_HALF + 1 : succ.x + MILESTONE_HALF - 1;
+          y2 = succ.y + BAR_HEIGHT / 2;
+        }
+
         const stub = 12;
         // MS-Project-style L-shape dependency routing — clean right-angle
         // elbows with one or two corners depending on geometry. The Bezier
@@ -637,6 +655,25 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
         // tip at the line end with no overhang into the bar.
         const tipX = x2 + (enterDir === 1 ? -3 : 3);
         let d: string;
+
+        // Special case: successor is a milestone. Land HORIZONTALLY on
+        // the diamond's left/right vertex instead of dropping into a
+        // top edge — diamonds don't have a clean top edge to drop into,
+        // and the H-final approach matches the visual logic of a
+        // single-point event (arrives, departs). Keeps the marker tip
+        // tucked at the vertex rather than overlapping the diamond's
+        // rotated face.
+        if (succ.isMilestone) {
+          const dropY = (y1 + y2) / 2;
+          if (Math.abs(y1 - y2) < 1) {
+            d = `M ${x1} ${y1} H ${x2}`;
+          } else {
+            d = `M ${x1} ${y1} V ${dropY} H ${x2}`;
+          }
+          out.push({ id: `${pred.task.id}->${succ.task.id}`, d, critical: criticalBoth, highlighted });
+          continue;
+        }
+
         if (exitDir === 1 && enterDir === 1) {
           // FS — predecessor finish → successor start. Common case.
           if (Math.abs(y1 - y2) < 1) {
