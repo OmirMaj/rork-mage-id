@@ -623,9 +623,12 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
         const x1End = x1 + exitDir * stub;
         const x2End = x2 - enterDir * stub;
         const yDetour = Math.min(pred.y, succ.y) - 10;
-        // Tip offset — shrink the line so the arrowhead sits flush against
-        // the bar edge instead of overlapping it.
-        const tipOff = enterDir === 1 ? -3 : 3;
+        // Tip offset — bigger gap (was 3px, now 9px) so the arrowhead
+        // reads as a separate element pointing AT the bar instead of
+        // disappearing into the bar's fill. Combined with the larger
+        // marker polygon, the arrow now sits clearly outside the bar
+        // with whitespace between the head and the bar edge.
+        const tipOff = enterDir === 1 ? -9 : 9;
         const tipX = x2 + tipOff;
         let d: string;
         if (exitDir === 1 && enterDir === 1) {
@@ -1067,30 +1070,31 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                 pointerEvents="none"
               >
                 <Defs>
-                  {/* Arrow markers — bumped from 8→11 to read as proper
-                      "this connects to that" arrowheads instead of dots.
-                      A slight asymmetric notch (point at 11,5; tail tucked
-                      inward at 1,5) keeps the head pointed without the
-                      classic SVG triangle looking blunt. */}
+                  {/* Arrow markers — proper pointed arrowhead. refX is the
+                      tip (12,6) so SVG places the polygon's TIP exactly at
+                      the line endpoint and grows the head BACKWARD along
+                      the line, never overlapping the bar. Sharp 12x12
+                      triangle with a tucked-in notch reads as a confident
+                      arrow rather than a tile. */}
                   <Marker
                     id="arrowRed"
-                    markerWidth={11}
-                    markerHeight={10}
-                    refX={9}
-                    refY={5}
+                    markerWidth={12}
+                    markerHeight={12}
+                    refX={12}
+                    refY={6}
                     orient="auto"
                   >
-                    <Polygon points="1,1 11,5 1,9 3,5" fill={Colors.error} />
+                    <Polygon points="0,0 12,6 0,12 3,6" fill={Colors.error} />
                   </Marker>
                   <Marker
                     id="arrowBlue"
-                    markerWidth={11}
-                    markerHeight={10}
-                    refX={9}
-                    refY={5}
+                    markerWidth={12}
+                    markerHeight={12}
+                    refX={12}
+                    refY={6}
                     orient="auto"
                   >
-                    <Polygon points="1,1 11,5 1,9 3,5" fill={Colors.primary} />
+                    <Polygon points="0,0 12,6 0,12 3,6" fill={Colors.primary} />
                   </Marker>
                 </Defs>
 
