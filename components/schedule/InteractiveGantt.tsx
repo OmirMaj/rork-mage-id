@@ -622,62 +622,61 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
         //     the top so the line doesn't cut through the predecessor row.
         const x1End = x1 + exitDir * stub;
         const x2End = x2 - enterDir * stub;
-        const yDetour = Math.min(pred.y, succ.y) - 10;
-        // Tip offset — bigger gap (was 3px, now 9px) so the arrowhead
-        // reads as a separate element pointing AT the bar instead of
-        // disappearing into the bar's fill. Combined with the larger
-        // marker polygon, the arrow now sits clearly outside the bar
-        // with whitespace between the head and the bar edge.
-        const tipOff = enterDir === 1 ? -9 : 9;
-        const tipX = x2 + tipOff;
+        // MS Project drop-into-top pattern: every dependency ends with a
+        // VERTICAL segment that lands on the entering edge of the
+        // successor (top edge if approaching from above, bottom edge if
+        // approaching from below). The marker auto-orients along that
+        // vertical so the arrowhead points DOWN (or UP) into the bar.
+        // This is the classic Project / P6 visual contractors recognise:
+        // a small downward arrow tucked at the start-of-task corner.
+        const succAbove = y2 < y1;
+        const entryY = succAbove ? succ.y + BAR_HEIGHT : succ.y;
+        const entryX = enterDir === 1 ? succ.x + 6 : succ.x + succ.w - 6;
+        // tipX retained for the same-row horizontal-only path. tipOff -3
+        // because the marker is now small (7px) and refX=7 anchors the
+        // tip at the line end with no overhang into the bar.
+        const tipX = x2 + (enterDir === 1 ? -3 : 3);
         let d: string;
         if (exitDir === 1 && enterDir === 1) {
           // FS — predecessor finish → successor start. Common case.
           if (Math.abs(y1 - y2) < 1) {
-            // Same row, just walk over horizontally.
+            // Same row — no vertical drop needed; just walk horizontally
+            // and let the H-final keep the arrow pointing into succ from
+            // the side. Rare: same-lane sequencing.
             d = `M ${x1} ${y1} H ${tipX}`;
-          } else if (x2End >= x1End) {
-            // Plenty of forward room — centered stair-step. Pick the
-            // midpoint between the two stubs so the elbow sits between
-            // the bars rather than glued to one of them.
-            const midX = (x1End + x2End) / 2;
-            d = `M ${x1} ${y1} H ${midX} V ${y2} H ${tipX}`;
           } else if (x2 >= x1) {
-            // Tight forward — successor starts within the stub-gap of the
-            // predecessor's end (common on critical chains where each
-            // task starts the day after the previous ends, so x2 ≈ x1).
+            // Forward FS (any gap): exit pred's right edge → drop to the
+            // row gap → walk right to entry column → drop INTO succ's top.
             //
-            // Naive `M x1 V y2 H tipX` cuts LEFT through the successor's
-            // body when tipX < x1 AND points the arrow backward. Instead,
-            // route through the row-gap so the line stays between bars
-            // and the final segment ALWAYS approaches the successor going
-            // right — arrowhead points INTO succ, line never crosses a
-            // bar body.
-            //
-            //     pred  ════│
-            //               │
-            //     ┌─────────┘   ← bend LEFT in the row gap
+            //     pred ═══════│
+            //                 │
+            //     ────────────┘     (row gap — no bars here)
             //     │
-            //     └──►  ════ succ
+            //     ↓
+            //     [succ ═══════════]
             //
-            const midY = (y1 + y2) / 2;
-            const detourX = x2 - 14;
-            d = `M ${x1} ${y1} V ${midY} H ${detourX} V ${y2} H ${tipX}`;
+            const dropY = (y1 + y2) / 2;
+            d = `M ${x1} ${y1} V ${dropY} H ${entryX} V ${entryY}`;
           } else {
-            // Truly backward (succ starts before pred ends): detour over
-            // the top so the path doesn't cut through the predecessor row.
-            d = `M ${x1} ${y1} H ${x1End} V ${yDetour} H ${x2End} V ${y2} H ${tipX}`;
+            // Truly backward (succ starts before pred ends): go ABOVE
+            // both bars, walk back to entry column, drop into succ's top.
+            const yAbove = Math.min(pred.y, succ.y) - 10;
+            d = `M ${x1} ${y1} V ${yAbove} H ${entryX} V ${entryY}`;
           }
         } else if (exitDir === -1 && enterDir === 1) {
-          // SS — heading backward before forward; detour over the top.
-          d = `M ${x1} ${y1} H ${x1End} V ${yDetour} H ${x2End} V ${y2} H ${tipX}`;
+          // SS — exits pred's left, enters succ's left. Route above to avoid
+          // walking through pred, then drop into succ from the top.
+          const yAbove = Math.min(pred.y, succ.y) - 10;
+          d = `M ${x1} ${y1} V ${yAbove} H ${entryX} V ${entryY}`;
         } else if (exitDir === 1 && enterDir === -1) {
-          // FF — both exit/enter on right edges. Stair-step downward.
-          const midX = Math.max(x1End, x2End) + stub;
-          d = `M ${x1} ${y1} H ${midX} V ${y2} H ${tipX}`;
+          // FF — exits pred's right, enters succ's right. Drop in from
+          // above on the right side of succ.
+          const dropY = (y1 + y2) / 2;
+          d = `M ${x1} ${y1} V ${dropY} H ${entryX} V ${entryY}`;
         } else {
-          // SF — uncommon. Orthogonal detour.
-          d = `M ${x1} ${y1} H ${x1End} V ${yDetour} H ${x2End} V ${y2} H ${tipX}`;
+          // SF — exits pred's left, enters succ's right. Detour above.
+          const yAbove = Math.min(pred.y, succ.y) - 10;
+          d = `M ${x1} ${y1} V ${yAbove} H ${entryX} V ${entryY}`;
         }
         out.push({
           id: `${pred.task.id}->${succ.task.id}`,
@@ -1085,31 +1084,33 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                 pointerEvents="none"
               >
                 <Defs>
-                  {/* Arrow markers — proper pointed arrowhead. refX is the
-                      tip (12,6) so SVG places the polygon's TIP exactly at
-                      the line endpoint and grows the head BACKWARD along
-                      the line, never overlapping the bar. Sharp 12x12
-                      triangle with a tucked-in notch reads as a confident
-                      arrow rather than a tile. */}
+                  {/* Arrow markers — small 7x7 triangle. The path now ends
+                      with a vertical drop INTO succ's top edge (MS Project
+                      style), so the marker auto-orients DOWN. refX=7 puts
+                      the polygon's tip exactly at the line endpoint with
+                      the body extending backward along the path — no bar
+                      overlap regardless of approach direction. Sized to
+                      sit unobtrusively at the start of each task, not
+                      compete visually with the bar itself. */}
                   <Marker
                     id="arrowRed"
-                    markerWidth={12}
-                    markerHeight={12}
-                    refX={12}
-                    refY={6}
+                    markerWidth={7}
+                    markerHeight={7}
+                    refX={7}
+                    refY={3.5}
                     orient="auto"
                   >
-                    <Polygon points="0,0 12,6 0,12 3,6" fill={Colors.error} />
+                    <Polygon points="0,0 7,3.5 0,7" fill={Colors.error} />
                   </Marker>
                   <Marker
                     id="arrowBlue"
-                    markerWidth={12}
-                    markerHeight={12}
-                    refX={12}
-                    refY={6}
+                    markerWidth={7}
+                    markerHeight={7}
+                    refX={7}
+                    refY={3.5}
                     orient="auto"
                   >
-                    <Polygon points="0,0 12,6 0,12 3,6" fill={Colors.primary} />
+                    <Polygon points="0,0 7,3.5 0,7" fill={Colors.primary} />
                   </Marker>
                 </Defs>
 
