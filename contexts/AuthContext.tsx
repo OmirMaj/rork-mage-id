@@ -178,7 +178,20 @@ function mapSupabaseUser(user: User): AuthUser {
   };
 }
 
+// Credential persistence is mobile-only. On web, expo-secure-store v15
+// silently falls back to localStorage — which would store the user's
+// password in cleartext, readable by any browser extension or DOM-injected
+// script. We refuse to persist on web entirely; the user re-authenticates
+// each session via Supabase's normal session-cookie flow (which is HTTP-
+// only and origin-scoped, far safer than localStorage). The audit caught
+// this in May 2026 — pre-fix, web users had passwords sitting in
+// `localStorage[mageid_auth_password]` viewable in DevTools.
 async function saveCredentials(email: string, password: string): Promise<void> {
+  if (Platform.OS === 'web') {
+    // Skip silently — the Supabase session cookie persists the auth state
+    // and that's all we need on web.
+    return;
+  }
   try {
     await SecureStore.setItemAsync(AUTH_EMAIL_KEY, email);
     await SecureStore.setItemAsync(AUTH_PASSWORD_KEY, password);
@@ -189,6 +202,11 @@ async function saveCredentials(email: string, password: string): Promise<void> {
 }
 
 async function getStoredCredentials(): Promise<{ email: string; password: string } | null> {
+  if (Platform.OS === 'web') {
+    // Web never stored credentials, so never returns them. The Supabase
+    // session is the source of truth.
+    return null;
+  }
   try {
     const email = await SecureStore.getItemAsync(AUTH_EMAIL_KEY);
     const password = await SecureStore.getItemAsync(AUTH_PASSWORD_KEY);
@@ -200,6 +218,19 @@ async function getStoredCredentials(): Promise<{ email: string; password: string
 }
 
 async function clearStoredCredentials(): Promise<void> {
+  if (Platform.OS === 'web') {
+    // Belt-and-suspenders: in case a previous version of the app wrote
+    // credentials to localStorage before this guard was added, opportunistically
+    // wipe them on logout. localStorage.removeItem is safe even if the keys
+    // don't exist.
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.removeItem(AUTH_EMAIL_KEY);
+        window.localStorage.removeItem(AUTH_PASSWORD_KEY);
+      }
+    } catch { /* ok */ }
+    return;
+  }
   try {
     await SecureStore.deleteItemAsync(AUTH_EMAIL_KEY);
     await SecureStore.deleteItemAsync(AUTH_PASSWORD_KEY);

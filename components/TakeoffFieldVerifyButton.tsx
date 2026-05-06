@@ -133,7 +133,11 @@ function TakeoffFieldVerifyButtonImpl({
           activeOpacity={0.7}
         >
           <Check size={11} color={Colors.success} />
-          <Text style={styles.btnVerifiedText}>Verified</Text>
+          {/* "Field-stamped" honestly describes what we did — captured a
+              photo + (best-effort) GPS at the row. "Verified" implied we
+              had reconciled the field measurement against the AI takeoff,
+              which the GC has to do themselves. */}
+          <Text style={styles.btnVerifiedText}>Field-stamped</Text>
           {delta != null && (
             <Text style={[styles.btnDeltaText, { color: tone }]}>
               {delta >= 0 ? '+' : ''}{Math.round(delta)} {unit}

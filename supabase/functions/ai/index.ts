@@ -89,6 +89,42 @@ serve(async (req) => {
     const auth = await requireTier(req, ['free', 'pro', 'business', 'enterprise'], 'ai_text');
     if (!auth.ok) return jsonResp(auth.body, auth.status);
 
+    // Parse + validate the body BEFORE we touch the usage counter. Pre-fix
+    // the increment fired immediately after auth, so a malformed body or a
+    // missing-prompt request still burned one of the user's monthly quota
+    // — a buggy client (or anyone hitting the URL with curl) could exhaust
+    // someone's cap with empty bodies.
+    let body: Record<string, unknown>;
+    try {
+      body = await req.json();
+    } catch {
+      return jsonResp({ success: false, error: "Invalid JSON body", finishReason: "BAD_REQUEST" }, 400);
+    }
+
+    const prompt = body.prompt;
+    const schemaHint = body.schemaHint;
+    // Enable JSON mode when explicit, schemaHint provided, or legacy `schema` key from old clients.
+    const jsonMode = body.jsonMode === true || !!schemaHint || !!body.schema;
+    const tier = (body.tier as string) || "fast";
+
+    if (typeof prompt !== "string" || prompt.trim().length === 0) {
+      return jsonResp({ success: false, error: "Missing prompt", finishReason: "BAD_REQUEST" }, 400);
+    }
+
+    // Token budget. Floors lifted from the prior 8192 → 16000 for jsonMode
+    // smart tier so heavy estimate / schedule generations don't truncate.
+    // Gemini 2.5 Flash supports up to 65,535 output tokens; 16000 leaves
+    // plenty of headroom for any prompt the app sends.
+    const maxTokensReq = typeof body.maxTokens === "number" ? body.maxTokens : 0;
+    let maxTokens: number;
+    if (jsonMode && tier === "smart") {
+      maxTokens = Math.max(maxTokensReq || 16000, 16000);
+    } else if (jsonMode) {
+      maxTokens = Math.max(maxTokensReq || 8192, 8192);
+    } else {
+      maxTokens = maxTokensReq || 1000;
+    }
+
     // Monthly cap check + atomic increment. Caps are deliberately set to
     // daily × 30 in MONTHLY_CAPS so the server-side ceiling matches the
     // client-side daily limiter without us having to add a separate daily
@@ -104,33 +140,6 @@ serve(async (req) => {
         code: 'monthly_cap',
         finishReason: 'RATE_LIMITED',
       }, 429);
-    }
-
-    const body = await req.json();
-    const prompt = body.prompt;
-    const schemaHint = body.schemaHint;
-    // Enable JSON mode when explicit, schemaHint provided, or legacy `schema` key from old clients.
-    const jsonMode = body.jsonMode === true || !!schemaHint || !!body.schema;
-    const tier = (body.tier as string) || "fast";
-
-    // Token budget. Floors lifted from the prior 8192 → 16000 for jsonMode
-    // smart tier so heavy estimate / schedule generations don't truncate.
-    // Gemini 2.5 Flash supports up to 65,535 output tokens; 16000 leaves
-    // plenty of headroom for any prompt the app sends.
-    let maxTokens: number;
-    if (jsonMode && tier === "smart") {
-      maxTokens = Math.max(body.maxTokens || 16000, 16000);
-    } else if (jsonMode) {
-      maxTokens = Math.max(body.maxTokens || 8192, 8192);
-    } else {
-      maxTokens = body.maxTokens || 1000;
-    }
-
-    if (!prompt) {
-      return new Response(
-        JSON.stringify({ success: false, error: "Missing prompt", finishReason: "BAD_REQUEST" }),
-        { status: 400, headers: { ...H, "Content-Type": "application/json" } },
-      );
     }
 
     const model = M[tier] || M.fast;

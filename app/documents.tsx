@@ -1,14 +1,14 @@
 import React, { useState, useMemo, useCallback, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated,
-  Platform, Alert,
+  Platform,
 } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import {
-  FileText, PenTool, ShieldCheck, FileSignature, Plus,
-  AlertCircle, Check, Clock, X as XIcon, Eye,
+  FileText, PenTool,
+  AlertCircle, Check, X as XIcon,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { DOCUMENT_TYPE_INFO } from '@/mocks/documents';
@@ -86,12 +86,15 @@ export default function DocumentsScreen() {
   // just create drift. This screen is now a single dashboard that links
   // OUT to each document's home screen.
   const {
-    projects, cois, permits, submittals, aiaPayApps,
+    projects, cois, permits, submittals, aiaPayApps, subcontractors,
   } = useProjects();
   const [selectedFilter, setSelectedFilter] = useState<string>('all');
 
   const documents = useMemo<ProjectDocument[]>(() => {
     const projectById = new Map(projects.map(p => [p.id, p.name]));
+    // Subcontractor display name = companyName (DBA), with legalName as a
+    // fallback for entries that haven't filled DBA in yet.
+    const subById = new Map(subcontractors.map(s => [s.id, s.companyName || s.legalName || s.contactName]));
     const out: ProjectDocument[] = [];
 
     // COIs — one per sub. Status derives from the validation result and
@@ -107,11 +110,13 @@ export default function DocumentsScreen() {
       if (expired) status = 'expired';
       else if (c.validation?.overallStatus === 'pass') status = 'signed';
       else if (c.uploadedAt) status = 'draft';
-      // Resolve the sub's name via the projects map's denormalized data.
-      // The COI type doesn't carry the name; lookup elsewhere is via
-      // subcontractorId, but we don't have the subs map here. Show the
-      // sub ID prefix as a fallback so the row is at least identifiable.
-      const subLabel = c.subcontractorId ? c.subcontractorId.slice(0, 8) : 'Subcontractor';
+      // Resolve the sub's name from the subcontractors collection — pre-fix
+      // we showed the first 8 chars of the UUID (e.g. "COI · 9f2c1aab"),
+      // which the GC could not visually reconcile with their roster. Fall
+      // back to "Subcontractor" only when the COI is somehow orphaned.
+      const subLabel = c.subcontractorId
+        ? (subById.get(c.subcontractorId) ?? 'Subcontractor')
+        : 'Subcontractor';
       out.push({
         id: 'coi-' + c.id,
         projectId: c.projectId ?? 'unassigned',
@@ -182,7 +187,7 @@ export default function DocumentsScreen() {
 
     // Newest first
     return out.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  }, [projects, cois, permits, submittals, aiaPayApps]);
+  }, [projects, cois, permits, submittals, aiaPayApps, subcontractors]);
 
   const handleDocPress = useCallback((doc: ProjectDocument) => {
     if (Platform.OS !== 'web') void Haptics.selectionAsync();

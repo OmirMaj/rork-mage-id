@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Image,
-  ActivityIndicator, Dimensions, TextInput, Platform, Modal, Alert,
+  Dimensions, TextInput, Platform, Modal, Alert,
 } from 'react-native';
 import MageRefreshControl from '@/components/MageRefreshControl';
 import { useQueryClient } from '@tanstack/react-query';
@@ -12,8 +12,8 @@ import * as Haptics from 'expo-haptics';
 import {
   Globe, CalendarDays, DollarSign, FileText, Image as ImageIcon,
   ClipboardList, CheckCircle2, MessageSquare, ChevronDown, ChevronUp,
-  TrendingUp, Clock, AlertTriangle, BarChart3, Flag, GitBranch, Lock,
-  FileSignature, X, Check, ThumbsUp, ThumbsDown, ShieldCheck, Send,
+  BarChart3, Flag, GitBranch, Lock,
+  FileSignature, X, Check, ThumbsDown, ShieldCheck, Send,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
@@ -185,6 +185,10 @@ export default function ClientViewScreen() {
   const [passcodeEntry, setPasscodeEntry] = useState('');
   const [passcodeUnlocked, setPasscodeUnlocked] = useState(false);
   const [passcodeError, setPasscodeError] = useState(false);
+  // Distinguish "wrong passcode" from "edge function unreachable" so the user
+  // sees a useful message and a double-tap of Unlock doesn't fire two requests.
+  const [passcodeErrorKind, setPasscodeErrorKind] = useState<'invalid' | 'network' | null>(null);
+  const [verifying, setVerifying] = useState(false);
 
   // CO approval modal state
   const [approvalCO, setApprovalCO] = useState<ChangeOrder | null>(null);
@@ -430,6 +434,13 @@ export default function ClientViewScreen() {
 
   if (passcodeRequired && !passcodeUnlocked) {
     const verify = async () => {
+      // Drop double-taps. Pre-fix the button had no in-flight state, so an
+      // impatient client could fire two requests and double the rate-limit
+      // ding on the edge function for a single valid attempt.
+      if (verifying) return;
+      const trimmed = passcodeEntry.trim();
+      if (!trimmed) return;
+      setVerifying(true);
       // Server-side validation. Pre-fix this was a JS string compare against
       // `portal.passcode` which was loaded into the snapshot — anyone with
       // the link could read the passcode out of the JS heap or URL hash and
@@ -438,23 +449,42 @@ export default function ClientViewScreen() {
       // adds a 250ms delay on failures to slow brute force.
       try {
         const { data, error } = await supabase.functions.invoke('validate-portal-passcode', {
-          body: { portalId, passcode: passcodeEntry.trim() },
+          body: { portalId, passcode: trimmed },
         });
-        if (error || !data?.ok) {
+        if (error) {
+          // The edge-functions client throws this for both 4xx (bad passcode)
+          // and 5xx / unreachable (network). Try to disambiguate by status —
+          // FunctionsHttpError exposes `context.status` on recent versions.
+          // If we can't tell, default to 'invalid' (better UX than scaring
+          // someone with a network message when they probably mistyped).
+          const status = (error as { context?: { status?: number } })?.context?.status;
+          const kind: 'invalid' | 'network' = status === 401 || status === 403 ? 'invalid' : 'network';
           setPasscodeError(true);
+          setPasscodeErrorKind(kind);
+          if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+          return;
+        }
+        if (!data?.ok) {
+          setPasscodeError(true);
+          setPasscodeErrorKind('invalid');
           if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
           return;
         }
         setPasscodeUnlocked(true);
         setPasscodeError(false);
+        setPasscodeErrorKind(null);
         if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       } catch (err) {
-        // Network failure — surface as error state so the user can retry.
+        // Thrown — TypeError from fetch usually means offline / DNS / no edge
+        // function deployed. Treat as network so the message tells the truth.
         // We deliberately don't fall back to a client-side compare here:
         // that's the bug we're fixing.
         console.warn('[client-view] passcode verify failed:', err);
         setPasscodeError(true);
+        setPasscodeErrorKind('network');
         if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      } finally {
+        setVerifying(false);
       }
     };
     return (
@@ -472,7 +502,13 @@ export default function ClientViewScreen() {
           <TextInput
             style={[styles.passcodeInput, passcodeError && { borderColor: Colors.error }]}
             value={passcodeEntry}
-            onChangeText={(v) => { setPasscodeEntry(v); if (passcodeError) setPasscodeError(false); }}
+            onChangeText={(v) => {
+              setPasscodeEntry(v);
+              if (passcodeError) {
+                setPasscodeError(false);
+                setPasscodeErrorKind(null);
+              }
+            }}
             placeholder="Enter passcode"
             placeholderTextColor={Colors.textMuted}
             secureTextEntry
@@ -480,12 +516,22 @@ export default function ClientViewScreen() {
             autoCorrect={false}
             onSubmitEditing={verify}
             returnKeyType="done"
+            editable={!verifying}
           />
           {passcodeError ? (
-            <Text style={styles.passcodeErrorText}>Incorrect passcode. Please try again.</Text>
+            <Text style={styles.passcodeErrorText}>
+              {passcodeErrorKind === 'network'
+                ? "Couldn't reach the server. Check your connection and try again."
+                : 'Incorrect passcode. Please try again.'}
+            </Text>
           ) : null}
-          <TouchableOpacity style={styles.passcodeBtn} onPress={verify} activeOpacity={0.85}>
-            <Text style={styles.passcodeBtnText}>Unlock Portal</Text>
+          <TouchableOpacity
+            style={[styles.passcodeBtn, verifying && { opacity: 0.6 }]}
+            onPress={verify}
+            activeOpacity={0.85}
+            disabled={verifying}
+          >
+            <Text style={styles.passcodeBtnText}>{verifying ? 'Verifying…' : 'Unlock Portal'}</Text>
           </TouchableOpacity>
         </View>
       </View>

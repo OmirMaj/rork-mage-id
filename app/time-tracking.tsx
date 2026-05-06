@@ -1,21 +1,22 @@
-import React, { useState, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated,
-  Platform, Alert, Modal, Share, Clipboard,
+  Platform, Alert, Modal, Share,
 } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import { Stack, useRouter } from 'expo-router';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import {
-  Clock, Play, Pause, Square, Users, ChevronDown,
-  MapPin, Coffee, X, TrendingUp, AlertTriangle, FileDown,
+  Clock, Play, Square, Users, ChevronDown,
+  Coffee, X, TrendingUp, AlertTriangle, FileDown,
+  Briefcase, Check,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { CREW_MEMBERS } from '@/mocks/timeTracking';
 import type { TimeEntry } from '@/types';
-import { formatMoney } from '@/utils/formatters';
 import { useTimeEntries, buildTimeEntriesCSV } from '@/hooks/useTimeEntries';
 import { useProjects } from '@/contexts/ProjectContext';
 import { Type } from '@/constants/typography';
@@ -143,6 +144,31 @@ function TimeTrackingScreenInner() {
   const { projects } = useProjects();
   const [showClockInModal, setShowClockInModal] = useState(false);
   const [selectedTab, setSelectedTab] = useState<'live' | 'history'>('live');
+  // Project selection for clock-in. Defaults to the first active project; the
+  // GC can flip it via a picker before tapping a crew member. Pre-fix every
+  // clock-in silently went to projects[0] regardless of where the worker
+  // actually was, so the payroll CSV mis-allocated hours when the GC was
+  // running multiple jobs.
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [showProjectPicker, setShowProjectPicker] = useState(false);
+
+  // Keep the selection consistent: when projects load, default to the first
+  // one. If the user switches accounts (projects array changes identity) and
+  // the previously-selected id is gone, fall back to the new first.
+  useEffect(() => {
+    if (projects.length === 0) {
+      if (selectedProjectId !== null) setSelectedProjectId(null);
+      return;
+    }
+    if (!selectedProjectId || !projects.some(p => p.id === selectedProjectId)) {
+      setSelectedProjectId(projects[0].id);
+    }
+  }, [projects, selectedProjectId]);
+
+  const selectedProject = useMemo(
+    () => projects.find(p => p.id === selectedProjectId) ?? null,
+    [projects, selectedProjectId],
+  );
 
   const todayStats = useMemo(() => {
     const today = new Date().toISOString().split('T')[0];
@@ -153,22 +179,18 @@ function TimeTrackingScreenInner() {
     return { totalWorkers, totalHours, totalOT, liveCount: liveEntries.length };
   }, [entries, liveEntries]);
 
-  // Track break-start times so we can compute the break duration to
-  // accumulate when the worker resumes. Without this, every resume would
-  // add zero break minutes regardless of how long they actually rested.
-  const breakStartByEntry = useRef<Record<string, number>>({});
-
+  // The break-start timestamp is now persisted on the row (`breakStartedAt`
+  // — see hooks/useTimeEntries.ts). Pre-fix this lived in a useRef on the
+  // screen, so backgrounding / force-quitting during a break wiped it and
+  // resume always added zero minutes.
   const handleAction = useCallback((entry: TimeEntry, action: string) => {
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     if (action === 'break') {
-      breakStartByEntry.current[entry.id] = Date.now();
       startBreak(entry.id);
     } else if (action === 'resume') {
-      const startedAt = breakStartByEntry.current[entry.id] ?? Date.now();
-      const minutes = Math.round((Date.now() - startedAt) / 60000);
-      delete breakStartByEntry.current[entry.id];
-      resumeFromBreak(entry.id, minutes);
+      // Hook reads breakStartedAt from the row to compute elapsed minutes.
+      resumeFromBreak(entry.id);
     } else if (action === 'clock_out') {
       doClockOut(entry.id);
       // Brief confirmation. The hook computes totalHours/overtimeHours
@@ -183,19 +205,18 @@ function TimeTrackingScreenInner() {
 
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
-    // Default to the most recent project if any exist; otherwise fall back
-    // to a placeholder. Future improvement: project picker in the modal.
-    const defaultProject = projects[0];
+    // Use the user-chosen project (defaults to projects[0] in the picker
+    // effect above). Falls back to 'unassigned' only when no projects exist.
     doClockIn({
-      projectId: defaultProject?.id ?? 'unassigned',
-      projectName: defaultProject?.name ?? 'Unassigned',
+      projectId: selectedProject?.id ?? 'unassigned',
+      projectName: selectedProject?.name ?? 'Unassigned',
       workerId: member.id,
       workerName: member.name,
       trade: member.trade,
     });
 
     setShowClockInModal(false);
-  }, [doClockIn, projects]);
+  }, [doClockIn, selectedProject]);
 
   // Payroll CSV export. Drops everything in `entries` into the standard
   // QuickBooks/Sage-friendly column shape and shares via native Share
@@ -208,9 +229,10 @@ function TimeTrackingScreenInner() {
     const csv = buildTimeEntriesCSV(entries);
     if (Platform.OS === 'web') {
       try {
-        // RN-Web's Clipboard.setString is synchronous and supported in
-        // modern browsers via navigator.clipboard internally.
-        Clipboard.setString(csv);
+        // expo-clipboard is async on web (uses navigator.clipboard.writeText
+        // under the hood) and avoids the deprecated react-native Clipboard
+        // module that the previous implementation pulled in.
+        await Clipboard.setStringAsync(csv);
         Alert.alert('Copied', `${entries.length} entries copied as CSV. Paste into Excel / QuickBooks / Sage.`);
       } catch {
         Alert.alert('Export failed', 'Could not copy CSV to clipboard.');
@@ -357,6 +379,62 @@ function TimeTrackingScreenInner() {
               </TouchableOpacity>
             </View>
             <Text style={styles.modalSubtitle}>Select a crew member to clock in</Text>
+
+            {/* Project picker — defaults to the GC's first project but lets
+                them pick another job before clocking the worker in. Hidden
+                when no projects exist (the worker gets bucketed to
+                "Unassigned" — better than blocking clock-in entirely). */}
+            {projects.length > 0 ? (
+              <TouchableOpacity
+                style={styles.projectPickerRow}
+                onPress={() => setShowProjectPicker(v => !v)}
+                activeOpacity={0.75}
+                accessibilityRole="button"
+                accessibilityLabel="Choose project"
+              >
+                <View style={styles.projectPickerIcon}>
+                  <Briefcase size={16} color={Colors.primary} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.projectPickerLabel}>Project</Text>
+                  <Text style={styles.projectPickerValue} numberOfLines={1}>
+                    {selectedProject?.name ?? 'Unassigned'}
+                  </Text>
+                </View>
+                <ChevronDown
+                  size={16}
+                  color={Colors.textMuted}
+                  style={{ transform: [{ rotate: showProjectPicker ? '180deg' : '0deg' }] }}
+                />
+              </TouchableOpacity>
+            ) : null}
+
+            {showProjectPicker && projects.length > 0 ? (
+              <View style={styles.projectListWrap}>
+                <ScrollView style={{ maxHeight: 180 }}>
+                  {projects.map(p => {
+                    const active = p.id === selectedProjectId;
+                    return (
+                      <TouchableOpacity
+                        key={p.id}
+                        style={[styles.projectListRow, active && styles.projectListRowActive]}
+                        onPress={() => {
+                          setSelectedProjectId(p.id);
+                          setShowProjectPicker(false);
+                        }}
+                        activeOpacity={0.75}
+                      >
+                        <Text style={[styles.projectListRowText, active && styles.projectListRowTextActive]} numberOfLines={1}>
+                          {p.name}
+                        </Text>
+                        {active ? <Check size={16} color={Colors.primary} /> : null}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+            ) : null}
+
             <ScrollView style={{ maxHeight: 400 }}>
               {CREW_MEMBERS.filter(m => !liveEntries.some(e => e.workerId === m.id)).map(member => (
                 <TouchableOpacity
@@ -535,4 +613,40 @@ const styles = StyleSheet.create({
   memberName: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: Colors.text },
   memberTrade: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary },
   allClockedIn: { textAlign: 'center' as const, color: Colors.textMuted, paddingVertical: 20, fontSize: Type.bodyCompact.fontSize },
+  projectPickerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    backgroundColor: Colors.fillTertiary,
+    borderRadius: Tokens.radius.lg,
+    marginBottom: 12,
+  },
+  projectPickerIcon: {
+    width: 28, height: 28, borderRadius: 14,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: Colors.primary + '18',
+  },
+  projectPickerLabel: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontWeight: '600' as const, letterSpacing: 0.4, textTransform: 'uppercase' as const },
+  projectPickerValue: { fontSize: Type.subhead.fontSize, color: Colors.text, fontWeight: '600' as const, marginTop: 2 },
+  projectListWrap: {
+    backgroundColor: Colors.surface,
+    borderRadius: Tokens.radius.lg,
+    borderWidth: 0.5,
+    borderColor: Colors.borderLight,
+    marginBottom: 12,
+  },
+  projectListRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderBottomWidth: 0.5,
+    borderBottomColor: Colors.borderLight,
+  },
+  projectListRowActive: { backgroundColor: Colors.primary + '10' },
+  projectListRowText: { flex: 1, fontSize: Type.bodyCompact.fontSize, color: Colors.text },
+  projectListRowTextActive: { color: Colors.primary, fontWeight: '600' as const },
 });

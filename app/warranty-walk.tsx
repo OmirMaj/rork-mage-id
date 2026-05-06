@@ -183,6 +183,20 @@ export default function WarrantyWalkScreen() {
     }
   }, [project, settings, items, totals, overallNotes]);
 
+  // Group items by phase for cleaner scrolling. Computed BEFORE the
+  // `!project` early return so the hook call order stays stable across
+  // renders (rules-of-hooks). The grouping doesn't depend on project, so
+  // moving it up is free.
+  const grouped = useMemo(() => {
+    const map = new Map<WalkItem['phase'], WalkItem[]>();
+    for (const it of DEFAULT_WALK_ITEMS) {
+      const arr = map.get(it.phase) ?? [];
+      arr.push(it);
+      map.set(it.phase, arr);
+    }
+    return Array.from(map.entries());
+  }, []);
+
   if (!project) {
     return (
       <View style={styles.loadingContainer}>
@@ -193,17 +207,6 @@ export default function WarrantyWalkScreen() {
   }
 
   const alreadyDone = !!project.warrantyWalkCompletedAt;
-
-  // Group items by phase for cleaner scrolling.
-  const grouped = useMemo(() => {
-    const map = new Map<WalkItem['phase'], WalkItem[]>();
-    for (const it of DEFAULT_WALK_ITEMS) {
-      const arr = map.get(it.phase) ?? [];
-      arr.push(it);
-      map.set(it.phase, arr);
-    }
-    return Array.from(map.entries());
-  }, []);
 
   return (
     <>

@@ -20,7 +20,7 @@
 // the existing context shape is already heavy. Lift to a context if a
 // second screen ever needs the data.
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
@@ -41,6 +41,7 @@ interface DBRow {
   clock_in: string;
   clock_out: string | null;
   break_minutes: number;
+  break_started_at: string | null;
   total_hours: number;
   overtime_hours: number;
   status: TimeEntryStatus;
@@ -61,6 +62,7 @@ function fromDB(r: DBRow): TimeEntry {
     clockIn: r.clock_in,
     clockOut: r.clock_out ?? undefined,
     breakMinutes: r.break_minutes ?? 0,
+    breakStartedAt: r.break_started_at ?? undefined,
     totalHours: Number(r.total_hours ?? 0),
     overtimeHours: Number(r.overtime_hours ?? 0),
     status: r.status,
@@ -83,6 +85,7 @@ function toDB(e: TimeEntry, userId: string): Omit<DBRow, 'created_at' | 'updated
     clock_in: e.clockIn,
     clock_out: e.clockOut ?? null,
     break_minutes: e.breakMinutes,
+    break_started_at: e.breakStartedAt ?? null,
     total_hours: e.totalHours,
     overtime_hours: e.overtimeHours,
     status: e.status,
@@ -134,6 +137,29 @@ export function useTimeEntries() {
     return () => { cancelled = true; };
   }, []);
 
+  // ── Reset on user transition ───────────────────────────────────────
+  // When the userId changes (sign out, sign in as different user), we MUST
+  // clear local entries so user A's data doesn't leak into user B's session.
+  // Without this guard, entries from the previous user stay in React state
+  // AND get written back to AsyncStorage under the new session — a real
+  // data-leak risk on shared/family devices. Tracked across renders via a
+  // ref so we only react to actual transitions, not initial mount.
+  const lastUserIdRef = useRef<string | null | undefined>(undefined);
+  useEffect(() => {
+    const last = lastUserIdRef.current;
+    // First run: just record. No clearing on initial mount.
+    if (last === undefined) {
+      lastUserIdRef.current = userId;
+      return;
+    }
+    // Transition detected (last user ≠ current user, including null↔value)
+    if (last !== userId) {
+      lastUserIdRef.current = userId;
+      setEntries([]);
+      void AsyncStorage.removeItem(STORAGE_KEY);
+    }
+  }, [userId]);
+
   // ── Pull from Supabase once we have a session ──────────────────────
   useEffect(() => {
     if (!hydrated || !userId || !isSupabaseConfigured) return;
@@ -158,10 +184,7 @@ export function useTimeEntries() {
           const byId = new Map<string, TimeEntry>();
           prev.forEach(e => byId.set(e.id, e));
           fromServer.forEach(e => byId.set(e.id, e));
-          const merged = Array.from(byId.values());
-          // Persist merged view back to AsyncStorage.
-          void AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
-          return merged;
+          return Array.from(byId.values());
         });
       } catch (err) {
         console.warn('[useTimeEntries] Server fetch threw:', err);
@@ -171,6 +194,9 @@ export function useTimeEntries() {
   }, [hydrated, userId]);
 
   // ── Persist to AsyncStorage on every change ────────────────────────
+  // The persist effect handles writing on EVERY entries change including
+  // the merge above. Pre-fix the merge inside the pull also wrote to
+  // AsyncStorage, racing with this effect. Single writer here is cleaner.
   useEffect(() => {
     if (!hydrated) return;
     void AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
@@ -213,22 +239,47 @@ export function useTimeEntries() {
   }, [userId]);
 
   const startBreak = useCallback((entryId: string) => {
+    // Persist breakStartedAt on the row so cold-restart recovery works.
+    // Pre-fix the timestamp lived in a useRef in the screen and was
+    // lost on remount → resume always recorded zero minutes.
+    const now = new Date().toISOString();
     setEntries(prev => prev.map(e =>
-      e.id === entryId ? { ...e, status: 'break' as const } : e,
+      e.id === entryId ? { ...e, status: 'break' as const, breakStartedAt: now } : e,
     ));
     if (userId && isSupabaseConfigured) {
-      void supabaseWrite('time_entries', 'update', { id: entryId, status: 'break' });
+      void supabaseWrite('time_entries', 'update', {
+        id: entryId, status: 'break', break_started_at: now,
+      });
     }
   }, [userId]);
 
-  const resumeFromBreak = useCallback((entryId: string, breakDurationMinutes: number) => {
+  /**
+   * Resume from break. The hook computes the elapsed break minutes from
+   * `breakStartedAt` on the row — caller doesn't need to track timestamps
+   * itself. If breakStartedAt is somehow missing (legacy row, manual edit),
+   * we fall back to the explicit `breakDurationMinutes` arg, then to 0.
+   */
+  const resumeFromBreak = useCallback((entryId: string, breakDurationMinutesFallback?: number) => {
     setEntries(prev => prev.map(e => {
       if (e.id !== entryId) return e;
-      const newBreakTotal = e.breakMinutes + Math.max(0, breakDurationMinutes);
-      const updated = { ...e, status: 'clocked_in' as const, breakMinutes: newBreakTotal };
+      // Compute minutes from persisted timestamp first; fall back to arg.
+      let elapsed = 0;
+      if (e.breakStartedAt) {
+        const ms = Date.now() - new Date(e.breakStartedAt).getTime();
+        elapsed = Math.max(0, Math.round(ms / 60000));
+      } else if (typeof breakDurationMinutesFallback === 'number') {
+        elapsed = Math.max(0, breakDurationMinutesFallback);
+      }
+      const newBreakTotal = e.breakMinutes + elapsed;
+      const updated = {
+        ...e,
+        status: 'clocked_in' as const,
+        breakMinutes: newBreakTotal,
+        breakStartedAt: undefined,
+      };
       if (userId && isSupabaseConfigured) {
         void supabaseWrite('time_entries', 'update', {
-          id: e.id, status: 'clocked_in', break_minutes: newBreakTotal,
+          id: e.id, status: 'clocked_in', break_minutes: newBreakTotal, break_started_at: null,
         });
       }
       return updated;

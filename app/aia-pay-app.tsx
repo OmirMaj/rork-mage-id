@@ -7,8 +7,8 @@ import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import {
-  ChevronLeft, FileText, Download, Info, Percent, Printer, TrendingUp, Check, Save,
-  ShieldAlert, Copy, CheckCircle2,
+  ChevronLeft, Info, Printer, Check, Save,
+  ShieldAlert, CheckCircle2,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import ConstructionLoader from '@/components/ConstructionLoader';
@@ -119,13 +119,18 @@ function AIAPayAppScreenInner() {
     // fromPreviousApp with what was billed through the end of the prior
     // period (prior.fromPreviousApp + prior.thisPeriod), and pre-fill the
     // G702 "less previous certificates" with the prior period's earned
-    // amount net of retainage. Match lines by itemNo first, falling back to
-    // description for SOVs that have been edited.
+    // amount net of retainage. Match lines by itemNo ONLY — pre-fix this
+    // also fell back to description, but two SOV lines sharing a description
+    // (e.g. "Concrete — slab on grade" repeated for two phases) would have
+    // the second line silently inherit the first line's billed-through, off-
+    // by-one'ing the entire pay app. AIA G702/G703 keys on itemNo for a
+    // reason; if the GC reorders lines they need to keep the numbering
+    // stable. Lines without a prior match get fromPreviousApp = 0 and the
+    // GC enters this-period-only.
     if (priorAIA && priorAIA.lines.length > 0) {
       const priorByItem = new Map(priorAIA.lines.map(l => [l.itemNo, l]));
-      const priorByDesc = new Map(priorAIA.lines.map(l => [l.description.trim().toLowerCase(), l]));
       const carriedLines = seeded.lines.map(line => {
-        const match = priorByItem.get(line.itemNo) ?? priorByDesc.get(line.description.trim().toLowerCase());
+        const match = priorByItem.get(line.itemNo);
         if (!match) return line;
         const billedThrough = (match.fromPreviousApp || 0) + (match.thisPeriod || 0);
         return { ...line, fromPreviousApp: billedThrough };
@@ -237,6 +242,8 @@ function AIAPayAppScreenInner() {
     // invoices had Pay buttons. We close the asymmetry here.
     let payLinkUrl = rec.payLinkUrl;
     let payLinkId = rec.payLinkId;
+    let stripeNotConnected = false;
+    let stripeFailureReason: string | null = null;
     const due = rec.totals?.currentPaymentDue ?? 0;
     if (!payLinkUrl && due > 0 && user?.id) {
       try {
@@ -259,12 +266,15 @@ function AIAPayAppScreenInner() {
             payLinkId = res.id;
           } else {
             console.warn('[AIA] Auto-generate payment link failed:', res.error);
+            stripeFailureReason = res.error ?? 'unknown';
           }
         } else {
           console.log('[AIA] Skipping payment link — Stripe Connect not set up for this user');
+          stripeNotConnected = true;
         }
       } catch (err) {
         console.warn('[AIA] Auto-generate payment link threw:', err);
+        stripeFailureReason = (err as Error)?.message ?? 'network error';
       }
     }
 
@@ -272,7 +282,30 @@ function AIAPayAppScreenInner() {
     setSavedFlash(true);
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setTimeout(() => setSavedFlash(false), 2200);
-  }, [buildSavedRecord, addAIAPayApp, user, settings]);
+
+    // Surface the Stripe outcome AFTER save so the GC isn't surprised by
+    // a print-only AIA on the homeowner portal. Pre-audit this was a
+    // silent console.warn — the GC believed the pay app shipped with a
+    // Pay button and homeowners just saw a static PDF. Now they get a
+    // real choice: set up Stripe, or accept that AIA goes out without
+    // one-tap pay.
+    if (stripeNotConnected && due > 0) {
+      Alert.alert(
+        'Saved — but no Pay button',
+        'You haven\'t connected Stripe yet, so this AIA pay application was saved without a one-tap Pay button on the client portal. Set up Stripe to add Pay buttons to AIA apps and invoices going forward.',
+        [
+          { text: 'Later', style: 'cancel' },
+          { text: 'Set up Stripe', onPress: () => router.push('/payments-setup' as never) },
+        ],
+      );
+    } else if (stripeFailureReason && due > 0) {
+      Alert.alert(
+        'Saved — Pay button could not be attached',
+        `Stripe didn't reach us when generating the payment link (${stripeFailureReason}). The AIA is saved; you can re-share later when Stripe is reachable to attach a Pay button.`,
+        [{ text: 'OK', style: 'default' }],
+      );
+    }
+  }, [buildSavedRecord, addAIAPayApp, user, settings, router]);
 
   // Tap "Generate PDF" → show pre-export confirmation first (liability
   // reducer). Once user confirms they reviewed the totals, we actually
@@ -292,7 +325,7 @@ function AIAPayAppScreenInner() {
       // the portal-side rendering of this AIA app gets a Pay button.
       await handleSave();
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch (err) {
+    } catch {
       Alert.alert('Error', 'Could not generate the pay application PDF.');
     } finally {
       setGenerating(false);

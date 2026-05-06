@@ -2523,6 +2523,12 @@ export interface TimeEntry {
   clockIn: string;
   clockOut?: string;
   breakMinutes: number;
+  /** ISO timestamp when the current break started. Set when status flips
+   *  to 'break', cleared when the worker resumes. Persisted on the row so
+   *  the break duration survives app force-quit / cold restart — pre-fix
+   *  the break-start was a useRef in the screen component and any
+   *  remount lost it. Resume reads this to compute the elapsed minutes. */
+  breakStartedAt?: string;
   totalHours: number;
   overtimeHours: number;
   status: TimeEntryStatus;

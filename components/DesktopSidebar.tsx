@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform } from '
 import { useRouter, usePathname } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
-  Home, Compass, Wrench, Settings, BarChart3, CalendarDays,
+  Home, Wrench, Settings, BarChart3, CalendarDays,
   Hammer, FileText, Building2, Search, HardHat, Gavel, LayoutDashboard, Lock,
   Wallet, ClipboardList, MessageCircle, Camera, Inbox, TrendingUp, Receipt,
   Users, ShieldCheck, Calculator, Bell, Briefcase, Image as ImageIcon,
@@ -97,13 +97,22 @@ function isActiveRoute(pathname: string, navKey: string, route: string): boolean
   if (navKey === 'home') return pathname === '/' || pathname.includes('(home)');
   // Plain "bids" is the scraped public-bids tab; make sure the mage-id
   // route doesn't also light it up.
-  if (navKey === 'bids') return pathname.includes('/bids') && !pathname.includes('mage-id-bids');
-  // Generic match: strip wrapping group folders (e.g. /(tabs)/) and use
-  // the trailing path segment as the matcher. Lets the 30+ entries above
-  // share one comparator instead of needing per-key special-casing.
-  const lastSegment = route.replace(/\(tabs\)\//g, '').split('/').filter(Boolean).pop() ?? '';
-  if (!lastSegment) return false;
-  return pathname.includes(lastSegment);
+  if (navKey === 'bids') {
+    return /\/bids(?:\/|$)/.test(pathname) && !pathname.includes('mage-id-bids');
+  }
+  // Strip Expo Router group folders e.g. `(tabs)` — the resolved pathname
+  // never includes them — and compare on full path boundaries. Pre-fix this
+  // used `pathname.includes(lastSegment)`, which painted Contracts active on
+  // `/contract-export`, lit Subs on `/subscription-paywall`, and otherwise
+  // mis-highlighted any route whose final segment was a substring of
+  // another. The startsWith form keeps child routes (e.g. `/invoice/123`)
+  // highlighting their parent without the false positives.
+  const normalized = '/' + route
+    .split('/')
+    .filter(seg => seg.length > 0 && !seg.startsWith('('))
+    .join('/');
+  if (normalized === '/') return false;
+  return pathname === normalized || pathname.startsWith(normalized + '/');
 }
 
 interface DesktopSidebarProps {

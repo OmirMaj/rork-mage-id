@@ -35,6 +35,11 @@ CREATE TABLE IF NOT EXISTS public.time_entries (
   clock_out timestamptz,
 
   break_minutes integer NOT NULL DEFAULT 0 CHECK (break_minutes >= 0),
+  -- Set when status flips to 'break', cleared on resume. Persisting it
+  -- means the break duration survives an app force-quit — pre-fix the
+  -- break-start lived in a useRef in the screen component, lost on
+  -- remount, and resume always recorded zero minutes.
+  break_started_at timestamptz,
 
   -- Stored, not derived — see header comment.
   total_hours numeric(6,2) NOT NULL DEFAULT 0 CHECK (total_hours >= 0),

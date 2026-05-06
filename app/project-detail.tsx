@@ -887,6 +887,27 @@ export default function ProjectDetailScreen() {
     );
   }, [estimate, savingsBreakdown, insets.bottom]);
 
+  // Memoized so the options object reference is stable between renders.
+  // Inline `<Stack.Screen options={{ headerRight: () => ... }} />` allocates
+  // a fresh object + function every render, which caused react-navigation's
+  // useNavigationCache to call setOptions on every render and triggered
+  // "Maximum update depth exceeded" in production (Sentry RN-1). Both the
+  // object and the headerRight function need stable identity.
+  //
+  // Both hooks live ABOVE the `if (!project) return` early-exit so the hook
+  // call order stays stable across renders (rules-of-hooks). They tolerate
+  // a missing project via the optional chain in the title fallback.
+  const headerRight = useCallback(
+    () => (
+      <TouchableOpacity onPress={openEditModal} style={{ padding: 6 }} activeOpacity={0.7} testID="edit-project-btn" accessibilityRole="button" accessibilityLabel="Edit"><Pencil size={20} color={Colors.primary} /></TouchableOpacity>
+    ),
+    [openEditModal],
+  );
+  const stackScreenOptions = useMemo(
+    () => ({ title: project?.name || 'Project Details', headerRight }),
+    [project?.name, headerRight],
+  );
+
   if (!project) {
     return (
       <View style={[styles.container, styles.center]}>
@@ -910,23 +931,6 @@ export default function ProjectDetailScreen() {
 
   const heroTotal = linkedEstimate?.grandTotal ?? estimate?.grandTotal ?? 0;
   const heroLabel = linkedEstimate ? `${linkedItems.length} items` : estimate ? `${Array.isArray(estimate.materials) ? estimate.materials.length : 0} materials` : '';
-
-  // Memoized so the options object reference is stable between renders.
-  // Inline `<Stack.Screen options={{ headerRight: () => ... }} />` allocates
-  // a fresh object + function every render, which caused react-navigation's
-  // useNavigationCache to call setOptions on every render and triggered
-  // "Maximum update depth exceeded" in production (Sentry RN-1). Both the
-  // object and the headerRight function need stable identity.
-  const headerRight = useCallback(
-    () => (
-      <TouchableOpacity onPress={openEditModal} style={{ padding: 6 }} activeOpacity={0.7} testID="edit-project-btn" accessibilityRole="button" accessibilityLabel="Edit"><Pencil size={20} color={Colors.primary} /></TouchableOpacity>
-    ),
-    [openEditModal],
-  );
-  const stackScreenOptions = useMemo(
-    () => ({ title: project.name || 'Project Details', headerRight }),
-    [project.name, headerRight],
-  );
 
   return (
     <View style={styles.container}>

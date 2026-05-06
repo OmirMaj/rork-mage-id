@@ -16,13 +16,10 @@ export type FeatureKey =
   | 'proposal_templates'
   | 'equipment_rental'
   | 'custom_templates'
-  | 'voice_to_report'
-  | 'pdf_export'
   | 'photo_documentation'
   | 'change_orders_invoicing'
   | 'aia_pay_app'
   | 'ai_estimate_wizard'
-  | 'daily_field_reports'
   | 'schedule_scenarios'
   | 'job_costing'
   | 'prequal_coi'
@@ -54,6 +51,17 @@ export type FeatureKey =
 //                              persistence is built.
 //   - 'quickbooks_sync'      — no real OAuth flow. Removed from paywall as
 //                              part of audit cleanup #5.
+//
+// Removed in May 2026 re-audit (Tier 2):
+//   - 'pdf_export'           — every PDF export across the app uses
+//                              expo-print + Share natively, no callsite ever
+//                              gated on this key. Paywall row pulled.
+//   - 'voice_to_report'      — daily-report voice capture only ships on iOS
+//                              native; no FeatureKey check exists. The mic
+//                              icon is hidden on web/Android by Platform.OS,
+//                              not by tier.
+//   - 'daily_field_reports'  — the Daily Reports screen is open to all tiers.
+//                              No gating callsite was ever wired up.
 
 /** The minimum tier required to unlock a feature. */
 const REQUIRED_TIER: Record<FeatureKey, 'free' | 'pro' | 'business'> = {
@@ -66,13 +74,10 @@ const REQUIRED_TIER: Record<FeatureKey, 'free' | 'pro' | 'business'> = {
   proposal_templates: 'pro',
   equipment_rental: 'pro',
   custom_templates: 'pro',
-  voice_to_report: 'pro',
-  pdf_export: 'pro',
   photo_documentation: 'pro',
   change_orders_invoicing: 'pro',
   aia_pay_app: 'pro',
   ai_estimate_wizard: 'pro',
-  daily_field_reports: 'pro',
   schedule_scenarios: 'pro',
   job_costing: 'pro',
   prequal_coi: 'pro',
