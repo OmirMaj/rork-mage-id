@@ -22,8 +22,10 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
   ChevronLeft, Plus, Sparkles, RefreshCw, Send, CheckCircle2, Circle,
-  Mic, X, Users, Calendar, AlertTriangle, Clock,
+  Mic, X, Users, Calendar, AlertTriangle, Clock, Upload,
 } from 'lucide-react-native';
+import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system/legacy';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import VoiceRecorder from '@/components/VoiceRecorder';
@@ -185,6 +187,91 @@ function OACMeetingInner() {
       : newTranscript;
     ctx.updateOACMeeting?.(active.id, { transcript: combined, updatedAt: new Date().toISOString() });
   }, [active, ctx]);
+
+  // ─── Upload existing audio file → transcript ───────────────────
+  // Many GCs already record OAC meetings on Voice Memos / Otter / Zoom.
+  // Pulling an existing recording in saves them from re-recording during
+  // the meeting (and gives them a path that doesn't require the modal
+  // to stay foregrounded for an hour). Hits the same Rork STT endpoint
+  // as the in-app voice recorder, so transcript quality is the same.
+  const [uploadingAudio, setUploadingAudio] = useState(false);
+  const handleUploadAudio = useCallback(async () => {
+    if (!active) return;
+    if (Platform.OS === 'web') {
+      Alert.alert('Mobile only', 'Audio file upload is only supported on the iOS / Android app.');
+      return;
+    }
+    try {
+      const picked = await DocumentPicker.getDocumentAsync({
+        type: ['audio/*'],
+        copyToCacheDirectory: true,
+        multiple: false,
+      });
+      if (picked.canceled || !picked.assets?.[0]) return;
+      const asset = picked.assets[0];
+
+      // Reasonable size cap. The STT endpoint handles up to ~50 MB
+      // before it starts to slow down badly. We stop at 40 MB and ask
+      // the user to split the file (long meetings should be chunked
+      // by them anyway, since transcription accuracy degrades on
+      // single multi-hour blobs).
+      const MAX_BYTES = 40 * 1024 * 1024;
+      if (asset.size && asset.size > MAX_BYTES) {
+        const mb = (asset.size / 1024 / 1024).toFixed(1);
+        Alert.alert(
+          'File too large',
+          `That file is ${mb} MB. The transcriber tops out around 40 MB. Split a long meeting into chunks (e.g. by hour) and upload them one at a time — the transcripts get appended.`,
+        );
+        return;
+      }
+
+      setUploadingAudio(true);
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+      // Read file as base64, build a multipart form, post to STT.
+      const base64 = await FileSystem.readAsStringAsync(asset.uri, { encoding: FileSystem.EncodingType.Base64 });
+      const filename = asset.name || 'meeting-audio';
+      const mime = asset.mimeType || 'audio/m4a';
+
+      // Convert base64 → Blob for the multipart upload. (React Native
+      // FormData accepts a { uri, name, type } shape; we use that to
+      // avoid a giant base64 round-trip in JS memory.)
+      const formData = new FormData();
+      // @ts-expect-error — RN FormData accepts the file shape
+      formData.append('audio', { uri: asset.uri, name: filename, type: mime });
+
+      const r = await fetch('https://toolkit.rork.com/stt/transcribe/', {
+        method: 'POST',
+        body: formData,
+      });
+      if (!r.ok) {
+        const text = await r.text().catch(() => '');
+        throw new Error(`STT ${r.status}: ${text.slice(0, 200)}`);
+      }
+      const json = await r.json().catch(() => ({}));
+      const transcribed = (json?.text ?? json?.transcript ?? '').trim();
+      // Suppress the unused-var lint on base64 — held for parity with
+      // any future inline-base64 path.
+      void base64;
+      if (!transcribed) {
+        throw new Error('STT returned an empty transcript. Try a clearer recording.');
+      }
+      handleTranscript(transcribed);
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert(
+        'Audio added',
+        `Added ${transcribed.length.toLocaleString()} characters of transcript. Tap "Generate minutes" to draft the meeting record.`,
+      );
+    } catch (err) {
+      console.error('[OAC] upload-audio failed', err);
+      Alert.alert(
+        'Could not transcribe',
+        err instanceof Error ? err.message : 'Check the file and try again.',
+      );
+    } finally {
+      setUploadingAudio(false);
+    }
+  }, [active, handleTranscript]);
 
   const handleGenerateMinutes = useCallback(async () => {
     if (!active || !project) return;
@@ -419,6 +506,27 @@ function OACMeetingInner() {
                 "We need a decision on the master bath tile by next week",
               ]}
             />
+            <TouchableOpacity
+              onPress={handleUploadAudio}
+              disabled={uploadingAudio}
+              activeOpacity={0.85}
+              style={[styles.uploadAudioBtn, uploadingAudio && { opacity: 0.6 }]}
+              testID="oac-upload-audio"
+            >
+              {uploadingAudio
+                ? <ActivityIndicator size="small" color={Colors.primary} />
+                : <Upload size={16} color={Colors.primary} />}
+              <View style={{ flex: 1 }}>
+                <Text style={styles.uploadAudioLabel}>
+                  {uploadingAudio ? 'Transcribing audio…' : 'Upload existing recording'}
+                </Text>
+                <Text style={styles.uploadAudioSub}>
+                  {uploadingAudio
+                    ? 'This may take 30-60 seconds depending on length.'
+                    : 'Voice Memos / Otter / Zoom export — m4a, mp3, wav up to 40 MB.'}
+                </Text>
+              </View>
+            </TouchableOpacity>
             {active.transcript ? (
               <View style={styles.transcriptCard}>
                 <Text style={styles.transcriptLabel}>Captured ({active.transcript.length} chars)</Text>
@@ -855,4 +963,14 @@ const styles = StyleSheet.create({
   actionStatusDone: { backgroundColor: Colors.success + '15' },
   actionStatusText: { fontSize: 10, fontWeight: '700' as const, color: Colors.warning, letterSpacing: 0.3, textTransform: 'uppercase' as const },
   actionStatusTextDone: { color: Colors.success },
+
+  uploadAudioBtn: {
+    flexDirection: 'row' as const, alignItems: 'center' as const, gap: 12,
+    marginTop: 10, padding: 12,
+    borderRadius: Tokens.radius.md,
+    backgroundColor: Colors.primary + '0D',
+    borderWidth: 1, borderColor: Colors.primary + '30',
+  },
+  uploadAudioLabel: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
+  uploadAudioSub: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2, lineHeight: 16 },
 });

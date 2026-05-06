@@ -103,7 +103,7 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
     summary: string;
     patches: AIBulkPatch[];
     fromCache?: boolean;
-    errorKind?: 'timeout' | 'network' | 'http' | 'model' | 'validation' | 'unknown';
+    errorKind?: 'timeout' | 'network' | 'http' | 'model' | 'validation' | 'unknown' | 'unauthenticated' | 'monthly_cap';
   } | null>(null);
 
   // Per-session call counter — helps the user see when they're hitting the
@@ -133,7 +133,14 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
       setCallStats(s => ({ total: s.total + 1, cached: s.cached + (res.fromCache ? 1 : 0) }));
       // Surface timeout / network / http failures as the panel error banner so
       // the user sees a distinct message rather than an empty result card.
-      if (res.errorKind === 'timeout' || res.errorKind === 'network' || res.errorKind === 'http' || res.errorKind === 'model') {
+      if (
+        res.errorKind === 'timeout' ||
+        res.errorKind === 'network' ||
+        res.errorKind === 'http' ||
+        res.errorKind === 'model' ||
+        res.errorKind === 'unauthenticated' ||
+        res.errorKind === 'monthly_cap'
+      ) {
         setError(res.errorDetail || 'AI could not complete that edit.');
         setBulkResult(null);
         return;

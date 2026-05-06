@@ -28,7 +28,7 @@ export default function DataExportScreen() {
   const {
     projects, invoices, changeOrders, punchItems,
     projectPhotos, contacts, rfis, submittals, equipment, warranties,
-    subcontractors, commEvents, getDailyReportsForProject,
+    subcontractors, commEvents, getDailyReportsForProject, settings,
   } = useProjects();
 
   const dailyReports = useMemo(
@@ -40,8 +40,28 @@ export default function DataExportScreen() {
   const [projectId, setProjectId] = useState<string | undefined>(params.projectId);
   const [format, setFormat] = useState<'json' | 'csv' | 'both'>('both');
   const [includePhotoUrls, setIncludePhotoUrls] = useState<boolean>(true);
+  // Closeout PDF + README — only shown when scope === 'project'. Defaults
+  // off because they slow down generation (PDF rendering takes a few
+  // seconds) and most "give me my data" exports don't need them.
+  const [includeCloseoutPacket, setIncludeCloseoutPacket] = useState<boolean>(false);
+  const [includeReadme, setIncludeReadme] = useState<boolean>(false);
   const [generating, setGenerating] = useState<boolean>(false);
   const [lastResult, setLastResult] = useState<DataExportSummary | null>(null);
+
+  // One-tap "full archive" preset — flips the right toggles for the
+  // typical handoff use case (single project + every file type the
+  // homeowner / accountant might want).
+  const applyArchivePreset = useCallback(() => {
+    if (scope !== 'project' || !projectId) {
+      Alert.alert('Pick a project first', 'The archive preset bundles a single project. Switch scope to "Single project" and pick one above.');
+      return;
+    }
+    setFormat('both');
+    setIncludeCloseoutPacket(true);
+    setIncludeReadme(true);
+    setIncludePhotoUrls(true);
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+  }, [scope, projectId]);
 
   const allData = useMemo(() => ({
     projects,
@@ -64,7 +84,9 @@ export default function DataExportScreen() {
     projectId: scope === 'project' ? projectId : undefined,
     format,
     includePhotoUrls,
-  }), [scope, projectId, format, includePhotoUrls]);
+    includeCloseoutPacket: scope === 'project' ? includeCloseoutPacket : false,
+    includeReadme,
+  }), [scope, projectId, format, includePhotoUrls, includeCloseoutPacket, includeReadme]);
 
   const previewPayload = useMemo(() => buildExportPayload(allData, options), [allData, options]);
 
@@ -88,7 +110,7 @@ export default function DataExportScreen() {
     try {
       setGenerating(true);
       if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      const result = await exportUserData(allData, options);
+      const result = await exportUserData(allData, options, settings.branding);
       setLastResult(result);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       if (result.fileUris.length === 1) {
@@ -225,6 +247,53 @@ export default function DataExportScreen() {
             thumbColor={Colors.surface}
           />
         </View>
+
+        {/* Closeout PDF toggle — only valid when scope is single-project,
+            since the packet is per-project. We disable + dim if scope is
+            "all" so the user understands why it's unavailable. */}
+        <View style={[styles.row, scope !== 'project' && { opacity: 0.5 }]}>
+          <View style={styles.rowIcon}><FileJson size={16} color={Colors.primary} /></View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.rowLabel}>Closeout PDF (handoff packet)</Text>
+            <Text style={styles.rowSub}>
+              {scope === 'project'
+                ? 'Includes contract, COs, payments, warranties, finishes, punch list. ~5s to render.'
+                : 'Pick a single project above to enable this option.'}
+            </Text>
+          </View>
+          <Switch
+            value={includeCloseoutPacket && scope === 'project'}
+            onValueChange={setIncludeCloseoutPacket}
+            disabled={scope !== 'project'}
+            trackColor={{ false: Colors.border, true: Colors.primary }}
+            thumbColor={Colors.surface}
+          />
+        </View>
+
+        <View style={styles.row}>
+          <View style={styles.rowIcon}><Info size={16} color={Colors.primary} /></View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.rowLabel}>README.txt orientation file</Text>
+            <Text style={styles.rowSub}>Plain-text file describing what each export piece is — useful for non-technical recipients.</Text>
+          </View>
+          <Switch
+            value={includeReadme}
+            onValueChange={setIncludeReadme}
+            trackColor={{ false: Colors.border, true: Colors.primary }}
+            thumbColor={Colors.surface}
+          />
+        </View>
+
+        {/* "Full archive" preset — flips every relevant switch for the
+            handoff use case in one tap. */}
+        <TouchableOpacity
+          onPress={applyArchivePreset}
+          activeOpacity={0.85}
+          style={styles.presetBtn}
+        >
+          <Package size={14} color={Colors.primary} />
+          <Text style={styles.presetText}>Use &quot;Full project archive&quot; preset</Text>
+        </TouchableOpacity>
 
         <Text style={styles.sectionLabel}>WHAT'S INCLUDED</Text>
         <View style={styles.summaryCard}>
@@ -406,4 +475,15 @@ const styles = StyleSheet.create({
   },
   primaryBtnDisabled: { opacity: 0.6 },
   primaryBtnTxt: { color: Colors.textOnPrimary, fontWeight: '700', fontSize: Type.subhead.fontSize },
+
+  presetBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingVertical: 11, paddingHorizontal: 12,
+    borderRadius: Tokens.radius.md,
+    backgroundColor: Colors.primary + '12',
+    borderWidth: 1, borderColor: Colors.primary + '30',
+    alignSelf: 'flex-start',
+    marginVertical: 6,
+  },
+  presetText: { fontSize: Type.footnote.fontSize, color: Colors.primary, fontWeight: '700' },
 });

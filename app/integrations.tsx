@@ -105,13 +105,12 @@ export default function IntegrationsScreen() {
   const handleConnect = useCallback((item: Integration) => {
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
-    // Deep integrations (accounting/CRM sync like QuickBooks) are Business-tier only.
-    const nameLower = item.name.toLowerCase();
-    const isQuickbooks = nameLower.includes('quickbooks') || nameLower.includes('quick books');
-    if (item.status !== 'connected' && (isQuickbooks || item.tier === 'deep') && !canAccess('quickbooks_sync')) {
-      setPaywallFeature(item.name);
-      return;
-    }
+    // Deep integrations (accounting/CRM sync like QuickBooks) WERE
+    // Business-tier-gated via the 'quickbooks_sync' FeatureKey. The audit
+    // (May 2026) removed that key because no real OAuth flow exists —
+    // the entire Integrations screen is preview-only (MOCK_INTEGRATIONS).
+    // The whole screen now wears a "PREVIEW" banner. Restoring this gate
+    // is a follow-up when real integrations ship.
 
     if (item.status === 'connected') {
       Alert.alert(
@@ -142,19 +141,22 @@ export default function IntegrationsScreen() {
     }
 
     if (item.tier === 'deep') {
+      // Pre-audit (May 2026) this fake-Connected the integration via local
+      // state and showed a misleading "Connected!" alert. We've removed
+      // the dishonest path — until real OAuth flows ship for QuickBooks /
+      // Sage / Foundation / etc., tapping a Connect button surfaces the
+      // honest "join the waitlist" message. The screen-level Preview
+      // banner reinforces that nothing here actually transacts.
       Alert.alert(
-        `Connect ${item.name}`,
-        'This will open a secure authentication flow. Once connected, data will sync automatically.',
+        `${item.name} not yet available`,
+        'Direct integration is in development. Want to be notified when it ships? We can email you at the address on your account.',
         [
-          { text: 'Cancel', style: 'cancel' },
+          { text: 'Maybe later', style: 'cancel' },
           {
-            text: 'Connect',
+            text: 'Notify me',
             onPress: () => {
-              setIntegrations(prev =>
-                prev.map(i => i.id === item.id ? { ...i, status: 'connected' as const, connectedAt: new Date().toISOString() } : i)
-              );
               if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-              Alert.alert('Connected!', `${item.name} has been connected successfully.`);
+              Alert.alert('Got it', `We'll email you when ${item.name} sync goes live.`);
             },
           },
         ]
@@ -169,6 +171,22 @@ export default function IntegrationsScreen() {
         contentContainerStyle={{ paddingBottom: insets.bottom + 30 }}
         showsVerticalScrollIndicator={false}
       >
+        {/* Preview banner — added during May 2026 launch audit. The screen
+            uses MOCK_INTEGRATIONS and does NOT actually OAuth into any
+            external service yet. Users who hit this via deep link or
+            tile grid need to know the Connect buttons are demos. */}
+        <View style={{
+          marginHorizontal: 16, marginTop: 12, padding: 12,
+          backgroundColor: Colors.warning + '15', borderRadius: 12,
+          borderWidth: 1, borderColor: Colors.warning + '40',
+        }}>
+          <Text style={{ fontSize: 12, fontWeight: '800' as const, color: Colors.warning, letterSpacing: 0.5 }}>
+            PREVIEW
+          </Text>
+          <Text style={{ fontSize: 13, color: Colors.text, marginTop: 4, lineHeight: 18 }}>
+            This is a preview of the Integrations Hub. Connect buttons aren&apos;t live yet — your data won&apos;t actually sync. We&apos;ll email you when each integration ships.
+          </Text>
+        </View>
         <View style={styles.heroSection}>
           <View style={styles.heroIconWrap}>
             <Wifi size={28} color={Colors.primary} />

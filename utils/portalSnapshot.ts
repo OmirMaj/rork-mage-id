@@ -287,6 +287,10 @@ export interface PortalSnapshot {
       totalEarnedLessRetainage: number;
       balanceToFinish: number;
       percentComplete: number;
+      // Stripe payment link auto-attached on save when GC has Connect set
+      // up (see app/aia-pay-app.tsx). Renders the Pay button on the
+      // portal AIA card + drawer footer at marketing/portal/index.html.
+      payLinkUrl?: string;
       lines: {
         itemNo: string; description: string;
         scheduledValue: number; fromPreviousApp: number;
@@ -501,6 +505,7 @@ export function buildPortalSnapshot(opts: BuildOpts): PortalSnapshot {
       totalEarnedLessRetainage: a.totals.totalEarnedLessRetainage,
       balanceToFinish: a.totals.balanceToFinish,
       percentComplete: a.totals.percentComplete,
+      payLinkUrl: a.payLinkUrl,
       lines: a.lines.map(l => ({
         itemNo: l.itemNo,
         description: l.description,

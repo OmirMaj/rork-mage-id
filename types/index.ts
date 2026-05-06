@@ -86,9 +86,49 @@ export interface Project {
   name: string;
   type: ProjectType;
   location: string;
+  /**
+   * Geocoded coordinates for the project's `location` string. Set by the
+   * geocodeProjectLocation helper after project save / update. Required
+   * for hyperlocal weather (morning digest, schedule weather alerts) —
+   * the weather APIs work much better with lat/lng than with free-text
+   * city strings, especially in rural / remote sites where the address
+   * doesn't resolve cleanly.
+   *
+   * Stays optional: legacy projects without coords still work, they just
+   * fall back to the simulated-forecast path that drove the schedule
+   * weather indicators before this field existed.
+   */
+  locationLatitude?: number;
+  locationLongitude?: number;
+  /** Timestamp of the last successful geocode (avoids re-hitting the API
+   *  every save when the address hasn't changed). */
+  locationGeocodedAt?: string;
   squareFootage: number;
   quality: QualityTier;
   description: string;
+  /**
+   * Primary client / homeowner contact info. Carried over from Lead on
+   * convertLeadToProject so the GC doesn't re-enter phone + email after
+   * conversion. Optional — old projects pre-dating this field stay valid.
+   */
+  primaryContact?: {
+    name?: string;
+    phone?: string;
+    email?: string;
+  };
+  /**
+   * Where this project came from — Lead.source carried across so win-rate
+   * and revenue-by-source analytics keep working post-conversion.
+   * Examples: 'houzz', 'referral', 'angi', 'direct', 'website'.
+   */
+  leadSource?: string;
+  /**
+   * Free-text timeline expectation captured at the lead stage
+   * ("wants to start in spring", "ASAP for closing"). Carries over from
+   * Lead.timeline so the GC has continuity. The schedule's actual
+   * startDate is independent.
+   */
+  targetTimelineNotes?: string;
   createdAt: string;
   updatedAt: string;
   estimate: EstimateBreakdown | null;
@@ -792,6 +832,16 @@ export interface AppSettings {
   subscription?: SubscriptionInfo;
   dfrRecipients?: string[];
   pdfNaming?: PDFNamingSettings;
+  /** Morning-digest preferences. Drives the per-user pg_cron job that
+   *  fires the morning-digest edge function. Defaults: disabled, 6 AM
+   *  America/New_York, both channels. */
+  digest?: {
+    enabled: boolean;
+    /** 0-23 in user's timezone. */
+    hour: number;
+    timezone: string;
+    channels: { email: boolean; in_app: boolean };
+  };
 }
 
 export interface LinkedEstimate {
@@ -1020,6 +1070,15 @@ export interface SavedAIAPayApp {
     balanceToFinish: number;
     percentComplete: number;
   };
+
+  // Stripe payment link auto-generated for the `currentPaymentDue` total
+  // when the GC has Connect onboarded. Lets the homeowner pay an AIA pay
+  // app directly from the client portal, same UX as a regular invoice.
+  // Pre-audit (May 2026), AIA pay apps generated a PDF and saved a
+  // record but had NO payment-link wiring — homeowners got a print-only
+  // pay app while regular invoices got Pay buttons. Asymmetric.
+  payLinkUrl?: string;
+  payLinkId?: string;
 
   savedAt: string;
 }
@@ -1393,9 +1452,35 @@ export interface Subcontractor {
   address: string;
   trade: SubTrade;
   licenseNumber: string;
+  /** ISO 3166-2 state code the license was issued in (e.g. 'CA', 'TX').
+   *  When present, the app deep-links the verifier to the right state
+   *  contractor board. Defaults to the GC's company state if unset. */
+  licenseState?: string;
   licenseExpiry: string;
   coiExpiry: string;
   w9OnFile: boolean;
+  /**
+   * Last 4 of the EIN/SSN. Captured for 1099-NEC year-end export.
+   * Full TIN never stored — the GC keeps the actual W-9 PDF on file
+   * (s.w9DocPath). 1099 form requires only the masked last-4 in the
+   * recipient TIN field; CPAs match against the W-9 they received.
+   */
+  taxIdLast4?: string;
+  /**
+   * Legal entity name (sometimes different from companyName, e.g. DBA
+   * vs. legal LLC). Goes on the 1099 in the Recipient Name field.
+   */
+  legalName?: string;
+  /** Last time the GC visually confirmed the license was active on the
+   *  state board's lookup page. Stamped when the GC taps "Mark verified"
+   *  after the in-app webview opens the official source. The badge on
+   *  the sub card grows greener when this is recent (under 90 days). */
+  licenseVerifiedAt?: string;
+  /** Last time COI was visually confirmed valid against the carrier's
+   *  certificate. Distinct from coiExpiry, which is what the COI says;
+   *  this is when WE last confirmed it's still in force. Recommended
+   *  cadence: every 90 days or before a new project starts. */
+  coiVerifiedAt?: string;
   bidHistory: SubBidRecord[];
   assignedProjects: string[];
   notes: string;
@@ -1436,6 +1521,13 @@ export interface Commitment {
   amount: number;
   /** Net change from approved change orders touching this commitment. */
   changeAmount?: number;
+  /**
+   * Running total of approved + paid sub-submitted invoices against this
+   * commitment. Maintained server-side by a trigger on sub_submitted_invoices
+   * — never mutate from client. Drives "are we close to maxing out the
+   * sub's contract?" math + the overpayment guard at sub-portal-setup.
+   */
+  paidToDate?: number;
   signedDate: string;
   phase?: string;
   csiDivision?: string;
@@ -1719,7 +1811,7 @@ export interface PriceAlert {
   createdAt: string;
 }
 
-export type SubscriptionTier = 'free' | 'pro' | 'business';
+export type SubscriptionTier = 'free' | 'pro' | 'business' | 'enterprise';
 
 export interface SubscriptionInfo {
   tier: SubscriptionTier;
@@ -1813,6 +1905,25 @@ export interface ClientPortalSettings {
    *   fr — French (Canadian / Louisiana / Acadiana)
    */
   homeownerLanguage?: PortalLanguage;
+
+  /**
+   * Plain-English weekly recap emailed to the homeowner (Friday afternoons
+   * by default). AI translates contractor speak — "Sub trim/paint phase 2
+   * 60% complete, 8/12 doors hung" — into homeowner-friendly summary
+   * language. Off by default; the GC opts in when they invite the client.
+   * Cron picks each Friday at 16:00 UTC and fans out across enabled
+   * projects.
+   */
+  weeklyDigest?: {
+    enabled: boolean;
+    /** Hour-of-day in the homeowner's local timezone (0-23). Default 16
+     *  (Friday afternoon — homeowner is winding down for the weekend
+     *  and has time to read). */
+    hour?: number;
+    /** Last time the digest fired, set server-side. Used to avoid
+     *  double-sends if the cron is retried. */
+    lastSentAt?: string;
+  };
 }
 
 /** Supported languages for the homeowner portal. ISO 639-1. */

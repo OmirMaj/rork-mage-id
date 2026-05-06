@@ -238,6 +238,19 @@ export default function MageIdBidsTabScreen() {
               </TouchableOpacity>
             ))}
           </View>
+          {/* Map view link — was an orphan route until May 2026 audit
+              wiring. Same RFP feed but rendered with full distance-sort
+              + map visualization. */}
+          <TouchableOpacity
+            style={styles.mapBtn}
+            onPress={() => router.push('/nearby-rfps' as never)}
+            activeOpacity={0.85}
+            testID="mageid-bids-nearby-map"
+          >
+            <MapPin size={13} color={Colors.primary} />
+            <Text style={styles.mapBtnText}>Map view</Text>
+            <ChevronRight size={12} color={Colors.primary} />
+          </TouchableOpacity>
         </View>
       )}
 
@@ -480,6 +493,13 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   locBtnText: { fontSize: Type.caption2.fontSize, color: Colors.text, fontWeight: '600' },
+  mapBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 10, paddingVertical: 7, borderRadius: Tokens.radius.sm,
+    backgroundColor: Colors.primary + '14', borderWidth: 1, borderColor: Colors.primary + '30',
+    alignSelf: 'flex-start',
+  },
+  mapBtnText: { fontSize: Type.caption2.fontSize, color: Colors.primary, fontWeight: '700' },
   radiusRow: { flexDirection: 'row', gap: 5 },
   radiusChip: {
     paddingHorizontal: 9, paddingVertical: 5, borderRadius: 7,

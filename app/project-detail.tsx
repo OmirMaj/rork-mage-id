@@ -14,7 +14,7 @@ import {
   Mail, MessageSquare, X, BarChart3, ArrowDownRight, Shield, Layers,
   FileText, ShoppingCart, UserPlus, Send, Share2, Eye, PenTool, Crown, Pencil,
   Plus, Receipt, ClipboardList, Repeat, CheckSquare, Camera, Globe, Link, Copy, Wallet, Archive, Activity,
-  HardHat, FolderOpen, Hammer, ScrollText, BookOpen, Footprints, Zap,
+  HardHat, FolderOpen, Hammer, ScrollText, BookOpen, Footprints, Zap, Sparkles,
 } from 'lucide-react-native';
 import { PROJECT_TYPES, type ProjectType, type ProjectCollaborator, type EntityRef, type ProjectPhoto, type PhotoMarkup } from '@/types';
 import Svg, { Path as SvgPath, Circle as SvgCircle, Line as SvgLine, Polygon as SvgPolygon, Text as SvgTextEl } from 'react-native-svg';
@@ -2402,6 +2402,15 @@ export default function ProjectDetailScreen() {
               >
                 <Plus size={16} color={Colors.purple} />
                 <Text style={[styles.coAddBtnText, { color: Colors.purple }]}>New Submittal</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.coAddBtn}
+                onPress={() => navigateFromTile({ pathname: '/extract-submittals' as any, params: { projectId: id } })}
+                activeOpacity={0.7}
+                testID="extract-submittals-btn"
+              >
+                <Sparkles size={16} color={Colors.primary} />
+                <Text style={[styles.coAddBtnText, { color: Colors.primary }]}>Extract from spec book (AI)</Text>
               </TouchableOpacity>
             </View>
           )}

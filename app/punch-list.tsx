@@ -8,17 +8,18 @@ import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
   Plus, X, CheckCircle, Clock, Eye, MessageSquare,
-  Trash2, Link2, ChevronDown, Mic,
+  Trash2, Link2, ChevronDown, Mic, ListChecks, ChevronRight,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import EmptyState from '@/components/EmptyState';
-import type { PunchItem, PunchItemStatus, PunchItemPriority } from '@/types';
+import type { PunchItem, PunchItemStatus, PunchItemPriority, SubTrade } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { generateUUID } from '@/utils/generateId';
+import { getPunchTemplatesByTrade, type PunchTemplate } from '@/constants/punchTemplates';
 
 // Top-level row IDs (punch items) become Supabase PKs and MUST be UUIDs —
 // the punch_items.id column rejects anything else with "invalid input syntax
@@ -93,6 +94,42 @@ function PunchListScreenInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const [showTaskPicker, setShowTaskPicker] = useState(false);
+
+  // ── Trade-specific templates ─────────────────────────────────
+  // Pre-built checklists for common trade walks (electrical rough-in,
+  // plumbing trim, drywall finish, etc.). The picker lets the GC drop
+  // 8-12 known items in one tap; they edit / discard from there. Saves
+  // 5+ minutes per trade walk vs. typing each item by hand.
+  const [showTemplates, setShowTemplates] = useState(false);
+  const templateGroups = useMemo(() => getPunchTemplatesByTrade(), []);
+
+  const handleApplyTemplate = useCallback((template: PunchTemplate) => {
+    if (!projectId) return;
+    let added = 0;
+    const now = new Date().toISOString();
+    for (const item of template.items) {
+      const punch: PunchItem = {
+        id: generateUUID(),
+        projectId,
+        description: item.description,
+        location: '',
+        assignedSub: template.trade === 'General' || template.trade === 'Other' ? '' : template.trade,
+        dueDate: '',
+        priority: item.priority,
+        status: 'open',
+        createdAt: now,
+        updatedAt: now,
+      };
+      addPunchItem(punch);
+      added += 1;
+    }
+    setShowTemplates(false);
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    Alert.alert(
+      'Template applied',
+      `Added ${added} item${added === 1 ? '' : 's'} from "${template.label}". Edit or remove any that don't apply to this project.`,
+    );
+  }, [projectId, addPunchItem]);
   const [rejectionNote, setRejectionNote] = useState('');
   const [showRejectModal, setShowRejectModal] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<PunchItemStatus | 'all'>('all');
@@ -154,7 +191,37 @@ function PunchListScreenInner() {
     if (newStatus === 'closed') updates.closedAt = new Date().toISOString();
     updatePunchItem(item.id, updates);
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
-  }, [updatePunchItem]);
+
+    // Auto-suggest project closeout when this close zeros out the open
+    // count. Pre-fix the GC could close every punch item and the
+    // project would stay 'in_progress' indefinitely. Now we prompt right
+    // when they hit the milestone, while the closeout intent is fresh.
+    if (newStatus === 'closed' && projectId && project) {
+      const others = items.filter((p: PunchItem) => p.projectId === projectId && p.id !== item.id);
+      const allOthersClosed = others.length > 0 && others.every((p: PunchItem) => p.status === 'closed');
+      const wasLastOpen = others.length === 0 || allOthersClosed;
+      if (wasLastOpen && project.status === 'in_progress') {
+        // Defer past the current render so the badge animation doesn't
+        // fight the alert pop-in.
+        setTimeout(() => {
+          Alert.alert(
+            'All punch items closed',
+            `Nice — ${project.name}'s punch list is wrapped. Move the project to Closeout so it stops showing in your active list?`,
+            [
+              { text: 'Not yet', style: 'cancel' },
+              {
+                text: 'Move to Closeout',
+                onPress: () => {
+                  updateProject(project.id, { status: 'completed' });
+                  if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                },
+              },
+            ],
+          );
+        }, 250);
+      }
+    }
+  }, [updatePunchItem, projectId, project, items, updateProject]);
 
   // Tap-the-badge quick toggle: advance to the next stage in the linear flow.
   // open → in_progress → ready_for_review → closed. Closed is terminal.
@@ -344,6 +411,16 @@ function PunchListScreenInner() {
         </TouchableOpacity>
 
         <TouchableOpacity
+          style={styles.addItemBtn}
+          onPress={() => setShowTemplates(true)}
+          activeOpacity={0.7}
+          testID="apply-punch-template"
+        >
+          <ListChecks size={16} color={Colors.primary} />
+          <Text style={styles.addItemBtnText}>Apply trade template</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
           style={styles.walkBtn}
           onPress={() => router.push({ pathname: '/punch-walk' as never, params: { projectId: projectId ?? '' } as never })}
           activeOpacity={0.85}
@@ -503,6 +580,64 @@ function PunchListScreenInner() {
                 <Text style={styles.saveBtnText}>Reject</Text>
               </TouchableOpacity>
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Trade-template picker. Modal-style overlay listing each
+          template grouped by trade. Tapping a template applies it
+          immediately — the GC then edits / removes from the punch
+          list. We don't show item-level previews here because the
+          contextual notes are short and the GC will see them all
+          on the punch row regardless. */}
+      <Modal visible={showTemplates} transparent animationType="slide" onRequestClose={() => setShowTemplates(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.formCard, { paddingBottom: insets.bottom + 20, maxHeight: '85%' }]}>
+            <View style={styles.formHeader}>
+              <Text style={styles.formTitle}>Apply trade template</Text>
+              <TouchableOpacity onPress={() => setShowTemplates(false)} accessibilityRole="button" accessibilityLabel="Close">
+                <X size={22} color={Colors.text} />
+              </TouchableOpacity>
+            </View>
+            <Text style={{ fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginBottom: 14, lineHeight: 17 }}>
+              Drop a curated checklist into this punch list. Edit / remove items that don&apos;t apply to this project — the template is a starting point, not a contract.
+            </Text>
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 12 }}>
+              {templateGroups.map(group => (
+                <View key={group.trade} style={{ marginBottom: 16 }}>
+                  <Text style={{
+                    fontSize: Type.caption2.fontSize, fontWeight: '800', color: Colors.textMuted,
+                    textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 6,
+                  }}>
+                    {group.trade}
+                  </Text>
+                  {group.templates.map(t => (
+                    <TouchableOpacity
+                      key={t.id}
+                      onPress={() => handleApplyTemplate(t)}
+                      activeOpacity={0.85}
+                      style={{
+                        flexDirection: 'row', alignItems: 'center', gap: 10,
+                        padding: 12, borderRadius: Tokens.radius.md,
+                        backgroundColor: Colors.card,
+                        borderWidth: 1, borderColor: Colors.border,
+                        marginBottom: 6,
+                      }}
+                    >
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text }}>
+                          {t.label}
+                        </Text>
+                        <Text style={{ fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2 }}>
+                          {t.context} · {t.items.length} items
+                        </Text>
+                      </View>
+                      <ChevronRight size={16} color={Colors.textMuted} />
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              ))}
+            </ScrollView>
           </View>
         </View>
       </Modal>

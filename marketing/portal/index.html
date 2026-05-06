@@ -3514,6 +3514,13 @@
       var pct = Math.max(0, Math.min(100, a.percentComplete || 0));
       var circ = 2 * Math.PI * 36;
       var off = circ * (1 - pct / 100);
+      // Pay button surfaces when the GC's app generated a Stripe pay link
+      // for this AIA app (auto-attached on save when Connect is set up,
+      // see app/aia-pay-app.tsx handleSave). Pre-audit (May 2026) AIA
+      // apps had no payment wiring at all — homeowners got a print-only
+      // PDF while regular invoices got Pay buttons. Now both have parity.
+      var due = a.currentPaymentDue || 0;
+      var canPay = !!a.payLinkUrl && due > 0;
       return (
         '<div class="aia-card" data-aia="'+esc(a.id)+'">' +
           '<div class="row-main">' +
@@ -3539,6 +3546,11 @@
                 '<div class="aia-stat-value amber num">'+fmtMoney(a.currentPaymentDue)+'</div>' +
               '</div>' +
             '</div>' +
+            (canPay
+              ? '<button class="invoice-pay-btn" data-aia-pay="'+esc(a.payLinkUrl)+'">' +
+                  icn(ICONS.dollar, 14) + ' Pay ' + fmtMoney(due) +
+                '</button>'
+              : '') +
           '</div>' +
           '<div class="aia-progress-ring">' +
             '<svg width="88" height="88" viewBox="0 0 88 88">' +
@@ -3916,7 +3928,17 @@
         sovRows +
       '</div>';
 
+    // Drawer footer — Pay button (Stripe-hosted) takes precedence when a
+    // payLinkUrl exists and there's a balance due. Print stays available
+    // as a secondary action either way.
+    var aiaDue = a.currentPaymentDue || 0;
+    var aiaCanPay = !!a.payLinkUrl && aiaDue > 0;
     var footerHtml =
+      (aiaCanPay
+        ? '<a class="drawer-btn drawer-btn-primary" href="'+esc(a.payLinkUrl)+'" target="_blank" rel="noopener">' +
+            icn(ICONS.dollar, 16) + ' Pay ' + fmtMoney(aiaDue) +
+          '</a>'
+        : '') +
       '<button class="drawer-btn drawer-btn-secondary" id="aia-print">' +
         icn(ICONS.print, 16) + ' Print / save PDF' +
       '</button>';
@@ -4662,9 +4684,20 @@
     var aiaById = {};
     (sections.aiaPayApps || []).forEach(function (a) { aiaById[a.id] = a; });
     document.querySelectorAll('[data-aia]').forEach(function (el) {
-      el.addEventListener('click', function () {
+      el.addEventListener('click', function (e) {
+        // Don't open the drawer if the Pay button was clicked directly —
+        // matches the invoice-card Pay-button behavior at line ~4659.
+        if (e.target.closest('[data-aia-pay]')) return;
         var a = aiaById[el.getAttribute('data-aia')];
         if (a) renderAIADrawer(a, companyName);
+      });
+    });
+    // AIA Pay buttons — open Stripe-hosted payment link in new tab.
+    document.querySelectorAll('[data-aia-pay]').forEach(function (btn) {
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var url = btn.getAttribute('data-aia-pay');
+        if (url) window.open(url, '_blank', 'noopener');
       });
     });
 

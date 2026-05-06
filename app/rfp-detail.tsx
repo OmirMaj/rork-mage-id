@@ -410,13 +410,10 @@ export default function RfpDetailScreen() {
               <FileText size={16} color="#FFF" />
               <Text style={styles.primaryCtaText}>Review bids</Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.secondaryCta}
-              onPress={() => Alert.alert('Editing coming soon', 'For now, post a new RFP if the scope changed materially.')}
-            >
-              <Pencil size={14} color={Colors.text} />
-              <Text style={styles.secondaryCtaText}>Edit</Text>
-            </TouchableOpacity>
+            {/* Edit button removed pre-launch — the in-place edit flow isn't
+                built yet, and a button that says "Editing coming soon" is
+                worse UX than no button. Owners can post a new RFP if scope
+                changed materially. Restore when edit is wired. */}
           </View>
         )}
       </ScrollView>

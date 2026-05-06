@@ -429,12 +429,30 @@ export default function ClientViewScreen() {
   const passcodeRequired = !!portal.requirePasscode && !!portal.passcode;
 
   if (passcodeRequired && !passcodeUnlocked) {
-    const verify = () => {
-      if (passcodeEntry.trim() === (portal.passcode ?? '').trim()) {
+    const verify = async () => {
+      // Server-side validation. Pre-fix this was a JS string compare against
+      // `portal.passcode` which was loaded into the snapshot — anyone with
+      // the link could read the passcode out of the JS heap or URL hash and
+      // bypass the gate entirely. The edge function uses the service role
+      // to look up the canonical passcode, constant-time compares, and
+      // adds a 250ms delay on failures to slow brute force.
+      try {
+        const { data, error } = await supabase.functions.invoke('validate-portal-passcode', {
+          body: { portalId, passcode: passcodeEntry.trim() },
+        });
+        if (error || !data?.ok) {
+          setPasscodeError(true);
+          if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+          return;
+        }
         setPasscodeUnlocked(true);
         setPasscodeError(false);
         if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      } else {
+      } catch (err) {
+        // Network failure — surface as error state so the user can retry.
+        // We deliberately don't fall back to a client-side compare here:
+        // that's the bug we're fixing.
+        console.warn('[client-view] passcode verify failed:', err);
         setPasscodeError(true);
         if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       }

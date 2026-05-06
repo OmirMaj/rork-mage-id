@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, Modal,
-  Alert, Platform, ScrollView, KeyboardAvoidingView, Switch,
+  Alert, Platform, ScrollView, KeyboardAvoidingView, Switch, Linking,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -9,8 +9,10 @@ import * as Haptics from 'expo-haptics';
 import {
   Plus, Search, X, Phone, Mail, MapPin, Shield, FileText,
   AlertTriangle, CheckCircle, Clock, Trash2, Users, ShieldCheck, ChevronRight,
-  HardHat,
+  HardHat, ExternalLink, Upload,
 } from 'lucide-react-native';
+import * as DocumentPicker from 'expo-document-picker';
+import { supabase } from '@/lib/supabase';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
@@ -20,6 +22,7 @@ import { SUB_TRADES } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { generateUUID } from '@/utils/generateId';
+import { getLicenseLookupTarget } from '@/utils/licenseBoardLookup';
 
 function createId(_prefix: string): string {
   return generateUUID();
@@ -49,6 +52,121 @@ function getStatusLabel(status: ComplianceStatus): string {
   return 'Expired';
 }
 
+// ── Verification card: state-board deep-link + verified badges ──────
+// Two badges (license + COI) and two actions per badge: open the
+// official source, then mark verified. The badge color reflects how
+// recently the GC verified — green when under 90 days old, amber
+// 90-180 days, gray after. Keeps the GC honest about how stale their
+// "verified" stamp is.
+function LicenseVerificationCard({
+  sub,
+  onMarkVerified,
+}: {
+  sub: Subcontractor;
+  onMarkVerified: (field: 'license' | 'coi') => void;
+}) {
+  const verifiedAge = (iso: string | undefined): { label: string; color: string } => {
+    if (!iso) return { label: 'Not verified', color: Colors.textMuted };
+    const ms = Date.now() - new Date(iso).getTime();
+    if (!Number.isFinite(ms) || ms < 0) return { label: 'Not verified', color: Colors.textMuted };
+    const days = Math.floor(ms / (24 * 60 * 60 * 1000));
+    if (days <= 90) return { label: `Verified ${days}d ago`, color: Colors.success };
+    if (days <= 180) return { label: `Verified ${days}d ago — stale`, color: Colors.warning };
+    return { label: `Verified ${days}d ago — re-check`, color: Colors.error };
+  };
+
+  const license = verifiedAge(sub.licenseVerifiedAt);
+  const coi = verifiedAge(sub.coiVerifiedAt);
+
+  // Resolve the state-board URL. licenseState may be empty; the helper
+  // falls back to a Google search when the state isn't in the coverage
+  // map. Number must be present to make any link useful.
+  const target = sub.licenseNumber
+    ? getLicenseLookupTarget(sub.licenseState, sub.licenseNumber)
+    : null;
+
+  const openLookup = async () => {
+    if (!target) {
+      Alert.alert(
+        'Need license # + state',
+        'Add the license number and the state it was issued in to verify against the official board.',
+      );
+      return;
+    }
+    const url = target.buildUrl(sub.licenseNumber);
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+    try {
+      await Linking.openURL(url);
+    } catch {
+      Alert.alert('Could not open', 'Try copying the URL manually.');
+    }
+  };
+
+  return (
+    <View style={vStyles.wrap}>
+      {/* License verification row */}
+      <View style={vStyles.row}>
+        <View style={vStyles.rowLeft}>
+          <View style={[vStyles.dot, { backgroundColor: license.color }]} />
+          <View style={{ flex: 1 }}>
+            <Text style={vStyles.label}>License — {license.label}</Text>
+            {target && (
+              <Text style={vStyles.subLabel}>via {target.agencyName}</Text>
+            )}
+          </View>
+        </View>
+        <View style={vStyles.actionsRow}>
+          <TouchableOpacity onPress={openLookup} activeOpacity={0.85} style={vStyles.actionBtn}>
+            <ExternalLink size={12} color={Colors.primary} />
+            <Text style={vStyles.actionBtnText}>{target?.directDeepLink ? 'Verify' : 'Open board'}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => onMarkVerified('license')} activeOpacity={0.85} style={vStyles.actionBtn}>
+            <CheckCircle size={12} color={Colors.success} />
+            <Text style={[vStyles.actionBtnText, { color: Colors.success }]}>Mark verified</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* COI verification row */}
+      <View style={vStyles.row}>
+        <View style={vStyles.rowLeft}>
+          <View style={[vStyles.dot, { backgroundColor: coi.color }]} />
+          <View style={{ flex: 1 }}>
+            <Text style={vStyles.label}>COI — {coi.label}</Text>
+            <Text style={vStyles.subLabel}>Confirm with the carrier or COI vault</Text>
+          </View>
+        </View>
+        <TouchableOpacity onPress={() => onMarkVerified('coi')} activeOpacity={0.85} style={vStyles.actionBtn}>
+          <CheckCircle size={12} color={Colors.success} />
+          <Text style={[vStyles.actionBtnText, { color: Colors.success }]}>Mark verified</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
+const vStyles = StyleSheet.create({
+  wrap: {
+    marginTop: 10, padding: 10, borderRadius: Tokens.radius.md,
+    backgroundColor: Colors.fillTertiary,
+    borderWidth: 1, borderColor: Colors.border,
+    gap: 10,
+  },
+  row: { flexDirection: 'column', gap: 8 },
+  rowLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  dot: { width: 8, height: 8, borderRadius: 4 },
+  label: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: Colors.text },
+  subLabel: { fontSize: 11, color: Colors.textMuted, marginTop: 1 },
+  actionsRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
+  actionBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999,
+    backgroundColor: Colors.card,
+    borderWidth: 1, borderColor: Colors.border,
+  },
+  actionBtnText: { fontSize: 11, fontWeight: '700', color: Colors.primary },
+});
+
 export default function SubsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -71,11 +189,18 @@ export default function SubsScreen() {
   const [coiExpiry, setCoiExpiry] = useState('');
   const [w9OnFile, setW9OnFile] = useState(false);
   const [notes, setNotes] = useState('');
+  // 1099 / tax fields. Last 4 of TIN goes on the form; legalName covers
+  // DBA-vs-LLC mismatches. Both required for clean year-end export.
+  const [taxIdLast4, setTaxIdLast4] = useState('');
+  const [legalName, setLegalName] = useState('');
+  const [w9DocPath, setW9DocPath] = useState<string | undefined>(undefined);
+  const [uploadingW9, setUploadingW9] = useState(false);
 
   const resetForm = useCallback(() => {
     setCompanyName(''); setContactName(''); setPhone(''); setEmail('');
     setAddress(''); setTrade('General'); setLicenseNumber('');
     setLicenseExpiry(''); setCoiExpiry(''); setW9OnFile(false); setNotes('');
+    setTaxIdLast4(''); setLegalName(''); setW9DocPath(undefined);
     setEditingSub(null);
   }, []);
 
@@ -97,6 +222,9 @@ export default function SubsScreen() {
     setCoiExpiry(sub.coiExpiry);
     setW9OnFile(sub.w9OnFile);
     setNotes(sub.notes);
+    setTaxIdLast4(sub.taxIdLast4 ?? '');
+    setLegalName(sub.legalName ?? '');
+    setW9DocPath((sub as Subcontractor & { w9DocPath?: string }).w9DocPath);
     setShowForm(true);
     setShowDetail(null);
   }, []);
@@ -113,6 +241,8 @@ export default function SubsScreen() {
         companyName: name, contactName: contactName.trim(), phone: phone.trim(),
         email: email.trim(), address: address.trim(), trade, licenseNumber: licenseNumber.trim(),
         licenseExpiry, coiExpiry, w9OnFile, notes: notes.trim(),
+        taxIdLast4: taxIdLast4.trim() || undefined,
+        legalName: legalName.trim() || undefined,
       });
       Alert.alert('Updated', `${name} has been updated.`);
     } else {
@@ -121,6 +251,8 @@ export default function SubsScreen() {
         phone: phone.trim(), email: email.trim(), address: address.trim(), trade,
         licenseNumber: licenseNumber.trim(), licenseExpiry, coiExpiry, w9OnFile,
         bidHistory: [], assignedProjects: [], notes: notes.trim(),
+        taxIdLast4: taxIdLast4.trim() || undefined,
+        legalName: legalName.trim() || undefined,
         createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
       };
       addSubcontractor(sub);
@@ -130,7 +262,7 @@ export default function SubsScreen() {
     setShowForm(false);
     resetForm();
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [companyName, contactName, phone, email, address, trade, licenseNumber, licenseExpiry, coiExpiry, w9OnFile, notes, editingSub, addSubcontractor, updateSubcontractor, resetForm]);
+  }, [companyName, contactName, phone, email, address, trade, licenseNumber, licenseExpiry, coiExpiry, w9OnFile, taxIdLast4, legalName, notes, editingSub, addSubcontractor, updateSubcontractor, resetForm]);
 
   const handleDelete = useCallback((sub: Subcontractor) => {
     Alert.alert('Delete Subcontractor', `Delete ${sub.companyName}? This cannot be undone.`, [
@@ -440,6 +572,89 @@ export default function SubsScreen() {
                   </View>
                 </View>
 
+                {/* 1099-NEC fields. Required for year-end CPA export.
+                    TIN last-4 only — full TIN stays on the W-9 PDF.
+                    Legal name is the entity-of-record on the 1099, may
+                    differ from companyName (DBA vs. LLC). */}
+                <View style={{ flexDirection: 'row', gap: 10 }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.fieldLabel}>Legal Name (1099)</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={legalName}
+                      onChangeText={setLegalName}
+                      placeholder="If different from company name"
+                      placeholderTextColor={Colors.textMuted}
+                    />
+                  </View>
+                  <View style={{ width: 130 }}>
+                    <Text style={styles.fieldLabel}>TIN (last 4)</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={taxIdLast4}
+                      onChangeText={t => setTaxIdLast4(t.replace(/\D/g, '').slice(0, 4))}
+                      placeholder="1234"
+                      keyboardType="number-pad"
+                      placeholderTextColor={Colors.textMuted}
+                      maxLength={4}
+                    />
+                  </View>
+                </View>
+
+                {/* W-9 PDF upload. Stores in Supabase storage at
+                    sub-documents/<subId>/w9.pdf. Picker only accepts PDF
+                    + images so the GC doesn't accidentally upload a
+                    Word doc. Auto-flips w9OnFile to true on success. */}
+                <Text style={styles.fieldLabel}>W-9 Document</Text>
+                <TouchableOpacity
+                  onPress={async () => {
+                    if (!editingSub) {
+                      Alert.alert('Save first', 'Save the sub before uploading their W-9, so we can attach the file to their record.');
+                      return;
+                    }
+                    setUploadingW9(true);
+                    try {
+                      const picked = await DocumentPicker.getDocumentAsync({
+                        type: ['application/pdf', 'image/*'],
+                        copyToCacheDirectory: true,
+                        multiple: false,
+                      });
+                      if (picked.canceled || !picked.assets?.[0]) return;
+                      const asset = picked.assets[0];
+                      const ext = (asset.name.split('.').pop() || 'pdf').toLowerCase();
+                      const path = `${editingSub.id}/w9-${Date.now()}.${ext}`;
+                      const fileBytes = await fetch(asset.uri).then(r => r.arrayBuffer());
+                      const { error } = await supabase.storage
+                        .from('sub-documents')
+                        .upload(path, fileBytes, {
+                          contentType: asset.mimeType ?? (ext === 'pdf' ? 'application/pdf' : 'image/jpeg'),
+                          upsert: true,
+                        });
+                      if (error) throw error;
+                      setW9DocPath(path);
+                      setW9OnFile(true);
+                      updateSubcontractor(editingSub.id, {
+                        w9OnFile: true,
+                        ...{ w9DocPath: path } as Partial<Subcontractor>,
+                      });
+                      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                      Alert.alert('W-9 uploaded', 'Stored in your private sub-documents bucket. Visible only to your account.');
+                    } catch (err) {
+                      Alert.alert('Upload failed', (err as Error).message ?? 'Try again.');
+                    } finally {
+                      setUploadingW9(false);
+                    }
+                  }}
+                  activeOpacity={0.85}
+                  disabled={uploadingW9}
+                  style={[styles.input, { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12, opacity: uploadingW9 ? 0.6 : 1 }]}
+                >
+                  <Upload size={14} color={Colors.primary} />
+                  <Text style={{ color: Colors.primary, fontWeight: '700' as const, fontSize: Type.footnote.fontSize, flex: 1 }}>
+                    {uploadingW9 ? 'Uploading…' : (w9DocPath ? 'Replace W-9 (current on file)' : 'Pick W-9 PDF')}
+                  </Text>
+                </TouchableOpacity>
+
                 <Text style={styles.fieldLabel}>Notes</Text>
                 <TextInput style={[styles.input, { minHeight: 70, paddingTop: 12, textAlignVertical: 'top' as const }]} value={notes} onChangeText={setNotes} placeholder="Additional notes..." placeholderTextColor={Colors.textMuted} multiline />
 
@@ -492,6 +707,27 @@ export default function SubsScreen() {
                     <View style={styles.detailRow}><FileText size={14} color={Colors.textMuted} /><Text style={styles.detailRowText}>License Expiry: {sub.licenseExpiry || 'Not set'}</Text></View>
                     <View style={styles.detailRow}><FileText size={14} color={Colors.textMuted} /><Text style={styles.detailRowText}>COI Expiry: {sub.coiExpiry || 'Not set'}</Text></View>
                     <View style={styles.detailRow}><CheckCircle size={14} color={sub.w9OnFile ? Colors.success : Colors.textMuted} /><Text style={styles.detailRowText}>W-9: {sub.w9OnFile ? 'On File' : 'Missing'}</Text></View>
+
+                    {/* Verification badges + deep-link to state board.
+                        Two paths:
+                          1. License state has first-class coverage → tap
+                             opens the official lookup deep-linked with
+                             the license number; GC stamps "verified".
+                          2. No state set or unsupported → tap opens a
+                             Google search for the right board. */}
+                    <LicenseVerificationCard
+                      sub={sub}
+                      onMarkVerified={(field) => {
+                        const stamp = new Date().toISOString();
+                        const updates = field === 'license'
+                          ? { licenseVerifiedAt: stamp }
+                          : { coiVerifiedAt: stamp };
+                        updateSubcontractor(sub.id, updates);
+                        // Refresh the open detail card so the badge state
+                        // reflects what we just persisted.
+                        setShowDetail({ ...sub, ...updates });
+                      }}
+                    />
                   </View>
 
                   {sub.bidHistory.length > 0 && (

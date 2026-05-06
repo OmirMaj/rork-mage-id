@@ -113,6 +113,10 @@ function configureRC() {
 configureRC();
 
 function tierFromCustomerInfo(info: CustomerInfo): SubscriptionTier {
+  // Resolve in highest-tier-first order so a user with multiple active
+  // entitlements (e.g. legacy Pro lingering after Enterprise upgrade)
+  // always shows the more permissive tier.
+  if (info.entitlements.active['enterprise']?.isActive) return 'enterprise';
   if (info.entitlements.active['business']?.isActive) return 'business';
   if (info.entitlements.active['pro']?.isActive) return 'pro';
   return 'free';
@@ -337,6 +341,25 @@ export const [SubscriptionProvider, useSubscription] = createContextHook(() => {
     ) ?? null;
   }, [offeringsQuery.data]);
 
+  // Enterprise — top tier ($150/mo). Configure the matching products in
+  // App Store Connect / Play Console / RevenueCat with these identifiers
+  // before this resolves to a real package.
+  const enterprisePackage = useMemo(() => {
+    const packages = offeringsQuery.data?.current?.availablePackages ?? [];
+    return packages.find((p) =>
+      p.identifier === 'enterprise_monthly' ||
+      p.product?.identifier === 'com.mageid.enterprise.monthly'
+    ) ?? null;
+  }, [offeringsQuery.data]);
+
+  const enterpriseAnnualPackage = useMemo(() => {
+    const packages = offeringsQuery.data?.current?.availablePackages ?? [];
+    return packages.find((p) =>
+      p.identifier === 'enterprise_annual' ||
+      p.product?.identifier === 'com.mageid.enterprise.annual'
+    ) ?? null;
+  }, [offeringsQuery.data]);
+
   const purchasePro = useCallback(async (period: 'monthly' | 'annual' = 'monthly') => {
     const pkg = period === 'annual' ? proAnnualPackage : proPackage;
     if (pkg) {
@@ -355,26 +378,43 @@ export const [SubscriptionProvider, useSubscription] = createContextHook(() => {
     }
   }, [businessPackage, businessAnnualPackage, purchaseMutation]);
 
+  const purchaseEnterprise = useCallback(async (period: 'monthly' | 'annual' = 'monthly') => {
+    const pkg = period === 'annual' ? enterpriseAnnualPackage : enterprisePackage;
+    if (pkg) {
+      await purchaseMutation.mutateAsync(pkg);
+    } else {
+      throw new Error('Enterprise package not configured. Set up the product in App Store Connect / Play Console / RevenueCat first.');
+    }
+  }, [enterprisePackage, enterpriseAnnualPackage, purchaseMutation]);
+
   const restorePurchases = useCallback(async () => {
     await restoreMutation.mutateAsync();
   }, [restoreMutation]);
 
-  const isProOrAbove = useMemo(() => tier === 'pro' || tier === 'business', [tier]);
-  const isBusinessTier = useMemo(() => tier === 'business', [tier]);
+  // Tier helpers. `isProOrAbove` is the most common gate (paid users), so it
+  // includes business + enterprise too. `isBusinessOrAbove` is for features
+  // that require business tier as a minimum.
+  const isProOrAbove = useMemo(() => tier === 'pro' || tier === 'business' || tier === 'enterprise', [tier]);
+  const isBusinessTier = useMemo(() => tier === 'business' || tier === 'enterprise', [tier]);
+  const isEnterpriseTier = useMemo(() => tier === 'enterprise', [tier]);
   const isLoading = customerInfoQuery.isLoading || offeringsQuery.isLoading || purchaseMutation.isPending;
 
   return useMemo(() => ({
     tier,
     isProOrAbove,
     isBusinessTier,
+    isEnterpriseTier,
     isLoading,
     purchasePro,
     purchaseBusiness,
+    purchaseEnterprise,
     restorePurchases,
     proPackage,
     proAnnualPackage,
     businessPackage,
     businessAnnualPackage,
+    enterprisePackage,
+    enterpriseAnnualPackage,
     offerings: offeringsQuery.data,
     isPurchasing: purchaseMutation.isPending,
     ...__DEV__ ? {
@@ -385,21 +425,25 @@ export const [SubscriptionProvider, useSubscription] = createContextHook(() => {
       },
     } : {},
   }), [
-    tier, isProOrAbove, isBusinessTier, isLoading,
-    purchasePro, purchaseBusiness, restorePurchases,
+    tier, isProOrAbove, isBusinessTier, isEnterpriseTier, isLoading,
+    purchasePro, purchaseBusiness, purchaseEnterprise, restorePurchases,
     proPackage, proAnnualPackage, businessPackage, businessAnnualPackage,
+    enterprisePackage, enterpriseAnnualPackage,
     offeringsQuery.data, purchaseMutation.isPending,
   ]);
 });
 
-export function useSubscriptionGate(requiredTier: 'pro' | 'business') {
+export function useSubscriptionGate(requiredTier: 'pro' | 'business' | 'enterprise') {
   const { tier } = useSubscription();
   const { push } = useRouter();
 
   const canAccess = useMemo(() => {
-    if (requiredTier === 'pro') return tier === 'pro' || tier === 'business';
-    if (requiredTier === 'business') return tier === 'business';
-    return false;
+    // Rank-based — higher tier always satisfies a lower requirement.
+    // Pre-fix this was an exact-set check that excluded enterprise from
+    // every gate, mirroring the same omission bug we fixed in
+    // supabase/functions/_shared/auth.ts.
+    const RANK = { free: 0, pro: 1, business: 2, enterprise: 3 } as const;
+    return RANK[tier] >= RANK[requiredTier];
   }, [tier, requiredTier]);
 
   const showPaywall = useCallback(() => {

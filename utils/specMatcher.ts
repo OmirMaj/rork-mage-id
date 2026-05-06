@@ -75,3 +75,71 @@ export function buildSpecLookup(entries: SpecEntry[]): Map<string, SpecEntry> {
   }
   return out;
 }
+
+// ─────────────────────────────────────────────────────────────────
+// Submittal extraction — task='submittals' on the same edge function.
+// Returns one entry per spec item that requires a submittal package.
+// ─────────────────────────────────────────────────────────────────
+
+export type AiSubmittalType =
+  | 'Product Data' | 'Shop Drawings' | 'Sample' | 'Mix Design'
+  | 'Warranty' | 'O&M Manual' | 'Test Report' | 'Certification' | 'Mock-up' | 'Other';
+
+export interface AiSubmittalCandidate {
+  title: string;
+  specSection: string;
+  submittalType: AiSubmittalType;
+  trade: string;
+  /** Days before installation the architect wants the submittal in hand.
+   *  Default 14 for most items, 30 for long-lead (mock-ups, custom). */
+  dueRelativeDays: number;
+  sourcePages: number[];
+  confidence: 'high' | 'medium' | 'low';
+}
+
+export interface AiSubmittalsResult {
+  items: AiSubmittalCandidate[];
+  confidenceOverall: 'high' | 'medium' | 'low';
+  confidenceExplanation: string;
+}
+
+export interface ExtractSubmittalsOpts {
+  pageUrls: string[];
+  projectName?: string;
+  notes?: string;
+  model?: SpecModel;
+}
+
+/**
+ * Extract submittal log entries from a spec book PDF. Pairs perfectly
+ * with the existing submittals screen — the GC reviews the AI-suggested
+ * list, picks which ones to log, and the rest get discarded. Replaces
+ * hours of manual spec-book combing.
+ */
+export async function extractSubmittalsFromSpecBook(opts: ExtractSubmittalsOpts): Promise<{
+  result: AiSubmittalsResult;
+  modelUsed: SpecModel;
+  usage?: { used: number; cap: number };
+}> {
+  if (!opts.pageUrls || opts.pageUrls.length === 0) {
+    throw new Error('No spec book pages to analyze.');
+  }
+  const { data, error } = await supabase.functions.invoke<{
+    success: boolean;
+    data?: AiSubmittalsResult;
+    modelUsed?: SpecModel;
+    usage?: { used: number; cap: number };
+    error?: string;
+  }>('analyze-spec-book', {
+    body: { ...opts, task: 'submittals' },
+  });
+  if (error) throw new Error(`Spec book submittals call failed: ${error.message}`);
+  if (!data?.success || !data.data) {
+    throw new Error(data?.error ?? 'Spec book submittals returned empty.');
+  }
+  return {
+    result: data.data,
+    modelUsed: data.modelUsed ?? 'gemini-2.5-flash',
+    usage: data.usage,
+  };
+}

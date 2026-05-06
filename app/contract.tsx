@@ -34,6 +34,8 @@ import { generateUUID } from '@/utils/generateId';
 import { formatMoney } from '@/utils/formatters';
 import { statusPillStyle } from '@/utils/statusPill';
 import { syncAllowancesToSelections } from '@/utils/selectionsEngine';
+import { sendEmail } from '@/utils/emailService';
+import { wrapEmailHtml, emailQuote, escapeHtml } from '@/utils/emailLayout';
 import SignaturePad from '@/components/SignaturePad';
 import { fireConfetti } from '@/components/animations/Confetti';
 import { StatusPipeline, type PipelineStage } from '@/components/StatusPipeline';
@@ -57,7 +59,7 @@ export default function ContractScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
-  const { getProject, updateProject: ctxUpdateProject } = useProjects();
+  const { getProject, updateProject: ctxUpdateProject, settings } = useProjects();
   const project = projectId ? getProject(projectId) : undefined;
 
   const [contract, setContract] = useState<ProjectContract | null>(null);
@@ -252,18 +254,84 @@ export default function ContractScreen() {
         ctxUpdateProject(project.id, { status: 'in_progress' });
       }
 
+      // Email the homeowner the portal URL + a sign-and-send prompt.
+      // Pre-fix this was the audit's #4 finding — the contract status
+      // flipped to 'sent' but no email actually went out, so the homeowner
+      // had no idea there was anything to counter-sign. Best-effort —
+      // failure here doesn't roll back the contract send.
+      let emailNote = '';
+      try {
+        const portalSettings = project?.clientPortal;
+        const invites = portalSettings?.invites ?? [];
+        const recipients = invites
+          .filter(i => (i.email ?? '').trim().includes('@'))
+          .map(i => ({ email: i.email!.trim(), name: i.name }));
+        if (project && portalSettings?.enabled && portalSettings.portalId && recipients.length > 0) {
+          const portalUrl = `https://mageid.app/portal/${portalSettings.portalId}`;
+          const companyName = settings?.branding?.companyName || 'MAGE ID';
+          const senderName = settings?.branding?.contactName || companyName;
+          const senderEmail = settings?.branding?.email;
+          const greetingFirstName = (recipients[0].name ?? '').split(' ')[0] || 'there';
+          const html = wrapEmailHtml({
+            preheader: `${companyName} sent you the contract for ${project.name}. Tap to review and counter-sign.`,
+            eyebrow: 'Contract — ready to sign',
+            title: `${project.name}`,
+            subtitle: `Hi ${greetingFirstName}, ${companyName} sent you the construction contract.`,
+            bodyHtml: [
+              `<p style="margin:0 0 14px 0;font-size:14px;line-height:21px;color:#4A5159;">
+                 The contract — scope, value, payment schedule, and allowances — is ready for your review and counter-signature in your project portal.
+                 You can read the full agreement, ask questions inside the portal, and sign with one tap. Once you sign, ${escapeHtml(companyName)} can start.
+               </p>`,
+              contract.scopeText ? emailQuote(contract.scopeText.slice(0, 600)) : '',
+              `<p style="margin:0 0 6px 0;font-size:13px;line-height:20px;color:#4A5159;">
+                 <strong style="color:#0B0D10;">Project:</strong> ${escapeHtml(project.name)}<br/>
+                 ${project.location ? `<strong style="color:#0B0D10;">Location:</strong> ${escapeHtml(project.location)}<br/>` : ''}
+                 <strong style="color:#0B0D10;">Contract value:</strong> ${escapeHtml(formatMoney(contract.contractValue ?? 0))}
+               </p>`,
+            ].join(''),
+            cta: { label: 'Review & sign in your portal', href: portalUrl },
+            companyName,
+            project: { name: project.name, location: project.location },
+            sender: { name: senderName, email: senderEmail, phone: settings?.branding?.phone },
+          });
+
+          const subject = `${project.name} — your contract is ready to sign`;
+          const sendResults = await Promise.all(recipients.map(r =>
+            sendEmail({
+              to: r.email,
+              subject,
+              html,
+              replyTo: senderEmail,
+              fromCompanyName: companyName,
+            })
+          ));
+          const sentCount = sendResults.filter(r => r.success).length;
+          if (sentCount > 0) {
+            emailNote = ` Emailed the portal link to ${sentCount} recipient${sentCount === 1 ? '' : 's'}.`;
+          } else {
+            emailNote = ' Note: portal email failed to send — copy the portal URL and share it manually.';
+          }
+        } else {
+          emailNote = ' Note: no portal invitee email on file — share the portal URL manually so the homeowner can counter-sign.';
+        }
+      } catch (err) {
+        console.warn('[contract] email send failed', err);
+        emailNote = ' Note: portal email failed to send — copy the portal URL and share it manually.';
+      }
+
       setSignatureModal(false);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert(
         'Contract sent',
-        createdCount > 0
-          ? `The homeowner can now review and counter-sign in their portal. We also pre-created ${createdCount} selection categor${createdCount === 1 ? 'y' : 'ies'} from your allowances — head to Selections to add AI-curated options.`
-          : 'The homeowner can now review and counter-sign in their portal. You\'ll be notified when they do.',
+        (createdCount > 0
+          ? `The homeowner can review and counter-sign in their portal. We also pre-created ${createdCount} selection categor${createdCount === 1 ? 'y' : 'ies'} from your allowances — head to Selections to add AI-curated options.`
+          : 'The homeowner can review and counter-sign in their portal. You\'ll be notified when they do.')
+          + emailNote,
       );
     } finally {
       setSigning(false);
     }
-  }, [contract, project, ctxUpdateProject]);
+  }, [contract, project, ctxUpdateProject, settings]);
 
   if (loading || !contract || !project) {
     return (

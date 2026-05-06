@@ -10,7 +10,7 @@ import {
   Globe, Copy, Send, Trash2, Eye, EyeOff, CheckCircle2,
   CalendarDays, DollarSign, Image, FileText, ClipboardList,
   MessageSquare, BarChart3, Users, ChevronLeft, Plus, Link, Clock, Lock,
-  Mail, RefreshCw, Sparkles, Check, X, HandCoins,
+  Mail, RefreshCw, Sparkles, Check, X, HandCoins, Sunrise,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
@@ -30,6 +30,8 @@ import { fetchSelectionsForProject } from '@/utils/selectionsEngine';
 import { fetchCloseoutBinder } from '@/utils/closeoutBinderEngine';
 import { LANGUAGES } from '@/utils/portalLanguages';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { useTierAccess } from '@/hooks/useTierAccess';
+import Paywall from '@/components/Paywall';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -130,6 +132,28 @@ const DEFAULT_PORTAL: ClientPortalSettings = {
 };
 
 export default function ClientPortalSetupScreen() {
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const { canAccess } = useTierAccess();
+  // Tier gate. Pre-fix this screen had ZERO access check — a free user
+  // could fully configure a passcode-protected portal and dispatch weekly
+  // homeowner emails (which cost real Resend $). The `client_portal`
+  // FeatureKey was declared in useTierAccess.ts with REQUIRED_TIER='pro'
+  // but never referenced anywhere in the codebase. Now wired here.
+  if (!canAccess('client_portal')) {
+    return (
+      <Paywall
+        visible={true}
+        feature="Client Portal"
+        requiredTier="pro"
+        onClose={() => router.back()}
+      />
+    );
+  }
+  return <ClientPortalSetupScreenInner />;
+}
+
+function ClientPortalSetupScreenInner() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -754,6 +778,61 @@ export default function ClientPortalSetupScreen() {
           </View>
         </View>
 
+        {/* Weekly recap email — plain-English Friday digest. Reads
+            the last 7 days of DFRs/photos/COs and ships a homeowner-
+            friendly recap via the homeowner-weekly-digest edge fn.
+            Defaults off — opt in here. */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Weekly recap email</Text>
+          <Text style={styles.sectionSubtitle}>
+            We email your client a plain-English recap every Friday — what got done this week, what&apos;s coming next. AI strips the contractor jargon. Off until you toggle it on.
+          </Text>
+          <View style={[styles.togglesCard, { padding: 0 }]}>
+            <View style={styles.toggleRow}>
+              <View style={styles.toggleLeft}>
+                <Sunrise size={18} color={Colors.orange} />
+                <View style={styles.toggleLabels}>
+                  <Text style={styles.toggleLabel}>Send weekly recap</Text>
+                  <Text style={styles.toggleDesc}>Friday afternoons. Goes to every portal invite email.</Text>
+                </View>
+              </View>
+              <Switch
+                value={!!portal.weeklyDigest?.enabled}
+                onValueChange={val => handleToggle('weeklyDigest', { ...(portal.weeklyDigest ?? {}), enabled: val } as never)}
+                trackColor={{ false: Colors.border, true: Colors.primary }}
+                thumbColor="#FFF"
+              />
+            </View>
+          </View>
+
+          <TouchableOpacity
+            style={[styles.previewWeeklyBtn, !id && { opacity: 0.5 }]}
+            onPress={async () => {
+              if (!id) return;
+              if (Platform.OS !== 'web') void Haptics.selectionAsync();
+              try {
+                const { data, error } = await supabase.functions.invoke('homeowner-weekly-digest', {
+                  body: { projectId: id, preview: true },
+                });
+                if (error) throw error;
+                const sent = (data as { sent?: number } | null)?.sent ?? 0;
+                Alert.alert(
+                  sent > 0 ? 'Preview sent' : 'No invites yet',
+                  sent > 0
+                    ? `Sent the recap to ${sent} portal invite${sent === 1 ? '' : 's'}. Check your inbox or your client's.`
+                    : 'Add a portal invite (with their email) before previewing the weekly recap.',
+                );
+              } catch (err) {
+                Alert.alert('Preview failed', (err as Error).message ?? 'Could not send preview.');
+              }
+            }}
+            activeOpacity={0.85}
+          >
+            <Send size={14} color={Colors.primary} />
+            <Text style={styles.previewWeeklyBtnText}>Send today&apos;s preview now</Text>
+          </TouchableOpacity>
+        </View>
+
         {/* Change-order approvals + messaging */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Approvals & messaging</Text>
@@ -1167,4 +1246,12 @@ const styles = StyleSheet.create({
     marginRight: 4,
   },
   unreadPillTxt: { color: '#fff', fontWeight: '800', fontSize: Type.caption2.fontSize },
+
+  previewWeeklyBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    marginTop: 10, paddingVertical: 11, borderRadius: Tokens.radius.md,
+    backgroundColor: Colors.primary + '12',
+    borderWidth: 1, borderColor: Colors.primary + '30',
+  },
+  previewWeeklyBtnText: { color: Colors.primary, fontSize: Type.footnote.fontSize, fontWeight: '700' },
 });

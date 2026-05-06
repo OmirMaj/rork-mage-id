@@ -7,6 +7,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { supabaseWrite } from '@/utils/offlineQueue';
 import { generateUUID } from '@/utils/generateId';
+import { geocodeProjectLocation, shouldGeocode } from '@/utils/geocodeProject';
 
 const PROJECTS_KEY = 'buildwise_projects';
 const SETTINGS_KEY = 'buildwise_settings';
@@ -127,6 +128,9 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
               id: r.id as string, name: r.name as string, type: r.type as string,
               location: (r.location as string) ?? '', squareFootage: Number(r.square_footage) || 0,
               quality: (r.quality as string) ?? 'standard', description: (r.description as string) ?? '',
+              locationLatitude: r.location_latitude != null ? Number(r.location_latitude) : undefined,
+              locationLongitude: r.location_longitude != null ? Number(r.location_longitude) : undefined,
+              locationGeocodedAt: (r.location_geocoded_at as string | null) ?? undefined,
               createdAt: r.created_at as string, updatedAt: r.updated_at as string,
               estimate: r.estimate as Project['estimate'], schedule: r.schedule as Project['schedule'],
               linkedEstimate: r.linked_estimate as Project['linkedEstimate'],
@@ -134,6 +138,9 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
               collaborators: r.collaborators as ProjectCollaborator[] ?? [],
               clientPortal: r.client_portal as Project['clientPortal'],
               targetBudget: r.target_budget as Project['targetBudget'],
+              primaryContact: (r.primary_contact as Project['primaryContact']) ?? undefined,
+              leadSource: (r.lead_source as string | null) ?? undefined,
+              targetTimelineNotes: (r.target_timeline_notes as string | null) ?? undefined,
               handoverChecklist: (r.handover_checklist as Record<string, string> | null) ?? {},
               closedAt: r.closed_at as string | undefined,
               substantialCompletionDate: r.substantial_completion_date as string | undefined,
@@ -174,6 +181,12 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
               themeColors: data.theme_colors as AppSettings['themeColors'],
               biometricsEnabled: data.biometrics_enabled as boolean,
               dfrRecipients: data.dfr_recipients as string[],
+              digest: {
+                enabled: !!data.digest_enabled,
+                hour: (data.digest_hour as number | null) ?? 6,
+                timezone: (data.digest_timezone as string | null) ?? 'America/New_York',
+                channels: ((data.digest_channels as { email?: boolean; in_app?: boolean } | null) ?? { email: true, in_app: true }) as { email: boolean; in_app: boolean },
+              },
             };
             await saveLocal(SETTINGS_KEY, s);
             return s;
@@ -239,19 +252,83 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
     },
   });
 
-  // Commitments — signed subs/POs for job costing. Local-only for now; a
-  // Supabase `commitments` table lives in a future migration.
+  // Commitments — signed subs/POs for job costing. Now cloud-backed
+  // via the public.commitments table (added in the t1.1 audit-fix
+  // migration). Read pattern: try Supabase, fall back to AsyncStorage if
+  // cloud read fails or returns empty (offline / fresh-install paths).
   const commitmentsQuery = useQuery({
     queryKey: ['commitments', userId],
-    queryFn: async () => loadLocal<Commitment[]>(COMMITMENTS_KEY, []),
+    queryFn: async () => {
+      if (canSync) {
+        try {
+          const { data, error } = await supabase.from('commitments').select('*').order('created_at', { ascending: false });
+          if (!error && data && data.length > 0) {
+            const mapped = data.map((r: Record<string, unknown>) => ({
+              id: r.id as string, projectId: r.project_id as string,
+              number: (r.number as string) ?? '', type: r.type as Commitment['type'],
+              subcontractorId: (r.subcontractor_id as string | null) ?? undefined,
+              vendorName: (r.vendor_name as string | null) ?? undefined,
+              description: (r.description as string) ?? '',
+              amount: Number(r.amount) || 0,
+              changeAmount: r.change_amount == null ? undefined : Number(r.change_amount),
+              signedDate: (r.signed_date as string | null) ?? '',
+              phase: (r.phase as string | null) ?? undefined,
+              csiDivision: (r.csi_division as string | null) ?? undefined,
+              linkedEstimateItems: (r.linked_estimate_items as string[] | null) ?? undefined,
+              status: r.status as Commitment['status'],
+              notes: (r.notes as string | null) ?? undefined,
+              paidToDate: r.paid_to_date == null ? 0 : Number(r.paid_to_date),
+              createdAt: r.created_at as string, updatedAt: r.updated_at as string,
+            })) as Commitment[];
+            await saveLocal(COMMITMENTS_KEY, mapped);
+            return mapped;
+          }
+        } catch { /* fallback */ }
+      }
+      return loadLocal<Commitment[]>(COMMITMENTS_KEY, []);
+    },
   });
 
   // Prequal packets — one per subcontractor. Magic-link token lives on
   // the packet; the sub's /prequal-form route looks the packet up by
-  // token. No auth on the sub side by design.
+  // token. Cloud-backed as of the t1.1 migration.
   const prequalQuery = useQuery({
     queryKey: ['prequalPackets', userId],
-    queryFn: async () => loadLocal<PrequalPacket[]>(PREQUAL_KEY, []),
+    queryFn: async () => {
+      if (canSync) {
+        try {
+          const { data, error } = await supabase.from('prequal_packets').select('*').order('created_at', { ascending: false });
+          if (!error && data && data.length > 0) {
+            const mapped = data.map((r: Record<string, unknown>) => ({
+              id: r.id as string,
+              subcontractorId: r.subcontractor_id as string,
+              projectId: (r.project_id as string | null) ?? undefined,
+              status: r.status as PrequalPacket['status'],
+              criteria: (r.criteria as PrequalPacket['criteria']) ?? {} as PrequalPacket['criteria'],
+              financials: (r.financials as PrequalPacket['financials']) ?? {} as PrequalPacket['financials'],
+              safety: (r.safety as PrequalPacket['safety']) ?? {} as PrequalPacket['safety'],
+              insurance: (r.insurance as PrequalPacket['insurance']) ?? {} as PrequalPacket['insurance'],
+              licenses: (r.licenses as PrequalPacket['licenses']) ?? [],
+              w9OnFile: !!r.w9_on_file,
+              w9DocPath: (r.w9_doc_path as string | null) ?? undefined,
+              inviteToken: (r.invite_token as string | null) ?? undefined,
+              inviteSentAt: (r.invite_sent_at as string | null) ?? undefined,
+              inviteEmail: (r.invite_email as string | null) ?? undefined,
+              submittedAt: (r.submitted_at as string | null) ?? undefined,
+              reviewedAt: (r.reviewed_at as string | null) ?? undefined,
+              reviewedBy: (r.reviewed_by as string | null) ?? undefined,
+              autoReviewFindings: (r.auto_review_findings as PrequalPacket['autoReviewFindings']) ?? undefined,
+              reviewerNotes: (r.reviewer_notes as string | null) ?? undefined,
+              expiresAt: (r.expires_at as string | null) ?? undefined,
+              createdAt: r.created_at as string, updatedAt: r.updated_at as string,
+            })) as PrequalPacket[];
+            await saveLocal(PREQUAL_KEY, mapped);
+            return mapped;
+          }
+        } catch { /* fallback */ }
+      }
+      return loadLocal<PrequalPacket[]>(PREQUAL_KEY, []);
+    },
   });
 
   const dailyReportsQuery = useQuery({
@@ -725,12 +802,45 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
   useEffect(() => { if (coisQuery.data) setCois(coisQuery.data); }, [coisQuery.data]);
   useEffect(() => { if (equipmentQuery.data) setEquipment(equipmentQuery.data); }, [equipmentQuery.data]);
 
-  // Permits — local-only persistence for now. The marketing claim is "track
-  // permits"; we don't yet have a permits table in Supabase, so we store
-  // entirely on-device. If we later add cloud sync, mirror the rfis pattern.
+  // Permits — cloud-backed as of t1.1 audit-fix migration. Same fall-back
+  // pattern as commitments / rfis: try Supabase, fall back to AsyncStorage
+  // when offline / cloud is empty.
   const permitsQuery = useQuery({
     queryKey: ['permits', userId],
-    queryFn: async () => loadLocal<Permit[]>(PERMITS_KEY, []),
+    queryFn: async () => {
+      if (canSync) {
+        try {
+          const { data, error } = await supabase.from('permits').select('*').order('applied_date', { ascending: false });
+          if (!error && data && data.length > 0) {
+            const mapped = data.map((r: Record<string, unknown>) => ({
+              id: r.id as string, projectId: r.project_id as string,
+              projectName: (r.project_name as string | null) ?? '',
+              type: r.type as Permit['type'],
+              permitNumber: (r.permit_number as string | null) ?? undefined,
+              jurisdiction: (r.jurisdiction as string) ?? '',
+              status: r.status as Permit['status'],
+              appliedDate: (r.applied_date as string | null) ?? '',
+              approvedDate: (r.approved_date as string | null) ?? undefined,
+              expiresDate: (r.expires_date as string | null) ?? undefined,
+              inspectionDate: (r.inspection_date as string | null) ?? undefined,
+              inspectionNotes: (r.inspection_notes as string | null) ?? undefined,
+              fee: Number(r.fee) || 0,
+              notes: (r.notes as string | null) ?? undefined,
+              phase: (r.phase as string | null) ?? undefined,
+              attachmentUri: (r.attachment_uri as string | null) ?? undefined,
+              specialInspectionCategory: (r.special_inspection_category as Permit['specialInspectionCategory']) ?? undefined,
+              inspectorName: (r.inspector_name as string | null) ?? undefined,
+              lastReportSummary: (r.last_report_summary as string | null) ?? undefined,
+              lastReportDate: (r.last_report_date as string | null) ?? undefined,
+              createdAt: r.created_at as string, updatedAt: r.updated_at as string,
+            })) as Permit[];
+            await saveLocal(PERMITS_KEY, mapped);
+            return mapped;
+          }
+        } catch { /* fallback */ }
+      }
+      return loadLocal<Permit[]>(PERMITS_KEY, []);
+    },
   });
   useEffect(() => { if (permitsQuery.data) setPermits(permitsQuery.data); }, [permitsQuery.data]);
   const savePermitsMutation = useMutation({
@@ -738,13 +848,47 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
     onSuccess: (data) => { queryClient.setQueryData(['permits', userId], data); },
   });
 
-  // AIA G702/G703 pay applications — local-only. Saved when the GC taps
-  // "Save to Project" on the pay-app screen. Surfaced in the client portal
-  // as a dedicated "Pay Applications" section so the client/architect/lender
-  // can review and download a PDF of every certified billing.
+  // AIA G702/G703 pay applications — cloud-backed as of t1.1 audit-fix
+  // migration. Surfaced in the client portal as a dedicated "Pay
+  // Applications" section so the client/architect/lender can review and
+  // download a PDF of every certified billing.
   const aiaPayAppsQuery = useQuery({
     queryKey: ['aiaPayApps', userId],
-    queryFn: async () => loadLocal<SavedAIAPayApp[]>(AIA_PAY_APPS_KEY, []),
+    queryFn: async () => {
+      if (canSync) {
+        try {
+          const { data, error } = await supabase.from('aia_pay_apps').select('*').order('application_number', { ascending: false });
+          if (!error && data && data.length > 0) {
+            const mapped = data.map((r: Record<string, unknown>) => ({
+              id: r.id as string, projectId: r.project_id as string,
+              invoiceId: (r.invoice_id as string | null) ?? undefined,
+              applicationNumber: Number(r.application_number) || 1,
+              applicationDate: (r.application_date as string | null) ?? '',
+              periodTo: (r.period_to as string | null) ?? '',
+              contractDate: (r.contract_date as string | null) ?? undefined,
+              ownerName: (r.owner_name as string | null) ?? '',
+              contractorName: (r.contractor_name as string | null) ?? '',
+              architectName: (r.architect_name as string | null) ?? undefined,
+              projectName: (r.project_name as string | null) ?? '',
+              projectLocation: (r.project_location as string | null) ?? undefined,
+              contractForDescription: (r.contract_for_description as string | null) ?? undefined,
+              originalContractSum: Number(r.original_contract_sum) || 0,
+              netChangeByCO: Number(r.net_change_by_co) || 0,
+              contractSumToDate: Number(r.contract_sum_to_date) || 0,
+              retainagePercent: Number(r.retainage_percent) || 10,
+              lessPreviousCertificates: Number(r.less_previous_certificates) || 0,
+              lines: (r.lines as SavedAIAPayApp['lines']) ?? [],
+              notes: (r.notes as string | null) ?? undefined,
+              ...(r.snapshot_totals ? { snapshotTotals: r.snapshot_totals } : {}),
+              createdAt: r.created_at as string, updatedAt: r.updated_at as string,
+            })) as unknown as SavedAIAPayApp[];
+            await saveLocal(AIA_PAY_APPS_KEY, mapped);
+            return mapped;
+          }
+        } catch { /* fallback */ }
+      }
+      return loadLocal<SavedAIAPayApp[]>(AIA_PAY_APPS_KEY, []);
+    },
   });
   useEffect(() => { if (aiaPayAppsQuery.data) setAiaPayApps(aiaPayAppsQuery.data); }, [aiaPayAppsQuery.data]);
   const saveAiaPayAppsMutation = useMutation({
@@ -802,10 +946,16 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
         await supabaseWrite('projects', 'insert', {
           id: project.id, user_id: userId, name: project.name, type: project.type,
           location: project.location, square_footage: project.squareFootage, quality: project.quality,
+          location_latitude: project.locationLatitude ?? null,
+          location_longitude: project.locationLongitude ?? null,
+          location_geocoded_at: project.locationGeocodedAt ?? null,
           description: project.description, estimate: project.estimate as unknown, schedule: project.schedule as unknown,
           linked_estimate: project.linkedEstimate as unknown, status: project.status,
           collaborators: project.collaborators as unknown, client_portal: project.clientPortal as unknown,
           target_budget: project.targetBudget as unknown,
+          primary_contact: project.primaryContact ?? null,
+          lead_source: project.leadSource ?? null,
+          target_timeline_notes: project.targetTimelineNotes ?? null,
           handover_checklist: (project.handoverChecklist ?? {}) as unknown,
           closed_at: project.closedAt,
           substantial_completion_date: project.substantialCompletionDate,
@@ -912,6 +1062,10 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
             tagline: updatedSettings.branding.tagline, logo_uri: updatedSettings.branding.logoUri,
             signature_data: updatedSettings.branding.signatureData, theme_colors: updatedSettings.themeColors,
             biometrics_enabled: updatedSettings.biometricsEnabled, dfr_recipients: updatedSettings.dfrRecipients,
+            digest_enabled: updatedSettings.digest?.enabled ?? false,
+            digest_hour: updatedSettings.digest?.hour ?? 6,
+            digest_channels: updatedSettings.digest?.channels ?? { email: true, in_app: true },
+            digest_timezone: updatedSettings.digest?.timezone ?? 'America/New_York',
           }).eq('id', userId);
         } catch (err) { console.log('[ProjectContext] Settings sync failed:', err); }
       }
@@ -920,20 +1074,57 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
     onSuccess: (data) => { queryClient.setQueryData(['settings', userId], data); },
   });
 
+  // Geocode a project's location string into lat/lng for hyperlocal weather
+  // (morning digest, schedule weather alerts). Best-effort and async — never
+  // blocks save. Updates the project in-place once Nominatim resolves.
+  const geocodeIfNeeded = useCallback((project: Project) => {
+    const hasCoords = project.locationLatitude != null && project.locationLongitude != null;
+    if (!shouldGeocode(undefined, project.location, hasCoords, project.locationGeocodedAt)) return;
+    void geocodeProjectLocation(project.location).then(result => {
+      if (!result) return;
+      // Re-read from current state at resolve-time so we don't overwrite a
+      // concurrent edit. setProjects gets the latest snapshot via the
+      // function setter.
+      setProjects(prev => {
+        const next = prev.map(p => p.id === project.id ? {
+          ...p,
+          locationLatitude: result.latitude,
+          locationLongitude: result.longitude,
+          locationGeocodedAt: new Date().toISOString(),
+        } : p);
+        // Persist + sync
+        saveProjectsMutation.mutate(next);
+        const updated = next.find(p => p.id === project.id);
+        if (updated) syncProjectToSupabase(updated, 'upsert');
+        return next;
+      });
+    }).catch(() => { /* silent — falls back to no-coords path */ });
+  }, [saveProjectsMutation, syncProjectToSupabase]);
+
   const addProject = useCallback((project: Project) => {
     const updated = [project, ...projects];
     setProjects(updated);
     saveProjectsMutation.mutate(updated);
     syncProjectToSupabase(project, 'upsert');
-  }, [projects, saveProjectsMutation, syncProjectToSupabase]);
+    geocodeIfNeeded(project);
+  }, [projects, saveProjectsMutation, syncProjectToSupabase, geocodeIfNeeded]);
 
   const updateProject = useCallback((id: string, updates: Partial<Project>) => {
+    const prior = projects.find(p => p.id === id);
     const updated = projects.map(p => p.id === id ? { ...p, ...updates, updatedAt: new Date().toISOString() } : p);
     setProjects(updated);
     saveProjectsMutation.mutate(updated);
     const proj = updated.find(p => p.id === id);
-    if (proj) syncProjectToSupabase(proj, 'upsert');
-  }, [projects, saveProjectsMutation, syncProjectToSupabase]);
+    if (proj) {
+      syncProjectToSupabase(proj, 'upsert');
+      // Re-geocode only if the location string actually changed — avoids
+      // hitting Nominatim's rate limit on every routine save (e.g.
+      // schedule debounce flush).
+      if (prior?.location !== proj.location) {
+        geocodeIfNeeded(proj);
+      }
+    }
+  }, [projects, saveProjectsMutation, syncProjectToSupabase, geocodeIfNeeded]);
 
   const deleteProject = useCallback((id: string) => {
     const toDelete = projects.find(p => p.id === id);
@@ -1059,7 +1250,25 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
 
   const updateInvoice = useCallback((id: string, updates: Partial<Invoice>) => {
     const now = new Date().toISOString();
-    const updated = invoices.map(inv => inv.id === id ? { ...inv, ...updates, updatedAt: now } : inv);
+    const updated = invoices.map(inv => {
+      if (inv.id !== id) return inv;
+      const next = { ...inv, ...updates, updatedAt: now } as Invoice;
+      // Auto-flip to 'paid' when amount_paid catches up to total_due. Without
+      // this, manual payment entries (check / cash / Zelle / ACH outside Stripe)
+      // never flip the status field — read-time helpers compute it but anything
+      // querying the raw status (AI digests, A/R, Supabase filters) sees stale
+      // 'sent' or 'partially_paid'. The Stripe webhook does this server-side
+      // already; this mirrors it for non-Stripe payment recording paths.
+      if (
+        next.status !== 'draft'
+        && next.status !== 'paid'
+        && (next.totalDue ?? 0) > 0
+        && (next.amountPaid ?? 0) >= (next.totalDue ?? 0) - 0.01
+      ) {
+        next.status = 'paid';
+      }
+      return next;
+    });
     setInvoices(updated);
     saveInvoicesMutation.mutate(updated);
     if (canSync) {
@@ -1081,24 +1290,51 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
   // costing dashboard (see utils/jobCostEngine.ts). Stored locally only;
   // no Supabase sync yet because the `commitments` table hasn't been
   // migrated. Offline-first writes still work through the same pattern.
+  // Map a Commitment object to the snake_case shape the commitments table
+  // wants. Pulled out so add/update can both call it.
+  const commitmentToRow = useCallback((c: Commitment) => ({
+    id: c.id,
+    user_id: userId,
+    project_id: c.projectId,
+    number: c.number,
+    type: c.type,
+    subcontractor_id: c.subcontractorId ?? null,
+    vendor_name: c.vendorName ?? null,
+    description: c.description ?? '',
+    amount: c.amount ?? 0,
+    change_amount: c.changeAmount ?? null,
+    signed_date: c.signedDate || null,
+    phase: c.phase ?? null,
+    csi_division: c.csiDivision ?? null,
+    linked_estimate_items: c.linkedEstimateItems ?? null,
+    status: c.status,
+    notes: c.notes ?? null,
+    created_at: c.createdAt,
+    updated_at: c.updatedAt,
+  }), [userId]);
+
   const addCommitment = useCallback((c: Commitment) => {
     const updated = [c, ...commitments];
     setCommitments(updated);
     saveCommitmentsMutation.mutate(updated);
-  }, [commitments, saveCommitmentsMutation]);
+    if (canSync && userId) void supabaseWrite('commitments', 'insert', commitmentToRow(c));
+  }, [commitments, saveCommitmentsMutation, canSync, userId, commitmentToRow]);
 
   const updateCommitment = useCallback((id: string, updates: Partial<Commitment>) => {
     const now = new Date().toISOString();
     const updated = commitments.map(c => c.id === id ? { ...c, ...updates, updatedAt: now } : c);
     setCommitments(updated);
     saveCommitmentsMutation.mutate(updated);
-  }, [commitments, saveCommitmentsMutation]);
+    const next = updated.find(c => c.id === id);
+    if (canSync && userId && next) void supabaseWrite('commitments', 'update', commitmentToRow(next));
+  }, [commitments, saveCommitmentsMutation, canSync, userId, commitmentToRow]);
 
   const deleteCommitment = useCallback((id: string) => {
     const updated = commitments.filter(c => c.id !== id);
     setCommitments(updated);
     saveCommitmentsMutation.mutate(updated);
-  }, [commitments, saveCommitmentsMutation]);
+    if (canSync) void supabaseWrite('commitments', 'delete', { id });
+  }, [commitments, saveCommitmentsMutation, canSync]);
 
   const getCommitmentsForProject = useCallback(
     (projectId: string) => commitments.filter(c => c.projectId === projectId).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
@@ -1108,19 +1344,50 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
   // Prequal packets — one per sub. We key packet lookup by sub id AND by
   // magic-link token (sub side) so the public route can resolve without
   // auth. Upsert semantics: re-submitting a packet overwrites the prior.
+  const prequalToRow = useCallback((p: PrequalPacket) => ({
+    id: p.id,
+    user_id: userId,
+    subcontractor_id: p.subcontractorId,
+    project_id: p.projectId ?? null,
+    status: p.status,
+    criteria: p.criteria ?? {},
+    financials: p.financials ?? {},
+    safety: p.safety ?? {},
+    insurance: p.insurance ?? {},
+    licenses: p.licenses ?? [],
+    w9_on_file: !!p.w9OnFile,
+    w9_doc_path: p.w9DocPath ?? null,
+    invite_token: p.inviteToken ?? null,
+    invite_sent_at: p.inviteSentAt ?? null,
+    invite_email: p.inviteEmail ?? null,
+    submitted_at: p.submittedAt ?? null,
+    reviewed_at: p.reviewedAt ?? null,
+    reviewed_by: p.reviewedBy ?? null,
+    auto_review_findings: p.autoReviewFindings ?? null,
+    reviewer_notes: p.reviewerNotes ?? null,
+    expires_at: p.expiresAt ?? null,
+    created_at: p.createdAt,
+    updated_at: p.updatedAt,
+  }), [userId]);
+
   const upsertPrequalPacket = useCallback((packet: PrequalPacket) => {
-    const updated = prequalPackets.some(p => p.id === packet.id)
+    const isExisting = prequalPackets.some(p => p.id === packet.id);
+    const updated = isExisting
       ? prequalPackets.map(p => p.id === packet.id ? packet : p)
       : [packet, ...prequalPackets];
     setPrequalPackets(updated);
     savePrequalMutation.mutate(updated);
-  }, [prequalPackets, savePrequalMutation]);
+    if (canSync && userId) {
+      void supabaseWrite('prequal_packets', isExisting ? 'update' : 'insert', prequalToRow(packet));
+    }
+  }, [prequalPackets, savePrequalMutation, canSync, userId, prequalToRow]);
 
   const deletePrequalPacket = useCallback((id: string) => {
     const updated = prequalPackets.filter(p => p.id !== id);
     setPrequalPackets(updated);
     savePrequalMutation.mutate(updated);
-  }, [prequalPackets, savePrequalMutation]);
+    if (canSync) void supabaseWrite('prequal_packets', 'delete', { id });
+  }, [prequalPackets, savePrequalMutation, canSync]);
 
   const getPrequalPacketForSub = useCallback(
     (subId: string) => prequalPackets.find(p => p.subcontractorId === subId) ?? null,
@@ -1296,6 +1563,16 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
     const projectId = generateUUID();
     // Use the inline addProject path so we don't introduce a new
     // dependency between callbacks here.
+    // Carry the homeowner contact + lead-source + timeline-notes across
+    // so the GC doesn't re-key phone/email after winning the lead, and so
+    // win-rate-by-source analytics keep working post-conversion.
+    const primaryContact = (lead.phone || lead.email || lead.name)
+      ? {
+          name: lead.name || undefined,
+          phone: lead.phone || undefined,
+          email: lead.email || undefined,
+        }
+      : undefined;
     const newProject: Project = {
       id: projectId,
       name: lead.name + (lead.projectType ? ` — ${lead.projectType}` : ''),
@@ -1312,6 +1589,9 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
         : (lead.budgetMin && lead.budgetMin > 0
             ? { amount: lead.budgetMin, setAt: now, setBy: 'gc' }
             : undefined),
+      primaryContact,
+      leadSource: lead.source || undefined,
+      targetTimelineNotes: lead.timeline || undefined,
       createdAt: now,
       updatedAt: now,
     };
@@ -1322,7 +1602,11 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
         id: projectId, user_id: userId, name: newProject.name, type: newProject.type,
         location: newProject.location, square_footage: 0, quality: 'standard',
         description: newProject.description, status: newProject.status,
-        target_budget: newProject.targetBudget, created_at: now, updated_at: now,
+        target_budget: newProject.targetBudget,
+        primary_contact: newProject.primaryContact ?? null,
+        lead_source: newProject.leadSource ?? null,
+        target_timeline_notes: newProject.targetTimelineNotes ?? null,
+        created_at: now, updated_at: now,
       });
     }
     updateLead(leadId, { stage: 'won', convertedProjectId: projectId });
@@ -1878,27 +2162,57 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
 
   const getRFIsForProject = useCallback((projectId: string) => rfis.filter(r => r.projectId === projectId).sort((a, b) => b.number - a.number), [rfis]);
 
+  const permitToRow = useCallback((p: Permit) => ({
+    id: p.id,
+    user_id: userId,
+    project_id: p.projectId,
+    project_name: p.projectName ?? null,
+    type: p.type,
+    permit_number: p.permitNumber ?? null,
+    jurisdiction: p.jurisdiction ?? '',
+    status: p.status,
+    applied_date: p.appliedDate || null,
+    approved_date: p.approvedDate || null,
+    expires_date: p.expiresDate || null,
+    inspection_date: p.inspectionDate || null,
+    inspection_notes: p.inspectionNotes ?? null,
+    fee: p.fee ?? 0,
+    notes: p.notes ?? null,
+    phase: p.phase ?? null,
+    attachment_uri: p.attachmentUri ?? null,
+    special_inspection_category: p.specialInspectionCategory ?? null,
+    inspector_name: p.inspectorName ?? null,
+    last_report_summary: p.lastReportSummary ?? null,
+    last_report_date: p.lastReportDate || null,
+    created_at: p.createdAt ?? new Date().toISOString(),
+    updated_at: p.updatedAt ?? new Date().toISOString(),
+  }), [userId]);
+
   const addPermit = useCallback((permit: Omit<Permit, 'id' | 'createdAt' | 'updatedAt'>) => {
     const now = new Date().toISOString();
     const newPermit: Permit = { ...permit, id: generateUUID(), createdAt: now, updatedAt: now };
     const updated = [newPermit, ...permits];
     setPermits(updated);
     savePermitsMutation.mutate(updated);
+    if (canSync && userId) void supabaseWrite('permits', 'insert', permitToRow(newPermit));
     return newPermit;
-  }, [permits, savePermitsMutation]);
+  }, [permits, savePermitsMutation, canSync, userId, permitToRow]);
 
   const updatePermit = useCallback((id: string, updates: Partial<Permit>) => {
     const now = new Date().toISOString();
     const updated = permits.map(p => p.id === id ? { ...p, ...updates, updatedAt: now } : p);
     setPermits(updated);
     savePermitsMutation.mutate(updated);
-  }, [permits, savePermitsMutation]);
+    const next = updated.find(p => p.id === id);
+    if (canSync && userId && next) void supabaseWrite('permits', 'update', permitToRow(next));
+  }, [permits, savePermitsMutation, canSync, userId, permitToRow]);
 
   const deletePermit = useCallback((id: string) => {
     const updated = permits.filter(p => p.id !== id);
     setPermits(updated);
     savePermitsMutation.mutate(updated);
-  }, [permits, savePermitsMutation]);
+    if (canSync) void supabaseWrite('permits', 'delete', { id });
+  }, [permits, savePermitsMutation, canSync]);
 
   const getPermitsForProject = useCallback((projectId: string) =>
     permits.filter(p => p.projectId === projectId).sort((a, b) => new Date(b.appliedDate).getTime() - new Date(a.appliedDate).getTime()),
@@ -1908,19 +2222,51 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
   // (built from the editing screen with computed totals) so the helper stays
   // simple — no SOV math here, just persistence + de-dupe by (projectId,
   // applicationNumber).
+  const aiaPayAppToRow = useCallback((a: SavedAIAPayApp) => ({
+    id: a.id,
+    user_id: userId,
+    project_id: a.projectId,
+    invoice_id: a.invoiceId ?? null,
+    application_number: a.applicationNumber,
+    application_date: a.applicationDate || null,
+    period_to: a.periodTo || null,
+    contract_date: a.contractDate || null,
+    owner_name: a.ownerName ?? null,
+    contractor_name: a.contractorName ?? null,
+    architect_name: a.architectName ?? null,
+    project_name: a.projectName ?? null,
+    project_location: a.projectLocation ?? null,
+    contract_for_description: a.contractForDescription ?? null,
+    original_contract_sum: a.originalContractSum ?? 0,
+    net_change_by_co: a.netChangeByCO ?? 0,
+    contract_sum_to_date: a.contractSumToDate ?? 0,
+    retainage_percent: a.retainagePercent ?? 10,
+    less_previous_certificates: a.lessPreviousCertificates ?? 0,
+    lines: a.lines ?? [],
+    notes: a.notes ?? null,
+    snapshot_totals: (a as unknown as { snapshotTotals?: unknown }).snapshotTotals ?? null,
+    created_at: (a as unknown as { createdAt?: string }).createdAt ?? new Date().toISOString(),
+    updated_at: (a as unknown as { updatedAt?: string }).updatedAt ?? new Date().toISOString(),
+  }), [userId]);
+
   const addAIAPayApp = useCallback((app: SavedAIAPayApp) => {
     const dedup = aiaPayApps.filter(a => !(a.projectId === app.projectId && a.applicationNumber === app.applicationNumber));
     const updated = [app, ...dedup];
     setAiaPayApps(updated);
     saveAiaPayAppsMutation.mutate(updated);
+    // Upsert: app screen always saves as new ID per draft so insert is correct;
+    // if the user re-saves the same id (rare), the table PK guards from dupes
+    // and Supabase will return a 409 we ignore.
+    if (canSync && userId) void supabaseWrite('aia_pay_apps', 'insert', aiaPayAppToRow(app));
     return app;
-  }, [aiaPayApps, saveAiaPayAppsMutation]);
+  }, [aiaPayApps, saveAiaPayAppsMutation, canSync, userId, aiaPayAppToRow]);
 
   const deleteAIAPayApp = useCallback((id: string) => {
     const updated = aiaPayApps.filter(a => a.id !== id);
     setAiaPayApps(updated);
     saveAiaPayAppsMutation.mutate(updated);
-  }, [aiaPayApps, saveAiaPayAppsMutation]);
+    if (canSync) void supabaseWrite('aia_pay_apps', 'delete', { id });
+  }, [aiaPayApps, saveAiaPayAppsMutation, canSync]);
 
   const getAIAPayAppsForProject = useCallback((projectId: string) =>
     aiaPayApps.filter(a => a.projectId === projectId).sort((a, b) => b.applicationNumber - a.applicationNumber),
@@ -2171,10 +2517,47 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
       }, 0);
   }, [equipment]);
 
-  // Warranties — local-only storage for now
+  // Warranties — cloud-backed as of t1.1 audit-fix migration. Same
+  // try-cloud-then-local fallback as commitments / permits.
   useEffect(() => {
-    void loadLocal<Warranty[]>(WARRANTIES_KEY, []).then(setWarranties);
-  }, []);
+    let cancelled = false;
+    (async () => {
+      if (canSync) {
+        try {
+          const { data, error } = await supabase.from('warranties').select('*').order('end_date', { ascending: true });
+          if (!error && data && data.length > 0) {
+            const mapped = data.map((r: Record<string, unknown>) => ({
+              id: r.id as string, projectId: r.project_id as string,
+              projectName: (r.project_name as string | null) ?? '',
+              title: (r.title as string) ?? '',
+              category: r.category as Warranty['category'],
+              description: (r.description as string | null) ?? undefined,
+              provider: (r.provider as string) ?? '',
+              providerContactId: (r.provider_contact_id as string | null) ?? undefined,
+              startDate: (r.start_date as string | null) ?? '',
+              durationMonths: Number(r.duration_months) || 12,
+              endDate: (r.end_date as string | null) ?? '',
+              coverageDetails: (r.coverage_details as string | null) ?? undefined,
+              exclusions: (r.exclusions as string | null) ?? undefined,
+              documentUri: (r.document_uri as string | null) ?? undefined,
+              status: r.status as Warranty['status'],
+              claims: (r.claims as Warranty['claims']) ?? [],
+              reminderDays: r.reminder_days == null ? undefined : Number(r.reminder_days),
+              createdAt: r.created_at as string, updatedAt: r.updated_at as string,
+            })) as Warranty[];
+            if (!cancelled) {
+              setWarranties(mapped);
+              await saveLocal(WARRANTIES_KEY, mapped);
+              return;
+            }
+          }
+        } catch { /* fallback */ }
+      }
+      const local = await loadLocal<Warranty[]>(WARRANTIES_KEY, []);
+      if (!cancelled) setWarranties(local);
+    })();
+    return () => { cancelled = true; };
+  }, [canSync]);
 
   const persistWarranties = useCallback((list: Warranty[]) => {
     setWarranties(list);
@@ -2193,10 +2576,33 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
     return 'active';
   }, []);
 
+  const warrantyToRow = useCallback((w: Warranty) => ({
+    id: w.id,
+    user_id: userId,
+    project_id: w.projectId,
+    project_name: w.projectName ?? null,
+    title: w.title,
+    category: w.category,
+    description: w.description ?? null,
+    provider: w.provider ?? '',
+    provider_contact_id: w.providerContactId ?? null,
+    start_date: w.startDate || null,
+    duration_months: w.durationMonths ?? 12,
+    end_date: w.endDate || null,
+    coverage_details: w.coverageDetails ?? null,
+    exclusions: w.exclusions ?? null,
+    document_uri: w.documentUri ?? null,
+    status: w.status,
+    claims: w.claims ?? [],
+    reminder_days: w.reminderDays ?? null,
+    created_at: w.createdAt,
+    updated_at: w.updatedAt,
+  }), [userId]);
+
   const addWarranty = useCallback((w: Omit<Warranty, 'id' | 'createdAt' | 'updatedAt' | 'status' | 'claims'> & { id?: string; status?: Warranty['status']; claims?: WarrantyClaim[] }) => {
     const now = new Date().toISOString();
     const fresh: Warranty = {
-      id: w.id ?? `warr-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      id: w.id ?? generateUUID(),
       createdAt: now, updatedAt: now,
       status: w.status ?? 'active',
       claims: w.claims ?? [],
@@ -2204,8 +2610,9 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
     } as Warranty;
     fresh.status = computeWarrantyStatus(fresh);
     persistWarranties([fresh, ...warranties]);
+    if (canSync && userId) void supabaseWrite('warranties', 'insert', warrantyToRow(fresh));
     return fresh;
-  }, [warranties, persistWarranties, computeWarrantyStatus]);
+  }, [warranties, persistWarranties, computeWarrantyStatus, canSync, userId, warrantyToRow]);
 
   const updateWarranty = useCallback((id: string, updates: Partial<Warranty>) => {
     const now = new Date().toISOString();
@@ -2216,11 +2623,14 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
       return merged;
     });
     persistWarranties(next);
-  }, [warranties, persistWarranties, computeWarrantyStatus]);
+    const after = next.find(w => w.id === id);
+    if (canSync && userId && after) void supabaseWrite('warranties', 'update', warrantyToRow(after));
+  }, [warranties, persistWarranties, computeWarrantyStatus, canSync, userId, warrantyToRow]);
 
   const deleteWarranty = useCallback((id: string) => {
     persistWarranties(warranties.filter(w => w.id !== id));
-  }, [warranties, persistWarranties]);
+    if (canSync) void supabaseWrite('warranties', 'delete', { id });
+  }, [warranties, persistWarranties, canSync]);
 
   const getWarrantiesForProject = useCallback((projectId: string) =>
     warranties.filter(w => w.projectId === projectId).sort((a, b) => new Date(a.endDate).getTime() - new Date(b.endDate).getTime()),
@@ -2231,7 +2641,10 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
     const newClaim: WarrantyClaim = { id, ...claim };
     const next = warranties.map(w => w.id === warrantyId ? { ...w, claims: [newClaim, ...(w.claims ?? [])], updatedAt: new Date().toISOString() } : w);
     persistWarranties(next);
-  }, [warranties, persistWarranties]);
+    // Mirror the claim to Supabase so the warranty's claims jsonb stays in sync.
+    const after = next.find(w => w.id === warrantyId);
+    if (canSync && userId && after) void supabaseWrite('warranties', 'update', warrantyToRow(after));
+  }, [warranties, persistWarranties, canSync, userId, warrantyToRow]);
 
   // Portal messages — client ↔ GC Q&A thread, local-only storage.
   const [portalMessages, setPortalMessages] = useState<PortalMessage[]>([]);

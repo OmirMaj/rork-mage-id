@@ -32,10 +32,14 @@ const ICON_MAP: Record<string, React.ComponentType<{ size: number; color: string
 };
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  draft: { label: 'Draft', color: Colors.warning, bg: Colors.warningLight },
-  estimated: { label: 'Estimated', color: Colors.success, bg: Colors.successLight },
-  in_progress: { label: 'In Progress', color: Colors.info, bg: Colors.infoLight },
-  completed: { label: 'Completed', color: Colors.textSecondary, bg: Colors.fillTertiary },
+  draft:       { label: 'Draft',       color: Colors.warning,        bg: Colors.warningLight },
+  estimated:   { label: 'Estimated',   color: Colors.success,        bg: Colors.successLight },
+  in_progress: { label: 'In Progress', color: Colors.info,           bg: Colors.infoLight },
+  // 'completed' = punch / closeout phase — work delivered, paperwork in
+  // progress. Brand-orange reads as "done, finalize me" vs. the dead grey
+  // it had before. 'closed' is the truly-archived state and stays muted.
+  completed:   { label: 'Completed',   color: Colors.primary,        bg: Colors.primary + '14' },
+  closed:      { label: 'Closed',      color: Colors.textSecondary,  bg: Colors.fillTertiary },
 };
 
 const TYPE_ICON_MAP: Record<ProjectType, string> = {
@@ -165,7 +169,12 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: Tokens.radius.sm,
-    backgroundColor: Colors.fillTertiary,
+    // Tinted-primary background instead of flat grey. Same treatment
+    // as the phone ProjectCard so the type icon reads as a confident
+    // brand mark, not a "deactivated" UI element. The icon itself is
+    // already Colors.primary; pairing it with primary+12 alpha ties
+    // the two together visually.
+    backgroundColor: Colors.primary + '14',
     alignItems: 'center',
     justifyContent: 'center',
   },

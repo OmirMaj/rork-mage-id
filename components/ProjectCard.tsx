@@ -15,10 +15,15 @@ const ICON_MAP: Record<string, React.ComponentType<{ size: number; color: string
 };
 
 const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
-  draft: { label: 'Draft', color: Colors.warning },
-  estimated: { label: 'Estimated', color: Colors.success },
+  draft:       { label: 'Draft',       color: Colors.warning },
+  estimated:   { label: 'Estimated',   color: Colors.success },
   in_progress: { label: 'In Progress', color: Colors.info },
-  completed: { label: 'Completed', color: Colors.textSecondary },
+  // 'completed' = punch / closeout phase. Brand-orange reads as
+  // "delivered, finalize me." Pre-fix this was textSecondary (grey)
+  // which made finished projects look dead in the list. 'closed' is
+  // the truly archived state — keep that muted.
+  completed:   { label: 'Completed',   color: Colors.primary },
+  closed:      { label: 'Closed',      color: Colors.textSecondary },
 };
 
 const TYPE_ICON_MAP: Record<ProjectType, string> = {

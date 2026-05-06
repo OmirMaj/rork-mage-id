@@ -39,6 +39,7 @@ import VoiceCaptureModal from '@/components/VoiceCaptureModal';
 import { parseBidFromTranscript } from '@/utils/voiceFormParsers';
 import { levelBids, type LevelingResult } from '@/utils/bidLevelingEngine';
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
+import { showAILimitAlert } from '@/utils/aiLimitAlert';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -136,8 +137,7 @@ export default function BuyoutPackageScreen() {
     // free, and it's the most "wow" feature for converting prospects.
     const limit = await checkAILimit(subscriptionTier, 'smart', 'bidLeveling');
     if (!limit.allowed) {
-      const title = limit.reason === 'pro_only' ? 'Pro Feature' : 'AI Limit Reached';
-      Alert.alert(title, limit.message ?? 'Rate limit reached.');
+      showAILimitAlert({ limit, router });
       return;
     }
     setLeveling(true);

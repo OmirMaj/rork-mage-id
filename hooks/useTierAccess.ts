@@ -8,7 +8,6 @@ import type { SubscriptionTier } from '@/types';
  */
 export type FeatureKey =
   // Pro+ features
-  | 'unlimited_projects'
   | 'cash_flow_forecaster'
   | 'schedule_gantt_pdf'
   | 'ai_code_check'
@@ -20,8 +19,6 @@ export type FeatureKey =
   | 'voice_to_report'
   | 'pdf_export'
   | 'photo_documentation'
-  | 'budget_health_evm'
-  | 'price_alerts'
   | 'change_orders_invoicing'
   | 'aia_pay_app'
   | 'ai_estimate_wizard'
@@ -32,8 +29,6 @@ export type FeatureKey =
   | 'plan_markup'
   // Business-only features
   | 'unlimited_bid_responses'
-  | 'time_tracking'
-  | 'quickbooks_sync'
   | 'plan_viewer'
   | 'subcontractor_management'
   | 'punch_list_closeout'
@@ -44,10 +39,25 @@ export type FeatureKey =
   | 'post_homeowner_request'
   | 'post_community_bid';
 
+// Removed in May 2026 audit (no callsites, no honest claim):
+//   - 'unlimited_projects'   — no project-count limiter exists; row pulled
+//                              from paywall since "unlimited" is the truth
+//                              for every tier including free.
+//   - 'budget_health_evm'    — redundant with 'full_budget_dashboard'.
+//   - 'price_alerts'         — paywall claim was unenforced; the price-alert
+//                              CRUD in ProjectContext is open. Either restore
+//                              with a callsite or the row is honest as
+//                              "available in all tiers."
+//   - 'time_tracking'        — feature ships as MOCK_TIME_ENTRIES with no
+//                              persistence. Paywall claim removed in audit
+//                              cleanup #5; restore the key when real
+//                              persistence is built.
+//   - 'quickbooks_sync'      — no real OAuth flow. Removed from paywall as
+//                              part of audit cleanup #5.
+
 /** The minimum tier required to unlock a feature. */
 const REQUIRED_TIER: Record<FeatureKey, 'free' | 'pro' | 'business'> = {
   // Pro+
-  unlimited_projects: 'pro',
   cash_flow_forecaster: 'pro',
   schedule_gantt_pdf: 'pro',
   ai_code_check: 'pro',
@@ -59,8 +69,6 @@ const REQUIRED_TIER: Record<FeatureKey, 'free' | 'pro' | 'business'> = {
   voice_to_report: 'pro',
   pdf_export: 'pro',
   photo_documentation: 'pro',
-  budget_health_evm: 'pro',
-  price_alerts: 'pro',
   change_orders_invoicing: 'pro',
   aia_pay_app: 'pro',
   ai_estimate_wizard: 'pro',
@@ -71,8 +79,6 @@ const REQUIRED_TIER: Record<FeatureKey, 'free' | 'pro' | 'business'> = {
   plan_markup: 'pro',
   // Business-only
   unlimited_bid_responses: 'business',
-  time_tracking: 'business',
-  quickbooks_sync: 'business',
   plan_viewer: 'business',
   subcontractor_management: 'business',
   punch_list_closeout: 'business',
@@ -84,21 +90,23 @@ const REQUIRED_TIER: Record<FeatureKey, 'free' | 'pro' | 'business'> = {
   post_community_bid: 'free',
 };
 
-/** Per-tier monthly quotas for features that have usage caps. */
+/** Per-tier monthly quotas for features that have usage caps. Enterprise
+ *  values match Business unless explicitly higher — added so callsites
+ *  that iterate FEATURE_LIMITS by tier see all four tiers. */
 export const FEATURE_LIMITS = {
-  post_homeowner_request: { free: 2, pro: Infinity, business: Infinity },
-  post_community_bid: { free: 2, pro: 8, business: 25 },
-  ai_code_check_daily: { free: 3, pro: 20, business: Infinity },
+  post_homeowner_request: { free: 2, pro: Infinity, business: Infinity, enterprise: Infinity },
+  post_community_bid:     { free: 2, pro: 8,        business: 25,       enterprise: 50 },
+  ai_code_check_daily:    { free: 3, pro: 15,       business: 50,       enterprise: Infinity },
 } as const;
 
 function tierMeetsRequirement(
   currentTier: SubscriptionTier,
-  requiredTier: 'free' | 'pro' | 'business',
+  requiredTier: 'free' | 'pro' | 'business' | 'enterprise',
 ): boolean {
-  if (requiredTier === 'free') return true;
-  if (requiredTier === 'pro') return currentTier === 'pro' || currentTier === 'business';
-  if (requiredTier === 'business') return currentTier === 'business';
-  return false;
+  // Numeric rank — higher current tier always satisfies a lower requirement.
+  // Enterprise (3) ≥ Business (2) ≥ Pro (1) ≥ Free (0).
+  const rank: Record<SubscriptionTier, number> = { free: 0, pro: 1, business: 2, enterprise: 3 };
+  return rank[currentTier] >= rank[requiredTier];
 }
 
 /**
@@ -121,13 +129,19 @@ export function useTierAccess() {
   );
 
   const requiredTierFor = useCallback(
-    (feature: FeatureKey): 'free' | 'pro' | 'business' => REQUIRED_TIER[feature],
+    (feature: FeatureKey): 'free' | 'pro' | 'business' | 'enterprise' => REQUIRED_TIER[feature],
     [],
   );
 
-  const isProOrAbove = useMemo(() => tier === 'pro' || tier === 'business', [tier]);
-  const isBusiness = useMemo(() => tier === 'business', [tier]);
+  // Tier-bucket helpers. Each "OrAbove" includes higher tiers — Enterprise
+  // satisfies any Business/Pro check.
+  const isProOrAbove = useMemo(() => tier === 'pro' || tier === 'business' || tier === 'enterprise', [tier]);
+  const isBusinessOrAbove = useMemo(() => tier === 'business' || tier === 'enterprise', [tier]);
+  const isEnterprise = useMemo(() => tier === 'enterprise', [tier]);
   const isFree = useMemo(() => tier === 'free', [tier]);
+  // Backward-compat alias — pre-existing call sites use isBusiness to mean
+  // "≥ business," which now includes enterprise.
+  const isBusiness = isBusinessOrAbove;
 
   return useMemo(
     () => ({
@@ -135,10 +149,12 @@ export function useTierAccess() {
       isFree,
       isProOrAbove,
       isBusiness,
+      isBusinessOrAbove,
+      isEnterprise,
       canAccess,
       requiredTierFor,
     }),
-    [tier, isFree, isProOrAbove, isBusiness, canAccess, requiredTierFor],
+    [tier, isFree, isProOrAbove, isBusiness, isBusinessOrAbove, isEnterprise, canAccess, requiredTierFor],
   );
 }
 

@@ -252,6 +252,23 @@ export default function MarketplaceScreen() {
             <View style={[styles.header, { paddingTop: insets.top + 4 }]}>
               <Text style={styles.largeTitle}>Marketplace</Text>
               <Text style={styles.subtitle}>Buy materials directly from suppliers</Text>
+              {/* Preview banner — added during May 2026 launch audit. The
+                  supplier list and listings are MOCK_SUPPLIERS / MOCK_LISTINGS
+                  for now; "Order" buttons don't actually transact. We're
+                  validating the UX with real suppliers before opening the
+                  payment plumbing. */}
+              <View style={{
+                marginTop: 12, padding: 12,
+                backgroundColor: Colors.warning + '15', borderRadius: 12,
+                borderWidth: 1, borderColor: Colors.warning + '40',
+              }}>
+                <Text style={{ fontSize: 12, fontWeight: '800' as const, color: Colors.warning, letterSpacing: 0.5 }}>
+                  PREVIEW
+                </Text>
+                <Text style={{ fontSize: 13, color: Colors.text, marginTop: 4, lineHeight: 18 }}>
+                  Marketplace is in preview. Suppliers and listings shown are reference data — orders here won&apos;t actually ship. We&apos;re onboarding real suppliers; tap &quot;Contact&quot; to reach out directly.
+                </Text>
+              </View>
 
               <View style={styles.searchBar}>
                 <Search size={16} color={Colors.textMuted} />

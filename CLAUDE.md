@@ -69,7 +69,7 @@ Contexts are built with `@nkzw/create-context-hook` (`createContextHook`), which
 ### State
 
 - **Local / UI**: `zustand` stores.
-- **Server / remote**: `@tanstack/react-query` + tRPC client (`lib/trpc.ts` → `backend/hono.ts`, tRPC routers in `backend/`).
+- **Server / remote**: `@tanstack/react-query` + Supabase client (`lib/supabase.ts`) + Supabase edge functions (`supabase/functions/*`). The app does NOT use tRPC — earlier docs claimed it did, but `lib/trpc.ts` and `backend/trpc/` do not exist.
 - **Cross-screen domain state**: the context providers listed above.
 - **Persistence**: `AsyncStorage`. Keys are namespaced — `buildwise_*` for core (legacy prefix, do not rename) and `tertiary_*` for the newer project sub-collections (`tertiary_change_orders`, `tertiary_invoices`, `tertiary_daily_reports`, `tertiary_punch_items`, `tertiary_photos`, `tertiary_rfis`, `tertiary_submittals`, `tertiary_warranties`, `tertiary_portal_messages`).
 
@@ -79,9 +79,12 @@ All Supabase writes go through `utils/offlineQueue.ts` (`supabaseWrite` helper).
 
 ### Subscription / paywall gating
 
-- `contexts/SubscriptionContext.tsx` wraps RevenueCat (`react-native-purchases`). Tiers: free, Pro, Business.
-- `hooks/useTierAccess.ts` is the single gate. Call it from features — do not branch on raw RevenueCat entitlements.
-- Purchase flow lives in `app/paywall.tsx`.
+- `contexts/SubscriptionContext.tsx` wraps RevenueCat (`react-native-purchases`). Tiers: free, Pro ($29/mo), Business ($79/mo), Enterprise ($150/mo). Tier rank `free=0, pro=1, business=2, enterprise=3` — higher always satisfies a lower requirement.
+- `hooks/useTierAccess.ts` is the single client-side gate. Call it from features — do not branch on raw RevenueCat entitlements.
+- Server-side gate: `supabase/functions/_shared/auth.ts` `requireTier(req, ['pro','business'], 'feature')`. Uses min-rank comparison so listing pro+business in `allowed` automatically also accepts enterprise.
+- Master-account override: `utils/owner.ts` `OWNER_EMAILS` (client) and `_shared/auth.ts` `MASTER_EMAILS` (server) — keep these IN SYNC. Asymmetry creates "I'm admin server-side but UI shows me free" debugging hell.
+- AI usage caps: per-tier daily caps (text) live in `utils/aiRateLimiter.ts`; per-tier monthly caps (vision) live in `_shared/auth.ts` `MONTHLY_CAPS`. Numbers must stay aligned with `app/paywall.tsx` `AI_LIMITS` table.
+- Purchase flow lives in `app/paywall.tsx`. RevenueCat product identifiers: `com.mageid.<tier>.<period>`. RC offering package identifiers: `<tier>_monthly` / `<tier>_annual`. Entitlement names match tier names: `pro`, `business`, `enterprise`.
 
 ### Types
 
@@ -93,9 +96,9 @@ All Supabase writes go through `utils/offlineQueue.ts` (`supabaseWrite` helper).
 
 ### Backend
 
-- `backend/hono.ts` — Hono app, mounts tRPC at `/trpc` via `@hono/trpc-server`.
-- `backend/trpc/` — routers. Client is `lib/trpc.ts` (uses `superjson` transformer).
-- Supabase client in `lib/supabase.ts` (anon key, RLS-protected).
+- **Supabase edge functions** (`supabase/functions/*`) are the primary backend — Deno runtime, deployed via `supabase functions deploy <name>`. AI relays, vision processing, Stripe Connect, Stripe webhook, magic-link, RFP-award, and notification fan-out all live here.
+- **`backend/hono.ts`** is a tiny Hono app with one route (`/email/send`, a Resend proxy). It is NOT mounted as the app's primary backend; it appears unused at runtime. (Earlier docs claimed it mounted tRPC — that was incorrect; tRPC has never been wired in this repo.)
+- **Supabase client** in `lib/supabase.ts` (anon key, RLS-protected). Direct table access from the app uses RLS; expensive / paid AI calls go through edge functions that use `requireTier`.
 
 ## Conventions
 

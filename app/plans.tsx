@@ -29,7 +29,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import {
   ChevronLeft, Plus, MapPin, Trash2, Image as ImageIcon,
-  ChevronRight, AlertTriangle, FileImage, X, Check, FileText,
+  ChevronRight, AlertTriangle, FileImage, X, Check, FileText, Sparkles,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
@@ -258,6 +258,22 @@ export default function PlansScreen() {
             );
           })
         )}
+
+        {sheets.length > 0 && (
+          <TouchableOpacity
+            onPress={() => router.push({ pathname: '/compare-drawings' as never, params: { projectId: projectId ?? '' } as never })}
+            activeOpacity={0.85}
+            style={styles.compareBtn}
+            testID="compare-drawings-cta"
+          >
+            <Sparkles size={16} color={Colors.primary} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.compareBtnTitle}>AI compare to revision</Text>
+              <Text style={styles.compareBtnSub}>Pick a sheet + upload its new rev — AI flags every change</Text>
+            </View>
+            <ChevronRight size={16} color={Colors.primary} />
+          </TouchableOpacity>
+        )}
       </ScrollView>
 
       {/* New-sheet naming modal */}
@@ -453,5 +469,15 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.md, paddingHorizontal: 12, paddingVertical: 10,
     color: Colors.text, fontSize: Type.bodyCompact.fontSize, borderColor: Colors.borderLight, borderWidth: 1,
   },
+
+  compareBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    marginTop: 16, padding: 14,
+    borderRadius: Tokens.radius.card,
+    backgroundColor: Colors.primary + '0D',
+    borderWidth: 1, borderColor: Colors.primary + '30',
+  },
+  compareBtnTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
+  compareBtnSub: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2 },
 });
 

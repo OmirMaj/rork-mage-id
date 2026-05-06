@@ -1,10 +1,17 @@
 // analyze-photos
 //
-// Generic Gemini Vision pipeline for project photos. Two tasks today:
-//   - 'punch'  → AI walks the photos and returns a structured punch
-//                list (description, location, trade, priority).
-//   - 'dfr'    → AI summarizes the photos as the workPerformed +
-//                trades-on-site fields of a daily field report.
+// Generic Gemini Vision pipeline for project photos. Tasks:
+//   - 'punch'   → AI walks the photos and returns a structured punch
+//                 list (description, location, trade, priority).
+//   - 'dfr'     → AI summarizes the photos as the workPerformed +
+//                 trades-on-site fields of a daily field report.
+//   - 'rfi'     → AI flags photos that warrant an RFI (unclear scope,
+//                 conflict between drawings and field, missing info).
+//   - 'triage'  → AI classifies each photo as punch | rfi | dfr |
+//                 progress | noise so a worker can dump a batch and the
+//                 UI routes each photo to the right destination. The
+//                 game-changer: one snap-and-go flow instead of three
+//                 separate analyzers.
 //
 // Modelled on the existing analyze-drawings function — same auth /
 // CORS / error shape, different prompt + schema per task.
@@ -14,7 +21,7 @@
 //
 // Request body:
 // {
-//   task: 'punch' | 'dfr';
+//   task: 'punch' | 'dfr' | 'rfi' | 'triage';
 //   photoUrls: string[];        // 1..N publicly fetchable image URLs
 //   projectName?: string;
 //   projectType?: string;
@@ -42,7 +49,7 @@ function jsonResponse(body: unknown, status = 200): Response {
 }
 
 interface AnalyzePhotosRequest {
-  task: 'punch' | 'dfr';
+  task: 'punch' | 'dfr' | 'rfi' | 'triage';
   /** EITHER photoUrls (server fetches) OR photos[].base64 inline.
    *  Client-side camera / library picks are file:// URIs that the
    *  server can't fetch — those callers send inline base64 instead. */
@@ -81,6 +88,42 @@ Be specific — "Electrical rough-in completed in master bath; visible BX cable 
 
 Return JSON only — no preamble.`;
 
+const RFI_PROMPT = `You are a residential GC reviewing photos from the field. Identify any photos that warrant an RFI (Request For Information) to the architect, designer, or owner — situations where the field condition does not match the drawings, where information is missing, where there's a conflict between trades, or where a decision needs to be made before work can continue.
+
+Return a JSON array of RFI candidates, each with:
+  - subject: short headline (≤80 chars). Sentence case. e.g. "Plumbing rough-in conflicts with HVAC in ceiling plenum"
+  - question: the specific question for the design team. 1-2 sentences. Concrete and answerable.
+  - location: where the issue is ("Master Bath", "Ceiling at Hallway 2"). Title case. Empty if unclear.
+  - trade: closest match from "Electrical", "Plumbing", "HVAC", "Structural", "Architectural", "Drywall", "Painting", "Tile", "Flooring", "Trim/Carpentry", "Cabinets", "Roofing", "Concrete", "Framing", "Insulation", "General"
+  - priority: "high" if work is currently blocked; "medium" if it will block within a week; "low" otherwise
+  - photoIndex: which photo (0-indexed) shows this. If multiple, pick the clearest.
+  - confidence: 0-100. Only include items at confidence ≥ 70 (RFIs that go out wrongly waste design fees).
+
+Common RFI triggers: drawings show one thing, field shows another; spec is silent on a detail that's been built; trade conflict (e.g. duct + beam, plumbing stack + framing); existing condition discovery during demo (rotted framing, unexpected wiring); finish selection contradicts plan.
+
+Return JSON only — no preamble. Empty array if nothing in the photos warrants an RFI.`;
+
+const TRIAGE_PROMPT = `You are a residential GC's AI assistant. The user just dumped a batch of job site photos and wants you to route each one to the right destination — punch list, RFI, daily report observation, progress photo, or noise (skip).
+
+For EACH photo (in input order), return a JSON object with:
+  - photoIndex: 0-based index of the photo
+  - classification: one of "punch", "rfi", "dfr", "progress", "noise"
+      • punch    — a defect / unfinished item visible (paint touch-up, exposed nail, missing caulk, damaged surface)
+      • rfi      — a conflict, missing info, or design question that needs an answer (drawings vs. field discrepancy, trade conflict, surprise existing condition)
+      • dfr      — a record of work performed today (a trade actively working, a phase clearly progressing — feeds the daily report's workPerformed field)
+      • progress — a "look how nice this turned out" milestone shot worth keeping but no action needed
+      • noise    — blurry, irrelevant, accidental snap; the user will likely want to discard
+  - confidence: 0-100. Below 60, lean "noise" or the safest classification.
+  - title: short headline (≤80 chars) — what to use as the description / subject when this becomes a record
+  - location: ("Master Bath", "Front porch") if visible, empty otherwise
+  - trade: closest match from the standard trade list ("Electrical", "Plumbing", "HVAC", "Drywall", "Painting", "Tile", "Flooring", "Trim/Carpentry", "Doors/Hardware", "Cabinets", "Roofing", "Concrete", "Framing", "Insulation", "Cleanup", "General"). Empty for "noise" / "progress".
+  - priority: for punch / rfi only — "low" / "medium" / "high". Otherwise empty.
+  - rationale: 1 short sentence explaining the classification — helps the GC accept or override.
+
+Return a JSON array (one entry per photo, same length as the input batch). Order matters — the UI lines up your output with the photos by index.
+
+Return JSON only — no preamble.`;
+
 interface PunchItem {
   description: string;
   location: string;
@@ -95,6 +138,29 @@ interface DfrSummary {
   tradesOnSite: string[];
   materialsObserved: string[];
   notesForGC: string;
+}
+
+interface RfiCandidate {
+  subject: string;
+  question: string;
+  location: string;
+  trade: string;
+  priority: 'low' | 'medium' | 'high';
+  photoIndex: number;
+  confidence: number;
+}
+
+type TriageClass = 'punch' | 'rfi' | 'dfr' | 'progress' | 'noise';
+
+interface TriageEntry {
+  photoIndex: number;
+  classification: TriageClass;
+  confidence: number;
+  title: string;
+  location: string;
+  trade: string;
+  priority: 'low' | 'medium' | 'high' | '';
+  rationale: string;
 }
 
 async function fetchAsBase64(url: string): Promise<{ data: string; mimeType: string }> {
@@ -127,8 +193,8 @@ serve(async (req) => {
   let body: AnalyzePhotosRequest;
   try { body = await req.json(); } catch { return jsonResponse({ success: false, error: 'Invalid JSON body' }, 400); }
 
-  if (!body.task || !['punch', 'dfr'].includes(body.task)) {
-    return jsonResponse({ success: false, error: 'task must be "punch" or "dfr"' }, 400);
+  if (!body.task || !['punch', 'dfr', 'rfi', 'triage'].includes(body.task)) {
+    return jsonResponse({ success: false, error: 'task must be "punch", "dfr", "rfi", or "triage"' }, 400);
   }
 
   // Monthly cap for this user. Increment first; if we exceeded, deny
@@ -214,7 +280,11 @@ serve(async (req) => {
     body.notes ? `GC notes: ${body.notes}` : null,
   ].filter(Boolean).join('\n');
 
-  const basePrompt = body.task === 'punch' ? PUNCH_PROMPT : DFR_PROMPT;
+  const basePrompt =
+    body.task === 'punch' ? PUNCH_PROMPT :
+    body.task === 'dfr'   ? DFR_PROMPT :
+    body.task === 'rfi'   ? RFI_PROMPT :
+    TRIAGE_PROMPT;
   const prompt = ctxLine ? `${ctxLine}\n\n${basePrompt}` : basePrompt;
 
   const parts: Record<string, unknown>[] = [{ text: prompt }];
@@ -267,6 +337,47 @@ serve(async (req) => {
       })
       .filter(i => i.description.length > 0 && i.confidence >= 60);
     return jsonResponse({ success: true, data: { items } });
+  }
+
+  if (body.task === 'rfi') {
+    if (!Array.isArray(parsed)) return jsonResponse({ success: false, error: 'Expected array of RFI candidates' }, 500);
+    const items: RfiCandidate[] = (parsed as unknown[])
+      .map((x): RfiCandidate => {
+        const o = x as Record<string, unknown>;
+        return {
+          subject: String(o.subject ?? '').slice(0, 200),
+          question: String(o.question ?? '').slice(0, 800),
+          location: String(o.location ?? ''),
+          trade: String(o.trade ?? 'General'),
+          priority: (['low', 'medium', 'high'].includes(String(o.priority)) ? o.priority : 'medium') as RfiCandidate['priority'],
+          photoIndex: Number.isFinite(Number(o.photoIndex)) ? Number(o.photoIndex) : 0,
+          confidence: Number.isFinite(Number(o.confidence)) ? Math.max(0, Math.min(100, Number(o.confidence))) : 75,
+        };
+      })
+      .filter(i => i.subject.length > 0 && i.question.length > 0 && i.confidence >= 70);
+    return jsonResponse({ success: true, data: { items } });
+  }
+
+  if (body.task === 'triage') {
+    if (!Array.isArray(parsed)) return jsonResponse({ success: false, error: 'Expected array of triage entries' }, 500);
+    const VALID_CLASSES: TriageClass[] = ['punch', 'rfi', 'dfr', 'progress', 'noise'];
+    const entries: TriageEntry[] = (parsed as unknown[]).map((x, i): TriageEntry => {
+      const o = x as Record<string, unknown>;
+      const cls = String(o.classification ?? 'noise');
+      const safeCls: TriageClass = (VALID_CLASSES as string[]).includes(cls) ? (cls as TriageClass) : 'noise';
+      const pri = String(o.priority ?? '');
+      return {
+        photoIndex: Number.isFinite(Number(o.photoIndex)) ? Number(o.photoIndex) : i,
+        classification: safeCls,
+        confidence: Number.isFinite(Number(o.confidence)) ? Math.max(0, Math.min(100, Number(o.confidence))) : 60,
+        title: String(o.title ?? '').slice(0, 200),
+        location: String(o.location ?? ''),
+        trade: String(o.trade ?? ''),
+        priority: (['low', 'medium', 'high'].includes(pri) ? pri : '') as TriageEntry['priority'],
+        rationale: String(o.rationale ?? '').slice(0, 240),
+      };
+    });
+    return jsonResponse({ success: true, data: { entries } });
   }
 
   // dfr task

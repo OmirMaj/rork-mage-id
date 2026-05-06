@@ -5,14 +5,12 @@ import {
 } from 'react-native';
 import ConstructionLoader from '@/components/ConstructionLoader';
 import { SkeletonCard } from '@/components/Skeleton';
-import TapeRollNumber from '@/components/animations/TapeRollNumber';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
-  Plus, TrendingUp, FolderOpen, Layers, X, ChevronRight, Calculator, CalendarDays,
-  BarChart3, TrendingDown, Package, DollarSign, Percent, ShoppingCart, ArrowDownRight,
-  Receipt, Search, Sparkles, ChevronDown, ChevronUp, HardHat, Bell,
+  Plus, FolderOpen, X, ChevronRight, Calculator, CalendarDays,
+  Search, Sparkles, ChevronDown, ChevronUp, HardHat, Bell,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { generateUUID } from '@/utils/generateId';
@@ -44,14 +42,12 @@ import { CreateMenu } from '@/components/CreateMenu';
 import OfflineSyncPill from '@/components/OfflineSyncPill';
 import QuickFieldUpdate from '@/components/QuickFieldUpdate';
 import { PROJECT_TYPES, type Project, type ProjectType, type EntityRef } from '@/types';
-import { formatMoney, formatMoneyShort } from '@/utils/formatters';
 import WarrantyWalkBanner from '@/components/WarrantyWalkBanner';
 import { getUpcomingWarrantyWalks } from '@/utils/warrantyWalks';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import PageHeader from '@/components/PageHeader';
-import PipelineHeroChart from '@/components/PipelineHeroChart';
 import ProjectRow from '@/components/ProjectRow';
 
 export default function HomeScreen() {
@@ -169,89 +165,91 @@ export default function HomeScreen() {
   const [showNextStepModal, setShowNextStepModal] = useState(false);
   const [actionSheetRef, setActionSheetRef] = useState<EntityRef | null>(null);
 
-  const totalOutstanding = getTotalOutstandingBalance();
+  // The Outstanding total used to anchor a stat tile up top — we kept the
+  // computation reachable to other places that may inspect state via the
+  // hook, but stripped the visual tile (it duplicated Summary tab).
+  void getTotalOutstandingBalance;
 
   // Surface upcoming 11-month warranty walks. Hidden when none — keeps
   // the home tab quiet during normal operation. Drives an inline banner
   // below the nav bar.
   const warrantyWalkAlerts = useMemo(() => getUpcomingWarrantyWalks(projects), [projects]);
 
-  const [showTotalDetail, setShowTotalDetail] = useState(false);
-  const [showSavingsDetail, setShowSavingsDetail] = useState(false);
   const [showWeeklySummary, setShowWeeklySummary] = useState(false);
   const [showAIBriefing, setShowAIBriefing] = useState(false);
 
-  const totalEstimated = projects.reduce((sum, p) => {
-    const linked = p.linkedEstimate;
-    if (linked && linked.items.length > 0) return sum + linked.grandTotal;
-    return sum + (p.estimate?.grandTotal ?? 0);
-  }, 0);
-  const totalSavings = projects.reduce((sum, p) => {
-    let savings = p.estimate?.bulkSavingsTotal ?? 0;
-    if (p.linkedEstimate) {
-      const linked = p.linkedEstimate;
-      linked.items.forEach(item => {
-        if (item.usesBulk) {
-          savings += (item.bulkPrice > 0 ? (item.unitPrice - item.bulkPrice) * item.quantity : 0);
-        }
-      });
-    }
-    return sum + savings;
-  }, 0);
-
-  const projectBreakdowns = useMemo(() => {
-    return projects.map(p => {
-      const linked = p.linkedEstimate;
-      const legacy = p.estimate;
-      let total = 0;
-      let materialCost = 0;
-      let laborCost = 0;
-      let markupCost = 0;
-      let bulkSavings = 0;
-      let itemCount = 0;
-
-      if (linked && linked.items.length > 0) {
-        total = linked.grandTotal;
-        materialCost = linked.baseTotal;
-        markupCost = linked.markupTotal;
-        itemCount = linked.items.length;
-        linked.items.forEach(item => {
-          if (item.usesBulk) {
-            bulkSavings += (item.unitPrice - item.bulkPrice) * item.quantity;
-          }
-        });
-      } else if (legacy) {
-        total = legacy.grandTotal;
-        materialCost = legacy.materialTotal;
-        laborCost = legacy.laborTotal;
-        bulkSavings = legacy.bulkSavingsTotal;
-        itemCount = legacy.materials.length;
-      }
-
-      return {
-        id: p.id,
-        name: p.name,
-        type: p.type,
-        total,
-        materialCost,
-        laborCost,
-        markupCost,
-        bulkSavings,
-        itemCount,
-        hasLinked: !!(linked && linked.items.length > 0),
-        hasLegacy: !!legacy,
-      };
-    }).filter(b => b.total > 0);
+  // ── Status filter chips ────────────────────────────────────────
+  // Replace the old money-themed stat tiles (Total Value / Outstanding /
+  // Bulk Savings) with project-state filter chips: "All / Active /
+  // Pre-construction / Closeout / Closed". Active is selected by default
+  // when the user has any active projects so the list isn't cluttered
+  // with closed jobs from years ago. Tapping a chip filters the list
+  // below.
+  type StatusFilter = 'all' | 'active' | 'precon' | 'closeout' | 'closed';
+  const statusBuckets = useMemo(() => {
+    const buckets: Record<StatusFilter, Project[]> = {
+      all: projects,
+      active: projects.filter(p => p.status === 'in_progress'),
+      precon: projects.filter(p => p.status === 'draft' || p.status === 'estimated'),
+      closeout: projects.filter(p => p.status === 'completed'),
+      closed: projects.filter(p => p.status === 'closed'),
+    };
+    return buckets;
   }, [projects]);
 
-  const portfolioStats = useMemo(() => {
-    const totalMaterials = projectBreakdowns.reduce((s, b) => s + b.materialCost, 0);
-    const totalLabor = projectBreakdowns.reduce((s, b) => s + b.laborCost, 0);
-    const totalMarkup = projectBreakdowns.reduce((s, b) => s + b.markupCost, 0);
-    const totalBulk = projectBreakdowns.reduce((s, b) => s + b.bulkSavings, 0);
-    const avgPerProject = projectBreakdowns.length > 0 ? totalEstimated / projectBreakdowns.length : 0;
-    return { totalMaterials, totalLabor, totalMarkup, totalBulk, avgPerProject };
-  }, [projectBreakdowns, totalEstimated]);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  // First-render correction: if the user has active projects, default to
+  // the Active bucket. If they don't (new account, all in pre-con), stay
+  // on All. Only fires once — afterwards the user's last choice sticks.
+  const [didAutoFilter, setDidAutoFilter] = useState(false);
+  useEffect(() => {
+    if (didAutoFilter) return;
+    if (projects.length === 0) return;
+    if (statusBuckets.active.length > 0) setStatusFilter('active');
+    setDidAutoFilter(true);
+  }, [projects.length, statusBuckets.active.length, didAutoFilter]);
+
+  const filteredProjects = useMemo(
+    () => statusBuckets[statusFilter],
+    [statusBuckets, statusFilter],
+  );
+
+  // ── Today on site ──────────────────────────────────────────────
+  // Active projects whose schedule has at least one task running today.
+  // "Running today" = the task started by today (startDay <= todayDay)
+  // and hasn't finished (startDay + durationDays > todayDay). Uses the
+  // project's schedule.startDate as day-0; falls back to project.createdAt
+  // if startDate is missing. Hides the strip entirely when nothing is on.
+  const todayOnSite = useMemo(() => {
+    const out: { project: Project; activeTaskTitles: string[] }[] = [];
+    const now = Date.now();
+    for (const p of projects) {
+      if (p.status !== 'in_progress') continue;
+      const sched = p.schedule;
+      if (!sched || !sched.tasks || sched.tasks.length === 0) continue;
+      const baseIso = sched.startDate || p.createdAt;
+      const baseMs = Date.parse(baseIso);
+      if (!Number.isFinite(baseMs)) continue;
+      const dayMs = 24 * 60 * 60 * 1000;
+      const todayDay = Math.floor((now - baseMs) / dayMs);
+      const liveTasks = sched.tasks.filter(t => {
+        if (t.status === 'done') return false;
+        const start = t.startDay ?? 0;
+        const dur = t.durationDays ?? 0;
+        return start <= todayDay && start + dur > todayDay;
+      });
+      if (liveTasks.length > 0) {
+        out.push({
+          project: p,
+          activeTaskTitles: liveTasks.slice(0, 3).map(t => t.title),
+        });
+      }
+    }
+    // Cap at 4 so the strip stays compact. Anyone running 5+ jobs at
+    // once is likely a small commercial GC who'll drill into Summary
+    // anyway for the full picture.
+    return out.slice(0, 4);
+  }, [projects]);
 
   const handleProjectPress = useCallback((project: Project) => {
     console.log('[Home] Opening project:', project.id);
@@ -325,19 +323,25 @@ export default function HomeScreen() {
   // project) instead of a stack of independent floating cards. Reads as a
   // SaaS data table — denser, more scannable on wide screens.
   const denseProjectList = useMemo(() => {
-    if (!useDenseRows || projects.length === 0) return null;
+    if (!useDenseRows || filteredProjects.length === 0) return null;
     return (
       <View style={styles.denseListWrap}>
         <View style={styles.denseListSectionHeader}>
-          <Text style={styles.denseListSectionTitle}>All projects</Text>
-          <Text style={styles.denseListSectionCount}>{projects.length}</Text>
+          <Text style={styles.denseListSectionTitle}>
+            {statusFilter === 'all' ? 'All projects'
+              : statusFilter === 'active' ? 'Active'
+              : statusFilter === 'precon' ? 'Pre-construction'
+              : statusFilter === 'closeout' ? 'Closeout'
+              : 'Closed'}
+          </Text>
+          <Text style={styles.denseListSectionCount}>{filteredProjects.length}</Text>
         </View>
         <View style={styles.denseListContainer}>
-          {projects.map((p, idx) => (
+          {filteredProjects.map((p, idx) => (
             <ProjectRow
               key={p.id}
               project={p}
-              showDivider={idx < projects.length - 1}
+              showDivider={idx < filteredProjects.length - 1}
               onPress={() => handleProjectPress(p)}
               onLongPress={() => {
                 if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -348,7 +352,7 @@ export default function HomeScreen() {
         </View>
       </View>
     );
-  }, [useDenseRows, projects, handleProjectPress]);
+  }, [useDenseRows, filteredProjects, statusFilter, handleProjectPress]);
 
   const keyExtractor = useCallback((item: Project) => item.id, []);
 
@@ -374,7 +378,7 @@ export default function HomeScreen() {
         // table inside ListFooterComponent (denseProjectList). FlatList still
         // owns the scroll surface + refresh control; we just bypass per-item
         // rendering so the rows can connect into a unified card.
-        data={useDenseRows ? [] : projects}
+        data={useDenseRows ? [] : filteredProjects}
         renderItem={renderProject}
         keyExtractor={keyExtractor}
         ListFooterComponent={denseProjectList}
@@ -441,10 +445,11 @@ export default function HomeScreen() {
                 </>
               }
             />
-            {/* Hero pipeline chart — anchors the home tab the way the
-                reference SaaS dashboard's MRR line chart anchors theirs.
-                Renders nothing if no projects have a value yet. */}
-            {projects.length > 0 && <PipelineHeroChart projects={projects} />}
+            {/* Hero chart was here (cumulative booked $). Removed in
+                the Your Projects clean-up: it duplicated the money-themed
+                surfaces that already live on the Summary tab and didn't
+                drive any decision a small GC actually makes. The new top
+                of this screen is filter chips + Today on site instead. */}
 
             {/* 11-month warranty walk reminders — only renders when
                 there are upcoming/overdue walks. Tap → opens project. */}
@@ -463,69 +468,76 @@ export default function HomeScreen() {
                 items in the right column. */}
             {projects.length > 0 && !isWideDesktop && <SmartInbox />}
 
+            {/* ── Status filter chips ─────────────────────────────
+                Replaces the old 4-tile stats grid (Projects / Outstanding
+                / Total Value / Bulk Savings). Each chip filters the
+                project list below — a Linear-style segmented control
+                with a count next to each label. The financial numbers
+                live on the Summary tab; this screen is for finding the
+                right project quickly. */}
             {projects.length > 0 && (
-              <View style={styles.statsSection}>
-                <View style={styles.statsGrid}>
-                  <View style={styles.statCard}>
-                    <View style={styles.statIconWrap}>
-                      <Layers size={15} color={Colors.textSecondary} strokeWidth={1.8} />
-                    </View>
-                    {/* Animated count: rolls up from 0 to current on mount,
-                        re-clicks when projects change. Tiny visual win that
-                        makes the stat feel earned. */}
-                    <TapeRollNumber
-                      value={projects.length}
-                      duration={500}
-                      style={styles.statNumber}
-                    />
-                    <Text style={styles.statLabel}>Projects</Text>
-                  </View>
-                  {totalOutstanding > 0 && (
-                    <View style={styles.statCard}>
-                      <View style={styles.statIconWrap}>
-                        <Receipt size={15} color={Colors.textSecondary} strokeWidth={1.8} />
+              <View style={styles.filterChipsWrap}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterChipsScroll}>
+                  {([
+                    { key: 'all',      label: 'All',             count: statusBuckets.all.length },
+                    { key: 'active',   label: 'Active',          count: statusBuckets.active.length },
+                    { key: 'precon',   label: 'Pre-construction',count: statusBuckets.precon.length },
+                    { key: 'closeout', label: 'Closeout',        count: statusBuckets.closeout.length },
+                    { key: 'closed',   label: 'Closed',          count: statusBuckets.closed.length },
+                  ] as { key: StatusFilter; label: string; count: number }[]).map(chip => {
+                    const isActive = statusFilter === chip.key;
+                    return (
+                      <TouchableOpacity
+                        key={chip.key}
+                        onPress={() => {
+                          if (Platform.OS !== 'web') void Haptics.selectionAsync();
+                          setStatusFilter(chip.key);
+                        }}
+                        activeOpacity={0.85}
+                        style={[styles.filterChip, isActive && styles.filterChipActive]}
+                        testID={`filter-chip-${chip.key}`}
+                      >
+                        <Text style={[styles.filterChipLabel, isActive && styles.filterChipLabelActive]}>
+                          {chip.label}
+                        </Text>
+                        <Text style={[styles.filterChipCount, isActive && styles.filterChipCountActive]}>
+                          {chip.count}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+            )}
+
+            {/* ── Today on site ──────────────────────────────────
+                Active projects with at least one task running today per
+                their schedule. The "what's actually happening on the
+                ground RIGHT NOW" line — the contractor's mental model.
+                Renders nothing when nothing's on (weekends, between
+                phases) so the screen stays quiet. */}
+            {todayOnSite.length > 0 && (
+              <View style={styles.todaySection}>
+                <Text style={styles.sectionHeader}>TODAY ON SITE</Text>
+                <View style={styles.todayCard}>
+                  {todayOnSite.map((entry, idx) => (
+                    <TouchableOpacity
+                      key={entry.project.id}
+                      onPress={() => handleProjectPress(entry.project)}
+                      activeOpacity={0.7}
+                      style={[styles.todayRow, idx < todayOnSite.length - 1 && styles.todayRowDivider]}
+                      testID={`today-on-site-${entry.project.id}`}
+                    >
+                      <View style={styles.todayDot} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.todayProjectName} numberOfLines={1}>{entry.project.name}</Text>
+                        <Text style={styles.todayTasks} numberOfLines={1}>
+                          {entry.activeTaskTitles.join(' · ')}
+                        </Text>
                       </View>
-                      <TapeRollNumber
-                        value={totalOutstanding}
-                        duration={650}
-                        formatter={formatMoneyShort}
-                        style={{ ...styles.statNumber, color: Colors.accent }}
-                      />
-                      <Text style={styles.statLabel}>Outstanding</Text>
-                    </View>
-                  )}
-                  <TouchableOpacity
-                    style={[styles.statCard, styles.statCardMiddle]}
-                    onPress={() => {
-                      if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      setShowTotalDetail(true);
-                    }}
-                    activeOpacity={0.7}
-                    testID="total-value-tap"
-                  >
-                    <View style={styles.statIconWrap}>
-                      <TrendingUp size={15} color={Colors.textSecondary} strokeWidth={1.8} />
-                    </View>
-                    <Text style={styles.statNumber}>{formatMoneyShort(totalEstimated)}</Text>
-                    <Text style={styles.statLabel}>Total Value</Text>
-                    <ArrowDownRight size={10} color={Colors.textMuted} style={{ position: 'absolute', top: 12, right: 12 }} />
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.statCard}
-                    onPress={() => {
-                      if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      setShowSavingsDetail(true);
-                    }}
-                    activeOpacity={0.7}
-                    testID="bulk-savings-tap"
-                  >
-                    <View style={styles.statIconWrap}>
-                      <TrendingDown size={15} color={Colors.textSecondary} strokeWidth={1.8} />
-                    </View>
-                    <Text style={[styles.statNumber, { color: Colors.success }]}>{formatMoneyShort(totalSavings)}</Text>
-                    <Text style={styles.statLabel}>Bulk Savings</Text>
-                    <ArrowDownRight size={10} color={Colors.textMuted} style={{ position: 'absolute', top: 12, right: 12 }} />
-                  </TouchableOpacity>
+                      <ChevronRight size={14} color={Colors.textMuted} />
+                    </TouchableOpacity>
+                  ))}
                 </View>
               </View>
             )}
@@ -673,235 +685,6 @@ export default function HomeScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
-      <Modal
-        visible={showTotalDetail}
-        animationType="slide"
-        presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : undefined}
-        onRequestClose={() => setShowTotalDetail(false)}
-      >
-        <View style={[detailStyles.modalContainer, { paddingTop: Platform.OS === 'ios' ? 12 : insets.top + 8 }]}>
-          <View style={detailStyles.modalHandle} />
-          <View style={detailStyles.modalHeader}>
-            <Text style={detailStyles.modalTitle}>Portfolio Value</Text>
-            <TouchableOpacity
-              style={detailStyles.modalCloseBtn}
-              onPress={() => setShowTotalDetail(false)}
-              activeOpacity={0.7}
-              testID="close-total-detail" accessibilityRole="button" accessibilityLabel="Close">
-              <X size={20} color={Colors.text} />
-            </TouchableOpacity>
-          </View>
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: insets.bottom + 30 }}>
-            <View style={detailStyles.heroSection}>
-              <View style={detailStyles.heroIconWrap}>
-                <BarChart3 size={28} color={Colors.primary} />
-              </View>
-              <Text style={detailStyles.heroAmount}>${totalEstimated.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</Text>
-              <Text style={detailStyles.heroSubtitle}>Total Portfolio Value</Text>
-              <View style={detailStyles.heroChips}>
-                <View style={detailStyles.heroChip}>
-                  <Text style={detailStyles.heroChipLabel}>{projectBreakdowns.length}</Text>
-                  <Text style={detailStyles.heroChipSub}>with estimates</Text>
-                </View>
-                <View style={[detailStyles.heroChip, { backgroundColor: Colors.infoLight }]}>
-                  <Text style={[detailStyles.heroChipLabel, { color: Colors.info }]}>
-                    ${portfolioStats.avgPerProject.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                  </Text>
-                  <Text style={[detailStyles.heroChipSub, { color: Colors.info }]}>avg / project</Text>
-                </View>
-              </View>
-            </View>
-
-            <Text style={detailStyles.sectionLabel}>Cost Composition</Text>
-            <View style={detailStyles.barChartWrap}>
-              {[
-                { label: 'Materials', value: portfolioStats.totalMaterials, color: Colors.successDark, icon: Package },
-                { label: 'Labor', value: portfolioStats.totalLabor, color: Colors.info, icon: DollarSign },
-                { label: 'Markup', value: portfolioStats.totalMarkup, color: Colors.warning, icon: Percent },
-              ].filter(r => r.value > 0).map(row => {
-                const pct = totalEstimated > 0 ? (row.value / totalEstimated) * 100 : 0;
-                return (
-                  <View key={row.label} style={detailStyles.barRow}>
-                    <View style={detailStyles.barLabelRow}>
-                      <row.icon size={14} color={row.color} />
-                      <Text style={detailStyles.barLabel}>{row.label}</Text>
-                      <Text style={detailStyles.barPct}>{pct.toFixed(1)}%</Text>
-                    </View>
-                    <View style={detailStyles.barTrack}>
-                      <View style={[detailStyles.barFill, { width: `${Math.min(pct, 100)}%`, backgroundColor: row.color }]} />
-                    </View>
-                    <Text style={detailStyles.barValue}>${row.value.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
-                  </View>
-                );
-              })}
-              {totalSavings > 0 && (
-                <View style={detailStyles.barRow}>
-                  <View style={detailStyles.barLabelRow}>
-                    <TrendingDown size={14} color={Colors.success} />
-                    <Text style={[detailStyles.barLabel, { color: Colors.success }]}>Bulk Savings</Text>
-                  </View>
-                  <Text style={[detailStyles.barValue, { color: Colors.success }]}>-${totalSavings.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
-                </View>
-              )}
-            </View>
-
-            <Text style={detailStyles.sectionLabel}>By Project</Text>
-            <View style={detailStyles.projectListCard}>
-              {projectBreakdowns.map((b, idx) => (
-                <View key={b.id}>
-                  <View style={detailStyles.projectRow}>
-                    <View style={detailStyles.projectRank}>
-                      <Text style={detailStyles.projectRankText}>#{idx + 1}</Text>
-                    </View>
-                    <View style={detailStyles.projectInfo}>
-                      <Text style={detailStyles.projectName} numberOfLines={1}>{b.name}</Text>
-                      <Text style={detailStyles.projectMeta}>
-                        {b.itemCount} items · {b.hasLinked ? 'Linked' : 'Estimated'}
-                      </Text>
-                    </View>
-                    <View style={detailStyles.projectValues}>
-                      <Text style={detailStyles.projectTotal}>${b.total.toLocaleString(undefined, { maximumFractionDigits: 0 })}</Text>
-                      <Text style={detailStyles.projectPct}>
-                        {totalEstimated > 0 ? ((b.total / totalEstimated) * 100).toFixed(0) : 0}%
-                      </Text>
-                    </View>
-                  </View>
-                  {idx < projectBreakdowns.length - 1 && <View style={detailStyles.projectDivider} />}
-                </View>
-              ))}
-              {projectBreakdowns.length === 0 && (
-                <View style={detailStyles.emptyProject}>
-                  <Text style={detailStyles.emptyProjectText}>No projects with estimates yet</Text>
-                </View>
-              )}
-            </View>
-          </ScrollView>
-        </View>
-      </Modal>
-
-      <Modal
-        visible={showSavingsDetail}
-        animationType="slide"
-        presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : undefined}
-        onRequestClose={() => setShowSavingsDetail(false)}
-      >
-        <View style={[detailStyles.modalContainer, { paddingTop: Platform.OS === 'ios' ? 12 : insets.top + 8 }]}>
-          <View style={detailStyles.modalHandle} />
-          <View style={detailStyles.modalHeader}>
-            <Text style={detailStyles.modalTitle}>Bulk Savings</Text>
-            <TouchableOpacity
-              style={detailStyles.modalCloseBtn}
-              onPress={() => setShowSavingsDetail(false)}
-              activeOpacity={0.7}
-              testID="close-savings-detail" accessibilityRole="button" accessibilityLabel="Close">
-              <X size={20} color={Colors.text} />
-            </TouchableOpacity>
-          </View>
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: insets.bottom + 30 }}>
-            <View style={detailStyles.heroSection}>
-              <View style={[detailStyles.heroIconWrap, { backgroundColor: Colors.successLight }]}>
-                <TrendingDown size={28} color={Colors.success} />
-              </View>
-              <Text style={[detailStyles.heroAmount, { color: Colors.success }]}>
-                ${totalSavings.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-              </Text>
-              <Text style={detailStyles.heroSubtitle}>Total Bulk Savings</Text>
-              <View style={detailStyles.heroChips}>
-                <View style={[detailStyles.heroChip, { backgroundColor: Colors.successLight }]}>
-                  <Text style={[detailStyles.heroChipLabel, { color: Colors.success }]}>
-                    {totalEstimated > 0 ? ((totalSavings / (totalEstimated + totalSavings)) * 100).toFixed(1) : '0'}%
-                  </Text>
-                  <Text style={[detailStyles.heroChipSub, { color: Colors.success }]}>savings rate</Text>
-                </View>
-                <View style={detailStyles.heroChip}>
-                  <Text style={detailStyles.heroChipLabel}>
-                    {projectBreakdowns.filter(b => b.bulkSavings > 0).length}
-                  </Text>
-                  <Text style={detailStyles.heroChipSub}>projects saving</Text>
-                </View>
-              </View>
-            </View>
-
-            <Text style={detailStyles.sectionLabel}>How Bulk Savings Work</Text>
-            <View style={detailStyles.infoCard}>
-              <View style={detailStyles.infoRow}>
-                <View style={[detailStyles.infoStep, { backgroundColor: Colors.primary + '15' }]}>
-                  <Text style={[detailStyles.infoStepNum, { color: Colors.primary }]}>1</Text>
-                </View>
-                <View style={detailStyles.infoTextWrap}>
-                  <Text style={detailStyles.infoTitle}>Volume Thresholds</Text>
-                  <Text style={detailStyles.infoDesc}>Each material has a min bulk quantity. Once met, a lower per-unit price is unlocked.</Text>
-                </View>
-              </View>
-              <View style={detailStyles.infoRow}>
-                <View style={[detailStyles.infoStep, { backgroundColor: Colors.success + '15' }]}>
-                  <Text style={[detailStyles.infoStepNum, { color: Colors.success }]}>2</Text>
-                </View>
-                <View style={detailStyles.infoTextWrap}>
-                  <Text style={detailStyles.infoTitle}>Automatic Application</Text>
-                  <Text style={detailStyles.infoDesc}>When quantities exceed thresholds, savings are calculated automatically in your estimates.</Text>
-                </View>
-              </View>
-              <View style={detailStyles.infoRow}>
-                <View style={[detailStyles.infoStep, { backgroundColor: Colors.accent + '15' }]}>
-                  <Text style={[detailStyles.infoStepNum, { color: Colors.accent }]}>3</Text>
-                </View>
-                <View style={detailStyles.infoTextWrap}>
-                  <Text style={detailStyles.infoTitle}>Buy Direct</Text>
-                  <Text style={detailStyles.infoDesc}>Visit the Marketplace tab to buy materials directly from suppliers at bulk rates.</Text>
-                </View>
-              </View>
-            </View>
-
-            <Text style={detailStyles.sectionLabel}>Savings by Project</Text>
-            <View style={detailStyles.projectListCard}>
-              {projectBreakdowns.filter(b => b.bulkSavings > 0).map((b, idx) => (
-                <View key={b.id}>
-                  <View style={detailStyles.projectRow}>
-                    <View style={[detailStyles.projectRank, { backgroundColor: Colors.successLight }]}>
-                      <Text style={[detailStyles.projectRankText, { color: Colors.success }]}>#{idx + 1}</Text>
-                    </View>
-                    <View style={detailStyles.projectInfo}>
-                      <Text style={detailStyles.projectName} numberOfLines={1}>{b.name}</Text>
-                      <Text style={detailStyles.projectMeta}>{b.itemCount} items</Text>
-                    </View>
-                    <View style={detailStyles.projectValues}>
-                      <Text style={[detailStyles.projectTotal, { color: Colors.success }]}>
-                        -${b.bulkSavings.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                      </Text>
-                    </View>
-                  </View>
-                  {idx < projectBreakdowns.filter(bd => bd.bulkSavings > 0).length - 1 && (
-                    <View style={detailStyles.projectDivider} />
-                  )}
-                </View>
-              ))}
-              {projectBreakdowns.filter(b => b.bulkSavings > 0).length === 0 && (
-                <View style={detailStyles.emptyProject}>
-                  <Text style={detailStyles.emptyProjectText}>No bulk savings yet. Increase quantities to unlock bulk pricing.</Text>
-                </View>
-              )}
-            </View>
-
-            {projectBreakdowns.some(b => b.bulkSavings === 0 && b.total > 0) && (
-              <>
-                <Text style={detailStyles.sectionLabel}>Optimization Tips</Text>
-                <View style={[detailStyles.infoCard, { backgroundColor: Colors.warningLight, borderColor: Colors.warning + '30' }]}>
-                  <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10 }}>
-                    <ShoppingCart size={18} color={Colors.warning} />
-                    <View style={{ flex: 1 }}>
-                      <Text style={[detailStyles.infoTitle, { marginBottom: 4 }]}>Unlock More Savings</Text>
-                      <Text style={detailStyles.infoDesc}>
-                        {projectBreakdowns.filter(b => b.bulkSavings === 0 && b.total > 0).length} project(s) have no bulk savings yet. Increase material quantities past bulk thresholds to save more.
-                      </Text>
-                    </View>
-                  </View>
-                </View>
-              </>
-            )}
-          </ScrollView>
-        </View>
-      </Modal>
 
       <Modal visible={showNextStepModal} transparent animationType="fade" onRequestClose={() => setShowNextStepModal(false)}>
         <Pressable style={styles.modalOverlayCenter} onPress={() => handleNextStep('later')}>
@@ -1335,49 +1118,89 @@ const styles = StyleSheet.create({
     fontWeight: '500' as const,
     color: Colors.textMuted,
   },
-});
 
-const detailStyles = StyleSheet.create({
-  modalContainer: { flex: 1, backgroundColor: Colors.background },
-  modalHandle: { width: 36, height: 5, borderRadius: 3, backgroundColor: Colors.border, alignSelf: 'center', marginBottom: 8 },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingBottom: 14, borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight, backgroundColor: Colors.background },
-  modalTitle: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: Colors.text, letterSpacing: -0.3 },
-  modalCloseBtn: { width: 32, height: 32, borderRadius: Tokens.radius.panel, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
-  heroSection: { alignItems: 'center', paddingVertical: 28, paddingHorizontal: 20, gap: 6 },
-  heroIconWrap: { width: 56, height: 56, borderRadius: 28, backgroundColor: Colors.primary + '12', alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
-  heroAmount: { fontSize: 38, fontWeight: '800' as const, color: Colors.text, letterSpacing: -1.5 },
-  heroSubtitle: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, fontWeight: '500' as const },
-  heroChips: { flexDirection: 'row', gap: 10, marginTop: 14 },
-  heroChip: { backgroundColor: Colors.fillTertiary, borderRadius: Tokens.radius.card, paddingHorizontal: 14, paddingVertical: 8, alignItems: 'center', gap: 2 },
-  heroChipLabel: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.text },
-  heroChipSub: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontWeight: '500' as const },
-  sectionLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.8, paddingHorizontal: 20, marginBottom: 8, marginTop: 4 },
-  barChartWrap: { marginHorizontal: 20, backgroundColor: Colors.surface, borderRadius: Tokens.radius.panel, padding: 16, gap: 16, marginBottom: 20, borderWidth: 1, borderColor: Colors.cardBorder },
-  barRow: { gap: 6 },
-  barLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  barLabel: { flex: 1, fontSize: Type.bodyCompact.fontSize, fontWeight: '500' as const, color: Colors.text },
-  barPct: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.textSecondary },
-  barTrack: { height: 8, borderRadius: 4, backgroundColor: Colors.fillTertiary, overflow: 'hidden' as const },
-  barFill: { height: 8, borderRadius: 4 },
-  barValue: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.text },
-  projectListCard: { marginHorizontal: 20, backgroundColor: Colors.surface, borderRadius: Tokens.radius.panel, padding: 14, marginBottom: 20, borderWidth: 1, borderColor: Colors.cardBorder },
-  projectRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10 },
-  projectRank: { width: 26, height: 26, borderRadius: 13, backgroundColor: Colors.infoLight, alignItems: 'center', justifyContent: 'center' },
-  projectRankText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: Colors.info },
-  projectInfo: { flex: 1, gap: 2 },
-  projectName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '500' as const, color: Colors.text },
-  projectMeta: { fontSize: Type.caption1.fontSize, color: Colors.textMuted },
-  projectValues: { alignItems: 'flex-end', gap: 1 },
-  projectTotal: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text },
-  projectPct: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: Colors.textSecondary, backgroundColor: Colors.fillTertiary, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, overflow: 'hidden' as const },
-  projectDivider: { height: 1, backgroundColor: Colors.borderLight },
-  emptyProject: { alignItems: 'center', paddingVertical: 20 },
-  emptyProjectText: { fontSize: Type.bodyCompact.fontSize, color: Colors.textMuted, textAlign: 'center' as const },
-  infoCard: { marginHorizontal: 20, backgroundColor: Colors.surface, borderRadius: Tokens.radius.panel, padding: 16, gap: 16, marginBottom: 20, borderWidth: 1, borderColor: Colors.cardBorder },
-  infoRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
-  infoStep: { width: 28, height: 28, borderRadius: Tokens.radius.lg, alignItems: 'center', justifyContent: 'center' },
-  infoStepNum: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const },
-  infoTextWrap: { flex: 1 },
-  infoTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
-  infoDesc: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, lineHeight: 19, marginTop: 2 },
+  // ── Status filter chips ────────────────────────────────────────
+  filterChipsWrap: {
+    paddingHorizontal: 16,
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  filterChipsScroll: {
+    gap: 8,
+    paddingVertical: 4,
+  },
+  filterChip: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: Colors.fillTertiary,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  filterChipActive: {
+    backgroundColor: Colors.text,
+    borderColor: Colors.text,
+  },
+  filterChipLabel: {
+    fontSize: Type.footnote.fontSize,
+    fontWeight: '700' as const,
+    color: Colors.text,
+  },
+  filterChipLabelActive: {
+    color: '#FFF',
+  },
+  filterChipCount: {
+    fontSize: Type.caption2.fontSize,
+    fontWeight: '700' as const,
+    color: Colors.textMuted,
+    minWidth: 14,
+    textAlign: 'right' as const,
+  },
+  filterChipCountActive: {
+    color: 'rgba(255,255,255,0.7)',
+  },
+
+  // ── Today on site ──────────────────────────────────────────────
+  todaySection: {
+    paddingHorizontal: 16,
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  todayCard: {
+    backgroundColor: Colors.card,
+    borderRadius: Tokens.radius.card,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    overflow: 'hidden' as const,
+  },
+  todayRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  todayRowDivider: {
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  todayDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: Colors.success,
+  },
+  todayProjectName: {
+    fontSize: Type.bodyCompact.fontSize,
+    fontWeight: '700' as const,
+    color: Colors.text,
+  },
+  todayTasks: {
+    fontSize: Type.caption1.fontSize,
+    color: Colors.textMuted,
+    marginTop: 2,
+  },
 });

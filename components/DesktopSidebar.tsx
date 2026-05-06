@@ -5,6 +5,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Home, Compass, Wrench, Settings, BarChart3, CalendarDays,
   Hammer, FileText, Building2, Search, HardHat, Gavel, LayoutDashboard, Lock,
+  Wallet, ClipboardList, MessageCircle, Camera, Inbox, TrendingUp, Receipt,
+  Users, ShieldCheck, Calculator, Bell, Briefcase, Image as ImageIcon,
+  PenTool, Store,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useSearch } from '@/contexts/SearchContext';
@@ -28,39 +31,79 @@ interface NavItem {
 // discover/ folder when those features moved under the unified Find Work
 // shell. This sidebar pointed at the old (tabs)/bids etc. paths which now
 // 404 in production. Routes below now point to the live discover/* paths.
+//
+// Audit (May 2026) expanded this from 12 destinations → 30+ to address
+// the desktop navigability gap. Mobile users reach feature screens via
+// the project-detail tile grids; desktop users (web) saw a sparse
+// sidebar with no way to reach 50+ feature screens until they opened a
+// project. Now every major feature has a sidebar entry.
 const NAV_ITEMS: NavItem[] = [
-  { key: 'summary', label: 'Summary', icon: LayoutDashboard, route: '/(tabs)/summary', section: 'PROJECT' },
-  { key: 'home', label: 'Projects', icon: Home, route: '/(tabs)/(home)', section: 'PROJECT' },
-  { key: 'estimate', label: 'Estimate', icon: BarChart3, route: '/(tabs)/discover/estimate', section: 'PROJECT' },
-  { key: 'schedule', label: 'Schedule', icon: CalendarDays, route: '/(tabs)/discover/schedule', section: 'PROJECT', requires: 'schedule_gantt_pdf' },
-  { key: 'mage-id-bids', label: 'MAGE ID Bids', icon: Hammer, route: '/(tabs)/mage-id-bids', section: 'MARKETPLACE' },
-  { key: 'bids', label: 'Public Bids', icon: FileText, route: '/(tabs)/discover/bids', section: 'MARKETPLACE' },
-  { key: 'equipment', label: 'Equipment', icon: Hammer, route: '/(tabs)/equipment', section: 'FIELD', requires: 'equipment_rental' },
-  { key: 'companies', label: 'Companies', icon: Building2, route: '/(tabs)/discover/companies', section: 'NETWORK' },
-  { key: 'discover', label: 'Discover', icon: Search, route: '/(tabs)/discover', section: 'NETWORK' },
-  { key: 'hire', label: 'Hire', icon: HardHat, route: '/(tabs)/discover/hire', section: 'NETWORK' },
-  { key: 'construction-ai', label: 'Construction AI', icon: Gavel, route: '/(tabs)/construction-ai', section: 'NETWORK' },
-  { key: 'settings', label: 'Settings', icon: Settings, route: '/(tabs)/settings', section: 'ACCOUNT' },
+  // ── PROJECT — top-level work surfaces
+  { key: 'summary',           label: 'Summary',          icon: LayoutDashboard, route: '/(tabs)/summary',                  section: 'PROJECT' },
+  { key: 'home',              label: 'Projects',         icon: Home,            route: '/(tabs)/(home)',                   section: 'PROJECT' },
+  { key: 'estimate',          label: 'Estimate',         icon: BarChart3,       route: '/(tabs)/discover/estimate',        section: 'PROJECT' },
+  { key: 'schedule',          label: 'Schedule',         icon: CalendarDays,    route: '/(tabs)/discover/schedule',        section: 'PROJECT', requires: 'schedule_gantt_pdf' },
+  { key: 'plans',             label: 'Plans',            icon: ImageIcon,       route: '/plans',                            section: 'PROJECT' },
+  { key: 'weekly-snapshot',   label: 'Weekly Snapshot',  icon: TrendingUp,      route: '/weekly-snapshot',                  section: 'PROJECT' },
+
+  // ── FIELD — daily ops
+  { key: 'daily-report',      label: 'Daily Report',     icon: ClipboardList,   route: '/daily-report',                     section: 'FIELD' },
+  { key: 'photo-triage',      label: 'Photo Triage',     icon: Camera,          route: '/photo-triage',                     section: 'FIELD', requires: 'photo_documentation' },
+  { key: 'punch-list',        label: 'Punch List',       icon: ClipboardList,   route: '/punch-list',                       section: 'FIELD', requires: 'punch_list_closeout' },
+  { key: 'rfi',               label: 'RFIs',             icon: FileText,        route: '/rfi',                              section: 'FIELD', requires: 'rfis_submittals' },
+  { key: 'submittal',         label: 'Submittals',       icon: FileText,        route: '/submittal',                        section: 'FIELD', requires: 'rfis_submittals' },
+  { key: 'oac-meeting',       label: 'OAC Meetings',     icon: Users,           route: '/oac-meeting',                      section: 'FIELD' },
+  { key: 'equipment',         label: 'Equipment',        icon: Hammer,          route: '/(tabs)/equipment',                section: 'FIELD', requires: 'equipment_rental' },
+
+  // ── FINANCIAL — money flow
+  { key: 'invoice',           label: 'Invoices',         icon: Receipt,         route: '/invoice',                          section: 'FINANCIAL' },
+  { key: 'change-order',      label: 'Change Orders',    icon: PenTool,         route: '/change-order',                     section: 'FINANCIAL', requires: 'change_orders_invoicing' },
+  { key: 'aia-pay-app',       label: 'AIA Pay Apps',     icon: FileText,        route: '/aia-pay-app',                      section: 'FINANCIAL', requires: 'aia_pay_app' },
+  { key: 'cash-flow',         label: 'Cash Flow',        icon: TrendingUp,      route: '/cash-flow',                        section: 'FINANCIAL', requires: 'cash_flow_forecaster' },
+  { key: 'budget-dashboard',  label: 'Budget Dashboard', icon: BarChart3,       route: '/budget-dashboard',                 section: 'FINANCIAL', requires: 'full_budget_dashboard' },
+  { key: 'job-costing',       label: 'Job Costing',      icon: Calculator,      route: '/job-costing',                      section: 'FINANCIAL', requires: 'job_costing' },
+  { key: 'payments',          label: 'Payments',         icon: Wallet,          route: '/payments',                         section: 'FINANCIAL' },
+  { key: 'reports',           label: 'Reports',          icon: BarChart3,       route: '/reports',                          section: 'FINANCIAL' },
+
+  // ── CLIENT — homeowner-facing
+  { key: 'client-portal',     label: 'Client Portal',    icon: Briefcase,       route: '/client-portal-setup',              section: 'CLIENT', requires: 'client_portal' },
+  { key: 'contract',          label: 'Contracts',        icon: FileText,        route: '/contract',                         section: 'CLIENT' },
+  { key: 'selections',        label: 'Selections',       icon: PenTool,         route: '/selections',                       section: 'CLIENT' },
+  { key: 'closeout',          label: 'Closeout',         icon: ShieldCheck,     route: '/closeout-binder',                  section: 'CLIENT' },
+
+  // ── MARKETPLACE — bids + suppliers
+  { key: 'mage-id-bids',      label: 'MAGE ID Bids',     icon: Hammer,          route: '/(tabs)/mage-id-bids',             section: 'MARKETPLACE' },
+  { key: 'bids',              label: 'Public Bids',      icon: FileText,        route: '/(tabs)/discover/bids',            section: 'MARKETPLACE' },
+  { key: 'marketplace',       label: 'Suppliers',        icon: Store,           route: '/(tabs)/marketplace',              section: 'MARKETPLACE' },
+
+  // ── NETWORK — people + AI assistant
+  { key: 'companies',         label: 'Companies',        icon: Building2,       route: '/(tabs)/discover/companies',       section: 'NETWORK' },
+  { key: 'subs',              label: 'Subs',             icon: HardHat,         route: '/(tabs)/subs',                     section: 'NETWORK' },
+  { key: 'leads',             label: 'Leads',            icon: TrendingUp,      route: '/leads',                            section: 'NETWORK' },
+  { key: 'contacts',          label: 'Contacts',         icon: Users,           route: '/contacts',                         section: 'NETWORK' },
+  { key: 'hire',              label: 'Hire',             icon: HardHat,         route: '/(tabs)/discover/hire',            section: 'NETWORK' },
+  { key: 'construction-ai',   label: 'Construction AI',  icon: Gavel,           route: '/(tabs)/construction-ai',          section: 'NETWORK' },
+
+  // ── ACCOUNT
+  { key: 'notifications',     label: 'Notifications',    icon: Bell,            route: '/notifications-inbox',              section: 'ACCOUNT' },
+  { key: 'messages',          label: 'Messages',         icon: MessageCircle,   route: '/messages',                         section: 'ACCOUNT' },
+  { key: 'report-inbox',      label: 'Report Inbox',     icon: Inbox,           route: '/report-inbox',                     section: 'ACCOUNT' },
+  { key: 'settings',          label: 'Settings',         icon: Settings,        route: '/(tabs)/settings',                 section: 'ACCOUNT' },
 ];
 
-const SECTIONS = ['PROJECT', 'MARKETPLACE', 'FIELD', 'NETWORK', 'ACCOUNT'];
+const SECTIONS = ['PROJECT', 'FIELD', 'FINANCIAL', 'CLIENT', 'MARKETPLACE', 'NETWORK', 'ACCOUNT'];
 
-function isActiveRoute(pathname: string, navKey: string): boolean {
-  if (navKey === 'summary') return pathname.includes('summary');
+function isActiveRoute(pathname: string, navKey: string, route: string): boolean {
   if (navKey === 'home') return pathname === '/' || pathname.includes('(home)');
-  if (navKey === 'estimate') return pathname.includes('estimate');
-  if (navKey === 'schedule') return pathname.includes('schedule');
-  if (navKey === 'equipment') return pathname.includes('equipment');
-  if (navKey === 'mage-id-bids') return pathname.includes('mage-id-bids');
   // Plain "bids" is the scraped public-bids tab; make sure the mage-id
-  // route doesn't trigger this so both items don't both light up.
-  if (navKey === 'bids') return pathname.includes('bids') && !pathname.includes('mage-id-bids');
-  if (navKey === 'construction-ai') return pathname.includes('construction-ai');
-  if (navKey === 'companies') return pathname.includes('companies');
-  if (navKey === 'discover') return pathname.includes('discover');
-  if (navKey === 'hire') return pathname.includes('hire');
-  if (navKey === 'settings') return pathname.includes('settings');
-  return false;
+  // route doesn't also light it up.
+  if (navKey === 'bids') return pathname.includes('/bids') && !pathname.includes('mage-id-bids');
+  // Generic match: strip wrapping group folders (e.g. /(tabs)/) and use
+  // the trailing path segment as the matcher. Lets the 30+ entries above
+  // share one comparator instead of needing per-key special-casing.
+  const lastSegment = route.replace(/\(tabs\)\//g, '').split('/').filter(Boolean).pop() ?? '';
+  if (!lastSegment) return false;
+  return pathname.includes(lastSegment);
 }
 
 interface DesktopSidebarProps {
@@ -125,7 +168,7 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
           <View key={section} style={styles.navSection}>
             <Text style={styles.sectionLabel}>{section}</Text>
             {items.map(item => {
-              const active = isActiveRoute(pathname, item.key);
+              const active = isActiveRoute(pathname, item.key, item.route);
               const hovered = hoveredKey === item.key;
               const Icon = item.icon;
               const locked = !!item.requires && !canAccess(item.requires);

@@ -1,7 +1,13 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { supabase } from '@/lib/supabase';
 
-const AI_URL = "https://nteoqhcswappxxjlpvap.supabase.co/functions/v1/ai";
-const AI_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im50ZW9xaGNzd2FwcHh4amxwdmFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzMTU0MDMsImV4cCI6MjA4OTg5MTQwM30.xpz7yWhignppH-3dYD-EV4AvB4cugr7-881GKdOFado";
+// Build the URL from env so a Supabase project rotation (or a test against a
+// branch DB) doesn't require a code change. The hardcoded fallback matches
+// the production project and is what we used to ship pre-audit; keep it as a
+// safety net so existing OTAs keep working if the env var is somehow missing.
+const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://nteoqhcswappxxjlpvap.supabase.co';
+const SUPABASE_ANON = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
+const AI_URL = `${SUPABASE_URL}/functions/v1/ai`;
 const CACHE_PREFIX = "mage_ai_cache_";
 
 interface MageAIParams {
@@ -22,8 +28,16 @@ interface MageAIResult {
   raw?: string;
   error?: string;
   cached?: boolean;
-  /** Why the call failed, in a way the UI can branch on. */
-  errorKind?: 'timeout' | 'network' | 'http' | 'model' | 'validation' | 'unknown';
+  /** Why the call failed, in a way the UI can branch on.
+   *
+   *  - `unauthenticated` → no Supabase session, sign in to use AI features
+   *  - `monthly_cap`     → server-side cap exhausted (429); shown alongside
+   *    a reset date in `error`. Distinct from the client-side daily cap. */
+  errorKind?: 'timeout' | 'network' | 'http' | 'model' | 'validation' | 'unauthenticated' | 'monthly_cap' | 'unknown';
+  /** Gemini finishReason — STOP / MAX_TOKENS / SAFETY / RECITATION / etc.
+   *  Surfaced to the UI so a "Retry" button on truncated output makes sense
+   *  vs. a "rephrase" hint on a SAFETY block. */
+  finishReason?: string;
   /** Convenience for UIs that want to show a "cached" pill. */
   fromCache?: boolean;
 }
@@ -47,7 +61,12 @@ async function setCache(key: string, result: MageAIResult, hours: number) {
 }
 
 export async function mageAI(params: MageAIParams): Promise<MageAIResult> {
-  const { prompt, schema, schemaHint, tier = "fast", maxTokens = 1000, cacheKey, cacheHours = 2, timeoutMs = 30000 } = params;
+  // Default timeout bumped from 30s → 60s. Smart-tier JSON output with the
+  // 16k token ceiling can take 25-40s on heavy prompts (full Quick Estimate
+  // + Schedule Builder); 30s was cutting too close and aborted before
+  // Gemini finished. Pre-fix the user got "AI estimate unavailable" because
+  // the abort fired during what would otherwise have been a successful call.
+  const { prompt, schema, schemaHint, tier = "fast", maxTokens = 1000, cacheKey, cacheHours = 2, timeoutMs = 60000 } = params;
   if (cacheKey) { const c = await getCache(cacheKey); if (c) return c; }
 
   // AbortController-based timeout. Without this, a hung edge function (or a
@@ -75,14 +94,50 @@ export async function mageAI(params: MageAIParams): Promise<MageAIResult> {
       payload.jsonMode = true;
     }
 
+    // Use the authenticated user's session JWT — NOT a hardcoded anon key.
+    // The `ai` edge function now calls requireTier() and rejects anon
+    // requests; this carries the user's identity so server-side per-user
+    // rate-limits and the master-account override can apply correctly.
+    const { data: { session } } = await supabase.auth.getSession();
+    const userJWT = session?.access_token;
+    if (!userJWT) {
+      clearTimeout(timer);
+      return {
+        success: false,
+        data: null,
+        error: 'Sign in to use AI features.',
+        errorKind: 'unauthenticated',
+      };
+    }
+
     const r = await fetch(AI_URL, {
       method: "POST",
-      headers: { "Authorization": "Bearer " + AI_KEY, "Content-Type": "application/json" },
+      headers: {
+        "Authorization": "Bearer " + userJWT,
+        // Supabase Edge gateway requires the apikey header even when the
+        // Authorization carries a real user JWT. Pre-fix we passed the anon
+        // JWT as both — now Authorization is the user JWT and apikey stays
+        // the anon key (public, safe to ship).
+        "apikey": SUPABASE_ANON,
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify(payload),
       signal: controller.signal,
     });
     if (!r.ok) {
       clearTimeout(timer);
+      // 429 = monthly cap (server-side). Carries a body with `code:'monthly_cap'`
+      // and a friendly `error` string. Surface it specifically so the UI can
+      // distinguish "you ran out for the month" from "the server is broken."
+      if (r.status === 429) {
+        let capMsg = `Monthly AI limit reached. Resets the 1st of next month.`;
+        try { const body = await r.json(); if (body?.error) capMsg = body.error; } catch { /* ignore */ }
+        return { success: false, data: null, error: capMsg, errorKind: 'monthly_cap' };
+      }
+      // 401 = expired session or rejected JWT. The user should re-auth.
+      if (r.status === 401) {
+        return { success: false, data: null, error: 'Session expired. Sign in again.', errorKind: 'unauthenticated' };
+      }
       return {
         success: false, data: null,
         error: `AI server returned ${r.status}. Try again in a moment.`,
@@ -92,19 +147,28 @@ export async function mageAI(params: MageAIParams): Promise<MageAIResult> {
     const j = await r.json();
     if (!j.success) {
       clearTimeout(timer);
+      const errMsg = j.error || "AI failed";
+      const finishReason = j.finishReason as string | undefined;
       // Special case: MAX_TOKENS means the model produced content but it was
       // truncated mid-JSON. If we have a schema, return a defaulted shape so
-      // the UI can still render something instead of crashing. The caller can
-      // check `truncated` to show a "try a smaller input" hint.
-      const errMsg = j.error || "AI failed";
-      if (schema && /MAX_TOKENS/i.test(errMsg)) {
+      // the UI can still render something. Caller can check finishReason
+      // to show a "try a shorter input + retry" hint specifically.
+      if (schema && (finishReason === 'MAX_TOKENS' || /MAX_TOKENS/i.test(errMsg))) {
         const fallback = schema.safeParse({});
         if (fallback.success) {
           console.warn("[mageAI] Response truncated (MAX_TOKENS), returning defaulted shape");
-          return { success: true, data: fallback.data, error: errMsg, cached: false, fromCache: false };
+          return {
+            success: true,
+            data: fallback.data,
+            error: errMsg,
+            finishReason,
+            cached: false,
+            fromCache: false,
+            errorKind: 'model',
+          };
         }
       }
-      return { success: false, data: null, error: errMsg, errorKind: 'model' };
+      return { success: false, data: null, error: errMsg, finishReason, errorKind: 'model' };
     }
 
     // Validate and coerce with Zod client-side — schema .default() values fill any missing fields.
@@ -140,7 +204,14 @@ export async function mageAI(params: MageAIParams): Promise<MageAIResult> {
       const primary = schema.safeParse(candidate);
       if (primary.success) {
         clearTimeout(timer);
-        const result: MageAIResult = { success: true, data: primary.data, raw: j.raw, cached: false, fromCache: false };
+        const result: MageAIResult = {
+          success: true,
+          data: primary.data,
+          raw: j.raw,
+          finishReason: j.finishReason,
+          cached: false,
+          fromCache: false,
+        };
         if (cacheKey) await setCache(cacheKey, result, cacheHours);
         return result;
       }

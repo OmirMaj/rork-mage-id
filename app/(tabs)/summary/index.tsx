@@ -309,6 +309,14 @@ export default function SummaryScreen() {
               onPress={() => router.push('/buyout' as never)}
               testID="summary-buyout"
             />
+            <View style={styles.toolsDivider} />
+            <NavRow
+              Icon={FileDown}
+              title="1099-NEC export"
+              subtitle="Year-end CSV for your CPA — flags subs paid ≥ $600"
+              onPress={() => router.push('/tax-1099-export' as never)}
+              testID="summary-tax-1099"
+            />
           </View>
         </View>
 

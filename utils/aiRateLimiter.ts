@@ -64,7 +64,8 @@ export type AIFeature =
   | 'weeklyAnalysis'
   | 'bidLeveling'
   | 'photoAnalysis'
-  | 'drawingAnalysis';
+  | 'drawingAnalysis'
+  | 'specBookExtract';
 
 interface FeatureConfig {
   /** Cost class — affects daily quota bucket. */
@@ -101,18 +102,27 @@ const FEATURE_CONFIG: Record<AIFeature, FeatureConfig> = {
   bidLeveling:        { tier: 'smart', proOnly: true, displayName: 'AI Bid Leveling' },
   photoAnalysis:      { tier: 'smart', proOnly: true, displayName: 'Photo Analysis' },
   drawingAnalysis:    { tier: 'smart', proOnly: true, displayName: 'Drawing Analysis' },
+  specBookExtract:    { tier: 'smart', proOnly: true, displayName: 'Spec Book Extract' },
 };
 
 const LIMITS = {
-  // Free tier tightened from 10/3 → 5 fast only.
-  // Smart-tier features are individually gated by lifetime cap or pro-only,
-  // so a generic smart-daily quota would be redundant on free.
-  free:     { daily: 5,   smart: 0 },
-  pro:      { daily: 75,  smart: 25 },
-  business: { daily: 200, smart: 75 },
+  // Daily caps for text-AI calls. Locked-in to keep a 50%+ gross margin
+  // even when a user maxes out every single day for a full month, given
+  // the published Pro / Business / Enterprise prices ($29 / $79 / $150).
+  // Worst-case Gemini cost per tier:
+  //   Free:        $0.30/mo  (negligible)
+  //   Pro:        $11.31/mo  (61% margin floor at $29)
+  //   Business:   $33.57/mo  (58% margin floor at $79)
+  //   Enterprise: $70.65/mo  (53% margin floor at $150)
+  // Smart-tier features on free are individually gated by lifetime cap or
+  // pro-only, so a generic smart-daily quota is redundant on free.
+  free:       { daily: 5,   smart: 0  },
+  pro:        { daily: 30,  smart: 6  },
+  business:   { daily: 80,  smart: 18 },
+  enterprise: { daily: 150, smart: 40 },
 } as const;
 
-export type SubscriptionTierKey = 'free' | 'pro' | 'business';
+export type SubscriptionTierKey = 'free' | 'pro' | 'business' | 'enterprise';
 export type RequestTier = 'fast' | 'smart';
 
 export interface LimitCheck {
@@ -128,7 +138,7 @@ export interface LimitCheck {
    * Best-fit upgrade target — UI uses this to deep-link the paywall to the
    * right plan instead of showing "Upgrade" generically.
    */
-  upgradeTo?: 'pro' | 'business';
+  upgradeTo?: 'pro' | 'business' | 'enterprise';
 }
 
 async function getDailyUsage(): Promise<DailyUsage> {
@@ -194,33 +204,51 @@ export async function checkAILimit(
     }
   }
 
-  // 3. Daily total cap
+  // 3. Daily total cap. The upgrade ladder is free → pro → business →
+  //    enterprise; enterprise users see no upgrade CTA, just a reset
+  //    countdown (handled at render time by the modal).
   if (usage.count >= limits.daily) {
+    const nextTier = subscriptionTier === 'free' ? 'pro'
+      : subscriptionTier === 'pro' ? 'business'
+      : subscriptionTier === 'business' ? 'enterprise'
+      : undefined;
+    const nextDailyCap = nextTier === 'pro' ? 30
+      : nextTier === 'business' ? 80
+      : nextTier === 'enterprise' ? 150
+      : null;
+    const message = subscriptionTier === 'enterprise'
+      ? "You've reached today's AI limit. Resets at midnight."
+      : `You've used today's ${limits.daily} AI requests. Upgrade to ${nextTier?.[0].toUpperCase()}${nextTier?.slice(1)} for ${nextDailyCap}/day.`;
     return {
       allowed: false,
       remaining: 0,
       reason: 'daily_cap',
-      upgradeTo: subscriptionTier === 'free' ? 'pro' : subscriptionTier === 'pro' ? 'business' : undefined,
-      message:
-        subscriptionTier === 'free'
-          ? `You've used today's ${limits.daily} AI requests. Upgrade to Pro for 75/day.`
-          : subscriptionTier === 'pro'
-            ? `You've used today's ${limits.daily} AI requests. Upgrade to Business for 200/day.`
-            : `You've reached today's AI limit. Resets at midnight.`,
+      upgradeTo: nextTier as 'pro' | 'business' | 'enterprise' | undefined,
+      message,
     };
   }
 
   // 4. Smart-tier daily cap (Pro/Business only — free has 0 smart by design)
   if (requestTier === 'smart' && usage.tier.smart >= limits.smart) {
+    const nextTier = subscriptionTier === 'free' ? 'pro'
+      : subscriptionTier === 'pro' ? 'business'
+      : subscriptionTier === 'business' ? 'enterprise'
+      : undefined;
+    const nextSmartCap = nextTier === 'pro' ? 6
+      : nextTier === 'business' ? 18
+      : nextTier === 'enterprise' ? 40
+      : null;
+    const message = subscriptionTier === 'free'
+      ? `Advanced AI requires Pro. Upgrade to unlock Quick Estimate, Schedule Builder, and more.`
+      : subscriptionTier === 'enterprise'
+        ? `You've used today's advanced AI. Try again tomorrow or use quick AI features instead.`
+        : `You've used today's ${limits.smart} advanced AI calls. Upgrade to ${nextTier?.[0].toUpperCase()}${nextTier?.slice(1)} for ${nextSmartCap}/day.`;
     return {
       allowed: false,
       remaining: dailyRemaining,
       reason: 'smart_cap',
-      upgradeTo: subscriptionTier === 'free' ? 'pro' : 'business',
-      message:
-        subscriptionTier === 'free'
-          ? `Advanced AI requires Pro. Upgrade to unlock Quick Estimate, Schedule Builder, and more.`
-          : `You've used today's advanced AI. Try again tomorrow or use quick AI features instead.`,
+      upgradeTo: nextTier as 'pro' | 'business' | 'enterprise' | undefined,
+      message,
     };
   }
 

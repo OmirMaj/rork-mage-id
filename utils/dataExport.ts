@@ -4,7 +4,9 @@ import * as Sharing from 'expo-sharing';
 import type {
   Project, Invoice, ChangeOrder, DailyFieldReport, PunchItem, ProjectPhoto,
   Contact, RFI, Submittal, Equipment, Warranty, Subcontractor, CommunicationEvent,
+  CompanyBranding,
 } from '@/types';
+import { generateCloseoutPacketUri } from '@/utils/closeoutPacketGenerator';
 
 // ──────────────────────────────────────────────────────────────────────────────
 // One-click data export — the "kill lock-in" feature
@@ -33,6 +35,17 @@ export interface DataExportOptions {
   projectId?: string;           // export a single project only
   format: 'json' | 'csv' | 'both';
   includePhotoUrls?: boolean;   // include photo URIs (large if local file:// paths)
+  /** When true, generate the printable closeout packet PDF and include
+   *  it alongside the JSON / CSV files. Only applies when projectId is
+   *  set (closeout doesn't make sense for "all projects"). The closeout
+   *  PDF mirrors what the homeowner would receive at substantial-completion
+   *  handover — contract, change orders, payments, warranties, finishes,
+   *  punch list, photo summary. */
+  includeCloseoutPacket?: boolean;
+  /** When true, write a README.txt to the export bundle that explains
+   *  what's in each file. Useful when the user is handing the bundle
+   *  off to a non-technical recipient (homeowner, accountant). */
+  includeReadme?: boolean;
 }
 
 export interface DataExportSummary {
@@ -176,10 +189,16 @@ export function payloadToCsvs(p: DataExportPayload): Record<string, string> {
 
 /**
  * Perform the actual export: write files to cache, then share.
+ *
+ * Optional inputs:
+ *   branding   — when present + opts.includeCloseoutPacket, used as the
+ *                CompanyBranding source for the closeout PDF header /
+ *                signature block.
  */
 export async function exportUserData(
   all: Partial<DataExportPayload>,
   opts: DataExportOptions,
+  branding?: CompanyBranding,
 ): Promise<DataExportSummary> {
   const payload = buildExportPayload(all, opts);
   const timestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
@@ -220,6 +239,54 @@ export async function exportUserData(
     }
   }
 
+  // ── Closeout PDF — only meaningful for single-project exports ─────
+  // We generate the same handoff packet the GC produces for substantial-
+  // completion. Mobile-only; the web export skips the PDF since the
+  // closeout generator uses expo-print which doesn't ship a PDF on web.
+  if (opts.includeCloseoutPacket && opts.projectId && Platform.OS !== 'web') {
+    const project = (all.projects ?? []).find(p => p.id === opts.projectId);
+    if (project && branding) {
+      const closeoutUri = await generateCloseoutPacketUri({
+        project,
+        branding,
+        changeOrders: payload.changeOrders,
+        invoices: payload.invoices,
+        dailyReports: payload.dailyReports,
+        punchItems: payload.punchItems,
+        warranties: payload.warranties,
+        photos: payload.photos,
+      });
+      if (closeoutUri) {
+        // Print writes to a tmp uri; copy into cache so the bundle file
+        // is co-located with the JSON / CSV pieces. Best-effort: if copy
+        // fails (rare), share the original tmp uri directly.
+        const targetUri = `${dir}${baseName}-closeout.pdf`;
+        try {
+          await FileSystem.copyAsync({ from: closeoutUri, to: targetUri });
+          fileUris.push(targetUri);
+        } catch {
+          fileUris.push(closeoutUri);
+        }
+        // Closeout PDF size — count the file.
+        try {
+          const info = await FileSystem.getInfoAsync(targetUri);
+          if ('size' in info && typeof info.size === 'number') totalBytes += info.size;
+        } catch { /* size is informational only */ }
+      }
+    }
+  }
+
+  // ── README — orientation file for the recipient ──────────────────
+  if (opts.includeReadme) {
+    const readme = buildReadmeText(payload, opts);
+    const readmeUri = `${dir}${baseName}-README.txt`;
+    if (Platform.OS !== 'web') {
+      await FileSystem.writeAsStringAsync(readmeUri, readme, { encoding: 'utf8' });
+    }
+    totalBytes += readme.length;
+    fileUris.push(readmeUri);
+  }
+
   return {
     format: opts.format,
     projectCount: payload.projects.length,
@@ -236,13 +303,71 @@ export async function exportUserData(
 }
 
 /**
+ * Build a plain-text README explaining each file in the export bundle.
+ * Goes alongside the JSON / CSV / PDF so a non-technical recipient
+ * (homeowner, accountant, lawyer) can find what they're looking for.
+ */
+function buildReadmeText(payload: DataExportPayload, opts: DataExportOptions): string {
+  const exportedAt = new Date().toLocaleString('en-US');
+  const scope = opts.projectId ? `Project ${opts.projectId.slice(0, 8)}` : 'All projects';
+  const lines: string[] = [
+    `MAGE ID — Project Archive`,
+    `Generated: ${exportedAt}`,
+    `Scope: ${scope}`,
+    ``,
+    `WHAT'S IN THIS BUNDLE`,
+    ``,
+  ];
+  if (opts.format === 'json' || opts.format === 'both') {
+    lines.push(`• mage-id-export-*.json`);
+    lines.push(`  Full JSON snapshot of every record. Open with any text editor`);
+    lines.push(`  or import into another tool. Schema version is included.`);
+    lines.push(``);
+  }
+  if (opts.format === 'csv' || opts.format === 'both') {
+    lines.push(`• mage-id-export-*.csv (one per record type)`);
+    lines.push(`  Spreadsheet-friendly. Open with Excel, Google Sheets, Numbers.`);
+    lines.push(`  One file per entity: projects, invoices, change orders, daily`);
+    lines.push(`  reports, punch items, photos, contacts, RFIs, submittals.`);
+    lines.push(``);
+  }
+  if (opts.includeCloseoutPacket) {
+    lines.push(`• mage-id-export-*-closeout.pdf`);
+    lines.push(`  The substantial-completion handover packet. Includes contract`);
+    lines.push(`  summary, change orders, payments, warranties, finishes, punch`);
+    lines.push(`  list, and photo summary. Safe to print and file with the homeowner.`);
+    lines.push(``);
+  }
+  lines.push(`COUNTS`);
+  lines.push(``);
+  lines.push(`  Projects:        ${payload.projects.length}`);
+  lines.push(`  Invoices:        ${payload.invoices.length}`);
+  lines.push(`  Change orders:   ${payload.changeOrders.length}`);
+  lines.push(`  Daily reports:   ${payload.dailyReports.length}`);
+  lines.push(`  Punch items:     ${payload.punchItems.length}`);
+  lines.push(`  RFIs:            ${payload.rfis.length}`);
+  lines.push(`  Submittals:      ${payload.submittals.length}`);
+  lines.push(`  Photos:          ${payload.photos.length}`);
+  lines.push(`  Contacts:        ${payload.contacts.length}`);
+  lines.push(``);
+  lines.push(`This bundle is YOUR property. There is no lock-in — you can`);
+  lines.push(`migrate to any other tool, hand it off to your accountant, or`);
+  lines.push(`keep it as a permanent record. Built with MAGE ID. mageid.app`);
+  return lines.join('\n');
+}
+
+/**
  * Share one of the generated export files.
  */
 export async function shareExportedFile(uri: string, title: string): Promise<void> {
   if (Platform.OS === 'web') return;
   const canShare = await Sharing.isAvailableAsync();
   if (!canShare) return;
-  const mimeType = uri.endsWith('.csv') ? 'text/csv' : 'application/json';
+  const mimeType =
+    uri.endsWith('.csv') ? 'text/csv' :
+    uri.endsWith('.pdf') ? 'application/pdf' :
+    uri.endsWith('.txt') ? 'text/plain' :
+    'application/json';
   await Sharing.shareAsync(uri, { mimeType, dialogTitle: title });
 }
 

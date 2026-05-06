@@ -232,6 +232,60 @@ export default function DailyReportScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Pre-fill manpower from today's scheduled tasks. The schedule already
+  // tracks who's assigned (`assignedSubName` or free-text `crew`) per task
+  // and roughly how many people (`crewSize`). Pre-fix this opened blank,
+  // so the GC retyped the same crew that was already on screen in the
+  // schedule view five minutes earlier. Idempotent — only runs once when
+  // editing a fresh DFR with an empty manpower roster.
+  useEffect(() => {
+    if (existingReport) return;
+    if (!project?.schedule || !project.schedule.tasks?.length) return;
+    if (manpower.length > 0) return;
+
+    const baseIso = project.schedule.startDate || project.createdAt;
+    const baseMs = Date.parse(baseIso);
+    if (!Number.isFinite(baseMs)) return;
+    const dayMs = 24 * 60 * 60 * 1000;
+    const todayDay = Math.floor((Date.now() - baseMs) / dayMs);
+
+    // Gather today's live tasks — started but not finished, not done.
+    const liveTasks = project.schedule.tasks.filter(t => {
+      if (t.status === 'done') return false;
+      if (t.isMilestone) return false; // milestones aren't crew assignments
+      if (t.isLevelOfEffort || t.isSummary) return false;
+      const start = t.startDay ?? 0;
+      const dur = t.durationDays ?? 0;
+      return start <= todayDay && start + dur > todayDay;
+    });
+    if (liveTasks.length === 0) return;
+
+    // Group by trade/crew label. Headcount = sum of task.crewSize (or 1
+    // when missing). The GC can edit / add / remove from the manpower
+    // modal — this is a starting point, not a contract.
+    const groups = new Map<string, { trade: string; company: string; headcount: number }>();
+    for (const t of liveTasks) {
+      const trade = (t.crew || t.assignedSubName || 'Crew').trim() || 'Crew';
+      const company = (t.assignedSubName || '').trim();
+      const key = `${trade.toLowerCase()}|${company.toLowerCase()}`;
+      const headcount = Math.max(1, t.crewSize ?? 1);
+      const prev = groups.get(key);
+      if (prev) prev.headcount += headcount;
+      else groups.set(key, { trade, company, headcount });
+    }
+
+    if (groups.size === 0) return;
+    const seeded: ManpowerEntry[] = Array.from(groups.values()).map((g, i) => ({
+      id: `seed-${Date.now()}-${i}`,
+      trade: g.trade,
+      company: g.company,
+      headcount: g.headcount,
+      hoursWorked: 8,
+    }));
+    setManpower(seeded);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleAddManpower = useCallback(() => {
     const trade = mpTrade.trim();
     if (!trade) {

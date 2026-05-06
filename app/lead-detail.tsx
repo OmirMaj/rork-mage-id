@@ -13,7 +13,7 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  Linking, Platform, Alert, KeyboardAvoidingView,
+  Linking, Platform, Alert, KeyboardAvoidingView, Modal,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
@@ -72,6 +72,14 @@ export default function LeadDetailScreen() {
   const [stage, setStage] = useState<LeadStage>(existing?.stage ?? 'new');
   const [score, setScore] = useState<number | undefined>(existing?.score);
   const [scoreReason, setScoreReason] = useState<string>(existing?.scoreReason ?? '');
+  // Lose-reason capture. The lostReason field exists on Lead but pre-fix
+  // was never prompted for — we'd just flip stage to 'lost' and lose the
+  // why. Now: when stage transitions TO 'lost' from anywhere else, open
+  // a chip-picker modal so the next "why are we losing deals?" report
+  // has actual data behind it.
+  const [lostReason, setLostReason] = useState<string>(existing?.lostReason ?? '');
+  const [showLostReasonModal, setShowLostReasonModal] = useState(false);
+  const [pendingLostStage, setPendingLostStage] = useState(false);
 
   // Activity log inputs.
   const [touchKind, setTouchKind] = useState<LeadTouchKind>('call');
@@ -99,6 +107,7 @@ export default function LeadDetailScreen() {
       stage,
       score,
       scoreReason: scoreReason || undefined,
+      lostReason: lostReason || undefined,
     };
     if (isNew) {
       addLead({ ...payload, touches: [] });
@@ -107,7 +116,21 @@ export default function LeadDetailScreen() {
     }
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     router.back();
-  }, [canSave, name, phone, email, address, projectType, scope, budgetMin, budgetMax, timeline, source, stage, score, scoreReason, isNew, existing, addLead, updateLead, router]);
+  }, [canSave, name, phone, email, address, projectType, scope, budgetMin, budgetMax, timeline, source, stage, score, scoreReason, lostReason, isNew, existing, addLead, updateLead, router]);
+
+  // Wrap stage changes so flipping to 'lost' opens the reason modal.
+  // The actual stage flip stays gated until the modal closes — if the
+  // GC bails on giving a reason, we still let them mark it lost (the
+  // reason is "best-effort capture", not a hard requirement).
+  const setStageWithLossPrompt = useCallback((next: LeadStage) => {
+    if (next === 'lost' && stage !== 'lost' && !lostReason) {
+      setPendingLostStage(true);
+      setShowLostReasonModal(true);
+      return;
+    }
+    setStage(next);
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+  }, [stage, lostReason]);
 
   const handleConvert = useCallback(() => {
     if (!existing) return;
@@ -242,10 +265,7 @@ export default function LeadDetailScreen() {
                   stages={LEAD_PIPELINE_STAGES}
                   current={mapLeadStage(stage)}
                   startedAt={existing.receivedAt ?? existing.createdAt}
-                  onAdvance={(next) => {
-                    setStage(next);
-                    if (Platform.OS !== 'web') void Haptics.selectionAsync();
-                  }}
+                  onAdvance={(next) => setStageWithLossPrompt(next)}
                   advanceLabel={
                     stage === 'new' ? 'Mark qualified'
                     : stage === 'qualified' ? 'Move to proposal'
@@ -260,10 +280,7 @@ export default function LeadDetailScreen() {
                 <TouchableOpacity
                   key={s}
                   style={[styles.chip, stage === s && styles.chipActive]}
-                  onPress={() => {
-                    setStage(s);
-                    if (Platform.OS !== 'web') void Haptics.selectionAsync();
-                  }}
+                  onPress={() => setStageWithLossPrompt(s)}
                 >
                   <Text style={[styles.chipText, stage === s && styles.chipTextActive]}>{LEAD_STAGE_LABELS[s]}</Text>
                 </TouchableOpacity>
@@ -445,10 +462,78 @@ export default function LeadDetailScreen() {
             'Met at the house, walked the kitchen, took photos of the existing layout',
           ]}
         />
+
+        {/* Lose-reason modal — fires when GC flips the stage to 'lost'.
+            Chip picker covers the five answers that actually drive
+            "why are we losing" reporting. "Skip" still moves the stage
+            but leaves the reason blank — capture is best-effort, not a
+            hard requirement. */}
+        <Modal
+          visible={showLostReasonModal}
+          transparent
+          animationType="fade"
+          onRequestClose={() => { setShowLostReasonModal(false); setPendingLostStage(false); }}
+        >
+          <View style={styles.lostModalBackdrop}>
+            <View style={styles.lostModalCard}>
+              <Text style={styles.lostModalTitle}>Why did this one go cold?</Text>
+              <Text style={styles.lostModalSubtitle}>
+                One tap. We'll roll it into "why are we losing deals" reports later — won't ask you again.
+              </Text>
+              <View style={styles.lostReasonChips}>
+                {LOST_REASONS.map(r => (
+                  <TouchableOpacity
+                    key={r}
+                    style={[styles.chip, lostReason === r && styles.chipActive]}
+                    onPress={() => {
+                      setLostReason(r);
+                      if (Platform.OS !== 'web') void Haptics.selectionAsync();
+                    }}
+                  >
+                    <Text style={[styles.chipText, lostReason === r && styles.chipTextActive]}>{r}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <View style={styles.lostModalActions}>
+                <TouchableOpacity
+                  style={styles.lostModalSkipBtn}
+                  onPress={() => {
+                    if (pendingLostStage) setStage('lost');
+                    setShowLostReasonModal(false);
+                    setPendingLostStage(false);
+                  }}
+                >
+                  <Text style={styles.lostModalSkipText}>Skip</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.lostModalSaveBtn, !lostReason && { opacity: 0.5 }]}
+                  disabled={!lostReason}
+                  onPress={() => {
+                    if (pendingLostStage) setStage('lost');
+                    setShowLostReasonModal(false);
+                    setPendingLostStage(false);
+                  }}
+                >
+                  <Text style={styles.lostModalSaveText}>Save reason</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
       </KeyboardAvoidingView>
     </>
   );
 }
+
+const LOST_REASONS = [
+  'Price',
+  'Timeline',
+  'Trust',
+  'Awarded elsewhere',
+  'No response',
+  'Scope changed',
+  'Other',
+] as const;
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: Colors.background },
@@ -568,4 +653,58 @@ const styles = StyleSheet.create({
   },
   saveBtnDisabled: { backgroundColor: Colors.fillTertiary },
   saveBtnText: { color: '#FFF', fontSize: Type.subhead.fontSize, fontWeight: '700' as const },
+
+  // ── Lose-reason modal ──────────────────────────────────────────
+  lostModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    padding: 24,
+  },
+  lostModalCard: {
+    backgroundColor: Colors.card,
+    borderRadius: Tokens.radius.card,
+    padding: 20,
+    width: '100%' as const,
+    maxWidth: 420,
+  },
+  lostModalTitle: {
+    fontSize: Type.title3.fontSize,
+    fontWeight: '800' as const,
+    color: Colors.text,
+    marginBottom: 6,
+  },
+  lostModalSubtitle: {
+    fontSize: Type.footnote.fontSize,
+    color: Colors.textMuted,
+    marginBottom: 16,
+    lineHeight: 19,
+  },
+  lostReasonChips: {
+    flexDirection: 'row' as const,
+    flexWrap: 'wrap' as const,
+    gap: 8,
+    marginBottom: 18,
+  },
+  lostModalActions: {
+    flexDirection: 'row' as const,
+    gap: 10,
+  },
+  lostModalSkipBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: Tokens.radius.md,
+    backgroundColor: Colors.fillTertiary,
+    alignItems: 'center' as const,
+  },
+  lostModalSkipText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.textMuted },
+  lostModalSaveBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: Tokens.radius.md,
+    backgroundColor: Colors.primary,
+    alignItems: 'center' as const,
+  },
+  lostModalSaveText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: '#FFF' },
 });

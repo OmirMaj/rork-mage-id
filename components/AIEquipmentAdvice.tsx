@@ -11,6 +11,8 @@ import {
   type EquipmentAdviceResult,
 } from '@/utils/aiService';
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
+import { showAILimitAlert } from '@/utils/aiLimitAlert';
+import { useRouter } from 'expo-router';
 import type { Equipment } from '@/types';
 import type { SubscriptionTierKey } from '@/utils/aiRateLimiter';
 import { Type } from '@/constants/typography';
@@ -32,6 +34,7 @@ const REC_STYLES = {
 export default React.memo(function AIEquipmentAdvice({ equipment, subscriptionTier }: Props) {
   const [result, setResult] = useState<EquipmentAdviceResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const router = useRouter();
 
   const handleAnalyze = useCallback(async () => {
     if (isLoading) return;
@@ -45,7 +48,7 @@ export default React.memo(function AIEquipmentAdvice({ equipment, subscriptionTi
 
     const limit = await checkAILimit(subscriptionTier, 'fast', 'equipmentAdvice');
     if (!limit.allowed) {
-      Alert.alert('AI Limit Reached', limit.message ?? 'Try again tomorrow.');
+      showAILimitAlert({ limit, router });
       return;
     }
 

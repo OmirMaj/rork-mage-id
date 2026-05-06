@@ -3,7 +3,7 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated,
   Platform, Alert,
 } from 'react-native';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import {
@@ -11,8 +11,9 @@ import {
   AlertCircle, Check, Clock, X as XIcon, Eye,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
-import { MOCK_DOCUMENTS, DOCUMENT_TYPE_INFO } from '@/mocks/documents';
+import { DOCUMENT_TYPE_INFO } from '@/mocks/documents';
 import type { ProjectDocument, DocumentStatus } from '@/types';
+import { useProjects } from '@/contexts/ProjectContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -75,8 +76,124 @@ function DocumentCard({ doc, onPress }: { doc: ProjectDocument; onPress: () => v
 
 export default function DocumentsScreen() {
   const insets = useSafeAreaInsets();
-  const [documents] = useState<ProjectDocument[]>(MOCK_DOCUMENTS);
+  const router = useRouter();
+  // Real aggregator. Pre-audit (May 2026) this screen rendered MOCK_DOCUMENTS
+  // and had no CRUD. Audit cleanup recommendation was to either build a
+  // unified document model OR turn this into a read-only view that pulls
+  // from the existing tables (COIs, permits, submittals, AIA pay apps).
+  // We took option B — every document type listed here exists elsewhere
+  // in the app with its own write path, so duplicating the schema would
+  // just create drift. This screen is now a single dashboard that links
+  // OUT to each document's home screen.
+  const {
+    projects, cois, permits, submittals, aiaPayApps,
+  } = useProjects();
   const [selectedFilter, setSelectedFilter] = useState<string>('all');
+
+  const documents = useMemo<ProjectDocument[]>(() => {
+    const projectById = new Map(projects.map(p => [p.id, p.name]));
+    const out: ProjectDocument[] = [];
+
+    // COIs — one per sub. Status derives from the validation result and
+    // the earliest expiration in the coverages array. Empty validation
+    // means "uploaded but not yet validated."
+    for (const c of cois) {
+      const earliestExpiration = (c.coverages ?? [])
+        .map(cov => cov.expiresAt)
+        .filter((d): d is string => !!d)
+        .sort()[0];
+      const expired = earliestExpiration && new Date(earliestExpiration).getTime() < Date.now();
+      let status: DocumentStatus = 'pending_signature';
+      if (expired) status = 'expired';
+      else if (c.validation?.overallStatus === 'pass') status = 'signed';
+      else if (c.uploadedAt) status = 'draft';
+      // Resolve the sub's name via the projects map's denormalized data.
+      // The COI type doesn't carry the name; lookup elsewhere is via
+      // subcontractorId, but we don't have the subs map here. Show the
+      // sub ID prefix as a fallback so the row is at least identifiable.
+      const subLabel = c.subcontractorId ? c.subcontractorId.slice(0, 8) : 'Subcontractor';
+      out.push({
+        id: 'coi-' + c.id,
+        projectId: c.projectId ?? 'unassigned',
+        projectName: projectById.get(c.projectId ?? '') ?? 'Sub COI',
+        type: 'coi',
+        title: `COI · ${subLabel}`,
+        status,
+        createdAt: c.uploadedAt ?? new Date().toISOString(),
+        expiresAt: earliestExpiration,
+        signedAt: c.uploadedAt,
+      });
+    }
+
+    // Permits — `expiresDate` is the actual field (not `expirationDate`).
+    // Status mapping reflects the PermitStatus union values.
+    for (const p of permits) {
+      const expired = p.expiresDate && new Date(p.expiresDate).getTime() < Date.now();
+      const status: DocumentStatus = expired ? 'expired'
+        : p.status === 'approved' ? 'signed'
+        : p.status === 'inspection_passed' ? 'signed'
+        : p.status === 'denied' ? 'void'
+        : p.status === 'expired' ? 'expired'
+        : 'pending_signature';
+      out.push({
+        id: 'permit-' + p.id,
+        projectId: p.projectId,
+        projectName: projectById.get(p.projectId) ?? p.projectName ?? 'Project',
+        type: 'permit',
+        title: `Permit · ${p.type ?? p.permitNumber ?? 'Building Permit'}`,
+        status,
+        createdAt: p.appliedDate ?? new Date().toISOString(),
+        expiresAt: p.expiresDate,
+        notes: p.permitNumber ? `# ${p.permitNumber}` : undefined,
+      });
+    }
+
+    // Submittals
+    for (const s of submittals) {
+      const status: DocumentStatus = s.currentStatus === 'approved' ? 'signed'
+        : s.currentStatus === 'rejected' ? 'void'
+        : s.currentStatus === 'pending' ? 'draft'
+        : 'pending_signature';
+      out.push({
+        id: 'submittal-' + s.id,
+        projectId: s.projectId,
+        projectName: projectById.get(s.projectId) ?? 'Project',
+        type: 'other',
+        title: `Submittal #${s.number} · ${s.title}`,
+        status,
+        createdAt: s.submittedDate ?? s.createdAt ?? new Date().toISOString(),
+        notes: s.specSection ? `Spec ${s.specSection}` : undefined,
+      });
+    }
+
+    // AIA pay apps — count as billing documents
+    for (const a of aiaPayApps) {
+      out.push({
+        id: 'aia-' + a.id,
+        projectId: a.projectId,
+        projectName: projectById.get(a.projectId) ?? a.projectName,
+        type: 'aia_billing',
+        title: `AIA G702 · App #${a.applicationNumber}`,
+        status: 'signed',
+        createdAt: a.applicationDate ?? a.savedAt ?? new Date().toISOString(),
+        notes: a.payLinkUrl ? 'Pay link active' : undefined,
+      });
+    }
+
+    // Newest first
+    return out.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }, [projects, cois, permits, submittals, aiaPayApps]);
+
+  const handleDocPress = useCallback((doc: ProjectDocument) => {
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+    // Route to the document's home screen so the user can see / edit /
+    // sign there. The aggregator screen stays read-only.
+    if (doc.type === 'coi') router.push('/coi-vault' as never);
+    else if (doc.type === 'permit') router.push('/permits' as never);
+    else if (doc.type === 'aia_billing') router.push('/aia-pay-app' as never);
+    else if (doc.id.startsWith('submittal-')) router.push('/submittal' as never);
+    else router.push(`/project-detail?id=${doc.projectId}` as never);
+  }, [router]);
 
   const filters = [
     { id: 'all', label: 'All' },
@@ -103,44 +220,28 @@ export default function DocumentsScreen() {
     }).length,
   }), [documents]);
 
-  const handleDocPress = useCallback((doc: ProjectDocument) => {
-    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-
-    if (doc.status === 'draft') {
-      Alert.alert(doc.title, 'Open document editor to complete and send for signature?', [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Edit Draft', onPress: () => console.log('[Documents] Edit draft:', doc.id) },
-      ]);
-    } else if (doc.status === 'pending_signature') {
-      Alert.alert(doc.title, 'This document is waiting for signature. You can resend the signing request.', [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Resend', onPress: () => {
-          Alert.alert('Sent', 'Signing request has been resent.');
-        }},
-      ]);
-    } else {
-      Alert.alert(doc.title, `Status: ${STATUS_CONFIG[doc.status].label}\n${doc.signedBy ? `Signed by: ${doc.signedBy}` : ''}`);
-    }
-  }, []);
-
-  const handleCreateDocument = useCallback(() => {
-    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    Alert.alert(
-      'Create Document',
-      'What type of document would you like to create?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Lien Waiver', onPress: () => console.log('[Documents] Create lien waiver') },
-        { text: 'Proposal', onPress: () => console.log('[Documents] Create proposal') },
-        { text: 'Contract', onPress: () => console.log('[Documents] Create contract') },
-      ]
-    );
-  }, []);
+  // The original Edit / Resend / status-detail handler was removed when
+  // this screen converted from MOCK to a read-only aggregator. Tapping a
+  // doc card now routes the user to the document's home screen
+  // (see `handleDocPress` defined above).
 
   return (
     <View style={styles.container}>
       <Stack.Screen options={{ title: 'Documents', headerStyle: { backgroundColor: Colors.background }, headerTintColor: Colors.primary, headerTitleStyle: { fontWeight: '700' as const, color: Colors.text } }} />
       <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 30 }} showsVerticalScrollIndicator={false}>
+        {/* Header note — explains this is a unified read-only view. The
+            actual write paths for each doc type live elsewhere
+            (coi-vault, permits, submittal, aia-pay-app); tapping a card
+            routes there. */}
+        <View style={{
+          marginHorizontal: 16, marginTop: 12, padding: 12,
+          backgroundColor: Colors.fillSecondary, borderRadius: 12,
+          borderWidth: 1, borderColor: Colors.border,
+        }}>
+          <Text style={{ fontSize: 13, color: Colors.textSecondary, lineHeight: 18 }}>
+            All documents across your projects in one view. Tap any card to open it in its home screen for editing.
+          </Text>
+        </View>
         <View style={styles.alertsRow}>
           {stats.pending > 0 && (
             <View style={[styles.alertCard, { backgroundColor: Colors.warningLight, borderColor: '#FFE0B2' }]}>
@@ -181,10 +282,9 @@ export default function DocumentsScreen() {
           </View>
         </View>
 
-        <TouchableOpacity style={styles.createButton} onPress={handleCreateDocument} activeOpacity={0.85}>
-          <Plus size={18} color="#fff" />
-          <Text style={styles.createButtonText}>Create Document</Text>
-        </TouchableOpacity>
+        {/* "Create Document" CTA removed when this screen converted to a
+            read-only aggregator. Each document type has its own home
+            screen with its own create flow (coi-vault, permits, etc.). */}
 
         <ScrollView
           horizontal

@@ -40,7 +40,7 @@ export default function WarrantyWalkBanner({ alerts }: Props) {
           <TouchableOpacity
             key={a.project.id}
             style={[styles.row, { borderColor: accent + '30', backgroundColor: accent + '0E' }]}
-            onPress={() => router.push({ pathname: '/project-detail' as never, params: { id: a.project.id } } as never)}
+            onPress={() => router.push({ pathname: '/warranty-walk' as never, params: { projectId: a.project.id } } as never)}
             activeOpacity={0.7}
             testID={`warranty-walk-${a.project.id}`}
           >

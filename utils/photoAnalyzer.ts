@@ -126,7 +126,7 @@ interface AnalyzeMeta {
   skippedIndexes: number[];
 }
 
-async function callAnalyzePhotos<T>(opts: BaseOpts & { task: 'punch' | 'dfr' | 'caption' | 'coi' }, attempt = 0): Promise<{ data: T; meta: AnalyzeMeta }> {
+async function callAnalyzePhotos<T>(opts: BaseOpts & { task: 'punch' | 'dfr' | 'caption' | 'coi' | 'rfi' | 'triage' }, attempt = 0): Promise<{ data: T; meta: AnalyzeMeta }> {
   if (!opts.photoUrls || opts.photoUrls.length === 0) {
     throw new Error('No photos to analyze.');
   }
@@ -224,6 +224,76 @@ export async function analyzePhotosForPunch(opts: BaseOpts): Promise<{ items: Ai
 export async function analyzePhotosForDfr(opts: BaseOpts): Promise<{ summary: AiDfrSummary; meta: AnalyzeMeta }> {
   const { data, meta } = await callAnalyzePhotos<AiDfrSummary>({ ...opts, task: 'dfr' });
   return { summary: data, meta };
+}
+
+export interface AiRfiCandidate {
+  subject: string;
+  question: string;
+  location: string;
+  trade: string;
+  priority: 'low' | 'medium' | 'high';
+  /** Index into the caller's original photoUrls array (already remapped). */
+  photoIndex: number;
+  confidence: number;
+}
+
+/**
+ * Analyze photos for RFI candidates — drawings/field discrepancies, trade
+ * conflicts, missing info that needs a design-team answer. Same remap
+ * logic as analyzePhotosForPunch; out-of-bounds photoIndex entries get
+ * dropped with a console.warn rather than attaching the wrong source.
+ */
+export async function analyzePhotosForRfi(opts: BaseOpts): Promise<{ items: AiRfiCandidate[]; meta: AnalyzeMeta }> {
+  const { data, meta } = await callAnalyzePhotos<{ items: AiRfiCandidate[] }>({ ...opts, task: 'rfi' });
+  const remapped: AiRfiCandidate[] = [];
+  for (const item of data.items) {
+    if (item.photoIndex < 0 || item.photoIndex >= meta.originalIndexes.length) {
+      console.warn('[photoAnalyzer] AI returned out-of-bounds RFI photoIndex', {
+        photoIndex: item.photoIndex,
+        analyzed: meta.originalIndexes.length,
+      });
+      continue;
+    }
+    remapped.push({ ...item, photoIndex: meta.originalIndexes[item.photoIndex] });
+  }
+  return { items: remapped, meta };
+}
+
+export type AiTriageClass = 'punch' | 'rfi' | 'dfr' | 'progress' | 'noise';
+
+export interface AiTriageEntry {
+  /** Original-array photoIndex (already remapped). */
+  photoIndex: number;
+  classification: AiTriageClass;
+  confidence: number;
+  title: string;
+  location: string;
+  trade: string;
+  priority: 'low' | 'medium' | 'high' | '';
+  rationale: string;
+}
+
+/**
+ * Smart photo triage — feed N photos, get back per-photo classifications
+ * (punch / rfi / dfr / progress / noise). The headline AI feature: a
+ * worker dumps a batch from a site walk and the UI splits the photos into
+ * the right destinations automatically. The caller can show a preview and
+ * let the GC accept / override before records get created.
+ */
+export async function triagePhotos(opts: BaseOpts): Promise<{ entries: AiTriageEntry[]; meta: AnalyzeMeta }> {
+  const { data, meta } = await callAnalyzePhotos<{ entries: AiTriageEntry[] }>({ ...opts, task: 'triage' });
+  const remapped: AiTriageEntry[] = [];
+  for (const entry of data.entries) {
+    if (entry.photoIndex < 0 || entry.photoIndex >= meta.originalIndexes.length) {
+      console.warn('[photoAnalyzer] AI returned out-of-bounds triage photoIndex', {
+        photoIndex: entry.photoIndex,
+        analyzed: meta.originalIndexes.length,
+      });
+      continue;
+    }
+    remapped.push({ ...entry, photoIndex: meta.originalIndexes[entry.photoIndex] });
+  }
+  return { entries: remapped, meta };
 }
 
 // AI-generated photo caption — single-photo helper used when the GC

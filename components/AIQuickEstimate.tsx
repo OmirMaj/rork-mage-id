@@ -13,6 +13,8 @@ import { Colors } from '@/constants/colors';
 import { PROJECT_TYPES, type ProjectType, type QualityTier } from '@/types';
 import { generateQuickEstimate, type AIQuickEstimateResult } from '@/utils/aiService';
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
+import { showAILimitAlert } from '@/utils/aiLimitAlert';
+import { useRouter } from 'expo-router';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import EstimateLoadingOverlay from '@/components/EstimateLoadingOverlay';
 import type { MaterialItem } from '@/constants/materials';
@@ -79,6 +81,7 @@ export default React.memo(function AIQuickEstimate({
   visible, onClose, onApplyEstimate, existingMaterials, globalMarkup, location, calculateAssemblyCost,
 }: Props) {
   const { tier } = useSubscription();
+  const router = useRouter();
   const [step, setStep] = useState<'input' | 'loading' | 'result'>('input');
   const [description, setDescription] = useState('');
   const [projectType, setProjectType] = useState<ProjectType>('renovation');
@@ -149,10 +152,7 @@ export default React.memo(function AIQuickEstimate({
     // Pro. Pro/Business have it on the daily 'smart' quota.
     const limit = await checkAILimit(tier, 'smart', 'quickEstimate');
     if (!limit.allowed) {
-      const title = limit.reason === 'lifetime_cap' ? 'Free Trials Used'
-        : limit.reason === 'pro_only' ? 'Pro Feature'
-        : 'AI Limit Reached';
-      Alert.alert(title, limit.message ?? 'Rate limit reached.');
+      showAILimitAlert({ limit, router });
       return;
     }
 

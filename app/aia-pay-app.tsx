@@ -25,6 +25,9 @@ import {
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import { generateUUID } from '@/utils/generateId';
+import { useAuth } from '@/contexts/AuthContext';
+import { createPaymentLink } from '@/utils/stripe';
+import { fetchStripeConnectStatus } from '@/utils/stripeConnect';
 import type { SavedAIAPayApp } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -54,6 +57,7 @@ function AIAPayAppScreenInner() {
     addAIAPayApp, getAIAPayAppsForProject,
   } = useProjects();
 
+  const { user } = useAuth();
   const invoice = useMemo(() => invoices.find(i => i.id === invoiceId), [invoices, invoiceId]);
   const project = useMemo(() => (invoice ? getProject(invoice.projectId) : undefined), [invoice, getProject]);
   const approvedCOs = useMemo(() =>
@@ -222,14 +226,53 @@ function AIAPayAppScreenInner() {
     };
   }, [app, project, totals, invoice?.id, getAIAPayAppsForProject]);
 
-  const handleSave = useCallback(() => {
+  const handleSave = useCallback(async () => {
     const rec = buildSavedRecord();
     if (!rec) return;
-    addAIAPayApp(rec);
+
+    // Auto-attach a Stripe pay link for `currentPaymentDue` if the GC has
+    // Connect onboarded. Mirrors the invoice flow at app/invoice.tsx:350-385.
+    // Pre-audit (May 2026), AIA pay apps generated PDFs but had no payment
+    // wiring at all — homeowners got a print-only document while regular
+    // invoices had Pay buttons. We close the asymmetry here.
+    let payLinkUrl = rec.payLinkUrl;
+    let payLinkId = rec.payLinkId;
+    const due = rec.totals?.currentPaymentDue ?? 0;
+    if (!payLinkUrl && due > 0 && user?.id) {
+      try {
+        const status = await fetchStripeConnectStatus(user.id);
+        if (status.success && status.chargesEnabled && status.accountId) {
+          const res = await createPaymentLink({
+            invoiceId: rec.id,
+            invoiceNumber: rec.applicationNumber,
+            projectName: rec.projectName ?? 'Project',
+            amountCents: Math.round(due * 100),
+            // No customer email at this point — the homeowner email is
+            // captured at portal-link share time, not here. Stripe will
+            // collect at checkout.
+            customerEmail: '',
+            companyName: rec.contractorName ?? settings?.branding?.companyName ?? 'Contractor',
+            stripeAccountId: status.accountId,
+          });
+          if (res.success && res.url && res.id) {
+            payLinkUrl = res.url;
+            payLinkId = res.id;
+          } else {
+            console.warn('[AIA] Auto-generate payment link failed:', res.error);
+          }
+        } else {
+          console.log('[AIA] Skipping payment link — Stripe Connect not set up for this user');
+        }
+      } catch (err) {
+        console.warn('[AIA] Auto-generate payment link threw:', err);
+      }
+    }
+
+    addAIAPayApp({ ...rec, payLinkUrl, payLinkId });
     setSavedFlash(true);
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setTimeout(() => setSavedFlash(false), 2200);
-  }, [buildSavedRecord, addAIAPayApp]);
+  }, [buildSavedRecord, addAIAPayApp, user, settings]);
 
   // Tap "Generate PDF" → show pre-export confirmation first (liability
   // reducer). Once user confirms they reviewed the totals, we actually
@@ -245,17 +288,16 @@ function AIAPayAppScreenInner() {
     setGenerating(true);
     try {
       await generateAIAPayAppPDF(app, settings.branding);
-      // Persist the same record so the client portal can show this billing
-      // alongside the printed PDF the GC just shared.
-      const rec = buildSavedRecord();
-      if (rec) addAIAPayApp(rec);
+      // Persist + attach pay link via the same code path as handleSave so
+      // the portal-side rendering of this AIA app gets a Pay button.
+      await handleSave();
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err) {
       Alert.alert('Error', 'Could not generate the pay application PDF.');
     } finally {
       setGenerating(false);
     }
-  }, [app, settings?.branding, buildSavedRecord, addAIAPayApp]);
+  }, [app, settings?.branding, handleSave]);
 
   if (!invoice || !project) {
     return (

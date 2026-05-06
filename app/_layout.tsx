@@ -312,6 +312,11 @@ function RootLayoutNav() {
       <Stack.Screen name="buyout-package" options={{ title: 'Bid Package' }} />
       <Stack.Screen name="schedule-wizard" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="ai-punch" options={{ title: 'AI Punch from Photos' }} />
+      <Stack.Screen name="photo-triage" options={{ title: 'AI Photo Triage' }} />
+      <Stack.Screen name="extract-submittals" options={{ title: 'Extract Submittals' }} />
+      <Stack.Screen name="compare-drawings" options={{ title: 'Compare Drawings' }} />
+      <Stack.Screen name="tax-1099-export" options={{ title: '1099-NEC Export' }} />
+      <Stack.Screen name="warranty-walk" options={{ title: '11-month walk' }} />
       <Stack.Screen
         name="login"
         options={{

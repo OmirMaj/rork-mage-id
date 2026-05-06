@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useMemo, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated,
-  Platform, Alert, Modal,
+  Platform, Alert, Modal, Share, Clipboard,
 } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { useTierAccess } from '@/hooks/useTierAccess';
@@ -10,12 +10,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import {
   Clock, Play, Pause, Square, Users, ChevronDown,
-  MapPin, Coffee, X, TrendingUp, AlertTriangle,
+  MapPin, Coffee, X, TrendingUp, AlertTriangle, FileDown,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
-import { MOCK_TIME_ENTRIES, CREW_MEMBERS } from '@/mocks/timeTracking';
+import { CREW_MEMBERS } from '@/mocks/timeTracking';
 import type { TimeEntry } from '@/types';
 import { formatMoney } from '@/utils/formatters';
+import { useTimeEntries, buildTimeEntriesCSV } from '@/hooks/useTimeEntries';
+import { useProjects } from '@/contexts/ProjectContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -110,7 +112,12 @@ function LiveTimeCard({ entry, onAction }: { entry: TimeEntry; onAction: (entry:
 export default function TimeTrackingScreen() {
   const router = useRouter();
   const { canAccess } = useTierAccess();
-  if (!canAccess('time_tracking')) {
+  // Time Tracking is a Business-tier feature. We gate via the
+  // 'subcontractor_management' FeatureKey since the same crew payroll
+  // data is the foundation for both. (Earlier audit cleanup deleted the
+  // standalone 'time_tracking' key; if we want a tighter, separate
+  // FeatureKey for time tracking specifically, add it back here.)
+  if (!canAccess('subcontractor_management')) {
     return (
       <Paywall
         visible={true}
@@ -125,15 +132,17 @@ export default function TimeTrackingScreen() {
 
 function TimeTrackingScreenInner() {
   const insets = useSafeAreaInsets();
-  const [entries, setEntries] = useState<TimeEntry[]>(MOCK_TIME_ENTRIES);
+  // Real backend hook (created May 2026 to replace MOCK_TIME_ENTRIES).
+  // Data is persisted to AsyncStorage immediately and synced to Supabase
+  // `time_entries` table via the offline queue. Cross-device sync works
+  // via the user_id RLS scope on the table.
+  const {
+    entries, liveEntries, historyEntries,
+    clockIn: doClockIn, startBreak, resumeFromBreak, clockOut: doClockOut,
+  } = useTimeEntries();
+  const { projects } = useProjects();
   const [showClockInModal, setShowClockInModal] = useState(false);
   const [selectedTab, setSelectedTab] = useState<'live' | 'history'>('live');
-
-  const liveEntries = useMemo(() => entries.filter(e => e.status !== 'clocked_out'), [entries]);
-  const historyEntries = useMemo(() =>
-    entries.filter(e => e.status === 'clocked_out').sort((a, b) => b.date.localeCompare(a.date)),
-    [entries]
-  );
 
   const todayStats = useMemo(() => {
     const today = new Date().toISOString().split('T')[0];
@@ -144,31 +153,29 @@ function TimeTrackingScreenInner() {
     return { totalWorkers, totalHours, totalOT, liveCount: liveEntries.length };
   }, [entries, liveEntries]);
 
+  // Track break-start times so we can compute the break duration to
+  // accumulate when the worker resumes. Without this, every resume would
+  // add zero break minutes regardless of how long they actually rested.
+  const breakStartByEntry = useRef<Record<string, number>>({});
+
   const handleAction = useCallback((entry: TimeEntry, action: string) => {
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     if (action === 'break') {
-      setEntries(prev => prev.map(e => e.id === entry.id ? { ...e, status: 'break' as const } : e));
+      breakStartByEntry.current[entry.id] = Date.now();
+      startBreak(entry.id);
     } else if (action === 'resume') {
-      setEntries(prev => prev.map(e => e.id === entry.id ? { ...e, status: 'clocked_in' as const } : e));
+      const startedAt = breakStartByEntry.current[entry.id] ?? Date.now();
+      const minutes = Math.round((Date.now() - startedAt) / 60000);
+      delete breakStartByEntry.current[entry.id];
+      resumeFromBreak(entry.id, minutes);
     } else if (action === 'clock_out') {
-      const now = new Date();
-      const clockInTime = new Date(entry.clockIn);
-      const totalMs = now.getTime() - clockInTime.getTime();
-      const totalHrs = Math.round((totalMs / 3600000 - entry.breakMinutes / 60) * 10) / 10;
-      const ot = Math.max(totalHrs - 8, 0);
-
-      setEntries(prev => prev.map(e => e.id === entry.id ? {
-        ...e,
-        status: 'clocked_out' as const,
-        clockOut: now.toISOString(),
-        totalHours: Math.max(totalHrs, 0),
-        overtimeHours: ot,
-      } : e));
-
-      Alert.alert('Clocked Out', `${entry.workerName} clocked out. Total: ${Math.max(totalHrs, 0).toFixed(1)}h`);
+      doClockOut(entry.id);
+      // Brief confirmation. The hook computes totalHours/overtimeHours
+      // server-side-compatible and updates the row.
+      Alert.alert('Clocked Out', `${entry.workerName} clocked out.`);
     }
-  }, []);
+  }, [startBreak, resumeFromBreak, doClockOut]);
 
   const handleClockIn = useCallback((memberId: string) => {
     const member = CREW_MEMBERS.find(m => m.id === memberId);
@@ -176,25 +183,49 @@ function TimeTrackingScreenInner() {
 
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
-    const now = new Date();
-    const newEntry: TimeEntry = {
-      id: `te-${Date.now()}`,
-      projectId: 'p-1',
-      projectName: 'Kitchen Renovation - Smith',
+    // Default to the most recent project if any exist; otherwise fall back
+    // to a placeholder. Future improvement: project picker in the modal.
+    const defaultProject = projects[0];
+    doClockIn({
+      projectId: defaultProject?.id ?? 'unassigned',
+      projectName: defaultProject?.name ?? 'Unassigned',
       workerId: member.id,
       workerName: member.name,
       trade: member.trade,
-      clockIn: now.toISOString(),
-      breakMinutes: 0,
-      totalHours: 0,
-      overtimeHours: 0,
-      status: 'clocked_in',
-      date: now.toISOString().split('T')[0],
-    };
+    });
 
-    setEntries(prev => [newEntry, ...prev]);
     setShowClockInModal(false);
-  }, []);
+  }, [doClockIn, projects]);
+
+  // Payroll CSV export. Drops everything in `entries` into the standard
+  // QuickBooks/Sage-friendly column shape and shares via native Share
+  // sheet on mobile / clipboard on web.
+  const handleExportCSV = useCallback(async () => {
+    if (entries.length === 0) {
+      Alert.alert('No entries', 'Clock in some crew before exporting.');
+      return;
+    }
+    const csv = buildTimeEntriesCSV(entries);
+    if (Platform.OS === 'web') {
+      try {
+        // RN-Web's Clipboard.setString is synchronous and supported in
+        // modern browsers via navigator.clipboard internally.
+        Clipboard.setString(csv);
+        Alert.alert('Copied', `${entries.length} entries copied as CSV. Paste into Excel / QuickBooks / Sage.`);
+      } catch {
+        Alert.alert('Export failed', 'Could not copy CSV to clipboard.');
+      }
+      return;
+    }
+    try {
+      await Share.share({
+        title: `Time entries — ${new Date().toLocaleDateString()}`,
+        message: csv,
+      });
+    } catch (err) {
+      console.warn('[time-tracking] CSV share failed:', err);
+    }
+  }, [entries]);
 
   return (
     <View style={styles.container}>
@@ -224,14 +255,33 @@ function TimeTrackingScreenInner() {
           </View>
         </View>
 
-        <TouchableOpacity
-          style={styles.clockInButton}
-          onPress={() => setShowClockInModal(true)}
-          activeOpacity={0.85}
-        >
-          <Play size={18} color="#fff" />
-          <Text style={styles.clockInButtonText}>Clock In Crew Member</Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', gap: 10, marginHorizontal: 16, marginVertical: 12 }}>
+          <TouchableOpacity
+            style={[styles.clockInButton, { flex: 1, marginHorizontal: 0, marginVertical: 0 }]}
+            onPress={() => setShowClockInModal(true)}
+            activeOpacity={0.85}
+          >
+            <Play size={18} color="#fff" />
+            <Text style={styles.clockInButtonText}>Clock In Crew</Text>
+          </TouchableOpacity>
+          {/* Payroll-friendly CSV export — drop into QuickBooks / Sage /
+              Foundation. Pre-audit (May 2026) the screen had no export
+              path and the data was mock-only anyway. Real now. */}
+          <TouchableOpacity
+            style={{
+              flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+              paddingVertical: 14, paddingHorizontal: 16,
+              backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,
+              borderRadius: Tokens.radius.md,
+            }}
+            onPress={handleExportCSV}
+            activeOpacity={0.85}
+            testID="time-tracking-export"
+          >
+            <FileDown size={16} color={Colors.text} />
+            <Text style={{ fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text }}>Export CSV</Text>
+          </TouchableOpacity>
+        </View>
 
         <View style={styles.tabRow}>
           <TouchableOpacity

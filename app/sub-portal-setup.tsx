@@ -8,7 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import {
   ChevronLeft, Copy, Send, Link, Check, X, RefreshCw, Lock,
-  HardHat, Building2, FileText, Inbox,
+  HardHat, Building2, FileText, Inbox, Mail,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
@@ -20,6 +20,12 @@ import {
 } from '@/utils/subPortalSnapshot';
 import { formatMoney } from '@/utils/formatters';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { sendEmail } from '@/utils/emailService';
+import {
+  wrapEmailHtml, emailDivider, emailQuote,
+} from '@/utils/emailLayout';
+import { useTierAccess } from '@/hooks/useTierAccess';
+import Paywall from '@/components/Paywall';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -31,6 +37,27 @@ const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY
 
 export default function SubPortalSetupScreen() {
   const router = useRouter();
+  const { canAccess } = useTierAccess();
+  // Subcontractor management is a Business-only feature per the paywall
+  // claim. Pre-fix the FeatureKey existed but had no callsite — any tier
+  // could configure sub portals. Wiring it here gates the entry point;
+  // the rest of the sub workflows (sub list view, COI, prequal) were
+  // already either gated by other keys or are read-only.
+  if (!canAccess('subcontractor_management')) {
+    return (
+      <Paywall
+        visible={true}
+        feature="Subcontractor Portals"
+        requiredTier="business"
+        onClose={() => router.back()}
+      />
+    );
+  }
+  return <SubPortalSetupScreenInner />;
+}
+
+function SubPortalSetupScreenInner() {
+  const router = useRouter();
   const insets = useSafeAreaInsets();
   const { projectId, subId } = useLocalSearchParams<{ projectId: string; subId: string }>();
 
@@ -38,6 +65,7 @@ export default function SubPortalSetupScreen() {
     getProject, subcontractors, settings,
     getCommitmentsForProject, getPunchItemsForProject,
     getSubPortalLinkFor, upsertSubPortalLink,
+    commitments: allCommitments,
   } = useProjects();
 
   const project = useMemo(() => projectId ? getProject(projectId) : undefined, [projectId, getProject]);
@@ -142,10 +170,144 @@ export default function SubPortalSetupScreen() {
     }
   }, [portalUrl, sub, project, persist]);
 
+  // Email-the-link path. Routes through the send-email edge function
+  // (Resend) so the invite arrives from noreply@mageid.app with the
+  // GC's company name in the FROM line — instead of forcing the GC to
+  // copy/paste the URL into Mail. Uses the shared wrapEmailHtml shell
+  // so the invite matches the rest of MAGE ID's transactional mail.
+  const [emailing, setEmailing] = useState(false);
+  const handleEmailInvite = useCallback(async () => {
+    if (!sub || !project) return;
+    const recipientEmail = (sub.email ?? '').trim();
+    if (!recipientEmail || !recipientEmail.includes('@')) {
+      Alert.alert(
+        'No email on file',
+        `${sub.companyName} doesn't have an email saved. Edit the sub from the Subs tab to add one, then try again.`,
+      );
+      return;
+    }
+    setEmailing(true);
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+    try {
+      const companyName = settings?.branding?.companyName || 'MAGE ID';
+      const senderName = settings?.branding?.contactName || companyName;
+      const senderEmail = settings?.branding?.email;
+      const greeting = sub.contactName?.split(' ')[0] || sub.companyName;
+      const passcodeLine = link.requirePasscode && link.passcode
+        ? `<p style="margin:0 0 14px 0;font-size:14px;line-height:21px;color:#4A5159;">
+             Your passcode is <strong style="color:#0B0D10;font-size:18px;letter-spacing:1px;">${link.passcode}</strong> — keep it private.
+           </p>`
+        : '';
+
+      const html = wrapEmailHtml({
+        preheader: `Your sub portal for ${project.name} is ready — review your scope and submit invoices.`,
+        eyebrow: 'Sub portal',
+        title: `${project.name}`,
+        subtitle: `Hi ${greeting}, ${companyName} just set up your portal.`,
+        bodyHtml: [
+          `<p style="margin:0 0 14px 0;font-size:14px;line-height:21px;color:#4A5159;">
+             You can review your scope, see open punch items and schedule, and submit invoices for review — no app to install, no account to create. Just bookmark the link below; it stays up to date.
+           </p>`,
+          link.welcomeMessage ? emailQuote(link.welcomeMessage) : '',
+          passcodeLine,
+          emailDivider(),
+          `<p style="margin:0 0 6px 0;font-size:13px;line-height:20px;color:#4A5159;">
+             <strong style="color:#0B0D10;">Project:</strong> ${project.name}<br/>
+             ${project.location ? `<strong style="color:#0B0D10;">Location:</strong> ${project.location}<br/>` : ''}
+             ${sub.trade ? `<strong style="color:#0B0D10;">Trade:</strong> ${sub.trade}<br/>` : ''}
+           </p>`,
+        ].join(''),
+        cta: { label: 'Open your portal', href: portalUrl },
+        companyName,
+        project: { name: project.name, location: project.location },
+        sender: { name: senderName, email: senderEmail, phone: settings?.branding?.phone },
+      });
+
+      const subject = `${project.name} — your sub portal from ${companyName}`;
+      const result = await sendEmail({
+        to: recipientEmail,
+        subject,
+        html,
+        replyTo: senderEmail,
+        fromCompanyName: companyName,
+      });
+
+      if (result.success) {
+        persist({ lastSharedAt: new Date().toISOString() });
+        if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        Alert.alert('Invite sent', `${sub.companyName} should see the email within a minute.`);
+      } else {
+        Alert.alert('Could not send', result.error || 'The email did not go out. Try again or use Send link to message it manually.');
+      }
+    } catch (err) {
+      console.error('[sub-portal-setup] email failed', err);
+      Alert.alert('Could not send', 'Unexpected error. Try again or use Send link.');
+    } finally {
+      setEmailing(false);
+    }
+  }, [sub, project, settings, portalUrl, link, persist]);
+
+  // Sub overpayment guard. Before approving or marking-paid a sub-submitted
+  // invoice, check whether this invoice + everything previously approved/paid
+  // against the same commitment would push the sub over the contract value.
+  // Surfaces a confirm dialog the GC can override (an actual change-order may
+  // explain the overage), but stops silent overpayment by default.
+  const checkOverpayment = useCallback(
+    (invoiceId: string): { overage: number; commitmentTotal: number; alreadyApproved: number; thisAmount: number; subName: string } | null => {
+      const invoice = submitted.invoices.find(i => i.id === invoiceId);
+      if (!invoice || !invoice.commitmentId) return null;
+      const commitment = allCommitments.find(c => c.id === invoice.commitmentId);
+      if (!commitment) return null;
+      const commitmentTotal = (commitment.amount ?? 0) + (commitment.changeAmount ?? 0);
+      // Prefer commitment.paidToDate (maintained server-side by the
+      // recompute_commitment_paid_to_date trigger) when present; fall
+      // back to a client-side sum when offline or the column is missing.
+      const alreadyApproved = (commitment.paidToDate ?? null) != null
+        ? (commitment.paidToDate as number)
+        : submitted.invoices
+            .filter(i => i.id !== invoiceId
+              && i.commitmentId === invoice.commitmentId
+              && (i.status === 'approved' || i.status === 'paid'))
+            .reduce((sum, i) => sum + (i.amount ?? 0), 0);
+      const thisAmount = invoice.amount ?? 0;
+      const total = alreadyApproved + thisAmount;
+      const overage = total - commitmentTotal;
+      if (overage <= 0) return null;
+      return {
+        overage,
+        commitmentTotal,
+        alreadyApproved,
+        thisAmount,
+        subName: sub?.companyName ?? 'this sub',
+      };
+    },
+    [submitted.invoices, allCommitments, sub],
+  );
+
   const handleApprove = useCallback((id: string) => {
-    submitted.approve(id);
-    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [submitted]);
+    const guard = checkOverpayment(id);
+    const doApprove = () => {
+      submitted.approve(id);
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    };
+    if (guard) {
+      Alert.alert(
+        'Overpayment risk',
+        `Approving this would push ${guard.subName} over their commitment.\n\n` +
+        `Commitment value: ${formatMoney(guard.commitmentTotal)}\n` +
+        `Already approved: ${formatMoney(guard.alreadyApproved)}\n` +
+        `This invoice: ${formatMoney(guard.thisAmount)}\n` +
+        `Overage: ${formatMoney(guard.overage)}\n\n` +
+        `If a change order covers this, approve anyway and update the commitment. Otherwise reject and ask the sub to revise.`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Approve anyway', style: 'destructive', onPress: doApprove },
+        ],
+      );
+      return;
+    }
+    doApprove();
+  }, [submitted, checkOverpayment]);
 
   const handleReject = useCallback((id: string) => {
     submitted.reject(id, 'Rejected — please check the details and resubmit.');
@@ -153,9 +315,24 @@ export default function SubPortalSetupScreen() {
   }, [submitted]);
 
   const handleMarkPaid = useCallback((id: string) => {
-    submitted.markPaid(id);
-    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [submitted]);
+    const guard = checkOverpayment(id);
+    const doPay = () => {
+      submitted.markPaid(id);
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    };
+    if (guard) {
+      Alert.alert(
+        'Overpayment risk',
+        `Paying this invoice would push ${guard.subName} ${formatMoney(guard.overage)} over their commitment of ${formatMoney(guard.commitmentTotal)}. Update the commitment with a change order first, or pay anyway.`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Pay anyway', style: 'destructive', onPress: doPay },
+        ],
+      );
+      return;
+    }
+    doPay();
+  }, [submitted, checkOverpayment]);
 
   if (!project || !sub) {
     return (
@@ -224,9 +401,20 @@ export default function SubPortalSetupScreen() {
               <Copy size={16} color={Colors.text} />
               <Text style={styles.shareBtnText}>Copy</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.shareBtn, styles.shareBtnPrimary]} onPress={handleShare} activeOpacity={0.85}>
-              <Send size={16} color="#FFF" />
-              <Text style={[styles.shareBtnText, { color: '#FFF' }]}>Send link</Text>
+            <TouchableOpacity style={styles.shareBtn} onPress={handleShare} activeOpacity={0.85}>
+              <Send size={16} color={Colors.text} />
+              <Text style={styles.shareBtnText}>Share</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.shareBtn, styles.shareBtnPrimary, emailing && { opacity: 0.6 }]}
+              onPress={handleEmailInvite}
+              disabled={emailing}
+              activeOpacity={0.85}
+            >
+              <Mail size={16} color="#FFF" />
+              <Text style={[styles.shareBtnText, { color: '#FFF' }]}>
+                {emailing ? 'Sending…' : 'Email invite'}
+              </Text>
             </TouchableOpacity>
           </View>
           {link.lastSharedAt && (

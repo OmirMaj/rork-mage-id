@@ -107,10 +107,9 @@ function TakeoffAccuracyPanelImpl({ takeoff, overrides }: TakeoffAccuracyPanelPr
           Positive % means the AI under-counted (you raised the number). Negative means it over-counted.
         </Text>
       </View>
-      <TouchableOpacity style={[styles.helpBtn, styles.helpBtnDisabled]} disabled>
-        <Send size={12} color={Colors.textMuted} />
-        <Text style={styles.helpBtnText}>Help improve MAGE (coming soon)</Text>
-      </TouchableOpacity>
+      {/* Feedback CTA removed pre-launch — was labeled "(coming soon)" with
+          a disabled button, which is anti-pattern. Will return when the
+          accuracy-feedback pipeline ships. */}
     </View>
   );
 }

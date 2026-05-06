@@ -1,5 +1,10 @@
-# Route all /portal/* URLs (any portal ID) to the portal placeholder page.
+# Route all /portal/* URLs (any portal ID) to the homeowner portal page.
 /portal/*  /portal/index.html  200
+
+# Route all /sub-portal/* URLs to the subcontractor portal page. The
+# portalId is in the path; the snapshot is in the URL hash, which is
+# never sent to the server.
+/sub-portal/*  /sub-portal/index.html  200
 
 # SPA-style fallback: unknown paths go to the landing page rather than the default Netlify 404.
 /*  /index.html  200

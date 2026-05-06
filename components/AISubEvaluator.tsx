@@ -11,6 +11,8 @@ import {
   type SubEvaluationResult,
 } from '@/utils/aiService';
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
+import { showAILimitAlert } from '@/utils/aiLimitAlert';
+import { useRouter } from 'expo-router';
 import type { Subcontractor } from '@/types';
 import type { SubscriptionTierKey } from '@/utils/aiRateLimiter';
 import { Type } from '@/constants/typography';
@@ -27,6 +29,7 @@ const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
 export default React.memo(function AISubEvaluator({ sub, projectContext, subscriptionTier }: Props) {
   const [result, setResult] = useState<SubEvaluationResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const router = useRouter();
 
   const handleEvaluate = useCallback(async () => {
     if (isLoading) return;
@@ -40,7 +43,7 @@ export default React.memo(function AISubEvaluator({ sub, projectContext, subscri
 
     const limit = await checkAILimit(subscriptionTier, 'fast', 'subEvaluation');
     if (!limit.allowed) {
-      Alert.alert('AI Limit Reached', limit.message ?? 'Try again tomorrow.');
+      showAILimitAlert({ limit, router });
       return;
     }
 

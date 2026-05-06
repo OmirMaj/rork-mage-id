@@ -1,0 +1,410 @@
+// AI Extract Submittals — pick a spec book PDF, AI walks every page
+// and identifies items requiring submittals (cut sheets, mix designs,
+// shop drawings, samples, etc.). Output: a reviewable list the GC can
+// trim before bulk-saving to the project's submittal log.
+//
+// Pairs with supabase/functions/analyze-spec-book (task='submittals').
+// Picks a PDF via DocumentPicker, renders it to PNGs (already wired
+// for the takeoff pipeline), then calls extractSubmittalsFromSpecBook.
+//
+// The headline win: reading a 200-page spec book to find every "Submit
+// for review" line takes hours. AI runs in 60-90 seconds. Reviewing a
+// curated list and unchecking the "noise" entries is the GC's part.
+
+import React, { useCallback, useMemo, useState } from 'react';
+import {
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch,
+  Alert, Platform, ActivityIndicator,
+} from 'react-native';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as DocumentPicker from 'expo-document-picker';
+import * as Haptics from 'expo-haptics';
+import {
+  ChevronLeft, FileText, Sparkles, AlertCircle, Save, Trash2,
+  Layers, Calendar, Hammer,
+} from 'lucide-react-native';
+import { Colors } from '@/constants/colors';
+import { useProjects } from '@/contexts/ProjectContext';
+import {
+  extractSubmittalsFromSpecBook,
+  type AiSubmittalCandidate,
+  type AiSubmittalsResult,
+} from '@/utils/specMatcher';
+import { uploadAndRenderPdf } from '@/utils/pdfRenderClient';
+import { generateUUID } from '@/utils/generateId';
+import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
+import { showAILimitAlert } from '@/utils/aiLimitAlert';
+import { useSubscription } from '@/contexts/SubscriptionContext';
+import type { Submittal } from '@/types';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
+
+interface PickItem extends AiSubmittalCandidate {
+  // Local key for the review list.
+  rowId: string;
+  // Whether the GC keeps this row when bulk-saving.
+  selected: boolean;
+}
+
+type Step = 'idle' | 'uploading' | 'analyzing' | 'review';
+
+export default function ExtractSubmittalsScreen() {
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const { projectId } = useLocalSearchParams<{ projectId: string }>();
+  const { getProject, addSubmittal, settings } = useProjects();
+  const { tier } = useSubscription();
+
+  const project = useMemo(() => projectId ? getProject(projectId) : null, [projectId, getProject]);
+
+  const [step, setStep] = useState<Step>('idle');
+  const [error, setError] = useState<string | null>(null);
+  const [pickedFileName, setPickedFileName] = useState<string | null>(null);
+  const [aiResult, setAiResult] = useState<AiSubmittalsResult | null>(null);
+  const [items, setItems] = useState<PickItem[]>([]);
+  const [saving, setSaving] = useState(false);
+
+  // ── Pick + analyze ─────────────────────────────────────────────
+  const handlePickAndAnalyze = useCallback(async () => {
+    setError(null);
+    if (!project) { Alert.alert('No project'); return; }
+
+    // Pro-tier gate (vision API spend).
+    const limit = await checkAILimit(tier, 'smart', 'specBookExtract');
+    if (!limit.allowed) {
+      showAILimitAlert({ limit, router, monthly: true });
+      return;
+    }
+
+    try {
+      const picked = await DocumentPicker.getDocumentAsync({
+        type: 'application/pdf',
+        copyToCacheDirectory: true,
+        multiple: false,
+      });
+      if (picked.canceled || !picked.assets?.[0]) return;
+      const asset = picked.assets[0];
+      setPickedFileName(asset.name);
+      setStep('uploading');
+      if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+      // Render the PDF to PNG pages we can ship to Gemini Vision. The
+      // edge function caps at 24 pages — for a typical residential spec
+      // book that's enough; commercial books may need batching.
+      const rendered = await uploadAndRenderPdf({
+        fileUri: asset.uri,
+        projectId: project.id,
+        fileName: asset.name,
+        dpi: 130,
+        maxPages: 24,
+      });
+
+      setStep('analyzing');
+      const { result } = await extractSubmittalsFromSpecBook({
+        pageUrls: rendered.map(p => p.publicUrl),
+        projectName: project.name,
+      });
+      await recordAIUsage('smart', 'specBookExtract');
+
+      setAiResult(result);
+      // Default-select every "high" / "medium" item; "low" defaults off
+      // so the GC opts in for fuzzy entries.
+      setItems(result.items.map(item => ({
+        ...item,
+        rowId: generateUUID(),
+        selected: item.confidence !== 'low',
+      })));
+      setStep('review');
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (e) {
+      console.warn('[extract-submittals] failed', e);
+      setError(String((e as Error).message ?? e));
+      setStep('idle');
+    }
+  }, [project, tier]);
+
+  // ── Review-list mutations ──────────────────────────────────────
+  const toggleRow = useCallback((rowId: string) => {
+    setItems(prev => prev.map(r => r.rowId === rowId ? { ...r, selected: !r.selected } : r));
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+  }, []);
+  const dropRow = useCallback((rowId: string) => {
+    setItems(prev => prev.filter(r => r.rowId !== rowId));
+  }, []);
+  const selectedCount = items.filter(i => i.selected).length;
+
+  // ── Bulk save selected → submittal log ─────────────────────────
+  const handleSave = useCallback(async () => {
+    if (!project) return;
+    if (selectedCount === 0) { Alert.alert('Nothing selected'); return; }
+    setSaving(true);
+    try {
+      const today = new Date();
+      let added = 0;
+      for (const row of items) {
+        if (!row.selected) continue;
+        const requiredDate = new Date(today.getTime() + row.dueRelativeDays * 24 * 60 * 60 * 1000);
+        const submittal: Submittal = {
+          id: generateUUID(),
+          projectId: project.id,
+          // Real number gets assigned in the addSubmittal handler when
+          // it deduplicates against existing project submittals. We pass
+          // 0 here as a placeholder — it'll be overwritten if the context
+          // re-numbers, otherwise this row sits as #0 (which is fine).
+          number: 0,
+          title: row.title,
+          specSection: row.specSection || '',
+          submittedBy: settings?.branding?.companyName || 'Project Team',
+          submittedDate: today.toISOString(),
+          requiredDate: requiredDate.toISOString(),
+          reviewCycles: [],
+          currentStatus: 'pending',
+          attachments: [],
+          createdAt: today.toISOString(),
+          updatedAt: today.toISOString(),
+        };
+        addSubmittal(submittal);
+        added += 1;
+      }
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert(
+        'Submittals added',
+        `${added} submittal${added === 1 ? '' : 's'} logged. Open the project's submittal section to attach files and route them.`,
+        [{ text: 'OK', onPress: () => router.back() }],
+      );
+    } catch (e) {
+      console.warn('[extract-submittals] save failed', e);
+      Alert.alert('Save failed', String((e as Error).message ?? e));
+    } finally {
+      setSaving(false);
+    }
+  }, [project, items, selectedCount, addSubmittal, settings, router]);
+
+  if (!project) {
+    return (
+      <View style={styles.loadingContainer}>
+        <Stack.Screen options={{ title: 'Extract Submittals' }} />
+        <Text style={styles.loadingText}>Project not found.</Text>
+      </View>
+    );
+  }
+
+  return (
+    <>
+      <Stack.Screen
+        options={{
+          title: 'Extract Submittals',
+          headerLeft: () => (
+            <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }}>
+              <ChevronLeft size={24} color={Colors.primary} />
+            </TouchableOpacity>
+          ),
+        }}
+      />
+      <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}>
+        {step === 'idle' && (
+          <>
+            <View style={styles.hero}>
+              <View style={styles.heroIconWrap}>
+                <Sparkles size={20} color={Colors.primary} />
+              </View>
+              <Text style={styles.heroTitle}>Spec book → submittal log</Text>
+              <Text style={styles.heroBody}>
+                Upload the architect&apos;s spec book PDF. AI reads every page and pulls out each item that requires a submittal — cut sheets, mix designs, shop drawings, samples, certifications. You review the list, uncheck the ones you don&apos;t need, and we add the keepers to {project.name}&apos;s submittal log.
+              </Text>
+            </View>
+
+            <TouchableOpacity onPress={handlePickAndAnalyze} style={styles.primaryBtn} activeOpacity={0.85}>
+              <FileText size={16} color="#FFF" />
+              <Text style={styles.primaryBtnText}>Pick spec book PDF</Text>
+            </TouchableOpacity>
+
+            {error && (
+              <View style={styles.errorBanner}>
+                <AlertCircle size={14} color={Colors.error} />
+                <Text style={styles.errorText}>{error}</Text>
+              </View>
+            )}
+
+            <View style={styles.helperBox}>
+              <Text style={styles.helperTitle}>What works</Text>
+              <Text style={styles.helperBody}>
+                • Up to ~24 pages per pass — for full books, split into divisions and run them separately.{'\n'}
+                • Default lead time is 14 days; AI bumps to 30 for long-lead items (mock-ups, custom fabrication).{'\n'}
+                • Architect-grade spec books work best (Division 02-33 with explicit &quot;Submittals&quot; sections). Quick scope letters give thinner results.
+              </Text>
+            </View>
+          </>
+        )}
+
+        {(step === 'uploading' || step === 'analyzing') && (
+          <View style={styles.busyWrap}>
+            <ActivityIndicator size="large" color={Colors.primary} />
+            <Text style={styles.busyText}>
+              {step === 'uploading' ? 'Rendering pages…' : 'AI reading the spec book…'}
+            </Text>
+            <Text style={styles.busySub}>
+              {step === 'analyzing'
+                ? 'Pulling out submittal requirements page by page. Usually 60-90 seconds.'
+                : pickedFileName ?? 'Processing the PDF.'}
+            </Text>
+          </View>
+        )}
+
+        {step === 'review' && aiResult && (
+          <>
+            <View style={styles.hero}>
+              <Text style={styles.heroTitle}>{items.length} submittal{items.length === 1 ? '' : 's'} found</Text>
+              <Text style={styles.heroBody}>
+                {aiResult.confidenceExplanation || 'Review each entry. Toggle off the ones you don\'t need, then save.'}
+              </Text>
+            </View>
+
+            {items.map(row => (
+              <View
+                key={row.rowId}
+                style={[styles.itemCard, !row.selected && { opacity: 0.55 }]}
+              >
+                <View style={styles.itemHeader}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.itemTitle}>{row.title}</Text>
+                    <View style={styles.metaLine}>
+                      {row.specSection ? (
+                        <View style={styles.metaChip}>
+                          <Layers size={11} color={Colors.textMuted} />
+                          <Text style={styles.metaChipText}>{row.specSection}</Text>
+                        </View>
+                      ) : null}
+                      <View style={styles.metaChip}>
+                        <Hammer size={11} color={Colors.textMuted} />
+                        <Text style={styles.metaChipText}>{row.trade}</Text>
+                      </View>
+                      <View style={styles.metaChip}>
+                        <Calendar size={11} color={Colors.textMuted} />
+                        <Text style={styles.metaChipText}>{row.dueRelativeDays}d lead</Text>
+                      </View>
+                      <View style={[styles.confChip, confColor(row.confidence)]}>
+                        <Text style={styles.confText}>{row.confidence}</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.itemType}>{row.submittalType}</Text>
+                    {row.sourcePages.length > 0 ? (
+                      <Text style={styles.itemPages}>p. {row.sourcePages.join(', ')}</Text>
+                    ) : null}
+                  </View>
+                  <Switch
+                    value={row.selected}
+                    onValueChange={() => toggleRow(row.rowId)}
+                    trackColor={{ false: Colors.border, true: Colors.primary }}
+                    thumbColor="#FFF"
+                  />
+                </View>
+                <TouchableOpacity onPress={() => dropRow(row.rowId)} style={styles.dropRow}>
+                  <Trash2 size={12} color={Colors.textMuted} />
+                  <Text style={styles.dropText}>Remove from list</Text>
+                </TouchableOpacity>
+              </View>
+            ))}
+
+            <TouchableOpacity
+              onPress={handleSave}
+              disabled={saving || selectedCount === 0}
+              activeOpacity={0.85}
+              style={[styles.primaryBtn, (saving || selectedCount === 0) && { opacity: 0.6 }]}
+            >
+              {saving
+                ? <ActivityIndicator color="#FFF" />
+                : (
+                  <>
+                    <Save size={16} color="#FFF" />
+                    <Text style={styles.primaryBtnText}>
+                      Add {selectedCount} submittal{selectedCount === 1 ? '' : 's'} to log
+                    </Text>
+                  </>
+                )}
+            </TouchableOpacity>
+          </>
+        )}
+      </ScrollView>
+    </>
+  );
+}
+
+function confColor(c: 'high' | 'medium' | 'low') {
+  if (c === 'high') return { backgroundColor: Colors.success + '20' };
+  if (c === 'medium') return { backgroundColor: Colors.warning + '20' };
+  return { backgroundColor: Colors.textMuted + '20' };
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: Colors.background },
+  loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  loadingText: { fontSize: Type.body.fontSize, color: Colors.textMuted },
+
+  hero: {
+    margin: 16, padding: 18, borderRadius: Tokens.radius.panel,
+    backgroundColor: Colors.primary + '0D',
+    borderWidth: 1, borderColor: Colors.primary + '20',
+  },
+  heroIconWrap: {
+    width: 38, height: 38, borderRadius: 11,
+    backgroundColor: Colors.primary + '15',
+    alignItems: 'center', justifyContent: 'center',
+    marginBottom: 12,
+  },
+  heroTitle: { fontSize: Type.title2.fontSize, fontWeight: '800', color: Colors.text, marginBottom: 8 },
+  heroBody: { fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 19 },
+
+  primaryBtn: {
+    marginHorizontal: 16, paddingVertical: 14, borderRadius: Tokens.radius.md,
+    backgroundColor: Colors.primary,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+  },
+  primaryBtnText: { color: '#FFF', fontSize: Type.body.fontSize, fontWeight: '700' },
+
+  errorBanner: {
+    marginHorizontal: 16, marginTop: 12,
+    paddingHorizontal: 12, paddingVertical: 10, borderRadius: Tokens.radius.md,
+    backgroundColor: Colors.error + '15',
+    borderWidth: 1, borderColor: Colors.error + '30',
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+  },
+  errorText: { fontSize: Type.caption1.fontSize, color: Colors.error, flex: 1, lineHeight: 17 },
+
+  helperBox: {
+    margin: 16, padding: 14, borderRadius: Tokens.radius.md,
+    backgroundColor: Colors.fillTertiary,
+    borderWidth: 1, borderColor: Colors.border,
+  },
+  helperTitle: { fontSize: Type.caption1.fontSize, fontWeight: '800', color: Colors.text, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.4 },
+  helperBody: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, lineHeight: 17 },
+
+  busyWrap: { padding: 40, alignItems: 'center', gap: 12 },
+  busyText: { fontSize: Type.subhead.fontSize, fontWeight: '700', color: Colors.text },
+  busySub: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, textAlign: 'center', maxWidth: 280, lineHeight: 17 },
+
+  itemCard: {
+    marginHorizontal: 16, marginBottom: 10,
+    padding: 14, borderRadius: Tokens.radius.card,
+    backgroundColor: Colors.card,
+    borderWidth: 1, borderColor: Colors.border,
+  },
+  itemHeader: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
+  itemTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
+  metaLine: { flexDirection: 'row', gap: 6, marginTop: 6, flexWrap: 'wrap' },
+  metaChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: 7, paddingVertical: 3, borderRadius: 999,
+    backgroundColor: Colors.fillTertiary,
+  },
+  metaChipText: { fontSize: 11, color: Colors.textMuted, fontWeight: '600' },
+  itemType: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, marginTop: 6 },
+  itemPages: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 4, fontStyle: 'italic' },
+
+  confChip: { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 999 },
+  confText: { fontSize: 10, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.4, color: Colors.text },
+
+  dropRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10, alignSelf: 'flex-start' },
+  dropText: { fontSize: Type.caption2.fontSize, color: Colors.textMuted },
+});

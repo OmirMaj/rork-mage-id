@@ -100,6 +100,12 @@ export function useSubSubmittedInvoices(opts: { projectId?: string; subPortalId?
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey });
+      // The recompute_commitment_paid_to_date trigger updates the linked
+      // commitment row server-side. Refetch commitments so the UI's
+      // paid-to-date / overpayment math reflects the change without a
+      // page reload. Wildcard userId — the listing's queryKey is
+      // ['commitments', userId] but we don't have userId here.
+      void queryClient.invalidateQueries({ queryKey: ['commitments'] });
     },
   });
 
@@ -132,7 +138,12 @@ export function useSubSubmittedInvoices(opts: { projectId?: string; subPortalId?
     channel.on(
       'postgres_changes',
       { event: '*', schema: 'public', table: 'sub_submitted_invoices', filter },
-      () => { void queryClient.invalidateQueries({ queryKey }); },
+      () => {
+        void queryClient.invalidateQueries({ queryKey });
+        // Same rationale as the mutation onSuccess: trigger updated
+        // commitments server-side, refetch on the client.
+        void queryClient.invalidateQueries({ queryKey: ['commitments'] });
+      },
     );
     channel.subscribe();
     return () => { void supabase.removeChannel(channel); };

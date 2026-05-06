@@ -428,6 +428,23 @@ function WalkInner({ projectName, projectId, subcontractors, onAdd, onDelete, on
             <ChevronRight size={16} color={Colors.primary} />
           </TouchableOpacity>
 
+          {/* Photo Triage — broader sibling that doesn't assume the
+              user is in punch-list mode. AI sorts each photo across
+              punch / RFI / DFR / progress / noise so a single batch
+              from a site walk lands records in the right places. */}
+          <TouchableOpacity
+            style={styles.aiPunchBtn}
+            onPress={() => router.push({ pathname: '/photo-triage' as never, params: { projectId } as never })}
+            activeOpacity={0.85}
+          >
+            <Sparkles size={16} color={Colors.primary} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.aiPunchBtnTitle}>AI Photo Triage</Text>
+              <Text style={styles.aiPunchBtnSub}>Mixed batch — sorts to punch, RFI, daily report, progress</Text>
+            </View>
+            <ChevronRight size={16} color={Colors.primary} />
+          </TouchableOpacity>
+
           <TouchableOpacity
             style={[styles.saveBtn, !draft.description.trim() && styles.saveBtnDisabled]}
             onPress={handleSave}

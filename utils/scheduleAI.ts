@@ -560,7 +560,7 @@ export async function aiBulkEdit(
   /** True when the response came from AsyncStorage cache, not the network. */
   fromCache?: boolean;
   /** Populated only on failure or partial-match — 'timeout' | 'network' | etc. */
-  errorKind?: 'timeout' | 'network' | 'http' | 'model' | 'validation' | 'unknown';
+  errorKind?: 'timeout' | 'network' | 'http' | 'model' | 'validation' | 'unknown' | 'unauthenticated' | 'monthly_cap';
   /** Human-readable detail when errorKind is set (e.g. timeout message). */
   errorDetail?: string;
 }> {

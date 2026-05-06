@@ -34,10 +34,39 @@
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+// Shared email helpers — same shell every transactional email uses, so
+// the receipt matches sub-portal invites, contract sends, COI warnings,
+// the morning brief, and the homeowner weekly digest.
+import { wrapEmailHtml, resendSend } from "../_shared/email.ts";
 
 const STRIPE_WEBHOOK_SECRET = Deno.env.get("STRIPE_WEBHOOK_SECRET") || "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") || "";
+
+const INK = "#0B0D10";
+const AMBER = "#FF6A1A";
+const CREAM = "#F4EFE6";
+const SAND = "#E8DFCD";
+const FOG = "#9AA3AD";
+const STONE = "#4A5159";
+const PAPER = "#FFFFFF";
+const FONT_STACK = `-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif`;
+const FONT_DISPLAY = `Georgia,'Times New Roman',serif`;
+
+function escapeHtml(text: unknown): string {
+  if (text == null) return "";
+  return String(text)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function formatMoney(amount: number): string {
+  return "$" + Math.round(amount * 100) / 100;
+}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -263,7 +292,125 @@ async function handleCheckoutCompleted(
     "/",
     totalDue,
   );
+
+  // Best-effort receipt email — fire-and-forget so a Resend hiccup never
+  // fails the webhook (Stripe retries on non-2xx and the duplicate-payment
+  // guard above would refuse the second run).
+  void sendReceiptEmail(supabase, {
+    invoiceId,
+    amountReceived,
+    newAmountPaid,
+    totalDue,
+    newStatus,
+    sessionId: session.id,
+    customerEmail: (session as unknown as { customer_email?: string; customer_details?: { email?: string } })
+      .customer_email
+      ?? (session as unknown as { customer_details?: { email?: string } }).customer_details?.email,
+  });
+
   return { ok: true };
+}
+
+// ── Branded receipt email — sent after a successful Stripe payment lands
+//    on the invoice. Pulls invoice number + project name + GC company name
+//    from Supabase so the recipient sees a proper "Receipt from Smith
+//    Builders for the Henderson Renovation" instead of a faceless robot
+//    note. Failures are swallowed (best-effort).
+interface ReceiptOpts {
+  invoiceId: string;
+  amountReceived: number;
+  newAmountPaid: number;
+  totalDue: number;
+  newStatus: "paid" | "partially_paid";
+  sessionId: string;
+  customerEmail?: string;
+}
+
+async function sendReceiptEmail(
+  supabase: ReturnType<typeof createClient>,
+  opts: ReceiptOpts,
+): Promise<void> {
+  if (!RESEND_API_KEY) return;
+  if (!opts.customerEmail) {
+    console.log("[stripe-webhook] No customer email on session; skipping receipt");
+    return;
+  }
+  try {
+    const { data: invoice } = await supabase
+      .from("invoices")
+      .select("id, number, project_id, user_id, line_items")
+      .eq("id", opts.invoiceId)
+      .single();
+    if (!invoice) return;
+
+    const { data: project } = await supabase
+      .from("projects")
+      .select("id, name, location")
+      .eq("id", invoice.project_id)
+      .single();
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("id, email, name, company_name, contact_name, phone")
+      .eq("id", invoice.user_id)
+      .single();
+
+    const companyName = (profile?.company_name as string | null)
+      || (profile?.contact_name as string | null)
+      || "MAGE ID";
+    const projectName = (project?.name as string | null) ?? "your project";
+    const invoiceNumber = (invoice.number as number | null) ?? "—";
+    const remaining = Math.max(0, opts.totalDue - opts.newAmountPaid);
+    const balanceLine = opts.newStatus === "paid"
+      ? "Paid in full — no balance remaining."
+      : `Balance remaining: <strong>${escapeHtml(formatMoney(remaining))}</strong>`;
+
+    const bodyHtml = `
+      <p style="margin:0 0 14px 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:14px;line-height:22px;color:#4A5159;">
+        Thanks — your payment for <strong>${escapeHtml(projectName)}</strong> (Invoice #${escapeHtml(String(invoiceNumber))}) was received.
+      </p>
+      <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:16px 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:13px;color:#4A5159;">
+        <tr><td style="padding:4px 12px 4px 0;color:#9AA3AD;">Project</td><td style="padding:4px 0;">${escapeHtml(projectName)}</td></tr>
+        <tr><td style="padding:4px 12px 4px 0;color:#9AA3AD;">Invoice #</td><td style="padding:4px 0;">${escapeHtml(String(invoiceNumber))}</td></tr>
+        <tr><td style="padding:4px 12px 4px 0;color:#9AA3AD;">Amount received</td><td style="padding:4px 0;font-weight:700;color:#0B0D10;">${escapeHtml(formatMoney(opts.amountReceived))}</td></tr>
+        <tr><td style="padding:4px 12px 4px 0;color:#9AA3AD;">Status</td><td style="padding:4px 0;">${opts.newStatus === "paid" ? "Paid in full" : "Partially paid"}</td></tr>
+        <tr><td style="padding:4px 12px 4px 0;color:#9AA3AD;">Reference</td><td style="padding:4px 0;font-family:Menlo,monospace;font-size:11px;">${escapeHtml(opts.sessionId)}</td></tr>
+      </table>
+      <p style="margin:0 0 16px 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:14px;line-height:22px;color:#4A5159;">${balanceLine}</p>
+    `;
+
+    const html = wrapEmailHtml({
+      preheader: opts.newStatus === "paid"
+        ? `Paid in full — ${projectName}`
+        : `Payment received — ${projectName}`,
+      eyebrow: "Payment received",
+      title: formatMoney(opts.amountReceived),
+      bodyHtml,
+      companyName,
+      project: { name: projectName, location: project?.location as string | undefined },
+      sender: profile?.email ? { email: profile.email as string, phone: profile?.phone as string | undefined } : undefined,
+      // Receipts are transactional — recipient should always get them.
+      unsubscribe: { enabled: false },
+    });
+
+    const subject = opts.newStatus === "paid"
+      ? `Payment received — ${projectName} paid in full`
+      : `Payment received — ${projectName}`;
+
+    const result = await resendSend(RESEND_API_KEY, {
+      to: opts.customerEmail,
+      subject,
+      html,
+      fromCompanyName: companyName,
+      replyTo: profile?.email as string | undefined,
+      unsubscribe: { enabled: false },
+    });
+    if (!result.ok) {
+      console.warn("[stripe-webhook] receipt send failed", JSON.stringify(result.resp).slice(0, 200));
+    }
+  } catch (err) {
+    console.warn("[stripe-webhook] receipt email error", err);
+  }
 }
 
 serve(async (req) => {

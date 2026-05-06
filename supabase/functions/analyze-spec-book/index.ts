@@ -1,18 +1,26 @@
 // analyze-spec-book
 //
-// Reads a project's specification book (architect-produced PDF) and
-// extracts a list of `code → manufacturer/product/finish` mappings.
-// Designed to pair with analyze-takeoff: the takeoff produces callout
-// codes (PT-1, T-2, WC-1) and this function explains what each code is.
+// Reads a project's specification book (architect-produced PDF) and runs
+// one of two tasks:
+//
+//   task: 'codes' (default — backward compat)
+//     Extracts a list of `code → manufacturer/product/finish` mappings.
+//     Designed to pair with analyze-takeoff: the takeoff produces callout
+//     codes (PT-1, T-2, WC-1) and this function explains each one.
+//
+//   task: 'submittals'
+//     Identifies every spec item that requires a submittal (cut sheet,
+//     mix design, sample, shop drawing, O&M manual). Returns a structured
+//     list ready to populate the project's submittal log. The headline
+//     win: GCs spend hours combing 200-page spec books for "Submit X
+//     for review" lines; AI does it in 90 seconds.
 //
 // Tier: Pro / Business only. Counts under the same `analyze_drawings`
 // monthly cap as analyze-takeoff and analyze-drawings (shared API spend).
 //
-// Schema returned matches types/index.ts:SpecMatchResult.
-//
 // Optional `targetCodes` array — if the caller supplies the codes
 // extracted from a takeoff, the AI is asked to surface them first +
-// flag any not found.
+// flag any not found. Only applies to task='codes'.
 //
 // Secrets: GEMINI_API_KEY
 
@@ -39,9 +47,15 @@ function jsonResponse(body: unknown, status = 200): Response {
   });
 }
 
+type SpecTask = 'codes' | 'submittals';
+
 interface SpecRequest {
   pageUrls: string[];
-  /** Codes the takeoff already found on the plans. AI prioritizes these. */
+  /** Which task to run. Default is 'codes' for backward compatibility
+   *  with the takeoff → spec-match pipeline. */
+  task?: SpecTask;
+  /** Codes the takeoff already found on the plans. AI prioritizes these.
+   *  Only used when task='codes'. */
   targetCodes?: string[];
   projectName?: string;
   notes?: string;
@@ -67,7 +81,55 @@ async function urlToInlineImagePart(url: string): Promise<{ inlineData: { mimeTy
   return { inlineData: { mimeType, data: btoa(binary) } };
 }
 
+function buildSubmittalsPrompt(req: SpecRequest): string {
+  const { projectName, notes } = req;
+  const ctx = projectName ? `\nProject: ${projectName}` : '';
+  const noteBlock = notes ? `\nGC notes: ${notes}` : '';
+
+  return `You are reading an architectural specification book. Your job: identify every spec item that requires a SUBMITTAL — a document the contractor must hand to the architect for review before installation. Examples: cut sheets, product data, color samples, mix designs, shop drawings, O&M manuals, warranties, mock-ups, certifications, test reports.
+${ctx}${noteBlock}
+
+APPROACH:
+1. Scan each page for spec sections that explicitly say "Submit", "Submittals", "Submit for review/approval", or that name a deliverable (sample, mix design, shop drawing, etc.).
+2. For each submittal item, capture:
+   - title: short, contractor-friendly description (≤80 chars). Sentence case. e.g. "Concrete mix design for slab on grade"
+   - specSection: the CSI section number when visible ("03 30 00", "09 91 23"). Empty if not stated.
+   - submittalType: one of "Product Data", "Shop Drawings", "Sample", "Mix Design", "Warranty", "O&M Manual", "Test Report", "Certification", "Mock-up", "Other"
+   - trade: closest match from "Concrete", "Framing", "Roofing", "Plumbing", "Electrical", "HVAC", "Drywall", "Painting", "Flooring", "Tile", "Doors/Hardware", "Cabinets", "General"
+   - dueRelativeDays: integer estimate of how many days BEFORE installation this submittal should be in the architect's hands. Default 14 if not specified. Use 30 for long-lead items (mock-ups, custom fabrication).
+   - sourcePages: 1-indexed page numbers where this submittal is called for.
+   - confidence: "high" | "medium" | "low". "high" only when the spec uses the literal word "submit" or "submittal".
+
+3. Deduplicate aggressively — if the same submittal is mentioned on multiple pages, ONE entry with all pages in sourcePages.
+
+OUTPUT — JSON only. Schema:
+
+{
+  "items": [
+    {
+      "title": "Concrete mix design for slab on grade",
+      "specSection": "03 30 00",
+      "submittalType": "Mix Design",
+      "trade": "Concrete",
+      "dueRelativeDays": 14,
+      "sourcePages": [12, 13],
+      "confidence": "high"
+    }
+  ],
+  "confidenceOverall": "high" | "medium" | "low",
+  "confidenceExplanation": "1 sentence."
+}
+
+CRITICAL RULES:
+- JSON only. No markdown fences. No prose outside the JSON.
+- "title" required. Trim and de-jargonize so a GC reads it naturally.
+- Drop entries below confidence "low".
+- Never invent submittals — if a section just describes a product without requiring a submittal, do not include it.
+- "submittalType" must be exactly one of the listed values. Default to "Other" if unclear.`;
+}
+
 function buildPrompt(req: SpecRequest): string {
+  if (req.task === 'submittals') return buildSubmittalsPrompt(req);
   const { projectName, notes, targetCodes } = req;
   const targetBlock = targetCodes && targetCodes.length > 0
     ? `\nTARGET CODES (these were found on the takeoff drawings — surface their specs FIRST, then any other codes you see):\n  ${targetCodes.join(', ')}\n`
@@ -137,7 +199,7 @@ function asPages(v: unknown): number[] {
     .filter(p => p > 0);
 }
 
-function validate(raw: Record<string, unknown>): Record<string, unknown> {
+function validateCodes(raw: Record<string, unknown>): Record<string, unknown> {
   const entries = asArray<Record<string, unknown>>(raw.entries).map(e => ({
     code: asString(e.code, ''),
     csiSection: typeof e.csiSection === 'string' ? e.csiSection : undefined,
@@ -160,6 +222,41 @@ function validate(raw: Record<string, unknown>): Record<string, unknown> {
     confidenceOverall: asConfidence(raw.confidenceOverall),
     confidenceExplanation: asString(raw.confidenceExplanation, ''),
   };
+}
+
+const VALID_SUBMITTAL_TYPES = new Set([
+  'Product Data', 'Shop Drawings', 'Sample', 'Mix Design',
+  'Warranty', 'O&M Manual', 'Test Report', 'Certification', 'Mock-up', 'Other',
+]);
+
+function asInt(v: unknown, fallback: number): number {
+  const n = typeof v === 'number' ? v : parseInt(String(v), 10);
+  return Number.isFinite(n) ? Math.round(n) : fallback;
+}
+
+function validateSubmittals(raw: Record<string, unknown>): Record<string, unknown> {
+  const items = asArray<Record<string, unknown>>(raw.items).map(e => {
+    const submittalType = asString(e.submittalType, 'Other');
+    return {
+      title: asString(e.title, '').slice(0, 200),
+      specSection: typeof e.specSection === 'string' ? e.specSection : '',
+      submittalType: VALID_SUBMITTAL_TYPES.has(submittalType) ? submittalType : 'Other',
+      trade: asString(e.trade, 'General'),
+      dueRelativeDays: Math.max(0, Math.min(120, asInt(e.dueRelativeDays, 14))),
+      sourcePages: asPages(e.sourcePages),
+      confidence: asConfidence(e.confidence),
+    };
+  }).filter(e => e.title.length > 0);
+
+  return {
+    items,
+    confidenceOverall: asConfidence(raw.confidenceOverall),
+    confidenceExplanation: asString(raw.confidenceExplanation, ''),
+  };
+}
+
+function validate(raw: Record<string, unknown>, task: SpecTask): Record<string, unknown> {
+  return task === 'submittals' ? validateSubmittals(raw) : validateCodes(raw);
 }
 
 async function callGemini(req: SpecRequest): Promise<{ data: unknown; modelUsed: ModelKey }> {
@@ -203,7 +300,8 @@ async function callGemini(req: SpecRequest): Promise<{ data: unknown; modelUsed:
     throw new Error(`Could not parse JSON: ${(e as Error).message}\nRaw: ${raw.slice(0, 400)}`);
   }
   if (!isObj(parsed)) throw new Error('AI response was not an object.');
-  return { data: validate(parsed), modelUsed };
+  const task: SpecTask = req.task === 'submittals' ? 'submittals' : 'codes';
+  return { data: validate(parsed, task), modelUsed };
 }
 
 serve(async (req) => {

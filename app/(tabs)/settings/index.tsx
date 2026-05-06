@@ -986,6 +986,44 @@ export default function SettingsScreen() {
             <Text style={[styles.rowLabel, { flex: 1 }]}>Set up payments</Text>
             <ChevronRight size={16} color={Colors.textMuted} />
           </TouchableOpacity>
+          {/* Payments dashboard — was an orphan route until May 2026 audit
+              wiring. Shows received-vs-pending across all invoices, paid
+              status, payout schedule. Independent of the per-invoice
+              payment buttons. */}
+          <TouchableOpacity
+            style={styles.row}
+            onPress={() => router.push('/payments' as any)}
+            activeOpacity={0.7}
+            testID="payments-dashboard-link"
+          >
+            <View style={[styles.iconWrap, { backgroundColor: Colors.success }]}>
+              <Wallet size={14} color="#fff" />
+            </View>
+            <Text style={[styles.rowLabel, { flex: 1 }]}>Payments dashboard</Text>
+            <ChevronRight size={16} color={Colors.textMuted} />
+          </TouchableOpacity>
+        </View>
+
+        {/* Public profile — was an orphan route until May 2026 audit
+            wiring. Lets the GC publish a public-facing profile snapshot
+            (used for leads / sub directory listings). */}
+        <Text style={styles.sectionHeader}>PUBLIC PROFILE</Text>
+        <Text style={styles.sectionSubtext}>
+          Build your public-facing snapshot. Used in the sub directory + bid award notifications.
+        </Text>
+        <View style={styles.group}>
+          <TouchableOpacity
+            style={styles.row}
+            onPress={() => router.push('/public-profile-setup' as any)}
+            activeOpacity={0.7}
+            testID="public-profile-setup-link"
+          >
+            <View style={[styles.iconWrap, { backgroundColor: Colors.primary }]}>
+              <UserCircle size={14} color="#fff" />
+            </View>
+            <Text style={[styles.rowLabel, { flex: 1 }]}>Edit public profile</Text>
+            <ChevronRight size={16} color={Colors.textMuted} />
+          </TouchableOpacity>
         </View>
 
         <Text style={styles.sectionHeader}>CONTACTS & EMAIL</Text>

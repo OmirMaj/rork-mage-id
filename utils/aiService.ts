@@ -1127,9 +1127,32 @@ Generate 8-15 material line items with real quantities and 2025 market pricing (
     savingsTips: ['Get at least 3 contractor bids', 'Buy materials in bulk where possible'],
   };
 
+  // Build a more informative warning when we fall back to the stub. Pre-fix
+  // the user just saw "AI estimate unavailable" with no clue why — could be
+  // a token cutoff, a safety block, a network issue, or just a flaky model
+  // moment. Now we tell them what happened + suggest a fix.
+  const stubWithReason = (reasonCode: string | undefined, errMsg: string | undefined): AIQuickEstimateResult => {
+    let why = 'AI is having a moment — this is a placeholder.';
+    if (reasonCode === 'MAX_TOKENS' || /MAX_TOKENS/i.test(errMsg ?? '')) {
+      why = 'AI ran out of room before finishing — try a shorter scope description, or fewer line items.';
+    } else if (reasonCode === 'SAFETY') {
+      why = 'AI refused this request (safety filter). Try rephrasing the description.';
+    } else if (reasonCode === 'RECITATION') {
+      why = 'AI refused this request (looked too close to its training data). Try paraphrasing.';
+    } else if (errMsg?.includes('timed out')) {
+      why = 'AI took too long to respond. Tap Generate again — it usually works on the second try.';
+    } else if (errMsg?.includes('reach AI')) {
+      why = 'Could not reach the AI server. Check your connection and retry.';
+    }
+    return {
+      ...stub,
+      warnings: [why, 'Edit the placeholder rows below with your real quantities and pricing.'],
+    };
+  };
+
   if (!aiResult.success) {
-    console.warn('[AI Quick Estimate] AI failed, returning stub:', aiResult.error);
-    return stub;
+    console.warn('[AI Quick Estimate] AI failed, returning stub:', aiResult.error, 'finishReason:', aiResult.finishReason);
+    return stubWithReason(aiResult.finishReason, aiResult.error);
   }
   const result = aiResult.data;
 
@@ -1137,15 +1160,16 @@ Generate 8-15 material line items with real quantities and 2025 market pricing (
   // return all-empty arrays if EVERY field of EVERY row failed validation
   // and didn't recover. In that case the modal would open with $0 and look
   // broken. Detect "empty-shape" and return the stub so the user gets
-  // something editable + a clear "AI estimate unavailable" warning instead
-  // of a confusing zero state.
+  // something editable + a clear cause-explaining warning instead of a
+  // confusing zero state.
   const hasUsableData =
     (result.materials?.length ?? 0) > 0 ||
     (result.labor?.length ?? 0) > 0 ||
     (result.assemblies?.length ?? 0) > 0;
   if (!hasUsableData) {
-    console.warn('[AI Quick Estimate] AI returned empty result, falling back to stub');
-    return { ...stub, projectSummary: result.projectSummary || stub.projectSummary };
+    console.warn('[AI Quick Estimate] AI returned empty result, falling back to stub. finishReason:', aiResult.finishReason);
+    const fallback = stubWithReason(aiResult.finishReason, aiResult.error);
+    return { ...fallback, projectSummary: result.projectSummary || stub.projectSummary };
   }
 
   console.log('[AI Quick Estimate] Generated:', result.materials.length, 'materials,', result.labor.length, 'labor,', result.assemblies.length, 'assemblies');

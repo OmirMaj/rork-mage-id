@@ -348,6 +348,7 @@ function InvoiceInner() {
       // if Stripe is unreachable, we just send the email without the button
       // (graceful degradation rather than blocking the send).
       let payLinkUrl: string | undefined = existingInvoice?.payLinkUrl;
+      let stripeNotConnected = false;
       if (!payLinkUrl && existingInvoice && totalDue > 0) {
         try {
           // Look up the GC's Stripe Connect account so the payment lands
@@ -378,7 +379,13 @@ function InvoiceInner() {
               console.warn('[Invoice] Auto-generate payment link failed:', res.error);
             }
           } else {
+            // Surfaced to the user post-send via a one-time toast/alert below,
+            // pre-audit this was a silent console.log only. The user emails an
+            // invoice, sees no Pay button, blames the app. Now they get a
+            // friendly "want to add a Pay button?" nudge with a deep link to
+            // payments-setup.
             console.log('[Invoice] Skipping payment link — Stripe Connect not set up for this user');
+            stripeNotConnected = true;
           }
         } catch (err) {
           console.warn('[Invoice] Auto-generate payment link threw:', err);
@@ -420,10 +427,25 @@ function InvoiceInner() {
       } else {
         console.log('[Invoice] Email sent successfully');
       }
+
+      // Stripe-not-connected nudge. Pre-audit (May 2026), this state was
+      // a silent console.log; the user shipped an invoice with no Pay
+      // button and never knew why. Now we surface a one-time alert so
+      // they can decide whether to set up Connect for the next invoice.
+      if (stripeNotConnected && totalDue > 0) {
+        Alert.alert(
+          'Invoice sent — no Pay button included',
+          'You haven\'t connected Stripe yet, so this invoice was emailed without a one-tap Pay button. Set up Stripe in Payments to add Pay buttons to future invoices.',
+          [
+            { text: 'Later', style: 'cancel' },
+            { text: 'Set up Stripe', onPress: () => router.push('/payments-setup' as never) },
+          ],
+        );
+      }
     }
 
     handleSave('sent', sendRecipientName, sendRecipientEmail);
-  }, [handleSave, sendRecipientName, sendRecipientEmail, settings, project, existingInvoice, nextInvoiceNumber, totalDue, paymentTerms, updateInvoice]);
+  }, [handleSave, sendRecipientName, sendRecipientEmail, settings, project, existingInvoice, nextInvoiceNumber, totalDue, paymentTerms, updateInvoice, user, router]);
 
   const handleSendPDF = useCallback(async (options: PDFSendOptions) => {
     if (!project || !existingInvoice) return;

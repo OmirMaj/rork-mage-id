@@ -12,6 +12,8 @@ import {
   type ProjectReportResult,
 } from '@/utils/aiService';
 import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
+import { showAILimitAlert } from '@/utils/aiLimitAlert';
+import { useRouter } from 'expo-router';
 import type { Project, Invoice, ChangeOrder } from '@/types';
 import type { SubscriptionTierKey } from '@/utils/aiRateLimiter';
 import { Type } from '@/constants/typography';
@@ -28,6 +30,7 @@ const TWO_HOURS = 2 * 60 * 60 * 1000;
 
 export default React.memo(function AIProjectReport({ project, invoices, changeOrders, subscriptionTier }: Props) {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const [result, setResult] = useState<ProjectReportResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
@@ -45,7 +48,7 @@ export default React.memo(function AIProjectReport({ project, invoices, changeOr
 
     const limit = await checkAILimit(subscriptionTier, 'smart', 'projectReport');
     if (!limit.allowed) {
-      Alert.alert('AI Limit Reached', limit.message ?? 'Try again tomorrow.');
+      showAILimitAlert({ limit, router });
       return;
     }
 

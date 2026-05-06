@@ -21,7 +21,7 @@
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || '';
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || Deno.env.get('SERVICE_ROLE_KEY') || '';
 
-export type Tier = 'free' | 'pro' | 'business';
+export type Tier = 'free' | 'pro' | 'business' | 'enterprise';
 
 export interface AuthSuccess {
   ok: true;
@@ -86,6 +86,10 @@ async function lookupTier(userId: string): Promise<Tier> {
     const row = rows[0];
     // end_date null = ongoing. end_date in past = expired → free.
     if (row.end_date && new Date(row.end_date).getTime() < Date.now()) return 'free';
+    // Highest-to-lowest match so a future column value of 'enterprise'
+    // resolves before falling through to lower tiers. Adding a tier here
+    // requires the matching `Tier` union member above + a MONTHLY_CAPS row.
+    if (row.tier === 'enterprise') return 'enterprise';
     if (row.tier === 'business') return 'business';
     if (row.tier === 'pro') return 'pro';
     return 'free';
@@ -162,13 +166,23 @@ export async function requireTier(
     ? 'business'
     : await lookupTier(userId);
 
-  if (!allowed.includes(tier)) {
+  // Tier rank — higher always satisfies a lower requirement. We compare
+  // against the MINIMUM rank in `allowed`, so callsites passing
+  // ['pro','business'] mean "pro or higher" — which makes enterprise
+  // (and any future tier above business) automatically pass without
+  // touching every callsite. Pre-fix this was an exact-match
+  // `allowed.includes(tier)` and a brand-new enterprise subscriber
+  // got 403'd on every vision feature because no callsite listed
+  // 'enterprise' explicitly.
+  const RANK: Record<Tier, number> = { free: 0, pro: 1, business: 2, enterprise: 3 };
+  const minRequiredRank = Math.min(...allowed.map((t) => RANK[t]));
+  if (RANK[tier] < minRequiredRank) {
     return {
       ok: false,
       status: 403,
       body: {
         success: false,
-        error: `This feature requires ${allowed.join(' or ')}. You're currently on ${tier}.`,
+        error: `This feature requires ${allowed.join(' or ')} or higher. You're currently on ${tier}.`,
         code: 'tier_required',
       },
     };
@@ -203,24 +217,41 @@ export async function aiUsageIncrement(userId: string, feature: string): Promise
 }
 
 /**
- * Per-tier monthly call caps for AI features. Free is 0 (gate denies
- * before increment). Pro and Business get generous caps that real users
- * shouldn't hit, but a runaway script will.
+ * Per-tier monthly call caps for the heavy AI features (drawing/spec/photo
+ * analysis + PDF conversion). Locked to keep ≥50% gross margin even when
+ * a user maxes out the cap, given current published prices:
+ *   Pro $29/mo, Business $79/mo, Enterprise $150/mo.
+ *
+ * Free is 0 (gate denies before increment). Real users won't hit the
+ * caps; a runaway script will.
  */
 export const MONTHLY_CAPS: Record<Tier, Record<string, number>> = {
   free: {
     analyze_drawings: 0,
     analyze_photos: 0,
     convert_pdf: 0,
+    // Text AI monthly cap = daily × 30. Keeps the math aligned with
+    // utils/aiRateLimiter.ts LIMITS while giving us a non-bypassable
+    // server-side ceiling. AsyncStorage on-device can be wiped by a
+    // determined user; this stops the abuse.
+    ai_text: 150,
   },
   pro: {
-    analyze_drawings: 30,
-    analyze_photos: 100,
-    convert_pdf: 100,
+    analyze_drawings: 15,
+    analyze_photos: 50,
+    convert_pdf: 50,
+    ai_text: 900,
   },
   business: {
-    analyze_drawings: 200,
-    analyze_photos: 500,
-    convert_pdf: 500,
+    analyze_drawings: 50,
+    analyze_photos: 150,
+    convert_pdf: 150,
+    ai_text: 2400,
+  },
+  enterprise: {
+    analyze_drawings: 100,
+    analyze_photos: 200,
+    convert_pdf: 300,
+    ai_text: 4500,
   },
 };

@@ -38,7 +38,10 @@ import Paywall from '@/components/Paywall';
 import TapeRollNumber from '@/components/animations/TapeRollNumber';
 import EstimateLoadingOverlay from '@/components/EstimateLoadingOverlay';
 import { useProjects } from '@/contexts/ProjectContext';
+import { useSubscription } from '@/contexts/SubscriptionContext';
 import { shareQuickEstimatePDF } from '@/utils/pdfGenerator';
+import { checkAILimit, recordAIUsage } from '@/utils/aiRateLimiter';
+import { showAILimitAlert } from '@/utils/aiLimitAlert';
 import type { CompanyBranding } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -123,6 +126,7 @@ function EstimateWizardScreenInner() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { settings } = useProjects();
+  const { tier } = useSubscription();
 
   const [step, setStep] = useState<number>(0);
   const [answers, setAnswers] = useState<WizardAnswers>(INITIAL);
@@ -162,6 +166,19 @@ function EstimateWizardScreenInner() {
 
   const generate = useCallback(async () => {
     if (loading) return;
+
+    // Pre-flight rate-limit check. Pre-fix the wizard had no checkAILimit
+    // gate at all — Pro+ users could spam smart-tier and free users (when
+    // the gate is lifted in the future) had no lifetime-cap enforcement.
+    // We use feature='quickEstimate' so the lifetime-trial counter (3 free
+    // demos) and the smart-daily-cap both apply correctly per
+    // utils/aiRateLimiter.ts FEATURE_CONFIG.
+    const limit = await checkAILimit(tier, 'smart', 'quickEstimate');
+    if (!limit.allowed) {
+      showAILimitAlert({ limit, router });
+      return;
+    }
+
     setLoading(true);
     setResult(null);
 
@@ -196,6 +213,10 @@ Use current regional pricing where possible. Round reasonably. Keep it under 15 
         Alert.alert('Estimate failed', res.error ?? 'The AI returned an unexpected response. Please try again.');
       } else {
         setResult(res.data as EstimateResult);
+        // Only record usage on success — failed calls (timeout, MAX_TOKENS,
+        // SAFETY) shouldn't count against the user's quota. Mirrors the
+        // pattern in app/buyout-package.tsx and app/extract-submittals.tsx.
+        await recordAIUsage('smart', 'quickEstimate');
         if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
     } catch (err) {
@@ -203,7 +224,7 @@ Use current regional pricing where possible. Round reasonably. Keep it under 15 
     } finally {
       setLoading(false);
     }
-  }, [answers, loading]);
+  }, [answers, loading, tier, router]);
 
   const share = useCallback(async () => {
     if (!result) return;
