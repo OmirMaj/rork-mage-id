@@ -220,10 +220,13 @@ export default function OnboardingPaywallScreen() {
   }, [restorePurchases, router]);
 
   const openLegal = useCallback((kind: 'privacy' | 'terms') => {
+    // Production domain is mageid.app, not mageid.com. Apple/Play
+    // review will visit these URLs and reject the listing if the
+    // links 404 or land on someone else's site.
     const url =
       kind === 'privacy'
-        ? 'https://mageid.com/privacy'
-        : 'https://mageid.com/terms';
+        ? 'https://mageid.app/privacy'
+        : 'https://mageid.app/terms';
     void Linking.openURL(url);
   }, []);
 

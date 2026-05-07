@@ -214,7 +214,7 @@ export const [SubscriptionProvider, useSubscription] = createContextHook(() => {
     // Logged loudly so it's obvious in the console when this is active.
     if (isOwner(user?.email)) {
       if (resolved !== 'business') {
-        console.log('[Subscription] Master account override:', user?.email, '— forcing tier to business');
+        console.log('[Subscription] Master account override active — forcing tier to business');
       }
       resolved = 'business';
     }

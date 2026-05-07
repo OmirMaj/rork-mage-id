@@ -5,8 +5,12 @@ import { Platform } from 'react-native';
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://nteoqhcswappxxjlpvap.supabase.co';
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im50ZW9xaGNzd2FwcHh4amxwdmFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzMTU0MDMsImV4cCI6MjA4OTg5MTQwM30.xpz7yWhignppH-3dYD-EV4AvB4cugr7-881GKdOFado';
 
-console.log('[Supabase] URL configured:', supabaseUrl.substring(0, 30) + '...');
-console.log('[Supabase] Key configured:', supabaseAnonKey.substring(0, 20) + '...');
+// Pre-fix these logged the first 30 chars of the URL and 20 chars of
+// the anon key. Combined with Sentry's enableLogs + sendDefaultPii,
+// those fragments ended up in production breadcrumbs. Now we just log
+// presence — the keys themselves stay out of logs.
+console.log('[Supabase] URL configured:', supabaseUrl.length > 0 ? 'yes' : 'NO');
+console.log('[Supabase] Anon key configured:', supabaseAnonKey.length > 0 ? 'yes' : 'NO');
 
 export const isSupabaseConfigured = supabaseUrl.length > 0 && supabaseAnonKey.length > 0;
 

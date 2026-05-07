@@ -31,7 +31,7 @@ export const [NotificationProvider, useNotifications] = createContextHook(() => 
     void registerForPushNotifications().then(async (token) => {
       if (token) {
         setPushToken(token);
-        console.log('[NotificationContext] Push token obtained:', token);
+        console.log('[NotificationContext] Push token obtained');
 
         if (user.id) {
           try {

@@ -47,12 +47,18 @@ Sentry.init({
   // without flooding the project. Bump to 0.25 if you ever need more.
   tracesSampleRate: 0.1,
 
-  // Adds more context data to events (IP address, cookies, user, etc.)
-  // For more information, visit: https://docs.sentry.io/platforms/react-native/data-management/data-collected/
-  sendDefaultPii: true,
+  // sendDefaultPii forwards IPs, cookies, User-Agents to Sentry. For
+  // GDPR/CCPA users that's a privacy-policy disclosure we don't yet
+  // make, so disabled until the policy is updated to cover it. Crash
+  // reports + replays still work — they just don't carry IP / UA.
+  sendDefaultPii: false,
 
-  // Enable Logs
-  enableLogs: true,
+  // enableLogs forwards console.log + console.warn to Sentry as
+  // breadcrumbs. The codebase has lots of [Auth] / [RC] /
+  // [Subscription] logs that include emails and tokens; without
+  // sanitization those would leak into Sentry. Disabled until we
+  // do a full PII pass on those callsites.
+  enableLogs: false,
 
   // Configure Session Replay
   replaysSessionSampleRate: 0.1,

@@ -16,6 +16,41 @@ WebBrowser.maybeCompleteAuthSession();
 const AUTH_EMAIL_KEY = 'mageid_auth_email';
 const AUTH_PASSWORD_KEY = 'mageid_auth_password';
 
+// AsyncStorage keys that hold per-user app data. Wiped on logout,
+// deleteAccount, AND every successful sign-in path so a shared device
+// can't leak user-A's projects/DFRs/punch items into user-B's session
+// while Supabase is still hydrating the new user's rows.
+//
+// Keep in sync with the Project/Bids/Companies/Hire context persistence
+// layer — adding a new tertiary_* prefix without listing it here is how
+// cross-tenant leaks happen.
+const LOCAL_USER_CACHE_KEYS = [
+  'buildwise_projects', 'buildwise_settings',
+  'tertiary_leads', 'tertiary_bid_packages', 'tertiary_bid_package_bids',
+  'tertiary_change_orders', 'tertiary_invoices', 'tertiary_daily_reports',
+  'tertiary_subcontractors', 'tertiary_punch_items', 'tertiary_photos',
+  'tertiary_price_alerts', 'tertiary_contacts', 'tertiary_comm_events',
+  'tertiary_rfis', 'tertiary_submittals', 'tertiary_oac_meetings',
+  'tertiary_cois', 'tertiary_equipment', 'tertiary_warranties',
+  'tertiary_portal_messages', 'tertiary_commitments', 'tertiary_prequal_packets',
+  'tertiary_drawing_pins', 'tertiary_plan_calibrations', 'tertiary_plan_sheets',
+  'tertiary_plan_markups', 'tertiary_permits', 'tertiary_aia_pay_apps',
+  'tertiary_sub_portal_links',
+] as const;
+
+async function wipeLocalUserCache(): Promise<void> {
+  try {
+    await AsyncStorage.removeItem('mageid_offline_queue');
+  } catch (err) {
+    console.log('[Auth] Failed to clear offline queue:', err);
+  }
+  try {
+    await AsyncStorage.multiRemove(LOCAL_USER_CACHE_KEYS as unknown as string[]);
+  } catch (err) {
+    console.log('[Auth] Failed to clear local data cache:', err);
+  }
+}
+
 // Google OAuth web client ID — same one referenced in the native flow
 // for the iOS SDK's webClientId param. Origins (NOT redirect URIs) for
 // this client must include every host the app runs on:
@@ -287,7 +322,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
   }, []);
 
   const login = useCallback(async (email: string, password: string, rememberMe: boolean = true) => {
-    console.log('[Auth] Logging in:', email);
+    console.log('[Auth] Logging in');
     const { data, error } = await supabase.auth.signInWithPassword({
       email: email.toLowerCase().trim(),
       password,
@@ -303,6 +338,11 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
       setHasStoredCredentials(true);
     }
 
+    // Wipe any local cache from a prior session before contexts hydrate.
+    // On a shared device, user-B signing in must NOT see user-A's
+    // projects/DFRs/RFIs flicker through while Supabase is loading.
+    await wipeLocalUserCache();
+
     const authUser = mapSupabaseUser(data.user);
     queryClient.clear();
     console.log('[Auth] Login successful');
@@ -310,7 +350,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
   }, [queryClient]);
 
   const signup = useCallback(async (email: string, password: string, name: string) => {
-    console.log('[Auth] Signing up:', email);
+    console.log('[Auth] Signing up');
     const { data, error } = await supabase.auth.signUp({
       email: email.toLowerCase().trim(),
       password,
@@ -327,6 +367,11 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     if (!data.user) {
       throw new Error('Signup succeeded but no user returned. Check your email for verification.');
     }
+
+    // Same shared-device guard as login — wipe pre-existing local cache
+    // before the new user's contexts hydrate so they never momentarily
+    // see whoever was on the device before them.
+    await wipeLocalUserCache();
 
     const authUser = mapSupabaseUser(data.user);
     queryClient.clear();
@@ -399,38 +444,13 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
       setHasStoredCredentials(false);
     }
 
-    // Drop the offline queue — otherwise queued mutations from the previous
-    // user can flush under whoever signs in next. Multi-tenant data leak.
-    try {
-      await AsyncStorage.removeItem('mageid_offline_queue');
-    } catch (err) {
-      console.log('[Auth] Failed to clear offline queue:', err);
-    }
-
-    // Drop the cached project/sub-collection data too. With the post-fix
-    // "don't wipe local on empty Supabase" guard in place, the next user
-    // would otherwise see the previous user's projects/DFRs/punch items
-    // until Supabase responds with their own non-empty data. Clear here
-    // so a fresh login starts from a clean local cache and pulls down
-    // the new user's rows from Supabase.
-    const cacheKeys = [
-      'buildwise_projects', 'buildwise_settings',
-      'tertiary_leads', 'tertiary_bid_packages', 'tertiary_bid_package_bids',
-      'tertiary_change_orders', 'tertiary_invoices', 'tertiary_daily_reports',
-      'tertiary_subcontractors', 'tertiary_punch_items', 'tertiary_photos',
-      'tertiary_price_alerts', 'tertiary_contacts', 'tertiary_comm_events',
-      'tertiary_rfis', 'tertiary_submittals', 'tertiary_oac_meetings',
-      'tertiary_cois', 'tertiary_equipment', 'tertiary_warranties',
-      'tertiary_portal_messages', 'tertiary_commitments', 'tertiary_prequal_packets',
-      'tertiary_drawing_pins', 'tertiary_plan_calibrations', 'tertiary_plan_sheets',
-      'tertiary_plan_markups', 'tertiary_permits', 'tertiary_aia_pay_apps',
-      'tertiary_sub_portal_links',
-    ];
-    try {
-      await AsyncStorage.multiRemove(cacheKeys);
-    } catch (err) {
-      console.log('[Auth] Failed to clear local data cache:', err);
-    }
+    // Drop the offline queue + cached project/sub-collection data so the
+    // next user that signs in starts with a clean local cache and pulls
+    // their own rows from Supabase. Without this, queued mutations from
+    // the previous user would flush under whoever signs in next, and
+    // the new user would briefly see the previous user's projects/DFRs/
+    // punch items before Supabase responds.
+    await wipeLocalUserCache();
 
     setSession(null);
     setUser(null);
@@ -475,21 +495,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     try {
       await clearStoredCredentials();
       setHasStoredCredentials(false);
-      await AsyncStorage.removeItem('mageid_offline_queue');
-      const cacheKeys = [
-        'buildwise_projects', 'buildwise_settings',
-        'tertiary_leads', 'tertiary_bid_packages', 'tertiary_bid_package_bids',
-        'tertiary_change_orders', 'tertiary_invoices', 'tertiary_daily_reports',
-        'tertiary_subcontractors', 'tertiary_punch_items', 'tertiary_photos',
-        'tertiary_price_alerts', 'tertiary_contacts', 'tertiary_comm_events',
-        'tertiary_rfis', 'tertiary_submittals', 'tertiary_oac_meetings',
-        'tertiary_cois', 'tertiary_equipment', 'tertiary_warranties',
-        'tertiary_portal_messages', 'tertiary_commitments', 'tertiary_prequal_packets',
-        'tertiary_drawing_pins', 'tertiary_plan_calibrations', 'tertiary_plan_sheets',
-        'tertiary_plan_markups', 'tertiary_permits', 'tertiary_aia_pay_apps',
-        'tertiary_sub_portal_links',
-      ];
-      await AsyncStorage.multiRemove(cacheKeys);
+      await wipeLocalUserCache();
     } catch (err) {
       console.log('[Auth] deleteAccount: local wipe partial:', err);
     }
@@ -500,10 +506,14 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
   }, [queryClient]);
 
   const resetPassword = useCallback(async (email: string) => {
-    console.log('[Auth] Sending password reset email to:', email);
+    console.log('[Auth] Sending password reset email');
     const { error } = await supabase.auth.resetPasswordForEmail(
       email.toLowerCase().trim(),
-      { redirectTo: 'mageid://reset-password' }
+      // The app's URL scheme is `rork-app://` (see app.json `scheme`).
+      // Pre-fix this used `mageid://` which doesn't resolve, so the
+      // reset-password email link opened nothing on iOS/Android and
+      // the user was locked out with no way to reset.
+      { redirectTo: 'rork-app://reset-password' }
     );
 
     if (error) {
@@ -528,7 +538,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
   // Supabase rate-limits this (default 1/60s) and returns a clear error if
   // the user has already confirmed — the modal surfaces both states.
   const resendConfirmation = useCallback(async (email: string) => {
-    console.log('[Auth] Resending confirmation email to:', email);
+    console.log('[Auth] Resending confirmation email');
     const { error } = await supabase.auth.resend({
       type: 'signup',
       email: email.toLowerCase().trim(),
@@ -628,6 +638,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
           });
           if (error) throw error;
           console.log('[Auth] Google sign-in session set (native flow)');
+          await wipeLocalUserCache();
           queryClient.clear();
           return;
         } catch (gErr) {
@@ -683,6 +694,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
           });
           if (error) throw error;
           console.log('[Auth] Google sign-in session set (web GIS flow)');
+          await wipeLocalUserCache();
           queryClient.clear();
           return;
         } catch (gisErr) {
@@ -721,6 +733,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
             });
             if (sessionError) throw sessionError;
             console.log('[Auth] Google sign-in session set successfully');
+            await wipeLocalUserCache();
             queryClient.clear();
           } else {
             console.log('[Auth] No access token found in Google callback URL');
@@ -790,6 +803,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
           }
         }
         console.log('[Auth] Apple sign-in session set (native iOS flow)');
+        await wipeLocalUserCache();
         queryClient.clear();
         return;
       }
@@ -823,6 +837,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
             });
             if (sessionError) throw sessionError;
             console.log('[Auth] Apple sign-in session set successfully');
+            await wipeLocalUserCache();
             queryClient.clear();
           } else {
             console.log('[Auth] No access token found in Apple callback URL');

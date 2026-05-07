@@ -10,6 +10,7 @@ import {
   ScrollView,
   Animated,
   ActivityIndicator,
+  Linking,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -99,8 +100,8 @@ export default function SignupScreen() {
       return;
     }
 
-    if (password.length < 6) {
-      setErrorMessage('Password must be at least 6 characters');
+    if (password.length < 8) {
+      setErrorMessage('Password must be at least 8 characters');
       shake();
       if (Platform.OS !== 'web') {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -284,7 +285,7 @@ export default function SignupScreen() {
                 <TextInput
                   ref={passwordRef}
                   style={styles.input}
-                  placeholder="Min 6 characters"
+                  placeholder="Min 8 characters"
                   placeholderTextColor={Colors.textMuted}
                   value={password}
                   onChangeText={setPassword}
@@ -344,6 +345,29 @@ export default function SignupScreen() {
               )}
             </TouchableOpacity>
           </Animated.View>
+
+          {/* Apple guideline 3.1.2 / 5.1.1 — surface the legal terms on the
+              same screen the user agrees to them on. Tappable links open the
+              hosted Privacy Policy and Terms of Service in the browser. */}
+          <Text style={styles.legalText}>
+            By creating an account you agree to our{' '}
+            <Text
+              style={styles.legalLink}
+              onPress={() => { void Linking.openURL('https://mageid.app/terms'); }}
+              testID="signup-terms-link"
+            >
+              Terms of Service
+            </Text>
+            {' '}and{' '}
+            <Text
+              style={styles.legalLink}
+              onPress={() => { void Linking.openURL('https://mageid.app/privacy'); }}
+              testID="signup-privacy-link"
+            >
+              Privacy Policy
+            </Text>
+            .
+          </Text>
 
           <View style={styles.loginRow}>
             <Text style={styles.loginPrompt}>Already have an account?</Text>
@@ -483,6 +507,19 @@ const styles = StyleSheet.create({
     fontSize: Type.body.fontSize,
     fontWeight: '700' as const,
     color: Colors.surface,
+  },
+  legalText: {
+    fontSize: Type.footnote.fontSize,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 18,
+    marginTop: 14,
+    paddingHorizontal: 8,
+  },
+  legalLink: {
+    color: Colors.primary,
+    fontWeight: '600' as const,
+    textDecorationLine: 'underline',
   },
   loginRow: {
     flexDirection: 'row',

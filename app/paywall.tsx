@@ -159,8 +159,8 @@ export default function PaywallScreen() {
 
   const openLegal = useCallback((kind: 'privacy' | 'terms') => {
     const url = kind === 'privacy'
-      ? 'https://mageid.com/privacy'
-      : 'https://mageid.com/terms';
+      ? 'https://mageid.app/privacy'
+      : 'https://mageid.app/terms';
     void Linking.openURL(url);
   }, []);
 

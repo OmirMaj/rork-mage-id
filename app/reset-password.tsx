@@ -42,8 +42,8 @@ export default function ResetPasswordScreen() {
   }, [params.access_token, params.refresh_token]);
 
   const handleSubmit = useCallback(async () => {
-    if (!newPassword.trim() || newPassword.length < 6) {
-      Alert.alert('Error', 'Password must be at least 6 characters.');
+    if (!newPassword.trim() || newPassword.length < 8) {
+      Alert.alert('Error', 'Password must be at least 8 characters.');
       return;
     }
     if (newPassword !== confirmPassword) {
