@@ -72,7 +72,7 @@ export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { settings, updateSettings, projects, deleteProject } = useProjects();
-  const { user, logout, isAuthenticated } = useAuth();
+  const { user, logout, deleteAccount, isAuthenticated } = useAuth();
   const { tier } = useSubscription();
   const [aiUsed, setAiUsed] = useState(0);
   const [aiLimit, setAiLimit] = useState(10);
@@ -281,6 +281,79 @@ export default function SettingsScreen() {
       },
     ]);
   }, [projects, deleteProject]);
+
+  // Apple Guideline 5.1.1(v) requires every app with sign-in to offer
+  // an in-app account deletion path. Two-step confirmation:
+  // (1) generic "are you sure" alert that warns about subscription
+  //     responsibility (we can't cancel an Apple/Play subscription on
+  //     the user's behalf — they have to do that through the platform);
+  // (2) typed-confirm step ("DELETE") so a misclick doesn't nuke a
+  //     real account.
+  const handleDeleteAccount = useCallback(() => {
+    Alert.alert(
+      'Delete account',
+      'This permanently removes your MAGE ID account, every project, and all uploaded files. This cannot be undone.\n\nIf you have an active subscription, cancel it first in Settings → Apple ID → Subscriptions on iOS or Google Play → Subscriptions on Android. Deleting your account does NOT cancel your subscription.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'I understand, continue',
+          style: 'destructive',
+          onPress: () => {
+            // On web `prompt` works; native uses Alert.prompt (iOS only),
+            // and Android falls back to a plain confirm Alert. We use
+            // Alert.prompt where available and a plain "are you ABSOLUTELY
+            // sure?" yes/no on Android since prompt isn't available there.
+            if (Platform.OS === 'ios') {
+              Alert.prompt(
+                'Type DELETE to confirm',
+                'Account deletion is permanent. Type the word DELETE in all caps below to confirm.',
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  {
+                    text: 'Delete forever',
+                    style: 'destructive',
+                    onPress: async (input?: string) => {
+                      if (input !== 'DELETE') {
+                        Alert.alert('Confirmation didn\'t match', 'Type DELETE in all caps to confirm.');
+                        return;
+                      }
+                      await runDeleteAccount();
+                    },
+                  },
+                ],
+                'plain-text',
+              );
+            } else {
+              Alert.alert(
+                'Final confirmation',
+                'Are you ABSOLUTELY sure? This deletes everything and cannot be undone.',
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  {
+                    text: 'Delete forever',
+                    style: 'destructive',
+                    onPress: () => { void runDeleteAccount(); },
+                  },
+                ],
+              );
+            }
+          },
+        },
+      ],
+    );
+  }, []);
+
+  const runDeleteAccount = useCallback(async () => {
+    try {
+      await deleteAccount();
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      Alert.alert('Account deleted', 'Your MAGE ID account and all data have been removed.', [
+        { text: 'OK', onPress: () => router.replace('/login' as never) },
+      ]);
+    } catch (err) {
+      Alert.alert('Could not delete account', err instanceof Error ? err.message : String(err));
+    }
+  }, [deleteAccount, router]);
 
   const handleToggleUnits = useCallback(() => {
     const newUnits = settings.units === 'imperial' ? 'metric' : 'imperial';
@@ -1391,6 +1464,18 @@ export default function SettingsScreen() {
               <Trash2 size={14} color="#fff" />
             </View>
             <Text style={[styles.rowLabel, { color: Colors.error }]}>Clear All Projects & Data</Text>
+          </TouchableOpacity>
+          <View style={styles.rowSeparator} />
+          <TouchableOpacity style={styles.row} onPress={handleDeleteAccount} activeOpacity={0.6} testID="delete-account">
+            <View style={[styles.iconWrap, { backgroundColor: Colors.error }]}>
+              <UserCircle size={14} color="#fff" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.rowLabel, { color: Colors.error }]}>Delete Account</Text>
+              <Text style={[styles.aboutDesc, { color: Colors.textMuted }]}>
+                Permanently remove your account, projects, and all data. This can&apos;t be undone.
+              </Text>
+            </View>
           </TouchableOpacity>
         </View>
         <Text style={styles.dangerNote}>

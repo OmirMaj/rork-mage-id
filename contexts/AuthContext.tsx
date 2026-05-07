@@ -439,6 +439,66 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     console.log('[Auth] Logged out');
   }, [queryClient]);
 
+  /**
+   * Permanently delete the user's account and all of their data.
+   * Apple Guideline 5.1.1(v) requires this for any app with sign-in;
+   * skipping it = automatic review rejection.
+   *
+   * Calls the `delete-account` edge function, which runs as service
+   * role to wipe the user's rows across every project-scoped table
+   * + their storage prefixes + the auth.users record itself. On
+   * success we clear local state the same way logout does so the
+   * device drops to the login screen with no residue.
+   *
+   * Throws on failure so the UI can show a useful error toast — the
+   * user keeps their account in that case (no half-deleted state).
+   */
+  const deleteAccount = useCallback(async () => {
+    console.log('[Auth] deleteAccount: invoking edge function');
+    const { data, error } = await supabase.functions.invoke<{
+      success: boolean;
+      error?: string;
+      tablesCleared?: number;
+      tableErrors?: string[];
+    }>('delete-account', { method: 'POST' });
+    if (error) {
+      throw new Error(`Could not delete account: ${error.message}`);
+    }
+    if (!data?.success) {
+      throw new Error(data?.error ?? 'Account deletion failed.');
+    }
+    console.log('[Auth] deleteAccount: server-side delete complete', data);
+    // Treat the rest as logout-and-wipe-local — same code path as
+    // logout(true) so the device ends up clean. We don't call signOut
+    // again because the auth.users row is already gone; getSession()
+    // will 401 from this point on.
+    try {
+      await clearStoredCredentials();
+      setHasStoredCredentials(false);
+      await AsyncStorage.removeItem('mageid_offline_queue');
+      const cacheKeys = [
+        'buildwise_projects', 'buildwise_settings',
+        'tertiary_leads', 'tertiary_bid_packages', 'tertiary_bid_package_bids',
+        'tertiary_change_orders', 'tertiary_invoices', 'tertiary_daily_reports',
+        'tertiary_subcontractors', 'tertiary_punch_items', 'tertiary_photos',
+        'tertiary_price_alerts', 'tertiary_contacts', 'tertiary_comm_events',
+        'tertiary_rfis', 'tertiary_submittals', 'tertiary_oac_meetings',
+        'tertiary_cois', 'tertiary_equipment', 'tertiary_warranties',
+        'tertiary_portal_messages', 'tertiary_commitments', 'tertiary_prequal_packets',
+        'tertiary_drawing_pins', 'tertiary_plan_calibrations', 'tertiary_plan_sheets',
+        'tertiary_plan_markups', 'tertiary_permits', 'tertiary_aia_pay_apps',
+        'tertiary_sub_portal_links',
+      ];
+      await AsyncStorage.multiRemove(cacheKeys);
+    } catch (err) {
+      console.log('[Auth] deleteAccount: local wipe partial:', err);
+    }
+    setSession(null);
+    setUser(null);
+    setIsAuthenticated(false);
+    queryClient.clear();
+  }, [queryClient]);
+
   const resetPassword = useCallback(async (email: string) => {
     console.log('[Auth] Sending password reset email to:', email);
     const { error } = await supabase.auth.resetPasswordForEmail(
@@ -791,6 +851,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     login,
     signup,
     logout,
+    deleteAccount,
     loginWithBiometrics,
     resetPassword,
     updatePassword,
@@ -798,5 +859,5 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     signInWithGoogle,
     signInWithApple,
     sendMagicLink,
-  }), [user, session, isLoading, isAuthenticated, hasStoredCredentials, login, signup, logout, loginWithBiometrics, resetPassword, updatePassword, resendConfirmation, signInWithGoogle, signInWithApple, sendMagicLink]);
+  }), [user, session, isLoading, isAuthenticated, hasStoredCredentials, login, signup, logout, deleteAccount, loginWithBiometrics, resetPassword, updatePassword, resendConfirmation, signInWithGoogle, signInWithApple, sendMagicLink]);
 });
