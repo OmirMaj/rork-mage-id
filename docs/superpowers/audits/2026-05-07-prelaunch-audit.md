@@ -23,7 +23,25 @@ See spec §1 for full text. Summary:
 
 _Walked in Task 3. Step results listed below; failed assertions point to §5 punch list._
 
-(empty — populated by Task 3)
+| Step | Result | Notes |
+|---|---|---|
+| 1. Qualify lead | **PASS** | `convertLeadToProject` (ProjectContext.tsx:1558-1601) carries name, type, address, scope, budget, primary contact across. Strong A1. |
+| 2. Takeoff → estimate | **FAIL A1** → AUD-002 | `drawing-analyzer.tsx:150-153` explicit comment: AI output not 1:1 with EstimateBreakdown shape; navigates to /estimate without hydration. `takeoff-estimate.tsx` is a separate AI-priced flow that does work; verify which path users hit by default. |
+| 3. Build estimate | **FAIL A10** → AUD-005 | `EstimateBreakdown` interface (types/index.ts:58-74) has no version / revision / history fields. Editing overwrites prior. |
+| 4. Material buyout | **PASS** | `buyout.tsx` references `estimateBudget` and "estimate line items so the budget rolls up automatically" — quantities flow. |
+| 5. Homeowner reviews estimate | **PASS** A1 | `client-view.tsx:410` reads `project?.estimate?.grandTotal`. Verify line-item parity in Phase 2. |
+| 6. Sign contract | **PASS** A1 | `contract.tsx` checks project.status `draft`/`estimated` and contract derives via project.estimate. ProjectContract has `version: number` (types/index.ts:234). Strong A8. |
+| 7. Project init + permits | **FAIL A1, A4** → AUD-003, AUD-004 | `schedule-wizard.tsx:82-90` seeds from generic templates (`template.tasks`), NOT from estimate line items. `permits.tsx` has rich PermitStatus enum but no schedule-task gating logic — permit denial does not block dependent schedule activities. |
+| 8. Selections (#1 residential pain) | **PARTIAL** | **Strong**: overage → CO handoff (`selections.tsx:138-153`) is correctly wired with router prefill — better than competitors. **Gap**: in-app `client-view.tsx` shows no selection UI; homeowner picks must happen via `marketing/portal/` web. Verify Phase 2 the web portal flow works end-to-end. Within-allowance picks don't post to budget dashboard (acceptable by design — allowance was already in estimate). |
+| 9. Pre-con docs | **PASS** | `project-files.tsx` mounts `<ProjectFilesBrowser>` component cleanly; portal-scope filter inside that component (Phase 2 verify). |
+| 10. Daily ops + photos | **PASS A1, A7** (predicted) | `addDailyReport`, `addProjectPhoto`, `updateProjectPhoto` in ProjectContext all route through `supabaseWrite` (offline queue). Photos store via `tertiary_photos` key with Supabase mirror. A6 + A7 hardware verification pending. |
+| 11. Weekly digest | **PASS** | `homeowner-weekly-digest` edge fn is well-structured: pg_cron Friday-16:00-UTC fan-out, Gemini-rewritten with deterministic template fallback, RESEND_API_KEY for delivery, scoped to `clientPortal.weeklyDigest.enabled` projects. |
+| 12. Stone-upgrade CO from message | **FAIL A1, A2-budget** → AUD-006, AUD-007 | `client-messages.tsx` is a plain chat surface; no "convert message to CO" affordance (compare to selections.tsx:138-153 which does have prefill router push — pattern exists, just not extended). CO `scheduleImpactDays` IS applied to schedule (project-detail.tsx:1866-1874 — A2-schedule PASS). CO `changeAmount` does NOT propagate to `project.targetBudget` — A2-budget partial fail; revised contract surfaces only via linkedEstimate / pay app aggregates. |
+| 13. Progress invoice + Stripe | **PASS A1** (predicted A2-cashflow) | `bill-from-estimate.tsx:54-83` builds source rows from `LinkedEstimateItem` first, falls back to `MaterialLineItem`. Invoices draw down against the contract correctly. `markAsPaid` (`invoice.tsx:572-580`) creates `InvoicePayment` and updates status. A2-cashflow predicted PASS via getInvoicesForProject aggregation. A7 hardware pending. |
+| 14. Punch | **FAIL A4** → AUD-009 | Punch items are pulled into the closeout binder but open items do not block status='delivered'. The binder allows distribution with `openPunch.length > 0`. |
+| 15. Warranty + handover + closeout | **FAIL A1** → AUD-008 | `closeout-binder.tsx:58` destructures from useProjects: `commitments, warranties, projectPhotos, rfis, submittals` — **lien waivers missing**. The binder does not auto-include `LienWaiver` records, even though `lien-waivers.tsx` exists with full CRUD. Selections, warranties, photos all flow correctly. |
+
+**Path 1 cross-cutting findings:** AUD-010 / AUD-011 / AUD-012 (offline-queue bypasses in 3 marketplace screens — touch Path 1 only via the lead-source case but more relevant in Path 2).
 
 ### 2.2 Path 2 — Commercial tenant fit-out
 
@@ -97,7 +115,7 @@ _Walked in Task 7. 30-item checklist from spec §7 with green/yellow/red status 
 
 _All findings, all sources. Use the finding template defined in the plan. Sort by AUD-### ascending._
 
-**Finding ID counter:** next is AUD-002.
+**Finding ID counter:** next is AUD-013.
 
 ### AUD-001 — Offline queue silently drops non-network Supabase errors
 - **severity:** should
@@ -112,6 +130,171 @@ _All findings, all sources. Use the finding template defined in the plan. Sort b
 - **scope:** M (need to either retry transient errors with backoff, surface non-retryable errors in a UI inbox, or audit each call site for proper false-return handling)
 - **delivery:** OTA (utility-level change)
 - **xref:** (none yet — not in `docs/workflow-audit-roadmap.md`)
+- **status:** confirmed-headless
+
+### AUD-002 — AI takeoff/drawing-analyzer doesn't hydrate the estimate
+- **severity:** should
+- **source:** path-1
+- **step:** 2
+- **assertions:** A1 (data continuity)
+- **personas:** estimator
+- **expected:** AI takeoff output (quantities + categorized counts) should pre-fill `estimate-wizard` line items so the estimator only adjusts; tying takeoff → estimate is the largest single re-entry friction in residential per the research.
+- **actual:** `app/drawing-analyzer.tsx:150-153` is explicit: `// For now we just navigate to the estimate screen with the / hydrate an estimate is a follow-up — the AI output isn't a / 1:1 match for the EstimateBreakdown shape.` The newer `app/takeoff-estimate.tsx` flow does AI-price takeoff results into estimates, but `drawing-analyzer` still bounces the user to a blank `/estimate`.
+- **repro:** 1. Open Drawing Analyzer. 2. Upload a plan PDF. 3. Tap the "drop in estimate" CTA. 4. Land on /estimate with no line items pre-filled.
+- **screens / files:** `app/drawing-analyzer.tsx:144-160`, `app/estimate-wizard.tsx`, `app/takeoff-estimate.tsx` (the working alternative path).
+- **scope:** M (need to map AI output schema → EstimateBreakdown.materials + .labor; then either consolidate the two entry points or hydrate from drawing-analyzer too)
+- **delivery:** OTA
+- **xref:** none
+- **status:** confirmed-headless
+
+### AUD-003 — Schedule wizard seeds from generic template, not estimate
+- **severity:** should
+- **source:** path-1
+- **step:** 7
+- **assertions:** A1
+- **personas:** PM, scheduler, estimator
+- **expected:** Schedule activities seed from estimate line items so durations and dependencies reflect scoped work. Per spec §6a: "SOV → schedule activities → budget categories share IDs."
+- **actual:** `app/schedule-wizard.tsx:82-90` initializes tasks from `template.tasks.map(...)` — a hard-coded template by project type. The estimate's `materials[]` and `labor[]` arrays don't contribute. Result: schedule and estimate are loosely coupled; estimating a $40K HVAC scope doesn't surface in the schedule's HVAC activity.
+- **repro:** 1. Build an estimate with notable HVAC line items. 2. Open Schedule Wizard. 3. Schedule tasks come from the template, not the estimate scope.
+- **screens / files:** `app/schedule-wizard.tsx:82-198`; `types/index.ts ScheduleTask`.
+- **scope:** L (depends on whether estimate line items map cleanly to schedule activities — likely needs a bridging "scope item" abstraction)
+- **delivery:** OTA
+- **xref:** none
+- **status:** confirmed-headless
+
+### AUD-004 — Permit status doesn't gate dependent schedule activities
+- **severity:** should
+- **source:** path-1
+- **step:** 7
+- **assertions:** A4 (schedule integration)
+- **personas:** PM, super, scheduler
+- **expected:** A pending or denied permit blocks (or visibly warns on) the schedule activity that depends on it (e.g. Framing inspection denied → "Frame interior walls" task gets a red flag). Competitor research #5 cites this as a common gap.
+- **actual:** `app/permits.tsx` has a rich `PermitStatus` enum (`applied` → `under_review` → `approved` → various inspection states) and a permit-pipeline UI, but no schedule-task linkage. ScheduleTask has no `gatedBy: 'permit'` field; permit changes don't surface on the Gantt.
+- **repro:** 1. Add a permit with status `denied`. 2. Open the schedule. 3. Tasks that depend on this permit show no warning.
+- **screens / files:** `app/permits.tsx`; `app/schedule-pro.tsx`; `types/index.ts ScheduleTask`, `Permit`.
+- **scope:** M (need a `linkedPermitIds` field on ScheduleTask, plus visual treatment on schedule when any linked permit is non-approved)
+- **delivery:** OTA
+- **xref:** consider adding to `docs/workflow-audit-roadmap.md` Tier 1 — "Permits StatusPipeline" already there, this is the next layer
+- **status:** confirmed-headless
+
+### AUD-005 — Estimate has no version / revision history
+- **severity:** should
+- **source:** path-1
+- **step:** 3
+- **assertions:** A10 (revision integrity), A8 (audit trail)
+- **personas:** estimator, PM, homeowner (auditing what they signed)
+- **expected:** Editing an estimate either preserves the prior version (snapshot) or is auditable so the GC can answer "the homeowner says we agreed to $X — what was the estimate when they signed?"
+- **actual:** `EstimateBreakdown` interface (types/index.ts:58-74) has no `version`, `revisionHistory`, `previousVersions`, or audit fields. Updates overwrite. ProjectContract DOES have `version: number` (types/index.ts:234) which captures contract revisions, but estimate-side revisions before contract are lost.
+- **repro:** 1. Build an estimate. 2. Edit a line item significantly. 3. Try to view the prior version. 4. No history available.
+- **screens / files:** `types/index.ts:58-74`; `app/estimate-wizard.tsx`; `contexts/ProjectContext.tsx updateProject`.
+- **scope:** M (add a versioned snapshot on estimate save; surface a "history" view)
+- **delivery:** OTA
+- **xref:** none
+- **status:** confirmed-headless
+
+### AUD-006 — Client-message → change-order has no conversion affordance
+- **severity:** should
+- **source:** path-1
+- **step:** 12
+- **assertions:** A1
+- **personas:** PM, homeowner
+- **expected:** When a homeowner messages "can we upgrade to quartz?", the GC can convert the message to a draft CO with the message body pre-filled (mirrors the selections-overage pattern at `selections.tsx:138-153`).
+- **actual:** `app/client-messages.tsx` is a basic chat — `addPortalMessage` only. No router-prefill action to /change-order. The right pattern is implemented in selections.tsx but not extended here.
+- **repro:** 1. Receive a portal message asking for a scope change. 2. Look for a "convert to change order" affordance. 3. None exists; GC must manually open /change-order and re-key.
+- **screens / files:** `app/client-messages.tsx:60-72`; reference pattern at `app/selections.tsx:138-153`.
+- **scope:** S (port the selections.tsx pattern: long-press or kebab on a portal message → router.push to /change-order with prefillReason='client_request' + prefillDescription=message.body)
+- **delivery:** OTA
+- **xref:** none
+- **status:** confirmed-headless
+
+### AUD-007 — Change order doesn't propagate to project budget on approval
+- **severity:** should
+- **source:** path-1
+- **step:** 12
+- **assertions:** A2 (bidirectional updates)
+- **personas:** PM, homeowner
+- **expected:** Approved CO updates the project's revised contract value visible in budget-dashboard / project-detail. Original `targetBudget` may stay (for variance tracking), but a "revised contract value" surface should reflect approved CO totals.
+- **actual:** ChangeOrder schedule impact IS applied (project-detail.tsx:1866-1874 — A2-schedule PASS). But CO `changeAmount` doesn't write to `project.targetBudget` or any obvious "revised contract" field. Where revised contract is shown depends on linkedEstimate / aiaPayApp aggregates, which is fine for commercial but obscure for residential homeowners.
+- **repro:** 1. Approve a CO with `changeAmount = 5000`. 2. Open budget-dashboard. 3. Original budget shown; revised contract not surfaced.
+- **screens / files:** `app/change-order.tsx`; `app/budget-dashboard.tsx`; `contexts/ProjectContext.tsx updateChangeOrder` (line 1220+).
+- **scope:** S–M (display "Original $X / Approved COs +$Y / Revised contract $Z" prominently on budget-dashboard and client-view)
+- **delivery:** OTA
+- **xref:** competitor complaint #6 in spec §7
+- **status:** confirmed-headless
+
+### AUD-008 — Closeout binder excludes lien waivers
+- **severity:** should
+- **source:** path-1
+- **step:** 15
+- **assertions:** A1
+- **personas:** PM, homeowner, owner-commercial (more critical for commercial)
+- **expected:** Closeout binder auto-includes signed lien waivers — for residential, final unconditional waivers from each major sub; for commercial, all conditional + unconditional waivers per period (legal artifact). Spec §6a step 15 lists "binder includes selections, warranties, lien waivers, photos, manuals."
+- **actual:** `app/closeout-binder.tsx:58` destructures from useProjects: `commitments, warranties, projectPhotos, rfis, submittals` — no lien waivers. The lien-waivers domain object exists (`app/lien-waivers.tsx` + `utils/lienWaiverEngine`) but isn't wired into the binder compiler. Selections, warranties, submittals, photos all flow correctly.
+- **repro:** 1. Project with several signed lien waivers. 2. Open closeout-binder. 3. Lien waivers are not listed.
+- **screens / files:** `app/closeout-binder.tsx:58, 246-273` (compileBinder); `utils/lienWaiverEngine.ts::fetchLienWaiversForProject`.
+- **scope:** S (add `fetchLienWaiversForProject(project.id)` to the Promise.all + thread into the binder data structure)
+- **delivery:** OTA
+- **xref:** none
+- **status:** confirmed-headless
+
+### AUD-009 — Closeout binder doesn't block on open punch items
+- **severity:** should
+- **source:** path-1
+- **step:** 14
+- **assertions:** A4
+- **personas:** PM, homeowner
+- **expected:** Open punch items block the binder's `status: 'delivered'` transition. A binder distributed with open punch items is a contractual problem.
+- **actual:** `app/closeout-binder.tsx:317` filters `punch.filter(p => p.status !== 'closed')` and includes them as `openPunch` in the binder data, but no gating logic prevents `status='delivered'`. The binder can be marked delivered with open punch items.
+- **repro:** 1. Project with open punch items. 2. Open closeout-binder. 3. Tap "Mark delivered". 4. Status changes despite open punch.
+- **screens / files:** `app/closeout-binder.tsx:317-335` (deliver flow), `types/index.ts PunchItemStatus`.
+- **scope:** S (add a guard on the deliver action: if `openPunch.length > 0`, show confirm dialog "This binder has N open punch items. Deliver anyway?" — soft block)
+- **delivery:** OTA
+- **xref:** none
+- **status:** confirmed-headless
+
+### AUD-010 — `notifications-settings.tsx` push_token update bypasses offline queue
+- **severity:** defer
+- **source:** domain-trace
+- **step:** (n/a — Path 3 step 10 also)
+- **assertions:** A7
+- **personas:** all (any user updating push token)
+- **expected:** All Supabase writes go through `supabaseWrite` per CLAUDE.md.
+- **actual:** `app/notifications-settings.tsx:322` calls `supabase.from('profiles').update({ push_token: token }).eq('id', user.id)` directly. If offline, the update silently fails; on next launch the token re-registers anyway, so user-facing impact is near-zero.
+- **repro:** Force airplane mode → toggle a notification setting → push_token write may fail without UI signal.
+- **screens / files:** `app/notifications-settings.tsx:322`.
+- **scope:** S (one-line replacement with `supabaseWrite('profiles', 'update', { id, push_token })`)
+- **delivery:** OTA
+- **xref:** AUD-001 (related)
+- **status:** confirmed-headless
+
+### AUD-011 — `submit-bid-response.tsx` insert bypasses offline queue
+- **severity:** should
+- **source:** domain-trace
+- **step:** (n/a — Path 2 step 2 also)
+- **assertions:** A7, A1
+- **personas:** estimator, PM (responding to RFP)
+- **expected:** Bid responses go through `supabaseWrite` so a flaky-network submission doesn't lose the bid.
+- **actual:** `app/submit-bid-response.tsx:94` directly calls `supabase.from('bid_responses').insert({...})`. If the network drops mid-submit, the bid is lost.
+- **repro:** Compose a bid response → simulate network drop → submit → bid is lost without queue retry.
+- **screens / files:** `app/submit-bid-response.tsx:94`.
+- **scope:** S (one-line replacement)
+- **delivery:** OTA
+- **xref:** AUD-001
+- **status:** confirmed-headless
+
+### AUD-012 — `post-rfp.tsx` insert bypasses offline queue
+- **severity:** defer
+- **source:** domain-trace
+- **step:** (n/a)
+- **assertions:** A7
+- **personas:** owner-commercial, owner-residential (posting an RFP)
+- **expected:** RFP posting goes through `supabaseWrite`.
+- **actual:** `app/post-rfp.tsx:221` directly calls `supabase.from('public_bids').insert({...})`. RFP posting is rare-flow, so impact is small, but consistency-wise should match.
+- **repro:** Same pattern as AUD-011.
+- **screens / files:** `app/post-rfp.tsx:221`.
+- **scope:** S
+- **delivery:** OTA
+- **xref:** AUD-001
 - **status:** confirmed-headless
 
 
