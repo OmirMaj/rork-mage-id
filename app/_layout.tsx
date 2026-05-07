@@ -560,6 +560,10 @@ function RootLayoutNav() {
         options={{ headerShown: false }}
       />
       <Stack.Screen
+        name="project-files"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
         name="post-rfp"
         options={{ headerShown: false, presentation: 'modal' }}
       />
