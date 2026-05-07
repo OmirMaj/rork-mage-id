@@ -58,6 +58,15 @@ _Walked in Tasks 4 + 5. Step results listed below._
 | 7. Project init + Gantt | **PASS** (strong) | `schedule-pro.tsx:58, 183, 204` uses `runCpm` from `utils/cpm` — real critical-path computation, near-critical-float threshold for "yellow" tasks, composite `ScheduleHealthScore`. Fragnets and baselines tracked (types/index.ts ScheduleBaseline, ScheduleFragnet). Better than most competitor offerings. |
 | 8. Long-lead submittals | **PASS** A4 (predicted; verify Phase 2 status-blocks-task) | `submittal.tsx:197-198` reads `project?.schedule?.tasks` and exposes `linkedTaskId` so a submittal can target a specific schedule activity. The link is bidirectional in the data model. Whether status changes (e.g. "Revise & Resubmit") visibly gate or warn on the dependent task is verified in Phase 2 — the linkage exists; the UI treatment may or may not be active. |
 | 9. Buyout + sub onboarding | **PASS** A3 (verify Phase 2 web portal) | `SubPortalLink` (types/index.ts:1985-2002) has `commitmentIds?: string[]` to scope the portal — "If empty the portal shows all commitments tied to this sub on this project." Sub experience runs at `marketing/sub-portal/` (web) gated by `portalId` token + RLS. The in-app `sub-portals.tsx` list is GC-side. Cross-sub leakage check is Phase 2 hardware. |
+| 10. Submittals (full) | **PASS** | `SubmittalStatus` enum has 6 states: `pending` (≈ Submitted) / `in_review` (≈ Sent to A/E) / `approved` (≈ No Exceptions Taken) / `approved_as_noted` (≈ Make Corrections Noted) / `revise_resubmit` / `rejected`. `SubmittalReviewCycle[]` array tracks each round. Schedule-task linkage via `linkedTaskId`. The "GC Review" intermediate stage isn't a separate status (folded into `pending` → `in_review`), but reviewCycles[] handles the workflow correctly. |
+| 11. RFIs | **PASS** (strong) | `RFIBallInCourt` enum (gc/architect/engineer/owner/sub/closed) + append-only `RFIHandoff[]` log — "what makes 'no RFI gets buried' the actual GC experience" per the in-code comment. Each handoff records timestamp, fromParty, toParty, byUserId, byUserName — delay-claim-grade audit trail. Better than competitors. SLA tracking is via `requiredDate` field; whether an overdue RFI surfaces visibly is verified Phase 2. |
+| 12. Daily ops + scheduling | **PASS** | Same daily-report flow as Path 1 step 10 (queues correctly via supabaseWrite). Manpower entry and weather feed schedule actuals via `addDailyReport` ProjectContext path. |
+| 13. OAC meeting | **PASS** (strong) | `oacEngine.ts::buildAgendaFromProjectState` + `mergeAgenda` (prior-meeting carry-forward) + `generateMinutesFromTranscript` (AI minutes). 9 canonical sections in `SECTION_LABELS`: safety, schedule, rfis, submittals, change_orders, budget, decisions, action_items, open_discussion, next_meeting. Voice capture, AI minutes, email distribution. **Better than spec called for.** |
+| 14. Change orders (additive) | **PASS** (strong) | `change-order.tsx:89-97` computes `originalContractValue` for the form by summing all OTHER approved COs over the contract base (`existingCOs.filter(c => c.status === 'approved' && c.id !== coId)`). Saved CO objects store both `originalContractValue` and `newContractTotal`, so historical math is preserved per-CO record. Editing CO #2 doesn't destructively recompute COs 3-5; the form just re-renders with current state. **Strong A10 — beats Procore where this is the most-cited workflow debt.** |
+| 15. AIA pay app (G702/G703) | **FAIL A2 (gating)** → AUD-014 | Pay app exists with strong carry-forward by `itemNo` (lines 119-130) and Stripe Connect one-tap-pay (line 296). **Lien waiver gating is missing** — submission is not blocked by waivers-received count. Multi-period continuity preserved; CO inclusion via `approvedCOs` (line 64). |
+| 16. Job costing & cash flow | **PASS** A1, predicted A2 | Daily report time entries flow to job-costing via `dailyReports` aggregate; pay apps + invoices flow to `cash-flow` via `getInvoicesForProject` + `getAIAPayAppsForProject`. `payment-predictions.tsx` provides forecasting. UI accuracy verified Phase 2. |
+| 17. Substantial completion | **PARTIAL** | Punch walk + punch-list flow shipped (Path 1 step 14). No explicit "substantial completion" marker on Project type that triggers retainage release eligibility. Closeout binder has `status` state but no automatic retainage trigger. **Filed as AUD-015.** |
+| 18. Closeout | **FAIL A1** → AUD-008 (filed in Path 1) | Closeout binder excludes lien waivers; covered already. Selections, warranties, photos, RFIs, submittals all flow correctly. As-builts and O&M manuals are documents (verified Phase 2 if listed in binder UI). |
 
 ### 2.3 Path 3 — Internal GC operations
 
@@ -125,7 +134,7 @@ _Walked in Task 7. 30-item checklist from spec §7 with green/yellow/red status 
 
 _All findings, all sources. Use the finding template defined in the plan. Sort by AUD-### ascending._
 
-**Finding ID counter:** next is AUD-014.
+**Finding ID counter:** next is AUD-016.
 
 ### AUD-001 — Offline queue silently drops non-network Supabase errors
 - **severity:** should
@@ -290,6 +299,36 @@ _All findings, all sources. Use the finding template defined in the plan. Sort b
 - **scope:** S (one-line replacement)
 - **delivery:** OTA
 - **xref:** AUD-001
+- **status:** confirmed-headless
+
+### AUD-014 — AIA pay app submission isn't gated by lien-waivers-received from subs
+- **severity:** should
+- **source:** path-2
+- **step:** 15
+- **assertions:** A2 (bidirectional updates), A4 (schedule of values + waiver gating)
+- **personas:** PM, owner-commercial, sub
+- **expected:** Per AIA G702 conventional practice (and spec §6b step 15), pay app submission to the owner is gated on having received conditional progress waivers from every sub billing in the period. UI shows "waivers received: 3/5" + a hard or soft block on the submit-to-owner action. Once the owner pays, the GC collects unconditional waivers in the next cycle.
+- **actual:** `app/aia-pay-app.tsx` doesn't reference lien waivers at all (grep against `lien|waiver|gate` returned nothing in this screen). Pay apps can be saved + sent to client portal without verifying waivers. The lien-waiver UI exists separately (`app/lien-waivers.tsx`) but isn't wired into the pay-app submission flow.
+- **repro:** 1. Bill out a project with several subs. 2. Open the AIA pay app for the period without collecting any conditional waivers. 3. Save / send to portal. 4. No warning about missing waivers; submission proceeds.
+- **screens / files:** `app/aia-pay-app.tsx`, `app/lien-waivers.tsx`, `utils/lienWaiverEngine.ts`, `utils/aiaBilling.ts`.
+- **scope:** M (need (a) per-period waiver-required list derived from subs billing in this pay app, (b) waiver-status fetcher per sub for the period, (c) UI affordance + soft/hard gate on the send action)
+- **delivery:** OTA
+- **xref:** competitor universal complaint (spec §7), AUD-013 (related — both involve SOV/sub linkage)
+- **status:** confirmed-headless
+
+### AUD-015 — No explicit "substantial completion" marker triggers retainage release eligibility
+- **severity:** should
+- **source:** path-2
+- **step:** 17
+- **assertions:** A2, A4
+- **personas:** PM, owner-commercial
+- **expected:** A project advances from "in progress" to a "substantial completion" milestone (typically marked at punch-walk completion) which triggers eligibility for retainage release. The pay app for the substantial-completion period reflects retainage release math.
+- **actual:** Project status enum doesn't include 'substantial_completion' (verify `Project['status']` enum in types/index.ts:84+); no explicit marker that retainage can be released. `RetentionRelease` type exists on Invoice but is operator-driven not workflow-triggered. Punch-list closure doesn't auto-fire any flags.
+- **repro:** Complete a punch walk on a project. No prompt or status change indicates retainage release eligibility.
+- **screens / files:** `app/punch-walk.tsx`, `app/punch-list.tsx`, `app/retention.tsx`, `app/aia-pay-app.tsx`, `types/index.ts RetentionRelease`.
+- **scope:** M (add status='substantial_completion' to Project type; surface eligibility on retention.tsx + aia-pay-app.tsx)
+- **delivery:** OTA
+- **xref:** none
 - **status:** confirmed-headless
 
 ### AUD-013 — SOV is not a stable system-of-record across contract / linked-estimate / invoice / AIA pay app
