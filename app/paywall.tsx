@@ -41,7 +41,7 @@ const FEATURES: FeatureRow[] = [
   { label: 'AI Cost Estimator', free: false, pro: true, business: true },
   { label: 'AI Takeoff (PDF → LF/SF)', free: false, pro: true, business: true },
   { label: 'AI Schedule Builder (Gantt)', free: false, pro: true, business: true },
-  { label: 'Voice-to-Report (iOS)', free: false, pro: true, business: true },
+  { label: 'Voice-to-Report (Android: beta)', free: false, pro: true, business: true },
   { label: 'AI Photo Triage / Punch', free: false, pro: true, business: true },
   { label: 'Cash Flow + EVM (CPI/SPI)', free: false, pro: true, business: true },
   { label: 'AIA G702/G703 Pay Apps', free: false, pro: true, business: true },
@@ -52,7 +52,7 @@ const FEATURES: FeatureRow[] = [
   { label: 'Punch List & Closeout', free: false, pro: false, business: true },
   { label: 'RFIs & Submittals', free: false, pro: false, business: true },
   { label: 'Full Budget Dashboard', free: false, pro: false, business: true },
-  { label: 'Plan Viewer · Sheet Pinning (iOS)', free: false, pro: false, business: true },
+  { label: 'Plan Viewer · Sheet Pinning (Android: beta)', free: false, pro: false, business: true },
 ];
 
 // AI quota table — Enterprise's actual value prop. Numbers must stay in
