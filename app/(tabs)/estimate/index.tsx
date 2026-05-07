@@ -1204,6 +1204,27 @@ export default function EstimateScreen() {
         </View>
         <ChevronRight size={18} color={Colors.surface} />
       </TouchableOpacity>
+      {/* Takeoff AI — second hero CTA. Pre-fix this lived as a tiny
+          "Takeoff" pill in the header action row, easy to miss. AI takeoff
+          is one of the flagship Pro features (it's why Procore added their
+          BIMscale acquisition); it deserves the same visual weight as the
+          Quick Estimate Wizard. Same shape, accent color shifts to teal so
+          the two CTAs are visually distinguishable at a glance. */}
+      <TouchableOpacity
+        style={styles.takeoffCta}
+        onPress={() => router.push('/takeoff' as never)}
+        activeOpacity={0.85}
+        testID="takeoff-cta"
+      >
+        <View style={styles.takeoffCtaIcon}>
+          <Ruler size={18} color={Colors.surface} />
+        </View>
+        <View style={styles.takeoffCtaText}>
+          <Text style={styles.takeoffCtaTitle}>AI Quantity Takeoff</Text>
+          <Text style={styles.takeoffCtaSubtitle}>Upload plan sheets — AI counts walls, doors, fixtures, finishes</Text>
+        </View>
+        <ChevronRight size={18} color={Colors.surface} />
+      </TouchableOpacity>
       <View style={styles.header}>
         <View style={styles.headerTop}>
           <View>
@@ -3235,6 +3256,49 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
   },
   wizardCtaSubtitle: {
+    fontSize: Type.caption2.fontSize,
+    color: 'rgba(255,255,255,0.85)',
+    marginTop: 1,
+  },
+  // Takeoff CTA — same shape as wizardCta but teal so the two heroes
+  // read distinctly stacked. Slightly tighter top margin so they sit
+  // close together as a paired action (wizard → estimate from
+  // questions; takeoff → estimate from plans).
+  takeoffCta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginHorizontal: 16,
+    marginTop: 8,
+    marginBottom: 4,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: Tokens.radius.lg,
+    backgroundColor: '#0EA5A4',
+    shadowColor: '#0EA5A4',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  takeoffCtaIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: Tokens.radius.md,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  takeoffCtaText: {
+    flex: 1,
+  },
+  takeoffCtaTitle: {
+    fontSize: Type.bodyCompact.fontSize,
+    fontWeight: '700',
+    color: Colors.surface,
+    letterSpacing: 0.2,
+  },
+  takeoffCtaSubtitle: {
     fontSize: Type.caption2.fontSize,
     color: 'rgba(255,255,255,0.85)',
     marginTop: 1,
