@@ -72,7 +72,23 @@ _Walked in Tasks 4 + 5. Step results listed below._
 
 _Walked in Task 6. Requires Paths 1 + 2 to be at least partially analyzed first so portfolio-level expectations make sense._
 
-(empty — populated by Task 6)
+| Step | Result | Notes |
+|---|---|---|
+| 1. Bid pipeline | **PASS** | `mage-id-bids` aggregates via standard ProjectContext queries. `convertLeadToProject` covered Path 1 step 1. |
+| 2. Portfolio budget | **PASS** (predicted) | `budget-dashboard.tsx` aggregates per-project totals. UI accuracy verified Phase 2. |
+| 3. Job costing rollup | **PASS** (predicted) | `job-costing.tsx` aggregates daily reports + invoices + commitments. UI accuracy verified Phase 2. |
+| 4. Cash flow forecast | **PASS** (predicted) | `cash-flow.tsx` + `payment-predictions.tsx`; pulls open AIA pay apps + invoices. Verified Phase 2. |
+| 5. Buyout pipeline | **PASS** | Cross-project buyout via commitments aggregation in ProjectContext. |
+| 6. Sub management | **PASS** (strong) | Covered in Path 2 step 4. Federated `PrequalPacket` (per-sub), 30/14/7-day COI expiry watch with dedup. The portfolio dashboard surface is verified Phase 2. |
+| 7. Time tracking | **PASS** A1, A7 | TimeEntry persistence via ProjectContext; `time-tracking.tsx` flows to job costing. Offline path queues correctly. |
+| 8. 1099 / tax | **PASS** (predicted) | `tax-1099-export.tsx` sums full-year sub payments. UI accuracy Phase 2. |
+| 9. Reports + data export | **FAIL A1** → AUD-018 | `data-export.tsx:41` offers `json | csv | both`. JSON likely rich (verify Phase 2 contains attachments + audit chain); CSV is flat — no audit trail, no attachment references, no linked-entity expansion. Matches universal competitor complaint #15 ("data export non-viable"). |
+| 10. Notifications | **FAIL A5** → AUD-016 | `notifications-settings.tsx:25-55` defines 9 categories × channels grouped by client/sub/marketplace. **No quiet hours**, **no per-project routing**, **no per-role channel preference**. Stored as flat jsonb at `profiles.notification_preferences`. Matches universal competitor complaint #3 ("notifications too noisy"). |
+| 11. Equipment | **PASS** | Equipment + EquipmentUtilizationEntry via standard ProjectContext. |
+| 12. Marketplace | **PASS** with caveat | `post-rfp` bypass already filed (AUD-012). Inbound leads via standard query. |
+| 13. Integrations | **PARTIAL** (predicted-needs-verification) | `AccountingSyncDirection = 'push' \| 'pull'` exists in types (types/index.ts:2457). `app/integrations.tsx:109` notes "`quickbooks_sync` FeatureKey, business-tier-gated". Whether the UI exposes a toggle for direction (push/pull/both) needs Phase 2 verification. If only push is active, it's an A2 partial fail. |
+| 14. Audit trail | **FAIL A8** → AUD-017 | Per-record audit data EXISTS in the data model: `RFIHandoff[]` (RFI), `COAuditEntry[]` (CO), `SubmittalReviewCycle[]` (Submittal), `ScheduleAuditEntry` (Schedule), `Invoice.payments[]`. But there is no consistent UI affordance to view "history" on a record across screens. Selective implementation. |
+| 15. Account hygiene | **PASS** | `OWNER_EMAILS` (utils/owner.ts:24) and `MASTER_EMAILS` (supabase/functions/_shared/auth.ts:106) both contain `omirmajeed2000@gmail.com` + `support@mageid.app`. **In sync** — no asymmetry finding. `delete-account` fn shipped per recent commit `1b6a5e5`. Tier-downgrade revocation behavior verified Phase 2 (RevenueCat-driven). |
 
 ## 3. Domain-object lifecycle index
 
@@ -134,7 +150,7 @@ _Walked in Task 7. 30-item checklist from spec §7 with green/yellow/red status 
 
 _All findings, all sources. Use the finding template defined in the plan. Sort by AUD-### ascending._
 
-**Finding ID counter:** next is AUD-016.
+**Finding ID counter:** next is AUD-019.
 
 ### AUD-001 — Offline queue silently drops non-network Supabase errors
 - **severity:** should
@@ -314,6 +330,51 @@ _All findings, all sources. Use the finding template defined in the plan. Sort b
 - **scope:** M (need (a) per-period waiver-required list derived from subs billing in this pay app, (b) waiver-status fetcher per sub for the period, (c) UI affordance + soft/hard gate on the send action)
 - **delivery:** OTA
 - **xref:** competitor universal complaint (spec §7), AUD-013 (related — both involve SOV/sub linkage)
+- **status:** confirmed-headless
+
+### AUD-016 — Notification preferences lack quiet hours and per-project routing
+- **severity:** should
+- **source:** path-3
+- **step:** 10
+- **assertions:** A5 (notification routing)
+- **personas:** all (user-facing)
+- **expected:** Per spec §6c step 10 and competitor universal complaint #3, notification preferences should support: per-project channel toggles, per-role routing, and quiet hours (e.g. "no pushes 22:00-07:00 local").
+- **actual:** `app/notifications-settings.tsx:25-55` defines categories × channels grouped by client/sub/marketplace. Flat `profiles.notification_preferences` jsonb. No `quietHours`, no `projectScopes`, no `roleOverrides`.
+- **repro:** Open notification settings — no schedule controls; toggling a category off applies globally across every project.
+- **screens / files:** `app/notifications-settings.tsx`, `supabase/functions/notify/`, `supabase/functions/morning-digest/`, `supabase/functions/daily-digest/`.
+- **scope:** M (add `quietHours: { startHour, endHour, tz }` and `projectScopes: { [projectId]: { categoryOverrides } }` to the prefs jsonb; respect in notify fn dispatch)
+- **delivery:** OTA
+- **xref:** competitor universal complaint #3 (spec §7)
+- **status:** confirmed-headless
+
+### AUD-017 — No consistent per-record history UI even though audit data exists
+- **severity:** should
+- **source:** path-3
+- **step:** 14
+- **assertions:** A8 (audit trail)
+- **personas:** PM, owner-commercial, sub
+- **expected:** Money-bearing and contract-bearing artifacts (Estimate, Contract, SOV, CO, Invoice, AIA Pay App, Lien Waiver, RFI, Submittal) all expose a "history" view showing who changed what and when, accessible from each record's detail screen.
+- **actual:** Per-object audit data EXISTS in the schema: `RFIHandoff[]` on RFI, `COAuditEntry[]` on ChangeOrder, `SubmittalReviewCycle[]` on Submittal, `ScheduleAuditEntry` on ProjectSchedule, `Invoice.payments[]` on Invoice, `LienWaiver` carries timestamps + `lastSharedAt`. UI surface is selective — RFI handoff log surfaces, but most other audit data is read by export/binder logic, not by an in-app history view.
+- **repro:** Open a CO that's been edited several times. No "history" tab. The COAuditEntry data is in the record but not rendered.
+- **screens / files:** Across `app/change-order.tsx`, `app/invoice.tsx`, `app/aia-pay-app.tsx`, `app/contract.tsx`. Pattern reference exists for RFI in `app/rfi.tsx` (handoff log view).
+- **scope:** M (a single shared `<RecordHistory>` component reading from each record's audit-log field, mounted into the modal-in-screen pattern)
+- **delivery:** OTA
+- **xref:** competitor moderate complaint #25 (spec §7); pairs with AUD-005 (estimate version history)
+- **status:** confirmed-headless
+
+### AUD-018 — Data-export CSV is flat — no audit trail or attachment references
+- **severity:** should
+- **source:** path-3
+- **step:** 9
+- **assertions:** A1 (data continuity), A8 (audit trail)
+- **personas:** PM, controller, owner (lock-in concern)
+- **expected:** Data export should produce a deliverable that lets a customer reconstruct project state in another system: linked-record IDs, audit trails, attachment URIs (or files in a zip), comm events. Spec §6c step 9: "data export includes audit trail + attachments (no flat-CSV-only)."
+- **actual:** `app/data-export.tsx:41` offers `json | csv | both`. CSV is flat. JSON's depth needs Phase 2 verification; even if JSON is rich, customers often request CSV for spreadsheet workflows and that path strips depth.
+- **repro:** Export project as CSV. Open CSV. Audit trail entries / attachment URIs / linked entities are not present.
+- **screens / files:** `app/data-export.tsx`.
+- **scope:** S–M (provide a "rich CSV" zip — multiple CSVs joined by ID, plus an `attachments/` folder of files + an `audit/` folder of log CSVs)
+- **delivery:** OTA
+- **xref:** competitor high-frequency complaint #15 (spec §7)
 - **status:** confirmed-headless
 
 ### AUD-015 — No explicit "substantial completion" marker triggers retainage release eligibility
