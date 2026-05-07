@@ -1828,7 +1828,11 @@ export default function EstimateScreen() {
               <Text style={styles.liveLabel}>{totalMaterialCount.toLocaleString()} materials</Text>
             </View>
           </View>
-          <View style={styles.tabRow}>
+          {/* Tabs widened — bigger font + padding so the four labels
+              (Materials / Labor / Assemblies / Templates) stop squishing
+              into the header. flex:1 lets them claim the slack between
+              title and action buttons. */}
+          <View style={[styles.tabRow, dStyles.desktopTabRow]}>
             {[
               { id: 'materials' as EstimateTab, label: 'Materials', icon: Package, count: cart.length },
               { id: 'labor' as EstimateTab, label: 'Labor', icon: HardHat, count: laborCart.length },
@@ -1840,12 +1844,12 @@ export default function EstimateScreen() {
               return (
                 <TouchableOpacity
                   key={tab.id}
-                  style={[styles.tabItem, isActive && styles.tabItemActive]}
+                  style={[styles.tabItem, dStyles.desktopTabItem, isActive && styles.tabItemActive]}
                   onPress={() => { setActiveTab(tab.id); if (Platform.OS !== 'web') void Haptics.selectionAsync(); }}
                   activeOpacity={0.7}
                 >
-                  <TabIcon size={14} color={isActive ? Colors.primary : Colors.textMuted} />
-                  <Text style={[styles.tabLabel, isActive && styles.tabLabelActive]}>{tab.label}</Text>
+                  <TabIcon size={15} color={isActive ? Colors.primary : Colors.textMuted} />
+                  <Text style={[styles.tabLabel, dStyles.desktopTabLabel, isActive && styles.tabLabelActive]}>{tab.label}</Text>
                   {tab.count > 0 && (
                     <View style={[styles.tabBadge, isActive && styles.tabBadgeActive]}>
                       <Text style={[styles.tabBadgeText, isActive && styles.tabBadgeTextActive]}>{tab.count}</Text>
@@ -1856,6 +1860,33 @@ export default function EstimateScreen() {
             })}
           </View>
           <View style={styles.headerActions}>
+            {/* Quick Estimate Wizard — paired with AI Takeoff as the two
+                primary entry points on desktop. Both use the same shape
+                so they read as a pair, distinct from the secondary
+                icon-only buttons (Calculator / Gauge / Refresh / Cart). */}
+            <TouchableOpacity
+              style={dStyles.desktopWizardBtn}
+              onPress={() => router.push('/estimate-wizard' as any)}
+              activeOpacity={0.85}
+              testID="desktop-wizard-cta"
+            >
+              <Sparkles size={14} color={Colors.surface} />
+              <Text style={dStyles.desktopHeroBtnText}>Wizard</Text>
+            </TouchableOpacity>
+            {/* AI Takeoff — purple hero button, replaces the spot the
+                green cart used to occupy. Pre-fix the only entry point
+                on desktop was a tiny pill in the mobile-only header
+                that wasn't rendered here at all, so the takeoff feature
+                was effectively invisible on web. */}
+            <TouchableOpacity
+              style={dStyles.desktopTakeoffBtn}
+              onPress={() => router.push('/takeoff' as never)}
+              activeOpacity={0.85}
+              testID="desktop-takeoff-cta"
+            >
+              <Ruler size={14} color={Colors.surface} />
+              <Text style={dStyles.desktopHeroBtnText}>AI Takeoff</Text>
+            </TouchableOpacity>
             <TouchableOpacity style={styles.refreshIconBtn} onPress={() => setShowSqftEstimator(true)} activeOpacity={0.7}>
               <Calculator size={15} color={Colors.textSecondary} />
             </TouchableOpacity>
@@ -1863,11 +1894,21 @@ export default function EstimateScreen() {
               <Gauge size={15} color={Colors.textSecondary} />
             </TouchableOpacity>
             <TouchableOpacity style={styles.refreshIconBtn} onPress={refreshPrices} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Refresh"><RefreshCw size={15} color={Colors.textSecondary} /></TouchableOpacity>
-            <TouchableOpacity style={styles.cartButton} onPress={() => setShowCart(true)} activeOpacity={0.8}>
-              <ShoppingCart size={20} color={Colors.surface} />
+            {/* Cart demoted to the same icon-only treatment as the
+                other utility buttons. Cost Summary on the right column
+                already shows totals in real time, so the dedicated cart
+                button was duplicating that info on desktop. The badge
+                still surfaces total item count for quick at-a-glance. */}
+            <TouchableOpacity
+              style={[styles.refreshIconBtn, totalItemCount > 0 && dStyles.cartIconBtnActive]}
+              onPress={() => setShowCart(true)}
+              activeOpacity={0.7}
+              testID="desktop-cart-btn"
+            >
+              <ShoppingCart size={15} color={totalItemCount > 0 ? Colors.primary : Colors.textSecondary} />
               {totalItemCount > 0 && (
-                <View style={styles.cartBadge}>
-                  <Text style={styles.cartBadgeText}>{totalItemCount}</Text>
+                <View style={dStyles.cartIconBadge}>
+                  <Text style={dStyles.cartIconBadgeText}>{totalItemCount}</Text>
                 </View>
               )}
             </TouchableOpacity>
@@ -4881,6 +4922,85 @@ const dStyles = StyleSheet.create({
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '700' as const,
     color: Colors.textOnPrimary,
+  },
+  // Desktop tab row — claim the slack between title block and action
+  // buttons so labels stop pinching when the four tab names compete
+  // with the action bar for horizontal space.
+  desktopTabRow: {
+    flex: 1,
+    minWidth: 360,
+    maxWidth: 560,
+    marginHorizontal: 8,
+  },
+  desktopTabItem: {
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    gap: 6,
+  },
+  desktopTabLabel: {
+    fontSize: Type.footnote.fontSize,
+    fontWeight: '600' as const,
+  },
+  // Hero buttons in the desktop header — Wizard (purple) and AI Takeoff
+  // (purple, slightly different shade for differentiation). Same shape
+  // so they read as paired primary CTAs; the icon-only utility buttons
+  // sitting next to them stay visually quieter.
+  desktopWizardBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRadius: Tokens.radius.md,
+    backgroundColor: '#5E5CE6',
+    shadowColor: '#5E5CE6',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.22,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  desktopTakeoffBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRadius: Tokens.radius.md,
+    backgroundColor: '#7C3AED',
+    shadowColor: '#7C3AED',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.22,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  desktopHeroBtnText: {
+    fontSize: Type.footnote.fontSize,
+    fontWeight: '700' as const,
+    color: Colors.surface,
+    letterSpacing: 0.2,
+  },
+  // Demoted cart icon — when items are in cart, tint primary so it
+  // still draws the eye without re-introducing a giant green button.
+  cartIconBtnActive: {
+    backgroundColor: Colors.primary + '14',
+  },
+  cartIconBadge: {
+    position: 'absolute' as const,
+    top: -4,
+    right: -4,
+    minWidth: 16,
+    height: 16,
+    paddingHorizontal: 3,
+    borderRadius: 8,
+    backgroundColor: Colors.primary,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+  },
+  cartIconBadgeText: {
+    fontSize: 9,
+    fontWeight: '800' as const,
+    color: Colors.surface,
+    lineHeight: 11,
   },
 });
 
