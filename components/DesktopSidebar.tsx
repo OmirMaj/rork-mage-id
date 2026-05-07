@@ -7,7 +7,7 @@ import {
   Hammer, FileText, Building2, Search, HardHat, Gavel, LayoutDashboard, Lock,
   Wallet, ClipboardList, MessageCircle, Camera, Inbox, TrendingUp, Receipt,
   Users, ShieldCheck, Calculator, Bell, Briefcase, Image as ImageIcon,
-  PenTool, Store,
+  PenTool, Store, Clock,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useSearch } from '@/contexts/SearchContext';
@@ -46,14 +46,15 @@ const NAV_ITEMS: NavItem[] = [
   { key: 'plans',             label: 'Plans',            icon: ImageIcon,       route: '/plans',                            section: 'PROJECT' },
   { key: 'weekly-snapshot',   label: 'Weekly Snapshot',  icon: TrendingUp,      route: '/weekly-snapshot',                  section: 'PROJECT' },
 
-  // ── FIELD — daily ops
-  { key: 'daily-report',      label: 'Daily Report',     icon: ClipboardList,   route: '/daily-report',                     section: 'FIELD' },
-  { key: 'photo-triage',      label: 'Photo Triage',     icon: Camera,          route: '/photo-triage',                     section: 'FIELD', requires: 'photo_documentation' },
-  { key: 'punch-list',        label: 'Punch List',       icon: ClipboardList,   route: '/punch-list',                       section: 'FIELD', requires: 'punch_list_closeout' },
-  { key: 'rfi',               label: 'RFIs',             icon: FileText,        route: '/rfi',                              section: 'FIELD', requires: 'rfis_submittals' },
-  { key: 'submittal',         label: 'Submittals',       icon: FileText,        route: '/submittal',                        section: 'FIELD', requires: 'rfis_submittals' },
-  { key: 'oac-meeting',       label: 'OAC Meetings',     icon: Users,           route: '/oac-meeting',                      section: 'FIELD' },
-  { key: 'equipment',         label: 'Equipment',        icon: Hammer,          route: '/(tabs)/equipment',                section: 'FIELD', requires: 'equipment_rental' },
+  // ── FIELD OPS — daily field operations
+  { key: 'daily-report',      label: 'Daily Report',     icon: ClipboardList,   route: '/daily-report',                     section: 'FIELD OPS' },
+  { key: 'time-tracking',     label: 'Time Tracking',    icon: Clock,           route: '/time-tracking',                    section: 'FIELD OPS' },
+  { key: 'photo-triage',      label: 'Photo Triage',     icon: Camera,          route: '/photo-triage',                     section: 'FIELD OPS', requires: 'photo_documentation' },
+  { key: 'punch-list',        label: 'Punch List',       icon: ClipboardList,   route: '/punch-list',                       section: 'FIELD OPS', requires: 'punch_list_closeout' },
+  { key: 'rfi',               label: 'RFIs',             icon: FileText,        route: '/rfi',                              section: 'FIELD OPS', requires: 'rfis_submittals' },
+  { key: 'submittal',         label: 'Submittals',       icon: FileText,        route: '/submittal',                        section: 'FIELD OPS', requires: 'rfis_submittals' },
+  { key: 'oac-meeting',       label: 'OAC Meetings',     icon: Users,           route: '/oac-meeting',                      section: 'FIELD OPS' },
+  { key: 'equipment',         label: 'Equipment',        icon: Hammer,          route: '/(tabs)/equipment',                section: 'FIELD OPS', requires: 'equipment_rental' },
 
   // ── FINANCIAL — money flow
   { key: 'invoice',           label: 'Invoices',         icon: Receipt,         route: '/invoice',                          section: 'FINANCIAL' },
@@ -91,7 +92,7 @@ const NAV_ITEMS: NavItem[] = [
   { key: 'settings',          label: 'Settings',         icon: Settings,        route: '/(tabs)/settings',                 section: 'ACCOUNT' },
 ];
 
-const SECTIONS = ['PROJECT', 'FIELD', 'FINANCIAL', 'CLIENT', 'MARKETPLACE', 'NETWORK', 'ACCOUNT'];
+const SECTIONS = ['PROJECT', 'FIELD OPS', 'FINANCIAL', 'CLIENT', 'MARKETPLACE', 'NETWORK', 'ACCOUNT'];
 
 function isActiveRoute(pathname: string, navKey: string, route: string): boolean {
   if (navKey === 'home') return pathname === '/' || pathname.includes('(home)');

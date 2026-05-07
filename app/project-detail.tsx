@@ -15,6 +15,7 @@ import {
   FileText, ShoppingCart, UserPlus, Send, Share2, Eye, PenTool, Crown, Pencil,
   Plus, Receipt, ClipboardList, Repeat, CheckSquare, Camera, Globe, Link, Copy, Wallet, Archive, Activity,
   HardHat, FolderOpen, Hammer, ScrollText, BookOpen, Footprints, Zap, Sparkles,
+  Clock,
 } from 'lucide-react-native';
 import { PROJECT_TYPES, type ProjectType, type ProjectCollaborator, type EntityRef, type ProjectPhoto, type PhotoMarkup } from '@/types';
 import Svg, { Path as SvgPath, Circle as SvgCircle, Line as SvgLine, Polygon as SvgPolygon, Text as SvgTextEl } from 'react-native-svg';
@@ -62,7 +63,7 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 const PROJECT_DETAIL_SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://nteoqhcswappxxjlpvap.supabase.co';
 const PROJECT_DETAIL_SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im50ZW9xaGNzd2FwcHh4amxwdmFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQzMTU0MDMsImV4cCI6MjA4OTg5MTQwM30.xpz7yWhignppH-3dYD-EV4AvB4cugr7-881GKdOFado';
 
-type SectionKey = 'linkedEstimate' | 'materials' | 'labor' | 'summary' | 'schedule' | 'notes' | 'collaborators' | 'changeOrders' | 'invoices' | 'dailyReports' | 'punchList' | 'rfis' | 'submittals' | 'oacMeetings' | 'budget' | 'photos' | 'clientPortal' | 'communications' | 'activity' | 'calendar' | 'plans' | 'permits' | 'contract' | 'selections' | 'lienWaivers' | 'closeoutBinder' | 'handover';
+type SectionKey = 'linkedEstimate' | 'materials' | 'labor' | 'summary' | 'schedule' | 'notes' | 'collaborators' | 'changeOrders' | 'invoices' | 'dailyReports' | 'punchList' | 'rfis' | 'submittals' | 'oacMeetings' | 'budget' | 'photos' | 'clientPortal' | 'communications' | 'activity' | 'calendar' | 'plans' | 'permits' | 'contract' | 'selections' | 'lienWaivers' | 'closeoutBinder' | 'handover' | 'timeTracking';
 
 /** Tile group keys for the collapsible section grouping. */
 type TileGroupKey = 'field' | 'money' | 'docs' | 'people';
@@ -276,6 +277,7 @@ export default function ProjectDetailScreen() {
     lienWaivers: false,
     closeoutBinder: false,
     handover: false,
+    timeTracking: false,
   });
   const [detailModal, setDetailModal] = useState<DetailModalType>(null);
   const [showShareModal, setShowShareModal] = useState(false);
@@ -1155,6 +1157,7 @@ export default function ProjectDetailScreen() {
             { key: 'changeOrders', label: 'Change Orders', icon: Repeat, color: NEUTRAL, count: changeOrders.length },
             { key: 'invoices', label: 'Invoices', icon: Receipt, color: NEUTRAL, count: projectInvoices.length },
             { key: 'dailyReports', label: 'Daily Reports', icon: ClipboardList, color: NEUTRAL, count: dailyReports.length },
+            { key: 'timeTracking', label: 'Time Tracking', icon: Clock, color: NEUTRAL, count: null as number | null },
             { key: 'punchList', label: 'Punch List', icon: CheckSquare, color: NEUTRAL, count: punchItems.length },
             { key: 'rfis', label: 'RFIs', icon: FileText, color: NEUTRAL, count: projectRFIs.length },
             { key: 'submittals', label: 'Submittals', icon: FileText, color: NEUTRAL, count: projectSubmittals.length },
@@ -1170,7 +1173,7 @@ export default function ProjectDetailScreen() {
           ];
 
           const groups: { key: TileGroupKey; label: string; icon: React.ComponentType<{ size?: number; color?: string }>; color: string; tileKeys: SectionKey[] }[] = [
-            { key: 'field', label: 'Field Ops', icon: HardHat, color: Colors.primary, tileKeys: ['dailyReports', 'punchList', 'photos', 'plans', 'schedule'] },
+            { key: 'field', label: 'Field Ops', icon: HardHat, color: Colors.primary, tileKeys: ['dailyReports', 'timeTracking', 'punchList', 'photos', 'plans', 'schedule'] },
             { key: 'money', label: 'Money', icon: DollarSign, color: Colors.success, tileKeys: ['budget', 'contract', 'selections', 'linkedEstimate', 'changeOrders', 'invoices', 'lienWaivers', 'closeoutBinder', 'handover'] },
             { key: 'docs', label: 'Documentation', icon: FolderOpen, color: Colors.info, tileKeys: ['rfis', 'submittals', 'permits', 'activity', 'calendar'] },
             { key: 'people', label: 'People & Communication', icon: Users, color: Colors.purple, tileKeys: ['collaborators', 'clientPortal', 'oacMeetings', 'communications'] },
@@ -1196,6 +1199,7 @@ export default function ProjectDetailScreen() {
                   if (tile.key === 'closeoutBinder') { router.push({ pathname: '/closeout-binder' as any, params: { projectId: id } }); return; }
                   if (tile.key === 'handover') { router.push({ pathname: '/handover' as any, params: { projectId: id } }); return; }
                   if (tile.key === 'oacMeetings') { router.push({ pathname: '/oac-meeting' as any, params: { projectId: id } }); return; }
+                  if (tile.key === 'timeTracking') { router.push({ pathname: '/time-tracking' as any, params: { projectId: id } }); return; }
                   setActiveTile(tile.key);
                 }}
                 testID={`section-tile-${tile.key}`}

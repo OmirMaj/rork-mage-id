@@ -23,7 +23,7 @@ import { Tokens } from '@/constants/designTokens';
 const IOS_APP_URL = 'https://apps.apple.com/app/id6762229238';
 const ANDROID_APP_URL = 'https://play.google.com/store/apps/details?id=app.mageid.android';
 
-type RequiredTier = 'pro' | 'business';
+type RequiredTier = 'pro' | 'business' | 'enterprise';
 type BillingPeriod = 'monthly' | 'annual';
 
 interface PaywallProps {
@@ -37,9 +37,11 @@ interface PaywallProps {
 
 // Fallback prices shown when RevenueCat offerings haven't loaded yet or the
 // store isn't available. These mirror the App Store Connect product prices.
+// Enterprise's annual is capped at $999.99 — Apple's Tier 1500 maximum.
 const FALLBACK_PRICES = {
   pro: { monthly: '$29.99', annual: '$289.99', annualMonthlyEquivalent: '$24.16' },
   business: { monthly: '$79.99', annual: '$769.99', annualMonthlyEquivalent: '$64.16' },
+  enterprise: { monthly: '$149.99', annual: '$999.99', annualMonthlyEquivalent: '$83.33' },
 } as const;
 
 const PRO_BENEFITS: string[] = [
@@ -57,11 +59,20 @@ const BUSINESS_BENEFITS: string[] = [
   'Everything in Pro, plus:',
   'Unlimited AI Code Checks & bid responses',
   'Time Tracking for crews',
-  'QuickBooks sync',
   'Plan Viewer & markup tools',
   'Subcontractor management',
   'Punch List & Closeout packets',
   'RFIs, Submittals, and full Budget Dashboard',
+];
+
+const ENTERPRISE_BENEFITS: string[] = [
+  'Everything in Business, plus:',
+  'Highest AI usage caps in the app',
+  '100 drawing analyses / month',
+  '200 photo analyses / month',
+  '4,500 text-AI calls / month',
+  'Priority queue on heavy AI requests',
+  'Concierge onboarding for the team',
 ];
 
 export default function Paywall({ visible, onClose, feature, requiredTier }: PaywallProps) {
@@ -70,23 +81,38 @@ export default function Paywall({ visible, onClose, feature, requiredTier }: Pay
   const {
     purchasePro,
     purchaseBusiness,
+    purchaseEnterprise,
     proPackage,
     proAnnualPackage,
     businessPackage,
     businessAnnualPackage,
+    enterprisePackage,
+    enterpriseAnnualPackage,
     isPurchasing,
   } = useSubscription();
 
-  const tierLabel = requiredTier === 'business' ? 'Business' : 'Pro';
-  const tierColor = requiredTier === 'business' ? Colors.accent : Colors.primary;
-  const TierIcon = requiredTier === 'business' ? Building2 : Crown;
-  const benefits = requiredTier === 'business' ? BUSINESS_BENEFITS : PRO_BENEFITS;
+  const tierLabel = requiredTier === 'enterprise' ? 'Enterprise'
+    : requiredTier === 'business' ? 'Business'
+    : 'Pro';
+  const tierColor = requiredTier === 'enterprise' ? Colors.purple
+    : requiredTier === 'business' ? Colors.accent
+    : Colors.primary;
+  const TierIcon = requiredTier === 'enterprise' ? Crown
+    : requiredTier === 'business' ? Building2
+    : Crown;
+  const benefits = requiredTier === 'enterprise' ? ENTERPRISE_BENEFITS
+    : requiredTier === 'business' ? BUSINESS_BENEFITS
+    : PRO_BENEFITS;
   const fallback = FALLBACK_PRICES[requiredTier];
 
   const pricing = useMemo(() => {
     // Try to use live RevenueCat pricing; fall back to static amounts.
-    const monthlyPkg = requiredTier === 'business' ? businessPackage : proPackage;
-    const annualPkg = requiredTier === 'business' ? businessAnnualPackage : proAnnualPackage;
+    const monthlyPkg = requiredTier === 'enterprise' ? enterprisePackage
+      : requiredTier === 'business' ? businessPackage
+      : proPackage;
+    const annualPkg = requiredTier === 'enterprise' ? enterpriseAnnualPackage
+      : requiredTier === 'business' ? businessAnnualPackage
+      : proAnnualPackage;
 
     const monthlyPrice = monthlyPkg?.product?.priceString ?? fallback.monthly;
     const annualPrice = annualPkg?.product?.priceString ?? fallback.annual;
@@ -100,12 +126,14 @@ export default function Paywall({ visible, onClose, feature, requiredTier }: Pay
     }
 
     return { monthlyPrice, annualPrice, monthlyEquivalent };
-  }, [requiredTier, proPackage, proAnnualPackage, businessPackage, businessAnnualPackage, fallback]);
+  }, [requiredTier, proPackage, proAnnualPackage, businessPackage, businessAnnualPackage, enterprisePackage, enterpriseAnnualPackage, fallback]);
 
   const handleUpgrade = useCallback(async () => {
     try {
       if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      if (requiredTier === 'business') {
+      if (requiredTier === 'enterprise') {
+        await purchaseEnterprise(period);
+      } else if (requiredTier === 'business') {
         await purchaseBusiness(period);
       } else {
         await purchasePro(period);
@@ -119,7 +147,7 @@ export default function Paywall({ visible, onClose, feature, requiredTier }: Pay
       console.log('[Paywall modal] Purchase failed:', err);
       Alert.alert('Purchase Failed', 'Could not complete the purchase. Please try again.');
     }
-  }, [purchasePro, purchaseBusiness, requiredTier, period, tierLabel, onClose]);
+  }, [purchasePro, purchaseBusiness, purchaseEnterprise, requiredTier, period, tierLabel, onClose]);
 
   // On web, we don't take subscription payments — we redirect users to the
   // mobile app where Apple/Google handle billing. The user's account tier

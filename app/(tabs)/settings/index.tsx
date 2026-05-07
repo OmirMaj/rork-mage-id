@@ -106,7 +106,7 @@ export default function SettingsScreen() {
   const [showSignatureModal, setShowSignatureModal] = useState(false);
   const [showSupplierForm, setShowSupplierForm] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
-  const [paywallTier, setPaywallTier] = useState<'pro' | 'business' | null>(null);
+  const [paywallTier, setPaywallTier] = useState<'pro' | 'business' | 'enterprise' | null>(null);
   const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
   const [selectedTheme, setSelectedTheme] = useState<string>(() => {
     const saved = settings.themeColors;
@@ -324,18 +324,29 @@ export default function SettingsScreen() {
               <View style={styles.profileBadgesRow}>
                 <View style={[
                   styles.profileTierPill,
-                  tier === 'business'
-                    ? { backgroundColor: '#FFD700' + '22', borderColor: '#FFD700' }
-                    : tier === 'pro'
-                      ? { backgroundColor: Colors.primary + '22', borderColor: Colors.primary }
-                      : { backgroundColor: Colors.fillTertiary, borderColor: Colors.borderLight },
+                  // Enterprise gets the same gold-ish accent as Business but
+                  // a deeper border so it reads as the top tier. Pre-fix
+                  // every non-pro / non-business tier (= enterprise) fell
+                  // through to the Free styling, so paying $150/mo
+                  // customers saw a "FREE" pill in their Settings.
+                  tier === 'enterprise'
+                    ? { backgroundColor: Colors.purple + '22', borderColor: Colors.purple }
+                    : tier === 'business'
+                      ? { backgroundColor: '#FFD700' + '22', borderColor: '#FFD700' }
+                      : tier === 'pro'
+                        ? { backgroundColor: Colors.primary + '22', borderColor: Colors.primary }
+                        : { backgroundColor: Colors.fillTertiary, borderColor: Colors.borderLight },
                 ]}>
                   <Text style={[
                     styles.profileTierText,
+                    tier === 'enterprise' ? { color: Colors.purple } :
                     tier === 'business' ? { color: '#A87800' } :
                     tier === 'pro' ? { color: Colors.primary } : { color: Colors.textSecondary },
                   ]}>
-                    {tier === 'business' ? 'BUSINESS' : tier === 'pro' ? 'PRO' : 'FREE'}
+                    {tier === 'enterprise' ? 'ENTERPRISE'
+                      : tier === 'business' ? 'BUSINESS'
+                      : tier === 'pro' ? 'PRO'
+                      : 'FREE'}
                   </Text>
                 </View>
               </View>
@@ -392,7 +403,10 @@ export default function SettingsScreen() {
           <View style={styles.rowSeparator} />
           <View style={[styles.row, { paddingVertical: 10 }]}>
             <Text style={{ fontSize: Type.caption1.fontSize, color: Colors.textMuted, flex: 1 }}>
-              Resets daily at midnight · Plan: {tier === 'free' ? 'Free' : tier === 'pro' ? 'Pro' : 'Business'}
+              Resets daily at midnight · Plan: {tier === 'enterprise' ? 'Enterprise'
+                : tier === 'business' ? 'Business'
+                : tier === 'pro' ? 'Pro'
+                : 'Free'}
             </Text>
             {tier === 'free' && (
               <TouchableOpacity onPress={() => router.push('/paywall' as any)} activeOpacity={0.7}>
@@ -1172,9 +1186,21 @@ export default function SettingsScreen() {
                 features: ['Everything in Pro', 'Subcontractor management', 'Punch list & closeout', 'Client portal (shareable link)', 'Unlimited collaborators', 'Custom branding + logos', 'Priority support'],
                 disabled: [],
               },
+              {
+                id: 'enterprise' as const,
+                label: 'Enterprise',
+                price: '$150/mo',
+                color: Colors.purple,
+                icon: Crown,
+                features: ['Everything in Business', 'Highest AI usage caps', '100 drawing analyses/mo', '200 photo analyses/mo', '4500 text-AI calls/mo', 'Priority queue on heavy AI', 'Concierge onboarding'],
+                disabled: [],
+              },
             ].map(plan => {
-              const currentTier = settings.subscription?.tier ?? 'free';
-              const isActive = currentTier === plan.id;
+              // Read the live tier from useSubscription (RevenueCat-backed),
+              // NOT settings.subscription?.tier — that local profile field is
+              // never updated after a purchase, so the "Current" badge used
+              // to be stuck on Free even after the user paid.
+              const isActive = tier === plan.id;
               return (
                 <TouchableOpacity
                   key={plan.id}
@@ -1189,7 +1215,7 @@ export default function SettingsScreen() {
                       return;
                     }
                     if (Platform.OS !== 'web') void Haptics.selectionAsync();
-                    setPaywallTier(plan.id as 'pro' | 'business');
+                    setPaywallTier(plan.id as 'pro' | 'business' | 'enterprise');
                   }}
                   activeOpacity={isActive ? 1 : 0.7}
                 >
@@ -1346,7 +1372,9 @@ export default function SettingsScreen() {
       <Tutorial visible={showTutorial} onClose={() => setShowTutorial(false)} />
       <Paywall
         visible={paywallTier !== null}
-        feature={paywallTier === 'business' ? 'Business Plan' : 'Pro Plan'}
+        feature={paywallTier === 'enterprise' ? 'Enterprise Plan'
+          : paywallTier === 'business' ? 'Business Plan'
+          : 'Pro Plan'}
         requiredTier={paywallTier ?? 'pro'}
         onClose={() => setPaywallTier(null)}
       />
