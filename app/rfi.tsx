@@ -24,6 +24,30 @@ import { Tokens } from '@/constants/designTokens';
 const PRIORITY_OPTIONS: RFIPriority[] = ['low', 'normal', 'urgent'];
 const STATUS_OPTIONS: RFIStatus[] = ['open', 'answered', 'closed', 'void'];
 
+/** Ball-in-court display helpers — a single-source-of-truth for the
+ *  party labels + colors used in both the badge and the handoff log. */
+type BallParty = 'gc' | 'architect' | 'engineer' | 'owner' | 'sub' | 'closed';
+function ballLabel(p: BallParty): string {
+  switch (p) {
+    case 'gc': return 'You (GC)';
+    case 'architect': return 'Architect';
+    case 'engineer': return 'Engineer';
+    case 'owner': return 'Owner';
+    case 'sub': return 'Subcontractor';
+    case 'closed': return 'Closed';
+  }
+}
+function getBallColor(p: BallParty): string {
+  switch (p) {
+    case 'gc': return '#0EA5A4';        // teal — GC's turn
+    case 'architect': return '#7C3AED'; // purple — design team
+    case 'engineer': return '#7C3AED';
+    case 'owner': return '#F59E0B';     // amber — owner
+    case 'sub': return '#3B82F6';       // blue — sub
+    case 'closed': return '#6B7280';    // gray — closed
+  }
+}
+
 // Pipeline stages for the StatusPipeline visualization at the top of an
 // existing RFI. We omit 'void' from the visual flow — it's a side branch
 // (an RFI was raised then withdrawn), not the next normal step. Users can
@@ -115,6 +139,33 @@ function RFIScreenInner() {
     const now = new Date().toISOString();
 
     if (existingRFI) {
+      // Auto-shift the ball when the GC fills in a response or marks
+      // the RFI closed. Status 'answered' OR a typed response → ball
+      // back to GC (they need to review + close). Status 'closed' →
+      // ballInCourt 'closed' so it drops out of the live filter.
+      const prevBall = existingRFI.ballInCourt ?? 'gc';
+      let nextBall = prevBall;
+      const newHandoffs: typeof existingRFI.handoffs = [];
+      const newResponseTyped = response.trim() && response.trim() !== (existingRFI.response ?? '');
+      if (status === 'closed' && prevBall !== 'closed') {
+        nextBall = 'closed';
+        newHandoffs.push({
+          at: now,
+          fromParty: prevBall,
+          toParty: 'closed',
+          note: 'RFI closed by GC',
+        });
+      } else if (newResponseTyped && prevBall !== 'gc') {
+        // Architect typed a response in the form (or pasted from email).
+        // Flip ball back to GC for review.
+        nextBall = 'gc';
+        newHandoffs.push({
+          at: now,
+          fromParty: prevBall,
+          toParty: 'gc',
+          note: 'Response received',
+        });
+      }
       updateRFI(existingRFI.id, {
         subject: subject.trim(),
         question: question.trim(),
@@ -127,6 +178,8 @@ function RFIScreenInner() {
         linkedTaskId: linkedTaskId || undefined,
         response: response.trim() || undefined,
         dateResponded: response.trim() && !existingRFI.dateResponded ? now : existingRFI.dateResponded,
+        ballInCourt: nextBall,
+        handoffs: newHandoffs.length > 0 ? [...(existingRFI.handoffs ?? []), ...newHandoffs] : existingRFI.handoffs,
       });
     } else {
       addRFI({
@@ -139,6 +192,16 @@ function RFIScreenInner() {
         dateRequired: dateRequired || new Date(Date.now() + 14 * 86400000).toISOString(),
         status: 'open',
         priority,
+        // Start with the GC holding the ball — they have to send the
+        // RFI before responsibility shifts to the assignee. Hand-off
+        // happens in the Send modal (handleConfirmSend below).
+        ballInCourt: 'gc',
+        handoffs: [{
+          at: now,
+          fromParty: 'gc',
+          toParty: 'gc',
+          note: 'RFI created',
+        }],
         linkedDrawing: linkedDrawing.trim() || undefined,
         linkedTaskId: linkedTaskId || undefined,
         attachments,
@@ -209,8 +272,24 @@ function RFIScreenInner() {
         Alert.alert('Send failed', result.error || 'Could not send the RFI. Try again.');
         return;
       }
-      // Mark the RFI as sent if it wasn't already — but DON'T auto-update
-      // status (the RFI is still open until the architect responds).
+      // Shift the ball-in-court to the architect. The GC held it until
+      // they hit Send; now responsibility is theirs until they reply
+      // through the portal or the GC manually pulls it back. Append to
+      // the handoff log for the audit trail (delay-claim docs etc.).
+      const now = new Date().toISOString();
+      const newHandoff = {
+        at: now,
+        fromParty: (existingRFI.ballInCourt ?? 'gc') as 'gc' | 'architect' | 'engineer' | 'owner' | 'sub' | 'closed',
+        toParty: 'architect' as const,
+        note: `Sent to ${sendEmail_Name.trim() || to}`,
+      };
+      updateRFI(existingRFI.id, {
+        ballInCourt: 'architect',
+        handoffs: [...(existingRFI.handoffs ?? []), newHandoff],
+      });
+      // Status stays 'open' — the RFI is still open until the
+      // architect responds. ballInCourt is the live signal of "who's
+      // holding it right now."
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert('RFI Sent', `Sent to ${to}. Their reply will come to your email${settings?.branding?.email ? ` (${settings.branding.email})` : ''}.`);
       setShowSendModal(false);
@@ -220,7 +299,7 @@ function RFIScreenInner() {
     } finally {
       setSending(false);
     }
-  }, [existingRFI, project, sendEmail_To, sendEmail_Name, sendEmail_Note, settings]);
+  }, [existingRFI, project, sendEmail_To, sendEmail_Name, sendEmail_Note, settings, updateRFI]);
 
   if (!project && !existingRFI) {
     return (
@@ -293,6 +372,40 @@ function RFIScreenInner() {
                 : undefined
               }
             />
+          </View>
+        )}
+
+        {/* Ball-in-court badge — surfaces who's holding the RFI right
+            now so the GC always knows whether they're waiting on
+            someone else or whether they're the bottleneck. The
+            handoff log below is the audit trail; this is the
+            at-a-glance signal. */}
+        {existingRFI && (
+          <View style={styles.ballInCourtCard}>
+            <View style={styles.ballInCourtRow}>
+              <Text style={styles.ballInCourtEyebrow}>BALL IN COURT</Text>
+              <View style={[styles.ballInCourtBadge, { backgroundColor: getBallColor(existingRFI.ballInCourt ?? 'gc') }]}>
+                <Text style={styles.ballInCourtBadgeText}>
+                  {ballLabel(existingRFI.ballInCourt ?? 'gc')}
+                </Text>
+              </View>
+            </View>
+            {(existingRFI.handoffs?.length ?? 0) > 0 && (
+              <View style={styles.handoffLog}>
+                <Text style={styles.handoffLogLabel}>Handoff log</Text>
+                {(existingRFI.handoffs ?? []).slice(-4).map((h, i) => (
+                  <View key={i} style={styles.handoffRow}>
+                    <Text style={styles.handoffArrow}>
+                      {ballLabel(h.fromParty)} → {ballLabel(h.toParty)}
+                    </Text>
+                    <Text style={styles.handoffMeta}>
+                      {new Date(h.at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      {h.note ? ` · ${h.note}` : ''}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            )}
           </View>
         )}
 
@@ -806,4 +919,34 @@ const styles = StyleSheet.create({
     marginTop: 12,
     marginBottom: 8,
   },
+  ballInCourtCard: {
+    marginHorizontal: 16,
+    marginBottom: 12,
+    padding: 14,
+    borderRadius: Tokens.radius.md,
+    backgroundColor: Colors.surface,
+    borderWidth: 0.5, borderColor: Colors.borderLight,
+    gap: 10,
+  },
+  ballInCourtRow: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'space-between' as const },
+  ballInCourtEyebrow: {
+    fontSize: 10, fontWeight: '800' as const, color: Colors.textMuted,
+    letterSpacing: 0.5, textTransform: 'uppercase' as const,
+  },
+  ballInCourtBadge: {
+    paddingHorizontal: 10, paddingVertical: 4,
+    borderRadius: 12,
+  },
+  ballInCourtBadgeText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: Colors.surface },
+  handoffLog: {
+    paddingTop: 8, borderTopWidth: 0.5, borderTopColor: Colors.borderLight,
+    gap: 4,
+  },
+  handoffLogLabel: {
+    fontSize: 10, fontWeight: '800' as const, color: Colors.textMuted,
+    letterSpacing: 0.5, textTransform: 'uppercase' as const, marginBottom: 4,
+  },
+  handoffRow: { gap: 1 },
+  handoffArrow: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.text },
+  handoffMeta: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary },
 });

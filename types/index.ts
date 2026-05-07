@@ -1740,6 +1740,21 @@ export interface PlanSheet {
   pageNumber?: number;        // 1-indexed if imported from a multi-page PDF
   width?: number;             // pixel dimensions of the image
   height?: number;
+  /** Revision number — 1 for the first upload, +1 each time a sheet
+   *  with the same `sheetNumber` is re-uploaded for the same project.
+   *  Defaults to 1 when omitted (legacy rows). Surfaced as "Rev 1",
+   *  "Rev 2" in the sheet list so the GC can tell at a glance which
+   *  copy is current and trace back through history. */
+  revision?: number;
+  /** Pointer to the previous revision in the chain. Lets the viewer
+   *  show "↩ Rev 1" / "Rev 3 ↪" navigation without a separate index
+   *  lookup. The OLDEST revision has no previousSheetId. */
+  previousSheetId?: string;
+  /** True when a newer revision of this sheet exists. Set on the
+   *  older row at the moment a new revision is added. The list view
+   *  hides superseded sheets by default and surfaces a "Show
+   *  N superseded" toggle. */
+  superseded?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -2056,6 +2071,33 @@ export type CommEventType = 'document_sent' | 'co_submitted' | 'co_approved' | '
 export type RFIStatus = 'open' | 'answered' | 'closed' | 'void';
 export type RFIPriority = 'low' | 'normal' | 'urgent';
 
+/** Who is responsible for the next action on the RFI right now. The
+ *  GC starts with the ball, hands it to the architect/engineer when
+ *  the RFI is sent, gets it back when a response comes in, and so on.
+ *  Surfacing this in the list view is what makes "no RFI gets buried"
+ *  the actual GC experience instead of a wishful-thinking promise. */
+export type RFIBallInCourt = 'gc' | 'architect' | 'engineer' | 'owner' | 'sub' | 'closed';
+
+/** One row of the ownership-handoff log. Append-only — every time the
+ *  ball moves we push a new entry so the GC can audit "who held this
+ *  for how long" after the fact. Used for delay claim documentation. */
+export interface RFIHandoff {
+  /** ISO timestamp of the handoff. */
+  at: string;
+  /** Who had the ball before this handoff. */
+  fromParty: RFIBallInCourt;
+  /** Who has the ball after this handoff. */
+  toParty: RFIBallInCourt;
+  /** Free-form note shown next to the handoff in the audit trail
+   *  (e.g. "responded to RFI 12 on 2026-01-13", "reassigned per
+   *  architect's request"). Optional. */
+  note?: string;
+  /** User id of the person who triggered the handoff. */
+  byUserId?: string;
+  /** Display name shown in the audit log. */
+  byUserName?: string;
+}
+
 export interface RFI {
   id: string;
   projectId: string;
@@ -2064,6 +2106,13 @@ export interface RFI {
   question: string;
   submittedBy: string;
   assignedTo: string;
+  /** Current ball-in-court. Defaults to 'gc' on creation; flips to
+   *  'architect' (or whoever was assigned) when the RFI is sent, back
+   *  to 'gc' when a response lands, 'closed' when the GC marks it
+   *  resolved. Optional for back-compat with legacy rows. */
+  ballInCourt?: RFIBallInCourt;
+  /** Append-only handoff log — see RFIHandoff. Optional for back-compat. */
+  handoffs?: RFIHandoff[];
   dateSubmitted: string;
   dateRequired: string;
   dateResponded?: string;

@@ -13,7 +13,7 @@
 //   • "Import image" — picks a single PNG/JPG (existing flow). Useful for
 //                       photos of paper drawings or markup screenshots.
 
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useState, useMemo } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
   Alert, Image, Platform, TextInput, Modal, ActivityIndicator,
@@ -60,7 +60,17 @@ export default function PlansScreen() {
   const [newSheet, setNewSheet] = useState<{ uri: string; name: string; sheetNumber: string; width?: number; height?: number } | null>(null);
 
   const project = projectId ? getProject(projectId) : null;
-  const sheets = projectId ? getPlanSheetsForProject(projectId) : [];
+  // Hide superseded sheets by default — when a sheet number gets
+  // re-uploaded, the prior copy is marked superseded but remains in
+  // the project for audit history. The "Show N superseded" pill below
+  // the list lets the GC bring them back into view.
+  const allSheets = projectId ? getPlanSheetsForProject(projectId) : [];
+  const [showSuperseded, setShowSuperseded] = useState(false);
+  const sheets = useMemo(
+    () => showSuperseded ? allSheets : allSheets.filter(s => !s.superseded),
+    [allSheets, showSuperseded],
+  );
+  const supersededCount = useMemo(() => allSheets.filter(s => s.superseded).length, [allSheets]);
 
   const handleImport = useCallback(async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -271,7 +281,16 @@ export default function PlansScreen() {
                   <Image source={{ uri: s.imageUri }} style={styles.sheetThumb} resizeMode="cover" />
                 </View>
                 <View style={{ flex: 1 }}>
-                  {s.sheetNumber ? <Text style={styles.sheetNumber}>{s.sheetNumber}</Text> : null}
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    {s.sheetNumber ? <Text style={styles.sheetNumber}>{s.sheetNumber}</Text> : null}
+                    {s.revision && s.revision > 1 && (
+                      <View style={[styles.revPill, s.superseded && { backgroundColor: Colors.fillTertiary }]}>
+                        <Text style={[styles.revPillText, s.superseded && { color: Colors.textMuted }]}>
+                          Rev {s.revision}{s.superseded ? ' · superseded' : ''}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
                   <Text style={styles.sheetName} numberOfLines={2}>{s.name}</Text>
                   <View style={styles.sheetMetaRow}>
                     <View style={styles.metaPill}>
@@ -288,6 +307,22 @@ export default function PlansScreen() {
               </TouchableOpacity>
             );
           })
+        )}
+
+        {/* Toggle to bring superseded revisions back into view. Only
+            renders when there's something to toggle. */}
+        {supersededCount > 0 && (
+          <TouchableOpacity
+            onPress={() => setShowSuperseded(v => !v)}
+            style={styles.supersededToggle}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.supersededToggleText}>
+              {showSuperseded
+                ? `Hide ${supersededCount} superseded revision${supersededCount === 1 ? '' : 's'}`
+                : `Show ${supersededCount} superseded revision${supersededCount === 1 ? '' : 's'}`}
+            </Text>
+          </TouchableOpacity>
         )}
 
         {sheets.length > 0 && (
@@ -462,6 +497,23 @@ const styles = StyleSheet.create({
   },
   sheetThumb: { width: '100%', height: '100%' },
   sheetNumber: { color: Colors.primary, fontSize: Type.caption2.fontSize, fontWeight: '700', letterSpacing: 0.4 },
+  revPill: {
+    paddingHorizontal: 6, paddingVertical: 2,
+    borderRadius: 8,
+    backgroundColor: Colors.primary + '14',
+  },
+  revPillText: {
+    fontSize: 9, fontWeight: '700' as const, color: Colors.primary,
+    letterSpacing: 0.3, textTransform: 'uppercase' as const,
+  },
+  supersededToggle: {
+    paddingVertical: 10, paddingHorizontal: 16,
+    alignItems: 'center' as const,
+  },
+  supersededToggleText: {
+    fontSize: Type.caption1.fontSize, color: Colors.textSecondary,
+    fontWeight: '600' as const,
+  },
   sheetName: { color: Colors.text, fontSize: Type.subhead.fontSize, fontWeight: '600', marginTop: 2 },
   sheetMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 },
   metaPill: {

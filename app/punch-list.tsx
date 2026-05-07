@@ -8,7 +8,7 @@ import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
   Plus, X, CheckCircle, Clock, Eye, MessageSquare,
-  Trash2, Link2, ChevronDown, Mic, ListChecks, ChevronRight,
+  Trash2, Link2, ChevronDown, Mic, ListChecks, ChevronRight, Filter,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
@@ -133,6 +133,14 @@ function PunchListScreenInner() {
   const [rejectionNote, setRejectionNote] = useState('');
   const [showRejectModal, setShowRejectModal] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<PunchItemStatus | 'all'>('all');
+  // Multi-axis filters layered on top of status. Each filter is an
+  // OR within its axis but AND across axes so the GC can drill down
+  // ("show me all open electrical items assigned to Acme that are
+  // high or critical priority"). Empty string = "any" for that axis.
+  const [filterSub, setFilterSub] = useState<string>('');         // matches PunchItem.assignedSub
+  const [filterPriority, setFilterPriority] = useState<PunchItemPriority | 'all'>('all');
+  const [filterLocation, setFilterLocation] = useState<string>(''); // free-text contains
+  const [showFilterDrawer, setShowFilterDrawer] = useState(false);
 
   const scheduleTasks = useMemo(() => project?.schedule?.tasks ?? [], [project]);
   const linkedTask = useMemo(() => scheduleTasks.find(t => t.id === linkedTaskId), [scheduleTasks, linkedTaskId]);
@@ -149,9 +157,42 @@ function PunchListScreenInner() {
   const allClosed = totalCount > 0 && closedCount === totalCount;
 
   const filteredItems = useMemo(() => {
-    if (filterStatus === 'all') return items;
-    return items.filter(i => i.status === filterStatus);
-  }, [items, filterStatus]);
+    let out = items;
+    if (filterStatus !== 'all') out = out.filter(i => i.status === filterStatus);
+    if (filterSub) out = out.filter(i => (i.assignedSub ?? '').toLowerCase() === filterSub.toLowerCase());
+    if (filterPriority !== 'all') out = out.filter(i => i.priority === filterPriority);
+    if (filterLocation) {
+      const needle = filterLocation.toLowerCase();
+      out = out.filter(i => (i.location ?? '').toLowerCase().includes(needle));
+    }
+    return out;
+  }, [items, filterStatus, filterSub, filterPriority, filterLocation]);
+
+  // Distinct values for the filter chip rows. Drawn live from the items
+  // so as the GC adds new subs / priorities, the filter row picks them
+  // up without code changes.
+  const subsInList = useMemo(() => {
+    const set = new Set<string>();
+    for (const i of items) {
+      const s = (i.assignedSub ?? '').trim();
+      if (s) set.add(s);
+    }
+    return Array.from(set).sort();
+  }, [items]);
+
+  const activeFilterCount = useMemo(() => {
+    return (filterStatus !== 'all' ? 1 : 0)
+      + (filterSub ? 1 : 0)
+      + (filterPriority !== 'all' ? 1 : 0)
+      + (filterLocation ? 1 : 0);
+  }, [filterStatus, filterSub, filterPriority, filterLocation]);
+
+  const clearAllFilters = useCallback(() => {
+    setFilterStatus('all');
+    setFilterSub('');
+    setFilterPriority('all');
+    setFilterLocation('');
+  }, []);
 
   const handleSave = useCallback(() => {
     const desc = description.trim();
@@ -299,23 +340,72 @@ function PunchListScreenInner() {
           <Text style={styles.progressSub}>{closedCount} of {totalCount} items closed</Text>
         </View>
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
-          {(['all', 'open', 'in_progress', 'ready_for_review', 'closed'] as const).map(s => {
-            const count = s === 'all' ? items.length : items.filter(i => i.status === s).length;
-            const config = s === 'all' ? { label: 'All', color: Colors.text, bg: Colors.fillTertiary } : STATUS_CONFIG[s];
-            return (
-              <TouchableOpacity
-                key={s}
-                style={[styles.filterChip, filterStatus === s && { backgroundColor: config.color }]}
-                onPress={() => setFilterStatus(s)}
-              >
-                <Text style={[styles.filterChipText, filterStatus === s && { color: '#fff' }]}>
-                  {s === 'all' ? 'All' : config.label} ({count})
-                </Text>
+        <View style={styles.filterBar}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
+            {(['all', 'open', 'in_progress', 'ready_for_review', 'closed'] as const).map(s => {
+              const count = s === 'all' ? items.length : items.filter(i => i.status === s).length;
+              const config = s === 'all' ? { label: 'All', color: Colors.text, bg: Colors.fillTertiary } : STATUS_CONFIG[s];
+              return (
+                <TouchableOpacity
+                  key={s}
+                  style={[styles.filterChip, filterStatus === s && { backgroundColor: config.color }]}
+                  onPress={() => setFilterStatus(s)}
+                >
+                  <Text style={[styles.filterChipText, filterStatus === s && { color: '#fff' }]}>
+                    {s === 'all' ? 'All' : config.label} ({count})
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+          {/* "More filters" trigger — opens a drawer with sub /
+              priority / location filters. Badge shows the count of
+              non-status active filters so the GC sees at a glance
+              that their list is filtered. */}
+          <TouchableOpacity
+            style={[styles.moreFiltersBtn, activeFilterCount > 0 && { borderColor: Colors.primary }]}
+            onPress={() => setShowFilterDrawer(true)}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="More filters"
+          >
+            <Filter size={14} color={activeFilterCount > 0 ? Colors.primary : Colors.textSecondary} />
+            {activeFilterCount > 0 && (
+              <View style={styles.moreFiltersBadge}>
+                <Text style={styles.moreFiltersBadgeText}>{activeFilterCount}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
+
+        {/* Active-filter summary row — when any non-status filter is on,
+            show pills the GC can tap to remove. Saves a trip into the
+            drawer for the common "I forgot what I'm filtering on" case. */}
+        {(filterSub || filterPriority !== 'all' || filterLocation) && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.activeFiltersRow}>
+            {filterSub && (
+              <TouchableOpacity style={styles.activeFilterPill} onPress={() => setFilterSub('')}>
+                <Text style={styles.activeFilterPillText}>Sub: {filterSub}</Text>
+                <X size={11} color={Colors.primary} />
               </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+            )}
+            {filterPriority !== 'all' && (
+              <TouchableOpacity style={styles.activeFilterPill} onPress={() => setFilterPriority('all')}>
+                <Text style={styles.activeFilterPillText}>Priority: {filterPriority}</Text>
+                <X size={11} color={Colors.primary} />
+              </TouchableOpacity>
+            )}
+            {filterLocation && (
+              <TouchableOpacity style={styles.activeFilterPill} onPress={() => setFilterLocation('')}>
+                <Text style={styles.activeFilterPillText}>Location: {filterLocation}</Text>
+                <X size={11} color={Colors.primary} />
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity onPress={clearAllFilters} style={[styles.activeFilterPill, { backgroundColor: Colors.fillTertiary }]}>
+              <Text style={[styles.activeFilterPillText, { color: Colors.textSecondary }]}>Clear all</Text>
+            </TouchableOpacity>
+          </ScrollView>
+        )}
 
         {filteredItems.map(item => {
           const sc = STATUS_CONFIG[item.status];
@@ -652,6 +742,94 @@ function PunchListScreenInner() {
           </View>
         </View>
       </Modal>
+
+      {/* More-filters drawer — adds sub / priority / location to the
+          status filter chips above. Drawn live from items so it picks
+          up new subs without code changes. */}
+      <Modal visible={showFilterDrawer} transparent animationType="slide" onRequestClose={() => setShowFilterDrawer(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { maxHeight: '80%' as const }]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Filters</Text>
+              <TouchableOpacity onPress={() => setShowFilterDrawer(false)} style={{ padding: 4 }}>
+                <X size={20} color={Colors.textMuted} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={{ maxHeight: 480 }} contentContainerStyle={{ paddingBottom: 8, gap: 16 }}>
+              {/* Sub filter */}
+              <View>
+                <Text style={styles.filterSectionLabel}>Assigned to</Text>
+                <View style={styles.filterChipsWrap}>
+                  <TouchableOpacity
+                    style={[styles.filterDrawerChip, !filterSub && styles.filterDrawerChipActive]}
+                    onPress={() => setFilterSub('')}
+                  >
+                    <Text style={[styles.filterDrawerChipText, !filterSub && styles.filterDrawerChipTextActive]}>Any</Text>
+                  </TouchableOpacity>
+                  {subsInList.map(s => (
+                    <TouchableOpacity
+                      key={s}
+                      style={[styles.filterDrawerChip, filterSub === s && styles.filterDrawerChipActive]}
+                      onPress={() => setFilterSub(s)}
+                    >
+                      <Text style={[styles.filterDrawerChipText, filterSub === s && styles.filterDrawerChipTextActive]}>
+                        {s}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                  {subsInList.length === 0 && (
+                    <Text style={{ fontSize: Type.caption1.fontSize, color: Colors.textMuted, padding: 4 }}>
+                      No subs assigned yet on any item.
+                    </Text>
+                  )}
+                </View>
+              </View>
+
+              {/* Priority filter */}
+              <View>
+                <Text style={styles.filterSectionLabel}>Priority</Text>
+                <View style={styles.filterChipsWrap}>
+                  {(['all', 'low', 'medium', 'high'] as const).map(p => (
+                    <TouchableOpacity
+                      key={p}
+                      style={[styles.filterDrawerChip, filterPriority === p && styles.filterDrawerChipActive]}
+                      onPress={() => setFilterPriority(p)}
+                    >
+                      <Text style={[styles.filterDrawerChipText, filterPriority === p && styles.filterDrawerChipTextActive]}>
+                        {p === 'all' ? 'Any' : p.charAt(0).toUpperCase() + p.slice(1)}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              {/* Location free-text filter */}
+              <View>
+                <Text style={styles.filterSectionLabel}>Location contains</Text>
+                <TextInput
+                  style={styles.filterDrawerInput}
+                  value={filterLocation}
+                  onChangeText={setFilterLocation}
+                  placeholder="e.g. Kitchen, 2nd floor, Master bath"
+                  placeholderTextColor={Colors.textMuted}
+                />
+              </View>
+            </ScrollView>
+
+            <View style={{ flexDirection: 'row', gap: 8, paddingTop: 12, borderTopWidth: 0.5, borderTopColor: Colors.borderLight }}>
+              <TouchableOpacity style={[styles.filterDrawerBtn, { backgroundColor: Colors.fillTertiary }]} onPress={clearAllFilters}>
+                <Text style={[styles.filterDrawerBtnText, { color: Colors.text }]}>Clear all</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.filterDrawerBtn, { backgroundColor: Colors.primary, flex: 1.4 }]} onPress={() => setShowFilterDrawer(false)}>
+                <Text style={[styles.filterDrawerBtnText, { color: Colors.textOnPrimary }]}>
+                  Show {filteredItems.length} {filteredItems.length === 1 ? 'item' : 'items'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -669,6 +847,74 @@ const styles = StyleSheet.create({
   filterRow: { paddingHorizontal: 20, gap: 6, marginBottom: 16 },
   filterChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: Colors.fillTertiary },
   filterChipText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.textSecondary },
+  filterBar: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, paddingRight: 16 },
+  moreFiltersBtn: {
+    width: 36, height: 36, borderRadius: 18,
+    alignItems: 'center' as const, justifyContent: 'center' as const,
+    backgroundColor: Colors.surface,
+    borderWidth: 1, borderColor: Colors.borderLight,
+    position: 'relative' as const,
+    marginRight: 4,
+  },
+  moreFiltersBadge: {
+    position: 'absolute' as const, top: -4, right: -4,
+    minWidth: 16, height: 16, borderRadius: 8, paddingHorizontal: 4,
+    backgroundColor: Colors.primary,
+    alignItems: 'center' as const, justifyContent: 'center' as const,
+  },
+  moreFiltersBadgeText: { fontSize: 9, fontWeight: '800' as const, color: Colors.surface, lineHeight: 11 },
+  activeFiltersRow: { paddingHorizontal: 20, gap: 6, paddingBottom: 12 },
+  activeFilterPill: {
+    flexDirection: 'row' as const, alignItems: 'center' as const, gap: 4,
+    paddingHorizontal: 10, paddingVertical: 6,
+    borderRadius: 14,
+    backgroundColor: Colors.primary + '14',
+  },
+  activeFilterPillText: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: Colors.primary },
+  filterSectionLabel: {
+    fontSize: 11, fontWeight: '800' as const, color: Colors.textMuted,
+    letterSpacing: 0.4, textTransform: 'uppercase' as const, marginBottom: 8,
+  },
+  filterChipsWrap: { flexDirection: 'row' as const, flexWrap: 'wrap' as const, gap: 6 },
+  filterDrawerChip: {
+    paddingHorizontal: 12, paddingVertical: 8,
+    borderRadius: 16,
+    backgroundColor: Colors.fillTertiary,
+  },
+  filterDrawerChipActive: { backgroundColor: Colors.primary },
+  filterDrawerChipText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.textSecondary },
+  filterDrawerChipTextActive: { color: Colors.surface },
+  filterDrawerInput: {
+    paddingHorizontal: 12, paddingVertical: 10,
+    borderRadius: Tokens.radius.md,
+    backgroundColor: Colors.fillSecondary,
+    borderWidth: 0.5, borderColor: Colors.borderLight,
+    fontSize: Type.bodyCompact.fontSize,
+    color: Colors.text,
+  },
+  filterDrawerBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: Tokens.radius.md,
+    alignItems: 'center' as const, justifyContent: 'center' as const,
+  },
+  filterDrawerBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const },
+  // Modal scaffolding for the filter drawer — slide-up sheet shape
+  // matching the existing item-edit modal in this file.
+  modalCard: {
+    backgroundColor: Colors.surface,
+    borderTopLeftRadius: Tokens.radius.panel,
+    borderTopRightRadius: Tokens.radius.panel,
+    padding: 20,
+    paddingBottom: 32,
+  },
+  modalHeader: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'space-between' as const,
+    marginBottom: 16,
+  },
+  modalTitle: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: Colors.text, letterSpacing: -0.3 },
   punchCard: { marginHorizontal: 20, marginBottom: 10, backgroundColor: Colors.surface, borderRadius: Tokens.radius.lg, padding: 16, borderWidth: 1, borderColor: Colors.cardBorder, gap: 10 },
   punchCardTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   priorityDot: { width: 8, height: 8, borderRadius: 4, marginTop: 6 },

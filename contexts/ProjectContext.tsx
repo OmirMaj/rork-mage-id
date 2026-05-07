@@ -2728,21 +2728,64 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
 
   const addPlanSheet = useCallback((sheet: Omit<PlanSheet, 'id' | 'createdAt' | 'updatedAt'>) => {
     const now = new Date().toISOString();
+    // Auto-detect a revision: if the project already has a non-superseded
+    // sheet with the same sheetNumber, the new upload becomes Rev N+1
+    // and the prior sheet gets marked superseded. Pre-fix every upload
+    // landed as a brand-new row, so two copies of "A-101" lived side by
+    // side with no relationship — the GC had to remember which was
+    // current. Now: revisions stack and the list view defaults to
+    // showing only the latest of each sheetNumber.
+    const incomingNumber = (sheet.sheetNumber ?? '').trim();
+    let revision = 1;
+    let previousSheetId: string | undefined;
+    let updatedList = planSheets;
+    if (incomingNumber) {
+      const sameNumber = planSheets.filter(
+        s => s.projectId === sheet.projectId
+          && (s.sheetNumber ?? '').trim() === incomingNumber
+          && !s.superseded,
+      );
+      if (sameNumber.length > 0) {
+        // Pick the highest existing revision so we don't collide if the
+        // user re-uploads multiple times (revision bumps monotonically).
+        const latest = sameNumber.reduce((a, b) =>
+          (a.revision ?? 1) > (b.revision ?? 1) ? a : b,
+        );
+        revision = (latest.revision ?? 1) + 1;
+        previousSheetId = latest.id;
+        // Mark the prior latest as superseded — both locally and via
+        // Supabase write so other devices see the same chain.
+        updatedList = planSheets.map(s =>
+          s.id === latest.id ? { ...s, superseded: true, updatedAt: now } : s,
+        );
+        if (canSync) {
+          void supabaseWrite('plan_sheets', 'update', {
+            id: latest.id, superseded: true, updated_at: now,
+          });
+        }
+      }
+    }
+
     const fresh: PlanSheet = {
       ...sheet,
       // UUID (not a prefixed timestamp) so the Supabase write path can
       // round-trip the id into a Postgres UUID column without rejection.
       id: generateUUID(),
+      revision,
+      previousSheetId,
       createdAt: now,
       updatedAt: now,
     };
-    persistPlanSheets([fresh, ...planSheets]);
+    persistPlanSheets([fresh, ...updatedList]);
     if (canSync) {
       void supabaseWrite('plan_sheets', 'insert', {
         id: fresh.id, user_id: userId, project_id: fresh.projectId,
         name: fresh.name, sheet_number: fresh.sheetNumber ?? null,
         image_uri: fresh.imageUri, page_number: fresh.pageNumber ?? null,
         width: fresh.width ?? null, height: fresh.height ?? null,
+        revision: fresh.revision ?? null,
+        previous_sheet_id: fresh.previousSheetId ?? null,
+        superseded: fresh.superseded ?? null,
         created_at: fresh.createdAt, updated_at: fresh.updatedAt,
       });
     }
