@@ -14,9 +14,12 @@ import {
   CalendarDays, ChevronLeft, Tractor, Wrench, ChartBar, BarChart3, ClipboardList,
 } from 'lucide-react-native';
 import EmptyState from '@/components/EmptyState';
+import DatePickerModal from '@/components/DatePickerModal';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import ContactPickerModal from '@/components/ContactPickerModal';
+import { saveDailyReportToProjectFiles } from '@/utils/projectDocuments';
+import { FolderOpen } from 'lucide-react-native';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { sendEmail, buildDailyReportEmailHtml } from '@/utils/emailService';
 import VoiceRecorder from '@/components/VoiceRecorder';
@@ -118,6 +121,32 @@ export default function DailyReportScreen() {
   const [sendRecipientEmail, setSendRecipientEmail] = useState('');
   const [showContactPicker, setShowContactPicker] = useState(false);
   const [contactPicked, setContactPicked] = useState(false);
+  // Date selection — Procore-style. The DFR's `date` field already
+  // exists on the persisted record but the UI used to hardcode "now"
+  // every render, making it impossible to log a report for yesterday
+  // (the most common GC backfill case after a long Saturday). Tap
+  // the date in the top bar to open DatePickerModal.
+  const [reportDate, setReportDate] = useState<string>(() => new Date().toISOString());
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  // When loading an existing draft, hydrate reportDate from the persisted
+  // record. We use a layout-effect pattern via useEffect on the existing
+  // report so re-opening yesterday's draft surfaces yesterday's date.
+  useEffect(() => {
+    if (existingReport?.date) setReportDate(existingReport.date);
+  }, [existingReport]);
+  // Stable report id — used both for saving the DFR record and for
+  // naming the PDF in the `project-documents` bucket. We derive it
+  // once per existingReport identity so the same report always lands
+  // at the same bucket path (overwrites in place rather than
+  // littering the bucket with copies).
+  const stableReportId = useMemo(
+    () => existingReport?.id ?? generateUUID(),
+    [existingReport?.id],
+  );
+  // "Save copy to project files" toggle in the Send modal — when on,
+  // the rendered HTML report is uploaded as a PDF to the project's
+  // documents bucket so it shows up in the shared-drive view.
+  const [saveToProjectFiles, setSaveToProjectFiles] = useState(true);
 
   const todayStr = useMemo(() => {
     return new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
@@ -512,6 +541,7 @@ export default function DailyReportScreen() {
 
     if (existingReport) {
       updateDailyReport(existingReport.id, {
+        date: reportDate,  // honor the user-picked date on edit too
         weather,
         manpower,
         workPerformed: workPerformed.trim(),
@@ -529,9 +559,13 @@ export default function DailyReportScreen() {
       Alert.alert('Updated', `Daily report has been ${status === 'sent' ? `sent${recipientInfo}` : 'saved to project'}.`);
     } else {
       const report: DailyFieldReport = {
-        id: createId('dfr'),
+        id: stableReportId,  // stable id — also used as the PDF filename
+                             // in the project-documents bucket so re-saves
+                             // overwrite in place
         projectId,
-        date: now,
+        date: reportDate,  // user-picked date instead of "now" — pre-fix
+                           // a report typed on Tuesday for Monday's work
+                           // was misfiled as Tuesday's record
         weather,
         manpower,
         workPerformed: workPerformed.trim(),
@@ -564,20 +598,29 @@ export default function DailyReportScreen() {
       nailIt(status === 'sent' ? `Daily report sent${recipientInfo}` : 'Daily report saved.');
     }
     router.back();
-  }, [projectId, weather, manpower, workPerformed, workProgress, materialsDelivered, issuesAndDelays, photos, incident, existingReport, homeownerSummary, hsGeneratedAt, hsPublished, addDailyReport, updateDailyReport, addProjectPhoto, router]);
+  }, [projectId, weather, manpower, workPerformed, workProgress, materialsDelivered, issuesAndDelays, photos, incident, existingReport, homeownerSummary, hsGeneratedAt, hsPublished, addDailyReport, updateDailyReport, addProjectPhoto, router, reportDate, stableReportId]);
 
   const handleSendPress = useCallback(() => {
     setShowSendRecipient(true);
   }, []);
 
   const handleConfirmSend = useCallback(async () => {
-    if (!sendRecipientEmail.trim()) {
-      Alert.alert('Email Required', 'Please enter a recipient email address.');
+    // Pre-fix the only "send" target was email and a blank email
+    // hard-blocked the modal. Now: email is optional when "Save to
+    // project files" is on — a GC who just wants the PDF in the
+    // shared drive without emailing it should be able to skip the
+    // recipient.
+    const wantsEmail = sendRecipientEmail.trim().length > 0;
+    if (!wantsEmail && !saveToProjectFiles) {
+      Alert.alert(
+        'Pick a destination',
+        'Either enter a recipient email, toggle "Save to project files", or both.',
+      );
       return;
     }
     setShowSendRecipient(false);
 
-    if (sendRecipientEmail.trim()) {
+    if (wantsEmail) {
       const branding = settings.branding ?? { companyName: '', contactName: '', email: '', phone: '', address: '', licenseNumber: '', tagline: '' };
       const weatherForEmail = {
         condition: typeof weather.conditions === 'string' ? weather.conditions : 'N/A',
@@ -588,7 +631,7 @@ export default function DailyReportScreen() {
         companyName: branding.companyName,
         recipientName: sendRecipientName,
         projectName: project?.name ?? 'Project',
-        date: new Date().toISOString(),
+        date: reportDate,  // honor the user-picked date in the email body
         weather: weatherForEmail,
         totalManpower,
         totalManHours,
@@ -600,7 +643,7 @@ export default function DailyReportScreen() {
 
       const result = await sendEmail({
         to: sendRecipientEmail.trim(),
-        subject: `Daily report · ${new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} · ${project?.name ?? 'Project'}`,
+        subject: `Daily report · ${new Date(reportDate).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} · ${project?.name ?? 'Project'}`,
         html,
         replyTo: branding.email || undefined,
         fromCompanyName: branding.companyName || undefined,
@@ -619,8 +662,54 @@ export default function DailyReportScreen() {
       }
     }
 
+    // Save the rendered report to the project's shared-drive folder
+    // when the toggle is on. Pre-fix the only persistence beyond the
+    // structured DailyFieldReport record was the ephemeral email — if
+    // the recipient lost it or the GC needed to forward it later, it
+    // didn't exist anywhere accessible. Now: a copy lives at
+    // project-documents/<projectId>/daily-reports/<reportId>.pdf.
+    // We use stableReportId (not existingReport.id) so even a brand-
+    // new DFR can be saved to project files on the very first send.
+    if (saveToProjectFiles && projectId) {
+      try {
+        const branding = settings.branding ?? { companyName: '', contactName: '', email: '', phone: '', address: '', licenseNumber: '', tagline: '' };
+        const weatherForFile = {
+          condition: typeof weather.conditions === 'string' ? weather.conditions : 'N/A',
+          tempHigh: parseInt(String(weather.temperature)) || 0,
+          tempLow: parseInt(String(weather.temperature)) || 0,
+        };
+        const html = buildDailyReportEmailHtml({
+          companyName: branding.companyName,
+          recipientName: '',
+          projectName: project?.name ?? 'Project',
+          date: reportDate,
+          weather: weatherForFile,
+          totalManpower,
+          totalManHours,
+          workPerformed: workPerformed.trim(),
+          issuesAndDelays: issuesAndDelays.trim(),
+          contactName: branding.contactName,
+          contactEmail: branding.email,
+        });
+        const dateLabel = new Date(reportDate).toISOString().slice(0, 10);
+        await saveDailyReportToProjectFiles({
+          projectId,
+          reportId: stableReportId,
+          html,
+          fileName: `Daily Report — ${dateLabel}.pdf`,
+        });
+        if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      } catch (err) {
+        // Log but don't block — the structured DFR record still saves
+        // below. The user gets a non-fatal toast so they know the
+        // shared-drive copy didn't land and can retry.
+        console.warn('[DailyReport] Save to project files failed:', err);
+        Alert.alert('Project files notice', `Sent, but the project-files copy didn't land: ${(err as Error).message}`);
+      }
+    }
+
     handleSave('sent', sendRecipientName, sendRecipientEmail);
-  }, [handleSave, sendRecipientName, sendRecipientEmail, settings, project, weather, totalManpower, totalManHours, workPerformed, issuesAndDelays]);
+  }, [handleSave, sendRecipientName, sendRecipientEmail, settings, project, weather, totalManpower, totalManHours, workPerformed, issuesAndDelays, reportDate, saveToProjectFiles, projectId, existingReport]);
 
   if (!project) {
     return (
@@ -663,12 +752,22 @@ export default function DailyReportScreen() {
           >
             <ChevronLeft size={22} color={Colors.text} />
           </TouchableOpacity>
-          <View style={styles.topBarTitleCol}>
+          <TouchableOpacity
+            style={styles.topBarTitleCol}
+            onPress={() => setShowDatePicker(true)}
+            activeOpacity={0.7}
+            disabled={isLocked}
+            accessibilityRole="button"
+            accessibilityLabel="Change report date"
+          >
             <Text style={styles.topBarTitle}>Daily Report</Text>
-            <Text style={styles.topBarDate}>
-              {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-            </Text>
-          </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              <Text style={styles.topBarDate}>
+                {new Date(reportDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+              </Text>
+              {!isLocked && <CalendarDays size={11} color={Colors.textMuted} />}
+            </View>
+          </TouchableOpacity>
           {!isLocked ? (
             <View style={styles.topBarActions}>
               <TouchableOpacity
@@ -1488,19 +1587,60 @@ export default function DailyReportScreen() {
                 </>
               )}
 
+              {/* Save-to-project-files toggle — Procore-style "drop a
+                  copy in the project drive" path. Defaults to on so a
+                  GC who hits Send always has a project-side copy
+                  regardless of whether the email lands. Tapping the
+                  whole row flips the toggle (bigger touch target than
+                  the switch alone). */}
+              <TouchableOpacity
+                style={styles.toggleRow}
+                onPress={() => setSaveToProjectFiles(v => !v)}
+                activeOpacity={0.7}
+                accessibilityRole="switch"
+                accessibilityState={{ checked: saveToProjectFiles }}
+              >
+                <View style={styles.toggleIconWrap}>
+                  <FolderOpen size={16} color={Colors.primary} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.toggleTitle}>Save copy to project files</Text>
+                  <Text style={styles.toggleSub}>
+                    Drops a PDF into {project?.name ?? 'this project'}&apos;s shared drive at
+                    {' '}<Text style={{ fontWeight: '600' as const }}>Daily Reports / {new Date(reportDate).toISOString().slice(0, 10)}.pdf</Text>
+                  </Text>
+                </View>
+                <View style={[styles.toggleSwitch, saveToProjectFiles && styles.toggleSwitchOn]}>
+                  <View style={[styles.toggleKnob, saveToProjectFiles && styles.toggleKnobOn]} />
+                </View>
+              </TouchableOpacity>
+
               <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
                 <TouchableOpacity style={styles.saveDraftBtn} onPress={() => setShowSendRecipient(false)} activeOpacity={0.7}>
                   <Text style={styles.saveDraftBtnText}>Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.sendBtn} onPress={handleConfirmSend} activeOpacity={0.7}>
                   <Send size={16} color={Colors.textOnPrimary} />
-                  <Text style={styles.sendBtnText}>Send</Text>
+                  <Text style={styles.sendBtnText}>
+                    {sendRecipientEmail.trim() ? 'Send' : (saveToProjectFiles ? 'Save' : 'Send')}
+                  </Text>
                 </TouchableOpacity>
               </View>
             </View>
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* Date picker — opened from the top-bar title row. Defaults to
+          today, blocks future dates, lets the GC backfill any day in
+          the past 5 years. */}
+      <DatePickerModal
+        visible={showDatePicker}
+        value={reportDate}
+        onClose={() => setShowDatePicker(false)}
+        onChange={setReportDate}
+        title="Report date"
+      />
 
       <ContactPickerModal
         visible={showContactPicker}
@@ -1917,6 +2057,32 @@ const styles = StyleSheet.create({
   photoTimestamp: { fontSize: 9, color: Colors.textMuted },
   photoRemoveBtn: { position: 'absolute', top: 4, right: 4, width: 20, height: 20, borderRadius: Tokens.radius.md, backgroundColor: Colors.errorLight, alignItems: 'center', justifyContent: 'center' },
   bottomBar: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: Colors.surface, borderTopWidth: 0.5, borderTopColor: Colors.borderLight, paddingHorizontal: 20, paddingTop: 12, flexDirection: 'row', gap: 10 },
+  toggleRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    backgroundColor: Colors.fillSecondary,
+    borderRadius: Tokens.radius.md,
+    marginTop: 12,
+  },
+  toggleIconWrap: {
+    width: 32, height: 32, borderRadius: 16,
+    alignItems: 'center' as const, justifyContent: 'center' as const,
+    backgroundColor: Colors.primary + '14',
+  },
+  toggleTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
+  toggleSub: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, marginTop: 2 },
+  toggleSwitch: {
+    width: 38, height: 22, borderRadius: 11,
+    backgroundColor: Colors.fillTertiary,
+    padding: 2,
+    justifyContent: 'center' as const,
+  },
+  toggleSwitchOn: { backgroundColor: Colors.primary },
+  toggleKnob: { width: 18, height: 18, borderRadius: 9, backgroundColor: Colors.surface },
+  toggleKnobOn: { transform: [{ translateX: 16 }] },
   saveDraftBtn: { flex: 1, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
   saveDraftBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
   saveProjectBtn: { flex: 1, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: Colors.primary + '15', borderWidth: 1.5, borderColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
