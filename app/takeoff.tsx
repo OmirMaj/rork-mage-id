@@ -80,6 +80,10 @@ const MODEL_DISPLAY: Record<TakeoffModel, { label: string; tagline: string }> = 
     label: 'Pro Takeoff',
     tagline: 'Slower + more careful. Reads schedules + ambiguous areas more reliably.',
   },
+  'claude-sonnet-4-5': {
+    label: 'Sonnet 4.6',
+    tagline: 'Highest accuracy on stamped or marked-up scans. Enterprise tier.',
+  },
 };
 
 export default function TakeoffScreen() {
@@ -105,7 +109,7 @@ function TakeoffInner() {
   const router = useRouter();
   const { projectId: paramProjectId } = useLocalSearchParams<{ projectId?: string }>();
   const { projects, getProject, addBidPackage } = useProjects();
-  const { isBusinessTier } = useSubscription();
+  const { isBusinessTier, isEnterpriseTier } = useSubscription();
   const { refresh: refreshQuota } = useUsageStatus();
 
   const [step, setStep] = useState<Step>('idle');
@@ -264,11 +268,15 @@ function TakeoffInner() {
       // Extract codes from the takeoff and pass them so the AI prioritizes
       // matching them.
       const targetCodes = extractCodesFromTakeoff(result);
+      // analyzeSpecBook is Gemini-only (different SpecModel union — no
+      // Sonnet path on the spec analyzer yet). Coerce to gemini-pro
+      // when the takeoff was Sonnet so the spec match still runs.
+      const specModel = pickedModel === 'claude-sonnet-4-5' ? 'gemini-2.5-pro' : pickedModel;
       const { result: spec } = await analyzeSpecBook({
         pageUrls: rendered.map(p => p.publicUrl),
         targetCodes,
         projectName: project?.name,
-        model: pickedModel,
+        model: specModel,
       });
       setSpecMatch(spec);
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -570,12 +578,28 @@ function TakeoffInner() {
                     ? setPickedModel('gemini-2.5-pro')
                     : router.push('/paywall')}
                 />
+                <ModelOption
+                  modelKey="claude-sonnet-4-5"
+                  active={pickedModel === 'claude-sonnet-4-5'}
+                  disabled={!isEnterpriseTier}
+                  onPress={() => isEnterpriseTier
+                    ? setPickedModel('claude-sonnet-4-5')
+                    : router.push('/paywall')}
+                />
               </View>
               {!isBusinessTier && (
                 <View style={styles.upsell}>
                   <Crown size={12} color={Colors.warning} />
                   <Text style={styles.upsellText}>
-                    Pro Takeoff is included with Business tier — better at reading dense schedules and unlabeled areas.
+                    Pro Takeoff is included with Business. Sonnet 4.6 (highest accuracy on stamped scans) is included with Enterprise.
+                  </Text>
+                </View>
+              )}
+              {isBusinessTier && !isEnterpriseTier && (
+                <View style={styles.upsell}>
+                  <Crown size={12} color={Colors.warning} />
+                  <Text style={styles.upsellText}>
+                    Sonnet 4.6 (highest accuracy on stamped + marked-up scans) is included with Enterprise.
                   </Text>
                 </View>
               )}

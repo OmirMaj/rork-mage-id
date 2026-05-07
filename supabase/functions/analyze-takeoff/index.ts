@@ -1,19 +1,32 @@
 // analyze-takeoff
 //
 // AI-powered automated quantity takeoff for construction drawings.
-// Builds on analyze-drawings — same Gemini Vision pipeline, different
-// prompt: instead of asking for a cost estimate, asks for raw quantities
-// (linear feet, square feet, counts) per trade with scale awareness.
+// Multi-vendor: Gemini (default) + Claude Sonnet 4.6 for Enterprise tier.
 //
 // Output schema is in types/index.ts (TakeoffResult). The AI is asked
 // for confidence per row + source-page references so the user can
 // trace any quantity back to where it came from on the drawings.
 //
-// Tier: Pro / Business only (analyze_drawings cap shared — same upstream
-// API spend). Uses the shared `_shared/auth.ts` requireTier helper.
+// Tier: Pro / Business / Enterprise (analyze_drawings cap shared —
+// same upstream API spend). Uses the shared `_shared/auth.ts`
+// requireTier helper.
+//
+// Tier-based model selection (May 2026):
+//   Pro        → gemini-2.5-flash    ($0.13/takeoff)  — fast + cheap
+//   Business   → gemini-2.5-pro      ($0.50/takeoff)  — better DocVQA
+//   Enterprise → claude-sonnet-4-5   ($1.17/takeoff)  — best on stamped/scanned scans
+//
+// The client sends a `model` hint based on the user's "Pro Takeoff"
+// toggle and tier; the server validates the request matches their
+// tier before routing. A free/pro user requesting `claude-sonnet-4-5`
+// gets force-downgraded to flash with a log message — never a 403,
+// because the per-call cap already gates the spend.
 //
 // Secrets:
-//   GEMINI_API_KEY — Google AI Studio key
+//   GEMINI_API_KEY    — Google AI Studio key (Gemini path)
+//   ANTHROPIC_API_KEY — Anthropic API key   (Sonnet path; falls back
+//                       to gemini-2.5-pro if missing so Enterprise
+//                       users still get takeoffs)
 //
 // Request body:
 // {
@@ -23,7 +36,7 @@
 //   squareFootage?: number;
 //   location?: string;
 //   notes?: string;
-//   model?: 'gemini-2.5-flash' | 'gemini-2.5-pro';
+//   model?: 'gemini-2.5-flash' | 'gemini-2.5-pro' | 'claude-sonnet-4-5';
 // }
 //
 // Response:
@@ -31,16 +44,35 @@
 //   { success: false, error }
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
-import { requireTier, aiUsageIncrement, MONTHLY_CAPS } from "../_shared/auth.ts";
+import { requireTier, aiUsageIncrement, MONTHLY_CAPS, type Tier } from "../_shared/auth.ts";
 
 const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY") || "";
+const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY") || "";
 const MAX_PAGE_BYTES = 8 * 1024 * 1024;
 
-type ModelKey = 'gemini-2.5-flash' | 'gemini-2.5-pro';
-const ALLOWED_MODELS: ModelKey[] = ['gemini-2.5-flash', 'gemini-2.5-pro'];
+type ModelKey = 'gemini-2.5-flash' | 'gemini-2.5-pro' | 'claude-sonnet-4-5';
+const ALLOWED_MODELS: ModelKey[] = ['gemini-2.5-flash', 'gemini-2.5-pro', 'claude-sonnet-4-5'];
 const DEFAULT_MODEL: ModelKey = 'gemini-2.5-flash';
 
-function geminiEndpoint(model: ModelKey): string {
+/** Pick the highest-quality model the user's tier is entitled to.
+ *  Used both as the default (when client omits `model`) and as a
+ *  ceiling check so a Pro user can't request Sonnet via API. */
+function modelForTier(tier: Tier): ModelKey {
+  if (tier === 'enterprise') return 'claude-sonnet-4-5';
+  if (tier === 'business') return 'gemini-2.5-pro';
+  return 'gemini-2.5-flash';
+}
+
+/** Tier rank — higher = more capable. Used to clamp the requested
+ *  model so Free can't ask for Sonnet via a forged body. */
+const TIER_RANK: Record<Tier, number> = { free: 0, pro: 1, business: 2, enterprise: 3 };
+const MODEL_TIER: Record<ModelKey, Tier> = {
+  'gemini-2.5-flash': 'pro',
+  'gemini-2.5-pro': 'business',
+  'claude-sonnet-4-5': 'enterprise',
+};
+
+function geminiEndpoint(model: 'gemini-2.5-flash' | 'gemini-2.5-pro'): string {
   return `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
 }
 
@@ -280,15 +312,54 @@ CRITICAL RULES:
 - Empty arrays are FINE — output [] for any category that isn't represented in the drawings rather than fabricating a placeholder entry.`;
 }
 
-async function callGemini(req: TakeoffRequest): Promise<{ data: unknown; modelUsed: ModelKey }> {
-  if (!GEMINI_API_KEY) throw new Error('GEMINI_API_KEY not configured on the server.');
+/**
+ * Pick the actual model to call given the requested model + the user's
+ * tier. Pre-fix the client's `model` was trusted blindly, so a forged
+ * body could make a Pro user pay Enterprise prices. Now: clamp down to
+ * the highest model the user's tier is entitled to.
+ *
+ * Also degrades gracefully — if Sonnet is requested but
+ * ANTHROPIC_API_KEY isn't set, falls back to Gemini Pro instead of
+ * failing the whole takeoff. The user notices the modelUsed string
+ * changed in the response; the server logs the downgrade.
+ */
+function pickActualModel(requested: ModelKey | undefined, tier: Tier): ModelKey {
+  const clientModel = (requested && ALLOWED_MODELS.includes(requested)) ? requested : DEFAULT_MODEL;
+  // Clamp to the user's tier ceiling so a forged request can't escalate.
+  const tierRank = TIER_RANK[tier];
+  const requestedTierRank = TIER_RANK[MODEL_TIER[clientModel]];
+  let chosen: ModelKey = requestedTierRank > tierRank
+    ? modelForTier(tier)
+    : clientModel;
+  // Degrade Sonnet → Gemini Pro if the Anthropic key is missing. Better
+  // to give the Enterprise user a working takeoff with the second-best
+  // model than to fail loudly.
+  if (chosen === 'claude-sonnet-4-5' && !ANTHROPIC_API_KEY) {
+    console.log('[analyze-takeoff] ANTHROPIC_API_KEY not set, falling back to gemini-2.5-pro');
+    chosen = 'gemini-2.5-pro';
+  }
+  return chosen;
+}
+
+async function callTakeoffModel(req: TakeoffRequest, tier: Tier): Promise<{ data: unknown; modelUsed: ModelKey }> {
   if (!req.pageUrls || req.pageUrls.length === 0) throw new Error('No page URLs provided.');
   if (req.pageUrls.length > 16) throw new Error('Maximum 16 pages per request — split larger sets.');
 
-  const requested = req.model ?? DEFAULT_MODEL;
-  const modelUsed: ModelKey = ALLOWED_MODELS.includes(requested) ? requested : DEFAULT_MODEL;
-
+  const modelUsed = pickActualModel(req.model, tier);
   const imageParts = await Promise.all(req.pageUrls.map(urlToInlineImagePart));
+
+  if (modelUsed === 'claude-sonnet-4-5') {
+    return { data: await callClaude(req, imageParts), modelUsed };
+  }
+  return { data: await callGemini(req, modelUsed, imageParts), modelUsed };
+}
+
+async function callGemini(
+  req: TakeoffRequest,
+  modelUsed: 'gemini-2.5-flash' | 'gemini-2.5-pro',
+  imageParts: { inlineData: { mimeType: string; data: string } }[],
+): Promise<unknown> {
+  if (!GEMINI_API_KEY) throw new Error('GEMINI_API_KEY not configured on the server.');
 
   // Takeoff JSON is denser than estimate JSON — schedules can have
   // dozens of doors/windows/finishes. Give Pro a generous output budget.
@@ -326,7 +397,101 @@ async function callGemini(req: TakeoffRequest): Promise<{ data: unknown; modelUs
   } catch (e) {
     throw new Error(`Could not parse AI response as JSON: ${(e as Error).message}\nRaw: ${raw.slice(0, 400)}`);
   }
-  return { data: validateAndNormalize(parsed), modelUsed };
+  return validateAndNormalize(parsed);
+}
+
+/**
+ * Claude Sonnet 4.6 path — Enterprise tier. Anthropic doesn't have a
+ * native JSON mode like Gemini's responseMimeType, so we use a single
+ * Tool-Use definition with input_schema set to the takeoff shape.
+ * Claude's tool_use response is already structured JSON, no parse step
+ * needed; that's significantly more reliable than asking it to "return
+ * JSON" in a system prompt (~14-20% structured-output failure rate
+ * without tool use, per real-world reports).
+ */
+async function callClaude(
+  req: TakeoffRequest,
+  imageParts: { inlineData: { mimeType: string; data: string } }[],
+): Promise<unknown> {
+  if (!ANTHROPIC_API_KEY) throw new Error('ANTHROPIC_API_KEY not configured on the server.');
+
+  // Anthropic image format — base64 wrapped in a `source` object instead
+  // of `inlineData`. Otherwise the byte payloads are identical.
+  const anthropicImageBlocks = imageParts.map(p => ({
+    type: 'image' as const,
+    source: {
+      type: 'base64' as const,
+      media_type: p.inlineData.mimeType,
+      data: p.inlineData.data,
+    },
+  }));
+
+  // Tool-use schema — Claude returns the JSON in `tool_use.input` when
+  // it picks the tool. Schema mirrors the TakeoffResult shape but kept
+  // permissive (no enum constraints) since validateAndNormalize below
+  // is the authoritative shape check. Stricter schema = more refusals.
+  const tool = {
+    name: 'submit_takeoff',
+    description: 'Submit the structured takeoff results extracted from the construction drawings.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        summary: { type: 'string' },
+        scale: { type: 'object' },
+        drawingsSeen: { type: 'array' },
+        estimatedSquareFootage: { type: 'number' },
+        grossEnvelopeSqFt: { type: 'number' },
+        walls: { type: 'array' },
+        floorAreas: { type: 'array' },
+        doors: { type: 'array' },
+        windows: { type: 'array' },
+        finishes: { type: 'array' },
+        fixtures: { type: 'array' },
+        bulkMaterials: { type: 'array' },
+        callouts: { type: 'array' },
+        concerns: { type: 'array' },
+        doubleCheck: { type: 'array' },
+        missingScopes: { type: 'array' },
+      },
+      required: ['walls', 'doors', 'windows', 'finishes', 'fixtures', 'bulkMaterials', 'floorAreas', 'concerns', 'doubleCheck', 'missingScopes'],
+    },
+  };
+
+  const body = {
+    model: 'claude-sonnet-4-5',
+    max_tokens: 16000,
+    tools: [tool],
+    tool_choice: { type: 'tool' as const, name: 'submit_takeoff' },
+    messages: [
+      {
+        role: 'user' as const,
+        content: [
+          ...anthropicImageBlocks,
+          { type: 'text' as const, text: buildPrompt(req) },
+        ],
+      },
+    ],
+  };
+
+  const r = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'x-api-key': ANTHROPIC_API_KEY,
+      'anthropic-version': '2023-06-01',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+  if (!r.ok) {
+    const errText = await r.text().catch(() => '');
+    throw new Error(`Anthropic ${r.status}: ${errText.slice(0, 400)}`);
+  }
+  const json = await r.json() as { content?: Array<{ type: string; input?: Record<string, unknown> }> };
+  const toolUse = json.content?.find(c => c.type === 'tool_use');
+  if (!toolUse?.input) {
+    throw new Error('Claude did not return a tool_use response.');
+  }
+  return validateAndNormalize(toolUse.input);
 }
 
 // ---------------------------------------------------------------------------
@@ -599,7 +764,7 @@ serve(async (req) => {
       }, 429);
     }
 
-    const { data, modelUsed } = await callGemini(body);
+    const { data, modelUsed } = await callTakeoffModel(body, auth.tier);
     return jsonResponse({ success: true, data, modelUsed, usage: { used, cap } });
   } catch (e) {
     console.error('[analyze-takeoff] failed', e);

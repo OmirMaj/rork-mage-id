@@ -11,6 +11,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { isOwner } from '@/utils/owner';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { getAIUsageStats } from '@/utils/aiRateLimiter';
+import { useTakeoffPagesQuota } from '@/hooks/useUsageStatus';
 import { THEME_PRESETS } from '@/types';
 import type { PDFNamingSettings } from '@/types';
 import SignaturePad from '@/components/SignaturePad';
@@ -77,6 +78,10 @@ export default function SettingsScreen() {
   const [aiLimit, setAiLimit] = useState(10);
   const [aiSmartUsed, setAiSmartUsed] = useState(0);
   const [aiSmartLimit, setAiSmartLimit] = useState(3);
+  // Monthly takeoff page quota (separate from the daily AI request
+  // counter above — takeoffs are page-metered server-side; the daily
+  // counter only tracks text AI requests).
+  const takeoffQuota = useTakeoffPagesQuota();
 
   React.useEffect(() => {
     getAIUsageStats(tier as any).then(stats => {
@@ -401,9 +406,33 @@ export default function SettingsScreen() {
             </View>
           </View>
           <View style={styles.rowSeparator} />
+          {/* Monthly takeoff page quota — distinct from the daily AI
+              request counters above. Takeoffs are page-metered (a
+              200-page hospital set burns 200 pages of quota); show the
+              user where they stand each month so an upload-time
+              surprise doesn't happen. */}
+          <View style={styles.row}>
+            <View style={[styles.iconWrap, { backgroundColor: '#7C3AED' }]}>
+              <FileText size={14} color="#fff" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.rowLabel}>
+                Takeoff: {takeoffQuota.used} of {takeoffQuota.cap} pages this month
+              </Text>
+              <View style={{ height: 6, backgroundColor: Colors.fillTertiary, borderRadius: 3, marginTop: 6 }}>
+                <View style={{
+                  height: 6,
+                  backgroundColor: takeoffQuota.cap > 0 && takeoffQuota.used / takeoffQuota.cap > 0.8 ? Colors.warningDark : '#7C3AED',
+                  borderRadius: 3,
+                  width: `${takeoffQuota.cap > 0 ? Math.min((takeoffQuota.used / takeoffQuota.cap) * 100, 100) : 0}%`,
+                }} />
+              </View>
+            </View>
+          </View>
+          <View style={styles.rowSeparator} />
           <View style={[styles.row, { paddingVertical: 10 }]}>
             <Text style={{ fontSize: Type.caption1.fontSize, color: Colors.textMuted, flex: 1 }}>
-              Resets daily at midnight · Plan: {tier === 'enterprise' ? 'Enterprise'
+              Daily AI resets at midnight · Takeoff resets the 1st · Plan: {tier === 'enterprise' ? 'Enterprise'
                 : tier === 'business' ? 'Business'
                 : tier === 'pro' ? 'Pro'
                 : 'Free'}

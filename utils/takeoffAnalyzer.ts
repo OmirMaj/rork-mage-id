@@ -7,7 +7,7 @@
 import { supabase } from '@/lib/supabase';
 import type { TakeoffResult } from '@/types';
 
-export type TakeoffModel = 'gemini-2.5-flash' | 'gemini-2.5-pro';
+export type TakeoffModel = 'gemini-2.5-flash' | 'gemini-2.5-pro' | 'claude-sonnet-4-5';
 
 export interface AnalyzeTakeoffOpts {
   /** 1..N publicly-fetchable PNG URLs (rendered from PDF). */
