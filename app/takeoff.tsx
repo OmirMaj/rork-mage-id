@@ -277,27 +277,19 @@ function TakeoffInner() {
 
   const handleConvertToEstimate = useCallback(() => {
     if (!result) return;
-    Alert.alert(
-      'Convert quantities into an estimate?',
-      'This pre-fills the estimate wizard with the takeoff line items so you can apply unit pricing. You\'ll review every line before sending.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Continue',
-          onPress: () => {
-            // For now we just pass a flag — the estimate wizard reads
-            // any pending takeoff from local state via a hook in Phase
-            // 1e. Until that hook lands the user lands on the wizard
-            // empty; that's fine, the takeoff result stays on this
-            // screen behind the user.
-            router.push({
-              pathname: '/estimate-wizard',
-              params: { fromTakeoff: '1', projectId: pickedProjectId },
-            });
-          },
-        },
-      ],
-    );
+    // New flow (May 2026): route to /takeoff-estimate, a dedicated screen
+    // that auto-prices every takeoff line via Gemini and shows them in an
+    // editable table with running totals. Pre-fix this routed to
+    // /estimate-wizard with `fromTakeoff: '1'`, but the wizard side never
+    // consumed the flag so the takeoff data was silently dropped — the
+    // user landed on a blank wizard and lost their numbers. The wizard is
+    // designed for "no plans yet, answer 8 questions"; takeoff is the
+    // opposite direction (real quantities from real drawings) so that
+    // path was always architecturally wrong.
+    router.push({
+      pathname: '/takeoff-estimate',
+      params: pickedProjectId ? { projectId: pickedProjectId } : {},
+    } as never);
   }, [result, router, pickedProjectId]);
 
   // Look up the AI's original value + confidence + sourcePages for a row
