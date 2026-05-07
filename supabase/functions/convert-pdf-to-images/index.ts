@@ -109,139 +109,183 @@ interface PageOutput {
   height: number;
 }
 
+// Wrap the whole handler in a top-level try so we never crash the worker
+// with a 546. Any thrown error becomes a JSON 500 with the message — the
+// previous implementation let mupdf throw upward and Supabase's runtime
+// killed the worker, costing the client a quota slot AND giving the GC
+// no signal what went wrong. We log every step so when this fails again
+// we know which step crashed without a redeploy + re-run.
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS_HEADERS });
   if (req.method !== 'POST') return json({ success: false, error: 'method not allowed' }, 405);
 
-  // Server-side paywall: PDF→PNG rendering is the front door of the
-  // estimate wizard pipeline (Pro/Business). Without this gate, anyone
-  // with the URL could submit a 200-page 500MB PDF as a free DoS attack
-  // OR free-ride the AI estimate flow by uploading their own PDF.
-  const auth = await requireTier(req, ['pro', 'business'], 'convert_pdf');
-  if (!auth.ok) return json(auth.body, auth.status);
+  const t0 = Date.now();
+  const log = (step: string, data?: Record<string, unknown>) => {
+    console.log(`[convert-pdf] +${Date.now() - t0}ms ${step}`, data ? JSON.stringify(data) : '');
+  };
 
-  let body: RequestBody;
   try {
-    body = await req.json();
-  } catch {
-    return json({ success: false, error: 'invalid JSON body' }, 400);
-  }
+    log('boot');
 
-  const { pdfStoragePath, projectId } = body;
-  const dpi = clamp(body.dpi ?? 144, 72, 300);
-  // Tier-aware page cap. Pro: 50/run (typical residential set is 8–30
-  // sheets). Business: 200/run for hospital / commercial sets. Stops a
-  // forged client from asking for 500 pages and exhausting wall-clock.
-  const HARD_PAGE_CAP = auth.tier === 'business' ? 200 : 50;
-  const maxPages = clamp(body.maxPages ?? HARD_PAGE_CAP, 1, HARD_PAGE_CAP);
+    // Server-side paywall: PDF→PNG rendering is the front door of the
+    // estimate wizard pipeline (Pro/Business). Without this gate, anyone
+    // with the URL could submit a 200-page 500MB PDF as a free DoS attack
+    // OR free-ride the AI estimate flow by uploading their own PDF.
+    const auth = await requireTier(req, ['pro', 'business'], 'convert_pdf');
+    if (!auth.ok) {
+      log('auth_failed', { status: auth.status });
+      return json(auth.body, auth.status);
+    }
+    log('auth_ok', { userId: auth.userId, tier: auth.tier });
 
-  if (!pdfStoragePath || !projectId) {
-    return json({ success: false, error: 'pdfStoragePath and projectId are required' }, 400);
-  }
+    let body: RequestBody;
+    try {
+      body = await req.json();
+    } catch {
+      return json({ success: false, error: 'invalid JSON body' }, 400);
+    }
 
-  // Monthly cap (matches drawing analyzer cap — they're the same
-  // pipeline). Increment first so the 31st run on Pro denies BEFORE the
-  // expensive render starts.
-  const used = await aiUsageIncrement(auth.userId, 'convert_pdf');
-  const cap = MONTHLY_CAPS[auth.tier].convert_pdf;
-  if (used > cap) {
+    const { pdfStoragePath, projectId } = body;
+    const dpi = clamp(body.dpi ?? 144, 72, 300);
+    // Tier-aware page cap. Pro: 50/run (typical residential set is 8–30
+    // sheets). Business: 200/run for hospital / commercial sets. Stops a
+    // forged client from asking for 500 pages and exhausting wall-clock.
+    const HARD_PAGE_CAP = auth.tier === 'business' ? 200 : 50;
+    const maxPages = clamp(body.maxPages ?? HARD_PAGE_CAP, 1, HARD_PAGE_CAP);
+
+    if (!pdfStoragePath || !projectId) {
+      return json({ success: false, error: 'pdfStoragePath and projectId are required' }, 400);
+    }
+    log('body_parsed', { pdfStoragePath, projectId, dpi, maxPages });
+
+    // Monthly cap (matches drawing analyzer cap — they're the same
+    // pipeline). Increment first so the 31st run on Pro denies BEFORE the
+    // expensive render starts.
+    const used = await aiUsageIncrement(auth.userId, 'convert_pdf');
+    const cap = MONTHLY_CAPS[auth.tier].convert_pdf;
+    if (used > cap) {
+      return json({
+        success: false,
+        error: `Monthly PDF-conversion limit reached (${cap} on ${auth.tier}). Resets on the 1st.`,
+        code: 'monthly_cap_reached',
+        used, cap,
+      }, 429);
+    }
+    log('cap_ok', { used, cap });
+
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+
+    // 1. Download the PDF.
+    const { data: pdfBlob, error: dlErr } = await supabase.storage
+      .from(PDF_BUCKET)
+      .download(pdfStoragePath);
+    if (dlErr || !pdfBlob) {
+      log('download_failed', { err: dlErr?.message });
+      return json({ success: false, error: `download failed: ${dlErr?.message ?? 'no blob'}` }, 500);
+    }
+    const pdfBytes = new Uint8Array(await pdfBlob.arrayBuffer());
+    log('downloaded', { bytes: pdfBytes.length });
+
+    // 2. Parse with mupdf.
+    //    Document.openDocument dispatches on MIME type; passing
+    //    'application/pdf' explicitly avoids any sniff misfire on PDFs that
+    //    have unusual headers. mupdf throws synchronously on parse failure.
+    let doc: MupdfDocument;
+    try {
+      log('mupdf_parse_start');
+      doc = mupdf.Document.openDocument(pdfBytes, 'application/pdf') as MupdfDocument;
+      log('mupdf_parse_ok');
+    } catch (err) {
+      log('mupdf_parse_failed', { err: (err as Error).message });
+      return json({ success: false, error: `pdf parse failed: ${(err as Error).message}` }, 400);
+    }
+
+    const totalPages = doc.countPages();
+    const pageCount = Math.min(totalPages, maxPages);
+    if (pageCount === 0) {
+      doc.destroy?.();
+      return json({ success: false, error: 'pdf has no pages' }, 400);
+    }
+    log('pages_counted', { totalPages, pageCount });
+
+    // 3. Render → encode → upload, page by page. We destroy each pixmap +
+    //    page immediately after upload to keep peak memory bounded across
+    //    long sets. mupdf objects are WASM-allocated so without explicit
+    //    destroy() they only release on isolate teardown — fatal at 50+
+    //    high-DPI pages.
+    const scale = dpi / 72;
+    // Matrix.scale(sx, sy) returns a 6-tuple [a,b,c,d,e,f]; toPixmap takes
+    // it directly. The API is stable across mupdf 1.x.
+    const matrix = mupdf.Matrix.scale(scale, scale);
+    const colorSpace = mupdf.ColorSpace.DeviceRGB;
+
+    const outputs: PageOutput[] = [];
+    const baseId = crypto.randomUUID();
+
+    for (let i = 0; i < pageCount; i++) {
+      let page: MupdfPage | undefined;
+      let pixmap: MupdfPixmap | undefined;
+      try {
+        log(`page_${i + 1}_start`);
+        page = doc.loadPage(i);
+        // toPixmap(matrix, colorSpace, alpha?). We pass alpha=false because
+        // PNG encoding then skips the alpha channel — saves ~25% on
+        // outbound bytes for opaque architectural drawings.
+        pixmap = page.toPixmap(matrix, colorSpace, false);
+
+        const width = pixmap.getWidth();
+        const height = pixmap.getHeight();
+        log(`page_${i + 1}_rendered`, { width, height });
+        const pngBytes = pixmap.asPNG();
+        log(`page_${i + 1}_encoded`, { pngBytes: pngBytes.length });
+
+        const outPath = `${projectId}/${baseId}-page-${i + 1}.png`;
+        const { error: upErr } = await supabase.storage
+          .from(PNG_BUCKET)
+          .upload(outPath, pngBytes, { contentType: 'image/png', upsert: false });
+        if (upErr) {
+          log(`page_${i + 1}_upload_failed`, { err: upErr.message });
+          return json({ success: false, error: `upload page ${i + 1} failed: ${upErr.message}` }, 500);
+        }
+
+        const { data: pub } = supabase.storage.from(PNG_BUCKET).getPublicUrl(outPath);
+        outputs.push({
+          pageNumber: i + 1,
+          storagePath: outPath,
+          publicUrl: pub.publicUrl,
+          width,
+          height,
+        });
+        log(`page_${i + 1}_done`);
+      } finally {
+        // Always release WASM-side memory, even on error.
+        try { pixmap?.destroy?.(); } catch { /* ignore */ }
+        try { page?.destroy?.(); } catch { /* ignore */ }
+      }
+    }
+
+    try { doc.destroy?.(); } catch { /* ignore */ }
+
+    // 4. Best-effort delete the source PDF — PNGs are the system of record now
+    //    and storage costs compound. We don't fail the request if this errors.
+    supabase.storage.from(PDF_BUCKET).remove([pdfStoragePath]).catch(() => {});
+
+    log('done', { totalMs: Date.now() - t0, pagesRendered: outputs.length });
+    return json({ success: true, pages: outputs }, 200);
+  } catch (err) {
+    // Top-level catch — anything thrown above (mupdf WASM crash, OOM, etc.)
+    // becomes a clean 500 with a message instead of a 546 worker-died.
+    console.error('[convert-pdf] FATAL:', err);
+    const msg = err instanceof Error ? err.message : String(err);
+    const stack = err instanceof Error ? err.stack : undefined;
     return json({
       success: false,
-      error: `Monthly PDF-conversion limit reached (${cap} on ${auth.tier}). Resets on the 1st.`,
-      code: 'monthly_cap_reached',
-      used, cap,
-    }, 429);
+      error: `Render crashed: ${msg}`,
+      stack: stack?.slice(0, 800),
+    }, 500);
   }
-
-  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-
-  // 1. Download the PDF.
-  const { data: pdfBlob, error: dlErr } = await supabase.storage
-    .from(PDF_BUCKET)
-    .download(pdfStoragePath);
-  if (dlErr || !pdfBlob) {
-    return json({ success: false, error: `download failed: ${dlErr?.message ?? 'no blob'}` }, 500);
-  }
-  const pdfBytes = new Uint8Array(await pdfBlob.arrayBuffer());
-
-  // 2. Parse with mupdf.
-  //    Document.openDocument dispatches on MIME type; passing
-  //    'application/pdf' explicitly avoids any sniff misfire on PDFs that
-  //    have unusual headers. mupdf throws synchronously on parse failure.
-  let doc: MupdfDocument;
-  try {
-    doc = mupdf.Document.openDocument(pdfBytes, 'application/pdf') as MupdfDocument;
-  } catch (err) {
-    return json({ success: false, error: `pdf parse failed: ${(err as Error).message}` }, 400);
-  }
-
-  const totalPages = doc.countPages();
-  const pageCount = Math.min(totalPages, maxPages);
-  if (pageCount === 0) {
-    doc.destroy?.();
-    return json({ success: false, error: 'pdf has no pages' }, 400);
-  }
-
-  // 3. Render → encode → upload, page by page. We destroy each pixmap +
-  //    page immediately after upload to keep peak memory bounded across
-  //    long sets. mupdf objects are WASM-allocated so without explicit
-  //    destroy() they only release on isolate teardown — fatal at 50+
-  //    high-DPI pages.
-  const scale = dpi / 72;
-  // Matrix.scale(sx, sy) returns a 6-tuple [a,b,c,d,e,f]; toPixmap takes
-  // it directly. The API is stable across mupdf 1.x.
-  const matrix = mupdf.Matrix.scale(scale, scale);
-  const colorSpace = mupdf.ColorSpace.DeviceRGB;
-
-  const outputs: PageOutput[] = [];
-  const baseId = crypto.randomUUID();
-
-  for (let i = 0; i < pageCount; i++) {
-    let page: MupdfPage | undefined;
-    let pixmap: MupdfPixmap | undefined;
-    try {
-      page = doc.loadPage(i);
-      // toPixmap(matrix, colorSpace, alpha?). We pass alpha=false because
-      // PNG encoding then skips the alpha channel — saves ~25% on
-      // outbound bytes for opaque architectural drawings.
-      pixmap = page.toPixmap(matrix, colorSpace, false);
-
-      const width = pixmap.getWidth();
-      const height = pixmap.getHeight();
-      const pngBytes = pixmap.asPNG();
-
-      const outPath = `${projectId}/${baseId}-page-${i + 1}.png`;
-      const { error: upErr } = await supabase.storage
-        .from(PNG_BUCKET)
-        .upload(outPath, pngBytes, { contentType: 'image/png', upsert: false });
-      if (upErr) {
-        return json({ success: false, error: `upload page ${i + 1} failed: ${upErr.message}` }, 500);
-      }
-
-      const { data: pub } = supabase.storage.from(PNG_BUCKET).getPublicUrl(outPath);
-      outputs.push({
-        pageNumber: i + 1,
-        storagePath: outPath,
-        publicUrl: pub.publicUrl,
-        width,
-        height,
-      });
-    } finally {
-      // Always release WASM-side memory, even on error.
-      try { pixmap?.destroy?.(); } catch { /* ignore */ }
-      try { page?.destroy?.(); } catch { /* ignore */ }
-    }
-  }
-
-  try { doc.destroy?.(); } catch { /* ignore */ }
-
-  // 4. Best-effort delete the source PDF — PNGs are the system of record now
-  //    and storage costs compound. We don't fail the request if this errors.
-  supabase.storage.from(PDF_BUCKET).remove([pdfStoragePath]).catch(() => {});
-
-  return json({ success: true, pages: outputs }, 200);
 });
 
 // ---------------------------------------------------------------------------
