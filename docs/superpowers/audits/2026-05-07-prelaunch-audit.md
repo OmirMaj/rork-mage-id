@@ -47,7 +47,17 @@ _Walked in Task 3. Step results listed below; failed assertions point to §5 pun
 
 _Walked in Tasks 4 + 5. Step results listed below._
 
-(empty — populated by Tasks 4 + 5)
+| Step | Result | Notes |
+|---|---|---|
+| 1. RFP intake | **PASS** | `rfp-detail.tsx` queries `bid_responses` table cleanly. Spec-book parsing via `extract-submittals.tsx` + `analyze-spec-book` edge fn (quality verification is Phase 2). |
+| 2. Bid response | **FAIL A7** → AUD-011 (filed in Path 1) | `submit-bid-response.tsx:94` direct insert bypasses offline queue. |
+| 3. Award | **PASS** | `award-rfp` edge fn is well-architected: atomic via service-role key, JWT-verified caller ownership of `public_bid`, sets bid_response.status='awarded', closes bid, creates project in awarded contractor's account, sets up clientPortal. Loser bidders updated via standard RLS. |
+| 4. Prequal + COI | **PASS** (strong) | `PrequalPacket` (types/index.ts:1639-1670) keys on `subcontractorId` not `gcId` — packets are stored per-sub, federated. `projectId` is optional ("set when packet is gated to a specific project's criteria"). Magic-link invite via `inviteToken` (no auth needed). `coi-expiry-watch` edge fn: daily cron, 30/14/7-day thresholds + day-after-overdue, dedup via `coi_last_warned_at` + `coi_last_warned_threshold` so 30-day warning fires once not daily. Better than competitors. |
+| 5. AIA contract | **PASS** | Same `contract.tsx` covered in Path 1 step 6. ProjectContract has `version: number`. |
+| 6. SOV creation | **FAIL A1, A2** → AUD-013 | The "single SOV" the spec called for does NOT exist as a stable system-of-record. Chain is: ProjectContract.lineItems → LinkedEstimateItem (bill-from-estimate working state) → InvoiceLineItem → AIASOVLine (seeded from invoice via `seedAIAPayApplicationFromInvoice`). Four distinct line-item structures, no shared ID. CO cascade depends on each hop re-seeding correctly. Pay-app carry-forward keys on `itemNo` (lines 119-130) — strong fix for the most-complained-about Procore behavior, but doesn't address the upstream chain fragility. |
+| 7. Project init + Gantt | **PASS** (strong) | `schedule-pro.tsx:58, 183, 204` uses `runCpm` from `utils/cpm` — real critical-path computation, near-critical-float threshold for "yellow" tasks, composite `ScheduleHealthScore`. Fragnets and baselines tracked (types/index.ts ScheduleBaseline, ScheduleFragnet). Better than most competitor offerings. |
+| 8. Long-lead submittals | **PASS** A4 (predicted; verify Phase 2 status-blocks-task) | `submittal.tsx:197-198` reads `project?.schedule?.tasks` and exposes `linkedTaskId` so a submittal can target a specific schedule activity. The link is bidirectional in the data model. Whether status changes (e.g. "Revise & Resubmit") visibly gate or warn on the dependent task is verified in Phase 2 — the linkage exists; the UI treatment may or may not be active. |
+| 9. Buyout + sub onboarding | **PASS** A3 (verify Phase 2 web portal) | `SubPortalLink` (types/index.ts:1985-2002) has `commitmentIds?: string[]` to scope the portal — "If empty the portal shows all commitments tied to this sub on this project." Sub experience runs at `marketing/sub-portal/` (web) gated by `portalId` token + RLS. The in-app `sub-portals.tsx` list is GC-side. Cross-sub leakage check is Phase 2 hardware. |
 
 ### 2.3 Path 3 — Internal GC operations
 
@@ -115,7 +125,7 @@ _Walked in Task 7. 30-item checklist from spec §7 with green/yellow/red status 
 
 _All findings, all sources. Use the finding template defined in the plan. Sort by AUD-### ascending._
 
-**Finding ID counter:** next is AUD-013.
+**Finding ID counter:** next is AUD-014.
 
 ### AUD-001 — Offline queue silently drops non-network Supabase errors
 - **severity:** should
@@ -281,6 +291,26 @@ _All findings, all sources. Use the finding template defined in the plan. Sort b
 - **delivery:** OTA
 - **xref:** AUD-001
 - **status:** confirmed-headless
+
+### AUD-013 — SOV is not a stable system-of-record across contract / linked-estimate / invoice / AIA pay app
+- **severity:** should
+- **source:** path-2
+- **step:** 6
+- **assertions:** A1 (data continuity), A2 (bidirectional updates), A10 (revision integrity)
+- **personas:** PM, owner-commercial, sub (via pay-app gating)
+- **expected:** A single Schedule of Values (SOV) record per project, where each line item has a stable ID. Schedule activities, invoice line items, AIA G703 rows, change orders, and commitments all reference SOV line items by ID. An edit to one SOV line propagates to all consumers; an approved CO either edits the SOV line or adds a new SOV line that flows through to all dependents.
+- **actual:** Four distinct line-item structures with no shared identity:
+  1. `ProjectContract.lineItems` — contract scope (covered by AUD-005's missing-version note for revisions).
+  2. `LinkedEstimate` / `LinkedEstimateItem` — `bill-from-estimate.tsx` working state, references contract.
+  3. `InvoiceLineItem` — copies into invoices.
+  4. `AIASOVLine` — seeded from invoice via `seedAIAPayApplicationFromInvoice` (`utils/aiaBilling.ts`), keyed by `itemNo`.
+  CO cascade therefore depends on each hop re-seeding correctly. The carry-forward at `aia-pay-app.tsx:119-130` correctly keys subsequent pay apps on `itemNo` — strong fix for one of the most-complained-about Procore behaviors. But upstream, an approved CO doesn't automatically rewrite InvoiceLineItem or LinkedEstimateItem records of in-flight invoices; the GC has to re-bill or manually adjust.
+- **repro:** 1. Build a contract with 5 SOV-equivalent line items. 2. Issue an invoice billing 30% complete on item 3. 3. Approve a CO that adds a new line item 6 and modifies item 3's quantity. 4. Open the next month's AIA pay app. 5. Verify whether item 3's revised total + the new item 6 appear correctly without manual re-entry.
+- **screens / files:** `app/contract.tsx`, `app/bill-from-estimate.tsx`, `app/invoice.tsx`, `app/aia-pay-app.tsx`, `utils/aiaBilling.ts`, `types/index.ts` (ProjectContract, LinkedEstimate, Invoice, SavedAIAPayApp, ChangeOrder).
+- **scope:** L (introducing a unified SOV record with stable line-item IDs is non-trivial; could be incremental — start by ensuring approved COs propagate to LinkedEstimate as new lines, since that's where downstream cascading begins)
+- **delivery:** OTA
+- **xref:** competitor universal complaint #6 in spec §7
+- **status:** confirmed-headless (multi-hop chain confirmed; whether each hop re-seeds in practice is Phase 2)
 
 ### AUD-012 — `post-rfp.tsx` insert bypasses offline queue
 - **severity:** defer
