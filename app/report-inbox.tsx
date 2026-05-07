@@ -301,8 +301,13 @@ export default function ReportInboxScreen() {
         <EmptyState
           icon={<ArrowDownRight size={32} color={Colors.primary} />}
           title="Nothing in this slice"
-          message="Try a different filter combo above — or jump back to a project to create a new invoice, change order, or daily report."
-          actionLabel="Back to projects"
+          message="Report Inbox shows DFRs, RFIs, submittals, invoices, and change orders across every project. To populate it:"
+          steps={[
+            'Open a project from the Projects tab.',
+            'Create a daily report, RFI, submittal, invoice, or change order from its tile grid.',
+            'It lands here automatically — switch the chips above to filter by type or project.',
+          ]}
+          actionLabel="Open Projects"
           onAction={() => router.replace('/(tabs)/(home)' as never)}
         />
       ) : (

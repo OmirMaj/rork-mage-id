@@ -12,6 +12,7 @@ import {
   TrendingUp, TrendingDown, DollarSign, Clock, Target, BarChart3,
   Sparkles,
 } from 'lucide-react-native';
+import EmptyState from '@/components/EmptyState';
 import Svg, { Path, Line } from 'react-native-svg';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
@@ -55,6 +56,7 @@ export default function BudgetDashboardScreen() {
 
 function BudgetDashboardScreenInner() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
   const { getProject, invoices } = useProjects();
 
@@ -139,9 +141,20 @@ Be specific and actionable. Use construction industry terminology.`;
 
   if (!project || !metrics) {
     return (
-      <View style={[styles.container, styles.center]}>
+      <View style={styles.container}>
         <Stack.Screen options={{ title: 'Budget Dashboard' }} />
-        <Text style={styles.emptyText}>Project not found</Text>
+        <EmptyState
+          icon={<BarChart3 size={36} color={Colors.primary} strokeWidth={1.6} />}
+          title="No project to chart yet"
+          message="The budget dashboard tracks earned value (CPI / SPI) against an estimate. To see one:"
+          steps={[
+            'Open or create a project from the Projects tab.',
+            'Build an estimate so the dashboard has a planned budget to chart against.',
+            'Tap Budget Dashboard inside the project tile grid.',
+          ]}
+          actionLabel="Open Projects"
+          onAction={() => router.push('/(tabs)/(home)' as any)}
+        />
       </View>
     );
   }

@@ -10,8 +10,9 @@ import {
   Globe, Copy, Send, Trash2, Eye, EyeOff, CheckCircle2,
   CalendarDays, DollarSign, Image, FileText, ClipboardList,
   MessageSquare, BarChart3, Users, ChevronLeft, Plus, Link, Clock, Lock,
-  Mail, RefreshCw, Sparkles, Check, X, HandCoins, Sunrise,
+  Mail, RefreshCw, Sparkles, Check, X, HandCoins, Sunrise, Briefcase,
 } from 'lucide-react-native';
+import EmptyState from '@/components/EmptyState';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import type { ClientPortalSettings, ClientPortalInvite } from '@/types';
@@ -555,7 +556,25 @@ function ClientPortalSetupScreenInner() {
     ]);
   }, [id, portal, updateProject, router]);
 
-  if (!project) return null;
+  if (!project) {
+    return (
+      <View style={{ flex: 1, backgroundColor: Colors.background }}>
+        <Stack.Screen options={{ title: 'Client Portal' }} />
+        <EmptyState
+          icon={<Briefcase size={36} color={Colors.primary} strokeWidth={1.6} />}
+          title="No client portal set up yet"
+          message="Each project gets its own private homeowner portal with progress, photos, selections, and pay buttons. To set one up:"
+          steps={[
+            'Open or create a project from the Projects tab.',
+            'Tap Client Portal inside the project tile grid.',
+            'Toggle which sections to share, then send the magic link to the homeowner.',
+          ]}
+          actionLabel="Open Projects"
+          onAction={() => router.push('/(tabs)/(home)' as any)}
+        />
+      </View>
+    );
+  }
 
   return (
     <>

@@ -22,8 +22,9 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import {
   DollarSign, TrendingUp, TrendingDown, AlertTriangle, Plus,
   FileSignature, ChevronRight, ChevronLeft, Trash2, X, Check,
-  CheckCircle2, Clock,
+  CheckCircle2, Clock, Calculator,
 } from 'lucide-react-native';
+import EmptyState from '@/components/EmptyState';
 import * as Haptics from 'expo-haptics';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
@@ -97,9 +98,20 @@ function JobCostingInner() {
 
   if (!project) {
     return (
-      <View style={styles.errorWrap}>
+      <View style={{ flex: 1, backgroundColor: Colors.background }}>
         <Stack.Screen options={{ title: 'Job Costing' }} />
-        <Text style={styles.errorText}>Project not found.</Text>
+        <EmptyState
+          icon={<Calculator size={36} color={Colors.primary} strokeWidth={1.6} />}
+          title="No project to cost yet"
+          message="Job costing rolls up commitments, invoices, and change orders for one project. To see live numbers:"
+          steps={[
+            'Open or create a project from the Projects tab.',
+            'Inside the project, log a sub commitment, invoice, or change order.',
+            'Tap Job Costing in the project tile grid to see budget vs. actual.',
+          ]}
+          actionLabel="Open Projects"
+          onAction={() => router.push('/(tabs)/(home)' as any)}
+        />
       </View>
     );
   }

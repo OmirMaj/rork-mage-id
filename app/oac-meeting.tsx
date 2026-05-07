@@ -24,6 +24,7 @@ import {
   ChevronLeft, Plus, Sparkles, RefreshCw, Send, CheckCircle2, Circle,
   Mic, X, Users, Calendar, AlertTriangle, Clock, Upload,
 } from 'lucide-react-native';
+import EmptyState from '@/components/EmptyState';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { Colors } from '@/constants/colors';
@@ -365,12 +366,20 @@ function OACMeetingInner() {
 
   if (!project) {
     return (
-      <View style={[styles.container, styles.center]}>
+      <View style={styles.container}>
         <Stack.Screen options={{ title: 'OAC Meetings' }} />
-        <Text style={styles.notFound}>Project not found</Text>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Text style={styles.backBtnText}>Back</Text>
-        </TouchableOpacity>
+        <EmptyState
+          icon={<Users size={36} color={Colors.primary} strokeWidth={1.6} />}
+          title="No OAC meeting open yet"
+          message="Owner-Architect-Contractor meetings live inside a project so attendees, agenda, and minutes stay tied together. To start one:"
+          steps={[
+            'Open or create a project from the Projects tab.',
+            'Tap OAC Meetings inside the project tile grid.',
+            'Add attendees, paste or dictate the agenda, then capture minutes mid-meeting.',
+          ]}
+          actionLabel="Open Projects"
+          onAction={() => router.push('/(tabs)/(home)' as any)}
+        />
       </View>
     );
   }

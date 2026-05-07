@@ -6,7 +6,8 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { Save, ChevronDown, Link2, X, CheckCircle2, Send } from 'lucide-react-native';
+import { Save, ChevronDown, Link2, X, CheckCircle2, Send, FileText } from 'lucide-react-native';
+import EmptyState from '@/components/EmptyState';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { FeatureHeader } from '@/components/FeatureHeader';
@@ -220,6 +221,26 @@ function RFIScreenInner() {
       setSending(false);
     }
   }, [existingRFI, project, sendEmail_To, sendEmail_Name, sendEmail_Note, settings]);
+
+  if (!project && !existingRFI) {
+    return (
+      <View style={{ flex: 1, backgroundColor: Colors.background }}>
+        <Stack.Screen options={{ title: 'RFIs' }} />
+        <EmptyState
+          icon={<FileText size={36} color={Colors.primary} strokeWidth={1.6} />}
+          title="No RFI open yet"
+          message="RFIs (Requests for Information) attach to a project so the answer becomes part of that job's record. To send one:"
+          steps={[
+            'Open or create a project from the Projects tab.',
+            'Tap RFIs inside the project tile grid.',
+            'Hit Ask the Architect, dictate the question, set a deadline, and send.',
+          ]}
+          actionLabel="Open Projects"
+          onAction={() => router.push('/(tabs)/(home)' as any)}
+        />
+      </View>
+    );
+  }
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>

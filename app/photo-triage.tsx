@@ -28,6 +28,7 @@ import {
   Camera, ImagePlus, Sparkles, X, Trash2, ChevronLeft,
   AlertCircle, ClipboardList, MessageSquare, FileText, Image as ImageIcon, Sparkle,
 } from 'lucide-react-native';
+import EmptyState from '@/components/EmptyState';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import {
@@ -311,9 +312,20 @@ export default function PhotoTriageScreen() {
   // ── Render ─────────────────────────────────────────────────────
   if (!project) {
     return (
-      <View style={styles.loadingContainer}>
+      <View style={{ flex: 1, backgroundColor: Colors.background }}>
         <Stack.Screen options={{ title: 'Photo Triage' }} />
-        <Text style={styles.loadingText}>Project not found.</Text>
+        <EmptyState
+          icon={<Camera size={36} color={Colors.primary} strokeWidth={1.6} />}
+          title="No project to triage yet"
+          message="Photo Triage uploads field photos to a project so AI can flag punch items, RFIs, or progress shots. To run a batch:"
+          steps={[
+            'Open or create a project from the Projects tab.',
+            'Tap Photo Triage inside the project tile grid.',
+            'Pick photos or take new ones — AI will sort them into actionable buckets.',
+          ]}
+          actionLabel="Open Projects"
+          onAction={() => router.push('/(tabs)/(home)' as any)}
+        />
       </View>
     );
   }

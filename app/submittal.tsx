@@ -6,7 +6,8 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { Save, Plus, Link2, X, CheckCircle2, ChevronDown, Share2, Send } from 'lucide-react-native';
+import { Save, Plus, Link2, X, CheckCircle2, ChevronDown, Share2, Send, FileText } from 'lucide-react-native';
+import EmptyState from '@/components/EmptyState';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { FeatureHeader } from '@/components/FeatureHeader';
@@ -246,6 +247,26 @@ function SubmittalScreenInner() {
     setShowAddCycle(false);
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   }, [existingSubmittal, newReviewer, newCycleStatus, newCycleComments, addReviewCycle]);
+
+  if (!project && !existingSubmittal) {
+    return (
+      <View style={{ flex: 1, backgroundColor: Colors.background }}>
+        <Stack.Screen options={{ title: 'Submittals' }} />
+        <EmptyState
+          icon={<FileText size={36} color={Colors.primary} strokeWidth={1.6} />}
+          title="No submittal open yet"
+          message="Submittals route product specs through the architect for sign-off, then attach to the project's record. To start one:"
+          steps={[
+            'Open or create a project from the Projects tab.',
+            'Tap Submittals inside the project tile grid.',
+            'Hit Approval Before Order, attach the cut sheet, and send for review.',
+          ]}
+          actionLabel="Open Projects"
+          onAction={() => router.push('/(tabs)/(home)' as any)}
+        />
+      </View>
+    );
+  }
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>

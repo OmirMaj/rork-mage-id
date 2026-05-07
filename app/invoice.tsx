@@ -9,8 +9,9 @@ import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
   Trash2, X, Send, CreditCard, Check, BookUser, User, Percent, Unlock, FileSpreadsheet,
-  Link2, Copy, Share2, Zap, FileText,
+  Link2, Copy, Share2, Zap, FileText, Receipt,
 } from 'lucide-react-native';
+import EmptyState from '@/components/EmptyState';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
@@ -735,12 +736,20 @@ function InvoiceInner() {
 
   if (!project) {
     return (
-      <View style={[styles.container, styles.center]}>
-        <Stack.Screen options={{ title: 'Invoice' }} />
-        <Text style={styles.notFoundText}>Project not found</Text>
-        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-          <Text style={styles.backBtnText}>Go Back</Text>
-        </TouchableOpacity>
+      <View style={styles.container}>
+        <Stack.Screen options={{ title: 'Invoices' }} />
+        <EmptyState
+          icon={<Receipt size={36} color={Colors.primary} strokeWidth={1.6} />}
+          title="No invoice open yet"
+          message="Invoices live inside a project so they roll up to the right billing total. To create one:"
+          steps={[
+            'Open or create a project from the Projects tab.',
+            'Tap Invoices in the project tile grid.',
+            'Hit + New Invoice and bill against an estimate or line items.',
+          ]}
+          actionLabel="Open Projects"
+          onAction={() => router.push('/(tabs)/(home)' as any)}
+        />
       </View>
     );
   }

@@ -3,8 +3,9 @@ import {
   View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, KeyboardAvoidingView, Platform,
   Animated,
 } from 'react-native';
-import { useLocalSearchParams, Stack } from 'expo-router';
-import { Send, ChevronDown } from 'lucide-react-native';
+import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
+import { Send, ChevronDown, MessageCircle } from 'lucide-react-native';
+import EmptyState from '@/components/EmptyState';
 import * as Haptics from 'expo-haptics';
 import { Colors } from '@/constants/colors';
 import { useHire } from '@/contexts/HireContext';
@@ -16,6 +17,7 @@ import { Tokens } from '@/constants/designTokens';
 
 export default function MessagesScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const router = useRouter();
   const { conversations, getConversationMessages, sendMessage } = useHire();
   const { user } = useAuth();
   const { clearBadge } = useNotifications();
@@ -92,6 +94,30 @@ export default function MessagesScreen() {
       <Text style={styles.onlineText}>Online</Text>
     </View>
   );
+
+  // Direct sidebar hits land here without a conversation id. Show how to
+  // open one instead of an empty screen with no context.
+  if (!id) {
+    return (
+      <View style={styles.container}>
+        <Stack.Screen options={{ title: 'Messages' }} />
+        <EmptyState
+          icon={<MessageCircle size={36} color={Colors.primary} strokeWidth={1.6} />}
+          title="No conversation open yet"
+          message="Messages live inside hires and subs you've connected with. To start a thread:"
+          steps={[
+            'Open Hire from the sidebar to see active hires, or Subs for your sub roster.',
+            'Tap a person to open their profile.',
+            'Hit Message to start chatting — replies show up here automatically.',
+          ]}
+          actionLabel="Open Hire"
+          onAction={() => router.push('/(tabs)/discover/hire' as any)}
+          secondaryLabel="View Subs"
+          onSecondaryAction={() => router.push('/(tabs)/subs' as any)}
+        />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>

@@ -286,9 +286,9 @@ export default function CachedCompaniesScreen() {
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <AlertCircle size={40} color={Colors.textMuted} />
-              <Text style={styles.emptyTitle}>No companies found</Text>
+              <Text style={styles.emptyTitle}>No companies match yet</Text>
               <Text style={styles.emptySubtitle}>
-                Try increasing the radius or changing the specialty filter
+                Companies are construction firms publishing public profiles in your area. Try a wider radius, clear the specialty filter, or check back as more companies join.
               </Text>
             </View>
           }

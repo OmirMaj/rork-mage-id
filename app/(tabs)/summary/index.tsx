@@ -212,7 +212,14 @@ export default function SummaryScreen() {
         <EmptyState
           icon={<FolderOpen size={36} color={Colors.primary} />}
           title="No projects yet"
-          message="Create a project from the Projects tab and its summary will show up here."
+          message="Summary rolls up budget, outstanding cash, punch, and risk across every project. To populate it:"
+          steps={[
+            'Open the Projects tab from the sidebar.',
+            'Tap + New Project (or Try a sample project) to spin one up.',
+            'Come back here once you have estimates, invoices, or daily reports flowing.',
+          ]}
+          actionLabel="Open Projects"
+          onAction={() => router.push('/(tabs)/(home)' as any)}
         />
       </View>
     );

@@ -11,8 +11,9 @@ import {
   Plus, Trash2, X, Send, Cloud, Wind, Thermometer, Camera, Users,
   HardHat, Package, AlertTriangle, Image as ImageIcon, BookUser, User,
   Sparkles, Home as HomeIcon, RefreshCw, Copy, CheckCircle2,
-  CalendarDays, ChevronLeft, Tractor, Wrench, ChartBar, BarChart3,
+  CalendarDays, ChevronLeft, Tractor, Wrench, ChartBar, BarChart3, ClipboardList,
 } from 'lucide-react-native';
+import EmptyState from '@/components/EmptyState';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import ContactPickerModal from '@/components/ContactPickerModal';
@@ -623,12 +624,20 @@ export default function DailyReportScreen() {
 
   if (!project) {
     return (
-      <View style={[styles.container, styles.center]}>
+      <View style={styles.container}>
         <Stack.Screen options={{ title: 'Daily Report' }} />
-        <Text style={styles.notFoundText}>Project not found</Text>
-        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-          <Text style={styles.backBtnText}>Go Back</Text>
-        </TouchableOpacity>
+        <EmptyState
+          icon={<ClipboardList size={36} color={Colors.primary} strokeWidth={1.6} />}
+          title="No daily report open yet"
+          message="Daily field reports (DFRs) log weather, manpower, and progress on a specific project. To start one:"
+          steps={[
+            'Open or create a project from the Projects tab.',
+            'Tap Daily Report inside the project tile grid.',
+            'Voice-dictate the day or fill weather, crew, and progress fields, then submit.',
+          ]}
+          actionLabel="Open Projects"
+          onAction={() => router.push('/(tabs)/(home)' as any)}
+        />
       </View>
     );
   }

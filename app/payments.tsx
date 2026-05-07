@@ -325,11 +325,18 @@ export default function PaymentsScreen() {
 
         <View style={styles.listSection}>
           {filtered.length === 0 ? (
-            <View style={{ minHeight: 320 }}>
+            <View style={{ minHeight: 360 }}>
               <EmptyState
                 icon={<CreditCard size={32} color={Colors.primary} />}
                 title="No payments yet"
-                message="Once a client pays an invoice — by ACH, card, or check you log manually — payments land here with full history and provider info."
+                message="Payments show up here the moment a client pays an invoice or you log a check. To collect your first one:"
+                steps={[
+                  'Open a project and create an invoice with a Stripe pay link.',
+                  'Send the invoice — the client taps Pay or you mark a check received.',
+                  'Payments, fees, and provider details land on this screen automatically.',
+                ]}
+                actionLabel="Open Projects"
+                onAction={() => router.push('/(tabs)/(home)' as any)}
               />
             </View>
           ) : (

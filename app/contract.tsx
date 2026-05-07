@@ -23,6 +23,7 @@ import {
   ChevronLeft, FileText, Plus, Trash2, DollarSign, Calendar, Send,
   CheckCircle2, AlertTriangle, Edit3, FileSignature, ChevronRight,
 } from 'lucide-react-native';
+import EmptyState from '@/components/EmptyState';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -333,7 +334,26 @@ export default function ContractScreen() {
     }
   }, [contract, project, ctxUpdateProject, settings]);
 
-  if (loading || !contract || !project) {
+  if (!project) {
+    return (
+      <View style={[styles.container, { paddingTop: insets.top + 16 }]}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <EmptyState
+          icon={<FileSignature size={36} color={Colors.primary} strokeWidth={1.6} />}
+          title="No contract open yet"
+          message="Contracts (scope, payment schedule, allowances, signatures) live inside a project. To start one:"
+          steps={[
+            'Open or create a project from the Projects tab.',
+            'Tap Contracts inside the project tile grid.',
+            'Edit the seeded draft, sign as the GC, and send to the homeowner for counter-signature.',
+          ]}
+          actionLabel="Open Projects"
+          onAction={() => router.push('/(tabs)/(home)' as any)}
+        />
+      </View>
+    );
+  }
+  if (loading || !contract) {
     return (
       <View style={[styles.container, styles.center, { paddingTop: insets.top + 24 }]}>
         <Stack.Screen options={{ headerShown: false }} />

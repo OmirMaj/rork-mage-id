@@ -18,6 +18,7 @@ import * as Haptics from 'expo-haptics';
 import {
   ChevronLeft, Cloud, Users, ClipboardList, FileText, Receipt, Camera, Repeat, AlertTriangle, CheckCircle2, TrendingDown, TrendingUp,
 } from 'lucide-react-native';
+import EmptyState from '@/components/EmptyState';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import FilterChipRow, { type FilterChip } from '@/components/FilterChipRow';
@@ -168,9 +169,20 @@ export default function WeeklySnapshotScreen() {
 
   if (!project) {
     return (
-      <View style={[styles.center, { paddingTop: insets.top + 80 }]}>
-        <Text style={styles.notFound}>Project not found</Text>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}><Text style={styles.backBtnText}>Go back</Text></TouchableOpacity>
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <Stack.Screen options={{ title: 'Weekly Snapshot' }} />
+        <EmptyState
+          icon={<TrendingUp size={36} color={Colors.primary} strokeWidth={1.6} />}
+          title="No project to snapshot yet"
+          message="Weekly Snapshot rolls up DFRs, RFIs, invoices, and photos for one project across a 7-day window. To see one:"
+          steps={[
+            'Open or create a project from the Projects tab.',
+            'Log a few daily reports, photos, or invoices to give the snapshot something to summarize.',
+            'Tap Weekly Snapshot inside the project tile grid.',
+          ]}
+          actionLabel="Open Projects"
+          onAction={() => router.push('/(tabs)/(home)' as any)}
+        />
       </View>
     );
   }

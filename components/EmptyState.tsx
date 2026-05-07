@@ -27,11 +27,15 @@ interface EmptyStateProps {
   onSecondaryAction?: () => void;
   /** Override the icon halo color. Defaults to brand primary tint. */
   accent?: string;
+  /** Optional 1-3 numbered steps shown between message and CTA — gives the
+   *  user a concrete "do this, then this" path so the empty screen teaches
+   *  rather than scolds. Each entry is a single short sentence. */
+  steps?: string[];
 }
 
 export default function EmptyState({
   icon, title, message, actionLabel, onAction,
-  secondaryLabel, onSecondaryAction, accent,
+  secondaryLabel, onSecondaryAction, accent, steps,
 }: EmptyStateProps) {
   const enter = useRef(new Animated.Value(0)).current;
   // Icon-halo gentle pulse so the screen doesn't feel static.
@@ -99,6 +103,19 @@ export default function EmptyState({
 
       <Text style={styles.title}>{title}</Text>
       <Text style={styles.message}>{message}</Text>
+
+      {steps && steps.length > 0 && (
+        <View style={styles.steps}>
+          {steps.map((step, idx) => (
+            <View key={idx} style={styles.stepRow}>
+              <View style={[styles.stepBullet, { backgroundColor: accentColor + '22', borderColor: accentColor + '55' }]}>
+                <Text style={[styles.stepBulletText, { color: accentColor }]}>{idx + 1}</Text>
+              </View>
+              <Text style={styles.stepText}>{step}</Text>
+            </View>
+          ))}
+        </View>
+      )}
 
       {actionLabel && onAction && (
         <TouchableOpacity
@@ -184,6 +201,39 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     marginBottom: 28,
     maxWidth: 320,
+  },
+  steps: {
+    alignSelf: 'stretch' as const,
+    maxWidth: 360,
+    width: '100%' as const,
+    gap: 10,
+    marginTop: -8,
+    marginBottom: 24,
+  },
+  stepRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'flex-start' as const,
+    gap: 10,
+  },
+  stepBullet: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    borderWidth: 1,
+    marginTop: 1,
+    flexShrink: 0,
+  },
+  stepBulletText: {
+    fontSize: 11,
+    fontWeight: '800' as const,
+  },
+  stepText: {
+    flex: 1,
+    fontSize: Type.bodyCompact.fontSize,
+    color: Colors.textSecondary,
+    lineHeight: 20,
   },
   button: {
     paddingHorizontal: 28,

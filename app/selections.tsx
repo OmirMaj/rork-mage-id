@@ -14,8 +14,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import {
   ChevronLeft, Plus, Trash2, Sparkles, DollarSign, Star, ExternalLink,
-  CheckCircle2, AlertTriangle, Clock, Package,
+  CheckCircle2, AlertTriangle, Clock, Package, PenTool,
 } from 'lucide-react-native';
+import EmptyState from '@/components/EmptyState';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import {
@@ -153,9 +154,20 @@ export default function SelectionsScreen() {
 
   if (!project) {
     return (
-      <View style={[styles.container, styles.center, { paddingTop: insets.top + 24 }]}>
+      <View style={[styles.container, { paddingTop: insets.top + 16 }]}>
         <Stack.Screen options={{ headerShown: false }} />
-        <Text style={styles.emptyTitle}>Project not found</Text>
+        <EmptyState
+          icon={<PenTool size={36} color={Colors.primary} strokeWidth={1.6} />}
+          title="No selections set up yet"
+          message="Selections live inside a project so each allowance ties back to the contract. To open one:"
+          steps={[
+            'Open or create a project from the Projects tab.',
+            'Tap Selections in the project tile grid.',
+            'Add categories (kitchen tile, lighting, etc.), set allowances, and let AI curate options for the homeowner.',
+          ]}
+          actionLabel="Open Projects"
+          onAction={() => router.push('/(tabs)/(home)' as any)}
+        />
       </View>
     );
   }

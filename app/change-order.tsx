@@ -7,8 +7,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
-  Plus, Trash2, X, FileText, Send, Search, Percent, BookUser, User,
+  Plus, Trash2, X, FileText, Send, Search, Percent, BookUser, User, PenTool,
 } from 'lucide-react-native';
+import EmptyState from '@/components/EmptyState';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
@@ -454,12 +455,20 @@ function ChangeOrderInner() {
 
   if (!project) {
     return (
-      <View style={[styles.container, styles.center]}>
-        <Stack.Screen options={{ title: 'Change Order' }} />
-        <Text style={styles.notFoundText}>Project not found</Text>
-        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-          <Text style={styles.backBtnText}>Go Back</Text>
-        </TouchableOpacity>
+      <View style={styles.container}>
+        <Stack.Screen options={{ title: 'Change Orders' }} />
+        <EmptyState
+          icon={<PenTool size={36} color={Colors.primary} strokeWidth={1.6} />}
+          title="No change order open yet"
+          message="Change orders adjust an existing project's contract amount, so they live inside the project. To start one:"
+          steps={[
+            'Open the project that needs the change from the Projects tab.',
+            'Tap Change Orders inside the project tile grid.',
+            'Hit + New to log added scope, the price delta, and approval.',
+          ]}
+          actionLabel="Open Projects"
+          onAction={() => router.push('/(tabs)/(home)' as any)}
+        />
       </View>
     );
   }

@@ -8,8 +8,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import {
   ChevronLeft, Info, Printer, Check, Save,
-  ShieldAlert, CheckCircle2,
+  ShieldAlert, CheckCircle2, FileText,
 } from 'lucide-react-native';
+import EmptyState from '@/components/EmptyState';
 import { Colors } from '@/constants/colors';
 import ConstructionLoader from '@/components/ConstructionLoader';
 import { FeatureHeader } from '@/components/FeatureHeader';
@@ -334,10 +335,20 @@ function AIAPayAppScreenInner() {
 
   if (!invoice || !project) {
     return (
-      <View style={styles.loadingContainer}>
-        <Stack.Screen options={{ title: 'Pay Application' }} />
-        <Info size={32} color={Colors.textMuted} />
-        <Text style={styles.loadingText}>Invoice not found.</Text>
+      <View style={{ flex: 1, backgroundColor: Colors.background }}>
+        <Stack.Screen options={{ title: 'AIA Pay Apps' }} />
+        <EmptyState
+          icon={<FileText size={36} color={Colors.primary} strokeWidth={1.6} />}
+          title="No AIA pay app open yet"
+          message="AIA pay applications (G702 / G703) bill against an existing progress invoice. To start one:"
+          steps={[
+            'Open or create a project from the Projects tab.',
+            'Inside that project, create a Progress Invoice from your estimate or schedule of values.',
+            'On the invoice, tap Generate AIA Pay App to fill G702/G703 and route for sign-off.',
+          ]}
+          actionLabel="Open Projects"
+          onAction={() => router.push('/(tabs)/(home)' as any)}
+        />
       </View>
     );
   }

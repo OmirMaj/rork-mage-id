@@ -24,7 +24,9 @@ import * as Haptics from 'expo-haptics';
 import {
   ChevronLeft, FileDown, Plus, Trash2, Wrench, Sparkles,
   CheckCircle2, Send, Lock, RefreshCw, Stamp, FileText, Shield, X,
+  ShieldCheck,
 } from 'lucide-react-native';
+import EmptyState from '@/components/EmptyState';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { FeatureHeader } from '@/components/FeatureHeader';
@@ -399,12 +401,20 @@ export default function CloseoutBinderScreen() {
 
   if (!project) {
     return (
-      <View style={[styles.container, styles.center, { paddingTop: insets.top + 24 }]}>
+      <View style={[styles.container, { paddingTop: insets.top + 16 }]}>
         <Stack.Screen options={{ headerShown: false }} />
-        <Text style={styles.emptyTitle}>Project not found</Text>
-        <TouchableOpacity onPress={() => router.back()} style={styles.emptyBack}>
-          <Text style={styles.emptyBackText}>Back</Text>
-        </TouchableOpacity>
+        <EmptyState
+          icon={<ShieldCheck size={36} color={Colors.primary} strokeWidth={1.6} />}
+          title="No closeout to deliver yet"
+          message="The closeout binder pulls warranties, selections, and as-builts from a single project. To prepare one:"
+          steps={[
+            'Open or create a project from the Projects tab.',
+            'Inside the project, log warranties, selections, and any final invoices or change orders.',
+            'Tap Closeout in the project tile grid to assemble and send the binder PDF.',
+          ]}
+          actionLabel="Open Projects"
+          onAction={() => router.push('/(tabs)/(home)' as any)}
+        />
       </View>
     );
   }

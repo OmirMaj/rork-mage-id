@@ -141,6 +141,16 @@ export default function LeadsScreen() {
           </View>
         </View>
 
+        {leads.length === 0 && (
+          <View style={styles.emptyBanner}>
+            <Sparkles size={20} color={Colors.primary} />
+            <Text style={styles.emptyBannerTitle}>No leads in the pipeline yet</Text>
+            <Text style={styles.emptyBannerBody}>
+              Capture every inbound — homeowner calls, web inquiries, referrals — so they don't slip past the first 24 hours. Tap the mic at the bottom to dictate a lead, or Add by hand to type one in. Leads land in the New column and move through Qualified → Proposal → Won as you work them.
+            </Text>
+          </View>
+        )}
+
         {/* Pipeline columns */}
         <ScrollView
           horizontal
@@ -301,6 +311,18 @@ const styles = StyleSheet.create({
   countPillText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: Colors.textMuted },
   cardsCol: { gap: 8, paddingBottom: 12 },
   emptyColumn: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, textAlign: 'center', paddingTop: 16 },
+  emptyBanner: {
+    margin: 16,
+    padding: 16,
+    backgroundColor: Colors.surface,
+    borderRadius: Tokens.radius.card,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+    gap: 6,
+    alignItems: 'flex-start' as const,
+  },
+  emptyBannerTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: Colors.text },
+  emptyBannerBody: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, lineHeight: 20 },
   card: {
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.card,

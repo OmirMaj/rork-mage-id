@@ -277,9 +277,9 @@ export default function CachedHireScreen() {
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <AlertCircle size={40} color={Colors.textMuted} />
-              <Text style={styles.emptyTitle}>No jobs found</Text>
+              <Text style={styles.emptyTitle}>No jobs posted yet</Text>
               <Text style={styles.emptySubtitle}>
-                Try increasing the radius or changing the trade filter
+                Hire shows open construction jobs near you posted by other GCs. Widen the radius, clear the trade filter, or post your own job from this screen to attract subs.
               </Text>
             </View>
           }

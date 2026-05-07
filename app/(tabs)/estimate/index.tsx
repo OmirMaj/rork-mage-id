@@ -1984,8 +1984,10 @@ export default function EstimateScreen() {
               {totalItemCount === 0 ? (
                 <View style={[styles.emptyState, { paddingVertical: 80 }]}>
                   <ShoppingCart size={40} color={Colors.textMuted} />
-                  <Text style={styles.emptyTitle}>No items yet</Text>
-                  <Text style={styles.emptyDesc}>Add items from the catalog on the left</Text>
+                  <Text style={styles.emptyTitle}>No items in this estimate yet</Text>
+                  <Text style={styles.emptyDesc}>
+                    Tap a material, trade, or assembly in the catalog on the left to add it here. Or hit Voice Estimate at the top to dictate the scope and let AI build the line items.
+                  </Text>
                 </View>
               ) : (
                 <>

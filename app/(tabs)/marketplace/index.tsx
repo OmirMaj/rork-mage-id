@@ -361,15 +361,19 @@ export default function MarketplaceScreen() {
             {viewMode === 'suppliers' && filteredSuppliers.length === 0 && (
               <View style={styles.emptyState}>
                 <Store size={40} color={Colors.textMuted} />
-                <Text style={styles.emptyTitle}>No suppliers found</Text>
-                <Text style={styles.emptyDesc}>Try a different search or category</Text>
+                <Text style={styles.emptyTitle}>No suppliers match yet</Text>
+                <Text style={styles.emptyDesc}>
+                  Clear the search box, switch the category chip, or tap the Listings tab to see products instead of vendors.
+                </Text>
               </View>
             )}
             {viewMode === 'listings' && filteredListings.length === 0 && (
               <View style={styles.emptyState}>
                 <Package size={40} color={Colors.textMuted} />
-                <Text style={styles.emptyTitle}>No products found</Text>
-                <Text style={styles.emptyDesc}>Try a different search or category</Text>
+                <Text style={styles.emptyTitle}>No products match yet</Text>
+                <Text style={styles.emptyDesc}>
+                  Try a broader category, clear your search, or switch to the Suppliers tab to browse vendors first.
+                </Text>
               </View>
             )}
           </View>

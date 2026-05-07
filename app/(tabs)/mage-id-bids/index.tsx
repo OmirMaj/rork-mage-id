@@ -274,8 +274,8 @@ export default function MageIdBidsTabScreen() {
             <Text style={styles.emptyTitle}>No projects within {radius} miles yet</Text>
             <Text style={styles.emptyBody}>
               {!location
-                ? 'Allow location access to see projects nearby, or expand your radius.'
-                : 'New projects show up here as homeowners post them. Try a wider radius.'}
+                ? 'Homeowners post their remodel + new-build RFPs here for verified contractors to bid on. Allow location access or expand your radius to see what\'s near you.'
+                : 'New projects show up here as homeowners post them. Try a wider radius, clear your scope filters, or check back tomorrow.'}
             </Text>
           </View>
         )}

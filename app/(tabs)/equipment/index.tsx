@@ -132,8 +132,18 @@ export default function EquipmentScreen() {
         {filteredEquipment.length === 0 ? (
           <View style={styles.emptyState}>
             <Truck size={48} color={Colors.textMuted} />
-            <Text style={styles.emptyTitle}>No Equipment</Text>
-            <Text style={styles.emptyDesc}>Add your first piece of equipment to start tracking.</Text>
+            <Text style={styles.emptyTitle}>No equipment yet</Text>
+            <Text style={styles.emptyDesc}>
+              Track owned and rented gear so you can see daily rates, maintenance dates, and which job each piece is on.
+            </Text>
+            <TouchableOpacity
+              style={styles.emptyCtaBtn}
+              onPress={() => setShowAddModal(true)}
+              activeOpacity={0.85}
+            >
+              <Plus size={16} color={Colors.textOnPrimary} />
+              <Text style={styles.emptyCtaText}>Add equipment</Text>
+            </TouchableOpacity>
           </View>
         ) : (
           filteredEquipment.map(equip => {
@@ -339,6 +349,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingTop: 60,
+    paddingHorizontal: 32,
     gap: 10,
   },
   emptyTitle: {
@@ -350,6 +361,23 @@ const styles = StyleSheet.create({
     fontSize: Type.bodyCompact.fontSize,
     color: Colors.textSecondary,
     textAlign: 'center',
+    lineHeight: 20,
+    maxWidth: 320,
+  },
+  emptyCtaBtn: {
+    marginTop: 12,
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 6,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: Tokens.radius.md,
+    backgroundColor: Colors.primary,
+  },
+  emptyCtaText: {
+    color: Colors.textOnPrimary,
+    fontWeight: '700' as const,
+    fontSize: Type.bodyCompact.fontSize,
   },
   equipCard: {
     backgroundColor: Colors.surface,

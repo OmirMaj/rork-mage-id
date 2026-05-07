@@ -133,6 +133,7 @@ export default function TimeTrackingScreen() {
 
 function TimeTrackingScreenInner() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   // Real backend hook (created May 2026 to replace MOCK_TIME_ENTRIES).
   // Data is persisted to AsyncStorage immediately and synced to Supabase
   // `time_entries` table via the offline queue. Cross-device sync works
@@ -331,7 +332,18 @@ function TimeTrackingScreenInner() {
             <View style={styles.emptyState}>
               <Clock size={32} color={Colors.textMuted} />
               <Text style={styles.emptyTitle}>No active time cards</Text>
-              <Text style={styles.emptyDesc}>Clock in a crew member to start tracking</Text>
+              <Text style={styles.emptyDesc}>
+                Tap Clock In Crew above, pick a worker and project, and their hours start logging here in real time.
+              </Text>
+              {projects.length === 0 && (
+                <TouchableOpacity
+                  onPress={() => router.push('/(tabs)/(home)' as any)}
+                  style={styles.emptyCtaBtn}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.emptyCtaText}>Open Projects</Text>
+                </TouchableOpacity>
+              )}
             </View>
           ) : (
             <View style={styles.listSection}>
@@ -578,9 +590,11 @@ const styles = StyleSheet.create({
   historyDate: { fontSize: Type.caption1.fontSize, color: Colors.textMuted },
   otBadge: { backgroundColor: Colors.warningLight, paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.xs },
   otBadgeText: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: Colors.warningDark },
-  emptyState: { alignItems: 'center', paddingVertical: 60, gap: 8 },
+  emptyState: { alignItems: 'center', paddingVertical: 60, paddingHorizontal: 32, gap: 8 },
   emptyTitle: { fontSize: Type.body.fontSize, fontWeight: '600' as const, color: Colors.text },
-  emptyDesc: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary },
+  emptyDesc: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, textAlign: 'center' as const, lineHeight: 20, maxWidth: 320 },
+  emptyCtaBtn: { marginTop: 12, paddingHorizontal: 20, paddingVertical: 10, backgroundColor: Colors.primary, borderRadius: Tokens.radius.md },
+  emptyCtaText: { color: Colors.textOnPrimary, fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const },
   modalOverlay: { flex: 1, backgroundColor: Colors.overlay, justifyContent: 'flex-end' },
   modalCard: {
     backgroundColor: Colors.surface,

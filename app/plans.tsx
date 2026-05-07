@@ -337,8 +337,12 @@ function PlansProjectPicker({ projects, onPick, onBack }: {
       <ScrollView contentContainerStyle={{ padding: 16 }}>
         {projects.length === 0 ? (
           <View style={styles.emptyCard}>
-            <AlertTriangle size={18} color={Colors.warning} />
-            <Text style={styles.emptyText}>No projects on file. Create one first, then import your drawings here.</Text>
+            <ImageIcon size={28} color={Colors.textMuted} />
+            <Text style={styles.emptyTitle}>No projects yet</Text>
+            <Text style={styles.emptyText}>Plans attach to a project so every pin (punch items, photos, RFIs) ties back to a job. Create a project first, then come back here to import drawings.</Text>
+            <TouchableOpacity onPress={onBack} style={[styles.primaryBtn, { marginTop: 12 }]}>
+              <Text style={styles.primaryBtnText}>Open Projects</Text>
+            </TouchableOpacity>
           </View>
         ) : (
           projects.map(p => (

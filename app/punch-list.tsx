@@ -268,7 +268,18 @@ function PunchListScreenInner() {
     return (
       <View style={styles.container}>
         <Stack.Screen options={{ title: 'Punch List' }} />
-        <Text style={styles.notFoundText}>Project not found</Text>
+        <EmptyState
+          icon={<ListChecks size={36} color={Colors.primary} strokeWidth={1.6} />}
+          title="No punch list open yet"
+          message="Punch lists are tied to a project so each item links to its trade and location. To start one:"
+          steps={[
+            'Open or create a project from the Projects tab.',
+            'Tap Punch List inside the project tile grid.',
+            'Hit + to add the first item, or run an AI walk-through to seed it from photos.',
+          ]}
+          actionLabel="Open Projects"
+          onAction={() => router.push('/(tabs)/(home)' as any)}
+        />
       </View>
     );
   }
