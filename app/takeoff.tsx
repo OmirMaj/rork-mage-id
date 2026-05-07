@@ -35,7 +35,10 @@ import { Skeleton } from '@/components/Skeleton';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
-import { uploadAndRenderPdf, type RenderedPlanPage } from '@/utils/pdfRenderClient';
+import { uploadAndRenderPdf, countPdfPages, type RenderedPlanPage } from '@/utils/pdfRenderClient';
+import { confirmQuotaFits } from '@/utils/quotaPrecheck';
+import { TakeoffQuotaBadge } from '@/components/TakeoffQuotaBadge';
+import { useUsageStatus } from '@/hooks/useUsageStatus';
 import { analyzeTakeoff, type TakeoffModel } from '@/utils/takeoffAnalyzer';
 import { loadTakeoff, saveTakeoff, clearTakeoff } from '@/utils/takeoffStorage';
 import { analyzeSpecBook, extractCodesFromTakeoff, buildSpecLookup } from '@/utils/specMatcher';
@@ -103,6 +106,7 @@ function TakeoffInner() {
   const { projectId: paramProjectId } = useLocalSearchParams<{ projectId?: string }>();
   const { projects, getProject, addBidPackage } = useProjects();
   const { isBusinessTier } = useSubscription();
+  const { refresh: refreshQuota } = useUsageStatus();
 
   const [step, setStep] = useState<Step>('idle');
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
@@ -185,6 +189,17 @@ function TakeoffInner() {
       if (picked.canceled || !picked.assets?.[0]) return;
 
       const asset = picked.assets[0];
+
+      // Quota precheck — count pages locally, confirm with the user if
+      // it won't fit in their remaining monthly budget BEFORE we upload.
+      // Server enforces the same cap; this is purely UX (fail fast vs.
+      // a 60s upload that ends in 429).
+      const pageCount = await countPdfPages(asset.uri);
+      if (pageCount != null) {
+        const fits = await confirmQuotaFits(pageCount, asset.name ?? 'PDF', router);
+        if (!fits) return;
+      }
+
       setUploadedFileName(asset.name);
       setStep('uploading');
       if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -197,6 +212,9 @@ function TakeoffInner() {
         maxPages: 16,
       });
       setPages(rendered);
+      // Refresh the quota badge — Cloudconvert just charged page count
+      // pages against the user's monthly takeoff_pages bucket.
+      refreshQuota();
 
       setStep('analyzing');
       const { result: takeoff, modelUsed: usedModel } = await analyzeTakeoff({
@@ -218,7 +236,7 @@ function TakeoffInner() {
       setError(String((e as Error).message ?? e));
       setStep('idle');
     }
-  }, [pickedProjectId, project, pickedModel]);
+  }, [pickedProjectId, project, pickedModel, router, refreshQuota]);
 
   const handleMatchSpecs = useCallback(async () => {
     if (!result) return;
@@ -526,6 +544,12 @@ function TakeoffInner() {
       >
         {step === 'idle' && (
           <>
+            {/* Quota badge — visible above all the configuration cards
+                so the user budgets pages before they pick anything else.
+                Tapping the upgrade pill (when over cap) routes to the
+                paywall. */}
+            <TakeoffQuotaBadge variant="card" onUpgrade={() => router.push('/paywall' as never)} />
+
             <View style={styles.card}>
               <Text style={styles.cardLabel}>Takeoff depth</Text>
               <Text style={styles.cardHelper}>

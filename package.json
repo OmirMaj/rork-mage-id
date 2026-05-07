@@ -57,6 +57,7 @@
     "expo-web-browser": "~15.0.10",
     "hono": "^4.12.7",
     "lucide-react-native": "^0.475.0",
+    "pdf-lib": "^1.17.1",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-native": "0.81.5",

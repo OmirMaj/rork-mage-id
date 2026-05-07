@@ -195,9 +195,16 @@ export async function requireTier(
  * the post-increment count for the current calendar month. Caller
  * compares against their cap and decides whether to deny.
  *
- * Backed by `ai_usage_increment` SQL function (see migration).
+ * `amount` defaults to 1 for back-compat with existing call sites
+ * (ai_text, analyze_drawings, analyze_photos all charge per-call).
+ * Page-metered features (takeoff_pages, convert_pdf) pass the actual
+ * page count so a 100-page hospital set burns 100 of the user's
+ * monthly quota — fair, predictable, abuse-resistant.
+ *
+ * Backed by `ai_usage_increment(uuid, text, integer)` SQL function
+ * (see migrations/add_ai_usage_page_metering.sql).
  */
-export async function aiUsageIncrement(userId: string, feature: string): Promise<number> {
+export async function aiUsageIncrement(userId: string, feature: string, amount = 1): Promise<number> {
   try {
     const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/ai_usage_increment`, {
       method: 'POST',
@@ -206,7 +213,7 @@ export async function aiUsageIncrement(userId: string, feature: string): Promise
         Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ p_user_id: userId, p_feature: feature }),
+      body: JSON.stringify({ p_user_id: userId, p_feature: feature, p_amount: Math.max(1, amount) }),
     });
     if (!r.ok) return 0; // fail-open on infra glitch — better than blocking paid users
     const v = await r.json();
@@ -217,10 +224,53 @@ export async function aiUsageIncrement(userId: string, feature: string): Promise
 }
 
 /**
- * Per-tier monthly call caps for the heavy AI features (drawing/spec/photo
- * analysis + PDF conversion). Locked to keep ≥50% gross margin even when
- * a user maxes out the cap, given current published prices:
- *   Pro $29/mo, Business $79/mo, Enterprise $150/mo.
+ * Read the current monthly count for a (user, feature) pair WITHOUT
+ * incrementing. Used by the new page-quota precheck — we read `used`,
+ * read `cap` from MONTHLY_CAPS, compare `used + pageCount <= cap`, and
+ * fail BEFORE running the expensive Cloudconvert / Gemini job if the
+ * upload doesn't fit. Pre-fix the only way to know your usage was to
+ * try and fail; now we surface the math up front.
+ *
+ * Backed by `ai_usage_get(uuid, text)` SQL function.
+ */
+export async function aiUsageGet(userId: string, feature: string): Promise<number> {
+  try {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/ai_usage_get`, {
+      method: 'POST',
+      headers: {
+        apikey: SERVICE_ROLE_KEY,
+        Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ p_user_id: userId, p_feature: feature }),
+    });
+    if (!r.ok) return 0;
+    const v = await r.json();
+    return typeof v === 'number' ? v : 0;
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * Per-tier monthly caps for the heavy AI features.
+ *
+ * `takeoff_pages` is metered PER PAGE (the dominant cost driver — Gemini
+ * Vision tokenizes each rendered PNG, Cloudconvert charges per page
+ * rendered). A user uploading a 30-page residential set burns 30 of
+ * their monthly pages; a 200-page hospital set burns 200. Pre-fix this
+ * was metered as `convert_pdf` PER CALL — same 1 unit for kitchen and
+ * hospital, which both undercharged power users and overcharged small
+ * jobs. Page metering is fairer, more predictable, and abuse-resistant.
+ *
+ * Numbers tuned for ≥80% gross margin at the worst case (cap maxed out
+ * on the priciest model in each tier):
+ *   Pro: 30 pages × Gemini Flash ($0.013/pg)   = $0.39 / $29  = 98.7%
+ *   Business: 100 × Gemini Pro ($0.017/pg)     = $1.70 / $79  = 97.8%
+ *   Enterprise: 300 × Sonnet 4.6 ($0.04/pg)    = $12   / $150 = 92.0%
+ *
+ * Other features (analyze_drawings, analyze_photos, ai_text) keep
+ * their per-call metering — those don't scale with PDF page count.
  *
  * Free is 0 (gate denies before increment). Real users won't hit the
  * caps; a runaway script will.
@@ -230,6 +280,7 @@ export const MONTHLY_CAPS: Record<Tier, Record<string, number>> = {
     analyze_drawings: 0,
     analyze_photos: 0,
     convert_pdf: 0,
+    takeoff_pages: 0,
     // Text AI monthly cap = daily × 30. Keeps the math aligned with
     // utils/aiRateLimiter.ts LIMITS while giving us a non-bypassable
     // server-side ceiling. AsyncStorage on-device can be wiped by a
@@ -239,19 +290,22 @@ export const MONTHLY_CAPS: Record<Tier, Record<string, number>> = {
   pro: {
     analyze_drawings: 15,
     analyze_photos: 50,
-    convert_pdf: 50,
+    convert_pdf: 50,       // legacy per-call counter, kept for back-compat
+    takeoff_pages: 30,     // NEW — page-metered takeoff quota
     ai_text: 900,
   },
   business: {
     analyze_drawings: 50,
     analyze_photos: 150,
     convert_pdf: 150,
+    takeoff_pages: 100,
     ai_text: 2400,
   },
   enterprise: {
     analyze_drawings: 100,
     analyze_photos: 200,
     convert_pdf: 300,
+    takeoff_pages: 300,
     ai_text: 4500,
   },
 };

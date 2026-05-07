@@ -34,7 +34,10 @@ import {
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
-import { uploadAndRenderPdf } from '@/utils/pdfRenderClient';
+import { uploadAndRenderPdf, countPdfPages } from '@/utils/pdfRenderClient';
+import { confirmQuotaFits } from '@/utils/quotaPrecheck';
+import { TakeoffQuotaBadge } from '@/components/TakeoffQuotaBadge';
+import { useUsageStatus } from '@/hooks/useUsageStatus';
 import type { PlanSheet } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -45,6 +48,7 @@ export default function PlansScreen() {
   const params = useLocalSearchParams<{ projectId?: string }>();
   const projectId = typeof params.projectId === 'string' ? params.projectId : undefined;
   const { canAccess } = useTierAccess();
+  const { refresh: refreshQuota } = useUsageStatus();
   const {
     projects, getProject, getPlanSheetsForProject, addPlanSheet, deletePlanSheet,
     getPinsForPlan,
@@ -105,7 +109,23 @@ export default function PlansScreen() {
         return;
       }
 
+      // Quota precheck \u2014 count pages locally with pdf-lib (~150ms even on
+      // 200-page sets) and confirm with the user when their takeoff
+      // pages quota is tight. The edge function enforces the same check
+      // server-side; doing it client-side is purely UX (fail fast, no
+      // long upload + 429).
       setPdfImporting(true);
+      setPdfStatus('Reading PDF\u2026');
+      const pageCount = await countPdfPages(asset.uri);
+      if (pageCount != null) {
+        const fits = await confirmQuotaFits(pageCount, asset.name ?? 'PDF', router);
+        if (!fits) {
+          setPdfImporting(false);
+          setPdfStatus('');
+          return;
+        }
+      }
+
       setPdfStatus('Uploading PDF\u2026');
 
       const pages = await uploadAndRenderPdf({
@@ -130,6 +150,9 @@ export default function PlansScreen() {
       });
 
       setPdfStatus('');
+      // Refresh the usage badge so the user sees the new "X of Y pages
+      // remaining" reflecting the just-charged pages without remounting.
+      refreshQuota();
       Alert.alert(
         'PDF imported',
         `${pages.length} sheet${pages.length === 1 ? '' : 's'} added. Open one to start dropping pins.`,
@@ -141,7 +164,7 @@ export default function PlansScreen() {
       setPdfImporting(false);
       setPdfStatus('');
     }
-  }, [projectId, addPlanSheet]);
+  }, [projectId, addPlanSheet, router, refreshQuota]);
 
   const confirmImport = useCallback(() => {
     if (!newSheet || !newSheet.name.trim() || !projectId) {
@@ -205,6 +228,14 @@ export default function PlansScreen() {
           <Text style={styles.statusBarText}>{pdfStatus}</Text>
         </View>
       ) : null}
+
+      {/* Takeoff quota badge — shows the user's current month usage so
+          they can budget how many pages to upload before they pick a
+          file. Tapping the upgrade pill (when over cap) routes to the
+          paywall. Always visible above the sheet list. */}
+      <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
+        <TakeoffQuotaBadge variant="inline" onUpgrade={() => router.push('/paywall' as never)} />
+      </View>
 
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
         {sheets.length === 0 ? (

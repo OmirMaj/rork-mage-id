@@ -27,6 +27,7 @@
 
 import { supabase } from '@/lib/supabase';
 import { Platform } from 'react-native';
+import { PDFDocument } from 'pdf-lib';
 
 const PDF_BUCKET = 'pdf-uploads';
 const FUNCTION_NAME = 'convert-pdf-to-images';
@@ -130,6 +131,29 @@ async function readFileAsBlob(fileUri: string): Promise<Blob> {
   }
   const r = await fetch(fileUri);
   return await r.blob();
+}
+
+/**
+ * Count pages in a local PDF without rendering or rasterizing. Used by
+ * the upload UI to show "this PDF is N pages, you have M remaining"
+ * BEFORE the user commits to the upload — pre-fix the only way to learn
+ * was to upload, wait, and watch a 429 land back. pdf-lib parses the
+ * PDF object tree only; no images are decoded so this stays fast on
+ * 200-page hospital sets (~150ms typical).
+ */
+export async function countPdfPages(fileUri: string): Promise<number | null> {
+  try {
+    const blob = await readFileAsBlob(fileUri);
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    // ignoreEncryption=true so a password-protected PDF still gets a
+    // page count (the actual render will fail later with a clearer
+    // message; we don't want the count step to be the choke point).
+    const doc = await PDFDocument.load(bytes, { ignoreEncryption: true });
+    return doc.getPageCount();
+  } catch (err) {
+    console.log('[pdfRenderClient] countPdfPages failed:', err);
+    return null;
+  }
 }
 
 /** Lightweight uuid — we don't need crypto-strength, just collision-free. */

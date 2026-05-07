@@ -70,7 +70,8 @@
 
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.7';
-import { requireTier, aiUsageIncrement, MONTHLY_CAPS } from '../_shared/auth.ts';
+import { PDFDocument } from 'https://esm.sh/pdf-lib@1.17.1';
+import { requireTier, aiUsageIncrement, aiUsageGet, MONTHLY_CAPS } from '../_shared/auth.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -173,26 +174,79 @@ serve(async (req) => {
     }
     log('body_parsed', { pdfStoragePath, projectId, dpi, maxPages });
 
-    // Monthly cap (matches drawing analyzer cap — same pipeline). Increment
-    // first so the 31st run on Pro denies BEFORE we burn CloudConvert credits.
-    const used = await aiUsageIncrement(auth.userId, 'convert_pdf');
-    const cap = MONTHLY_CAPS[auth.tier].convert_pdf;
-    if (used > cap) {
-      return json({
-        success: false,
-        error: `Monthly PDF-conversion limit reached (${cap} on ${auth.tier}). Resets on the 1st.`,
-        code: 'monthly_cap_reached',
-        used, cap,
-      }, 429);
-    }
-    log('cap_ok', { used, cap });
-
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
 
-    // 1. Mint a signed URL for CloudConvert to fetch the PDF. 10-min TTL
-    //    is plenty — CloudConvert pulls the file inside its first second.
+    // 1a. Download the PDF so we can count pages BEFORE running the cap
+    //     check + paying Cloudconvert. pdf-lib parses metadata only — no
+    //     rasterization — so this is fast (<200ms even on a 200-page set)
+    //     and Deno-Deploy-safe (pure JS, no WASM).
+    const { data: pdfBlob, error: dlErr } = await supabase.storage
+      .from(PDF_BUCKET)
+      .download(pdfStoragePath);
+    if (dlErr || !pdfBlob) {
+      log('download_failed', { err: dlErr?.message });
+      return json({
+        success: false,
+        error: `could not read PDF: ${dlErr?.message ?? 'storage returned no blob'}`,
+      }, 500);
+    }
+    const pdfBytes = new Uint8Array(await pdfBlob.arrayBuffer());
+
+    let pdfPageCount: number;
+    try {
+      // ignoreEncryption=true so we don't error on password-protected
+      // PDFs at the parse step — we'll fail later in Cloudconvert with a
+      // clearer message if the file is genuinely locked.
+      const doc = await PDFDocument.load(pdfBytes, { ignoreEncryption: true });
+      pdfPageCount = doc.getPageCount();
+    } catch (err) {
+      log('pdf_parse_failed', { err: (err as Error).message });
+      return json({
+        success: false,
+        error: `Could not parse PDF: ${(err as Error).message}`,
+      }, 400);
+    }
+    log('pdf_parsed', { pdfPageCount });
+
+    // 1b. Page-based cap check. Quote-precheck pattern — read the user's
+    //     current monthly usage, see if pageCount fits in the remaining
+    //     quota, and DENY before running Cloudconvert if it doesn't.
+    //     Pre-fix the cap was per-call (a 200-page hospital set burned
+    //     1 unit, same as a kitchen) — both undercharged power users and
+    //     overcharged small jobs. Page metering aligns cost with usage.
+    const cap = MONTHLY_CAPS[auth.tier].takeoff_pages ?? 0;
+    const used = await aiUsageGet(auth.userId, 'takeoff_pages');
+    const remaining = Math.max(0, cap - used);
+    log('quota_check', { used, cap, remaining, pdfPageCount });
+
+    if (cap === 0) {
+      return json({
+        success: false,
+        error: `Takeoffs aren't included on the ${auth.tier} plan. Upgrade to Pro to start using AI Takeoff.`,
+        code: 'tier_required',
+        used, cap, remaining, pageCount: pdfPageCount,
+      }, 402);
+    }
+    if (pdfPageCount > remaining) {
+      return json({
+        success: false,
+        error: `That PDF is ${pdfPageCount} pages but you only have ${remaining} of ${cap} pages remaining this month.`,
+        code: 'monthly_cap_reached',
+        used, cap, remaining, pageCount: pdfPageCount,
+      }, 429);
+    }
+
+    // The maxPages limit at the body-level still applies as a defense-
+    // in-depth ceiling so a user on Enterprise can't ask for 500 pages
+    // in one job (Cloudconvert wall-clock budget). At this point we've
+    // already validated `pageCount <= remaining`.
+    const renderPageCount = Math.min(pdfPageCount, maxPages);
+
+    // 1c. Mint a signed URL for CloudConvert to fetch the PDF. 10-min
+    //     TTL is plenty — CloudConvert pulls the file inside its first
+    //     second.
     const { data: signed, error: signErr } = await supabase.storage
       .from(PDF_BUCKET)
       .createSignedUrl(pdfStoragePath, 600);
@@ -226,10 +280,11 @@ serve(async (req) => {
           // pixel_density maps to ImageMagick `-density` — i.e. DPI for
           // the rasterization. 144 = 2× retina at 72dpi.
           pixel_density: dpi,
-          // Cap pages CloudConvert will render. Protects from a forged
-          // request asking for a 500-page set; we already enforce
-          // maxPages above but defense-in-depth.
-          pages: `1-${maxPages}`,
+          // Cap pages CloudConvert will render. We use the actual PDF
+          // page count (capped at maxPages and pre-validated against the
+          // user's remaining quota) so we don't pay CC for pages we
+          // wouldn't return anyway.
+          pages: `1-${renderPageCount}`,
         },
         'export-pngs': {
           operation: 'export/url',
@@ -353,12 +408,26 @@ serve(async (req) => {
       log(`page_${pageNumber}_done`, { width: dims.width, height: dims.height });
     }
 
-    // 6. Best-effort delete the source PDF — PNGs are the system of record now
+    // 6. Charge the user's monthly quota by the actual rendered page count
+    //    (NOT the original PDF page count, which may be larger than what we
+    //    converted if maxPages clamped). Charging post-success means a
+    //    Cloudconvert failure never burns the user's quota — they retry
+    //    cleanly. Pre-fix the cap was incremented up-front by 1 regardless
+    //    of pages, so a failed render still ate a unit and the user lost
+    //    their cap on a server problem they didn't cause.
+    const newUsed = await aiUsageIncrement(auth.userId, 'takeoff_pages', outputs.length);
+    log('quota_charged', { charged: outputs.length, newUsed, cap });
+
+    // 7. Best-effort delete the source PDF — PNGs are the system of record now
     //    and storage costs compound. We don't fail the request if this errors.
     supabase.storage.from(PDF_BUCKET).remove([pdfStoragePath]).catch(() => {});
 
     log('done', { totalMs: Date.now() - t0, pagesRendered: outputs.length });
-    return json({ success: true, pages: outputs }, 200);
+    return json({
+      success: true,
+      pages: outputs,
+      usage: { used: newUsed, cap, remaining: Math.max(0, cap - newUsed) },
+    }, 200);
   } catch (err) {
     // Top-level catch — any uncaught error becomes a clean 500 so the
     // client gets a real message instead of a 546 worker-died.
