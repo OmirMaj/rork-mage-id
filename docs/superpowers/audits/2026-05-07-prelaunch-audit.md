@@ -142,15 +142,53 @@ Built from `types/index.ts`, AsyncStorage keys in `contexts/ProjectContext.tsx:1
 
 ## 4. Competitor table-stakes
 
-_Walked in Task 7. 30-item checklist from spec §7 with green/yellow/red status against MAGE ID._
+30 most-cited complaints across major construction PM apps (per spec §7). Status: **G** (green: ships well; matches or exceeds competitor expectation), **Y** (yellow: partial / needs Phase 2 verification / has a gap), **R** (red: missing or fundamentally broken).
 
-(empty — populated by Task 7)
+| # | Tier | Theme | Complaint | MAGE ID | Notes / xref |
+|---|---|---|---|---|---|
+| 1 | U | Mobile UX | Mobile slower / fewer features than desktop | **Y** | A6 spot-checks pending Phase 2 across all primary field workflows. Architecture is mobile-first (RN Expo) so risk is low. |
+| 2 | U | Offline | Sync breaks; photos/reports fail to upload on reconnect | **Y** | `utils/offlineQueue.ts` is well-architected. AUD-001 (silent failure on non-network errors), AUD-019 (insert/upsert divergence on retry) are partial gaps. |
+| 3 | U | Notifications | Too noisy; no granular control or quiet hours | **Y** | AUD-016: notification prefs flat; no quiet hours, no per-project routing. |
+| 4 | U | Mobile UX | Desktop-to-mobile feature parity broken | **Y** | Same as #1; same risk profile. |
+| 5 | U | Permissions | No per-field permission control | **Y** | Tier-based via `useTierAccess`; portal-scoped via `SubPortalLink.commitmentIds`. Per-field is rare even in commercial apps; not a `block`. |
+| 6 | U | Money flow | Estimate → budget → invoice → payment disconnected | **Y** | AUD-007 (CO doesn't update budget), AUD-013 (SOV multi-hop). `bill-from-estimate` does draw from contract correctly (positive). |
+| 7 | U | Money flow | Cost-code double-entry across modules | **G** | All money writes flow through ProjectContext + `supabaseWrite`. Single domain context is the right pattern. |
+| 8 | U | Client portal | Low adoption; clients skip for email | **G** | `client-view.tsx` + `marketing/portal/index.html` web portal both present. `homeowner-weekly-digest` fn pushes a Friday recap to email — meets users where they are. Phase 2 spot-check the actual experience. |
+| 9 | U | Onboarding | New project takes weeks to set up | **G** | `convertLeadToProject` 1-tap from a qualified lead carries name/scope/budget/contact. `dev-seeder` for fast test setup. Strong A1 verified. |
+| 10 | U | Schedule | Schedule disconnected from RFI / punch / CO | **Y** | Submittal `linkedTaskId` (PASS), CO `scheduleImpactDays` applied (PASS), RFI delay impact via handoff log (PASS). AUD-004 (permits don't gate schedule) + AUD-009 (punch doesn't block closeout) are remaining gaps. |
+| 11 | H | Sub portal | Permission gaps or upload limits | **G** | `SubPortalLink.commitmentIds` scopes correctly. Phase 2 verify cross-sub leakage on real portal. |
+| 12 | H | Offline | Mobile crashes on long offline periods | **G** (predicted) | Offline queue handles unbounded queue length; UUIDs prevent collisions on insert. Phase 2 stress test with 200+ queued mutations. |
+| 13 | H | Pricing | Opaque per-user fees | **G** | Tier table is clear in `app/paywall.tsx`. Subscription via RevenueCat. |
+| 14 | H | Mobile UX | Search/find broken | **Y** | `SearchContext.tsx` (20 lines) + `app/(tabs)/discover` exist; coverage across documents/RFIs/submittals not verified Phase 1. |
+| 15 | H | Pricing/lock-in | Data export non-viable | **R** | AUD-018: CSV is flat; rich JSON depth needs Phase 2 verification. |
+| 16 | H | Offline | Sync conflicts; data overwrites | **Y** | AUD-019: online path upserts (idempotent), offline retry path inserts (errors on already-succeeded). |
+| 17 | H | Integration | API integrations weak; needs middleware | **Y** | `AccountingSyncDirection = 'push' \| 'pull'` exists in types. Whether `app/integrations.tsx` exposes both directions verified Phase 2. |
+| 18 | H | Money flow | CO workflow rigid; must close prev to start new | **G** | CO is fully additive; concurrent COs supported. Strong (beats Procore). |
+| 19 | H | Mobile UX | Mobile UX for complex tasks (DFR, RFIs) broken | **Y** | DFR has voice-to-text, carry-forward (per `docs/workflow-audit-roadmap.md`). Phase 2 spot-check. |
+| 20 | H | Notifications | Doesn't reach right person; no role-based routing | **Y** | Partial — categories distinguish client/sub/marketplace, but routing is per-channel not per-project-role. Pairs with AUD-016. |
+| 21 | M | Mobile UX | Photo annotation slow on mobile | **Y** | `photo-annotator.tsx` exists; performance verified Phase 2. |
+| 22 | M | Schedule + money | DFR time entries not deducted from budget | **G** | TimeEntry → DailyFieldReport ManpowerEntry → JobCosting via standard ProjectContext aggregation. |
+| 23 | M | Sub portal | Sub sees too much/too little | **G** | Same as #11 (commitment-scoped). |
+| 24 | M | Onboarding | Template library bare or not reusable | **Y** | `schedule-wizard` has templates; estimate-wizard has flow but unclear template reuse. Phase 2 verify other entry points. |
+| 25 | M | Permissions | Audit trail hidden or incomplete | **Y** | AUD-017: data exists, UI doesn't surface it consistently. |
+| 26 | M | AI | AI features hallucinate or give false confidence | **Y** | Out of scope for this audit (per §1) but flagging — AI surfaces (estimate, takeoff, digest, photo analysis, OAC minutes) all need a "human review" hand-off pattern; some have it (CO prefill from selections), others don't. Phase 2. |
+| 27 | M | Pricing | Auto-renewal / long lock-in / early-exit penalty | **G** | RevenueCat-driven; subscription cancellable. `delete-account` fn shipped per Apple 5.1.1(v). |
+| 28 | M | Onboarding | Invite/onboarding emails fail | **Y** | `auth-magic-link` fn exists; `client-portal-setup` has SMS fallback — good multi-channel. Phase 2 verify activation success rate. |
+| 29 | M | Notifications | In-app messaging separate from email | **Y** | `client-messages.tsx` chat is in-app only (no email mirror). Email for digests + transactional is separate. Reconciliation behavior verified Phase 2. |
+| 30 | M | Mobile UX | Bulk actions not on mobile | **Y** | Per `docs/workflow-audit-roadmap.md`, punch list bulk-action toolbar is roadmap'd; verify other lists Phase 2. |
+
+**Theme tally:**
+- 9 GREEN
+- 19 YELLOW (most are Phase 2 verifications)
+- 1 RED (data export — AUD-018)
+
+**No items shipped fundamentally missing or broken at the table-stakes level except data export.** Roughly two-thirds of yellows are pending Phase 2 hardware verification rather than known gaps.
 
 ## 5. Punch list
 
 _All findings, all sources. Use the finding template defined in the plan. Sort by AUD-### ascending._
 
-**Finding ID counter:** next is AUD-019.
+**Finding ID counter:** next is AUD-020.
 
 ### AUD-001 — Offline queue silently drops non-network Supabase errors
 - **severity:** should
@@ -360,6 +398,24 @@ _All findings, all sources. Use the finding template defined in the plan. Sort b
 - **scope:** M (a single shared `<RecordHistory>` component reading from each record's audit-log field, mounted into the modal-in-screen pattern)
 - **delivery:** OTA
 - **xref:** competitor moderate complaint #25 (spec §7); pairs with AUD-005 (estimate version history)
+- **status:** confirmed-headless
+
+### AUD-019 — supabaseWrite online uses upsert; offlineQueue retry uses plain insert — divergence on duplicate-IDs after retry
+- **severity:** should
+- **source:** competitor-check (#16)
+- **step:** (n/a)
+- **assertions:** A7 (offline behavior), A8
+- **personas:** all
+- **expected:** Online and offline write paths behave consistently. A retry that the server actually completed (but whose response was lost on the client) shouldn't error on next retry — idempotent behavior is the safe default.
+- **actual:** `utils/offlineQueue.ts` has divergent behavior:
+  - **Online path** (`supabaseWrite` line 126): uses `supabase.from(table).upsert(data)` — idempotent.
+  - **Offline retry path** (`processOfflineQueue` line 76): uses `supabase.from(table).insert(mutation.data)` — errors on PK collision. Comment at line 75 says "Plain insert — upsert here would silently overwrite a colliding row that some other client already created, masking conflicts."
+  The comment's reasoning is half-right: upsert *does* mask another-client-collision, but UUID collision is vanishingly rare; meanwhile, the more common case (this client retried after a successful-but-unacknowledged write) goes to the dead-letter path on retry.
+- **repro:** 1. Submit a daily report with intermittent connectivity such that the server commits but the response is dropped. 2. Reconnect; queue retries the insert. 3. Insert errors on PK violation; mutation routed to MAX_RETRIES discard.
+- **screens / files:** `utils/offlineQueue.ts:73-76` (`processOfflineQueue`), `utils/offlineQueue.ts:126` (`supabaseWrite`).
+- **scope:** S (one-line change at `processOfflineQueue` to use upsert; OR add an idempotency-key check before insert)
+- **delivery:** OTA
+- **xref:** AUD-001 (related; both touch offlineQueue)
 - **status:** confirmed-headless
 
 ### AUD-018 — Data-export CSV is flat — no audit trail or attachment references
