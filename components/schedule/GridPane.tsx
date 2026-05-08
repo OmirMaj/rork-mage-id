@@ -54,6 +54,7 @@ import { Tokens } from '@/constants/designTokens';
 
 type ColumnKey =
   | 'rowNum' | 'wbs' | 'name' | 'duration' | 'start' | 'finish' | 'float'
+  | 'baselineStart' | 'baselineFinish' | 'finishVariance'
   | 'deadline' | 'predecessors' | 'crew' | 'status' | 'progress' | 'actions';
 
 interface ColumnDef {
@@ -77,6 +78,14 @@ const COLUMNS: ColumnDef[] = [
   { key: 'start',        label: 'Start',          width: 88,  align: 'left',   kind: 'readonly' },
   { key: 'finish',       label: 'Finish',         width: 88,  align: 'left',   kind: 'readonly' },
   { key: 'float',        label: 'Float',          width: 96,  align: 'left',   kind: 'readonly' },
+  // Baseline columns — readonly, derived from task.baselineStartDay /
+  // baselineEndDay. Hidden in compact (split-view) mode by the
+  // visibleColumns filter, since baseline is also visualized as a
+  // ghost on the Gantt; surfaced in the wide grid where PMs do
+  // variance reporting. P6 / MSP put these next to Float.
+  { key: 'baselineStart', label: 'BL Start',      width: 88,  align: 'left',   kind: 'readonly' },
+  { key: 'baselineFinish',label: 'BL Finish',     width: 88,  align: 'left',   kind: 'readonly' },
+  { key: 'finishVariance',label: 'Var (BL)',      width: 84,  align: 'right',  kind: 'readonly' },
   { key: 'deadline',     label: 'Due by',         width: 110, align: 'left',   kind: 'custom' },
   { key: 'predecessors', label: 'Predecessors',   width: 140, align: 'left',   kind: 'text' },
   { key: 'crew',         label: 'Crew',           width: 140, align: 'left',   kind: 'text' },
@@ -98,6 +107,16 @@ export interface GridPaneProps {
   projectStartDate: Date;
   /** 5 = workdays only, 7 = calendar days. */
   workingDaysPerWeek: number;
+  /**
+   * Project closures / weather days / company holidays as ISO YYYY-MM-DD.
+   * Threaded into addWorkingDays so the Start / Finish / BL Start /
+   * BL Finish columns render the correct calendar date for tasks that
+   * span a closure. Pre-fix the GridPane ignored this list — a task
+   * straddling a 3-day rain delay still showed its original finish
+   * date, contradicting the Gantt's date axis. Optional for back-compat
+   * with callers that don't track closures yet.
+   */
+  nonWorkingDates?: string[];
   /**
    * Split-view mode. The gantt on the right already shows Start / Finish /
    * Float visually, so repeating them as text columns makes the layout feel
@@ -141,7 +160,7 @@ export interface GridPaneProps {
 // ---------------------------------------------------------------------------
 
 export default function GridPane({
-  tasks, projectStartDate, workingDaysPerWeek,
+  tasks, projectStartDate, workingDaysPerWeek, nonWorkingDates,
   onEdit, onAddTask, onDeleteTask, focusedTaskId,
   selectedIds, onSelectionChange,
   onBulkDelete, onBulkDuplicate, onBulkShiftDays,
@@ -151,7 +170,15 @@ export default function GridPane({
   // Column list — filtered for split view so the grid doesn't duplicate the
   // date axis rendered by the gantt. Order preserved.
   const visibleColumns = useMemo(
-    () => (compact ? COLUMNS.filter(c => c.key !== 'start' && c.key !== 'finish' && c.key !== 'float') : COLUMNS),
+    () => (compact
+      ? COLUMNS.filter(c =>
+          c.key !== 'start' && c.key !== 'finish' && c.key !== 'float' &&
+          // Baseline columns are also redundant with the Gantt's baseline
+          // ghost in compact mode — hide them for the same reason we hide
+          // start/finish/float when the timeline is on screen.
+          c.key !== 'baselineStart' && c.key !== 'baselineFinish' && c.key !== 'finishVariance',
+        )
+      : COLUMNS),
     [compact],
   );
   // Freeze the first few columns (select, wbs, name) so long horizontal
@@ -411,17 +438,17 @@ export default function GridPane({
 
   const renderDate = useCallback((dayNumber: number): string => {
     if (!Number.isFinite(dayNumber) || dayNumber < 1) return '—';
-    const d = addWorkingDays(projectStartDate, dayNumber - 1, workingDaysPerWeek);
+    const d = addWorkingDays(projectStartDate, dayNumber - 1, workingDaysPerWeek, nonWorkingDates);
     return formatShortDate(d);
-  }, [projectStartDate, workingDaysPerWeek]);
+  }, [projectStartDate, workingDaysPerWeek, nonWorkingDates]);
 
   // ISO yyyy-mm-dd for a given 1-indexed day number. Used to seed the native
   // web date picker with the cell's current value. Native is left as display
   // only for dates — the phone flow uses the classic schedule screen.
   const renderIso = useCallback((dayNumber: number): string => {
-    const d = addWorkingDays(projectStartDate, Math.max(1, dayNumber) - 1, workingDaysPerWeek);
+    const d = addWorkingDays(projectStartDate, Math.max(1, dayNumber) - 1, workingDaysPerWeek, nonWorkingDates);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  }, [projectStartDate, workingDaysPerWeek]);
+  }, [projectStartDate, workingDaysPerWeek, nonWorkingDates]);
 
   // Reverse of addWorkingDays: given a target calendar date, return the
   // 1-indexed day number it represents on the project calendar. Matches the
@@ -722,6 +749,38 @@ export default function GridPane({
         const label = formatFloat(cpmRow.totalFloat);
         const color = cpmRow.isCritical ? Colors.error : cpmRow.totalFloat < 3 ? Colors.warning : Colors.success;
         display = <Text style={[styles.cellText, { color, fontWeight: '600' }]}>{label}</Text>;
+        break;
+      }
+      case 'baselineStart': {
+        if (task.baselineStartDay == null) {
+          display = <Text style={styles.cellTextMuted}>—</Text>;
+        } else {
+          display = <Text style={styles.cellText}>{renderDate(task.baselineStartDay)}</Text>;
+        }
+        break;
+      }
+      case 'baselineFinish': {
+        if (task.baselineEndDay == null) {
+          display = <Text style={styles.cellTextMuted}>—</Text>;
+        } else {
+          // baselineEndDay is INCLUSIVE (last working day of the task).
+          // Render via the same formatter used for `finish`.
+          display = <Text style={styles.cellText}>{renderDate(task.baselineEndDay)}</Text>;
+        }
+        break;
+      }
+      case 'finishVariance': {
+        // Variance = current finish (cpm.ef) − baseline finish.
+        // Positive = slipped (red), negative = ahead (green), zero = on baseline.
+        // Hide entirely when no baseline OR no CPM result.
+        if (task.baselineEndDay == null || !cpmRow) {
+          display = <Text style={styles.cellTextMuted}>—</Text>;
+        } else {
+          const variance = cpmRow.ef - task.baselineEndDay;
+          const label = variance > 0 ? `+${variance}d` : variance < 0 ? `${variance}d` : '0d';
+          const color = variance > 0 ? Colors.error : variance < 0 ? Colors.success : Colors.textSecondary;
+          display = <Text style={[styles.cellText, { color, fontWeight: '600' }]}>{label}</Text>;
+        }
         break;
       }
       case 'deadline': {

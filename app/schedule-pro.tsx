@@ -30,6 +30,7 @@
 
 import React, { useCallback, useMemo, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, useWindowDimensions, Platform, Alert } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { ChevronLeft, Zap, Activity, Share2, Undo2, Redo2, Columns, Table2, BarChart2, Sparkles, RefreshCcw, Bookmark, Download, CalendarX, Settings, Users, FileText, Mic } from 'lucide-react-native';
@@ -367,16 +368,85 @@ function ScheduleProScreenInner() {
     [projectStartDate],
   );
 
-  // Bulk push handler — moves multiple tasks in a single commit. Each
-  // task's startDay shifts by deltaDays; CPM cascades successors via the
-  // existing recompute on rolledTasks.
+  // Weather Push handler. Pre-fix this only shifted the affected
+  // (weather-sensitive) tasks by deltaDays — successors that scheduled
+  // INTO the rain stretch still consumed those days as if they were
+  // workable, because nothing recorded the rain as non-working time.
+  // Now: also persist every un-workable forecast day into
+  // `schedule.nonWorkingDates` so the calendar conversion (addWorkingDays)
+  // skips them everywhere — date columns in the grid, Gantt date axis,
+  // ICS feed, schedule PDF, share link. Tasks that hit rain in the
+  // future automatically stretch their finish date without needing a
+  // user action. The startDay shift on the affected (weather-sensitive)
+  // tasks is preserved because those tasks need to *defer the start*,
+  // not just stretch — the crew can't begin in a downpour even if the
+  // calendar marks the days as off.
   const handleWeatherPush = useCallback((patches: { taskId: string; deltaDays: number }[]) => {
+    // 1. Persist the rain days as non-working into the project schedule.
+    if (project?.schedule && project.id) {
+      const existing = new Set(project.schedule.nonWorkingDates ?? []);
+      for (const f of forecast) {
+        if (!f.isWorkable) existing.add(f.date);
+      }
+      const beforeCount = project.schedule.nonWorkingDates?.length ?? 0;
+      if (existing.size > beforeCount) {
+        updateProject(project.id, {
+          schedule: {
+            ...project.schedule,
+            nonWorkingDates: Array.from(existing).sort(),
+            updatedAt: new Date().toISOString(),
+          },
+        });
+      }
+    }
+    // 2. Shift the affected weather-sensitive tasks.
     commit(prev => prev.map(t => {
       const p = patches.find(x => x.taskId === t.id);
       if (!p) return t;
       return { ...t, startDay: Math.max(1, t.startDay + p.deltaDays) };
     }));
-  }, [commit]);
+  }, [commit, forecast, project?.schedule, project?.id, updateProject]);
+
+  // Resource leveler — re-runs CPM with leveling on, applies the new
+  // startDays from `leveledStartDays` as a single commit so undo restores
+  // the entire batch. Surfaced from the Resource Swimlanes toolbar
+  // ("Level"). Pre-fix the leveler existed in cpm.ts but no caller ever
+  // passed `levelResources: true`, so the red-tint overload bands stayed
+  // on screen forever. Now they actually clear (or surface a conflict
+  // explaining why a particular overlap can't level — e.g. both tasks
+  // are on the critical path).
+  const handleLevelResources = useCallback(() => {
+    const result = runCpm(rolledTasks, {
+      scheduleStartDate: scheduleStartIso,
+      criticalFloatThresholdDays,
+      levelResources: true,
+    });
+    const leveled = result.leveledStartDays;
+    if (!leveled || leveled.size === 0) {
+      Alert.alert(
+        'Nothing to level',
+        result.conflicts.some(c => (c.kind === 'resource_overallocation' || c.kind === 'resource_delayed_project'))
+          ? "No overlap can be safely shifted — both tasks share zero float, so leveling would push the project finish. Resolve manually or relax the dates."
+          : 'No resource overlaps detected. Crews are within capacity on every day.',
+      );
+      return;
+    }
+    // Apply the leveled startDays in a single commit.
+    commit(prev => prev.map(t => {
+      const newStart = leveled.get(t.id);
+      if (newStart == null || newStart === t.startDay) return t;
+      return { ...t, startDay: newStart };
+    }));
+    const moved = leveled.size;
+    const blockedConflicts = result.conflicts.filter(c => (c.kind === 'resource_overallocation' || c.kind === 'resource_delayed_project')).length;
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    Alert.alert(
+      'Resources leveled',
+      blockedConflicts > 0
+        ? `Shifted ${moved} task${moved === 1 ? '' : 's'}. ${blockedConflicts} overlap${blockedConflicts === 1 ? '' : 's'} couldn't be leveled (zero-float pairs).`
+        : `Shifted ${moved} task${moved === 1 ? '' : 's'} to clear overallocation.`,
+    );
+  }, [commit, rolledTasks, scheduleStartIso, criticalFloatThresholdDays]);
 
   // Voice → mutation adapter. The voice executor calls these; CPM re-runs
   // on each commit so successors ripple automatically. Each mutation is
@@ -947,6 +1017,41 @@ function ScheduleProScreenInner() {
           <SubUpdatesPanel
             projectId={project.id}
             tasks={rolledTasks}
+            onApplyUpdate={(update) => {
+              // Apply a sub's reported progress onto the master schedule
+              // task. Pre-fix the panel was advisory only — the sub's
+              // 80%/95%/100% numbers landed in a sidebar feed and the
+              // GC had to retype them on the task. Now: one tap →
+              // task.progress = update.progressPercent, with
+              // actualStartDay seeded from update.forDate when the task
+              // hasn't been started yet, all in one undo-able commit.
+              commit(prev => prev.map(t => {
+                if (t.id !== update.taskId) return t;
+                const patch: Partial<ScheduleTask> = { progress: update.progressPercent };
+                // Seed actualStartDay if missing — this is the first
+                // signal we have that the task actually started. The
+                // sub's `forDate` is the field-truth start day.
+                if (t.actualStartDay == null && update.forDate) {
+                  const parsed = Date.parse(update.forDate + 'T00:00:00');
+                  if (Number.isFinite(parsed)) {
+                    const day = Math.floor((parsed - projectStartDate.getTime()) / 86_400_000) + 1;
+                    if (day >= 1) {
+                      patch.actualStartDay = day;
+                      patch.actualStartDate = update.forDate;
+                    }
+                  }
+                }
+                // Auto-flip status if the sub claims 100% and the task
+                // wasn't already done. Mirrors what the GC would type.
+                if (update.progressPercent >= 100 && t.status !== 'done') {
+                  patch.status = 'done';
+                  if (update.forDate) {
+                    patch.actualEndDate = update.forDate;
+                  }
+                }
+                return { ...t, ...patch };
+              }));
+            }}
           />
         </View>
       )}
@@ -970,6 +1075,7 @@ function ScheduleProScreenInner() {
               tasks={rolledTasks}
               resources={project?.schedule?.resources}
               projectStartDate={projectStartDate}
+              onLevelResources={handleLevelResources}
             />
           </View>
         )}
@@ -979,6 +1085,7 @@ function ScheduleProScreenInner() {
               tasks={rolledTasks}
               projectStartDate={projectStartDate}
               workingDaysPerWeek={workingDaysPerWeek}
+              nonWorkingDates={project?.schedule?.nonWorkingDates}
               focusedTaskId={focusedTaskId}
               onEdit={handleEdit}
               onAddTask={handleAddTask}

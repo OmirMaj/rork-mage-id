@@ -205,10 +205,20 @@ export function formatShortDate(date: Date): string {
 export function getTaskDateRange(
   task: ScheduleTask,
   projectStartDate: Date,
-  workingDaysPerWeek: number
+  workingDaysPerWeek: number,
+  nonWorkingDates?: string[],
 ): { start: Date; end: Date } {
-  const start = addWorkingDays(projectStartDate, task.startDay - 1, workingDaysPerWeek);
-  const end = addWorkingDays(start, task.durationDays - 1, workingDaysPerWeek);
+  // Pre-fix: nonWorkingDates was never threaded into getTaskDateRange,
+  // so any project closure / weather day / company holiday added to the
+  // schedule didn't actually push a task's calendar end date. With this
+  // arg propagated, a task spanning a 2-day rain delay correctly shows
+  // its finish 2 calendar days later — and the same rain days inserted
+  // into nonWorkingDates from the Weather Push prompt naturally cascade
+  // through every successor's date label. The integer math
+  // (startDay/durationDays) stays in working-day units; only the
+  // display conversion is calendar-aware.
+  const start = addWorkingDays(projectStartDate, task.startDay - 1, workingDaysPerWeek, nonWorkingDates);
+  const end = addWorkingDays(start, task.durationDays - 1, workingDaysPerWeek, nonWorkingDates);
   return { start, end };
 }
 

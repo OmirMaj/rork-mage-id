@@ -64,6 +64,26 @@ export async function deleteSubUpdate(
 }
 
 /**
+ * Stamps `appliedAt` on a single update so the UI knows it's been
+ * applied to the master schedule. Idempotent — re-applying just bumps
+ * the timestamp. Returns the new full list.
+ */
+export async function markSubUpdateApplied(
+  projectId: string,
+  id: string,
+  appliedAt: string = new Date().toISOString(),
+): Promise<SubScheduleUpdate[]> {
+  const existing = await loadSubUpdates(projectId);
+  const next = existing.map(u => (u.id === id ? { ...u, appliedAt } : u));
+  try {
+    await AsyncStorage.setItem(keyFor(projectId), JSON.stringify(next));
+  } catch (e) {
+    console.log('[subUpdates] mark-applied failed', e);
+  }
+  return next;
+}
+
+/**
  * Latest update per (taskId, subName). Used for the GC overlay so we
  * show the freshest progress signal per task per sub.
  */

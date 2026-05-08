@@ -349,7 +349,14 @@ export function decodeShareToken(token: string): SharedSchedulePayload | null {
       ? new TextDecoder().decode(bytes)
       : ascii;
     const parsed = JSON.parse(json) as SharedSchedulePayload;
-    if (parsed.v !== 1 || !Array.isArray(parsed.tasks)) return null;
+    // Accept v1 (legacy GC-only), v2 (with sub-assignment + GC contact),
+    // and v3 (with projectId for sub daily updates). Pre-fix the decoder
+    // hardcoded v !== 1 which silently rejected every link emitted by
+    // schedule-pro (handleShare always sets projectId → buildSharePayload
+    // always emits v3 → 100% of new-screen share links broken). When a
+    // future v4 ships, raise the upper bound here AND add a migration
+    // for older payloads if the shape changes.
+    if (typeof parsed.v !== 'number' || parsed.v < 1 || parsed.v > 3 || !Array.isArray(parsed.tasks)) return null;
     return parsed;
   } catch {
     return null;

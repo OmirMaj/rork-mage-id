@@ -67,7 +67,7 @@ const SwipeableActiveCard = React.memo(function SwipeableActiveCard({
   onPhotoAdded?: (task: ScheduleTask, photo: { uri: string; timestamp: string; note?: string }) => void;
 }) {
   const phaseColor = getPhaseColor(task.phase);
-  const dateRange = getTaskDateRange(task, projectStartDate, schedule.workingDaysPerWeek);
+  const dateRange = getTaskDateRange(task, projectStartDate, schedule.workingDaysPerWeek, schedule.nonWorkingDates);
   const totalDays = task.durationDays;
   const daysPassed = Math.max(
     1,
@@ -343,7 +343,7 @@ function TodayView({
     return tasks.filter(t => {
       if (t.status === 'done') return false;
       if (t.isMilestone) return false;
-      const { start, end } = getTaskDateRange(t, projectStartDate, schedule.workingDaysPerWeek);
+      const { start, end } = getTaskDateRange(t, projectStartDate, schedule.workingDaysPerWeek, schedule.nonWorkingDates);
       return start <= now && end >= now;
     });
   }, [tasks, projectStartDate, schedule, now]);
@@ -354,7 +354,7 @@ function TodayView({
     return tasks.filter(t => {
       if (t.status === 'done') return false;
       if (t.isMilestone) return false;
-      const { start } = getTaskDateRange(t, projectStartDate, schedule.workingDaysPerWeek);
+      const { start } = getTaskDateRange(t, projectStartDate, schedule.workingDaysPerWeek, schedule.nonWorkingDates);
       return start > now && start <= threeDaysOut;
     }).slice(0, 8);
   }, [tasks, projectStartDate, schedule, now]);
@@ -363,7 +363,7 @@ function TodayView({
     return tasks.filter(t => {
       if (t.status === 'done') return false;
       if (t.isMilestone) return false;
-      const { end } = getTaskDateRange(t, projectStartDate, schedule.workingDaysPerWeek);
+      const { end } = getTaskDateRange(t, projectStartDate, schedule.workingDaysPerWeek, schedule.nonWorkingDates);
       return end < now && t.progress < 100;
     });
   }, [tasks, projectStartDate, schedule, now]);
@@ -451,7 +451,7 @@ function TodayView({
             <Text style={s.sectionTitleOverdue}>Overdue ({overdueTasks.length})</Text>
           </View>
           {overdueTasks.map(task => {
-            const { end } = getTaskDateRange(task, projectStartDate, schedule.workingDaysPerWeek);
+            const { end } = getTaskDateRange(task, projectStartDate, schedule.workingDaysPerWeek, schedule.nonWorkingDates);
             const daysOver = Math.ceil((now.getTime() - end.getTime()) / (1000 * 60 * 60 * 24));
             return (
               <TouchableOpacity
@@ -512,7 +512,7 @@ function TodayView({
             <Text style={s.sectionTitle}>Coming Up (Next 3 Days)</Text>
           </View>
           {comingUpTasks.map(task => {
-            const { start } = getTaskDateRange(task, projectStartDate, schedule.workingDaysPerWeek);
+            const { start } = getTaskDateRange(task, projectStartDate, schedule.workingDaysPerWeek, schedule.nonWorkingDates);
             const isBlocked = blockedComingUp.includes(task);
             return (
               <TouchableOpacity

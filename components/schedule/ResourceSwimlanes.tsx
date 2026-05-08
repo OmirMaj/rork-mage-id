@@ -18,8 +18,8 @@
 // already lets users edit `resourceIds` / `crew` directly.
 
 import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Platform } from 'react-native';
-import { Users, AlertTriangle } from 'lucide-react-native';
+import { View, Text, StyleSheet, ScrollView, Platform, TouchableOpacity } from 'react-native';
+import { Users, AlertTriangle, Layers } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ScheduleTask, ProjectResource } from '@/types';
 import { Type } from '@/constants/typography';
@@ -29,6 +29,10 @@ interface ResourceSwimlanesProps {
   tasks: ScheduleTask[];
   resources?: ProjectResource[];
   projectStartDate: Date;
+  /** Re-runs CPM with leveling on and applies the new startDays. Wired by
+   *  the parent (schedule-pro) which owns `commit`. Optional — if absent
+   *  the toolbar hides the Level button. */
+  onLevelResources?: () => void;
 }
 
 const ROW_HEIGHT = 40;
@@ -46,7 +50,7 @@ function fmtMonth(d: Date) {
   return d.toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
 }
 
-export default function ResourceSwimlanes({ tasks, resources, projectStartDate }: ResourceSwimlanesProps) {
+export default function ResourceSwimlanes({ tasks, resources, projectStartDate, onLevelResources }: ResourceSwimlanesProps) {
   const [pxPerDay, setPxPerDay] = useState(12);
 
   // Build the lane list. Prefer structured ProjectResource entries so the
@@ -163,6 +167,26 @@ export default function ResourceSwimlanes({ tasks, resources, projectStartDate }
         <Users size={14} color={Colors.primary} />
         <Text style={styles.toolbarTitle}>Resources</Text>
         <View style={styles.spacer} />
+        {/* Level button — only visible when the parent wired the
+            handler. Surfaces the leveler that already existed in cpm.ts
+            but had no caller. Clicking re-runs CPM with leveling on,
+            shifts overallocated tasks to the next free slot, and shows
+            a result toast. Pre-fix this red tint stayed on screen
+            forever; subs would over-promise crews and the GC had no
+            single-action way to resolve it. */}
+        {onLevelResources && (
+          <TouchableOpacity
+            onPress={onLevelResources}
+            style={styles.levelBtn}
+            accessibilityRole="button"
+            accessibilityLabel="Level resources"
+            testID="level-resources-btn"
+            activeOpacity={0.7}
+          >
+            <Layers size={12} color={Colors.primary} />
+            <Text style={styles.levelBtnText}>Level</Text>
+          </TouchableOpacity>
+        )}
         <Text style={styles.zoomValue}>{Math.round(pxPerDay)}px/d</Text>
         {Platform.OS === 'web' ? (
           React.createElement('input' as any, {
@@ -282,6 +306,21 @@ const styles = StyleSheet.create({
   },
   toolbarTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
   spacer: { flex: 1 },
+  levelBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: Tokens.radius.sm,
+    backgroundColor: Colors.primary + '15',
+    marginRight: 8,
+  },
+  levelBtnText: {
+    fontSize: Type.caption2.fontSize,
+    fontWeight: '700',
+    color: Colors.primary,
+  },
   zoomValue: { fontSize: Type.caption2.fontSize, fontWeight: '600', color: Colors.textSecondary, minWidth: 48, textAlign: 'right' },
   scrollH: { flex: 1 },
   headerRow: {

@@ -60,7 +60,7 @@ function VerticalGantt({ schedule, tasks, projectStartDate, onTaskPress, showBas
       const isToday = dateStr === todayStr;
 
       const dayTasks = tasks.filter(t => {
-        const range = getTaskDateRange(t, projectStartDate, schedule.workingDaysPerWeek);
+        const range = getTaskDateRange(t, projectStartDate, schedule.workingDaysPerWeek, schedule.nonWorkingDates);
         return date >= range.start && date <= range.end && !t.isMilestone;
       });
 

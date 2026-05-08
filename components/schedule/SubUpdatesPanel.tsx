@@ -11,17 +11,17 @@
 //      progress, hours, blocker badge, photos. Tap a row → jumps to
 //      the task in the inspector.
 
-import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import React, { memo, useEffect, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, Modal, ScrollView, Image, Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import {
-  Activity, X, AlertTriangle, Clock, Users, ChevronRight, MessageSquare,
+  Activity, X, AlertTriangle, Clock, Users, ChevronRight, MessageSquare, CheckCircle2,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
-import { loadSubUpdates } from '@/utils/subScheduleUpdatesStorage';
+import { loadSubUpdates, markSubUpdateApplied } from '@/utils/subScheduleUpdatesStorage';
 import type { SubScheduleUpdate, ScheduleTask } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -35,6 +35,16 @@ export interface SubUpdatesPanelProps {
    *  force a re-read of AsyncStorage when an update was just posted
    *  on the GC's device too. */
   refreshKey?: unknown;
+  /**
+   * Apply a sub's progress update to the underlying schedule task.
+   * Pre-fix this didn't exist — the panel was advisory-only and the GC
+   * had to dual-enter the percent on the master schedule. The parent
+   * (schedule-pro) wires this to a `commit` that sets
+   *   task.progress = update.progressPercent
+   *   task.actualStartDay ??= dayNumberFor(update.forDate)
+   * inside one undo-able batch.
+   */
+  onApplyUpdate?: (update: SubScheduleUpdate) => void;
 }
 
 function timeAgo(iso: string): string {
@@ -48,7 +58,7 @@ function timeAgo(iso: string): string {
   return new Date(iso).toLocaleDateString();
 }
 
-function SubUpdatesPanelImpl({ projectId, tasks, onJumpToTask, refreshKey }: SubUpdatesPanelProps) {
+function SubUpdatesPanelImpl({ projectId, tasks, onJumpToTask, refreshKey, onApplyUpdate }: SubUpdatesPanelProps) {
   const insets = useSafeAreaInsets();
   const [updates, setUpdates] = useState<SubScheduleUpdate[]>([]);
   const [open, setOpen] = useState(false);
@@ -152,6 +162,19 @@ function SubUpdatesPanelImpl({ projectId, tasks, onJumpToTask, refreshKey }: Sub
                       setOpen(false);
                       setTimeout(() => onJumpToTask(u.taskId), 80);
                     } : undefined}
+                    onApply={onApplyUpdate ? async () => {
+                      // Optimistic: stamp local cache first so the row
+                      // flips to "Applied" immediately, then call the
+                      // parent's commit. If the parent throws / rolls
+                      // back we'd need a finer signal — for now the
+                      // commit is sync (zustand-style setState), so
+                      // failures are unlikely.
+                      onApplyUpdate(u);
+                      const stampedAt = new Date().toISOString();
+                      const next = await markSubUpdateApplied(projectId, u.id, stampedAt);
+                      setUpdates(next);
+                      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+                    } : undefined}
                   />
                 );
               })}
@@ -166,13 +189,22 @@ function SubUpdatesPanelImpl({ projectId, tasks, onJumpToTask, refreshKey }: Sub
 export const SubUpdatesPanel = memo(SubUpdatesPanelImpl);
 
 function UpdateRow({
-  update, task, onJump,
+  update, task, onJump, onApply,
 }: {
   update: SubScheduleUpdate;
   task?: ScheduleTask;
   onJump?: () => void;
+  onApply?: () => void;
 }) {
   const hasBlocker = !!update.blocker && update.blocker.trim().length > 0;
+  const isApplied = !!update.appliedAt;
+  // Apply is offered when:
+  //   - parent provided the handler (onApply)
+  //   - the task still exists (taskById lookup succeeded)
+  //   - the update isn't already applied
+  //   - the sub's reported % is actually different from the task's
+  //     current %  (otherwise applying is a no-op + confusing toast)
+  const canApply = !!onApply && !!task && !isApplied && task.progress !== update.progressPercent;
   return (
     <TouchableOpacity
       style={[styles.row, hasBlocker && styles.rowBlocker]}
@@ -185,6 +217,7 @@ function UpdateRow({
           <Text style={styles.rowTitle}>{task?.title ?? '(deleted task)'}</Text>
           <Text style={styles.rowMeta}>
             {update.subName} · {timeAgo(update.postedAt)}
+            {isApplied ? ` · Applied ${timeAgo(update.appliedAt!)}` : ''}
           </Text>
         </View>
         <View style={[styles.progressPill, hasBlocker && { backgroundColor: Colors.error + '14' }]}>
@@ -193,6 +226,36 @@ function UpdateRow({
           </Text>
         </View>
       </View>
+
+      {/* Apply CTA — only visible when applying would actually change
+          something on the underlying task. Already-applied updates show
+          a static "Applied" chip instead. */}
+      {(canApply || isApplied) && (
+        <View style={styles.applyRow}>
+          {isApplied ? (
+            <View style={styles.appliedChip}>
+              <CheckCircle2 size={12} color={Colors.success} />
+              <Text style={styles.appliedChipText}>
+                Applied · task at {update.progressPercent}%
+              </Text>
+            </View>
+          ) : (
+            <TouchableOpacity
+              style={styles.applyBtn}
+              onPress={(e) => { e.stopPropagation(); onApply?.(); }}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={`Apply ${update.progressPercent}% to task`}
+              testID={`apply-sub-update-${update.id}`}
+            >
+              <CheckCircle2 size={12} color={Colors.textOnPrimary} />
+              <Text style={styles.applyBtnText}>
+                Apply {update.progressPercent}% to task
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
 
       <View style={styles.statRow}>
         {update.hoursWorked != null && (
@@ -333,4 +396,40 @@ const styles = StyleSheet.create({
 
   photoRow: { flexDirection: 'row', gap: 6 },
   photoThumb: { width: 56, height: 56, borderRadius: Tokens.radius.sm, backgroundColor: Colors.background },
+
+  applyRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
+    marginTop: 4,
+  },
+  applyBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: Tokens.radius.sm,
+    backgroundColor: Colors.primary,
+  },
+  applyBtnText: {
+    fontSize: Type.caption1.fontSize,
+    fontWeight: '700',
+    color: Colors.textOnPrimary,
+  },
+  appliedChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: Tokens.radius.sm,
+    backgroundColor: Colors.success + '14',
+    borderWidth: 1,
+    borderColor: Colors.success + '30',
+  },
+  appliedChipText: {
+    fontSize: Type.caption2.fontSize,
+    fontWeight: '700',
+    color: Colors.success,
+  },
 });

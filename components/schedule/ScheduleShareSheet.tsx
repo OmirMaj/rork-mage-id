@@ -61,13 +61,13 @@ function ScheduleShareSheet({
   }, [tasks]);
 
   const generatePdfHtml = useCallback((filteredTasks: ScheduleTask[]): string => {
-    const endDate = addWorkingDays(projectStartDate, schedule.totalDurationDays, schedule.workingDaysPerWeek);
+    const endDate = addWorkingDays(projectStartDate, schedule.totalDurationDays, schedule.workingDaysPerWeek, schedule.nonWorkingDates);
     const totalProgress = filteredTasks.length > 0
       ? Math.round(filteredTasks.reduce((s, t) => s + t.progress, 0) / filteredTasks.length)
       : 0;
 
     const taskRows = filteredTasks.map(t => {
-      const dr = getTaskDateRange(t, projectStartDate, schedule.workingDaysPerWeek);
+      const dr = getTaskDateRange(t, projectStartDate, schedule.workingDaysPerWeek, schedule.nonWorkingDates);
       const phaseColor = getPhaseColor(t.phase);
       return `
         <tr>

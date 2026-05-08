@@ -538,6 +538,15 @@ export interface SubScheduleUpdate {
   /** Optional: GPS at post time. Privacy-aware — sub opts in. */
   latitude?: number;
   longitude?: number;
+  /**
+   * ISO timestamp at which the GC tapped "Apply" — at which point the
+   * update's progress + (optionally) actualStartDay landed on the
+   * underlying ScheduleTask. Pre-fix sub updates lived as an
+   * advisory feed only; the GC had to dual-enter the same percent
+   * on the master schedule. With this flag the panel shows
+   * "Applied 2h ago" and prevents double-apply.
+   */
+  appliedAt?: string;
 }
 
 /**
