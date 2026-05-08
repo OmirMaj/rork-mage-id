@@ -46,6 +46,7 @@ import { fetchSelectionsForProject } from '@/utils/selectionsEngine';
 import { fetchCloseoutBinder } from '@/utils/closeoutBinderEngine';
 import { fetchLienWaiversForProject } from '@/utils/lienWaiverEngine';
 import { STATUS_TONES } from '@/utils/statusPill';
+import { PHASE_COLORS, PHASE_OPTIONS } from '@/utils/scheduleEngine';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { buildPortalSnapshot } from '@/utils/portalSnapshot';
 import { Type } from '@/constants/typography';
@@ -288,6 +289,12 @@ export default function ProjectDetailScreen() {
   const [inviteRole, setInviteRole] = useState<'editor' | 'viewer'>('editor');
   const [showEditModal, setShowEditModal] = useState<EditModalType>(false);
   const [activeTile, setActiveTile] = useState<SectionKey | null>(null);
+  // Daily Reports view mode — 'week' (default, calendar-grouped) or
+  // 'phase' (Procore-style "folder" answer: group by construction
+  // phase). Phase view collapses each phase into a header with a
+  // count, mirroring how a GC actually thinks about the project's
+  // history ("show me reports from when we were doing foundations").
+  const [dfrGroupMode, setDfrGroupMode] = useState<'week' | 'phase'>('week');
   // Tile group collapse state — Field & Money expanded by default, Docs & People collapsed.
   const [collapsedGroups, setCollapsedGroups] = useState<Set<TileGroupKey>>(new Set(['docs', 'people']));
   // Async status badges for the Money-group tiles. Loaded once when the
@@ -2070,10 +2077,38 @@ export default function ProjectDetailScreen() {
 
           {expanded.dailyReports && (
             <View style={styles.coCard}>
+              {/* Group toggle: Week (default, calendar) ↔ Phase
+                  (Procore-style folder answer). Hidden until the
+                  project has at least one report — would be noise on
+                  empty state. */}
+              {dailyReports.length > 0 && (
+                <View style={styles.dfrGroupToggleRow}>
+                  <TouchableOpacity
+                    style={[styles.dfrGroupToggleBtn, dfrGroupMode === 'week' && styles.dfrGroupToggleBtnActive]}
+                    onPress={() => setDfrGroupMode('week')}
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: dfrGroupMode === 'week' }}
+                    testID="dfr-group-week"
+                  >
+                    <Text style={[styles.dfrGroupToggleText, dfrGroupMode === 'week' && styles.dfrGroupToggleTextActive]}>Week</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.dfrGroupToggleBtn, dfrGroupMode === 'phase' && styles.dfrGroupToggleBtnActive]}
+                    onPress={() => setDfrGroupMode('phase')}
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: dfrGroupMode === 'phase' }}
+                    testID="dfr-group-phase"
+                  >
+                    <Text style={[styles.dfrGroupToggleText, dfrGroupMode === 'phase' && styles.dfrGroupToggleTextActive]}>Phase</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
               {dailyReports.length === 0 && (
                 <Text style={styles.coEmptyText}>No daily reports yet.</Text>
               )}
-              {dailyReports.length > 0 && (() => {
+              {dailyReports.length > 0 && dfrGroupMode === 'week' && (() => {
                 // Group DFRs by ISO week. Week label is "Week of Mon Apr 7"
                 // — same as how site superintendents talk about the calendar.
                 // Newest week first; within a week, newest day first. Keeps
@@ -2134,6 +2169,74 @@ export default function ProjectDetailScreen() {
                     ))}
                   </View>
                 ));
+              })()}
+              {dailyReports.length > 0 && dfrGroupMode === 'phase' && (() => {
+                // Group DFRs by phase (auto-derived or manually set on save).
+                // Reports without a phase fall under 'Unassigned' — typically
+                // legacy reports from before the field existed, or projects
+                // without a schedule. Phase order follows the canonical
+                // construction sequence (PHASE_OPTIONS in scheduleEngine).
+                const buckets = new Map<string, typeof dailyReports>();
+                for (const dr of dailyReports) {
+                  const phase = dr.phase ?? 'Unassigned';
+                  if (!buckets.has(phase)) buckets.set(phase, []);
+                  buckets.get(phase)!.push(dr);
+                }
+                // Sort phases by canonical construction order; unknown
+                // phases (custom names) sort alphabetically after known ones;
+                // Unassigned sinks to the bottom.
+                const orderIndex = (phase: string) => {
+                  if (phase === 'Unassigned') return 9999;
+                  const idx = PHASE_OPTIONS.indexOf(phase);
+                  return idx === -1 ? 1000 : idx;
+                };
+                const orderedPhases = Array.from(buckets.entries()).sort((a, b) => {
+                  const oa = orderIndex(a[0]);
+                  const ob = orderIndex(b[0]);
+                  if (oa !== ob) return oa - ob;
+                  return a[0].localeCompare(b[0]);
+                });
+                return orderedPhases.map(([phase, reports]) => {
+                  const dot = PHASE_COLORS[phase] ?? PHASE_COLORS.General;
+                  return (
+                    <View key={phase} style={styles.dfrWeekBucket}>
+                      <View style={styles.dfrWeekHeader}>
+                        <View style={[styles.dfrPhaseDot, { backgroundColor: dot }]} />
+                        <Text style={styles.dfrWeekLabel}>{phase}</Text>
+                        <View style={styles.dfrWeekBadge}>
+                          <Text style={styles.dfrWeekBadgeText}>{reports.length}</Text>
+                        </View>
+                      </View>
+                      {reports
+                        .slice()
+                        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                        .map(dr => (
+                        <TouchableOpacity
+                          key={dr.id}
+                          style={styles.coRow}
+                          onPress={() => navigateFromTile({ pathname: '/daily-report' as any, params: { projectId: id, reportId: dr.id } })}
+                          activeOpacity={0.7}
+                        >
+                          <View style={styles.coInfo}>
+                            <Text style={styles.coNumber}>{new Date(dr.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</Text>
+                            <Text style={styles.coDesc} numberOfLines={1}>
+                              {dr.weather.conditions || 'No weather'} · {dr.manpower.reduce((s, m) => s + m.headcount, 0)} workers · {dr.photos.length} photos
+                            </Text>
+                          </View>
+                          <View style={[styles.coBadge, {
+                            backgroundColor: dr.status === 'sent' ? Colors.successLight : Colors.primary + '15'
+                          }]}>
+                            <Text style={[styles.coBadgeText, {
+                              color: dr.status === 'sent' ? Colors.success : Colors.primary
+                            }]}>
+                              {dr.status === 'sent' ? 'Sent' : 'Saved'}
+                            </Text>
+                          </View>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  );
+                });
               })()}
               <TouchableOpacity
                 style={styles.coAddBtn}
@@ -3393,6 +3496,33 @@ const styles = StyleSheet.create({
   dfrWeekLabel: { flex: 1, fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: Colors.textSecondary, letterSpacing: 0.6, textTransform: 'uppercase' as const },
   dfrWeekBadge: { backgroundColor: Colors.fillSecondary, borderRadius: Tokens.radius.sm, paddingHorizontal: 7, paddingVertical: 1, minWidth: 20, alignItems: 'center' as const },
   dfrWeekBadgeText: { fontSize: 10, fontWeight: '700' as const, color: Colors.textSecondary },
+  dfrPhaseDot: { width: 10, height: 10, borderRadius: 5 },
+  // Daily Reports view-mode segmented control (Week ↔ Phase).
+  dfrGroupToggleRow: {
+    flexDirection: 'row' as const,
+    backgroundColor: Colors.fillTertiary,
+    borderRadius: Tokens.radius.sm,
+    padding: 2,
+    marginBottom: 10,
+    alignSelf: 'flex-start' as const,
+  },
+  dfrGroupToggleBtn: {
+    paddingVertical: 6,
+    paddingHorizontal: 14,
+    borderRadius: Tokens.radius.sm - 1,
+  },
+  dfrGroupToggleBtnActive: {
+    backgroundColor: Colors.surface,
+  },
+  dfrGroupToggleText: {
+    fontSize: Type.footnote.fontSize,
+    fontWeight: '600' as const,
+    color: Colors.textMuted,
+  },
+  dfrGroupToggleTextActive: {
+    color: Colors.text,
+    fontWeight: '700' as const,
+  },
   photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
   photoThumb: { width: 72, height: 72, borderRadius: Tokens.radius.md, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center', gap: 4, overflow: 'hidden' as const, position: 'relative' as const },
   photoThumbImage: { width: '100%', height: '100%' },

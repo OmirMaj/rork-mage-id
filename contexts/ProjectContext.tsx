@@ -1427,7 +1427,40 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
     });
   }, [projects, updateProject]);
 
-  const addDailyReport = useCallback((report: DailyFieldReport) => {
+  /**
+   * Adds a daily report — but if one already exists for the same
+   * (projectId, date), routes back to the existing record instead of
+   * creating a duplicate. Returns `{ id, isExisting }` so the caller
+   * can navigate to the right record and surface a toast like
+   * "Opening today's existing report." Procore enforces one log per
+   * project per day; this gives us the same data integrity without a
+   * hard server-side unique constraint (which would lose offline
+   * writes when two devices race).
+   *
+   * Uniqueness key is the local calendar day of `report.date` — so a
+   * report saved at 11:55pm and one saved at 12:05am the next day
+   * still create two rows, but two reports both stamped on Tuesday
+   * collapse into the first.
+   */
+  const addDailyReport = useCallback((report: DailyFieldReport): { id: string; isExisting: boolean } => {
+    const dayKey = (iso: string) => {
+      const d = new Date(iso);
+      // Local-day key (YYYY-MM-DD) — DST/midnight-edge safe because we
+      // only compare same-format strings, never raw timestamps.
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${dd}`;
+    };
+    const incomingKey = dayKey(report.date);
+    const existing = dailyReports.find(
+      dr => dr.projectId === report.projectId && dayKey(dr.date) === incomingKey,
+    );
+    if (existing) {
+      // Don't insert. Caller should route to /daily-report?reportId=...
+      return { id: existing.id, isExisting: true };
+    }
+
     const updated = [report, ...dailyReports];
     setDailyReports(updated);
     saveDailyReportsMutation.mutate(updated);
@@ -1444,6 +1477,7 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
         created_at: report.createdAt, updated_at: report.updatedAt,
       });
     }
+    return { id: report.id, isExisting: false };
   }, [dailyReports, saveDailyReportsMutation, canSync, userId, propagateProgressFromDFR]);
 
   const updateDailyReport = useCallback((id: string, updates: Partial<DailyFieldReport>) => {

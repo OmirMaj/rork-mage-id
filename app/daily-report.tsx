@@ -27,7 +27,7 @@ import { parseDFRFromTranscript } from '@/utils/voiceDFRParser';
 import AIDailyReportGen from '@/components/AIDailyReportGen';
 import AIDFRFromPhotos from '@/components/AIDFRFromPhotos';
 import type { ManpowerEntry, DFRPhoto, DailyFieldReport, DFRWeather, IncidentReport, IncidentSeverity, DFRWorkProgress } from '@/types';
-import { PHASE_COLORS } from '@/utils/scheduleEngine';
+import { PHASE_COLORS, PHASE_OPTIONS } from '@/utils/scheduleEngine';
 import { stampPhotoLocation } from '@/utils/photoGeoStamp';
 import type { DailyReportGenResult } from '@/utils/aiService';
 import { generateHomeownerSummary } from '@/utils/aiService';
@@ -46,7 +46,7 @@ export default function DailyReportScreen() {
   const { projectId, reportId } = useLocalSearchParams<{ projectId: string; reportId?: string }>();
   const {
     getProject, getDailyReportsForProject, addDailyReport, updateDailyReport, contacts, settings, addProjectPhoto,
-    getPhotosForProject,
+    getPhotosForProject, updateProject,
   } = useProjects();
   const { isProOrAbove } = useSubscription();
   const [voiceLoading, setVoiceLoading] = useState(false);
@@ -76,6 +76,33 @@ export default function DailyReportScreen() {
   }, [projectId, reportId, existingReports, getPhotosForProject]);
   const existingReport = useMemo(() => reportId ? existingReports.find(r => r.id === reportId) : null, [reportId, existingReports]);
 
+  // ─── Soft per-day uniqueness ───
+  // Procore enforces one daily log per project per day. We do the same — but
+  // soft, in the UI: when the user opens "New Daily Report" and a report
+  // already exists for today, we silently redirect to the existing record
+  // instead of letting them fill out a duplicate that the context's
+  // addDailyReport would then reject. The save-time check in
+  // addDailyReport is the safety net for date-edit edge cases.
+  useEffect(() => {
+    if (reportId) return;            // editing — no dup check needed
+    if (!projectId) return;
+    const todayKey = (() => {
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    })();
+    const existing = existingReports.find(r => {
+      const d = new Date(r.date);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` === todayKey;
+    });
+    if (existing) {
+      // replace (not push) so the user's back-button still goes to project
+      // detail, not back into the empty new-report screen.
+      router.replace({ pathname: '/daily-report' as any, params: { projectId, reportId: existing.id } });
+      nailIt(`Opening today's existing report. Add to it instead of starting over.`);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);  // intentionally mount-only — date-edit case is caught at save
+
   const [weather, setWeather] = useState<DFRWeather>(
     existingReport?.weather ?? { temperature: '', conditions: '', wind: '', isManual: true }
   );
@@ -85,6 +112,7 @@ export default function DailyReportScreen() {
   // project schedule + a percent-complete the GC observed today.
   const [workProgress, setWorkProgress] = useState<DFRWorkProgress[]>(existingReport?.workProgress ?? []);
   const [showTaskPicker, setShowTaskPicker] = useState(false);
+  const [showPhasePicker, setShowPhasePicker] = useState(false);
   const [materialsDelivered, setMaterialsDelivered] = useState<string[]>(
     existingReport?.materialsDelivered ?? []
   );
@@ -120,7 +148,17 @@ export default function DailyReportScreen() {
   const [sendRecipientName, setSendRecipientName] = useState('');
   const [sendRecipientEmail, setSendRecipientEmail] = useState('');
   const [showContactPicker, setShowContactPicker] = useState(false);
-  const [contactPicked, setContactPicked] = useState(false);
+  // Multi-recipient distribution list. Pre-filled from
+  // `project.dfrRecipients` (project-level default) → `settings.dfrRecipients`
+  // (org-wide default) on first open of the Submit modal. Add via typed
+  // inputs (the "Add" button) or "Pick from Contacts." Tap a chip's X to
+  // remove. Persisted back to the project when "Remember for this project"
+  // is checked at send time.
+  const [recipients, setRecipients] = useState<{ name?: string; email: string }[]>([]);
+  // True after we've seeded `recipients` from defaults so we don't keep
+  // overwriting the user's edits every time they reopen the modal.
+  const [recipientsSeeded, setRecipientsSeeded] = useState(false);
+  const [rememberRecipientsForProject, setRememberRecipientsForProject] = useState(false);
   // Date selection — Procore-style. The DFR's `date` field already
   // exists on the persisted record but the UI used to hardcode "now"
   // every render, making it impossible to log a report for yesterday
@@ -522,6 +560,51 @@ export default function DailyReportScreen() {
     return manpower.reduce((sum, m) => sum + (m.headcount * m.hoursWorked), 0);
   }, [manpower]);
 
+  // Auto-derive the construction phase for this report from the project's
+  // schedule. Strategy: of all tasks live on `reportDate` (started, not
+  // done, not a milestone/summary), pick the one with the largest crew —
+  // that's the phase the day was *really* about. Falls back to 'General'
+  // when the project has no schedule or no tasks land on this date. The
+  // GC can override via a manual chip selector but the auto-pick is right
+  // ~80% of the time, which is the bar a "folder" abstraction needs to
+  // earn its weight.
+  const derivedPhase = useMemo<string | undefined>(() => {
+    const sched = project?.schedule;
+    if (!sched?.tasks?.length) return undefined;
+    const baseIso = sched.startDate || project?.createdAt;
+    const baseMs = baseIso ? Date.parse(baseIso) : NaN;
+    if (!Number.isFinite(baseMs)) return undefined;
+    const dayMs = 86_400_000;
+    const reportMs = Date.parse(reportDate);
+    if (!Number.isFinite(reportMs)) return undefined;
+    const dayIndex = Math.floor((reportMs - baseMs) / dayMs);
+    const live = sched.tasks.filter(t => {
+      if (t.status === 'done') return false;
+      if (t.isMilestone || t.isLevelOfEffort || t.isSummary) return false;
+      const start = t.startDay ?? 0;
+      const dur = t.durationDays ?? 0;
+      return start <= dayIndex && start + dur > dayIndex;
+    });
+    if (live.length === 0) return undefined;
+    // Pick the phase with the most aggregate crew on that day.
+    const phaseCrew = new Map<string, number>();
+    for (const t of live) {
+      const phase = t.phase || 'General';
+      phaseCrew.set(phase, (phaseCrew.get(phase) ?? 0) + Math.max(1, t.crewSize ?? 1));
+    }
+    let best: string | undefined;
+    let bestCrew = -1;
+    for (const [phase, crew] of phaseCrew.entries()) {
+      if (crew > bestCrew) { best = phase; bestCrew = crew; }
+    }
+    return best;
+  }, [project?.schedule, project?.createdAt, reportDate]);
+
+  // The phase actually saved on the report. Manual override beats the
+  // schedule-derived value; otherwise we fall back to derivedPhase.
+  const [phaseOverride, setPhaseOverride] = useState<string | undefined>(existingReport?.phase);
+  const effectivePhase = phaseOverride ?? derivedPhase;
+
   const handleSave = useCallback((status: 'draft' | 'sent', recipientName?: string, recipientEmail?: string) => {
     if (!projectId) return;
 
@@ -554,6 +637,7 @@ export default function DailyReportScreen() {
         homeownerSummary: homeownerSummary.trim() || undefined,
         homeownerSummaryGeneratedAt: hsGeneratedAt,
         homeownerSummaryPublished: hsPublished,
+        phase: effectivePhase,
       });
       if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert('Updated', `Daily report has been ${status === 'sent' ? `sent${recipientInfo}` : 'saved to project'}.`);
@@ -578,10 +662,28 @@ export default function DailyReportScreen() {
         homeownerSummary: homeownerSummary.trim() || undefined,
         homeownerSummaryGeneratedAt: hsGeneratedAt,
         homeownerSummaryPublished: hsPublished,
+        phase: effectivePhase,
         createdAt: now,
         updatedAt: now,
       };
-      addDailyReport(report);
+      // addDailyReport now returns { id, isExisting }. If the user picked
+      // a date that already has a report (e.g. backfilled to yesterday),
+      // we route into edit mode on the existing record instead of
+      // silently dropping the user's input.
+      const result = addDailyReport(report);
+      if (result.isExisting && result.id !== stableReportId) {
+        Alert.alert(
+          'Report already exists for this date',
+          'A daily report for this date is already saved. Opening it so you can add to it.',
+          [
+            {
+              text: 'Open existing',
+              onPress: () => router.replace({ pathname: '/daily-report' as any, params: { projectId, reportId: result.id } }),
+            },
+          ],
+        );
+        return;
+      }
       // Sync DFR photos into project photo gallery
       for (const p of photos) {
         addProjectPhoto({
@@ -598,24 +700,73 @@ export default function DailyReportScreen() {
       nailIt(status === 'sent' ? `Daily report sent${recipientInfo}` : 'Daily report saved.');
     }
     router.back();
-  }, [projectId, weather, manpower, workPerformed, workProgress, materialsDelivered, issuesAndDelays, photos, incident, existingReport, homeownerSummary, hsGeneratedAt, hsPublished, addDailyReport, updateDailyReport, addProjectPhoto, router, reportDate, stableReportId]);
+  }, [projectId, weather, manpower, workPerformed, workProgress, materialsDelivered, issuesAndDelays, photos, incident, existingReport, homeownerSummary, hsGeneratedAt, hsPublished, addDailyReport, updateDailyReport, addProjectPhoto, router, reportDate, stableReportId, effectivePhase]);
 
   const handleSendPress = useCallback(() => {
+    // Seed the recipient list from the project-level default first, then
+    // org-wide default. Only on first open per session — once the user has
+    // edited the chip list, reopening the modal preserves their edits.
+    if (!recipientsSeeded) {
+      const projectDefaults = project?.dfrRecipients ?? [];
+      const orgDefaults = settings.dfrRecipients ?? [];
+      const source = projectDefaults.length > 0 ? projectDefaults : orgDefaults;
+      if (source.length > 0) {
+        setRecipients(source.map(email => ({ email })));
+      }
+      setRecipientsSeeded(true);
+    }
     setShowSendRecipient(true);
+  }, [recipientsSeeded, project?.dfrRecipients, settings.dfrRecipients]);
+
+  // Add the currently-typed name + email to the recipients chip list. Used
+  // by the "Add" button in the Submit modal. Validates email shape so
+  // typo-only entries don't get sent silently.
+  const handleAddTypedRecipient = useCallback(() => {
+    const email = sendRecipientEmail.trim();
+    if (!email) return;
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      Alert.alert('Invalid email', `"${email}" doesn't look like a valid email address.`);
+      return;
+    }
+    if (recipients.some(r => r.email.toLowerCase() === email.toLowerCase())) {
+      Alert.alert('Already added', `${email} is already in the recipient list.`);
+      return;
+    }
+    setRecipients(prev => [...prev, { name: sendRecipientName.trim() || undefined, email }]);
+    setSendRecipientName('');
+    setSendRecipientEmail('');
+    if (Platform.OS !== 'web') void Haptics.selectionAsync().catch(() => {});
+  }, [sendRecipientEmail, sendRecipientName, recipients]);
+
+  const handleRemoveRecipient = useCallback((email: string) => {
+    setRecipients(prev => prev.filter(r => r.email.toLowerCase() !== email.toLowerCase()));
+    if (Platform.OS !== 'web') void Haptics.selectionAsync().catch(() => {});
   }, []);
 
   const handleConfirmSend = useCallback(async () => {
-    // Pre-fix the only "send" target was email and a blank email
-    // hard-blocked the modal. Now: email is optional when "Save to
-    // project files" is on — a GC who just wants the PDF in the
-    // shared drive without emailing it should be able to skip the
-    // recipient.
-    const wantsEmail = sendRecipientEmail.trim().length > 0;
+    // Build the final recipient list: chips already in the list, PLUS any
+    // typed-but-not-yet-added entry. This avoids the "I typed it and hit
+    // Send and it didn't go" surprise — the most common cause of bug
+    // reports on multi-recipient flows in other apps.
+    const typedEmail = sendRecipientEmail.trim();
+    const typedName = sendRecipientName.trim();
+    const isTypedValid = typedEmail.length > 0 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(typedEmail);
+    const isTypedAlreadyInList = isTypedValid && recipients.some(r => r.email.toLowerCase() === typedEmail.toLowerCase());
+    const finalRecipients: { name?: string; email: string }[] = [
+      ...recipients,
+      ...(isTypedValid && !isTypedAlreadyInList ? [{ name: typedName || undefined, email: typedEmail }] : []),
+    ];
+
+    const wantsEmail = finalRecipients.length > 0;
     if (!wantsEmail && !saveToProjectFiles) {
       Alert.alert(
         'Pick a destination',
-        'Either enter a recipient email, toggle "Save to project files", or both.',
+        'Add at least one recipient, toggle "Save to project files", or both.',
       );
+      return;
+    }
+    if (typedEmail.length > 0 && !isTypedValid) {
+      Alert.alert('Invalid email', `"${typedEmail}" doesn't look like a valid email address. Fix it or clear the field.`);
       return;
     }
     setShowSendRecipient(false);
@@ -627,38 +778,61 @@ export default function DailyReportScreen() {
         tempHigh: parseInt(String(weather.temperature)) || 0,
         tempLow: parseInt(String(weather.temperature)) || 0,
       };
-      const html = buildDailyReportEmailHtml({
-        companyName: branding.companyName,
-        recipientName: sendRecipientName,
-        projectName: project?.name ?? 'Project',
-        date: reportDate,  // honor the user-picked date in the email body
-        weather: weatherForEmail,
-        totalManpower,
-        totalManHours,
-        workPerformed: workPerformed.trim(),
-        issuesAndDelays: issuesAndDelays.trim(),
-        contactName: branding.contactName,
-        contactEmail: branding.email,
-      });
 
-      const result = await sendEmail({
-        to: sendRecipientEmail.trim(),
-        subject: `Daily report · ${new Date(reportDate).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} · ${project?.name ?? 'Project'}`,
-        html,
-        replyTo: branding.email || undefined,
-        fromCompanyName: branding.companyName || undefined,
-        unsubscribe: { recipientEmail: sendRecipientEmail.trim(), eventKey: 'daily_report', enabled: true },
-      });
-
-      if (!result.success) {
-        if (result.error === 'cancelled') {
-          return;
+      // Send to each recipient sequentially. Sequential (not parallel)
+      // because the sendEmail edge function is rate-aware and a short
+      // burst of 4-6 sends is cheap enough that the simpler control
+      // flow + per-recipient error reporting is worth it.
+      const failures: { email: string; error?: string }[] = [];
+      for (const r of finalRecipients) {
+        const html = buildDailyReportEmailHtml({
+          companyName: branding.companyName,
+          recipientName: r.name ?? '',
+          projectName: project?.name ?? 'Project',
+          date: reportDate,
+          weather: weatherForEmail,
+          totalManpower,
+          totalManHours,
+          workPerformed: workPerformed.trim(),
+          issuesAndDelays: issuesAndDelays.trim(),
+          contactName: branding.contactName,
+          contactEmail: branding.email,
+        });
+        const result = await sendEmail({
+          to: r.email,
+          subject: `Daily report · ${new Date(reportDate).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} · ${project?.name ?? 'Project'}`,
+          html,
+          replyTo: branding.email || undefined,
+          fromCompanyName: branding.companyName || undefined,
+          unsubscribe: { recipientEmail: r.email, eventKey: 'daily_report', enabled: true },
+        });
+        if (!result.success) {
+          if (result.error === 'cancelled') {
+            // User cancelled the native mail composer — abort the whole
+            // batch so we don't keep popping the composer for each
+            // remaining recipient.
+            return;
+          }
+          console.warn('[DailyReport] Email send failed for', r.email, ':', result.error);
+          failures.push({ email: r.email, error: result.error });
         }
-        console.warn('[DailyReport] Email send failed:', result.error);
-        Alert.alert('Email Notice', `Report saved but email could not be sent: ${result.error}`);
-        return;
-      } else {
-        console.log('[DailyReport] Email sent successfully');
+      }
+      if (failures.length > 0) {
+        const summary = failures.map(f => `${f.email}${f.error ? ` (${f.error})` : ''}`).join(', ');
+        Alert.alert(
+          'Some emails did not send',
+          `${finalRecipients.length - failures.length} of ${finalRecipients.length} sent. Failed: ${summary}`,
+        );
+      }
+
+      // Persist the recipient list back to the project when "Remember"
+      // was checked. We dedupe + lowercase-normalize so the next session
+      // doesn't accumulate mixed-case duplicates.
+      if (rememberRecipientsForProject && projectId) {
+        const normalized = Array.from(
+          new Set(finalRecipients.map(r => r.email.toLowerCase().trim())),
+        ).filter(Boolean);
+        updateProject(projectId, { dfrRecipients: normalized });
       }
     }
 
@@ -708,8 +882,17 @@ export default function DailyReportScreen() {
       }
     }
 
-    handleSave('sent', sendRecipientName, sendRecipientEmail);
-  }, [handleSave, sendRecipientName, sendRecipientEmail, settings, project, weather, totalManpower, totalManHours, workPerformed, issuesAndDelays, reportDate, saveToProjectFiles, projectId, existingReport]);
+    // Toast the *count* when the batch is multi-recipient so the GC sees
+    // "Daily report sent to 4 recipients" instead of just one of the
+    // names — same wording style as Procore's "Distributed to 4."
+    if (finalRecipients.length > 1) {
+      handleSave('sent', `${finalRecipients.length} recipients`, undefined);
+    } else if (finalRecipients.length === 1) {
+      handleSave('sent', finalRecipients[0].name, finalRecipients[0].email);
+    } else {
+      handleSave('sent', undefined, undefined);
+    }
+  }, [handleSave, sendRecipientName, sendRecipientEmail, recipients, rememberRecipientsForProject, updateProject, settings, project, weather, totalManpower, totalManHours, workPerformed, issuesAndDelays, reportDate, saveToProjectFiles, projectId, stableReportId]);
 
   if (!project) {
     return (
@@ -1099,6 +1282,45 @@ export default function DailyReportScreen() {
               </View>
             </View>
           </View>
+
+          {/* Phase pill — auto-derived from the project schedule's most-
+              active task on this date, manually overridable. Drives the
+              "group reports by phase" view on Project Detail (the
+              Procore-style folder answer without a separate folder
+              entity). Hidden when there's no schedule + no override —
+              would just show "General" with no signal. */}
+          {(effectivePhase || project.schedule?.tasks?.length) ? (
+            <TouchableOpacity
+              style={styles.phasePillRow}
+              onPress={() => !isLocked && setShowPhasePicker(true)}
+              activeOpacity={isLocked ? 1 : 0.7}
+              accessibilityRole={isLocked ? undefined : 'button'}
+              accessibilityLabel={isLocked ? `Phase: ${effectivePhase ?? 'General'}` : `Change phase. Currently ${effectivePhase ?? 'auto'}`}
+              disabled={isLocked}
+              testID="phase-pill"
+            >
+              <View
+                style={[
+                  styles.phasePillDot,
+                  { backgroundColor: PHASE_COLORS[effectivePhase ?? 'General'] ?? PHASE_COLORS.General },
+                ]}
+              />
+              <Text style={styles.phasePillLabel}>Phase</Text>
+              <Text style={styles.phasePillValue}>
+                {effectivePhase ?? 'Auto-detect on save'}
+              </Text>
+              {phaseOverride && (
+                <View style={styles.phasePillOverrideBadge}>
+                  <Text style={styles.phasePillOverrideBadgeText}>Manual</Text>
+                </View>
+              )}
+              {!isLocked && (
+                <Text style={styles.phasePillCta}>
+                  {phaseOverride ? 'Change' : (derivedPhase ? 'Override' : 'Set')}
+                </Text>
+              )}
+            </TouchableOpacity>
+          ) : null}
 
           {/* Work Progress — structured per-task percent-complete chips.
               Lets the GC log "Concrete Pour 100%, Steel Erection 60%" as
@@ -1543,48 +1765,115 @@ export default function DailyReportScreen() {
                 </TouchableOpacity>
               </View>
 
-              {contactPicked ? (
-                <View style={styles.selectedRecipientCard}>
-                  <User size={16} color={Colors.primary} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.selectedRecipientName}>{sendRecipientName}</Text>
-                    {sendRecipientEmail ? <Text style={styles.selectedRecipientEmail}>{sendRecipientEmail}</Text> : null}
+              {/* Distribution list — chips render every recipient that
+                  will be sent to. Pre-seeded from project.dfrRecipients
+                  → settings.dfrRecipients on first open. Tap the X on a
+                  chip to remove. The "Add" button below appends the
+                  typed name+email. */}
+              {recipients.length > 0 && (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.recipientChipsRow}
+                  style={{ maxHeight: 50, marginTop: 4, marginBottom: 8 }}
+                >
+                  {recipients.map(r => (
+                    <View key={r.email} style={styles.recipientChip}>
+                      <User size={12} color={Colors.primary} />
+                      <Text style={styles.recipientChipText} numberOfLines={1}>
+                        {r.name ? `${r.name} · ${r.email}` : r.email}
+                      </Text>
+                      <TouchableOpacity
+                        onPress={() => handleRemoveRecipient(r.email)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Remove ${r.email}`}
+                        hitSlop={{ top: 6, right: 6, bottom: 6, left: 6 }}
+                      >
+                        <X size={12} color={Colors.textMuted} />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </ScrollView>
+              )}
+              {recipients.length === 0 && (
+                <Text style={styles.recipientHelpText}>
+                  No recipients yet. Add at least one below, or just toggle &quot;Save to project files&quot; to file the report without emailing.
+                </Text>
+              )}
+
+              <Text style={styles.modalFieldLabel}>
+                {recipients.length === 0 ? 'Recipient Name' : 'Add Another · Name'}
+              </Text>
+              <TextInput
+                style={styles.modalInput}
+                value={sendRecipientName}
+                onChangeText={setSendRecipientName}
+                placeholder="Optional"
+                placeholderTextColor={Colors.textMuted}
+              />
+              <Text style={styles.modalFieldLabel}>Email</Text>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <TextInput
+                  style={[styles.modalInput, { flex: 1 }]}
+                  value={sendRecipientEmail}
+                  onChangeText={setSendRecipientEmail}
+                  placeholder="email@example.com"
+                  placeholderTextColor={Colors.textMuted}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  onSubmitEditing={handleAddTypedRecipient}
+                  returnKeyType="done"
+                />
+                <TouchableOpacity
+                  style={[styles.addRecipientBtn, !sendRecipientEmail.trim() && styles.addRecipientBtnDisabled]}
+                  onPress={handleAddTypedRecipient}
+                  disabled={!sendRecipientEmail.trim()}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel="Add recipient to list"
+                >
+                  <Plus size={14} color={sendRecipientEmail.trim() ? Colors.textOnPrimary : Colors.textMuted} />
+                  <Text style={[styles.addRecipientBtnText, !sendRecipientEmail.trim() && { color: Colors.textMuted }]}>Add</Text>
+                </TouchableOpacity>
+              </View>
+              {contacts.length > 0 && (
+                <TouchableOpacity
+                  style={styles.pickContactBtn}
+                  onPress={() => { setShowSendRecipient(false); setTimeout(() => setShowContactPicker(true), 350); }}
+                  activeOpacity={0.7}
+                >
+                  <BookUser size={14} color={Colors.primary} />
+                  <Text style={styles.pickContactText}>Pick from Contacts</Text>
+                </TouchableOpacity>
+              )}
+
+              {/* Remember for this project — saves the current chip list
+                  as the project's default DFR distribution. Next time
+                  the GC opens this project's Submit modal, the chips
+                  are pre-filled. The org-wide settings.dfrRecipients
+                  default still applies to projects that haven't set
+                  their own list. */}
+              {recipients.length > 0 && (
+                <TouchableOpacity
+                  style={[styles.toggleRow, { marginTop: 8 }]}
+                  onPress={() => setRememberRecipientsForProject(v => !v)}
+                  activeOpacity={0.7}
+                  accessibilityRole="switch"
+                  accessibilityState={{ checked: rememberRecipientsForProject }}
+                >
+                  <View style={styles.toggleIconWrap}>
+                    <BookUser size={16} color={Colors.primary} />
                   </View>
-                  <TouchableOpacity onPress={() => { setSendRecipientName(''); setSendRecipientEmail(''); setContactPicked(false); }} style={styles.clearRecipientBtn} accessibilityRole="button" accessibilityLabel="Close">
-                    <X size={12} color={Colors.textMuted} />
-                  </TouchableOpacity>
-                </View>
-              ) : (
-                <>
-                  <Text style={styles.modalFieldLabel}>Recipient Name</Text>
-                  <TextInput
-                    style={styles.modalInput}
-                    value={sendRecipientName}
-                    onChangeText={setSendRecipientName}
-                    placeholder="Enter name or pick from contacts"
-                    placeholderTextColor={Colors.textMuted}
-                  />
-                  <Text style={styles.modalFieldLabel}>Email</Text>
-                  <TextInput
-                    style={styles.modalInput}
-                    value={sendRecipientEmail}
-                    onChangeText={setSendRecipientEmail}
-                    placeholder="email@example.com"
-                    placeholderTextColor={Colors.textMuted}
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                  />
-                  {contacts.length > 0 && (
-                    <TouchableOpacity
-                      style={styles.pickContactBtn}
-                      onPress={() => { setShowSendRecipient(false); setTimeout(() => setShowContactPicker(true), 350); }}
-                      activeOpacity={0.7}
-                    >
-                      <BookUser size={14} color={Colors.primary} />
-                      <Text style={styles.pickContactText}>Pick from Contacts</Text>
-                    </TouchableOpacity>
-                  )}
-                </>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.toggleTitle}>Remember for this project</Text>
+                    <Text style={styles.toggleSub}>
+                      Pre-fill these recipients next time you submit a daily report on {project?.name ?? 'this project'}.
+                    </Text>
+                  </View>
+                  <View style={[styles.toggleSwitch, rememberRecipientsForProject && styles.toggleSwitchOn]}>
+                    <View style={[styles.toggleKnob, rememberRecipientsForProject && styles.toggleKnobOn]} />
+                  </View>
+                </TouchableOpacity>
               )}
 
               {/* Save-to-project-files toggle — Procore-style "drop a
@@ -1622,7 +1911,13 @@ export default function DailyReportScreen() {
                 <TouchableOpacity style={styles.sendBtn} onPress={handleConfirmSend} activeOpacity={0.7}>
                   <Send size={16} color={Colors.textOnPrimary} />
                   <Text style={styles.sendBtnText}>
-                    {sendRecipientEmail.trim() ? 'Send' : (saveToProjectFiles ? 'Save' : 'Send')}
+                    {(() => {
+                      const typedHasEmail = sendRecipientEmail.trim().length > 0;
+                      const totalCount = recipients.length + (typedHasEmail ? 1 : 0);
+                      if (totalCount === 0) return saveToProjectFiles ? 'Save' : 'Send';
+                      if (totalCount === 1) return 'Send';
+                      return `Send to ${totalCount}`;
+                    })()}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -1646,16 +1941,78 @@ export default function DailyReportScreen() {
         visible={showContactPicker}
         onClose={() => { setShowContactPicker(false); setTimeout(() => setShowSendRecipient(true), 350); }}
         contacts={contacts}
-        title="Select Recipient"
+        title="Add Recipient"
         onSelect={(contact) => {
           const name = `${contact.firstName} ${contact.lastName}`.trim() || contact.companyName;
-          setSendRecipientName(name);
-          setSendRecipientEmail(contact.email);
-          setContactPicked(true);
+          const email = contact.email?.trim();
+          if (!email) {
+            Alert.alert('No email on contact', `${name || 'This contact'} has no email saved.`);
+            setShowContactPicker(false);
+            setTimeout(() => setShowSendRecipient(true), 350);
+            return;
+          }
+          // Append to the chip list rather than replace the single-recipient
+          // form fields. Skip silently if already in the list.
+          setRecipients(prev => {
+            if (prev.some(r => r.email.toLowerCase() === email.toLowerCase())) return prev;
+            return [...prev, { name: name || undefined, email }];
+          });
           setShowContactPicker(false);
           setTimeout(() => setShowSendRecipient(true), 350);
         }}
       />
+
+      {/* Phase picker — overrides the auto-derived phase. "Auto-detect"
+          clears the override and lets the schedule decide on save.
+          This is the manual escape hatch for projects where the
+          schedule and reality diverge on a given day (e.g., concrete
+          delay pushed Foundation work into a day the schedule said
+          would be Framing). */}
+      <Modal visible={showPhasePicker} transparent animationType="slide" onRequestClose={() => setShowPhasePicker(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Phase for this report</Text>
+              <TouchableOpacity onPress={() => setShowPhasePicker(false)} accessibilityRole="button" accessibilityLabel="Close">
+                <X size={20} color={Colors.textMuted} />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.modalHelper}>
+              Used to group reports by phase on the project. Auto-detect picks the most-active phase from your schedule on this date.
+            </Text>
+            <ScrollView style={{ maxHeight: 360 }} contentContainerStyle={{ gap: 6, paddingVertical: 4 }} showsVerticalScrollIndicator={false}>
+              <TouchableOpacity
+                style={[styles.phaseRow, !phaseOverride && styles.phaseRowActive]}
+                onPress={() => { setPhaseOverride(undefined); setShowPhasePicker(false); }}
+                activeOpacity={0.7}
+                testID="phase-auto"
+              >
+                <View style={[styles.phasePillDot, { backgroundColor: Colors.textMuted }]} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.phaseRowName}>Auto-detect</Text>
+                  <Text style={styles.phaseRowSub}>
+                    {derivedPhase ? `Currently picks: ${derivedPhase}` : 'No active phase on this date — falls back to General'}
+                  </Text>
+                </View>
+                {!phaseOverride && <CheckCircle2 size={16} color={Colors.primary} />}
+              </TouchableOpacity>
+              {PHASE_OPTIONS.map(p => (
+                <TouchableOpacity
+                  key={p}
+                  style={[styles.phaseRow, phaseOverride === p && styles.phaseRowActive]}
+                  onPress={() => { setPhaseOverride(p); setShowPhasePicker(false); }}
+                  activeOpacity={0.7}
+                  testID={`phase-${p}`}
+                >
+                  <View style={[styles.phasePillDot, { backgroundColor: PHASE_COLORS[p] ?? PHASE_COLORS.General }]} />
+                  <Text style={[styles.phaseRowName, { flex: 1 }]}>{p}</Text>
+                  {phaseOverride === p && <CheckCircle2 size={16} color={Colors.primary} />}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
 
       {/* Task picker for Work Progress chips. Lists every task in the
           project schedule that isn't already on the DFR; tapping one
@@ -2095,6 +2452,122 @@ const styles = StyleSheet.create({
   clearRecipientBtn: { width: 24, height: 24, borderRadius: Tokens.radius.card, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
   pickContactBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', marginTop: 8, paddingVertical: 6, paddingHorizontal: 10, borderRadius: Tokens.radius.sm, backgroundColor: Colors.primary + '10' },
   pickContactText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.primary },
+  // Recipient chips (multi-recipient distribution list).
+  recipientChipsRow: { flexDirection: 'row', gap: 6, paddingVertical: 4 },
+  recipientChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: Colors.primary + '10',
+    borderRadius: Tokens.radius.sm,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: Colors.primary + '25',
+    maxWidth: 240,
+  },
+  recipientChipText: {
+    fontSize: Type.footnote.fontSize,
+    fontWeight: '600' as const,
+    color: Colors.text,
+    maxWidth: 180,
+  },
+  recipientHelpText: {
+    fontSize: Type.footnote.fontSize,
+    color: Colors.textMuted,
+    marginTop: 4,
+    marginBottom: 4,
+  },
+  addRecipientBtn: {
+    minWidth: 70,
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    backgroundColor: Colors.primary,
+    borderRadius: Tokens.radius.card,
+    paddingHorizontal: 14,
+  },
+  addRecipientBtnDisabled: {
+    backgroundColor: Colors.fillTertiary,
+  },
+  addRecipientBtnText: {
+    fontSize: Type.footnote.fontSize,
+    fontWeight: '700' as const,
+    color: Colors.textOnPrimary,
+  },
+  // Phase pill (Procore-style "folder" answer — phase wraps the day,
+  // no separate folder entity). Sits inline above Work Progress.
+  phasePillRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: Colors.surfaceAlt,
+    borderRadius: Tokens.radius.card,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginHorizontal: 16,
+    marginTop: 4,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+  },
+  phasePillDot: { width: 10, height: 10, borderRadius: 5 },
+  phasePillLabel: {
+    fontSize: Type.caption1.fontSize,
+    fontWeight: '600' as const,
+    color: Colors.textMuted,
+    textTransform: 'uppercase' as const,
+    letterSpacing: 0.4,
+  },
+  phasePillValue: {
+    flex: 1,
+    fontSize: Type.subhead.fontSize,
+    fontWeight: '700' as const,
+    color: Colors.text,
+  },
+  phasePillOverrideBadge: {
+    backgroundColor: Colors.primary + '15',
+    borderRadius: Tokens.radius.sm,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  phasePillOverrideBadgeText: {
+    fontSize: Type.caption2.fontSize,
+    fontWeight: '700' as const,
+    color: Colors.primary,
+    letterSpacing: 0.3,
+  },
+  phasePillCta: {
+    fontSize: Type.footnote.fontSize,
+    fontWeight: '700' as const,
+    color: Colors.primary,
+  },
+  phaseRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    borderRadius: Tokens.radius.card,
+    backgroundColor: Colors.surfaceAlt,
+  },
+  phaseRowActive: {
+    borderWidth: 1.5,
+    borderColor: Colors.primary,
+    backgroundColor: Colors.primary + '08',
+  },
+  phaseRowName: {
+    fontSize: Type.subhead.fontSize,
+    fontWeight: '600' as const,
+    color: Colors.text,
+  },
+  phaseRowSub: {
+    fontSize: Type.caption1.fontSize,
+    color: Colors.textMuted,
+    marginTop: 2,
+  },
   modalOverlay: { flex: 1, backgroundColor: Colors.overlay, justifyContent: 'flex-end' },
   modalCard: { backgroundColor: Colors.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 22, gap: 8 },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },

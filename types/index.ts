@@ -182,6 +182,14 @@ export interface Project {
    * are NOT stored here — they read from their source tables live.
    */
   handoverChecklist?: Record<string, string>;
+  /**
+   * Per-project Daily Field Report distribution list. When set, the DFR
+   * Submit modal pre-fills these recipients (architect, owner, lender, PM)
+   * so the GC doesn't retype them every night. Falls back to
+   * `settings.dfrRecipients` (org-wide default) when unset on a project.
+   * Saved by the "Remember for this project" checkbox in the Submit modal.
+   */
+  dfrRecipients?: string[];
 }
 
 // ─── Project Contract ───────────────────────────────────────────────
@@ -1184,6 +1192,18 @@ export interface DailyFieldReport {
   homeownerSummary?: string;
   homeownerSummaryGeneratedAt?: string;
   homeownerSummaryPublished?: boolean;
+  /**
+   * Construction phase this report rolls up under (Foundation, Framing,
+   * MEP, Finishes, …). Auto-populated on save from the most-active
+   * schedule task on `date` when not explicitly set, falls back to
+   * 'General' on projects without a schedule. Drives the
+   * group-by-phase view on Project Detail's Daily Reports section so a
+   * GC can answer "show me the reports from when we were doing
+   * foundations" without a separate folder entity.
+   *
+   * Values come from `PHASE_OPTIONS` in `utils/scheduleEngine.ts`.
+   */
+  phase?: string;
   createdAt: string;
   updatedAt: string;
 }
