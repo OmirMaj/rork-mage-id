@@ -183,7 +183,14 @@ export default function OnboardingScreen() {
   const finishToHome = useCallback(async () => {
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     await completeOnboarding();
-    router.replace('/(tabs)/(home)' as never);
+    // Route into the Roamy-style trial activation funnel:
+    //   /trial-feature → /trial-offer → /trial-reminder → /trial-design
+    // The /trial-design screen is the one with the redeem button; on
+    // successful purchase or skip, control returns to /(tabs)/(home).
+    // Existing free-tier users who close the app and reopen don't
+    // re-enter this funnel — the auth gate only routes here once,
+    // gated by hasSeenOnboarding.
+    router.replace('/trial-feature' as never);
   }, [completeOnboarding, router]);
 
   const handleBandPick = useCallback(async (band: ProjectSizeBand) => {

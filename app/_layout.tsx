@@ -219,7 +219,7 @@ function RootLayoutNav() {
   useEffect(() => {
     if (authLoading || projectLoading || hasSeenOnboarding === null) return;
 
-    const inAuth = segments[0] === 'login' || segments[0] === 'signup';
+    const inAuth = segments[0] === 'login' || segments[0] === 'signup' || segments[0] === 'welcome';
     const inOnboarding = segments[0] === 'onboarding';
     const inOnboardingPaywall = (segments[0] as string) === 'onboarding-paywall';
     const inResetPassword = segments[0] === 'reset-password';
@@ -232,8 +232,13 @@ function RootLayoutNav() {
     if (inResetPassword || inPrequalForm) return;
 
     if (!isAuthenticated && !inAuth) {
-      console.log('[Layout] Not authenticated — redirecting to login');
-      router.replace('/login');
+      // Pre-fix unauthenticated users landed directly on the form-heavy
+      // login.tsx. Now we route through the Roamy-style welcome screen
+      // which shows a photo collage + Apple/Google CTAs first; users
+      // who want the email/password form tap "Sign in with email" to
+      // route into login.tsx from there.
+      console.log('[Layout] Not authenticated — redirecting to welcome');
+      router.replace('/welcome');
       return;
     }
 
@@ -319,6 +324,11 @@ function RootLayoutNav() {
       <Stack.Screen name="approvals" options={{ title: 'Approvals' }} />
       <Stack.Screen name="sub-scorecards" options={{ title: 'Sub Scorecards' }} />
       <Stack.Screen name="account-security" options={{ title: 'Account Security' }} />
+      <Stack.Screen name="welcome" options={{ headerShown: false }} />
+      <Stack.Screen name="trial-feature" options={{ headerShown: false }} />
+      <Stack.Screen name="trial-offer" options={{ headerShown: false }} />
+      <Stack.Screen name="trial-reminder" options={{ headerShown: false }} />
+      <Stack.Screen name="trial-design" options={{ headerShown: false }} />
       <Stack.Screen name="schedule-wizard" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="ai-punch" options={{ title: 'AI Punch from Photos' }} />
       <Stack.Screen name="photo-triage" options={{ title: 'AI Photo Triage' }} />
