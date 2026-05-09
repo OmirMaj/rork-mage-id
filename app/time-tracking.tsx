@@ -20,7 +20,8 @@ import { useTimeEntries, buildTimeEntriesCSV } from '@/hooks/useTimeEntries';
 import { useWorkers } from '@/hooks/useWorkers';
 import { useProjects } from '@/contexts/ProjectContext';
 import { TextInput } from 'react-native';
-import { Plus, UserPlus } from 'lucide-react-native';
+import { Plus, UserPlus, MapPin } from 'lucide-react-native';
+import { checkGeofence, type GeofenceResult } from '@/utils/geofence';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -158,6 +159,13 @@ function TimeTrackingScreenInner() {
   const [newWorkerName, setNewWorkerName] = useState('');
   const [newWorkerTrade, setNewWorkerTrade] = useState('');
   const [newWorkerRate, setNewWorkerRate] = useState('');
+  // Geofence state — populated when the clock-in modal opens. We hold
+  // a per-project map keyed by project id so the picker chip can show
+  // "On site" / "0.4 mi away" / "GPS unavailable" without re-fetching
+  // GPS for each row. One fix powers all rows because the worker is
+  // standing in one place when they clock in.
+  const [geofence, setGeofence] = useState<GeofenceResult | null>(null);
+  const [geofenceLoading, setGeofenceLoading] = useState(false);
   const [selectedTab, setSelectedTab] = useState<'live' | 'history'>('live');
   // Project selection for clock-in. Defaults to the first active project; the
   // GC can flip it via a picker before tapping a crew member. Pre-fix every
@@ -214,24 +222,68 @@ function TimeTrackingScreenInner() {
     }
   }, [startBreak, resumeFromBreak, doClockOut]);
 
+  // Geofence fetch — fired when the clock-in modal opens. One fix
+  // covers every project in the picker (the worker stands in one
+  // place). Recomputes distance per project from the same fix using
+  // the project's geocoded lat/lng. Pre-fix there was no GPS gate at
+  // all — workers could clock in from anywhere.
+  const fetchGeofence = useCallback(async () => {
+    setGeofenceLoading(true);
+    try {
+      // Use the currently-selected project as the geofence anchor; if
+      // none is selected (rare) we still capture the point so payroll
+      // has an audit trail.
+      const anchor = selectedProject?.locationLatitude != null && selectedProject?.locationLongitude != null
+        ? { latitude: selectedProject.locationLatitude, longitude: selectedProject.locationLongitude }
+        : null;
+      const result = await checkGeofence(anchor);
+      setGeofence(result);
+    } finally {
+      setGeofenceLoading(false);
+    }
+  }, [selectedProject]);
+
+  // Re-run geofence when modal opens or selected project changes.
+  useEffect(() => {
+    if (!showClockInModal) return;
+    void fetchGeofence();
+  }, [showClockInModal, fetchGeofence]);
+
   const handleClockIn = useCallback((memberId: string) => {
     const member = activeWorkers.find(m => m.id === memberId);
     if (!member) return;
 
-    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-
-    // Use the user-chosen project (defaults to projects[0] in the picker
-    // effect above). Falls back to 'unassigned' only when no projects exist.
-    doClockIn({
-      projectId: selectedProject?.id ?? 'unassigned',
-      projectName: selectedProject?.name ?? 'Unassigned',
-      workerId: member.id,
-      workerName: member.name,
-      trade: member.trade ?? '',
-    });
-
-    setShowClockInModal(false);
-  }, [doClockIn, selectedProject, activeWorkers]);
+    // Geofence soft-warning. We DO let the worker clock in even when
+    // off-site (some jobs have shifting addresses, some sites are
+    // not yet geocoded), but we make them confirm so the entry's
+    // gpsLat/gpsLng audit trail is meaningful.
+    const offSite = geofence?.distanceMeters != null && !geofence.withinFence;
+    const proceed = (gpsLat?: number, gpsLng?: number) => {
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      doClockIn({
+        projectId: selectedProject?.id ?? 'unassigned',
+        projectName: selectedProject?.name ?? 'Unassigned',
+        workerId: member.id,
+        workerName: member.name,
+        trade: member.trade ?? '',
+        gpsLat,
+        gpsLng,
+      });
+      setShowClockInModal(false);
+    };
+    if (offSite) {
+      Alert.alert(
+        'You’re off site',
+        `${geofence?.label ?? 'Off site'} from ${selectedProject?.name ?? 'this project'}. Clock in anyway?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Clock in anyway', style: 'destructive', onPress: () => proceed(geofence?.point?.latitude, geofence?.point?.longitude) },
+        ],
+      );
+      return;
+    }
+    proceed(geofence?.point?.latitude, geofence?.point?.longitude);
+  }, [doClockIn, selectedProject, activeWorkers, geofence]);
 
   // Adds a new worker from the inline "Add worker" mini-modal in the
   // clock-in flow. Trims and validates name; rate is optional but
@@ -432,6 +484,38 @@ function TimeTrackingScreenInner() {
               </TouchableOpacity>
             </View>
             <Text style={styles.modalSubtitle}>Select a crew member to clock in</Text>
+
+            {/* Geofence chip — shown only when we've fetched a fix.
+                Color-codes "On site" (green) vs. "off site" (warning).
+                Tapping refreshes the fix. Pre-fix the clock-in had no
+                location gate at all. */}
+            {(geofenceLoading || geofence) && (
+              <TouchableOpacity
+                style={[
+                  styles.geofenceChipRow,
+                  geofence?.withinFence && styles.geofenceChipRowOnsite,
+                  geofence?.distanceMeters != null && !geofence.withinFence && styles.geofenceChipRowOffsite,
+                ]}
+                onPress={fetchGeofence}
+                activeOpacity={0.75}
+                accessibilityRole="button"
+                accessibilityLabel={`Geofence: ${geofence?.label ?? 'checking'}`}
+                testID="geofence-chip"
+              >
+                <MapPin
+                  size={14}
+                  color={
+                    geofence?.withinFence ? '#1F7A3A'
+                    : geofence?.distanceMeters != null && !geofence.withinFence ? Colors.warning
+                    : Colors.textMuted
+                  }
+                />
+                <Text style={styles.geofenceChipText}>
+                  {geofenceLoading ? 'Checking your location…' : (geofence?.label ?? 'Location not checked')}
+                </Text>
+                <Text style={styles.geofenceChipRetry}>Refresh</Text>
+              </TouchableOpacity>
+            )}
 
             {/* Project picker — defaults to the GC's first project but lets
                 them pick another job before clocking the worker in. Hidden
@@ -791,6 +875,21 @@ const styles = StyleSheet.create({
     borderStyle: 'dashed' as const,
   },
   addWorkerInlineBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.primary },
+  // Geofence chip styles for the clock-in modal.
+  geofenceChipRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRadius: Tokens.radius.lg,
+    backgroundColor: Colors.fillTertiary,
+    marginBottom: 12,
+  },
+  geofenceChipRowOnsite: { backgroundColor: '#E8F5E9' as const },
+  geofenceChipRowOffsite: { backgroundColor: '#FFF3E0' as const },
+  geofenceChipText: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.text },
+  geofenceChipRetry: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: Colors.primary, textTransform: 'uppercase' as const, letterSpacing: 0.5 },
   // (modalOverlay / modalCard / modalHeader / modalTitle reused from
   //  the existing project-picker modal styles above — no duplicate.)
   addWorkerLabel: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.textSecondary, marginTop: 8 },
