@@ -27,23 +27,47 @@ export const [NotificationProvider, useNotifications] = createContextHook(() => 
   useEffect(() => {
     if (!isAuthenticated || !user) return;
 
-    console.log('[NotificationContext] Registering for push notifications');
-    void registerForPushNotifications().then(async (token) => {
-      if (token) {
-        setPushToken(token);
-        console.log('[NotificationContext] Push token obtained');
+    // Persist a freshly-acquired Expo push token + the platform it
+    // came from. The platform column lets the notify edge function
+    // target only iOS / only Android when a feature flag rolls out
+    // unevenly (e.g. iOS-first APNs entitlement). Idempotent — re-runs
+    // are cheap because the row update is bounded to user.id.
+    const persistToken = async (token: string) => {
+      setPushToken(token);
+      if (!user.id) return;
+      try {
+        await supabase
+          .from('profiles')
+          .update({
+            push_token: token,
+            push_token_platform: Platform.OS,
+            push_token_updated_at: new Date().toISOString(),
+          })
+          .eq('id', user.id);
+        console.log('[NotificationContext] Push token saved to Supabase');
+      } catch (err) {
+        console.log('[NotificationContext] Failed to save push token:', err);
+      }
+    };
 
-        if (user.id) {
-          try {
-            await supabase
-              .from('profiles')
-              .update({ push_token: token })
-              .eq('id', user.id);
-            console.log('[NotificationContext] Push token saved to Supabase');
-          } catch (err) {
-            console.log('[NotificationContext] Failed to save push token:', err);
-          }
-        }
+    console.log('[NotificationContext] Registering for push notifications');
+    void registerForPushNotifications().then((token) => {
+      if (token) {
+        console.log('[NotificationContext] Push token obtained');
+        void persistToken(token);
+      }
+    });
+
+    // Expo can rotate the push token at any time (app reinstall, OS
+    // restore, FCM/APNs server-side rotation). Without listening for
+    // that, the GC's phone will silently stop receiving pushes when
+    // the server still sends to the old token. Hook the rotation
+    // event so the new token lands in profiles within seconds.
+    const tokenRotationSub = Notifications.addPushTokenListener((event) => {
+      const newToken = (event as { data?: string } | undefined)?.data;
+      if (typeof newToken === 'string' && newToken.length > 0) {
+        console.log('[NotificationContext] Push token rotated by OS');
+        void persistToken(newToken);
       }
     });
 
@@ -92,6 +116,7 @@ export const [NotificationProvider, useNotifications] = createContextHook(() => 
         responseListenerRef.current.remove();
         responseListenerRef.current = null;
       }
+      try { tokenRotationSub.remove(); } catch { /* ok */ }
     };
   }, [isAuthenticated, user, router]);
 

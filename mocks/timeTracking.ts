@@ -1,15 +1,12 @@
-// MOCK_TIME_ENTRIES was removed in the May 2026 audit. The Crew Time
-// Tracking screen now reads from `useTimeEntries` (Supabase + AsyncStorage)
-// instead of static seed data; nothing in the app references the mock array
-// anymore. CREW_MEMBERS stays because the clock-in modal still reads from it
-// — the worker roster is its own follow-up (will move to a Sub/contact-
-// scoped picker when subs management lands in the time-tracking flow).
-
-export const CREW_MEMBERS = [
-  { id: 'w-1', name: 'Carlos Mendez', trade: 'Framing', rate: 35 },
-  { id: 'w-2', name: 'James Williams', trade: 'Electrical', rate: 45 },
-  { id: 'w-3', name: 'Mike Thompson', trade: 'Plumbing', rate: 42 },
-  { id: 'w-4', name: 'David Chen', trade: 'Drywall', rate: 32 },
-  { id: 'w-5', name: 'Alex Rivera', trade: 'Painting', rate: 28 },
-  { id: 'w-6', name: 'Sam Johnson', trade: 'HVAC', rate: 48 },
-];
+// This file used to export CREW_MEMBERS — a hardcoded list of fake
+// worker names ("Carlos Mendez / James Williams / Mike Thompson") that
+// surfaced to every customer of the app via the clock-in modal.
+//
+// The roster is now real, persisted, and per-org. See:
+//   - hooks/useWorkers.ts  — the hook the time-tracking screen reads
+//   - supabase/migrations/create_workers.sql — table + RLS
+//
+// Keeping the file (empty) so any in-flight branches that still
+// `import` from this path get a clean diff to delete the import rather
+// than a "module not found" build break.
+export {};

@@ -15,10 +15,12 @@ import {
   Briefcase, Check,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
-import { CREW_MEMBERS } from '@/mocks/timeTracking';
 import type { TimeEntry } from '@/types';
 import { useTimeEntries, buildTimeEntriesCSV } from '@/hooks/useTimeEntries';
+import { useWorkers } from '@/hooks/useWorkers';
 import { useProjects } from '@/contexts/ProjectContext';
+import { TextInput } from 'react-native';
+import { Plus, UserPlus } from 'lucide-react-native';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -143,7 +145,19 @@ function TimeTrackingScreenInner() {
     clockIn: doClockIn, startBreak, resumeFromBreak, clockOut: doClockOut,
   } = useTimeEntries();
   const { projects } = useProjects();
+  // Real worker roster — replaces the hardcoded mock list that used to
+  // surface "Carlos Mendez / James Williams / Mike Thompson" to every
+  // customer of the app. Pre-fix the clock-in modal pulled from
+  // `mocks/timeTracking.ts:CREW_MEMBERS`. Now: per-org, persisted, with
+  // an inline "Add worker" path so a fresh customer doesn't dead-end on
+  // an empty modal. Workers archive via active=false (preserves
+  // historical TimeEntry.workerId references).
+  const { activeWorkers, addWorker } = useWorkers();
   const [showClockInModal, setShowClockInModal] = useState(false);
+  const [showAddWorkerModal, setShowAddWorkerModal] = useState(false);
+  const [newWorkerName, setNewWorkerName] = useState('');
+  const [newWorkerTrade, setNewWorkerTrade] = useState('');
+  const [newWorkerRate, setNewWorkerRate] = useState('');
   const [selectedTab, setSelectedTab] = useState<'live' | 'history'>('live');
   // Project selection for clock-in. Defaults to the first active project; the
   // GC can flip it via a picker before tapping a crew member. Pre-fix every
@@ -201,7 +215,7 @@ function TimeTrackingScreenInner() {
   }, [startBreak, resumeFromBreak, doClockOut]);
 
   const handleClockIn = useCallback((memberId: string) => {
-    const member = CREW_MEMBERS.find(m => m.id === memberId);
+    const member = activeWorkers.find(m => m.id === memberId);
     if (!member) return;
 
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -213,11 +227,38 @@ function TimeTrackingScreenInner() {
       projectName: selectedProject?.name ?? 'Unassigned',
       workerId: member.id,
       workerName: member.name,
-      trade: member.trade,
+      trade: member.trade ?? '',
     });
 
     setShowClockInModal(false);
-  }, [doClockIn, selectedProject]);
+  }, [doClockIn, selectedProject, activeWorkers]);
+
+  // Adds a new worker from the inline "Add worker" mini-modal in the
+  // clock-in flow. Trims and validates name; rate is optional but
+  // numeric when provided. After save we close the add-modal and stay
+  // on the clock-in modal so the user can immediately tap the new row.
+  const handleAddWorker = useCallback(() => {
+    const name = newWorkerName.trim();
+    if (!name) {
+      Alert.alert('Name required', 'Enter the worker’s name.');
+      return;
+    }
+    const rate = newWorkerRate.trim().length > 0 ? Number(newWorkerRate) : undefined;
+    if (rate != null && !Number.isFinite(rate)) {
+      Alert.alert('Rate must be numeric', 'Enter the hourly rate as a number, or leave blank.');
+      return;
+    }
+    addWorker({
+      name,
+      trade: newWorkerTrade.trim() || undefined,
+      hourlyRate: rate,
+    });
+    setNewWorkerName('');
+    setNewWorkerTrade('');
+    setNewWorkerRate('');
+    setShowAddWorkerModal(false);
+    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+  }, [newWorkerName, newWorkerTrade, newWorkerRate, addWorker]);
 
   // Payroll CSV export. Drops everything in `entries` into the standard
   // QuickBooks/Sage-friendly column shape and shares via native Share
@@ -448,27 +489,122 @@ function TimeTrackingScreenInner() {
             ) : null}
 
             <ScrollView style={{ maxHeight: 400 }}>
-              {CREW_MEMBERS.filter(m => !liveEntries.some(e => e.workerId === m.id)).map(member => (
-                <TouchableOpacity
-                  key={member.id}
-                  style={styles.memberRow}
-                  onPress={() => handleClockIn(member.id)}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.memberAvatar}>
-                    <Text style={styles.memberAvatarText}>{member.name.charAt(0)}</Text>
-                  </View>
-                  <View style={styles.memberInfo}>
-                    <Text style={styles.memberName}>{member.name}</Text>
-                    <Text style={styles.memberTrade}>{member.trade} · ${member.rate}/hr</Text>
-                  </View>
-                  <Play size={16} color={Colors.primary} />
-                </TouchableOpacity>
-              ))}
-              {CREW_MEMBERS.filter(m => !liveEntries.some(e => e.workerId === m.id)).length === 0 && (
-                <Text style={styles.allClockedIn}>All crew members are currently clocked in</Text>
+              {activeWorkers.length === 0 ? (
+                // Empty-state CTA — replaces the legacy "All crew clocked in"
+                // message that was misleading on a fresh install (the mock
+                // had 6 names baked in; the real roster starts at 0).
+                <View style={styles.emptyRosterWrap}>
+                  <Users size={28} color={Colors.textMuted} />
+                  <Text style={styles.emptyRosterTitle}>No crew yet</Text>
+                  <Text style={styles.emptyRosterSub}>
+                    Add your first worker to start tracking time. Each crew member persists across devices once you sign in.
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.emptyRosterBtn}
+                    onPress={() => { setShowClockInModal(false); setTimeout(() => setShowAddWorkerModal(true), 200); }}
+                    activeOpacity={0.8}
+                  >
+                    <UserPlus size={14} color={Colors.textOnPrimary} />
+                    <Text style={styles.emptyRosterBtnText}>Add first crew member</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <>
+                  {activeWorkers.filter(m => !liveEntries.some(e => e.workerId === m.id)).map(member => (
+                    <TouchableOpacity
+                      key={member.id}
+                      style={styles.memberRow}
+                      onPress={() => handleClockIn(member.id)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={styles.memberAvatar}>
+                        <Text style={styles.memberAvatarText}>{member.name.charAt(0).toUpperCase()}</Text>
+                      </View>
+                      <View style={styles.memberInfo}>
+                        <Text style={styles.memberName}>{member.name}</Text>
+                        <Text style={styles.memberTrade}>
+                          {(member.trade ?? '—')}
+                          {member.hourlyRate != null ? ` · $${member.hourlyRate}/hr` : ''}
+                        </Text>
+                      </View>
+                      <Play size={16} color={Colors.primary} />
+                    </TouchableOpacity>
+                  ))}
+                  {activeWorkers.filter(m => !liveEntries.some(e => e.workerId === m.id)).length === 0 && (
+                    <Text style={styles.allClockedIn}>All crew members are currently clocked in</Text>
+                  )}
+                  <TouchableOpacity
+                    style={styles.addWorkerInlineBtn}
+                    onPress={() => { setShowClockInModal(false); setTimeout(() => setShowAddWorkerModal(true), 200); }}
+                    activeOpacity={0.7}
+                  >
+                    <Plus size={14} color={Colors.primary} />
+                    <Text style={styles.addWorkerInlineBtnText}>Add another worker</Text>
+                  </TouchableOpacity>
+                </>
               )}
             </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Add-worker modal — minimal name + trade + rate form. Surfaced
+          from the empty-state CTA in the clock-in modal AND from the
+          "Add another worker" link below the clock-in roster. New
+          workers default to active=true and surface immediately in
+          the picker. */}
+      <Modal visible={showAddWorkerModal} transparent animationType="slide" onRequestClose={() => setShowAddWorkerModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { paddingBottom: insets.bottom + 16 }]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Add Crew Member</Text>
+              <TouchableOpacity onPress={() => setShowAddWorkerModal(false)} accessibilityRole="button" accessibilityLabel="Close">
+                <X size={20} color={Colors.textMuted} />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.addWorkerLabel}>Name</Text>
+            <TextInput
+              style={styles.addWorkerInput}
+              value={newWorkerName}
+              onChangeText={setNewWorkerName}
+              placeholder="e.g. Jordan Reyes"
+              placeholderTextColor={Colors.textMuted}
+              autoCapitalize="words"
+              autoFocus
+            />
+            <Text style={styles.addWorkerLabel}>Trade (optional)</Text>
+            <TextInput
+              style={styles.addWorkerInput}
+              value={newWorkerTrade}
+              onChangeText={setNewWorkerTrade}
+              placeholder="e.g. Framing, Electrical, HVAC"
+              placeholderTextColor={Colors.textMuted}
+            />
+            <Text style={styles.addWorkerLabel}>Hourly rate (optional)</Text>
+            <TextInput
+              style={styles.addWorkerInput}
+              value={newWorkerRate}
+              onChangeText={setNewWorkerRate}
+              placeholder="e.g. 45"
+              placeholderTextColor={Colors.textMuted}
+              keyboardType="numeric"
+            />
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
+              <TouchableOpacity
+                style={styles.addWorkerCancelBtn}
+                onPress={() => setShowAddWorkerModal(false)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.addWorkerCancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.addWorkerSaveBtn}
+                onPress={handleAddWorker}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.addWorkerSaveBtnText}>Save</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -627,6 +763,50 @@ const styles = StyleSheet.create({
   memberName: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: Colors.text },
   memberTrade: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary },
   allClockedIn: { textAlign: 'center' as const, color: Colors.textMuted, paddingVertical: 20, fontSize: Type.bodyCompact.fontSize },
+  // Worker-roster empty state + add-worker styles.
+  emptyRosterWrap: { alignItems: 'center' as const, paddingVertical: 28, paddingHorizontal: 16, gap: 8 },
+  emptyRosterTitle: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: Colors.text, marginTop: 6 },
+  emptyRosterSub: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, textAlign: 'center' as const, lineHeight: 18, marginBottom: 6 },
+  emptyRosterBtn: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: Tokens.radius.lg,
+    backgroundColor: Colors.primary,
+  },
+  emptyRosterBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.textOnPrimary },
+  addWorkerInlineBtn: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    gap: 6,
+    paddingVertical: 14,
+    marginTop: 8,
+    borderRadius: Tokens.radius.lg,
+    backgroundColor: Colors.primary + '12',
+    borderWidth: 1,
+    borderColor: Colors.primary + '25',
+    borderStyle: 'dashed' as const,
+  },
+  addWorkerInlineBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.primary },
+  // (modalOverlay / modalCard / modalHeader / modalTitle reused from
+  //  the existing project-picker modal styles above — no duplicate.)
+  addWorkerLabel: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.textSecondary, marginTop: 8 },
+  addWorkerInput: {
+    minHeight: 44,
+    borderRadius: Tokens.radius.card,
+    backgroundColor: Colors.surfaceAlt,
+    paddingHorizontal: 12,
+    fontSize: Type.subhead.fontSize,
+    color: Colors.text,
+    marginTop: 4,
+  },
+  addWorkerCancelBtn: { flex: 1, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: Colors.fillTertiary, alignItems: 'center' as const, justifyContent: 'center' as const },
+  addWorkerCancelBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
+  addWorkerSaveBtn: { flex: 1.2, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: Colors.primary, alignItems: 'center' as const, justifyContent: 'center' as const },
+  addWorkerSaveBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.textOnPrimary },
   projectPickerRow: {
     flexDirection: 'row',
     alignItems: 'center',

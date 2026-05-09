@@ -2589,6 +2589,37 @@ export interface OnboardingChecklistItem {
   order: number;
 }
 
+/**
+ * A worker on the GC's crew. Pre-fix this was a hardcoded mock array
+ * (`mocks/timeTracking.ts:CREW_MEMBERS`) that surfaced "Carlos Mendez /
+ * James Williams / Mike Thompson" to every customer's clock-in modal —
+ * the single most demo-screaming artifact in the app. Now backed by a
+ * Supabase `workers` table via `hooks/useWorkers`.
+ *
+ * `subcontractorId` lets a worker be linked to a sub for payroll
+ * roll-up (employee of XYZ Plumbing → routes to that sub's W-2/1099).
+ * `active = false` archives a worker without breaking historical
+ * time_entries that reference workerId.
+ */
+export interface Worker {
+  id: string;
+  name: string;
+  trade?: string;
+  /** USD/hour. Used by the time-tracking screen for live cost estimates
+   *  and by the certified-payroll (WH-347) export. */
+  hourlyRate?: number;
+  phone?: string;
+  email?: string;
+  /** False = archived. Hidden from clock-in picker but kept for the
+   *  historical time-entry foreign key. */
+  active: boolean;
+  /** Optional Subcontractor.id when this worker is employed by a sub. */
+  subcontractorId?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export type TimeEntryStatus = 'clocked_in' | 'clocked_out' | 'break';
 
 export interface TimeEntry {

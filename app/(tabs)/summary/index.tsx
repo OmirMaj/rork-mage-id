@@ -20,6 +20,7 @@ import CashFlowAlerts from '@/components/CashFlowAlerts';
 import { generateForecast, type CashFlowWeek } from '@/utils/cashFlowEngine';
 import { loadCashFlowData, isSetupComplete } from '@/utils/cashFlowStorage';
 import { formatMoney, formatMoneyShort } from '@/utils/formatters';
+import { computeARAgingReport } from '@/utils/financialReports';
 import type { Project } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -164,6 +165,14 @@ export default function SummaryScreen() {
     );
   }, [stats]);
 
+  // A/R aging buckets — surfaced inline on the Summary tab so a GC
+  // running 6+ jobs sees "$45k in 0-30, $12k in 30-60, $8k in 90+" at
+  // a glance instead of just one "Outstanding" total. Pre-fix this
+  // existed only on /reports and required two taps to see what was
+  // most urgent. Tapping the row deep-links into the dedicated
+  // /reports?tab=aging view for the full row-level breakdown.
+  const aging = useMemo(() => computeARAgingReport(invoices, projects), [invoices, projects]);
+
   // Cash flow forecast — moved here from the home tab so Your Projects
   // stays focused on the project list, and Summary becomes the financial
   // bird's-eye view it was always meant to be.
@@ -242,6 +251,32 @@ export default function SummaryScreen() {
           <PortfolioStat label="Open Punch" value={`${portfolio.punch}`} tint={Colors.info} />
           <PortfolioStat label="At Risk" value={`${portfolio.risks}`} tint={portfolio.risks > 0 ? Colors.error : Colors.success} />
         </View>
+
+        {/* A/R aging strip — only render when there's anything past
+            due. Hides cleanly when every invoice is current. Tap the
+            strip to drop into /reports on the aging tab. */}
+        {aging.totals.totalOutstanding > 0 && (aging.totals['0-30'] + aging.totals['31-60'] + aging.totals['61-90'] + aging.totals['90+']) > 0 && (
+          <TouchableOpacity
+            style={styles.agingStrip}
+            onPress={() => router.push('/reports?tab=aging' as any)}
+            activeOpacity={0.85}
+            testID="summary-ar-aging-strip"
+            accessibilityRole="button"
+            accessibilityLabel="View A/R aging report"
+          >
+            <View style={styles.agingStripHeader}>
+              <Text style={styles.agingStripTitle}>A/R Aging</Text>
+              <Text style={styles.agingStripTotal}>{formatMoneyShort(aging.totals.totalOutstanding)} outstanding</Text>
+              <ChevronRight size={14} color={Colors.textMuted} />
+            </View>
+            <View style={styles.agingBucketRow}>
+              <AgingBucket label="0-30" value={aging.totals['0-30']} tint={Colors.warning} />
+              <AgingBucket label="31-60" value={aging.totals['31-60']} tint={Colors.warning} />
+              <AgingBucket label="61-90" value={aging.totals['61-90']} tint={Colors.error} />
+              <AgingBucket label="90+" value={aging.totals['90+']} tint={Colors.error} />
+            </View>
+          </TouchableOpacity>
+        )}
 
         {projects.length > 0 && (
           <CashFlowGlance forecast={cashFlowForecast} weeks={4} />
@@ -352,6 +387,21 @@ function PortfolioStat({ label, value, tint }: { label: string; value: string; t
   );
 }
 
+function AgingBucket({ label, value, tint }: { label: string; value: number; tint: string }) {
+  // Per-bucket cell on the A/R aging strip. Zero-value buckets render
+  // muted ("—") rather than "$0" so the eye lands on the buckets that
+  // actually have money in them.
+  const isZero = value <= 0;
+  return (
+    <View style={styles.agingBucketCell}>
+      <Text style={[styles.agingBucketValue, { color: isZero ? Colors.textMuted : tint }]}>
+        {isZero ? '—' : formatMoneyShort(value)}
+      </Text>
+      <Text style={styles.agingBucketLabel}>{label}</Text>
+    </View>
+  );
+}
+
 function SummaryCard({ stats, onPress }: { stats: ProjectSummaryStats; onPress: () => void }) {
   const { project, budget, outstandingInvoices, paidInvoices, openPunchItems,
     urgentPunchItems, nextMilestone, pendingChangeOrders, healthScore, healthReason } = stats;
@@ -447,6 +497,23 @@ const styles = StyleSheet.create({
   heading: { fontSize: Type.largeTitle.fontSize, fontWeight: '800' as const, color: Colors.text, paddingHorizontal: 20, letterSpacing: -0.5 },
   subheading: { fontSize: Type.bodyCompact.fontSize, color: Colors.textMuted, paddingHorizontal: 20, marginTop: 2, marginBottom: 16 },
   portfolioRow: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 12, gap: 8, marginBottom: 16 },
+  agingStrip: {
+    marginHorizontal: 16,
+    marginBottom: 16,
+    backgroundColor: Colors.surface,
+    borderRadius: Tokens.radius.lg,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+  },
+  agingStripHeader: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, marginBottom: 10 },
+  agingStripTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.text, letterSpacing: 0.2, textTransform: 'uppercase' as const },
+  agingStripTotal: { flex: 1, fontSize: Type.caption1.fontSize, color: Colors.textMuted, textAlign: 'right' as const },
+  agingBucketRow: { flexDirection: 'row' as const, gap: 6 },
+  agingBucketCell: { flex: 1, padding: 8, borderRadius: Tokens.radius.sm, backgroundColor: Colors.surfaceAlt, alignItems: 'flex-start' as const },
+  agingBucketValue: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, letterSpacing: -0.2 },
+  agingBucketLabel: { fontSize: 10, color: Colors.textMuted, fontWeight: '600' as const, marginTop: 2, textTransform: 'uppercase' as const, letterSpacing: 0.4 },
   portfolioStat: { flex: 1, minWidth: '46%' as any, backgroundColor: Colors.surface, borderRadius: Tokens.radius.lg, borderWidth: 1, borderColor: Colors.cardBorder, paddingVertical: 12, paddingHorizontal: 14, gap: 4 },
   portfolioValue: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, letterSpacing: -0.3 },
   portfolioLabel: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: Colors.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.6 },
