@@ -190,6 +190,15 @@ export interface Project {
    * Saved by the "Remember for this project" checkbox in the Submit modal.
    */
   dfrRecipients?: string[];
+  /**
+   * Live ICS calendar subscription token. Anyone with the token can read
+   * the project's calendar feed via the ics-feed edge function — same
+   * trust model as a Calendly link. Rotating the token revokes all
+   * existing subscribers. Server-side default `gen_random_uuid()` per
+   * the migration; legacy projects without it just skip the Subscribe
+   * button until the next save round-trips a UUID.
+   */
+  calendarToken?: string;
 }
 
 // ─── Project Contract ───────────────────────────────────────────────
@@ -1920,6 +1929,17 @@ export interface ClientPortalSettings {
   showPunchList: boolean;
   showRFIs: boolean;
   showDocuments: boolean;
+  /**
+   * Show the homeowner-facing Selections viewer in the client portal.
+   * Pre-fix the GC managed selections via `app/selections.tsx` but the
+   * homeowner could only see them when the GC manually emailed PDFs.
+   * With this flag on, client-view renders a Selections card per
+   * category — homeowners see what's chosen, what's outstanding, and
+   * any allowance overage at a glance. Defaults false so older
+   * portals don't suddenly start surfacing selections without GC
+   * opt-in.
+   */
+  showSelections?: boolean;
   welcomeMessage?: string;
   invites?: ClientPortalInvite[];
   // When enabled and the project has no contract value yet, the portal

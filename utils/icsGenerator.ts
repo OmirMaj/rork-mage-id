@@ -7,6 +7,16 @@
 // invoice due date, and warranty expiration lives alongside the rest of
 // their calendar.
 //
+// Two distribution modes:
+//   1. One-shot download — `exportProjectIcs()` writes a static .ics to
+//      cache and shares it. Snapshot-only; subscribers fall out of date
+//      when the schedule changes.
+//   2. Live subscription URL — `getCalendarSubscribeUrls()` returns the
+//      `webcal://` + `https://` URLs pointing at the `ics-feed` edge
+//      function. Calendar apps re-fetch periodically so the feed stays
+//      current. Token-gated; rotating the project's calendar_token
+//      revokes all subscribers in one shot.
+//
 // The builder is pure (no React, no file system). `exportProjectIcs()` is the
 // side-effectful wrapper that writes the file to the cache dir and hands it
 // to the share sheet — matches the `utils/dataExport.ts` pattern.
@@ -353,4 +363,39 @@ function downloadOnWeb(fileName: string, text: string): void {
   } catch (err) {
     console.log('[icsGenerator] web download failed:', err);
   }
+}
+
+// ---------------------------------------------------------------------------
+// Live subscription URL builder
+// ---------------------------------------------------------------------------
+
+/**
+ * Compose webcal:// and https:// URLs that resolve to the project's live
+ * ICS feed (the `ics-feed` Supabase edge function). Both forms target
+ * the same endpoint; calendar apps differ in which they accept:
+ *
+ *   - iOS / macOS Calendar.app: webcal:// triggers the OS subscribe flow.
+ *   - Google Calendar "From URL": requires https://.
+ *   - Outlook desktop & web: accepts either.
+ *
+ * Pass into a Share sheet, copy-to-clipboard CTA, or a "Subscribe in
+ * Calendar.app" button. Returns null when the project has no
+ * calendar_token (legacy rows pre-migration) — the UI should hide the
+ * Subscribe button in that case.
+ */
+export function getCalendarSubscribeUrls(opts: {
+  supabaseUrl: string;
+  calendarToken?: string | null;
+}): { https: string; webcal: string } | null {
+  const { supabaseUrl, calendarToken } = opts;
+  if (!calendarToken || !supabaseUrl) return null;
+  // Supabase edge functions live at <project-ref>.functions.supabase.co.
+  // The url passed in is the project URL (https://<ref>.supabase.co); we
+  // swap the host to the functions subdomain.
+  const fnHost = supabaseUrl.replace(/^https?:\/\//, '').replace('.supabase.co', '.functions.supabase.co');
+  const httpsUrl = `https://${fnHost}/ics-feed?token=${encodeURIComponent(calendarToken)}`;
+  // webcal: scheme is the same path with a different protocol — Apple
+  // Calendar maps webcal:// → https:// internally.
+  const webcalUrl = `webcal://${fnHost}/ics-feed?token=${encodeURIComponent(calendarToken)}`;
+  return { https: httpsUrl, webcal: webcalUrl };
 }

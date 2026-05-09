@@ -9,16 +9,19 @@ import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { useLocalSearchParams, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
+import * as Linking from 'expo-linking';
 import {
   Globe, CalendarDays, DollarSign, FileText, Image as ImageIcon,
   ClipboardList, CheckCircle2, MessageSquare, ChevronDown, ChevronUp,
   BarChart3, Flag, GitBranch, Lock,
-  FileSignature, X, Check, ThumbsDown, ShieldCheck, Send,
+  FileSignature, X, Check, ThumbsDown, ShieldCheck, Send, CreditCard,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { formatMoney } from '@/utils/formatters';
-import type { ScheduleTask, ChangeOrder, COApprover, COAuditEntry } from '@/types';
+import type { ScheduleTask, ChangeOrder, COApprover, COAuditEntry, SelectionCategory } from '@/types';
+import { fetchSelectionsForProject } from '@/utils/selectionsEngine';
+import { Sparkles } from 'lucide-react-native';
 import { getStatusColor, getStatusLabel, getPhaseColor } from '@/utils/scheduleEngine';
 import { MOCK_DOCUMENTS, DOCUMENT_TYPE_INFO } from '@/mocks/documents';
 import SignaturePad from '@/components/SignaturePad';
@@ -28,7 +31,7 @@ import { Tokens } from '@/constants/designTokens';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-type SectionKey = 'messages' | 'schedule' | 'budget' | 'invoices' | 'changeOrders' | 'photos' | 'dailyReports' | 'punchList' | 'rfis' | 'documents';
+type SectionKey = 'messages' | 'schedule' | 'budget' | 'invoices' | 'changeOrders' | 'photos' | 'dailyReports' | 'punchList' | 'rfis' | 'documents' | 'selections';
 
 function SectionHeader({ title, icon, count, expanded, onToggle }: {
   title: string; icon: React.ReactNode; count?: number; expanded: boolean; onToggle: () => void;
@@ -103,7 +106,15 @@ export default function ClientViewScreen() {
   const [expanded, setExpanded] = useState<Record<SectionKey, boolean>>({
     messages: true, schedule: true, budget: true, invoices: true, changeOrders: false,
     photos: true, dailyReports: false, punchList: false, rfis: false, documents: false,
+    selections: true,
   });
+
+  // Selections state declared here so the fetch effect (defined below
+  // lastUpdatedAt) can populate it. Pre-fix selections were GC-side
+  // only; homeowner had to ask the GC to email PDFs of every chosen
+  // option. The new portal section (gated by `showSelections`) shows
+  // categories with chosen-option highlights inline.
+  const [selectionCategories, setSelectionCategories] = useState<SelectionCategory[]>([]);
 
   // Realtime: when the GC updates anything on this project, invalidate local
   // react-query caches so the client portal re-renders with fresh data.
@@ -112,6 +123,23 @@ export default function ClientViewScreen() {
   const queryClient = useQueryClient();
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date>(new Date());
   const [refreshing, setRefreshing] = useState(false);
+
+  // Fetch selections async (data lives in its own Supabase tables
+  // outside ProjectContext). Re-runs when the project changes or when
+  // the realtime listener bumps lastUpdatedAt.
+  useEffect(() => {
+    if (!project?.id || !project?.clientPortal?.showSelections) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const cats = await fetchSelectionsForProject(project.id);
+        if (!cancelled) setSelectionCategories(cats);
+      } catch (err) {
+        console.log('[client-view] selections load failed', err);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [project?.id, project?.clientPortal?.showSelections, lastUpdatedAt]);
 
   const refreshAll = useCallback(async () => {
     setRefreshing(true);
@@ -765,20 +793,57 @@ export default function ClientViewScreen() {
               <View style={styles.sectionBody}>
                 {invoices.map(inv => {
                   const statusColor = inv.status === 'paid' ? '#34C759' : inv.status === 'overdue' ? Colors.error : '#FF9500';
+                  // Pay button visibility: shown when the GC has
+                  // generated a Stripe Payment Link (payLinkUrl) AND
+                  // the invoice still has a balance to pay. Pre-fix
+                  // the homeowner saw the link only via email, which
+                  // they may have lost; surfacing it inline closes
+                  // the loop with the GC's "Generate Payment Link"
+                  // flow. Tapping opens the Stripe-hosted page in
+                  // the system browser; Stripe handles card / ACH /
+                  // bank-debit per the GC's Connect account config.
+                  const remaining = Math.max(0, (inv.totalDue ?? 0) - (inv.amountPaid ?? 0));
+                  const showPay = !!inv.payLinkUrl && remaining > 0 && inv.status !== 'paid';
                   return (
-                    <View key={inv.id} style={styles.listRow}>
-                      <View style={styles.listRowLeft}>
-                        <Text style={styles.listRowTitle}>Invoice #{inv.number}</Text>
-                        <Text style={styles.listRowMeta}>Due {new Date(inv.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</Text>
-                      </View>
-                      <View style={styles.listRowRight}>
-                        <Text style={styles.listRowAmount}>{formatMoney(inv.totalDue)}</Text>
-                        <View style={[styles.listStatusBadge, { backgroundColor: statusColor + '20' }]}>
-                          <Text style={[styles.listStatusText, { color: statusColor }]}>
-                            {inv.status === 'paid' ? 'Paid' : inv.status === 'overdue' ? 'Overdue' : inv.status === 'partially_paid' ? 'Partial' : 'Sent'}
-                          </Text>
+                    <View key={inv.id} style={styles.invoiceRowCard}>
+                      <View style={styles.listRow}>
+                        <View style={styles.listRowLeft}>
+                          <Text style={styles.listRowTitle}>Invoice #{inv.number}</Text>
+                          <Text style={styles.listRowMeta}>Due {new Date(inv.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</Text>
+                        </View>
+                        <View style={styles.listRowRight}>
+                          <Text style={styles.listRowAmount}>{formatMoney(inv.totalDue)}</Text>
+                          <View style={[styles.listStatusBadge, { backgroundColor: statusColor + '20' }]}>
+                            <Text style={[styles.listStatusText, { color: statusColor }]}>
+                              {inv.status === 'paid' ? 'Paid' : inv.status === 'overdue' ? 'Overdue' : inv.status === 'partially_paid' ? 'Partial' : 'Sent'}
+                            </Text>
+                          </View>
                         </View>
                       </View>
+                      {showPay && (
+                        <TouchableOpacity
+                          style={styles.payInvoiceBtn}
+                          onPress={async () => {
+                            if (Platform.OS !== 'web') void Haptics.selectionAsync().catch(() => {});
+                            try {
+                              await Linking.openURL(inv.payLinkUrl!);
+                            } catch (err) {
+                              Alert.alert('Cannot open payment link', `Try copying this URL into a browser: ${inv.payLinkUrl}`);
+                            }
+                          }}
+                          activeOpacity={0.85}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Pay invoice ${inv.number} — ${formatMoney(remaining)}`}
+                          testID={`pay-invoice-${inv.id}`}
+                        >
+                          <CreditCard size={14} color={Colors.textOnPrimary} />
+                          <Text style={styles.payInvoiceBtnText}>
+                            Pay {formatMoney(remaining)}
+                          </Text>
+                          <ShieldCheck size={11} color={Colors.textOnPrimary} style={{ opacity: 0.85 }} />
+                          <Text style={styles.payInvoiceBtnSecure}>Secure · Stripe</Text>
+                        </TouchableOpacity>
+                      )}
                     </View>
                   );
                 })}
@@ -849,6 +914,81 @@ export default function ClientViewScreen() {
                           </Text>
                         </View>
                       )}
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* Selections — homeowner-facing view of category picks. Renders
+            chosen options with images + price; outstanding categories
+            show a "Choose" placeholder. Allowance-overage categories
+            get a red badge so the homeowner sees the budget impact. */}
+        {portal.showSelections && selectionCategories.length > 0 && (
+          <View style={styles.section}>
+            <SectionHeader
+              title="Selections"
+              icon={<Sparkles size={18} color="#FF9500" />}
+              count={selectionCategories.length}
+              expanded={expanded.selections}
+              onToggle={() => toggleSection('selections')}
+            />
+            {expanded.selections && (
+              <View style={styles.sectionBody}>
+                {selectionCategories.map(cat => {
+                  const chosenOption = (cat.options ?? []).find(o => o.isChosen);
+                  const isExceeded = cat.status === 'exceeded';
+                  const isPending = cat.status === 'pending' || cat.status === 'browsing';
+                  const statusTint = isExceeded ? Colors.error
+                    : cat.status === 'chosen' ? Colors.success
+                    : isPending ? '#FF9500'
+                    : Colors.textMuted;
+                  return (
+                    <View key={cat.id} style={styles.selCard}>
+                      <View style={styles.selCardHead}>
+                        <Text style={styles.selCardTitle}>{cat.category}</Text>
+                        <View style={[styles.selStatusBadge, { backgroundColor: statusTint + '20' }]}>
+                          <Text style={[styles.selStatusText, { color: statusTint }]}>
+                            {cat.status === 'chosen' ? 'Chosen'
+                              : isExceeded ? 'Over budget'
+                              : cat.status === 'browsing' ? 'Browsing'
+                              : 'Pending'}
+                          </Text>
+                        </View>
+                      </View>
+                      {chosenOption ? (
+                        <View style={styles.selChosenRow}>
+                          {chosenOption.imageUrl ? (
+                            <Image source={{ uri: chosenOption.imageUrl }} style={styles.selThumb} resizeMode="cover" />
+                          ) : (
+                            <View style={[styles.selThumb, styles.selThumbPlaceholder]}>
+                              <Sparkles size={16} color={Colors.textMuted} />
+                            </View>
+                          )}
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.selProductName} numberOfLines={1}>
+                              {chosenOption.brand ? `${chosenOption.brand} · ` : ''}{chosenOption.productName}
+                            </Text>
+                            <Text style={styles.selProductMeta} numberOfLines={1}>
+                              {chosenOption.quantity} {chosenOption.unit} · {formatMoney(chosenOption.total)}
+                            </Text>
+                          </View>
+                        </View>
+                      ) : (
+                        <Text style={styles.selPlaceholder}>
+                          {isPending ? 'Awaiting selection — your GC will share options soon.' : 'No option chosen yet.'}
+                        </Text>
+                      )}
+                      <View style={styles.selBudgetRow}>
+                        <Text style={styles.selBudgetLabel}>Budget {formatMoney(cat.budget)}</Text>
+                        {chosenOption && (
+                          <Text style={[styles.selBudgetActual, isExceeded && { color: Colors.error }]}>
+                            Selected {formatMoney(chosenOption.total)}
+                          </Text>
+                        )}
+                      </View>
                     </View>
                   );
                 })}
@@ -1256,6 +1396,54 @@ const styles = StyleSheet.create({
   listRowRight: { alignItems: 'flex-end', gap: 4 },
   listRowAmount: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
   listStatusBadge: { borderRadius: Tokens.radius.xs, paddingHorizontal: 7, paddingVertical: 3 },
+  // Container that wraps an invoice row + its inline Pay button so
+  // the layout doesn't collapse the new CTA into the row chrome.
+  invoiceRowCard: { marginBottom: 6 },
+  payInvoiceBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: Colors.primary,
+    borderRadius: Tokens.radius.sm,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    marginTop: 6,
+  },
+  payInvoiceBtnText: {
+    fontSize: Type.bodyCompact.fontSize,
+    fontWeight: '700' as const,
+    color: Colors.textOnPrimary,
+    letterSpacing: -0.1,
+  },
+  payInvoiceBtnSecure: {
+    fontSize: Type.caption2.fontSize,
+    fontWeight: '600' as const,
+    color: Colors.textOnPrimary,
+    opacity: 0.85,
+    marginLeft: 4,
+  },
+  // Selections card styles — homeowner portal section.
+  selCard: {
+    backgroundColor: Colors.background,
+    borderRadius: Tokens.radius.sm,
+    padding: 12,
+    marginBottom: 8,
+    gap: 8,
+  },
+  selCardHead: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8 },
+  selCardTitle: { flex: 1, fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text },
+  selStatusBadge: { borderRadius: Tokens.radius.xs, paddingHorizontal: 7, paddingVertical: 3 },
+  selStatusText: { fontSize: 10, fontWeight: '800' as const, letterSpacing: 0.3, textTransform: 'uppercase' as const },
+  selChosenRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10 },
+  selThumb: { width: 48, height: 48, borderRadius: Tokens.radius.sm, backgroundColor: Colors.fillTertiary },
+  selThumbPlaceholder: { alignItems: 'center' as const, justifyContent: 'center' as const },
+  selProductName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
+  selProductMeta: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, marginTop: 2 },
+  selPlaceholder: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, fontStyle: 'italic' as const },
+  selBudgetRow: { flexDirection: 'row' as const, justifyContent: 'space-between' as const, alignItems: 'center' as const, gap: 8 },
+  selBudgetLabel: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: Colors.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.4 },
+  selBudgetActual: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: Colors.text },
   listStatusText: { fontSize: 10, fontWeight: '700', color: Colors.textMuted },
 
   // Photos
