@@ -782,6 +782,14 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
 
   useEffect(() => { if (projectsQuery.data) setProjects(projectsQuery.data); }, [projectsQuery.data]);
   useEffect(() => { if (settingsQuery.data) setSettings(settingsQuery.data); }, [settingsQuery.data]);
+  // Push the chosen UI language into the i18n module on every
+  // settings change so t() picks up the user's preference without
+  // needing a context plumbing layer at every call site.
+  useEffect(() => {
+    void import('@/utils/i18n').then(({ setAppLocale }) => {
+      setAppLocale(settings.appLanguage ?? 'en');
+    });
+  }, [settings.appLanguage]);
   useEffect(() => { if (changeOrdersQuery.data) setChangeOrders(changeOrdersQuery.data); }, [changeOrdersQuery.data]);
   useEffect(() => { if (invoicesQuery.data) setInvoices(invoicesQuery.data); }, [invoicesQuery.data]);
   useEffect(() => { if (commitmentsQuery.data) setCommitments(commitmentsQuery.data); }, [commitmentsQuery.data]);

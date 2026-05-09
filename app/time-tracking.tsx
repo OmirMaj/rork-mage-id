@@ -18,6 +18,7 @@ import { Colors } from '@/constants/colors';
 import type { TimeEntry } from '@/types';
 import { useTimeEntries, buildTimeEntriesCSV } from '@/hooks/useTimeEntries';
 import { useWorkers } from '@/hooks/useWorkers';
+import { buildWH347Rows, buildWH347Csv } from '@/utils/wh347';
 import { useProjects } from '@/contexts/ProjectContext';
 import { TextInput } from 'react-native';
 import { Plus, UserPlus, MapPin } from 'lucide-react-native';
@@ -312,6 +313,64 @@ function TimeTrackingScreenInner() {
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
   }, [newWorkerName, newWorkerTrade, newWorkerRate, addWorker]);
 
+  // WH-347 (Davis-Bacon certified payroll) export — public-work bid
+  // requirement for HUD / VA / federally funded jobs. Buildertrend /
+  // CoConstruct / JobTread don't ship this; it's a moat for residential
+  // GCs entering public-work bid lanes. The CSV is what state DOL
+  // portals (LCPtracker, Elation, eMars, eComply) actually ingest;
+  // PDF rendering of the actual form is a follow-up.
+  const handleExportWH347 = useCallback(async () => {
+    if (entries.length === 0) {
+      Alert.alert('No entries', 'Clock in some crew before exporting.');
+      return;
+    }
+    if (!selectedProject) {
+      Alert.alert('Pick a project', 'WH-347 is per-project. Select the project from the picker before exporting.');
+      return;
+    }
+    // Default the week to the most recent Sunday (this week's start).
+    const now = new Date();
+    const weekStart = new Date(now);
+    weekStart.setHours(0, 0, 0, 0);
+    weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+
+    const rows = buildWH347Rows({
+      weekStart,
+      projectId: selectedProject.id,
+      projectName: selectedProject.name,
+      entries,
+      workers: activeWorkers,
+    });
+    if (rows.length === 0) {
+      Alert.alert('No payroll for this week', 'No completed time entries on this project for the current week. Switch projects or wait until the week wraps.');
+      return;
+    }
+    const csv = buildWH347Csv({
+      rows,
+      weekStart,
+      projectName: selectedProject.name,
+      projectAddress: selectedProject.location,
+      contractorName: 'MAGE ID Contractor', // TODO: read from settings.branding.companyName when wired
+    });
+    if (Platform.OS === 'web') {
+      try {
+        await Clipboard.setStringAsync(csv);
+        Alert.alert('Copied', `WH-347 CSV for ${rows.length} worker${rows.length === 1 ? '' : 's'} copied. Paste into Excel or upload to LCPtracker / Elation.`);
+      } catch {
+        Alert.alert('Export failed', 'Could not copy WH-347 CSV.');
+      }
+      return;
+    }
+    try {
+      await Share.share({
+        title: `WH-347 — ${selectedProject.name} — week of ${weekStart.toISOString().slice(0, 10)}`,
+        message: csv,
+      });
+    } catch (err) {
+      console.warn('[time-tracking] WH-347 share failed:', err);
+    }
+  }, [entries, selectedProject, activeWorkers]);
+
   // Payroll CSV export. Drops everything in `entries` into the standard
   // QuickBooks/Sage-friendly column shape and shares via native Share
   // sheet on mobile / clipboard on web.
@@ -383,20 +442,41 @@ function TimeTrackingScreenInner() {
           {/* Payroll-friendly CSV export — drop into QuickBooks / Sage /
               Foundation. Pre-audit (May 2026) the screen had no export
               path and the data was mock-only anyway. Real now. */}
-          <TouchableOpacity
-            style={{
-              flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-              paddingVertical: 14, paddingHorizontal: 16,
-              backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,
-              borderRadius: Tokens.radius.md,
-            }}
-            onPress={handleExportCSV}
-            activeOpacity={0.85}
-            testID="time-tracking-export"
-          >
-            <FileDown size={16} color={Colors.text} />
-            <Text style={{ fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text }}>Export CSV</Text>
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row' as const, gap: 8 }}>
+            <TouchableOpacity
+              style={{
+                flex: 1,
+                flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+                paddingVertical: 14, paddingHorizontal: 16,
+                backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,
+                borderRadius: Tokens.radius.md,
+              }}
+              onPress={handleExportCSV}
+              activeOpacity={0.85}
+              testID="time-tracking-export"
+            >
+              <FileDown size={16} color={Colors.text} />
+              <Text style={{ fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text }}>Export CSV</Text>
+            </TouchableOpacity>
+            {/* WH-347 export — Davis-Bacon certified payroll, required
+                for federally funded public-work jobs. CSV is what
+                state DOL portals (LCPtracker / Elation) ingest. */}
+            <TouchableOpacity
+              style={{
+                flex: 1,
+                flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+                paddingVertical: 14, paddingHorizontal: 16,
+                backgroundColor: Colors.primary + '12', borderWidth: 1, borderColor: Colors.primary + '30',
+                borderRadius: Tokens.radius.md,
+              }}
+              onPress={handleExportWH347}
+              activeOpacity={0.85}
+              testID="time-tracking-wh347"
+            >
+              <FileDown size={16} color={Colors.primary} />
+              <Text style={{ fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.primary }}>WH-347</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         <View style={styles.tabRow}>

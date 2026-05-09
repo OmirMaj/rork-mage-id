@@ -858,6 +858,18 @@ export interface AppSettings {
   subscription?: SubscriptionInfo;
   dfrRecipients?: string[];
   pdfNaming?: PDFNamingSettings;
+  /**
+   * GC-app UI language. Pre-fix the app was English-only;
+   * Spanish-speaking supers and bilingual office staff had to
+   * navigate English chrome. Picked from the Settings screen.
+   * Distinct from clientPortal.homeownerLanguage which is per-
+   * project and targets the portal viewer.
+   *
+   * Codes match utils/i18n.ts AppLocale. Defaults to 'en' when
+   * unset. Add a new entry here AND add a new dictionary file in
+   * utils/i18n/ when expanding to a new locale.
+   */
+  appLanguage?: 'en' | 'es';
   /** Morning-digest preferences. Drives the per-user pg_cron job that
    *  fires the morning-digest edge function. Defaults: disabled, 6 AM
    *  America/New_York, both channels. */
