@@ -48,6 +48,7 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import PageHeader from '@/components/PageHeader';
+import DashboardHero from '@/components/DashboardHero';
 import ProjectRow from '@/components/ProjectRow';
 
 export default function HomeScreen() {
@@ -392,6 +393,15 @@ export default function HomeScreen() {
         ]}
         ListHeaderComponent={
           <View>
+            {/* Prepperly-style dashboard front door. Sits above the
+                existing project list / filter chips so the home tab
+                opens with a narrative ("Good morning, Dan") + a row
+                of stat cards + a featured project + quick actions
+                rail. Pre-fix the home opened cold to a project list
+                with no story; first-launch users had nothing to
+                anchor on. */}
+            <DashboardHero onNewProjectPress={() => setShowCreateMenu(true)} />
+
             {/* Unified PageHeader replaces the old two-row pattern (a
                 navBar with logo + 3 icons stacked above a separate large
                 title). The new strip puts title + sync chip on the left
