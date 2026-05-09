@@ -329,6 +329,7 @@ function RootLayoutNav() {
       <Stack.Screen name="trial-offer" options={{ headerShown: false }} />
       <Stack.Screen name="trial-reminder" options={{ headerShown: false }} />
       <Stack.Screen name="trial-design" options={{ headerShown: false }} />
+      <Stack.Screen name="estimate-review" options={{ title: 'AI Review' }} />
       <Stack.Screen name="schedule-wizard" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="ai-punch" options={{ title: 'AI Punch from Photos' }} />
       <Stack.Screen name="photo-triage" options={{ title: 'AI Photo Triage' }} />

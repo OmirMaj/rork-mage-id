@@ -50,7 +50,7 @@ export default function PlansScreen() {
   const { canAccess } = useTierAccess();
   const { refresh: refreshQuota } = useUsageStatus();
   const {
-    projects, getProject, getPlanSheetsForProject, addPlanSheet, deletePlanSheet,
+    projects, getProject, getPlanSheetsForProject, addPlanSheet, updatePlanSheet, deletePlanSheet,
     getPinsForPlan,
   } = useProjects();
 
@@ -147,17 +147,49 @@ export default function PlansScreen() {
       setPdfStatus(`Saving ${pages.length} sheet${pages.length === 1 ? '' : 's'}\u2026`);
 
       const baseName = asset.name?.replace(/\.[^/.]+$/, '') ?? 'Plan set';
-      pages.forEach((p) => {
-        addPlanSheet({
-          projectId,
-          name: pages.length === 1 ? baseName : `${baseName} \u2014 Page ${p.pageNumber}`,
-          sheetNumber: undefined,
-          imageUri: p.publicUrl,
-          width: p.width,
-          height: p.height,
-          pageNumber: p.pageNumber,
-        });
-      });
+      // Add the sheets first with the fallback name so the user sees
+      // something land immediately. Then fire-and-forget a vision
+      // call per page to extract the title-block metadata; when each
+      // returns we updatePlanSheet with the real sheetNumber + name.
+      // Pre-fix every page came in as "Plan set \u2014 Page 4" and the GC
+      // had to retype "A-101 Floor Plan" for each one. Buildxact's
+      // Takeoff Assistant does this automatically; we ship the same.
+      const created = pages.map((p) => addPlanSheet({
+        projectId,
+        name: pages.length === 1 ? baseName : `${baseName} \u2014 Page ${p.pageNumber}`,
+        sheetNumber: undefined,
+        imageUri: p.publicUrl,
+        width: p.width,
+        height: p.height,
+        pageNumber: p.pageNumber,
+      }));
+
+      // Async metadata extraction. Cap concurrency at 2 so a 60-page
+      // set doesn't stampede the edge function. Failures fall back to
+      // the original "Plan set \u2014 Page N" name silently.
+      void (async () => {
+        try {
+          const { extractPlanSheetMetadata, composePlanSheetName } = await import('@/utils/planSheetMetadata');
+          const queue = pages.map((p, i) => ({ page: p, sheet: created[i] }));
+          const concurrency = 2;
+          for (let i = 0; i < queue.length; i += concurrency) {
+            const batch = queue.slice(i, i + concurrency);
+            await Promise.all(batch.map(async ({ page, sheet }) => {
+              if (!sheet?.id) return;
+              const meta = await extractPlanSheetMetadata(page.publicUrl);
+              if (!meta) return;
+              const name = composePlanSheetName(meta);
+              if (!name && !meta.sheetNumber) return;
+              updatePlanSheet(sheet.id, {
+                ...(name ? { name } : {}),
+                ...(meta.sheetNumber ? { sheetNumber: meta.sheetNumber } : {}),
+              });
+            }));
+          }
+        } catch (err) {
+          console.log('[plans] metadata extract pass failed', err);
+        }
+      })();
 
       setPdfStatus('');
       // Refresh the usage badge so the user sees the new "X of Y pages

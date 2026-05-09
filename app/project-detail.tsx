@@ -29,6 +29,7 @@ import { generateUUID } from '@/utils/generateId';
 import AIProjectReport from '@/components/AIProjectReport';
 import AIAutoScheduleButton from '@/components/AIAutoScheduleButton';
 import { generateAndSharePDF, buildEstimateTextForEmail, generateRFILogPDF } from '@/utils/pdfGenerator';
+import { exportEstimateToExcel } from '@/utils/estimateExcelExport';
 import { generateAndShareCloseoutPacket } from '@/utils/closeoutPacketGenerator';
 import { prefetchProjectPlans } from '@/utils/planPrefetch';
 import HardHatTap from '@/components/animations/HardHatTap';
@@ -421,6 +422,20 @@ export default function ProjectDetailScreen() {
       Alert.alert('Unable to open email', 'Please check your email app is configured.');
     });
   }, [project, branding]);
+
+  // Excel export — round-trip to xlsx is the single most-requested
+  // feature from small GCs (per the Buildxact / Square Takeoff
+  // competitive review). Produces a 2-sheet workbook (Estimate +
+  // Summary) with currency-formatted cells and grand-total row.
+  // Native uses Sharing.shareAsync; web triggers a Blob download.
+  const handleExportExcel = useCallback(async () => {
+    if (!project) return;
+    setShowShareModal(false);
+    const result = await exportEstimateToExcel(project);
+    if (!result.ok) {
+      Alert.alert('Excel export failed', result.error ?? 'Could not generate the spreadsheet.');
+    }
+  }, [project]);
 
   const handleShareText = useCallback(() => {
     if (!project) return;
@@ -2973,6 +2988,45 @@ export default function ProjectDetailScreen() {
                 <Text style={styles.shareOptionDesc}>Quick summary with cost breakdown</Text>
               </View>
             </TouchableOpacity>
+
+            {/* Excel export — for GCs who round-trip estimates to
+                Excel before sending. Two-sheet workbook (Estimate +
+                Summary) with currency formatting on the price
+                columns. Free under Unsplash + xlsx licenses, no
+                external service required. */}
+            {project.linkedEstimate && project.linkedEstimate.items.length > 0 && (
+              <TouchableOpacity style={styles.shareOption} onPress={handleExportExcel} activeOpacity={0.7} testID="share-excel-option">
+                <View style={[styles.shareOptionIcon, { backgroundColor: '#1F7A3A22' }]}>
+                  <FileText size={20} color="#1F7A3A" />
+                </View>
+                <View style={styles.shareOptionInfo}>
+                  <Text style={styles.shareOptionTitle}>Export to Excel</Text>
+                  <Text style={styles.shareOptionDesc}>.xlsx with itemized line items + totals</Text>
+                </View>
+              </TouchableOpacity>
+            )}
+
+            {/* AI Review — Buildxact's Blu Estimate Reviewer
+                equivalent. Catches missing trades, sus pricing,
+                compliance gaps before the estimate goes out the
+                door. Opens a dedicated screen with structured
+                suggestions the GC can dismiss one-by-one. */}
+            {project.linkedEstimate && project.linkedEstimate.items.length > 0 && (
+              <TouchableOpacity
+                style={styles.shareOption}
+                onPress={() => { setShowShareModal(false); router.push({ pathname: '/estimate-review' as never, params: { projectId: project.id } as never }); }}
+                activeOpacity={0.7}
+                testID="share-ai-review-option"
+              >
+                <View style={[styles.shareOptionIcon, { backgroundColor: Colors.primary + '15' }]}>
+                  <Sparkles size={20} color={Colors.primary} />
+                </View>
+                <View style={styles.shareOptionInfo}>
+                  <Text style={styles.shareOptionTitle}>Review with AI</Text>
+                  <Text style={styles.shareOptionDesc}>Catch missing trades, items, and compliance gaps</Text>
+                </View>
+              </TouchableOpacity>
+            )}
 
             {project.schedule && (
               <TouchableOpacity style={styles.shareOption} onPress={handleShareSchedulePDF} activeOpacity={0.7} testID="share-schedule-option">
