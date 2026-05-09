@@ -316,6 +316,8 @@ function RootLayoutNav() {
       <Stack.Screen name="lead-detail" options={{ title: 'Lead' }} />
       <Stack.Screen name="buyout" options={{ title: 'Buyout' }} />
       <Stack.Screen name="buyout-package" options={{ title: 'Bid Package' }} />
+      <Stack.Screen name="approvals" options={{ title: 'Approvals' }} />
+      <Stack.Screen name="sub-scorecards" options={{ title: 'Sub Scorecards' }} />
       <Stack.Screen name="schedule-wizard" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="ai-punch" options={{ title: 'AI Punch from Photos' }} />
       <Stack.Screen name="photo-triage" options={{ title: 'AI Photo Triage' }} />

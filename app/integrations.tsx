@@ -15,6 +15,8 @@ import {
 import { Colors } from '@/constants/colors';
 import { MOCK_INTEGRATIONS, INTEGRATION_CATEGORIES } from '@/mocks/integrations';
 import type { Integration, IntegrationCategory } from '@/types';
+import { recordIntegrationRequest } from '@/utils/integrationRequests';
+import { useAuth } from '@/contexts/AuthContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -80,6 +82,7 @@ export default function IntegrationsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { canAccess } = useTierAccess();
+  const { user } = useAuth();
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [integrations, setIntegrations] = useState<Integration[]>(MOCK_INTEGRATIONS);
@@ -142,27 +145,48 @@ export default function IntegrationsScreen() {
 
     if (item.tier === 'deep') {
       // Pre-audit (May 2026) this fake-Connected the integration via local
-      // state and showed a misleading "Connected!" alert. We've removed
-      // the dishonest path — until real OAuth flows ship for QuickBooks /
-      // Sage / Foundation / etc., tapping a Connect button surfaces the
-      // honest "join the waitlist" message. The screen-level Preview
-      // banner reinforces that nothing here actually transacts.
+      // state and showed a misleading "Connected!" alert. The audit
+      // honest-rewrite then made it pop a Notify-me toast that
+      // dropped the request on the floor. Now: every "Notify me" tap
+      // upserts a real row into integration_requests so we can
+      // prioritize the roadmap by COUNT(*). Re-tapping bumps the
+      // count + last_requested_at.
       Alert.alert(
         `${item.name} not yet available`,
-        'Direct integration is in development. Want to be notified when it ships? We can email you at the address on your account.',
+        'Direct integration is in development. Tap "Notify me" to add your vote — the integrations our customers ask for most ship first.',
         [
           { text: 'Maybe later', style: 'cancel' },
           {
             text: 'Notify me',
-            onPress: () => {
+            onPress: async () => {
               if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-              Alert.alert('Got it', `We'll email you when ${item.name} sync goes live.`);
+              if (!user?.id) {
+                Alert.alert('Sign in to vote', 'We need an account to track which integrations matter to you. Sign in and try again.');
+                return;
+              }
+              const result = await recordIntegrationRequest({
+                userId: user.id,
+                integrationId: item.id,
+              });
+              if (result.ok) {
+                Alert.alert(
+                  result.isRepeat ? 'Vote bumped' : 'Got it',
+                  result.isRepeat
+                    ? `We've recorded another vote from you for ${item.name}. We'll email you when it ships.`
+                    : `Vote recorded — we'll email you when ${item.name} ships. The integrations with the most votes ship first.`,
+                );
+              } else {
+                Alert.alert(
+                  'Could not record vote',
+                  `We saved your interest locally but the server didn't confirm it. Check your connection and try again.`,
+                );
+              }
             },
           },
         ]
       );
     }
-  }, [canAccess]);
+  }, [canAccess, user]);
 
   return (
     <View style={styles.container}>
@@ -171,20 +195,23 @@ export default function IntegrationsScreen() {
         contentContainerStyle={{ paddingBottom: insets.bottom + 30 }}
         showsVerticalScrollIndicator={false}
       >
-        {/* Preview banner — added during May 2026 launch audit. The screen
-            uses MOCK_INTEGRATIONS and does NOT actually OAuth into any
-            external service yet. Users who hit this via deep link or
-            tile grid need to know the Connect buttons are demos. */}
+        {/* Banner — honest framing of the integrations roadmap. Pre-fix
+            this said "PREVIEW · this is a preview, your data won't
+            actually sync." That was correct but fatalistic — users
+            assumed nothing here would ever ship. Now: tapping Notify
+            me records a real demand-signal row in
+            integration_requests. The integrations the most users ask
+            for ship first; the screen reinforces that. */}
         <View style={{
           marginHorizontal: 16, marginTop: 12, padding: 12,
-          backgroundColor: Colors.warning + '15', borderRadius: 12,
-          borderWidth: 1, borderColor: Colors.warning + '40',
+          backgroundColor: Colors.primary + '12', borderRadius: 12,
+          borderWidth: 1, borderColor: Colors.primary + '30',
         }}>
-          <Text style={{ fontSize: 12, fontWeight: '800' as const, color: Colors.warning, letterSpacing: 0.5 }}>
-            PREVIEW
+          <Text style={{ fontSize: 12, fontWeight: '800' as const, color: Colors.primary, letterSpacing: 0.5 }}>
+            VOTE FOR YOUR INTEGRATIONS
           </Text>
           <Text style={{ fontSize: 13, color: Colors.text, marginTop: 4, lineHeight: 18 }}>
-            This is a preview of the Integrations Hub. Connect buttons aren&apos;t live yet — your data won&apos;t actually sync. We&apos;ll email you when each integration ships.
+            Tap any integration to add your vote — the ones our customers ask for most ship first. We&apos;ll email you when yours goes live. (Stripe payments, email send, and push are already live.)
           </Text>
         </View>
         <View style={styles.heroSection}>
