@@ -10,7 +10,7 @@ import {
   Receipt, Wrench, Calendar, TrendingUp, FolderOpen, FileDown,
   Inbox, Wallet, UserPlus, Gavel, ListChecks, MessageSquare, ShieldCheck,
   Truck, Banknote, Package, FileWarning, Trophy, Bookmark, Building,
-  Sparkles, Users,
+  Users,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
@@ -575,14 +575,6 @@ export default function SummaryScreen() {
                 testID="summary-insurance-claim"
               />
             )}
-            <View style={styles.toolsDivider} />
-            <NavRow
-              Icon={Sparkles}
-              title="Permit Q&A agent"
-              subtitle="Ask DOB / building-code questions and get fast answers"
-              onPress={() => router.push('/permit-qa' as never)}
-              testID="summary-permit-qa"
-            />
             <View style={styles.toolsDivider} />
             <NavRow
               Icon={Users}

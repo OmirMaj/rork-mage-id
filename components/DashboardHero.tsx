@@ -41,7 +41,7 @@ import { useRouter } from 'expo-router';
 import {
   ChevronRight, Plus, CalendarCheck, Search, ListChecks, Sparkles,
   Briefcase, Clock, Image as ImageIcon, Users, FileText, ShieldCheck,
-  AlertTriangle,
+  AlertTriangle, Gavel,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useAuth } from '@/contexts/AuthContext';
@@ -414,6 +414,13 @@ export default function DashboardHero({ onNewProjectPress }: DashboardHeroProps)
 
         <View style={[styles.actionRail, isWide && styles.actionRailWide]}>
           <ActionRow
+            Icon={Gavel}
+            title="Ask the code"
+            sub="Permit Q&A · 8 metros · 172 sections"
+            onPress={() => router.push('/permit-qa' as never)}
+            testID="dashboard-action-permit-qa"
+          />
+          <ActionRow
             Icon={CalendarCheck}
             title="Plan today"
             sub="Approvals + OAC + cash flow"
@@ -504,13 +511,14 @@ function ImageStatCard({
 }
 
 function ActionRow({
-  Icon, title, sub, onPress, disabled,
+  Icon, title, sub, onPress, disabled, testID,
 }: {
   Icon: React.ComponentType<{ size: number; color: string }>;
   title: string;
   sub: string;
   onPress?: () => void;
   disabled?: boolean;
+  testID?: string;
 }) {
   return (
     <TouchableOpacity
@@ -518,6 +526,7 @@ function ActionRow({
       onPress={onPress}
       disabled={disabled || !onPress}
       activeOpacity={0.85}
+      testID={testID}
     >
       <View style={styles.actionIcon}>
         <Icon size={14} color={Colors.text} />
