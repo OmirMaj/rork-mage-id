@@ -1253,6 +1253,20 @@ export default function EstimateScreen() {
               <Ruler size={13} color={Colors.textOnPrimary} />
               <Text style={styles.aiEstimateBtnText}>Takeoff</Text>
             </TouchableOpacity>
+            {/* Map satellite takeoff — measure roof / driveway / paving
+                area straight from satellite imagery. iOS uses Apple
+                Maps (free); Android uses Google Maps (covered by free
+                $200/mo credit at MAGE's scale). Closes the only
+                meaningful Square Takeoff differentiator. */}
+            <TouchableOpacity
+              style={styles.aiEstimateBtn}
+              onPress={() => router.push('/map-takeoff' as never)}
+              activeOpacity={0.8}
+              testID="map-takeoff-btn"
+            >
+              <MapPin size={13} color={Colors.textOnPrimary} />
+              <Text style={styles.aiEstimateBtnText}>Map</Text>
+            </TouchableOpacity>
             <TouchableOpacity
               style={styles.aiEstimateBtn}
               onPress={() => setShowAIQuickEstimate(true)}
