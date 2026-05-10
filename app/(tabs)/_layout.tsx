@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { View, StyleSheet, Platform, Animated, Easing } from 'react-native';
 import { Tabs, Slot } from 'expo-router';
-import { Home, Compass, Settings, LayoutDashboard, Wrench } from 'lucide-react-native';
+import { Home, Compass, Settings, LayoutDashboard } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import DesktopSidebar from '@/components/DesktopSidebar';
@@ -111,10 +111,10 @@ export default function TabLayout() {
             <Tabs.Screen name="summary" options={{ title: 'Summary' }} />
             <Tabs.Screen name="(home)" options={{ title: 'Your Projects' }} />
             <Tabs.Screen name="discover" options={{ title: 'Discover' }} />
-            <Tabs.Screen name="tools" options={{ title: 'Tools' }} />
             <Tabs.Screen name="construction-ai" options={{ title: 'AI Hub' }} />
             <Tabs.Screen name="settings" options={{ title: 'Settings' }} />
             <Tabs.Screen name="mage-id-bids" options={{ title: 'MAGE ID Bids' }} />
+            <Tabs.Screen name="tools" options={{ href: null }} />
             <Tabs.Screen name="estimate" options={{ href: null }} />
             <Tabs.Screen name="materials" options={{ href: null }} />
             <Tabs.Screen name="schedule" options={{ href: null }} />
@@ -185,15 +185,6 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="tools"
-        options={{
-          title: 'Tools',
-          tabBarIcon: ({ color, focused }) => (
-            <TabIcon Icon={Wrench} color={color} focused={focused} />
-          ),
-        }}
-      />
-      <Tabs.Screen
         name="settings"
         options={{
           title: 'Settings',
@@ -202,6 +193,7 @@ export default function TabLayout() {
           ),
         }}
       />
+      <Tabs.Screen name="tools" options={{ href: null }} />
       <Tabs.Screen name="estimate" options={{ href: null }} />
       <Tabs.Screen name="materials" options={{ href: null }} />
       <Tabs.Screen name="schedule" options={{ href: null }} />
