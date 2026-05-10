@@ -186,13 +186,14 @@ const styles = StyleSheet.create({
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
   },
+  // Title in Fraunces — empty states are a low-frequency surface but
+  // they're emotionally loaded ("you have nothing yet"). Brand-serif
+  // turns that moment from clinical to inviting.
   title: {
-    fontSize: Type.title2.fontSize,
-    fontWeight: '800' as const,
-    color: Colors.text,
+    ...Type.displaySm,
+    color: Colors.ink,
     textAlign: 'center' as const,
     marginBottom: 10,
-    letterSpacing: -0.4,
   },
   message: {
     fontSize: Type.subhead.fontSize,

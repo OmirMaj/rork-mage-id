@@ -29,6 +29,57 @@ type Weight = '400' | '500' | '600' | '700';
 const w = (n: Weight) => n;
 
 export const Type = {
+  // Brand display — Fraunces 700 Bold, the marketing serif. Reserved
+  // for the SINGLE largest title per screen (one moment, not wallpaper).
+  // Pair with `displayItalic` + amber color for accent words to mirror
+  // the marketing "Build it. *Bill it.* Track every dollar." treatment.
+  display: {
+    fontFamily: 'Fraunces_700Bold',
+    fontSize: 40,
+    lineHeight: 44,
+    letterSpacing: -1.0,
+    fontWeight: w('700'),
+  } as TextStyle,
+  displayItalic: {
+    fontFamily: 'Fraunces_700Bold_Italic',
+    fontSize: 40,
+    lineHeight: 44,
+    letterSpacing: -1.0,
+    fontWeight: w('700'),
+    fontStyle: 'italic',
+  } as TextStyle,
+  // Smaller display variant — for empty-state heroes that need brand
+  // weight but not full-bleed scale.
+  displaySm: {
+    fontFamily: 'Fraunces_700Bold',
+    fontSize: 28,
+    lineHeight: 32,
+    letterSpacing: -0.6,
+    fontWeight: w('700'),
+  } as TextStyle,
+  displaySmItalic: {
+    fontFamily: 'Fraunces_700Bold_Italic',
+    fontSize: 28,
+    lineHeight: 32,
+    letterSpacing: -0.6,
+    fontWeight: w('700'),
+    fontStyle: 'italic',
+  } as TextStyle,
+  // Mono — JetBrains Mono. Code citations, section numbers, permit
+  // stamps. Same role as the marketing site's `--ff-mono`.
+  mono: {
+    fontFamily: 'JetBrainsMono_500Medium',
+    fontSize: 13,
+    lineHeight: 17,
+    letterSpacing: 0,
+  } as TextStyle,
+  monoSm: {
+    fontFamily: 'JetBrainsMono_500Medium',
+    fontSize: 11,
+    lineHeight: 14,
+    letterSpacing: 0.2,
+  } as TextStyle,
+
   // Display — used for the largest titles on a screen (e.g., "Your Projects").
   // Apple "Large Title" — 34/41/700.
   largeTitle: { fontSize: 34, fontWeight: w('700'), letterSpacing: -0.5, lineHeight: 41 } as TextStyle,

@@ -460,7 +460,7 @@ function Stat({ icon: Icon, label, value, tint }: { icon: typeof DollarSign; lab
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   center: { alignItems: 'center', justifyContent: 'center' },
-  heading: { fontSize: Type.largeTitle.fontSize, fontWeight: '800' as const, color: Colors.text, paddingHorizontal: 20, letterSpacing: -0.5 },
+  heading: { ...Type.display, color: Colors.ink, paddingHorizontal: 20 },
   subheading: { fontSize: Type.bodyCompact.fontSize, color: Colors.textMuted, paddingHorizontal: 20, marginTop: 2, marginBottom: 16 },
   portfolioRow: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 12, gap: 8, marginBottom: 16 },
   agingStrip: {

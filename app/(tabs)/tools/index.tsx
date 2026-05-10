@@ -404,8 +404,8 @@ function Divider() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   heading: {
-    ...Type.title2,
-    color: Colors.text,
+    ...Type.display,
+    color: Colors.ink,
     paddingHorizontal: 20,
     marginBottom: 4,
   },

@@ -23,7 +23,7 @@ import { Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import {
-  Send, ChevronDown, Sparkles, MapPin, AlertCircle, Building,
+  Send, ChevronDown, MapPin, AlertCircle,
   User as UserIcon, BookOpen, Check,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
@@ -202,9 +202,11 @@ export default function PermitQAScreen() {
             onPress={() => setMetroPickerOpen(o => !o)}
             activeOpacity={0.85}
           >
-            <MapPin size={14} color={Colors.primary} />
-            <Text style={styles.metroBarText}>Asking about: <Text style={styles.metroBarBold}>{currentMetroLabel}</Text></Text>
-            <ChevronDown size={14} color={Colors.textMuted} />
+            <MapPin size={14} color={Colors.accent} />
+            <Text style={styles.metroBarText}>
+              Asking about <Text style={styles.metroBarBold}>{currentMetroLabel}</Text>
+            </Text>
+            <ChevronDown size={14} color="rgba(244, 239, 230, 0.5)" />
           </TouchableOpacity>
           {metroPickerOpen && (
             <View style={styles.pickerList}>
@@ -224,25 +226,28 @@ export default function PermitQAScreen() {
             </View>
           )}
 
-          {/* Empty state — starter questions */}
+          {/* Empty state — Fraunces hero + permit-stamp starter chips */}
           {messages.length === 0 && (
             <View style={styles.emptyHero}>
-              <View style={styles.emptyIconWrap}>
-                <Sparkles size={20} color={Colors.primary} />
-              </View>
-              <Text style={styles.emptyTitle}>Ask about permits, code, inspections</Text>
+              <Text style={styles.emptyEyebrow}>
+                {currentMetroLabel.toUpperCase()} · CODE LIBRARY
+              </Text>
+              <Text style={styles.emptyTitle}>
+                Ask the <Text style={styles.emptyTitleItalic}>code.</Text>
+              </Text>
               <Text style={styles.emptyBody}>
-                Fast answers on filing types, timelines, common rejections, fees, and inspection sequences. Tap a starter or type your own.
+                Fast answers on filing types, timelines, rejections, fees, and inspection
+                sequences. Verbatim quotes with section citations.
               </Text>
               <View style={styles.starterList}>
-                {STARTER_QUESTIONS.map(q => (
+                {STARTER_QUESTIONS.map((q, i) => (
                   <TouchableOpacity
                     key={q}
                     style={styles.starterChip}
                     onPress={() => sendMessage(q)}
-                    activeOpacity={0.85}
+                    activeOpacity={0.7}
                   >
-                    <BookOpen size={11} color={Colors.primary} />
+                    <Text style={styles.starterStamp}>§ {String(i + 1).padStart(2, '0')}</Text>
                     <Text style={styles.starterText}>{q}</Text>
                   </TouchableOpacity>
                 ))}
@@ -264,11 +269,13 @@ export default function PermitQAScreen() {
               style={[styles.message, m.role === 'user' ? styles.messageUser : styles.messageAgent]}
             >
               <View style={[styles.messageIconWrap, m.role === 'user' ? styles.messageIconUser : styles.messageIconAgent]}>
-                {m.role === 'user' ? <UserIcon size={12} color={Colors.background} /> : <Building size={12} color={Colors.primary} />}
+                {m.role === 'user'
+                  ? <UserIcon size={13} color={Colors.cream} />
+                  : <BookOpen size={13} color={Colors.ink} />}
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.messageRole}>
-                  {m.role === 'user' ? 'You' : 'Permit agent'}
+                  {m.role === 'user' ? 'YOU' : 'PERMIT § AGENT'}
                 </Text>
                 <Text style={styles.messageContent}>{m.content}</Text>
               </View>
@@ -278,13 +285,13 @@ export default function PermitQAScreen() {
           {sending && (
             <View style={styles.message}>
               <View style={[styles.messageIconWrap, styles.messageIconAgent]}>
-                <Building size={12} color={Colors.primary} />
+                <BookOpen size={13} color={Colors.ink} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.messageRole}>Permit agent</Text>
+                <Text style={styles.messageRole}>PERMIT § AGENT</Text>
                 <View style={{ flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, marginTop: 4 }}>
-                  <ActivityIndicator size="small" color={Colors.textMuted} />
-                  <Text style={styles.messageContent}>Thinking…</Text>
+                  <ActivityIndicator size="small" color={Colors.accent} />
+                  <Text style={styles.messageContent}>Looking up code…</Text>
                 </View>
               </View>
             </View>
@@ -325,20 +332,24 @@ const styles = StyleSheet.create({
     alignItems: 'center' as const,
     gap: 8,
     paddingHorizontal: 14,
-    paddingVertical: 10,
-    backgroundColor: Colors.primary + '08',
+    paddingVertical: 11,
+    backgroundColor: Colors.ink,
     marginHorizontal: 16,
     borderRadius: Tokens.radius.md,
-    borderWidth: 1,
-    borderColor: Colors.primary + '20',
-    marginBottom: 6,
+    marginBottom: 12,
+    marginTop: 4,
   },
   metroBarText: {
     flex: 1,
-    fontSize: Type.bodyCompact.fontSize,
-    color: Colors.text,
+    fontSize: Type.footnote.fontSize,
+    color: 'rgba(244, 239, 230, 0.7)', // cream at 70%
   },
-  metroBarBold: { fontWeight: '800' as const },
+  metroBarBold: {
+    ...Type.mono,
+    color: Colors.accent,
+    fontWeight: '600' as const,
+    fontSize: 13,
+  },
   pickerList: {
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.md,
@@ -359,49 +370,63 @@ const styles = StyleSheet.create({
   },
   pickerItemText: { fontSize: Type.body.fontSize, color: Colors.text, fontWeight: '500' as const },
 
+  // Empty hero — cream block, Fraunces title, mono eyebrow + section
+  // stamps on the starter chips. Borrows directly from the marketing
+  // landing aesthetic so Permit Q&A reads as "the same product" the
+  // user saw before signing up.
   emptyHero: {
-    paddingHorizontal: 24,
-    paddingTop: 18,
-    paddingBottom: 12,
+    marginHorizontal: 16,
+    paddingHorizontal: 20,
+    paddingTop: 22,
+    paddingBottom: 18,
+    backgroundColor: Colors.cream,
+    borderRadius: Tokens.radius.panel,
+    borderWidth: 1,
+    borderColor: Colors.bone,
   },
-  emptyIconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.primary + '15',
-    alignItems: 'center' as const,
-    justifyContent: 'center' as const,
-    marginBottom: 10,
+  emptyEyebrow: {
+    ...Type.monoSm,
+    color: Colors.concrete,
+    fontWeight: '600' as const,
+    marginBottom: 12,
   },
   emptyTitle: {
-    fontSize: Type.title3.fontSize,
-    fontWeight: '900' as const,
-    color: Colors.text,
-    letterSpacing: -0.4,
+    ...Type.displaySm,
+    color: Colors.ink,
+  },
+  emptyTitleItalic: {
+    ...Type.displaySmItalic,
+    color: Colors.accent,
   },
   emptyBody: {
-    fontSize: Type.footnote.fontSize,
-    color: Colors.textSecondary,
-    marginTop: 4,
-    marginBottom: 14,
-    lineHeight: 18,
+    fontSize: Type.subhead.fontSize,
+    color: Colors.concrete,
+    marginTop: 6,
+    marginBottom: 18,
+    lineHeight: 21,
   },
   starterList: { gap: 8 },
   starterChip: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
-    gap: 8,
-    backgroundColor: Colors.surface,
+    gap: 10,
+    backgroundColor: Colors.off,
     borderWidth: 1,
-    borderColor: Colors.borderLight,
+    borderColor: Colors.bone,
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingVertical: 11,
     borderRadius: Tokens.radius.md,
+  },
+  starterStamp: {
+    ...Type.monoSm,
+    color: Colors.accent,
+    fontWeight: '600' as const,
   },
   starterText: {
     flex: 1,
     fontSize: Type.bodyCompact.fontSize,
-    color: Colors.text,
+    color: Colors.ink,
+    lineHeight: 18,
   },
   disclaimerBox: {
     flexDirection: 'row' as const,
@@ -428,26 +453,25 @@ const styles = StyleSheet.create({
   messageUser: {},
   messageAgent: {},
   messageIconWrap: {
-    width: 26,
-    height: 26,
+    width: 28,
+    height: 28,
     borderRadius: Tokens.radius.full,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
     marginTop: 2,
   },
-  messageIconUser: { backgroundColor: Colors.primary },
-  messageIconAgent: { backgroundColor: Colors.primary + '15' },
+  messageIconUser: { backgroundColor: Colors.ink },
+  messageIconAgent: { backgroundColor: Colors.accent },
   messageRole: {
-    fontSize: Type.caption2.fontSize,
-    fontWeight: '800' as const,
-    color: Colors.textMuted,
-    letterSpacing: 0.4,
+    ...Type.monoSm,
+    color: Colors.accent,
+    fontWeight: '600' as const,
     textTransform: 'uppercase' as const,
   },
   messageContent: {
     fontSize: Type.body.fontSize,
-    color: Colors.text,
-    marginTop: 2,
+    color: Colors.ink,
+    marginTop: 4,
     lineHeight: 22,
   },
 
@@ -478,7 +502,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: Tokens.radius.full,
-    backgroundColor: Colors.primary,
+    backgroundColor: Colors.accent,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
   },

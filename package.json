@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@expo-google-fonts/fraunces": "^0.4.1",
+    "@expo-google-fonts/jetbrains-mono": "^0.4.1",
     "@expo/vector-icons": "^15.0.3",
     "@hono/trpc-server": "^0.4.2",
     "@nkzw/create-context-hook": "^1.1.0",

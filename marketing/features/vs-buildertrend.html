@@ -119,15 +119,63 @@
   </footer>
 
   <style>
-    .compare-grid { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 14px; }
-    .compare-grid th, .compare-grid td {
-      padding: 12px 14px; border-bottom: 1px solid rgba(255,255,255,0.08); vertical-align: top; text-align: left;
+    .compare-grid {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      margin-top: 28px;
+      font-size: 14.5px;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,0.08);
     }
-    .compare-grid th { font-weight: 700; color: rgba(255,255,255,0.9); }
-    .compare-grid td:first-child { width: 22%; color: rgba(255,255,255,0.7); }
-    .cta-strip { text-align: center; padding: 60px 20px; max-width: 720px; margin: 0 auto; }
-    .cta-strip h2 { margin-bottom: 12px; }
-    .cta-strip p { margin-bottom: 24px; opacity: 0.85; }
+    .compare-grid thead th {
+      font-family: var(--ff-mono);
+      font-size: 0.72rem;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--fog);
+      padding: 14px 16px;
+      text-align: left;
+      background: rgba(255,255,255,0.04);
+      border-bottom: 1px solid rgba(255,255,255,0.10);
+    }
+    .compare-grid thead th:last-child { color: var(--amber); }
+    .compare-grid td {
+      padding: 14px 16px;
+      vertical-align: top;
+      text-align: left;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+      color: rgba(244, 239, 230, 0.85);
+      line-height: 1.45;
+    }
+    .compare-grid tbody tr:last-child td { border-bottom: 0; }
+    .compare-grid tbody tr:nth-child(odd) td { background: rgba(255,255,255,0.015); }
+    .compare-grid td:first-child {
+      width: 24%;
+      color: var(--fog);
+      font-weight: 500;
+    }
+    .compare-grid td:first-child b { color: var(--cream); font-weight: 600; }
+    .compare-grid td:last-child {
+      background: rgba(255, 106, 26, 0.04);
+      border-left: 1px solid rgba(255, 106, 26, 0.20);
+      color: var(--cream);
+    }
+    .compare-grid tbody tr:nth-child(odd) td:last-child {
+      background: rgba(255, 106, 26, 0.07);
+    }
+    .compare-grid td b { color: var(--cream); font-weight: 600; }
+    .cta-strip { text-align: center; padding: 80px 20px; max-width: 720px; margin: 0 auto; }
+    .cta-strip h2 {
+      font-family: var(--ff-serif);
+      font-weight: 500;
+      font-size: clamp(1.8rem, 3.6vw, 2.6rem);
+      letter-spacing: -0.02em;
+      line-height: 1.1;
+      margin-bottom: 14px;
+    }
+    .cta-strip p { margin-bottom: 26px; opacity: 0.85; }
     .cta-strip .btn { margin: 0 6px; }
   </style>
 </body>

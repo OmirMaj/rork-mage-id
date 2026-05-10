@@ -59,9 +59,28 @@ export const Colors = {
   get primary() { return _customPrimary || '#1A6B3C'; },
   get primaryLight() { return _customPrimary ? derivePrimaryLight(_customPrimary) : '#2A9055'; },
   get primaryDark() { return _customPrimary ? derivePrimaryDark(_customPrimary) : '#0F4526'; },
-  get accent() { return _customAccent || '#FF9500'; },
+  // Brand amber — matches /marketing/landing.css `--amber: #FF6A1A`
+  // and app/onboarding.tsx BRAND.orange. Was iOS-system #FF9500 which
+  // collapsed the brand voice once users left onboarding. Now the
+  // accent is THE brand color, used for primary CTAs sitewide.
+  get accent() { return _customAccent || '#FF6A1A'; },
+  accentHot: '#FF8533',
   accentLight: '#FFCC00',
   accentMuted: '#FFE0A0',
+  accentSoft: 'rgba(255, 106, 26, 0.16)',
+  accentGlow: 'rgba(255, 106, 26, 0.35)',
+
+  // Brand neutrals — ported from /marketing/landing.css. Used on
+  // hero / empty states / Permit Q&A so the app carries the same
+  // "industrial concrete × tech premium" voice as the marketing site
+  // and onboarding splash. Plain `surface: #FFFFFF` reads as default
+  // iOS; `cream` reads as MAGE ID.
+  ink: '#0B0D10',
+  steel: '#14181D',
+  concrete: '#2A2F36',
+  cream: '#F4EFE6',
+  bone: '#E8E1D4',
+  off: '#FBF8F2',
 
   background: '#F2F2F7',
   surface: '#FFFFFF',

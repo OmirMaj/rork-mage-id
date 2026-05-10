@@ -460,7 +460,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 0.5,
     borderBottomColor: Colors.borderLight,
   },
-  largeTitle: { fontSize: Type.largeTitle.fontSize, fontWeight: '700' as const, color: Colors.text, letterSpacing: -0.5, marginTop: 8 },
+  largeTitle: { ...Type.display, color: Colors.ink, marginTop: 8 },
   headerSubtitle: { fontSize: Type.subhead.fontSize, color: Colors.textSecondary, marginTop: 2, marginBottom: 14 },
   tabBarScroll: { marginHorizontal: -20 },
   tabBar: {

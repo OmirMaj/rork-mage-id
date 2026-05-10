@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useFonts, Fraunces_700Bold, Fraunces_700Bold_Italic } from "@expo-google-fonts/fraunces";
+import { JetBrainsMono_500Medium } from "@expo-google-fonts/jetbrains-mono";
 import React, { useEffect, useRef } from "react";
 import { AppState, Platform, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -917,6 +918,7 @@ export default Sentry.wrap(function RootLayout() {
   const [fontsLoaded] = useFonts({
     Fraunces_700Bold,
     Fraunces_700Bold_Italic,
+    JetBrainsMono_500Medium,
   });
 
   useEffect(() => {

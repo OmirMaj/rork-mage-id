@@ -89,68 +89,90 @@
   </script>
 
   <style>
-    .calc-wrap { max-width: 720px; margin: 32px auto 0; padding: 0 20px; }
+    .calc-wrap { max-width: 720px; margin: 36px auto 0; padding: 0 20px; }
     .calc-card {
-      background: #14181D;
+      background: linear-gradient(180deg, var(--steel) 0%, #0F1418 100%);
       border: 1px solid rgba(255,255,255,0.08);
-      border-radius: 16px;
-      padding: 28px;
-      margin-bottom: 24px;
+      border-radius: 18px;
+      padding: 32px;
+      margin-bottom: 28px;
+      position: relative;
+      overflow: hidden;
     }
-    .calc-row { margin-bottom: 18px; }
+    /* Subtle amber glow in the top-left corner of the calc card — same
+       energy as the marketing site's gradient-mesh hero. */
+    .calc-card::before {
+      content: "";
+      position: absolute;
+      top: -80px; left: -80px;
+      width: 280px; height: 280px;
+      background: radial-gradient(circle, rgba(255,106,26,0.10) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .calc-row { margin-bottom: 20px; position: relative; }
     .calc-row label {
       display: block;
-      font-size: 13px;
-      letter-spacing: 0.4px;
+      font-family: var(--ff-mono);
+      font-size: 0.72rem;
+      letter-spacing: 0.22em;
       text-transform: uppercase;
-      color: rgba(255,255,255,0.6);
-      margin-bottom: 8px;
-      font-weight: 600;
+      color: var(--amber);
+      margin-bottom: 10px;
     }
     .calc-row select, .calc-row input {
       width: 100%;
-      padding: 12px 14px;
+      padding: 13px 14px;
       border-radius: 10px;
       border: 1px solid rgba(255,255,255,0.12);
-      background: #0B0D10;
-      color: #F4EFE6;
+      background: var(--ink);
+      color: var(--cream);
       font-size: 16px;
-      font-family: inherit;
+      font-family: var(--ff-sans);
     }
-    .calc-row select:focus, .calc-row input:focus { outline: 2px solid #FF6A1A; outline-offset: 1px; }
+    .calc-row select:focus, .calc-row input:focus { outline: 2px solid var(--amber); outline-offset: 1px; }
     .result-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 14px;
-      margin-top: 12px;
+      margin-top: 16px;
     }
     @media (max-width: 600px) { .result-grid { grid-template-columns: 1fr; } }
     .result-card {
-      background: rgba(255,106,26,0.08);
-      border: 1px solid rgba(255,106,26,0.25);
-      border-radius: 12px;
-      padding: 18px;
+      background: rgba(255,106,26,0.06);
+      border: 1px solid rgba(255,106,26,0.20);
+      border-radius: 14px;
+      padding: 20px;
     }
-    .result-card.late { background: rgba(229, 57, 53, 0.10); border-color: rgba(229,57,53,0.30); }
-    .result-card h3 { margin: 0 0 6px; font-size: 14px; font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase; color: rgba(255,255,255,0.7); }
-    .result-card .big { font-size: 28px; font-weight: 800; color: #F4EFE6; font-variant-numeric: tabular-nums; }
-    .result-card .unit { font-size: 13px; color: rgba(255,255,255,0.5); margin-top: 2px; }
-    .result-card .penalty { font-size: 13px; color: rgba(255,255,255,0.65); margin-top: 12px; line-height: 1.45; }
-    .placeholder-result {
-      text-align: center;
-      padding: 26px;
-      color: rgba(255,255,255,0.4);
-      font-size: 14px;
+    .result-card.late { background: rgba(229, 57, 53, 0.08); border-color: rgba(229,57,53,0.25); }
+    .result-card h3 {
+      margin: 0 0 8px;
+      font-family: var(--ff-mono);
+      font-size: 0.72rem;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--fog);
+      font-weight: 500;
     }
+    .result-card .big {
+      font-family: 'Fraunces', Georgia, serif;
+      font-weight: 600;
+      font-size: 34px;
+      color: var(--cream);
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -0.02em;
+      line-height: 1;
+    }
+    .result-card .unit { font-size: 13px; color: var(--fog); margin-top: 4px; }
+    .result-card .penalty { font-size: 13px; color: rgba(244,239,230,0.65); margin-top: 14px; line-height: 1.5; font-variant-numeric: tabular-nums; }
     .cite {
       font-size: 12px;
-      color: rgba(255,255,255,0.4);
-      margin-top: 18px;
-      padding-top: 14px;
+      color: var(--fog);
+      margin-top: 22px;
+      padding-top: 18px;
       border-top: 1px solid rgba(255,255,255,0.06);
-      line-height: 1.5;
+      line-height: 1.55;
     }
-    .cite a { color: rgba(255,106,26,0.85); text-decoration: underline; }
+    .cite a { color: var(--amber); text-decoration: underline; text-underline-offset: 2px; }
   </style>
 </head>
 <body>

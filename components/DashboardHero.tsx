@@ -567,7 +567,10 @@ const styles = StyleSheet.create({
 
   heroRow: { flexDirection: 'row' as const, alignItems: 'flex-start' as const, gap: 12 },
   greeting: { fontSize: Type.bodyCompact.fontSize, color: Colors.textMuted, fontWeight: '600' as const },
-  greetingName: { fontSize: 32, fontWeight: '900' as const, color: Colors.text, letterSpacing: -1, marginTop: 2 },
+  // Greeting name in Fraunces — mirrors onboarding's "Build it. *Bill it.*"
+  // treatment. The brand voice now greets the user every time they open
+  // the app, not just on first launch.
+  greetingName: { ...Type.displaySm, color: Colors.ink, marginTop: 2 },
   heroActions: { flexDirection: 'row' as const, gap: 8, alignItems: 'center' as const, marginTop: 6 },
   heroActionLight: {
     flexDirection: 'row' as const, alignItems: 'center' as const, gap: 4,
@@ -595,7 +598,7 @@ const styles = StyleSheet.create({
   },
   statIcon: { width: 26, height: 26, borderRadius: 13, alignItems: 'center' as const, justifyContent: 'center' as const, marginBottom: 4 },
   statLabel: { fontSize: 10, fontWeight: '700' as const, color: Colors.textMuted, letterSpacing: 0.4, textTransform: 'uppercase' as const },
-  statValue: { fontSize: 26, fontWeight: '900' as const, color: Colors.text, letterSpacing: -0.7 },
+  statValue: { fontSize: 26, fontWeight: '700' as const, color: Colors.text, letterSpacing: -0.7 },
   statSub: { fontSize: Type.caption2.fontSize, color: Colors.textMuted },
 
   imgRow: { gap: 10, paddingVertical: 4 },
@@ -607,12 +610,12 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surfaceAlt,
     gap: 6,
   },
-  imgCardTitle: { fontSize: Type.footnote.fontSize, fontWeight: '800' as const, color: Colors.text },
+  imgCardTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.text },
   imgCardImage: { width: '100%', height: 110, borderRadius: 14, overflow: 'hidden' as const, backgroundColor: Colors.fillTertiary },
   imgCardImageInner: { borderRadius: 14 },
   imgCardScrim: { position: 'absolute' as const, left: 0, right: 0, top: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.08)' },
   imgCardFooter: {},
-  imgCardValue: { fontSize: 28, fontWeight: '900' as const, color: Colors.text, letterSpacing: -0.6 },
+  imgCardValue: { fontSize: 28, fontWeight: '700' as const, color: Colors.text, letterSpacing: -0.6 },
   imgCardSub: { fontSize: Type.caption2.fontSize, color: Colors.textMuted },
 
   featureRow: { gap: 10 },
@@ -623,14 +626,17 @@ const styles = StyleSheet.create({
   featureBgImg: { borderRadius: 20 },
   featureScrim: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.35)' },
   featureContent: { padding: 16, gap: 4 },
-  featureLabel: { fontSize: 10, fontWeight: '900' as const, color: 'rgba(255,255,255,0.85)', letterSpacing: 0.5, textTransform: 'uppercase' as const },
-  featureTitle: { fontSize: 24, fontWeight: '900' as const, color: '#FFFFFF', letterSpacing: -0.6, lineHeight: 28 },
+  featureLabel: { fontSize: 10, fontWeight: '700' as const, color: 'rgba(255,255,255,0.85)', letterSpacing: 0.5, textTransform: 'uppercase' as const },
+  // featureTitle uses Fraunces serif for the marquee feature card — it
+  // sits over a photo background so the serif reads naturally and
+  // distinguishes itself from the surrounding sans-serif UI.
+  featureTitle: { ...Type.displaySm, color: '#FFFFFF', fontSize: 26, lineHeight: 30 },
   featureMeta: { fontSize: Type.footnote.fontSize, color: 'rgba(255,255,255,0.85)' },
   featureCta: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 4, marginTop: 8, alignSelf: 'flex-start' as const, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.18)' },
-  featureCtaText: { fontSize: 11, fontWeight: '800' as const, color: '#FFFFFF' },
+  featureCtaText: { fontSize: 11, fontWeight: '700' as const, color: '#FFFFFF' },
 
   featureCardEmpty: { padding: 20, borderRadius: 20, backgroundColor: Colors.surfaceAlt, alignItems: 'center' as const, gap: 4, borderWidth: 1, borderColor: Colors.borderLight, borderStyle: 'dashed' as const },
-  featureEmptyTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '800' as const, color: Colors.text, marginTop: 4 },
+  featureEmptyTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: Colors.text, marginTop: 4 },
   featureEmptySub: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, textAlign: 'center' as const },
 
   actionRail: { gap: 6 },
@@ -640,7 +646,7 @@ const styles = StyleSheet.create({
     padding: 12, borderRadius: 14, backgroundColor: Colors.surfaceAlt,
   },
   actionIcon: { width: 28, height: 28, borderRadius: 14, backgroundColor: Colors.surface, alignItems: 'center' as const, justifyContent: 'center' as const, borderWidth: 1, borderColor: Colors.borderLight },
-  actionTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800' as const, color: Colors.text, letterSpacing: -0.2 },
+  actionTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text, letterSpacing: -0.2 },
   actionSub: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 1 },
 
   dangerBlock: { marginBottom: 4, gap: 0 },

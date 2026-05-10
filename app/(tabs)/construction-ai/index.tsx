@@ -703,7 +703,7 @@ const styles = StyleSheet.create({
     alignItems: 'center' as const, justifyContent: 'center' as const,
     marginBottom: 6,
   },
-  heroTitle: { fontSize: 24, fontWeight: '700' as const, color: Colors.text },
+  heroTitle: { ...Type.displaySm, color: Colors.ink },
   heroSubtitle: {
     fontSize: Type.bodyCompact.fontSize, color: Colors.textMuted, textAlign: 'center' as const,
     paddingHorizontal: 20, lineHeight: 20,

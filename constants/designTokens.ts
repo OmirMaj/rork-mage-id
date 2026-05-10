@@ -153,11 +153,15 @@ export const Motion = {
     /** Long: full-screen state changes (rare). */
     slow: 500,
   },
-  /** Bezier curves — only ease-out for entries, ease-in for exits. */
+  /** Bezier curves — only ease-out for entries, ease-in for exits.
+   *  `decelerate` was the iOS-default ease-out [0,0,0.2,1] — replaced
+   *  with the marketing site's signature curve so app + web feel like
+   *  the same product. Subtle but every entry animation gets +10%
+   *  character. */
   easing: {
-    standard: [0.4, 0.0, 0.2, 1] as const,    // ease-in-out
-    decelerate: [0.0, 0.0, 0.2, 1] as const,  // ease-out (entries)
-    accelerate: [0.4, 0.0, 1, 1] as const,    // ease-in (exits)
+    standard: [0.4, 0.0, 0.2, 1] as const,     // ease-in-out
+    decelerate: [0.16, 1.0, 0.3, 1] as const,  // brand entry curve (marketing landing.css)
+    accelerate: [0.4, 0.0, 1, 1] as const,     // ease-in (exits)
   },
   /** Reanimated spring presets — use these instead of timings on press
    *  states. Apple iOS feels-spring-physics is what makes things feel
