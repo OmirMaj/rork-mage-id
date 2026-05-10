@@ -49,6 +49,7 @@ import { Tokens } from '@/constants/designTokens';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import PageHeader from '@/components/PageHeader';
 import DashboardHero from '@/components/DashboardHero';
+import DailyHeroPhoto from '@/components/DailyHeroPhoto';
 import ProjectRow from '@/components/ProjectRow';
 
 export default function HomeScreen() {
@@ -393,6 +394,13 @@ export default function HomeScreen() {
         ]}
         ListHeaderComponent={
           <View>
+            {/* DailyHeroPhoto — the signature "this is MAGE ID"
+                moment. Edge-to-edge most-recent jobsite photo with a
+                Fraunces serif overlay. Renders nothing for users with
+                no photos yet (keeps the screen quiet on first-launch).
+                When photos exist, it's the first thing the user sees. */}
+            <DailyHeroPhoto />
+
             {/* Prepperly-style dashboard front door. Sits above the
                 existing project list / filter chips so the home tab
                 opens with a narrative ("Good morning, Dan") + a row
