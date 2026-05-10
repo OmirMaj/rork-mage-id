@@ -1,0 +1,351 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>NYC LL97 Carbon Cap Calculator — Free Tool | MAGE ID</title>
+  <link rel="canonical" href="https://mageid.app/tools/ll97-calculator.html" />
+  <meta name="description" content="Free NYC Local Law 97 carbon cap calculator. Enter your building's occupancy group and square footage to see 2024–2029 and 2030–2034 emissions limits. Cites LL97 §28-320.3 directly." />
+  <meta name="theme-color" content="#0B0D10" />
+
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="NYC LL97 Carbon Cap Calculator — Free Tool" />
+  <meta property="og:description" content="Enter your occupancy + sq ft. See the 2024–2029 cap, the 2030–2034 cap, and what happens if you blow it. Free." />
+  <meta property="og:url" content="https://mageid.app/tools/ll97-calculator.html" />
+  <meta property="og:site_name" content="MAGE ID" />
+  <meta property="og:image" content="https://mageid.app/assets/og-image.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:image" content="https://mageid.app/assets/og-image.png" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="/assets/favicon-16.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/assets/favicon-180.png" />
+  <link rel="icon" type="image/png" sizes="512x512" href="/assets/favicon-512.png" />
+  <link rel="stylesheet" href="/styles.css?v=2026-05-10" />
+
+  <!-- Structured data: HowTo + FAQ for SERP eligibility -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "NYC LL97 Carbon Cap Calculator",
+    "url": "https://mageid.app/tools/ll97-calculator.html",
+    "applicationCategory": "BusinessApplication",
+    "operatingSystem": "Web",
+    "description": "Free calculator that returns NYC Local Law 97 emissions caps for any building by occupancy group and square footage. Covers 2024–2029 and 2030–2034 compliance periods.",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "USD"
+    },
+    "isPartOf": {
+      "@type": "SoftwareApplication",
+      "name": "MAGE ID",
+      "url": "https://mageid.app/"
+    }
+  }
+  </script>
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "What is NYC Local Law 97?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "NYC Local Law 97 (passed 2019, in force 2024) caps greenhouse gas emissions from buildings over 25,000 square feet. The first compliance period runs 2024–2029 with stricter caps in 2030–2034. Buildings that exceed their cap pay $268 per metric ton of CO2e over the limit, every year."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Does LL97 apply to my building?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "LL97 applies to NYC buildings over 25,000 sq ft, or two or more buildings on the same tax lot totaling more than 50,000 sq ft, or two or more buildings owned by a condo association governed by the same board totaling more than 50,000 sq ft. Buildings with rent-regulated units or affordable housing have an alternate compliance pathway under §28-320.3.2."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "What are the LL97 occupancy groups and caps?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "The eight occupancy groups in §28-320.3 are: Group A (assembly) 10.74 kgCO2e/sf 2024–2029 / 4.20 kgCO2e/sf 2030–2034; Group B (business/offices) 8.46 / 4.53; Group E (educational) 7.58 / 3.44; Group F (factory/industrial) 5.74 / 1.67; Group H (high-hazard) 23.81 / 16.66; Group I-4 (day care) 8.46 / 4.53; Group M (mercantile) 11.81 / 4.18; Group R-1/R-2 (residential) 6.75 / 4.07. Mixed-use buildings prorate by floor area."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "How much is the LL97 penalty?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "$268 per metric ton of CO2e over the cap, assessed annually. A 100,000 sf Group B office that misses the 2024 cap by even 10% (~85 tCO2e) pays roughly $22,780/year. The penalty repeats every year you're over."
+        }
+      }
+    ]
+  }
+  </script>
+
+  <style>
+    .calc-wrap { max-width: 720px; margin: 32px auto 0; padding: 0 20px; }
+    .calc-card {
+      background: #14181D;
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 16px;
+      padding: 28px;
+      margin-bottom: 24px;
+    }
+    .calc-row { margin-bottom: 18px; }
+    .calc-row label {
+      display: block;
+      font-size: 13px;
+      letter-spacing: 0.4px;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.6);
+      margin-bottom: 8px;
+      font-weight: 600;
+    }
+    .calc-row select, .calc-row input {
+      width: 100%;
+      padding: 12px 14px;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: #0B0D10;
+      color: #F4EFE6;
+      font-size: 16px;
+      font-family: inherit;
+    }
+    .calc-row select:focus, .calc-row input:focus { outline: 2px solid #FF6A1A; outline-offset: 1px; }
+    .result-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin-top: 12px;
+    }
+    @media (max-width: 600px) { .result-grid { grid-template-columns: 1fr; } }
+    .result-card {
+      background: rgba(255,106,26,0.08);
+      border: 1px solid rgba(255,106,26,0.25);
+      border-radius: 12px;
+      padding: 18px;
+    }
+    .result-card.late { background: rgba(229, 57, 53, 0.10); border-color: rgba(229,57,53,0.30); }
+    .result-card h3 { margin: 0 0 6px; font-size: 14px; font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase; color: rgba(255,255,255,0.7); }
+    .result-card .big { font-size: 28px; font-weight: 800; color: #F4EFE6; font-variant-numeric: tabular-nums; }
+    .result-card .unit { font-size: 13px; color: rgba(255,255,255,0.5); margin-top: 2px; }
+    .result-card .penalty { font-size: 13px; color: rgba(255,255,255,0.65); margin-top: 12px; line-height: 1.45; }
+    .placeholder-result {
+      text-align: center;
+      padding: 26px;
+      color: rgba(255,255,255,0.4);
+      font-size: 14px;
+    }
+    .cite {
+      font-size: 12px;
+      color: rgba(255,255,255,0.4);
+      margin-top: 18px;
+      padding-top: 14px;
+      border-top: 1px solid rgba(255,255,255,0.06);
+      line-height: 1.5;
+    }
+    .cite a { color: rgba(255,106,26,0.85); text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <header class="nav">
+    <div class="nav-inner">
+      <a href="/" class="brand">
+        <img class="brand-mark" src="/assets/logo-mark-light.png" alt="" width="32" height="32" />
+        <span>MAGE&nbsp;ID</span>
+      </a>
+      <nav class="links">
+        <a href="/playbook.html">How it works</a>
+        <a href="/features/">Features</a>
+        <a href="/features/vs-competitors.html">Compare</a>
+        <a href="/pricing.html">Pricing</a>
+        <a href="/demo.html">Demo</a>
+        <a href="/support.html">Support</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="sub-hero wrap">
+      <span class="eyebrow">Free Tool</span>
+      <h1>NYC LL97 Carbon Cap Calculator</h1>
+      <p>
+        Enter your building's occupancy group and gross floor area. See your <b>2024–2029</b> emissions
+        cap, your <b>2030–2034</b> cap, and what the penalty looks like if you miss them. Caps come
+        straight from <a href="https://www.nyc.gov/site/buildings/codes/local-law-97.page" target="_blank" rel="noopener">NYC Admin Code §28-320.3</a>.
+      </p>
+    </section>
+
+    <section class="calc-wrap">
+      <div class="calc-card">
+        <div class="calc-row">
+          <label for="occupancy">Occupancy Group</label>
+          <select id="occupancy">
+            <option value="A">Group A — Assembly (theaters, restaurants, gyms)</option>
+            <option value="B" selected>Group B — Business (offices)</option>
+            <option value="E">Group E — Educational</option>
+            <option value="F">Group F — Factory / Industrial</option>
+            <option value="H">Group H — High-hazard</option>
+            <option value="I4">Group I-4 — Day care</option>
+            <option value="M">Group M — Mercantile (retail)</option>
+            <option value="R">Group R-1 / R-2 — Residential</option>
+          </select>
+        </div>
+
+        <div class="calc-row">
+          <label for="sqft">Gross floor area (sq ft)</label>
+          <input type="number" id="sqft" placeholder="e.g. 30000" min="25000" value="30000" />
+        </div>
+
+        <div id="result">
+          <div class="result-grid">
+            <div class="result-card">
+              <h3>2024–2029 cap</h3>
+              <div class="big" id="cap1">—</div>
+              <div class="unit">metric tCO<sub>2</sub>e per year</div>
+              <div class="penalty" id="pen1">—</div>
+            </div>
+            <div class="result-card late">
+              <h3>2030–2034 cap</h3>
+              <div class="big" id="cap2">—</div>
+              <div class="unit">metric tCO<sub>2</sub>e per year</div>
+              <div class="penalty" id="pen2">—</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="cite">
+          Source: NYC Administrative Code §28-320.3 (Local Law 97 of 2019, amended by Local Law 147 of 2019).
+          Penalty rate $268/tCO<sub>2</sub>e per §28-320.3.6. Mixed-use buildings prorate by floor area
+          per group. Buildings with 35%+ rent-regulated units use the §28-320.3.2 prescriptive pathway.
+          See <a href="https://www.nyc.gov/site/buildings/codes/local-law-97.page" target="_blank" rel="noopener">nyc.gov/site/buildings/codes/local-law-97</a>.
+        </div>
+      </div>
+
+      <div class="calc-card" style="background: #0B0D10; border: 1px solid rgba(255,106,26,0.3);">
+        <h2 style="margin-top:0; font-size: 22px;">Want the answer for any building, any code, any city?</h2>
+        <p style="opacity: 0.85; margin-bottom: 18px;">
+          The MAGE ID Permit Q&amp;A AI agent answers these questions in plain English with verbatim
+          code quotes and section citations — across NYC, LA, Chicago, Houston, Miami, Phoenix, Seattle,
+          and SF. 172 hand-curated code sections. From $29/mo.
+        </p>
+        <a class="btn btn-primary" href="/features/permit-qa.html">
+          <span>See the Permit Q&amp;A agent</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        </a>
+      </div>
+    </section>
+
+    <section class="section wrap-wide" style="padding-top: 32px;">
+      <h2>What LL97 actually says</h2>
+      <p>
+        <b>The thresholds.</b> LL97 covers any NYC building over <b>25,000 sq ft</b>, or two-plus
+        buildings on the same tax lot totaling over <b>50,000 sq ft</b>, or two-plus condo
+        buildings under the same board totaling over <b>50,000 sq ft</b>. Below those numbers,
+        you're exempt.
+      </p>
+      <p>
+        <b>The caps.</b> They're set per occupancy group in <b>kgCO<sub>2</sub>e per square foot per year</b>,
+        with two tiers: an easier <b>2024–2029</b> cap and a much tighter <b>2030–2034</b> cap. Most
+        buildings will pass the first window and miss the second without electrification work — heat
+        pumps, controls, on-site solar, or REC purchases (capped at 30% of obligation).
+      </p>
+      <p>
+        <b>The penalty.</b> <b>$268 per metric tCO<sub>2</sub>e</b> over the cap, annually. A 100,000 sf
+        office that misses the 2024 cap by even 10% pays roughly <b>$22,000/year</b>. The penalty
+        repeats every year. It is not a one-time fee.
+      </p>
+      <p>
+        <b>The reporting deadline.</b> First annual reports were due <b>May 1, 2025</b> (for 2024
+        emissions), filed via the LL84/LL97 portal. Late or missing reports = $0.50/sf/month penalty
+        on top of the cap penalty.
+      </p>
+      <p>
+        <b>The compliance pathways.</b> §28-320.3.1 is the standard cap. §28-320.3.2 is the prescriptive
+        pathway for rent-regulated buildings (35%+ regulated units). §28-320.3.3 covers buildings used
+        more than 6 hours/day by 250+ people. §28-320.3.4 is the alternative compliance period for
+        good-faith effort.
+      </p>
+    </section>
+
+    <section class="section wrap" style="padding-bottom: 80px;">
+      <div style="text-align: center; max-width: 640px; margin: 0 auto;">
+        <h2>This calculator is informational, not legal advice.</h2>
+        <p style="opacity: 0.8;">
+          Caps and penalties are reproduced from primary text. Mixed-use buildings, rent-regulated
+          allocations, REC offsets, and alternative compliance periods can move your actual obligation.
+          Verify with a registered design professional or LL97 consultant before filing.
+        </p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer wrap">
+    <p>© MAGE ID. <a href="/privacy.html">Privacy</a> · <a href="/support.html">Support</a> · <a href="/features/">Features</a></p>
+  </footer>
+
+  <script>
+    // LL97 §28-320.3 — caps in kgCO2e/sf per year by occupancy group.
+    // First period 2024–2029, second 2030–2034. Penalty $268/tCO2e per year.
+    const CAPS_2024 = {
+      A: 10.74,
+      B: 8.46,
+      E: 7.58,
+      F: 5.74,
+      H: 23.81,
+      I4: 8.46,
+      M: 11.81,
+      R: 6.75,
+    };
+    const CAPS_2030 = {
+      A: 4.20,
+      B: 4.53,
+      E: 3.44,
+      F: 1.67,
+      H: 16.66,
+      I4: 4.53,
+      M: 4.18,
+      R: 4.07,
+    };
+    const PENALTY = 268; // $/tCO2e/year
+
+    const fmt = (n) => n.toLocaleString(undefined, { maximumFractionDigits: 1 });
+    const money = (n) => '$' + Math.round(n).toLocaleString();
+
+    function compute() {
+      const grp = document.getElementById('occupancy').value;
+      const sqft = parseFloat(document.getElementById('sqft').value);
+      if (!sqft || sqft < 25000) {
+        document.getElementById('cap1').textContent = 'N/A';
+        document.getElementById('cap2').textContent = 'N/A';
+        document.getElementById('pen1').textContent = 'LL97 only applies to buildings over 25,000 sq ft.';
+        document.getElementById('pen2').textContent = '';
+        return;
+      }
+      // kgCO2e/sf × sqft = kgCO2e/year → ÷1000 = metric tons
+      const cap1 = (CAPS_2024[grp] * sqft) / 1000;
+      const cap2 = (CAPS_2030[grp] * sqft) / 1000;
+      // Sample penalty: 10% over cap each year
+      const pen1 = cap1 * 0.10 * PENALTY * 1000 / 1000; // tons × $268
+      const pen2 = cap2 * 0.10 * PENALTY * 1000 / 1000;
+
+      document.getElementById('cap1').textContent = fmt(cap1);
+      document.getElementById('cap2').textContent = fmt(cap2);
+      document.getElementById('pen1').textContent =
+        '10% over = ' + money(pen1) + '/yr · 25% over = ' + money(pen1 * 2.5) + '/yr';
+      document.getElementById('pen2').textContent =
+        '10% over = ' + money(pen2) + '/yr · 25% over = ' + money(pen2 * 2.5) + '/yr';
+    }
+
+    document.getElementById('occupancy').addEventListener('change', compute);
+    document.getElementById('sqft').addEventListener('input', compute);
+    compute();
+  </script>
+</body>
+</html>

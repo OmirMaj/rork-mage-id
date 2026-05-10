@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Permit Q&amp;A Agent — MAGE ID</title>
+  <link rel="canonical" href="https://mageid.app/features/permit-qa.html" />
   <meta name="description" content="The first construction PM tool with an embedded AI permit agent. Ask DOB, building, zoning, energy, and Local Law questions and get answers grounded in 172 verbatim code sections across 8 major US metros." />
   <meta name="theme-color" content="#0B0D10" />
 
@@ -22,6 +23,115 @@
   <link rel="apple-touch-icon" sizes="180x180" href="/assets/favicon-180.png" />
   <link rel="icon" type="image/png" sizes="512x512" href="/assets/favicon-512.png" />
   <link rel="stylesheet" href="/styles.css?v=2026-05-10" />
+
+  <!-- ──────────────────────────────────────────────────────────────
+       Structured data: FAQPage + SoftwareApplication
+       FAQPage gives us SERP feature eligibility for question-style
+       queries ("can I extend my roof in Brooklyn", "when does my
+       building hit LL97", etc.) — the exact long-tail Permit Q&A
+       targets. Questions come straight from the on-page bullet list.
+       ────────────────────────────────────────────────────────────── -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "Can I extend my roof in Brooklyn?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Roof extensions in Brooklyn fall under NYC Zoning Resolution bulk and yard rules plus NYC Building Code Chapter 15 (Roof Assemblies). The Permit Q&A agent quotes the relevant section text (e.g. ZR §23-633 sky exposure plane, BC §1510 reroofing requirements) and links to the primary .gov source for your specific zoning district."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "When does my 30,000 sq ft office hit the NYC LL97 carbon cap?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "NYC Local Law 97 sets emissions limits by building occupancy group. For Group B (offices) the 2024-2029 cap is 8.46 kgCO2e/sf; for 2030-2034 it drops to 4.53 kgCO2e/sf. A 30,000 sf office is therefore capped at 253.8 metric tCO2e/year through 2029 and 135.9 tCO2e/year from 2030. The Permit Q&A agent calculates this against your actual utility data and quotes LL97 §28-320.3 directly."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Is my 5-story building subject to NYC Local Law 11 / FISP facade inspections?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "NYC Local Law 11 (Facade Inspection and Safety Program, FISP) applies to all buildings greater than six stories — so a 5-story building under 76 ft is exempt. Cycle reports are due every 5 years for taller buildings. The Permit Q&A agent cites Administrative Code §28-302 and confirms whether your specific address has filings on record."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "When is my 1986 Miami-Dade condo due for the 30-year recertification?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Post-Surfside, Florida SB 4-D requires Phase 1 milestone inspections at 25 years for coastal buildings and 30 years for inland buildings, with re-inspection every 10 years thereafter. A 1986 condo in Miami-Dade reached its 30-year milestone in 2016 and is now well into the post-Surfside review timeline. The agent quotes Miami-Dade Building Code §8-11(f) directly."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Can I install gas appliances at my new restaurant fit-out in San Francisco?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "No — SF Ordinance AB-112 prohibits natural gas in new construction city-wide, including restaurant fit-outs in new shells. Existing buildings undergoing a major renovation are also subject under specific triggers. The Permit Q&A agent quotes SF Environment Code §707 and identifies exception paths for cooking equipment under SFFC §609."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "What's the FAR cap on R1 in Mar Vista (Los Angeles)?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "LA Municipal Code §12.21.1 (Baseline Mansionization Ordinance) caps Floor Area Ratio at 0.45 for R1 lots under 7,500 sf, with a bonus up to 0.50 for green building. Mar Vista's R1 lots are mostly under that threshold so the 0.45 base applies. The agent quotes LAMC §12.21.1 directly and notes neighborhood-specific R1 variation zones if your address falls in one."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "What's the stucco lath rough-wall inspection sequence in Phoenix?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Phoenix Construction Code follows IRC Section R703.6 for exterior stucco lath. Required inspections in sequence are: weather-resistive barrier inspection, lath inspection (before scratch coat), scratch coat cure, brown coat, and finish. The Permit Q&A agent cites Phoenix Construction Code §R703.6 with the city's specific cure-time amendment."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "What's the lowest floor elevation requirement in a Houston 100-year floodplain?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Post-Hurricane Harvey, Houston Code of Ordinances Chapter 19 requires the lowest floor of any habitable structure in the regulated 500-year (0.2%) floodplain to be at least 2 feet above Base Flood Elevation (BFE+2). The standard had previously been BFE+1 for the 100-year floodplain. The agent quotes Houston COO §19-22 and links to the City of Houston floodplain viewer."
+        }
+      }
+    ]
+  }
+  </script>
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "MAGE ID Permit Q&A Agent",
+    "url": "https://mageid.app/features/permit-qa.html",
+    "applicationCategory": "BusinessApplication",
+    "applicationSubCategory": "AI Permit & Building Code Assistant",
+    "operatingSystem": "iOS, Android, Web",
+    "description": "The first construction PM tool with an embedded AI permit agent. Ask DOB, building, zoning, energy, and Local Law questions and get answers grounded in 172 verbatim code sections across 8 major US metros (NYC, LA, Chicago, Houston, Miami, Phoenix, Seattle, SF).",
+    "isPartOf": {
+      "@type": "SoftwareApplication",
+      "name": "MAGE ID",
+      "url": "https://mageid.app/"
+    },
+    "offers": {
+      "@type": "Offer",
+      "price": "29",
+      "priceCurrency": "USD",
+      "priceSpecification": {
+        "@type": "UnitPriceSpecification",
+        "price": "29",
+        "priceCurrency": "USD",
+        "unitText": "MONTH"
+      }
+    }
+  }
+  </script>
 </head>
 <body>
   <header class="nav">

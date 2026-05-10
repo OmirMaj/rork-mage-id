@@ -1,0 +1,8 @@
+# mageid.app — robots.txt
+# Allow all crawlers, surface the sitemap.
+
+User-agent: *
+Allow: /
+Disallow: /thanks.html
+
+Sitemap: https://mageid.app/sitemap.xml

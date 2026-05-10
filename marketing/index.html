@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>MAGE ID — The operating system for general contractors</title>
+  <link rel="canonical" href="https://mageid.app/" />
   <meta name="description" content="The field-first OS for general contractors — and the easiest way for homeowners to find one. Plans, estimates, daily reports, pay applications, a live client portal. Post your project, get bids from verified contractors nearby." />
   <meta name="theme-color" content="#0B0D10" />
 
@@ -33,6 +34,104 @@
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500;1,9..144,600&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
 
   <link rel="stylesheet" href="/landing.css" />
+
+  <!-- ──────────────────────────────────────────────────────────────
+       Structured data: SoftwareApplication + Organization
+       Helps Google understand we're a software product (not an article
+       or service business). The Offer entries match pricing.html.
+       ────────────────────────────────────────────────────────────── -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "MAGE ID",
+    "alternateName": "MAGE ID — The operating system for general contractors",
+    "url": "https://mageid.app/",
+    "applicationCategory": "BusinessApplication",
+    "applicationSubCategory": "Construction Management Software",
+    "operatingSystem": "iOS, Android, Web",
+    "description": "Mobile-first construction management software for residential and small-commercial general contractors. AI estimating, AI takeoff, daily field reports, AIA pay apps, scheduling, client portal, and an embedded Permit Q&A AI agent grounded in 172 verbatim code sections across 8 major US metros.",
+    "image": "https://mageid.app/assets/og-image.png",
+    "publisher": {
+      "@type": "Organization",
+      "name": "MAGE ID",
+      "url": "https://mageid.app/",
+      "logo": "https://mageid.app/assets/logo-mark-light.png"
+    },
+    "offers": [
+      {
+        "@type": "Offer",
+        "name": "Pro",
+        "price": "29",
+        "priceCurrency": "USD",
+        "priceSpecification": {
+          "@type": "UnitPriceSpecification",
+          "price": "29",
+          "priceCurrency": "USD",
+          "unitText": "MONTH"
+        },
+        "category": "subscription"
+      },
+      {
+        "@type": "Offer",
+        "name": "Business",
+        "price": "79",
+        "priceCurrency": "USD",
+        "priceSpecification": {
+          "@type": "UnitPriceSpecification",
+          "price": "79",
+          "priceCurrency": "USD",
+          "unitText": "MONTH"
+        },
+        "category": "subscription"
+      },
+      {
+        "@type": "Offer",
+        "name": "Enterprise",
+        "price": "150",
+        "priceCurrency": "USD",
+        "priceSpecification": {
+          "@type": "UnitPriceSpecification",
+          "price": "150",
+          "priceCurrency": "USD",
+          "unitText": "MONTH"
+        },
+        "category": "subscription"
+      }
+    ],
+    "featureList": [
+      "AI estimating",
+      "AI quantity takeoff",
+      "Permit Q&A AI agent (172 code sections, 8 US metros)",
+      "Daily field reports",
+      "AIA pay applications",
+      "Phase-based Gantt scheduling",
+      "Client portal",
+      "Cash flow forecasting",
+      "Change orders + RFIs + submittals + punch list",
+      "Public bid discovery",
+      "Subcontractor directory"
+    ]
+  }
+  </script>
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    "name": "MAGE ID",
+    "url": "https://mageid.app/",
+    "logo": "https://mageid.app/assets/logo-mark-light.png",
+    "sameAs": [
+      "https://apps.apple.com/app/mage-id/id6762229238"
+    ],
+    "contactPoint": {
+      "@type": "ContactPoint",
+      "contactType": "customer support",
+      "url": "https://mageid.app/support.html"
+    }
+  }
+  </script>
 </head>
 <body>
   <!-- Grain overlay (pointer-events: none; global) -->
@@ -50,9 +149,9 @@
       <nav class="nav-links" aria-label="Primary">
         <a href="/playbook.html">How it works</a>
         <a href="/features/">Explore</a>
-        <a href="/features/vs-takeoff.html">vs. Takeoff Tools</a>
-        <a href="/features/vs-other-tools.html">vs. Other Apps</a>
-        <a href="/features/vs-competitors.html">vs. Software</a>
+        <a href="/features/vs-procore.html">vs. Procore</a>
+        <a href="/features/vs-buildertrend.html">vs. Buildertrend</a>
+        <a href="/features/vs-takeoff.html">vs. Takeoff</a>
         <a href="/demo.html">Demo</a>
         <a href="#pricing">Pricing</a>
         <a href="/support.html">Support</a>
@@ -80,6 +179,13 @@
           <span class="reveal-word"><em>Bill it.</em></span>
           <span class="reveal-word">Track every dollar.</span>
         </h1>
+
+        <p class="sr-only">
+          MAGE ID — construction management software for small general contractors. Mobile-first
+          AI estimating, AI takeoff, daily field reports, AIA pay apps, scheduling, client portal,
+          and an embedded Permit Q&amp;A AI agent covering NYC, LA, Chicago, Houston, Miami,
+          Phoenix, Seattle, and San Francisco.
+        </p>
 
         <p class="lede reveal">
           MAGE ID is the operating system for general contractors. Plans, estimates, daily reports,
