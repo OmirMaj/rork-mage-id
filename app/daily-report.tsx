@@ -118,6 +118,11 @@ export default function DailyReportScreen() {
   );
   const [newMaterial, setNewMaterial] = useState('');
   const [issuesAndDelays, setIssuesAndDelays] = useState(existingReport?.issuesAndDelays ?? '');
+  // Tomorrow's plan — captured at end-of-day, optionally fanned out
+  // to subs / homeowner via the Submit modal's "Send tomorrow's
+  // plan" toggle. Voice topic checklist already prompts for this;
+  // pre-fix the dictated content was discarded on save.
+  const [tomorrowsPlan, setTomorrowsPlan] = useState(existingReport?.tomorrowsPlan ?? '');
   // Homeowner-friendly summary — AI-generated from the technical fields,
   // GC reviews / edits, then publishes to the portal as the "Latest update".
   const [homeownerSummary, setHomeownerSummary] = useState<string>(existingReport?.homeownerSummary ?? '');
@@ -127,6 +132,23 @@ export default function DailyReportScreen() {
   const [hsGenerating, setHsGenerating] = useState<boolean>(false);
   const [hsGeneratedAt, setHsGeneratedAt] = useState<string | undefined>(existingReport?.homeownerSummaryGeneratedAt);
   const [photos, setPhotos] = useState<DFRPhoto[]>(existingReport?.photos ?? []);
+  // Toolbox-talk state. Pre-fix the SafetyToolboxTalk type was
+  // declared on DailyFieldReport (types/index.ts) but never rendered.
+  // OSHA-required for any GC working public-work or commercial; many
+  // private-work residential GCs also keep records as part of insurance
+  // compliance. Single sub-section under Safety & Incident.
+  const [toolboxTalkActive, setToolboxTalkActive] = useState<boolean>(
+    !!existingReport?.safetyToolboxTalk?.topic,
+  );
+  const [toolboxTopic, setToolboxTopic] = useState<string>(existingReport?.safetyToolboxTalk?.topic ?? '');
+  const [toolboxDuration, setToolboxDuration] = useState<string>(
+    existingReport?.safetyToolboxTalk?.durationMinutes != null ? String(existingReport.safetyToolboxTalk.durationMinutes) : '5',
+  );
+  const [toolboxAttendees, setToolboxAttendees] = useState<string>(
+    existingReport?.safetyToolboxTalk?.attendees != null ? String(existingReport.safetyToolboxTalk.attendees) : '',
+  );
+  const [toolboxConductedBy, setToolboxConductedBy] = useState<string>(existingReport?.safetyToolboxTalk?.conductedBy ?? '');
+
   const [incident, setIncident] = useState<IncidentReport>(existingReport?.incident ?? {
     hasIncident: false,
     severity: undefined,
@@ -415,8 +437,14 @@ export default function DailyReportScreen() {
   }, [materialsDelivered]);
 
   const handlePickPhoto = useCallback(async () => {
-    if (photos.length >= 10) {
-      Alert.alert('Limit Reached', 'Maximum 10 photos per report.');
+    // Pre-fix this hard-capped at 10 photos per report. Modern site
+    // walks (concrete pour days, framing inspections) routinely
+    // generate 30-50 photos. The cap drove supers to dump photos
+    // into the camera roll and lose the project linkage. New cap of
+    // 50 still bounds the email payload + PDF render time but
+    // covers real workflows.
+    if (photos.length >= 50) {
+      Alert.alert('Photo limit', 'Cap is 50 photos per report — upload to project photos for the rest.');
       return;
     }
     try {
@@ -443,8 +471,14 @@ export default function DailyReportScreen() {
   }, [photos.length]);
 
   const handleTakePhoto = useCallback(async () => {
-    if (photos.length >= 10) {
-      Alert.alert('Limit Reached', 'Maximum 10 photos per report.');
+    // Pre-fix this hard-capped at 10 photos per report. Modern site
+    // walks (concrete pour days, framing inspections) routinely
+    // generate 30-50 photos. The cap drove supers to dump photos
+    // into the camera roll and lose the project linkage. New cap of
+    // 50 still bounds the email payload + PDF render time but
+    // covers real workflows.
+    if (photos.length >= 50) {
+      Alert.alert('Photo limit', 'Cap is 50 photos per report — upload to project photos for the rest.');
       return;
     }
     try {
@@ -622,6 +656,18 @@ export default function DailyReportScreen() {
         }
       : undefined;
 
+    // Toolbox-talk payload. Only included when the GC has flipped
+    // the toggle on AND typed a topic. Prevents empty placeholder
+    // rows from polluting the OSHA paper trail.
+    const toolboxTalkPayload = toolboxTalkActive && toolboxTopic.trim().length > 0
+      ? {
+          topic: toolboxTopic.trim(),
+          durationMinutes: toolboxDuration.trim() ? Math.max(1, Math.round(Number(toolboxDuration) || 5)) : undefined,
+          attendees: toolboxAttendees.trim() ? Math.max(1, Math.round(Number(toolboxAttendees) || 0)) : undefined,
+          conductedBy: toolboxConductedBy.trim() || undefined,
+        }
+      : undefined;
+
     if (existingReport) {
       updateDailyReport(existingReport.id, {
         date: reportDate,  // honor the user-picked date on edit too
@@ -634,6 +680,8 @@ export default function DailyReportScreen() {
         photos,
         status,
         incident: incidentPayload,
+        safetyToolboxTalk: toolboxTalkPayload,
+        tomorrowsPlan: tomorrowsPlan.trim() || undefined,
         homeownerSummary: homeownerSummary.trim() || undefined,
         homeownerSummaryGeneratedAt: hsGeneratedAt,
         homeownerSummaryPublished: hsPublished,
@@ -659,6 +707,8 @@ export default function DailyReportScreen() {
         photos,
         status,
         incident: incidentPayload,
+        safetyToolboxTalk: toolboxTalkPayload,
+        tomorrowsPlan: tomorrowsPlan.trim() || undefined,
         homeownerSummary: homeownerSummary.trim() || undefined,
         homeownerSummaryGeneratedAt: hsGeneratedAt,
         homeownerSummaryPublished: hsPublished,
@@ -700,7 +750,7 @@ export default function DailyReportScreen() {
       nailIt(status === 'sent' ? `Daily report sent${recipientInfo}` : 'Daily report saved.');
     }
     router.back();
-  }, [projectId, weather, manpower, workPerformed, workProgress, materialsDelivered, issuesAndDelays, photos, incident, existingReport, homeownerSummary, hsGeneratedAt, hsPublished, addDailyReport, updateDailyReport, addProjectPhoto, router, reportDate, stableReportId, effectivePhase]);
+  }, [projectId, weather, manpower, workPerformed, workProgress, materialsDelivered, issuesAndDelays, photos, incident, toolboxTalkActive, toolboxTopic, toolboxDuration, toolboxAttendees, toolboxConductedBy, tomorrowsPlan, existingReport, homeownerSummary, hsGeneratedAt, hsPublished, addDailyReport, updateDailyReport, addProjectPhoto, router, reportDate, stableReportId, effectivePhase]);
 
   const handleSendPress = useCallback(() => {
     // Seed the recipient list from the project-level default first, then
@@ -1506,6 +1556,32 @@ export default function DailyReportScreen() {
             )}
           </View>
 
+          {/* Tomorrow's plan. Pre-fix the voice topic checklist asked
+              for it but no field stored it; the dictated content was
+              silently dropped on save. Now persisted on the DFR record
+              and rolled into the Submit modal's "Send tomorrow's plan
+              to subs" toggle so it broadcasts via SMS / email. */}
+          <View style={styles.sectionCard}>
+            <View style={styles.sectionHeader}>
+              <CalendarDays size={18} color={Colors.primary} />
+              <Text style={styles.sectionTitle}>Tomorrow&apos;s plan</Text>
+            </View>
+            {!isLocked ? (
+              <TextInput
+                style={styles.textArea}
+                value={tomorrowsPlan}
+                onChangeText={setTomorrowsPlan}
+                placeholder="What's on deck tomorrow? Subs scheduled, deliveries expected, inspection windows…"
+                placeholderTextColor={Colors.textMuted}
+                multiline
+                textAlignVertical="top"
+                testID="tomorrows-plan-input"
+              />
+            ) : (
+              <Text style={styles.readOnlyText}>{tomorrowsPlan || 'No plan recorded.'}</Text>
+            )}
+          </View>
+
           {/* Homeowner-friendly summary — AI generates from technical fields,
               GC reviews + edits, then publishes to the portal as the daily
               "Latest update" panel. The toggle for what shows in portal is
@@ -1701,12 +1777,91 @@ export default function DailyReportScreen() {
                   : 'No incidents reported.'}
               </Text>
             )}
+
+            {/* Toolbox Talk — OSHA-required documentation. Pre-fix the
+                SafetyToolboxTalk type was declared on DailyFieldReport
+                but never rendered. Compliance unblocker for any GC
+                working public-work, commercial, or insurance-required
+                jobs. Single toggle expands the form. */}
+            {!isLocked && (
+              <View style={styles.toolboxBlock}>
+                <TouchableOpacity
+                  style={[styles.incidentToggle, toolboxTalkActive && styles.toolboxToggleActive]}
+                  onPress={() => setToolboxTalkActive(v => !v)}
+                  activeOpacity={0.85}
+                  testID="toolbox-talk-toggle"
+                >
+                  <View style={[styles.incidentToggleDot, toolboxTalkActive && { backgroundColor: Colors.success }]} />
+                  <Text style={[styles.incidentToggleText, toolboxTalkActive && { color: Colors.success }]}>
+                    {toolboxTalkActive ? 'Toolbox talk logged' : 'Log toolbox talk (optional)'}
+                  </Text>
+                </TouchableOpacity>
+                {toolboxTalkActive && (
+                  <View style={styles.incidentBlock}>
+                    <Text style={styles.incidentLabel}>Topic</Text>
+                    <TextInput
+                      style={styles.textInput}
+                      value={toolboxTopic}
+                      onChangeText={setToolboxTopic}
+                      placeholder="e.g. Ladder safety, fall protection, PPE check"
+                      placeholderTextColor={Colors.textMuted}
+                      testID="toolbox-topic"
+                    />
+                    <View style={{ flexDirection: 'row' as const, gap: 10 }}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.incidentLabel}>Duration (min)</Text>
+                        <TextInput
+                          style={styles.textInput}
+                          value={toolboxDuration}
+                          onChangeText={setToolboxDuration}
+                          placeholder="5"
+                          placeholderTextColor={Colors.textMuted}
+                          keyboardType="number-pad"
+                          testID="toolbox-duration"
+                        />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.incidentLabel}>Attendees</Text>
+                        <TextInput
+                          style={styles.textInput}
+                          value={toolboxAttendees}
+                          onChangeText={setToolboxAttendees}
+                          placeholder="6"
+                          placeholderTextColor={Colors.textMuted}
+                          keyboardType="number-pad"
+                          testID="toolbox-attendees"
+                        />
+                      </View>
+                    </View>
+                    <Text style={styles.incidentLabel}>Conducted by</Text>
+                    <TextInput
+                      style={styles.textInput}
+                      value={toolboxConductedBy}
+                      onChangeText={setToolboxConductedBy}
+                      placeholder="Your name or role"
+                      placeholderTextColor={Colors.textMuted}
+                      testID="toolbox-conducted-by"
+                    />
+                  </View>
+                )}
+              </View>
+            )}
+            {isLocked && existingReport?.safetyToolboxTalk?.topic && (
+              <View style={styles.toolboxReadOnly}>
+                <Text style={styles.toolboxReadOnlyTitle}>Toolbox talk: {existingReport.safetyToolboxTalk.topic}</Text>
+                <Text style={styles.toolboxReadOnlySub}>
+                  {existingReport.safetyToolboxTalk.durationMinutes ? `${existingReport.safetyToolboxTalk.durationMinutes} min` : '—'}
+                  {existingReport.safetyToolboxTalk.attendees != null ? ` · ${existingReport.safetyToolboxTalk.attendees} attendees` : ''}
+                  {existingReport.safetyToolboxTalk.conductedBy ? ` · led by ${existingReport.safetyToolboxTalk.conductedBy}` : ''}
+                </Text>
+              </View>
+            )}
           </View>
 
           <View style={styles.sectionCard}>
             <View style={styles.sectionHeader}>
               <ImageIcon size={18} color={Colors.accent} />
-              <Text style={styles.sectionTitle}>Photos ({photos.length}/10)</Text>
+              <Text style={styles.sectionTitle}>Photos ({photos.length}/50)</Text>
             </View>
             {!isLocked && (
               <View style={styles.photoActions}>
@@ -2390,6 +2545,11 @@ const styles = StyleSheet.create({
   incidentBlock: { marginTop: 10, gap: 6 },
   incidentLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.textSecondary, marginTop: 8 },
   severityRow: { flexDirection: 'row', flexWrap: 'wrap' as const, gap: 6 },
+  toolboxBlock: { marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: Colors.borderLight, gap: 8 },
+  toolboxToggleActive: { borderColor: Colors.success, backgroundColor: Colors.success + '0F' },
+  toolboxReadOnly: { marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: Colors.borderLight },
+  toolboxReadOnlyTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.text },
+  toolboxReadOnlySub: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 2 },
   severityChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: Tokens.radius.md, backgroundColor: Colors.fillTertiary },
   severityChipActive: { backgroundColor: Colors.error },
   severityChipText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.textSecondary },

@@ -146,6 +146,21 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
               substantialCompletionDate: r.substantial_completion_date as string | undefined,
               warrantyWalkCompletedAt: r.warranty_walk_completed_at as string | undefined,
               photoCount: Number(r.photo_count) || 0,
+              // Fields below were silently dropped on every device hydrate
+              // pre-fix. The audit caught a real cross-device-sync bug:
+              // a GC sets GMP cap on iPhone → never lands on iPad. Same
+              // for contractMode (open-book vs. fixed-price), public
+              // profile slug, DFR recipients (per-project default
+              // distribution), calendarToken (live ICS subscription URL).
+              // All of these are written via addProject/updateProject —
+              // they just weren't being read back.
+              publicProfile: r.public_profile as Project['publicProfile'],
+              contractMode: (r.contract_mode as Project['contractMode']) ?? undefined,
+              gmpCap: r.gmp_cap != null ? Number(r.gmp_cap) : undefined,
+              contractorFeePercent: r.contractor_fee_percent != null ? Number(r.contractor_fee_percent) : undefined,
+              contractorFeeAmount: r.contractor_fee_amount != null ? Number(r.contractor_fee_amount) : undefined,
+              dfrRecipients: (r.dfr_recipients as string[] | null) ?? undefined,
+              calendarToken: (r.calendar_token as string | null) ?? undefined,
             })) as Project[];
             await saveLocal(PROJECTS_KEY, mapped);
             return mapped;

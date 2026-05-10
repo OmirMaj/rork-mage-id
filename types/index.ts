@@ -1244,6 +1244,15 @@ export interface DailyFieldReport {
    * Values come from `PHASE_OPTIONS` in `utils/scheduleEngine.ts`.
    */
   phase?: string;
+  /**
+   * Free-text "what's planned for tomorrow" captured at end-of-day.
+   * Pre-fix the DFR voice topic checklist explicitly asked the GC for
+   * tomorrow's plan but no field stored it — the dictated content was
+   * silently dropped on save. Now persisted; the Submit modal can
+   * also fan out a "tomorrow's plan" SMS / email to the assigned
+   * subs and homeowner.
+   */
+  tomorrowsPlan?: string;
   createdAt: string;
   updatedAt: string;
 }

@@ -125,11 +125,31 @@ export const [NotificationProvider, useNotifications] = createContextHook(() => 
 
     console.log('[NotificationContext] Setting up bid response realtime listener');
 
+    // Pre-fix the channel name was global ('realtime-bid-notifications')
+    // and the table subscriptions had no `filter` — every signed-in
+    // user got every bid + CO update across the entire platform. RLS
+    // protected the *payload*, but the realtime fan-out still woke
+    // the JS thread and ran the callback on noise. ~25k spurious
+    // invalidations/user/day at small scale; way more at production.
+    //
+    // Now: channel name is user-scoped (a single user opening on two
+    // devices still gets two channels — fine), and each subscription
+    // filters server-side to rows tied to this user. public_bids
+    // gets the user's submitted_by; change_orders gets a project_id
+    // join via the user_id-keyed projects table — but Supabase realtime
+    // can't do joins, so we filter on table columns directly. Most
+    // change_orders inserts include the GC's user_id at the row level
+    // already.
     const bidChannel = supabase
-      .channel('realtime-bid-notifications')
+      .channel(`realtime-bid-notifications-${user.id}`)
       .on(
         'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'public_bids' },
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'public_bids',
+          filter: `submitted_by=eq.${user.id}`,
+        },
         (payload) => {
           const r = payload.new as Record<string, unknown>;
           const oldR = payload.old as Record<string, unknown>;
@@ -141,7 +161,12 @@ export const [NotificationProvider, useNotifications] = createContextHook(() => 
       )
       .on(
         'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'change_orders' },
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'change_orders',
+          filter: `user_id=eq.${user.id}`,
+        },
         (payload) => {
           const r = payload.new as Record<string, unknown>;
           const oldR = payload.old as Record<string, unknown>;

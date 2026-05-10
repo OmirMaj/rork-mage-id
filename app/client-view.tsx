@@ -21,7 +21,8 @@ import { useProjects } from '@/contexts/ProjectContext';
 import { formatMoney } from '@/utils/formatters';
 import type { ScheduleTask, ChangeOrder, COApprover, COAuditEntry, SelectionCategory } from '@/types';
 import { fetchSelectionsForProject } from '@/utils/selectionsEngine';
-import { Sparkles } from 'lucide-react-native';
+import { fetchCloseoutBinder, type CloseoutBinder } from '@/utils/closeoutBinderEngine';
+import { Sparkles, Award } from 'lucide-react-native';
 import { getStatusColor, getStatusLabel, getPhaseColor } from '@/utils/scheduleEngine';
 import { MOCK_DOCUMENTS, DOCUMENT_TYPE_INFO } from '@/mocks/documents';
 import SignaturePad from '@/components/SignaturePad';
@@ -115,6 +116,12 @@ export default function ClientViewScreen() {
   // option. The new portal section (gated by `showSelections`) shows
   // categories with chosen-option highlights inline.
   const [selectionCategories, setSelectionCategories] = useState<SelectionCategory[]>([]);
+  // Closeout binder — only surfaces when the GC has finalized OR sent
+  // it. Pre-fix the binder existed only on the static web portal;
+  // homeowners on the in-app deep link never saw their warranties +
+  // sub contacts + maintenance schedule. Web-only is fine for the GC
+  // preview but breaks the "love my GC for life" referral moment.
+  const [closeoutBinder, setCloseoutBinder] = useState<CloseoutBinder | null>(null);
 
   // Realtime: when the GC updates anything on this project, invalidate local
   // react-query caches so the client portal re-renders with fresh data.
@@ -140,6 +147,22 @@ export default function ClientViewScreen() {
     })();
     return () => { cancelled = true; };
   }, [project?.id, project?.clientPortal?.showSelections, lastUpdatedAt]);
+
+  // Fetch closeout binder. Only renders the section when status is
+  // 'finalized' or 'sent' — drafts are hidden from the homeowner.
+  useEffect(() => {
+    if (!project?.id) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const b = await fetchCloseoutBinder(project.id);
+        if (!cancelled) setCloseoutBinder(b);
+      } catch (err) {
+        console.log('[client-view] closeout binder load failed', err);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [project?.id, lastUpdatedAt]);
 
   const refreshAll = useCallback(async () => {
     setRefreshing(true);
@@ -606,6 +629,89 @@ export default function ClientViewScreen() {
           </View>
         )}
 
+        {/* "Latest update" hero — the most-recent published homeowner
+            summary, rendered above everything else so the GC's plain-
+            English "what got done" is the first thing the homeowner
+            reads. Pre-fix the homeowner had to drill into Daily Reports
+            and parse construction jargon. Only renders when the GC
+            has actually published a summary; the row stays hidden if
+            none exist yet (no awkward "No update" placeholder). */}
+        {(() => {
+          const latest = [...dailyReports]
+            .filter(r => r.homeownerSummaryPublished && (r.homeownerSummary?.trim().length ?? 0) > 0)
+            .sort((a, b) => Date.parse(b.date) - Date.parse(a.date))[0];
+          if (!latest) return null;
+          const dayLabel = new Date(latest.date).toLocaleDateString('en-US', {
+            weekday: 'long', month: 'long', day: 'numeric',
+          });
+          return (
+            <View style={styles.latestUpdateCard}>
+              <View style={styles.latestUpdateHeader}>
+                <Text style={styles.latestUpdateLabel}>Latest update</Text>
+                <Text style={styles.latestUpdateDate}>{dayLabel}</Text>
+              </View>
+              <Text style={styles.latestUpdateBody}>{latest.homeownerSummary?.trim()}</Text>
+            </View>
+          );
+        })()}
+
+        {/* Decisions Needed — single dock surface aggregating every
+            item awaiting the homeowner's signature, choice, or vote.
+            Pre-fix the homeowner had to scroll through Change Orders,
+            Selections, and Documents separately and figure out which
+            ones needed THEIR action. Now: one card with a count
+            badge, listing each decision inline. Counts:
+              - COs in 'submitted' / 'under_review' / 'revised'
+              - Selection categories in 'pending' / 'browsing'
+              - (future) documents pending_signature
+            Hidden when the count is zero — no awkward "0 things
+            need you" placeholder. */}
+        {(() => {
+          const pendingCOs = changeOrders.filter(co =>
+            co.status === 'submitted' || co.status === 'under_review' || co.status === 'revised',
+          );
+          const pendingSelections = selectionCategories.filter(c =>
+            c.status === 'pending' || c.status === 'browsing',
+          );
+          const total = pendingCOs.length + pendingSelections.length;
+          if (total === 0) return null;
+          return (
+            <View style={styles.decisionsCard}>
+              <View style={styles.decisionsHeader}>
+                <View style={styles.decisionsBadge}>
+                  <Text style={styles.decisionsBadgeText}>{total}</Text>
+                </View>
+                <Text style={styles.decisionsTitle}>
+                  {total === 1 ? 'Decision needed' : 'Decisions needed'}
+                </Text>
+              </View>
+              {pendingCOs.slice(0, 3).map(co => (
+                <View key={`co-${co.id}`} style={styles.decisionRow}>
+                  <FileText size={14} color={Colors.error} />
+                  <Text style={styles.decisionRowText} numberOfLines={1}>
+                    Change order #{co.number} — {co.description}
+                  </Text>
+                  <Text style={styles.decisionRowAmount}>{formatMoney(co.changeAmount)}</Text>
+                </View>
+              ))}
+              {pendingSelections.slice(0, 3).map(cat => (
+                <View key={`sel-${cat.id}`} style={styles.decisionRow}>
+                  <Sparkles size={14} color="#FF9500" />
+                  <Text style={styles.decisionRowText} numberOfLines={1}>
+                    Pick a {cat.category.toLowerCase()}
+                  </Text>
+                  <Text style={styles.decisionRowAmount}>{formatMoney(cat.budget)}</Text>
+                </View>
+              ))}
+              {(pendingCOs.length + pendingSelections.length) > 6 && (
+                <Text style={styles.decisionsMore}>
+                  + {(pendingCOs.length + pendingSelections.length) - 6} more below
+                </Text>
+              )}
+            </View>
+          );
+        })()}
+
         {/* Quick stats */}
         <View style={styles.statsRow}>
           <View style={styles.statCard}>
@@ -1039,18 +1145,35 @@ export default function ClientViewScreen() {
             />
             {expanded.dailyReports && (
               <View style={styles.sectionBody}>
-                {dailyReports.slice(0, 5).map(report => (
-                  <View key={report.id} style={styles.listRow}>
-                    <View style={styles.listRowLeft}>
-                      <Text style={styles.listRowTitle}>{new Date(report.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</Text>
-                      <Text style={styles.listRowMeta} numberOfLines={2}>{report.workPerformed || 'No summary provided'}</Text>
+                {dailyReports.slice(0, 5).map(report => {
+                  // Prefer the AI-generated, plain-English homeowner
+                  // summary when the GC has reviewed + published it.
+                  // Pre-fix this row showed report.workPerformed —
+                  // raw GC-internal jargon ("Sub trim/paint phase 2
+                  // 60% complete, 8/12 doors hung") that the
+                  // homeowner can't parse. The web portal already
+                  // renders homeownerSummary; the in-app one was
+                  // silently discarding it. Fall back to the
+                  // workPerformed text only when no published
+                  // summary exists.
+                  const useHomeownerSummary = report.homeownerSummaryPublished
+                    && (report.homeownerSummary?.trim().length ?? 0) > 0;
+                  const summaryText = useHomeownerSummary
+                    ? report.homeownerSummary!.trim()
+                    : (report.workPerformed || 'No summary provided');
+                  return (
+                    <View key={report.id} style={styles.listRow}>
+                      <View style={styles.listRowLeft}>
+                        <Text style={styles.listRowTitle}>{new Date(report.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</Text>
+                        <Text style={styles.listRowMeta} numberOfLines={3}>{summaryText}</Text>
+                      </View>
+                      <View style={styles.listRowRight}>
+                        <Text style={styles.listRowAmount}>{report.weather.conditions}</Text>
+                        <Text style={styles.listStatusText}>{report.weather.temperature}</Text>
+                      </View>
                     </View>
-                    <View style={styles.listRowRight}>
-                      <Text style={styles.listRowAmount}>{report.weather.conditions}</Text>
-                      <Text style={styles.listStatusText}>{report.weather.temperature}</Text>
-                    </View>
-                  </View>
-                ))}
+                  );
+                })}
               </View>
             )}
           </View>
@@ -1117,6 +1240,47 @@ export default function ClientViewScreen() {
                     </View>
                   );
                 })}
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* Closeout binder — only surfaces when finalized OR sent.
+            Pre-fix only the static web portal rendered it; in-app
+            users (the homeowner on the deep link) never saw their
+            warranties + sub contacts + maintenance schedule. The
+            "love my GC for life" referral moment, now in-app too. */}
+        {closeoutBinder && (closeoutBinder.status === 'finalized' || closeoutBinder.status === 'sent') && (
+          <View style={[styles.section, styles.closeoutSection]}>
+            <View style={styles.closeoutHeader}>
+              <View style={styles.closeoutIconWrap}>
+                <Award size={18} color="#FFFFFF" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.closeoutTitle}>Your closeout binder</Text>
+                <Text style={styles.closeoutSub}>
+                  {closeoutBinder.status === 'sent'
+                    ? `Delivered ${closeoutBinder.sentAt ? new Date(closeoutBinder.sentAt).toLocaleDateString() : ''}`
+                    : 'Ready for you'}
+                </Text>
+              </View>
+            </View>
+            <Text style={styles.closeoutBody}>
+              Warranties, manuals, finishes, sub contacts, and a maintenance schedule for the home — all in one place.
+            </Text>
+            {closeoutBinder.maintenanceSchedule && closeoutBinder.maintenanceSchedule.length > 0 && (
+              <View style={styles.closeoutMaintenanceList}>
+                {closeoutBinder.maintenanceSchedule.slice(0, 4).map(m => (
+                  <View key={m.id} style={styles.closeoutMaintenanceRow}>
+                    <Text style={styles.closeoutMaintenanceTask}>{m.task}</Text>
+                    <Text style={styles.closeoutMaintenanceFreq}>{m.frequency}</Text>
+                  </View>
+                ))}
+                {closeoutBinder.maintenanceSchedule.length > 4 && (
+                  <Text style={styles.closeoutMaintenanceMore}>
+                    + {closeoutBinder.maintenanceSchedule.length - 4} more in the binder
+                  </Text>
+                )}
               </View>
             )}
           </View>
@@ -1329,6 +1493,63 @@ const styles = StyleSheet.create({
     borderLeftWidth: 3, borderLeftColor: Colors.primary,
   },
   welcomeText: { flex: 1, fontSize: Type.bodyCompact.fontSize, color: Colors.text, lineHeight: 20 },
+  latestUpdateCard: {
+    marginHorizontal: 16,
+    marginTop: 4,
+    marginBottom: 12,
+    padding: 16,
+    borderRadius: Tokens.radius.lg,
+    backgroundColor: Colors.primary + '10',
+    borderWidth: 1,
+    borderColor: Colors.primary + '25',
+  },
+  latestUpdateHeader: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'space-between' as const,
+    marginBottom: 8,
+  },
+  latestUpdateLabel: {
+    fontSize: Type.caption2.fontSize,
+    fontWeight: '900' as const,
+    color: Colors.primary,
+    letterSpacing: 0.6,
+    textTransform: 'uppercase' as const,
+  },
+  latestUpdateDate: {
+    fontSize: Type.caption1.fontSize,
+    color: Colors.textSecondary,
+    fontWeight: '600' as const,
+  },
+  latestUpdateBody: {
+    fontSize: Type.bodyCompact.fontSize,
+    color: Colors.text,
+    lineHeight: 22,
+  },
+  closeoutSection: {
+    backgroundColor: Colors.primary + '08',
+    borderColor: Colors.primary + '25',
+  },
+  closeoutHeader: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 12, marginBottom: 8 },
+  closeoutIconWrap: { width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.primary, alignItems: 'center' as const, justifyContent: 'center' as const },
+  closeoutTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '900' as const, color: Colors.text, letterSpacing: -0.3 },
+  closeoutSub: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 1 },
+  closeoutBody: { fontSize: Type.bodyCompact.fontSize, color: Colors.text, lineHeight: 20, marginBottom: 8 },
+  closeoutMaintenanceList: { marginTop: 6, gap: 4 },
+  closeoutMaintenanceRow: { flexDirection: 'row' as const, justifyContent: 'space-between' as const, paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: Colors.borderLight },
+  closeoutMaintenanceTask: { flex: 1, fontSize: Type.footnote.fontSize, color: Colors.text, fontWeight: '600' as const },
+  closeoutMaintenanceFreq: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontWeight: '700' as const, textTransform: 'uppercase' as const, letterSpacing: 0.4 },
+  closeoutMaintenanceMore: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontStyle: 'italic' as const, paddingTop: 6 },
+
+  decisionsCard: { marginHorizontal: 16, marginTop: 4, marginBottom: 12, padding: 14, borderRadius: Tokens.radius.lg, backgroundColor: '#FFF3E0', borderWidth: 1, borderColor: '#FFC10733' },
+  decisionsHeader: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, marginBottom: 10 },
+  decisionsBadge: { width: 30, height: 30, borderRadius: 15, backgroundColor: '#FF9500', alignItems: 'center' as const, justifyContent: 'center' as const },
+  decisionsBadgeText: { color: '#FFFFFF', fontWeight: '900' as const, fontSize: Type.subheadline.fontSize },
+  decisionsTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '900' as const, color: Colors.text, letterSpacing: -0.3 },
+  decisionRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, paddingVertical: 8, borderTopWidth: 1, borderTopColor: '#FFC10722' },
+  decisionRowText: { flex: 1, fontSize: Type.bodyCompact.fontSize, color: Colors.text },
+  decisionRowAmount: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.textSecondary },
+  decisionsMore: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontStyle: 'italic' as const, marginTop: 6, textAlign: 'center' as const },
 
   statsRow: { flexDirection: 'row', paddingHorizontal: 16, gap: 10, marginBottom: 8 },
   statCard: {
