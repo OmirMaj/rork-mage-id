@@ -26,9 +26,10 @@ import {
 import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
+import * as Linking from 'expo-linking';
 import {
   ChevronLeft, ChevronRight, Sparkles, Building2, Home, Wrench,
-  DollarSign, CheckCircle2, FileDown, RotateCcw,
+  DollarSign, CheckCircle2, FileDown, RotateCcw, Mail, X,
 } from 'lucide-react-native';
 import { z } from 'zod';
 import { Colors } from '@/constants/colors';
@@ -132,6 +133,19 @@ function EstimateWizardScreenInner() {
   const [answers, setAnswers] = useState<WizardAnswers>(INITIAL);
   const [loading, setLoading] = useState(false);
   const [sharingPdf, setSharingPdf] = useState(false);
+  // Email-out flow state. Pre-fix the wizard only had `share` (OS
+  // share sheet → bare PDF dump). PM audit's #1 broken workflow:
+  // sending an estimate to a lead. The contract send flow has all
+  // this; the estimate didn't. Now: an "Email estimate" button next
+  // to the share button opens a focused modal with To / Subject /
+  // Body editor + a "Include standard terms" toggle. Send dispatches
+  // via mailto:// so the user's existing Mail app composes — no
+  // server-side SendGrid wiring required.
+  const [showEmailModal, setShowEmailModal] = useState(false);
+  const [emailTo, setEmailTo] = useState('');
+  const [emailSubject, setEmailSubject] = useState('');
+  const [emailBody, setEmailBody] = useState('');
+  const [emailIncludeTerms, setEmailIncludeTerms] = useState(true);
   const [result, setResult] = useState<EstimateResult | null>(null);
 
   const TOTAL_STEPS = 8;
@@ -250,6 +264,69 @@ Use current regional pricing where possible. Round reasonably. Keep it under 15 
       setSharingPdf(false);
     }
   }, [result, answers, settings]);
+
+  // Compose the default email body from the result. Renders as plain
+  // text — most homeowners read on phones where rich-HTML emails
+  // crop badly. Subject is "[Company] Estimate: [project type]
+  // [location]". The mailto: URL has length limits (~2000 chars in
+  // most clients), so we keep the body terse and reference the PDF
+  // attachment the GC will share separately.
+  const openEmailComposer = useCallback(() => {
+    if (!result) return;
+    const branding = settings?.branding;
+    const company = branding?.companyName?.trim() || 'MAGE ID';
+    const subject = `${company} — Estimate: ${answers.projectType || 'project'}${answers.location ? ` · ${answers.location}` : ''}`;
+    const grandTotal = typeof result.total === 'number'
+      ? `$${Math.round(result.total).toLocaleString()}`
+      : 'see attached';
+    const body = [
+      `Hi —`,
+      ``,
+      `Attached is the estimate for ${answers.projectType || 'your project'}${answers.location ? ` at ${answers.location}` : ''}.`,
+      ``,
+      `Estimated total: ${grandTotal}`,
+      `Estimated timeline: ${answers.timelineWeeks ? `${answers.timelineWeeks} weeks` : 'TBD'}`,
+      ``,
+      `This is a project estimate, not a fixed-price quote, unless we sign a separate contract. Quantities, unit prices, and materials are subject to change based on field conditions, market pricing, and design revisions.`,
+      ``,
+      `Happy to walk through any line item — call or reply to this email.`,
+      ``,
+      `${branding?.contactName ?? ''}`,
+      `${company}`,
+      branding?.phone ? `${branding.phone}` : '',
+      branding?.email ? `${branding.email}` : '',
+    ].filter(Boolean).join('\n');
+
+    setEmailTo('');
+    setEmailSubject(subject);
+    setEmailBody(body);
+    setEmailIncludeTerms(true);
+    setShowEmailModal(true);
+  }, [result, answers, settings]);
+
+  const sendEmailEstimate = useCallback(async () => {
+    const to = emailTo.trim();
+    if (!to) {
+      Alert.alert('Recipient required', 'Add an email address in the To field.');
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
+      Alert.alert('Invalid email', `"${to}" doesn't look like a valid email address.`);
+      return;
+    }
+    let bodyOut = emailBody;
+    if (emailIncludeTerms) {
+      bodyOut += '\n\n---\nStandard terms (attached as separate PDF):\n• Estimate valid for 30 days from issue.\n• 50% deposit required to mobilize; balance per progress milestones.\n• Change orders priced separately and signed before work proceeds.\n• Contractor carries general liability + workers\' comp; certificates available on request.';
+    }
+    const url = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(bodyOut)}`;
+    try {
+      await Linking.openURL(url);
+      setShowEmailModal(false);
+      if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    } catch (err) {
+      Alert.alert('Could not open email', 'Set a default mail app in System Settings, or copy the body and paste it manually.');
+    }
+  }, [emailTo, emailSubject, emailBody, emailIncludeTerms]);
 
   const reset = useCallback(() => {
     setAnswers(INITIAL);
@@ -547,6 +624,16 @@ Use current regional pricing where possible. Round reasonably. Keep it under 15 
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.resultSecondaryBtn}
+              onPress={openEmailComposer}
+              activeOpacity={0.85}
+              disabled={sharingPdf}
+              testID="wizard-email"
+            >
+              <Mail size={16} color={Colors.text} />
+              <Text style={styles.resultSecondaryText}>Email this estimate</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.resultSecondaryBtn}
               onPress={reset}
               activeOpacity={0.8}
               disabled={sharingPdf}
@@ -557,6 +644,80 @@ Use current regional pricing where possible. Round reasonably. Keep it under 15 
             </TouchableOpacity>
           </View>
         </ScrollView>
+
+        {/* Email composer modal — opens when "Email this estimate"
+            is tapped. Pre-fills from the result + settings; the user
+            edits To / Subject / Body / terms toggle and dispatches
+            via mailto:// to their default mail app. The PDF still
+            ships via the separate Share button — this is the
+            "send it to the homeowner with a real cover note" flow. */}
+        {showEmailModal && (
+          <View style={styles.emailModalBackdrop}>
+            <View style={styles.emailModalCard}>
+              <View style={styles.emailModalHead}>
+                <Text style={styles.emailModalTitle}>Email this estimate</Text>
+                <TouchableOpacity onPress={() => setShowEmailModal(false)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
+                  <X size={18} color={Colors.text} />
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.emailModalLabel}>To</Text>
+              <TextInput
+                style={styles.emailModalInput}
+                value={emailTo}
+                onChangeText={setEmailTo}
+                placeholder="homeowner@example.com"
+                placeholderTextColor={Colors.textMuted}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                testID="email-to"
+              />
+              <Text style={styles.emailModalLabel}>Subject</Text>
+              <TextInput
+                style={styles.emailModalInput}
+                value={emailSubject}
+                onChangeText={setEmailSubject}
+                placeholder="Estimate"
+                placeholderTextColor={Colors.textMuted}
+                testID="email-subject"
+              />
+              <Text style={styles.emailModalLabel}>Body</Text>
+              <TextInput
+                style={[styles.emailModalInput, styles.emailModalBody]}
+                value={emailBody}
+                onChangeText={setEmailBody}
+                multiline
+                textAlignVertical="top"
+                placeholderTextColor={Colors.textMuted}
+                testID="email-body"
+              />
+              <TouchableOpacity
+                style={styles.emailTermsRow}
+                onPress={() => setEmailIncludeTerms(v => !v)}
+                activeOpacity={0.7}
+                accessibilityRole="switch"
+                accessibilityState={{ checked: emailIncludeTerms }}
+              >
+                <View style={[styles.emailTermsBox, emailIncludeTerms && styles.emailTermsBoxOn]}>
+                  {emailIncludeTerms && <CheckCircle2 size={12} color="#FFFFFF" strokeWidth={3} />}
+                </View>
+                <Text style={styles.emailTermsLabel}>Include standard estimate terms (validity, deposit, COs, insurance)</Text>
+              </TouchableOpacity>
+              <View style={styles.emailModalActions}>
+                <TouchableOpacity style={styles.emailCancelBtn} onPress={() => setShowEmailModal(false)} activeOpacity={0.85}>
+                  <Text style={styles.emailCancelBtnText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.emailSendBtn} onPress={sendEmailEstimate} activeOpacity={0.9} testID="email-send">
+                  <Mail size={14} color="#FFF" />
+                  <Text style={styles.emailSendBtnText}>Open in Mail</Text>
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.emailFootnote}>
+                Opens your default mail app pre-filled. Attach the PDF you just downloaded before hitting send.
+              </Text>
+            </View>
+          </View>
+        )}
       </View>
     );
   }
@@ -1200,4 +1361,42 @@ const styles = StyleSheet.create({
     fontWeight: '700' as const,
     color: Colors.text,
   },
+
+  // Email composer modal styles. Backdrop covers the result screen,
+  // card sits centered with form inputs.
+  emailModalBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'flex-end' as const,
+  },
+  emailModalCard: {
+    backgroundColor: Colors.background,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 20,
+    gap: 6,
+  },
+  emailModalHead: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'space-between' as const, marginBottom: 8 },
+  emailModalTitle: { fontSize: Type.title3.fontSize, fontWeight: '900' as const, color: Colors.text, letterSpacing: -0.4 },
+  emailModalLabel: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: Colors.textMuted, marginTop: 8 },
+  emailModalInput: {
+    minHeight: 44,
+    borderRadius: Tokens.radius.card,
+    backgroundColor: Colors.surfaceAlt,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: Type.subhead.fontSize,
+    color: Colors.text,
+  },
+  emailModalBody: { minHeight: 140, paddingTop: 10 },
+  emailTermsRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, paddingVertical: 12 },
+  emailTermsBox: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: Colors.fillSecondary, alignItems: 'center' as const, justifyContent: 'center' as const },
+  emailTermsBoxOn: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  emailTermsLabel: { flex: 1, fontSize: Type.footnote.fontSize, color: Colors.text },
+  emailModalActions: { flexDirection: 'row' as const, gap: 10, marginTop: 6 },
+  emailCancelBtn: { flex: 1, minHeight: 48, borderRadius: 999, backgroundColor: Colors.fillTertiary, alignItems: 'center' as const, justifyContent: 'center' as const },
+  emailCancelBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
+  emailSendBtn: { flex: 1.4, minHeight: 48, flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 6, borderRadius: 999, backgroundColor: Colors.primary },
+  emailSendBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: '#FFFFFF' },
+  emailFootnote: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 8, textAlign: 'center' as const },
 });

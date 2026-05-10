@@ -2689,6 +2689,237 @@ export interface Worker {
   updatedAt: string;
 }
 
+/**
+ * Owner-Furnished Contractor-Installed (OFCI) and Owner-Furnished
+ * Owner-Installed (OFOI) item tracking. Pre-fix MAGE had no data
+ * model for owner-direct purchases; PM audit flagged this as a hard
+ * miss against Procore + Buildertrend. On a $750K residential job
+ * roughly $80K is owner-furnished (homeowner buys appliances /
+ * fixtures themselves, GC installs).
+ *
+ * Fields:
+ *   - mode: 'OFCI' (owner buys, GC installs) vs. 'OFOI' (owner buys
+ *     AND installs — GC just coordinates delivery + warranty notes).
+ *   - status tracks the supply-chain leg the owner is responsible
+ *     for. The GC's view: "what should be on site by [need-by date]
+ *     so we don't slip schedule?"
+ *   - costBasis is the homeowner's actual spend, captured for the
+ *     closeout binder + insurance basis. NOT for GC margin math.
+ *   - linkedTaskId pins the install to a schedule task; the schedule
+ *     surfaces a "🛒 OFCI item awaiting delivery" chip when the
+ *     task starts but `status !== 'on_site'`.
+ *   - linkedSelectionId carries the selection-row context so the
+ *     finishes binder can match the SKU + brand + model #.
+ */
+/**
+ * Draw period — the unit of work between GC pay-app submissions.
+ * Pre-fix the GC tracked invoices, lien waivers, and the AIA
+ * G702/G703 separately with no shared "this is for THIS draw"
+ * grouping. PM audit's #4 missing primitive — the lender-facing
+ * ritual every loan-funded residential job runs monthly.
+ *
+ * A DrawPeriod ties together:
+ *   - The owner-facing AIA G702 + G703 pay app (`aiaPayAppId`)
+ *   - Sub invoices submitted for this period (`invoiceIds[]`)
+ *   - Lien waivers collected for this period (`lienWaiverIds[]`)
+ *   - Status: open → submitted → approved → funded → closed
+ * The GC's "Draw 4" screen reads this row to compose:
+ *   "Draw 4: $48,000 to release. 4 of 7 lien waivers in. AIA pay
+ *    app ready. Pending: Smith Plumbing, ABC Electric, Acme Roof."
+ */
+export type DrawPeriodStatus = 'open' | 'submitted' | 'approved' | 'funded' | 'closed';
+
+export interface DrawPeriod {
+  id: string;
+  projectId: string;
+  /** Sequential 1-indexed number per project. */
+  number: number;
+  /** Free-text label — typically "Draw 4 — June 2026" but the GC
+   *  can override (some lenders want bi-monthly draws labeled as
+   *  "Draw 4A / Draw 4B"). */
+  label: string;
+  /** Inclusive start + end of the period. Drives which invoices
+   *  + lien waivers default-pull into this draw. */
+  periodStart: string;
+  periodEnd: string;
+  status: DrawPeriodStatus;
+  /** Linked AIA pay-app row (G702 + G703 PDF generation). */
+  aiaPayAppId?: string;
+  /** Sub invoices submitted against this period. */
+  invoiceIds: string[];
+  /** Lien waivers collected for this period (conditional + final). */
+  lienWaiverIds: string[];
+  /** Total $ requested in this draw — denormalized from the AIA
+   *  pay app's payment-due field for fast list rendering. */
+  amountRequested?: number;
+  /** Approved by lender — typically less the retainage held + any
+   *  disputed amounts. */
+  amountApproved?: number;
+  amountFunded?: number;
+  submittedAt?: string;
+  approvedAt?: string;
+  fundedAt?: string;
+  closedAt?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Sub-initiated change request. Pre-fix subs found extra scope in
+ * the field, called/texted the GC, who then opened change-order.tsx
+ * and re-typed everything. PM audit's #2 fix. Now: sub portal posts
+ * a SubChangeRequest with photo + price + scope description; GC
+ * sees a "needs review" inbox; one tap "Approve & convert to CO
+ * draft" auto-creates a ChangeOrder.draft pre-filled with the sub's
+ * data + their attribution.
+ *
+ * Lifecycle: submitted → approved (becomes a CO) | rejected |
+ * needs_revision (sub edits, resubmits).
+ */
+export type SubChangeRequestStatus = 'submitted' | 'approved' | 'rejected' | 'needs_revision';
+
+export interface SubChangeRequest {
+  id: string;
+  projectId: string;
+  /** sub_portal_id of the sub who submitted (matches their
+   *  prequal token / sub portal). */
+  subPortalId: string;
+  subName: string;
+  /** Free-text description of the extra scope. */
+  description: string;
+  /** Sub's quoted price (informational — GC marks up before the
+   *  CO goes to the owner). */
+  amount: number;
+  /** Number of additional schedule days the sub is asking for. */
+  scheduleImpactDays?: number;
+  /** Photos uploaded by the sub. URIs survive the offline queue
+   *  via the standard supabase-storage upload path. */
+  photos?: string[];
+  /** Notes the sub adds for context. */
+  notes?: string;
+  status: SubChangeRequestStatus;
+  /** When the GC approves, the resulting ChangeOrder.id is
+   *  written here so the sub can track approval. */
+  resultingChangeOrderId?: string;
+  /** GC's reason if rejected / needs revision. */
+  reviewNotes?: string;
+  submittedAt: string;
+  reviewedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type OwnerSuppliedMode = 'OFCI' | 'OFOI';
+export type OwnerSuppliedStatus =
+  | 'planned'           // homeowner has agreed to source it
+  | 'ordered'           // ordered, awaiting delivery
+  | 'in_transit'
+  | 'on_site'           // arrived, ready for install
+  | 'installed'
+  | 'cancelled';
+
+export interface OwnerSuppliedItem {
+  id: string;
+  projectId: string;
+  mode: OwnerSuppliedMode;
+  status: OwnerSuppliedStatus;
+  /** Description: "Sub-Zero 36" panel-ready fridge, BI-36U/S model." */
+  description: string;
+  /** Brand + model + SKU when the homeowner has confirmed the choice.
+   *  Carried into the closeout binder's appliance / fixture log. */
+  brand?: string;
+  model?: string;
+  sku?: string;
+  vendor?: string;
+  /** Owner's cost basis. Ours is read-only — we don't bill it. */
+  costBasis?: number;
+  /** When the GC needs it on site to keep schedule. The schedule chip
+   *  warns when `linkedTaskId` starts and we haven't crossed
+   *  `on_site` status by this date. */
+  needBy?: string;
+  /** Confirmed delivery date, when known. */
+  deliveryAt?: string;
+  /** Install date — when the GC's install task wraps. */
+  installedAt?: string;
+  /** Optional pin to a ScheduleTask.id so the schedule chip appears. */
+  linkedTaskId?: string;
+  /** Optional pin to a SelectionOption.id so finishes inherit
+   *  brand/model/sku without re-typing. */
+  linkedSelectionId?: string;
+  /** Photos — the homeowner's PO confirmation, the delivery slip,
+   *  the on-site stage. Each is a URI string. */
+  photos?: string[];
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Structured material delivery receipt. Pre-fix the Daily Field
+ * Report's `materialsDelivered` was just `string[]` — "20 sheets
+ * drywall" with no supplier, no qty/unit split, no PO link, no BOL
+ * photo, no signature, no damage flag. Buildertrend, Raken, and
+ * Procore all ship structured Delivery records; super audit
+ * flagged this as a discovery deal-breaker for material-heavy
+ * residential GCs.
+ *
+ * Stored independently from DFR so a delivery on a non-DFR day
+ * (Saturday drop, off-hours unload) still has a home. The DFR can
+ * still surface a `materialsDelivered: string[]` denormalization
+ * for backwards compatibility — when a Delivery exists with the
+ * same date + project, the DFR row reads from it.
+ */
+export interface DeliveryReceipt {
+  id: string;
+  projectId: string;
+  /** ISO date (YYYY-MM-DD) the delivery arrived. */
+  date: string;
+  supplier: string;
+  /** PO / commitment number on the receipt slip. Optional — many
+   *  small subs deliver against a verbal order. */
+  poNumber?: string;
+  /** Optional link to a Commitment row when the delivery was tied
+   *  to a tracked purchase order. */
+  commitmentId?: string;
+  items: DeliveryReceiptItem[];
+  /** BOL (Bill of Lading) photo URI — typically a snap of the slip
+   *  the driver hands the super. Required for any delivery >
+   *  $1,000 in most insurance riders. */
+  bolPhotoUri?: string;
+  /** Sign-off photo / signature SVG path. The super signs the
+   *  driver's pad AND captures it here for the project record. */
+  signaturePhotoUri?: string;
+  /** True if the super flagged damaged or missing items. Drives a
+   *  follow-up CO / supplier credit workflow. */
+  hasDamage: boolean;
+  damageNotes?: string;
+  /** ISO timestamp when the super clocked the delivery as received. */
+  receivedAt: string;
+  /** Person who signed for the delivery (super's name). */
+  receivedBy: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DeliveryReceiptItem {
+  id: string;
+  /** Free-text item name. AI-suggested from prior commitment line
+   *  items when available. */
+  name: string;
+  /** Qty ordered (from the PO when linked). */
+  qtyOrdered?: number;
+  /** Qty actually received — may differ from ordered (short-ship,
+   *  damage). The variance drives the supplier credit. */
+  qtyReceived: number;
+  unit: string;
+  /** Per-unit price at delivery. Captured for cost variance even
+   *  when no PO existed. */
+  unitPrice?: number;
+  notes?: string;
+}
+
 export type TimeEntryStatus = 'clocked_in' | 'clocked_out' | 'break';
 
 export interface TimeEntry {
