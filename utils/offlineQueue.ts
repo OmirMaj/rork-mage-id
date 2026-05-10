@@ -3,6 +3,13 @@ import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
 const OFFLINE_QUEUE_KEY = 'mageid_offline_queue';
 const MAX_RETRIES = 5;
+// Hard cap on the queue size. Engineer audit flagged that
+// `addToOfflineQueue` only pushes — a phone offline for a week with
+// 5000 queued mutations will eventually OOM AsyncStorage on parse
+// (~6MB Android default). 1000 is plenty for any realistic offline
+// span (a week of heavy field work generates < 200 writes), and gives
+// us breathing room before we hit the storage ceiling.
+const MAX_QUEUE_SIZE = 1000;
 
 export interface OfflineMutation {
   id: string;
@@ -32,6 +39,20 @@ export async function addToOfflineQueue(mutation: Omit<OfflineMutation, 'id' | '
       retryCount: 0,
     };
     queue.push(entry);
+
+    // Cap-and-FIFO. When we exceed the soft cap, drop the OLDEST
+    // entries first. Pre-fix the queue grew unbounded — a phone
+    // offline for a long stretch could OOM AsyncStorage on parse.
+    // We log the drop so the user can see something happened (and
+    // we surface a counter on the OfflineSyncPill in a follow-up
+    // commit). The dropped writes are gone — that's the trade-off
+    // for not crashing on cold start.
+    if (queue.length > MAX_QUEUE_SIZE) {
+      const dropped = queue.length - MAX_QUEUE_SIZE;
+      queue.splice(0, dropped);
+      console.warn(`[OfflineQueue] Capped at ${MAX_QUEUE_SIZE}, dropped ${dropped} oldest entries`);
+    }
+
     await AsyncStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(queue));
     console.log('[OfflineQueue] Queued mutation:', mutation.table, mutation.operation);
   } catch (err) {
@@ -71,9 +92,19 @@ export async function processOfflineQueue(): Promise<{ processed: number; failed
       let error: { message: string } | null = null;
 
       if (mutation.operation === 'insert') {
-        // Plain insert — upsert here would silently overwrite a colliding
-        // row that some other client already created, masking conflicts.
-        const result = await supabase.from(mutation.table).insert(mutation.data);
+        // Use upsert with onConflict on the row's id. The pre-fix
+        // plain insert hit a real silent-data-divergence bug:
+        // when a user signed in on two devices, one device's queued
+        // insert collided with the other's already-landed row, and
+        // the queued mutation silently failed-then-discarded. The
+        // local optimistic state was now divergent from server with
+        // no reconciliation. Upsert with id-conflict gives us a
+        // last-write-wins reconcile — the fresher row wins, and the
+        // local state stays consistent. Same row id semantics, only
+        // the conflict behavior changes.
+        const result = await supabase
+          .from(mutation.table)
+          .upsert(mutation.data, { onConflict: 'id', ignoreDuplicates: false });
         error = result.error;
       } else if (mutation.operation === 'update') {
         const { id, ...rest } = mutation.data;

@@ -20,7 +20,7 @@ import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { formatMoney } from '@/utils/formatters';
 import type { ScheduleTask, ChangeOrder, COApprover, COAuditEntry, SelectionCategory } from '@/types';
-import { fetchSelectionsForProject } from '@/utils/selectionsEngine';
+import { fetchSelectionsForProject, chooseSelectionOption } from '@/utils/selectionsEngine';
 import { fetchCloseoutBinder, type CloseoutBinder } from '@/utils/closeoutBinderEngine';
 import { Sparkles, Award } from 'lucide-react-native';
 import { getStatusColor, getStatusLabel, getPhaseColor } from '@/utils/scheduleEngine';
@@ -804,37 +804,77 @@ export default function ClientViewScreen() {
           )}
         </View>
 
-        {/* Schedule Section */}
-        {portal.showSchedule && tasks.length > 0 && (
-          <View style={styles.section}>
-            <SectionHeader
-              title="Project Schedule"
-              icon={<CalendarDays size={18} color={Colors.info} />}
-              count={tasks.length}
-              expanded={expanded.schedule}
-              onToggle={() => toggleSection('schedule')}
-            />
-            {expanded.schedule && (
-              <View style={styles.sectionBody}>
-                {/* Health bar */}
-                <View style={styles.healthRow}>
-                  <Text style={styles.healthLabel}>Schedule Health</Text>
-                  <View style={styles.healthBar}>
-                    <View style={[styles.healthFill, {
-                      width: `${healthScore}%` as any,
-                      backgroundColor: healthScore >= 80 ? '#34C759' : healthScore >= 60 ? '#FF9500' : Colors.error,
-                    }]} />
+        {/* Schedule Section. Pre-fix homeowners saw the FULL Gantt
+            with critical-path GitBranch icons everywhere — the audit
+            said this was "the #1 source of homeowner anxiety" because
+            those red icons make non-builders think things are broken.
+            Now: a milestone-only default view with one clear "On
+            track / X days behind" status pill at the top, plus a
+            "Show all tasks" toggle for the curious homeowner. */}
+        {(() => {
+          const milestones = tasks.filter(t => t.isMilestone);
+          if (!portal.showSchedule || tasks.length === 0) return null;
+
+          // Compute drift vs. baseline: if any task with a baseline
+          // has finished later than its baselineEndDay, the project
+          // is "behind" by the worst slip among MILESTONES (the
+          // homeowner-facing signal). Tasks without baselines
+          // contribute nothing — they're new work, not a slip.
+          let worstSlipDays = 0;
+          for (const t of milestones) {
+            if (t.baselineEndDay == null) continue;
+            const currentEnd = (t.actualEndDay ?? (t.startDay + t.durationDays - 1));
+            const slip = currentEnd - t.baselineEndDay;
+            if (slip > worstSlipDays) worstSlipDays = slip;
+          }
+          const statusLabel = worstSlipDays === 0 ? 'On track'
+            : worstSlipDays <= 3 ? `${worstSlipDays}d slip`
+            : worstSlipDays <= 14 ? `${worstSlipDays}d behind`
+            : `${Math.round(worstSlipDays / 7)}w behind`;
+          const statusColor = worstSlipDays === 0 ? Colors.success
+            : worstSlipDays <= 3 ? Colors.warning
+            : Colors.error;
+
+          return (
+            <View style={styles.section}>
+              <SectionHeader
+                title="Project Schedule"
+                icon={<CalendarDays size={18} color={Colors.info} />}
+                count={milestones.length || tasks.length}
+                expanded={expanded.schedule}
+                onToggle={() => toggleSection('schedule')}
+              />
+              {expanded.schedule && (
+                <View style={styles.sectionBody}>
+                  {/* "Are we on schedule?" pill — the single answer
+                      the homeowner came for. */}
+                  <View style={[styles.scheduleStatusPill, { backgroundColor: statusColor + '15', borderColor: statusColor + '30' }]}>
+                    <View style={[styles.scheduleStatusDot, { backgroundColor: statusColor }]} />
+                    <Text style={[styles.scheduleStatusLabel, { color: statusColor }]}>{statusLabel}</Text>
+                    {milestones.length > 0 && (
+                      <Text style={styles.scheduleStatusSub}>
+                        {milestones.filter(m => m.status === 'done').length} of {milestones.length} milestones complete
+                      </Text>
+                    )}
                   </View>
-                  <Text style={[styles.healthPct, {
-                    color: healthScore >= 80 ? Colors.success : healthScore >= 60 ? Colors.warning : Colors.error,
-                  }]}>{healthScore}%</Text>
+
+                  {/* Milestones list — the homeowner-friendly view.
+                      Falls back to the full task list when the project
+                      has no explicit milestones (legacy data). */}
+                  {(milestones.length > 0 ? milestones : tasks).map(task => (
+                    <TaskRow key={task.id} task={task} />
+                  ))}
+
+                  {milestones.length > 0 && milestones.length < tasks.length && (
+                    <Text style={styles.scheduleMore}>
+                      Showing {milestones.length} key milestones. The full schedule has {tasks.length} tasks.
+                    </Text>
+                  )}
                 </View>
-                {/* Tasks by phase */}
-                {tasks.map(task => <TaskRow key={task.id} task={task} />)}
-              </View>
-            )}
-          </View>
-        )}
+              )}
+            </View>
+          );
+        })()}
 
         {/* Budget Summary */}
         {portal.showBudgetSummary && (
@@ -1045,12 +1085,53 @@ export default function ClientViewScreen() {
               <View style={styles.sectionBody}>
                 {selectionCategories.map(cat => {
                   const chosenOption = (cat.options ?? []).find(o => o.isChosen);
+                  const otherOptions = (cat.options ?? []).filter(o => !o.isChosen);
                   const isExceeded = cat.status === 'exceeded';
                   const isPending = cat.status === 'pending' || cat.status === 'browsing';
                   const statusTint = isExceeded ? Colors.error
                     : cat.status === 'chosen' ? Colors.success
                     : isPending ? '#FF9500'
                     : Colors.textMuted;
+
+                  // The homeowner can pick when no option is chosen yet
+                  // OR when the chosen one isn't locked. Pre-fix this
+                  // was view-only — the homeowner saw 3 tile options,
+                  // loved option B, had to message the GC who manually
+                  // re-flipped the chosen flag in the GC app. 2017
+                  // workflow. Now: tap "Pick this" → upserts isChosen
+                  // server-side via chooseSelectionOption, optimistic
+                  // local state update for instant feedback.
+                  const handlePick = async (optionId: string) => {
+                    if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+                    // Optimistic local update — surfaces the chosen
+                    // chip immediately. We re-fetch on success to pick
+                    // up server-side status changes (e.g. cat.status
+                    // → 'chosen' / 'exceeded').
+                    setSelectionCategories(prev => prev.map(c => {
+                      if (c.id !== cat.id) return c;
+                      return {
+                        ...c,
+                        options: (c.options ?? []).map(o => ({
+                          ...o,
+                          isChosen: o.id === optionId,
+                          chosenAt: o.id === optionId ? new Date().toISOString() : undefined,
+                          chosenByRole: o.id === optionId ? 'homeowner' : undefined,
+                        })),
+                      };
+                    }));
+                    const ok = await chooseSelectionOption(cat.id, optionId, 'homeowner');
+                    if (!ok) {
+                      Alert.alert('Could not save your pick', 'Try again — we\'ll roll back the local change in a moment.');
+                      // Refetch to recover authoritative state.
+                      try {
+                        if (project?.id) {
+                          const fresh = await fetchSelectionsForProject(project.id);
+                          setSelectionCategories(fresh);
+                        }
+                      } catch { /* ok */ }
+                    }
+                  };
+
                   return (
                     <View key={cat.id} style={styles.selCard}>
                       <View style={styles.selCardHead}>
@@ -1084,9 +1165,52 @@ export default function ClientViewScreen() {
                         </View>
                       ) : (
                         <Text style={styles.selPlaceholder}>
-                          {isPending ? 'Awaiting selection — your GC will share options soon.' : 'No option chosen yet.'}
+                          {(cat.options?.length ?? 0) > 0
+                            ? 'Tap an option below to choose. You can change your mind any time before the GC finalizes.'
+                            : (isPending ? 'Awaiting selection — your GC will share options soon.' : 'No option chosen yet.')}
                         </Text>
                       )}
+
+                      {/* Pickable options. Render below the chosen row
+                          (or instead of the placeholder) so the
+                          homeowner can compare. Each option is a tile
+                          with image + name + price + "Pick this" CTA.
+                          When one IS chosen, the others render as
+                          "Switch to" alternatives. */}
+                      {otherOptions.length > 0 && (
+                        <View style={styles.selOptionGrid}>
+                          {otherOptions.map(opt => (
+                            <TouchableOpacity
+                              key={opt.id}
+                              style={styles.selOptionTile}
+                              onPress={() => handlePick(opt.id)}
+                              activeOpacity={0.85}
+                              accessibilityRole="button"
+                              accessibilityLabel={`Pick ${opt.productName}`}
+                              testID={`pick-selection-${opt.id}`}
+                            >
+                              {opt.imageUrl ? (
+                                <Image source={{ uri: opt.imageUrl }} style={styles.selOptionImage} resizeMode="cover" />
+                              ) : (
+                                <View style={[styles.selOptionImage, styles.selThumbPlaceholder]}>
+                                  <Sparkles size={14} color={Colors.textMuted} />
+                                </View>
+                              )}
+                              <Text style={styles.selOptionName} numberOfLines={2}>
+                                {opt.brand ? `${opt.brand} · ` : ''}{opt.productName}
+                              </Text>
+                              <Text style={styles.selOptionPrice}>{formatMoney(opt.total)}</Text>
+                              <View style={styles.selOptionCta}>
+                                <Check size={11} color={Colors.primary} />
+                                <Text style={styles.selOptionCtaText}>
+                                  {chosenOption ? 'Switch to' : 'Pick this'}
+                                </Text>
+                              </View>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      )}
+
                       <View style={styles.selBudgetRow}>
                         <Text style={styles.selBudgetLabel}>Budget {formatMoney(cat.budget)}</Text>
                         {chosenOption && (
@@ -1665,6 +1789,54 @@ const styles = StyleSheet.create({
   selBudgetRow: { flexDirection: 'row' as const, justifyContent: 'space-between' as const, alignItems: 'center' as const, gap: 8 },
   selBudgetLabel: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: Colors.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.4 },
   selBudgetActual: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: Colors.text },
+  // Pickable selection-option tiles for the homeowner.
+  selOptionGrid: { flexDirection: 'row' as const, flexWrap: 'wrap' as const, gap: 8, marginTop: 8 },
+  selOptionTile: {
+    width: '48%' as const,
+    padding: 8,
+    borderRadius: Tokens.radius.sm,
+    backgroundColor: Colors.background,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+    gap: 4,
+  },
+  selOptionImage: {
+    width: '100%' as const,
+    aspectRatio: 1,
+    borderRadius: Tokens.radius.xs,
+    backgroundColor: Colors.fillTertiary,
+  },
+  selOptionName: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: Colors.text, marginTop: 4 },
+  selOptionPrice: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary },
+  selOptionCta: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: Tokens.radius.xs,
+    backgroundColor: Colors.primary + '15',
+    alignSelf: 'flex-start' as const,
+    marginTop: 4,
+  },
+  selOptionCtaText: { fontSize: 10, fontWeight: '800' as const, color: Colors.primary, letterSpacing: 0.4, textTransform: 'uppercase' as const },
+
+  // Homeowner-facing schedule status pill. The single answer to
+  // "are we on schedule?" — pre-fix the homeowner had to read a
+  // full Gantt to figure that out.
+  scheduleStatusPill: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 8,
+    padding: 12,
+    borderRadius: Tokens.radius.lg,
+    borderWidth: 1,
+    marginBottom: 10,
+  },
+  scheduleStatusDot: { width: 10, height: 10, borderRadius: 5 },
+  scheduleStatusLabel: { fontSize: Type.subheadline.fontSize, fontWeight: '900' as const, letterSpacing: -0.3 },
+  scheduleStatusSub: { flex: 1, textAlign: 'right' as const, fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontWeight: '600' as const },
+  scheduleMore: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontStyle: 'italic' as const, paddingTop: 8, paddingHorizontal: 6 },
   listStatusText: { fontSize: 10, fontWeight: '700', color: Colors.textMuted },
 
   // Photos

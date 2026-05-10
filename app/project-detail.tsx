@@ -2663,6 +2663,40 @@ export default function ProjectDetailScreen() {
                           style={styles.photoThumb}
                           activeOpacity={0.85}
                           onPress={() => setLightboxPhoto(photo)}
+                          // Long-press → quick action menu. Cuts the
+                          // "see a defect → file a punch" flow from
+                          // ~5 taps (open punch-walk, take photo,
+                          // confirm, describe, save) to 2 (long-press,
+                          // pick "Save as punch"). Same idea for RFIs.
+                          onLongPress={() => {
+                            if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+                            Alert.alert(
+                              'What is this photo?',
+                              'Quick-file this photo to the project. You can edit details on the next screen.',
+                              [
+                                { text: 'Cancel', style: 'cancel' },
+                                {
+                                  text: 'Save as Punch item',
+                                  onPress: () => {
+                                    router.push({
+                                      pathname: '/punch-list' as never,
+                                      params: { projectId: id, prefillPhotoId: photo.id, prefillPhotoUri: photo.uri } as never,
+                                    });
+                                  },
+                                },
+                                {
+                                  text: 'Save as RFI',
+                                  onPress: () => {
+                                    router.push({
+                                      pathname: '/rfi' as never,
+                                      params: { projectId: id, prefillPhotoId: photo.id, prefillPhotoUri: photo.uri } as never,
+                                    });
+                                  },
+                                },
+                              ],
+                            );
+                          }}
+                          delayLongPress={300}
                           testID={`photo-thumb-${photo.id}`}
                         >
                           {photo.uri ? (

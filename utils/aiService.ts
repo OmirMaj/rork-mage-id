@@ -540,47 +540,57 @@ Be specific with task names. Include inspections and mobilization/demobilization
     throw new Error(aiResult.error || 'AI schedule builder unavailable');
   }
 
-  let parsed: any = aiResult.data;
-
-  if (typeof parsed === 'string') {
+  // Pre-fix the response was treated as `: any` and manually coerced
+  // with `t.title || 'Task'` defaults. Engineer audit flagged this as
+  // an injection / garbage surface — a malformed AI response could
+  // write arbitrary task data (negative durations, NaN dates,
+  // bogus phase strings) into the schedule. Now: Zod safeParse against
+  // the existing aiScheduleSchema. On parse failure we still produce
+  // a typed default rather than throwing — the user gets an empty
+  // schedule + a warning instead of an error screen, which is better
+  // for the build-from-AI-then-edit-manually workflow.
+  let raw: unknown = aiResult.data;
+  if (typeof raw === 'string') {
     try {
-      parsed = JSON.parse(parsed);
+      raw = JSON.parse(raw);
     } catch {
-      let cleaned = parsed.trim();
+      let cleaned = (raw as string).trim();
       if (cleaned.startsWith('```json')) cleaned = cleaned.slice(7);
       if (cleaned.startsWith('```')) cleaned = cleaned.slice(3);
       if (cleaned.endsWith('```')) cleaned = cleaned.slice(0, -3);
       try {
-        parsed = JSON.parse(cleaned.trim());
+        raw = JSON.parse(cleaned.trim());
       } catch {
         throw new Error('Could not parse AI schedule response. Please try again.');
       }
     }
   }
 
-  parsed.projectName = parsed.projectName || description.substring(0, 60);
-  parsed.estimatedDuration = typeof parsed.estimatedDuration === 'number' ? parsed.estimatedDuration : 30;
-  parsed.tasks = Array.isArray(parsed.tasks) ? parsed.tasks : [];
-  parsed.assumptions = Array.isArray(parsed.assumptions) ? parsed.assumptions : [];
-  parsed.warnings = Array.isArray(parsed.warnings) ? parsed.warnings : [];
+  const validated = aiScheduleSchema.safeParse(raw);
+  if (!validated.success) {
+    console.warn('[AI Schedule] Schema validation failed:', validated.error.issues.slice(0, 3));
+    // Return a typed-default empty result with a warning so the
+    // wizard can surface a "AI returned malformed data — start
+    // from scratch?" message instead of crashing.
+    return {
+      projectName: description.substring(0, 60),
+      estimatedDuration: 30,
+      tasks: [],
+      assumptions: [],
+      warnings: ['AI returned malformed data — schedule was not generated. Please retry or build manually.'],
+    };
+  }
 
-  parsed.tasks = parsed.tasks.map((t: any) => ({
-    title: t.title || t.name || 'Task',
-    phase: t.phase || 'General',
-    durationDays: typeof t.durationDays === 'number' ? t.durationDays : (typeof t.duration === 'number' ? t.duration : 5),
-    crew: t.crew || 'General crew',
-    crewSize: typeof t.crewSize === 'number' ? t.crewSize : 2,
-    isMilestone: !!t.isMilestone,
-    isCriticalPath: !!t.isCriticalPath,
-    isWeatherSensitive: !!t.isWeatherSensitive,
-    predecessorIndex: typeof t.predecessorIndex === 'number' ? t.predecessorIndex : undefined,
-    dependencyType: t.dependencyType || undefined,
-    lagDays: typeof t.lagDays === 'number' ? t.lagDays : undefined,
-    notes: t.notes || undefined,
-  }));
+  // The schema's defaults ensure every required field is present;
+  // only thing left is filling in the projectName from the user's
+  // description if Gemini left it blank.
+  const result = validated.data;
+  if (!result.projectName.trim()) {
+    result.projectName = description.substring(0, 60);
+  }
 
-  console.log('[AI Schedule] Generated', parsed.tasks.length, 'tasks');
-  return parsed;
+  console.log('[AI Schedule] Generated', result.tasks.length, 'tasks');
+  return result;
 }
 
 export const changeOrderImpactSchema = z.object({

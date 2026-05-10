@@ -410,6 +410,16 @@ export type AnchorType =
   | 'must-finish-on'
   | 'as-late-as-possible';
 
+/**
+ * When a `requiresInspection` PermitType is set on a ScheduleTask,
+ * the task is treated as soft-blocked until a Permit of that type
+ * reaches status `inspection_passed`. Pre-fix the inspection result
+ * lived on the Permit row only — the schedule didn't know about it,
+ * so the GC had to manually clear blocking dependencies after every
+ * inspection. The inspection-passes-unblocks-task hook in
+ * `utils/scheduleInspectionLink.ts` reads this field and surfaces
+ * "X tasks ready to start" once a permit passes.
+ */
 export interface ScheduleTask {
   id: string;
   title: string;
@@ -434,6 +444,14 @@ export interface ScheduleTask {
   wbsCode?: string;
   isCriticalPath?: boolean;
   isWeatherSensitive?: boolean;
+  /**
+   * Permit type this task requires before its successors can start.
+   * Drives the inspection-passes-unblocks-task hook: when a Permit
+   * with this type flips to 'inspection_passed', the schedule
+   * surfaces "X tasks ready to start." Optional; legacy tasks
+   * without the field are unaffected.
+   */
+  requiresInspection?: PermitType;
   baselineStartDay?: number;
   baselineEndDay?: number;
   linkedEstimateItems?: string[];

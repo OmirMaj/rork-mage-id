@@ -402,6 +402,40 @@ export default function HomeScreen() {
                 anchor on. */}
             <DashboardHero onNewProjectPress={() => setShowCreateMenu(true)} />
 
+            {/* Today on site — promoted above the project list per
+                the super audit. Pre-fix this section was buried far
+                below stat tiles + AI briefing + onboarding checklist;
+                supers opening the app at 6:30am had to scroll to find
+                today's tasks. Now: directly under the hero, first
+                thing they see after the greeting. Renders nothing
+                when nothing's on (weekends, between phases) so the
+                screen stays quiet. */}
+            {todayOnSite.length > 0 && (
+              <View style={styles.todaySectionTop}>
+                <Text style={styles.todayHeaderTop}>TODAY ON SITE</Text>
+                <View style={styles.todayCardTop}>
+                  {todayOnSite.map((entry, idx) => (
+                    <TouchableOpacity
+                      key={entry.project.id}
+                      onPress={() => handleProjectPress(entry.project)}
+                      activeOpacity={0.7}
+                      style={[styles.todayRow, idx < todayOnSite.length - 1 && styles.todayRowDivider]}
+                      testID={`today-on-site-top-${entry.project.id}`}
+                    >
+                      <View style={styles.todayDot} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.todayProjectName} numberOfLines={1}>{entry.project.name}</Text>
+                        <Text style={styles.todayTasks} numberOfLines={2}>
+                          {entry.activeTaskTitles.join(' · ')}
+                        </Text>
+                      </View>
+                      <ChevronRight size={14} color={Colors.textMuted} />
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            )}
+
             {/* Unified PageHeader replaces the old two-row pattern (a
                 navBar with logo + 3 icons stacked above a separate large
                 title). The new strip puts title + sync chip on the left
@@ -1171,6 +1205,28 @@ const styles = StyleSheet.create({
   },
   filterChipCountActive: {
     color: 'rgba(255,255,255,0.7)',
+  },
+
+  // ── Today on site (top placement, promoted per super audit) ────
+  todaySectionTop: {
+    paddingHorizontal: 12,
+    marginTop: 0,
+    marginBottom: 12,
+  },
+  todayHeaderTop: {
+    fontSize: 11,
+    fontWeight: '900' as const,
+    color: Colors.textMuted,
+    letterSpacing: 0.6,
+    marginBottom: 8,
+    marginLeft: 8,
+  },
+  todayCardTop: {
+    backgroundColor: Colors.surface,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+    overflow: 'hidden' as const,
   },
 
   // ── Today on site ──────────────────────────────────────────────
