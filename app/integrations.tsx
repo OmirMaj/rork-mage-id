@@ -17,6 +17,7 @@ import { MOCK_INTEGRATIONS, INTEGRATION_CATEGORIES } from '@/mocks/integrations'
 import type { Integration, IntegrationCategory } from '@/types';
 import { recordIntegrationRequest } from '@/utils/integrationRequests';
 import { useAuth } from '@/contexts/AuthContext';
+import { startQuickBooksConnect, fetchQuickBooksConnections, disconnectQuickBooks, type QuickBooksConnection } from '@/utils/quickbooks/auth';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -87,9 +88,52 @@ export default function IntegrationsScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [integrations, setIntegrations] = useState<Integration[]>(MOCK_INTEGRATIONS);
   const [paywallFeature, setPaywallFeature] = useState<string | null>(null);
+  // QuickBooks Online connection state. Real OAuth — pulls from
+  // quickbooks_connections table when the user lands on this screen
+  // and after every connect/disconnect action. The QBO row in the
+  // catalog flips its tile to "Connected · {company name}" when
+  // qboConnections has any rows.
+  const [qboConnections, setQboConnections] = useState<QuickBooksConnection[]>([]);
+  const [qboLoading, setQboLoading] = useState(false);
+
+  const refreshQboState = useCallback(async () => {
+    setQboLoading(true);
+    try {
+      const conns = await fetchQuickBooksConnections();
+      setQboConnections(conns);
+    } finally {
+      setQboLoading(false);
+    }
+  }, []);
+
+  // Initial load + refresh after OAuth round-trip. We don't subscribe
+  // to realtime — connections change on user action only and a
+  // pull-to-refresh-on-mount is plenty.
+  React.useEffect(() => {
+    void refreshQboState();
+  }, [refreshQboState]);
+
+  // Reflect QBO state into the catalog. When a connection exists,
+  // override the 'quickbooks' row's status to 'connected' and show
+  // the company name as the description so the tile actually
+  // changes color + text.
+  const integrationsForRender = useMemo<Integration[]>(() => {
+    if (qboConnections.length === 0) return integrations;
+    return integrations.map(i => {
+      if (i.id !== 'quickbooks') return i;
+      const conn = qboConnections[0];
+      return {
+        ...i,
+        status: 'connected' as const,
+        description: conn.companyName
+          ? `Connected to ${conn.companyName}${conn.environment === 'sandbox' ? ' (sandbox)' : ''}`
+          : `Connected · ${conn.environment}`,
+      };
+    });
+  }, [integrations, qboConnections]);
 
   const filtered = useMemo(() => {
-    let result = integrations;
+    let result = integrationsForRender;
     if (selectedCategory !== 'all') {
       result = result.filter(i => i.category === selectedCategory);
     }
@@ -100,20 +144,72 @@ export default function IntegrationsScreen() {
       );
     }
     return result;
-  }, [integrations, selectedCategory, searchQuery]);
+  }, [integrationsForRender, selectedCategory, searchQuery]);
 
-  const connectedCount = useMemo(() => integrations.filter(i => i.status === 'connected').length, [integrations]);
-  const availableCount = useMemo(() => integrations.filter(i => i.status !== 'coming_soon').length, [integrations]);
+  const connectedCount = useMemo(() => integrationsForRender.filter(i => i.status === 'connected').length, [integrationsForRender]);
+  const availableCount = useMemo(() => integrationsForRender.filter(i => i.status !== 'coming_soon').length, [integrationsForRender]);
 
   const handleConnect = useCallback((item: Integration) => {
     if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
-    // Deep integrations (accounting/CRM sync like QuickBooks) WERE
-    // Business-tier-gated via the 'quickbooks_sync' FeatureKey. The audit
-    // (May 2026) removed that key because no real OAuth flow exists —
-    // the entire Integrations screen is preview-only (MOCK_INTEGRATIONS).
-    // The whole screen now wears a "PREVIEW" banner. Restoring this gate
-    // is a follow-up when real integrations ship.
+    // QuickBooks Online — first integration with a real OAuth flow.
+    // Other deep integrations (Xero, FreshBooks, Stripe, Square, …)
+    // still go through the Vote-for-it path until each gets its own
+    // OAuth wiring.
+    if (item.id === 'quickbooks') {
+      if (item.status === 'connected') {
+        // Disconnect via the qbo-disconnect edge function. Removes
+        // the row server-side and best-effort revokes the refresh
+        // token on Intuit's side too.
+        const conn = qboConnections[0];
+        if (!conn) return;
+        Alert.alert(
+          'Disconnect QuickBooks?',
+          conn.companyName
+            ? `This removes the link to ${conn.companyName}. Invoices already pushed to QuickBooks stay where they are. You can reconnect anytime.`
+            : 'This removes the QuickBooks connection. You can reconnect anytime.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Disconnect',
+              style: 'destructive',
+              onPress: async () => {
+                const result = await disconnectQuickBooks(conn.id);
+                if (!result.ok) {
+                  Alert.alert('Could not disconnect', result.error ?? 'Try again in a moment.');
+                  return;
+                }
+                if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+                await refreshQboState();
+              },
+            },
+          ],
+        );
+        return;
+      }
+      // Not connected — kick off the OAuth flow. The browser opens,
+      // the user signs in to Intuit, and the callback persists
+      // tokens server-side. We refresh local state on return.
+      void (async () => {
+        const result = await startQuickBooksConnect();
+        if (result.ok) {
+          if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+          await refreshQboState();
+          Alert.alert('QuickBooks connected', 'You can now push invoices and pull bills. Disconnect anytime from this screen.');
+        } else if (result.status === 'failed') {
+          // 'cancelled' is a silent close — only alert on real
+          // failures so casual taps that change their mind don't
+          // produce noise.
+          Alert.alert(
+            'Could not connect QuickBooks',
+            result.error === 'server_misconfigured'
+              ? 'Server is not yet wired with Intuit credentials. Contact support.'
+              : `Reason: ${result.error ?? 'unknown'}`,
+          );
+        }
+      })();
+      return;
+    }
 
     if (item.status === 'connected') {
       Alert.alert(
@@ -186,7 +282,7 @@ export default function IntegrationsScreen() {
         ]
       );
     }
-  }, [canAccess, user]);
+  }, [canAccess, user, qboConnections, refreshQboState]);
 
   return (
     <View style={styles.container}>
@@ -208,10 +304,10 @@ export default function IntegrationsScreen() {
           borderWidth: 1, borderColor: Colors.primary + '30',
         }}>
           <Text style={{ fontSize: 12, fontWeight: '800' as const, color: Colors.primary, letterSpacing: 0.5 }}>
-            VOTE FOR YOUR INTEGRATIONS
+            QUICKBOOKS IS LIVE · VOTE FOR THE REST
           </Text>
           <Text style={{ fontSize: 13, color: Colors.text, marginTop: 4, lineHeight: 18 }}>
-            Tap any integration to add your vote — the ones our customers ask for most ship first. We&apos;ll email you when yours goes live. (Stripe payments, email send, and push are already live.)
+            Tap QuickBooks to connect your company via OAuth — invoice + bill sync starts immediately. Other integrations are vote-based; the ones with the most demand ship first. {qboLoading ? 'Loading…' : qboConnections.length > 0 ? `Connected to ${qboConnections[0].companyName ?? 'your QBO company'}.` : ''}
           </Text>
         </View>
         <View style={styles.heroSection}>

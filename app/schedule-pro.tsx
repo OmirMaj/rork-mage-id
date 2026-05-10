@@ -128,10 +128,23 @@ function ScheduleProScreenInner() {
   const [history, setHistory] = useState<ScheduleTask[][]>([]);
   const [future, setFuture] = useState<ScheduleTask[][]>([]);
 
-  // Pane mode: which view(s) to render. Defaults based on width; user can
-  // override via the segmented control in the header.
+  // Pane mode: which view(s) to render. Defaults based on width:
+  //   - Wide (>= SPLIT_BREAKPOINT): split (grid + gantt side-by-side)
+  //   - Mid (>= GRID_BREAKPOINT, < SPLIT): grid alone (laptop / iPad
+  //     portrait — text-heavy, drag-targets are too small for gantt-
+  //     only at this width)
+  //   - Phone (< GRID_BREAKPOINT): gantt-only. Pre-fix the whole
+  //     screen was hard-gated at 900px — phone users hit a "best on
+  //     a bigger screen" wall. The audit's #11 complaint. The grid
+  //     genuinely IS unusable below 900px (cell text becomes
+  //     illegible), but the Gantt drag-to-reschedule works fine on
+  //     a phone — bars are wide enough to drag, marker handles are
+  //     thumb-sized. Route phones into 'gantt' by default; they can
+  //     switch via the segmented control.
   const [paneMode, setPaneMode] = useState<PaneMode>(() =>
-    width >= SPLIT_BREAKPOINT ? 'split' : 'grid',
+    width >= SPLIT_BREAKPOINT ? 'split'
+    : width >= GRID_BREAKPOINT ? 'grid'
+    : 'gantt',
   );
 
   // AI assistant drawer (right-side slide-out).
@@ -914,27 +927,15 @@ function ScheduleProScreenInner() {
     );
   }
 
-  if (width < GRID_BREAKPOINT) {
-    return (
-      <View style={[styles.container, styles.centered, { paddingTop: insets.top + 24 }]}>
-        <Stack.Screen options={{ title: 'Schedule Pro' }} />
-        <Zap size={28} color={Colors.primary} />
-        <Text style={styles.emptyTitle}>Best on a bigger screen</Text>
-        <Text style={styles.emptyBody}>
-          Schedule Pro is built for laptops and iPad. On a phone, the
-          spreadsheet view is genuinely unusable — so we send you to the
-          classic mobile-friendly schedule instead.
-        </Text>
-        <TouchableOpacity
-          style={styles.primaryBtn}
-          onPress={() => router.replace('/(tabs)/schedule' as any)}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.primaryBtnText}>Open classic schedule</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
+  // Pre-fix this branch hard-gated phones away from Schedule Pro.
+  // The grid genuinely is unusable below 900px, but the Gantt is
+  // drag-friendly on a phone and the audit flagged the gate as the
+  // #1 reason mobile users couldn't drag-to-reschedule. Now: phones
+  // get the Gantt-only pane (paneMode default = 'gantt' when width
+  // < GRID_BREAKPOINT), the segmented control's Grid/Split tabs
+  // remain disabled at this width, and the toolbar trims to fit. No
+  // hard wall.
+  const isNarrow = width < GRID_BREAKPOINT;
 
   // -------------------------------------------------------------------------
   // Main render
@@ -967,10 +968,13 @@ function ScheduleProScreenInner() {
         </View>
 
         <View style={styles.headerActions}>
-          {/* Pane mode segmented control */}
+          {/* Pane mode segmented control. Grid + Split tabs hide at
+              phone widths because the spreadsheet is unusable below
+              ~900px. Gantt + Lanes work fine on a phone — bars are
+              wide enough to drag, swimlane rows are thumb-tall. */}
           <View style={styles.paneToggle}>
-            <PaneBtn icon={Table2} label="Grid" active={paneMode === 'grid'} onPress={() => setPaneMode('grid')} />
-            <PaneBtn icon={Columns} label="Split" active={paneMode === 'split'} onPress={() => setPaneMode('split')} />
+            {!isNarrow && <PaneBtn icon={Table2} label="Grid" active={paneMode === 'grid'} onPress={() => setPaneMode('grid')} />}
+            {!isNarrow && <PaneBtn icon={Columns} label="Split" active={paneMode === 'split'} onPress={() => setPaneMode('split')} />}
             <PaneBtn icon={BarChart2} label="Gantt" active={paneMode === 'gantt'} onPress={() => setPaneMode('gantt')} />
             <PaneBtn icon={Users} label="Lanes" active={paneMode === 'resources'} onPress={() => setPaneMode('resources')} />
           </View>

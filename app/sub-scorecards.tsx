@@ -46,7 +46,20 @@ interface SubScore {
   onTimeTasks: number;
   rfisAnswered: number;
   rfiAvgResponseDays: number | null;
-  changeOrderTouches: number; // # COs on projects this sub worked on
+  /**
+   * # change orders attributable to this sub. Reads
+   * ChangeOrder.subcontractorId when set; falls back to "COs on
+   * any project this sub worked on" when no CO has been tagged
+   * for this sub yet. The `coTouchesAttribution` flag below tells
+   * the UI which signal it's showing.
+   */
+  changeOrderTouches: number;
+  /**
+   * 'direct' = subcontractorId === sub.id on at least one CO.
+   * 'project' = coarse fallback (CO on a shared project, no
+   * subcontractorId set). 'none' = no COs at all.
+   */
+  coTouchesAttribution: 'direct' | 'project' | 'none';
   // Derived
   onTimePct: number | null;
   composite: number; // 0-100
@@ -123,8 +136,20 @@ export default function SubScorecardsScreen() {
           }, 0) / responded.length
         : null;
 
-      // 3. CO impact (coarse): COs on any project this sub touched.
-      const coTouches = changeOrders.filter(co => subProjectIds.has(co.projectId)).length;
+      // 3. CO impact. Two signals here, preferring the precise one
+      //    when available:
+      //    a) Direct attribution: COs where subcontractorId === sub.id.
+      //       Counts only COs the GC explicitly tagged to this sub.
+      //    b) Coarse fallback: COs on any project the sub touched
+      //       AND with no subcontractorId set. Surfaces a pre-fix
+      //       signal for old data while we transition to direct
+      //       attribution.
+      //    The metric label below switches between "attributed" and
+      //    "on shared projects" so the GC can read which signal
+      //    they're seeing.
+      const directCoTouches = changeOrders.filter(co => co.subcontractorId === sub.id).length;
+      const coarseCoTouches = changeOrders.filter(co => !co.subcontractorId && subProjectIds.has(co.projectId)).length;
+      const coTouches = directCoTouches > 0 ? directCoTouches : coarseCoTouches;
 
       // 4. Composite score. Weighted:
       //    - on-time: 50 points (heaviest signal of execution)
@@ -154,6 +179,9 @@ export default function SubScorecardsScreen() {
         rfisAnswered: responded.length,
         rfiAvgResponseDays,
         changeOrderTouches: coTouches,
+        coTouchesAttribution: directCoTouches > 0 ? 'direct'
+          : coarseCoTouches > 0 ? 'project'
+          : 'none',
         onTimePct,
         composite,
       });
@@ -233,7 +261,11 @@ export default function SubScorecardsScreen() {
                 </View>
                 <Text style={styles.metricLabel}>CO touches</Text>
                 <Text style={styles.metricValue}>{s.changeOrderTouches}</Text>
-                <Text style={styles.metricSub}>across projects</Text>
+                <Text style={styles.metricSub}>
+                  {s.coTouchesAttribution === 'direct' ? 'attributed to sub'
+                    : s.coTouchesAttribution === 'project' ? 'on shared projects'
+                    : '—'}
+                </Text>
               </View>
             </View>
           </TouchableOpacity>
@@ -242,7 +274,7 @@ export default function SubScorecardsScreen() {
         <View style={styles.footer}>
           <AlertTriangle size={12} color={Colors.textMuted} />
           <Text style={styles.footerText}>
-            CO touches is a coarse signal — it counts every change order on projects this sub worked on, not just COs caused by their work. We&apos;ll add per-CO sub attribution when the change-order create flow grows that field.
+            CO touches is &quot;attributed to sub&quot; when at least one change order on this sub has its subcontractor tagged in the CO create flow. Until you tag any, it falls back to a coarse signal (any CO on a shared project) — set the sub on a CO from the change-order screen to switch this row to direct attribution.
           </Text>
         </View>
       </ScrollView>

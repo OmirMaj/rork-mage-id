@@ -976,6 +976,16 @@ export interface ChangeOrder {
   scheduleImpactDays?: number;
   scheduleImpactApplied?: boolean;
   status: ChangeOrderStatus;
+  /**
+   * Optional subcontractor attribution. When the CO was caused by
+   * a specific sub's work (rework, omission, late delivery), set
+   * this to the Subcontractor.id. Drives the Sub Scorecard's
+   * "CO touches" metric — without this, the scorecard falls back
+   * to the coarse "any CO on any project this sub worked on"
+   * signal which over-counts. Optional for back-compat with COs
+   * created before this field existed.
+   */
+  subcontractorId?: string;
   approvers?: COApprover[];
   approvalMode?: 'sequential' | 'parallel';
   approvalDeadlineDays?: number;
