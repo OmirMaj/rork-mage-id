@@ -32,8 +32,31 @@ const TYPE_ICON_MAP: Record<ProjectType, string> = {
   painting: 'Paintbrush', plumbing: 'Droplets', electrical: 'Zap', concrete: 'Boxes',
 };
 
+// Per-type accent color — gives every card a personality tied to its
+// scope of work. Renovation glows amber (warm, sawdust); landscape is
+// green; plumbing reads as water; electrical sparks yellow. Pre-fix every
+// card painted the same primary-green icon — the screen lost rhythm.
+const TYPE_COLOR_MAP: Record<ProjectType, string> = {
+  new_build:  '#059669', // emerald — fresh build
+  renovation: '#D97706', // amber   — sawdust / heat-of-work
+  addition:   '#1A6B3C', // brand primary — extension of an existing job
+  remodel:    '#7C3AED', // violet  — design-led refresh
+  commercial: '#4F46E5', // indigo  — office / retail
+  landscape:  '#16A34A', // green   — trees
+  roofing:    '#E11D48', // rose    — alarm of weather / tarp
+  flooring:   '#0D9488', // teal    — surface / cool tones
+  painting:   '#F97316', // orange  — pigment
+  plumbing:   '#0284C7', // sky     — water
+  electrical: '#EAB308', // yellow  — spark
+  concrete:   '#475569', // slate   — material
+};
+
 function getTypeIcon(type: ProjectType) {
   return ICON_MAP[TYPE_ICON_MAP[type]] ?? Building2;
+}
+
+function getTypeColor(type: ProjectType) {
+  return TYPE_COLOR_MAP[type] ?? Colors.primary;
 }
 
 interface ProjectCardProps {
@@ -54,6 +77,9 @@ function ProjectCard({ project, onPress, onLongPress }: ProjectCardProps) {
   const burnAnim = useRef(new Animated.Value(0)).current;
 
   const IconComponent = getTypeIcon(project.type);
+  // Closed projects mute their type accent to slate so the eye lands on
+  // active jobs. Everything else carries its full type-specific color.
+  const typeColor = project.status === 'closed' ? Colors.textSecondary : getTypeColor(project.type);
   const status = STATUS_CONFIG[project.status] ?? STATUS_CONFIG.draft;
 
   const linkedEstimate = project.linkedEstimate;
@@ -128,8 +154,8 @@ function ProjectCard({ project, onPress, onLongPress }: ProjectCardProps) {
       >
         <View style={styles.card}>
           <View style={styles.topRow}>
-            <View style={styles.iconWrap}>
-              <IconComponent size={20} color={Colors.primary} strokeWidth={1.8} />
+            <View style={[styles.iconWrap, { backgroundColor: typeColor + '14' }]}>
+              <IconComponent size={20} color={typeColor} strokeWidth={1.8} />
             </View>
             <View style={styles.titleBlock}>
               <Text style={styles.name} numberOfLines={1}>{project.name}</Text>

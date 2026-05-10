@@ -24,12 +24,13 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
   Alert, Platform, KeyboardAvoidingView, Modal, Animated, Easing,
 } from 'react-native';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Gavel, MapPin, Hammer, AlertTriangle, CheckCircle, Sparkles,
   ClipboardCheck, BookOpen, X, ChevronDown, ChevronUp, Zap,
   Home, Building2, Droplets, HardHat, Accessibility, Map,
+  ArrowRight,
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { z } from 'zod';
@@ -196,6 +197,7 @@ function CodeCheckScreenInner() {
   const insets = useSafeAreaInsets();
   const { tier } = useTierAccess();
   const { user } = useAuth();
+  const router = useRouter();
 
   const [location, setLocation] = useState<string>('');
   const [category, setCategory] = useState<CategoryKey>('residential');
@@ -298,11 +300,41 @@ Be specific to the cited location if possible. If the location is not in the US,
             <View style={styles.heroIconWrap}>
               <Gavel size={28} color={Colors.primary} />
             </View>
-            <Text style={styles.heroTitle}>Construction AI</Text>
+            <Text style={styles.heroTitle}>AI Hub</Text>
             <Text style={styles.heroSubtitle}>
-              Describe your project and Construction AI flags the likely codes, permits and common violations to watch for.
+              Two AI tools for permit and code work. Use Permit Q&A for plain-English questions; use the Code Check below for full scenario audits.
             </Text>
           </View>
+
+          {/* Permit Q&A banner — the marquee feature lives at the top
+              of Construction AI now (the natural home for permit/code
+              AI). One-tap into the chat-style metro Q&A agent. */}
+          <TouchableOpacity
+            style={styles.permitQaBanner}
+            onPress={() => router.push('/permit-qa' as never)}
+            activeOpacity={0.85}
+            testID="construction-ai-permit-qa-banner"
+          >
+            <View style={styles.permitQaIcon}>
+              <BookOpen size={22} color="#FFFFFF" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <View style={styles.permitQaTitleRow}>
+                <Text style={styles.permitQaTitle}>Permit Q&A agent</Text>
+                <View style={styles.permitQaBadge}>
+                  <Text style={styles.permitQaBadgeText}>NEW</Text>
+                </View>
+              </View>
+              <Text style={styles.permitQaSubtitle}>
+                172 verbatim code sections · 8 metros · ask in plain English
+              </Text>
+            </View>
+            <ArrowRight size={18} color="#FFFFFF" />
+          </TouchableOpacity>
+
+          <Text style={[styles.codeCheckSectionLabel]}>
+            Or run a full scenario audit
+          </Text>
 
           <Text style={styles.label}>Location (city, state)</Text>
           <View style={styles.inputRow}>
@@ -676,6 +708,57 @@ const styles = StyleSheet.create({
     fontSize: Type.bodyCompact.fontSize, color: Colors.textMuted, textAlign: 'center' as const,
     paddingHorizontal: 20, lineHeight: 20,
   },
+
+  // Permit Q&A banner — vivid amber-to-orange gradient simulated via
+  // a flat warm color so the marquee AI feature visibly outranks the
+  // rest of the screen. White text + chevron because amber is dark
+  // enough to carry contrast at 700-level.
+  permitQaBanner: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 12,
+    padding: 16,
+    borderRadius: Tokens.radius.lg,
+    backgroundColor: '#D97706', // amber-700 — semantic match for code/permit
+    marginBottom: 18,
+  },
+  permitQaIcon: {
+    width: 40, height: 40, borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    alignItems: 'center' as const, justifyContent: 'center' as const,
+  },
+  permitQaTitleRow: {
+    flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8,
+  },
+  permitQaTitle: {
+    fontSize: Type.headline.fontSize,
+    fontWeight: '800' as const,
+    color: '#FFFFFF',
+    letterSpacing: -0.2,
+  },
+  permitQaBadge: {
+    paddingHorizontal: 6, paddingVertical: 2,
+    borderRadius: 6,
+    backgroundColor: 'rgba(255,255,255,0.22)',
+  },
+  permitQaBadgeText: {
+    fontSize: 10, fontWeight: '800' as const,
+    color: '#FFFFFF', letterSpacing: 0.6,
+  },
+  permitQaSubtitle: {
+    fontSize: Type.caption1.fontSize,
+    color: 'rgba(255,255,255,0.85)',
+    marginTop: 2,
+  },
+  codeCheckSectionLabel: {
+    fontSize: Type.caption1.fontSize,
+    color: Colors.textSecondary,
+    textTransform: 'uppercase' as const,
+    letterSpacing: 0.6,
+    fontWeight: '600' as const,
+    marginBottom: 2,
+  },
+
   label: {
     fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.textMuted,
     marginTop: 16, marginBottom: 8, letterSpacing: 0.5,

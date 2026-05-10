@@ -28,7 +28,21 @@ import { Colors } from '@/constants/colors';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
-export type NavRowTone = 'neutral' | 'primary' | 'success' | 'warning' | 'error' | 'info' | 'accent';
+export type NavRowTone =
+  | 'neutral'
+  | 'primary'      // brand green   — generic / brand actions
+  | 'success'      // vivid green   — approvals, sign-offs
+  | 'warning'      // orange        — time-sensitive, deadlines
+  | 'error'        // red           — violations, expiries
+  | 'info'         // blue          — documents, reports
+  | 'accent'       // accent orange — sales / pipeline
+  | 'violet'       // purple        — AI features
+  | 'teal'         // teal          — estimates, change orders
+  | 'rose'         // pink-rose     — people / directories
+  | 'amber'        // gold          — permits / code
+  | 'indigo'       // indigo        — insurance / claims
+  | 'emerald'      // jewel green   — tax / money
+  | 'sky';         // light blue    — discovery / explore
 
 export interface NavRowProps {
   /** Lucide icon component — rendered in the leading icon square. */
@@ -65,6 +79,17 @@ const TONE_COLORS: Record<NavRowTone, string> = {
   error: Colors.error,
   info: Colors.info,
   accent: Colors.accent,
+  // Extended palette — each hue has a semantic anchor, never decorative.
+  // Choices come from iOS system + Material A700 mid-tones tuned for the
+  // 15%-alpha pale chip behind a 100%-opacity glyph (Apple's Settings
+  // pattern). All readable on white surface.
+  violet:  '#7C3AED',  // AI features
+  teal:    '#0D9488',  // estimates / change orders
+  rose:    '#E11D48',  // people / contacts
+  amber:   '#D97706',  // permits / code citations
+  indigo:  '#4F46E5',  // insurance / coverage
+  emerald: '#059669',  // tax, draws, money export
+  sky:     '#0284C7',  // discovery / explore
 };
 
 function NavRowImpl({

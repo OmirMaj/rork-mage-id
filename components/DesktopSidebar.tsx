@@ -41,6 +41,7 @@ const NAV_ITEMS: NavItem[] = [
   // ── PROJECT — top-level work surfaces
   { key: 'summary',           label: 'Summary',          icon: LayoutDashboard, route: '/(tabs)/summary',                  section: 'PROJECT' },
   { key: 'home',              label: 'Projects',         icon: Home,            route: '/(tabs)/(home)',                   section: 'PROJECT' },
+  { key: 'tools',             label: 'Tools',            icon: Wrench,          route: '/(tabs)/tools',                    section: 'PROJECT' },
   { key: 'estimate',          label: 'Estimate',         icon: BarChart3,       route: '/(tabs)/discover/estimate',        section: 'PROJECT' },
   { key: 'schedule',          label: 'Schedule',         icon: CalendarDays,    route: '/(tabs)/discover/schedule',        section: 'PROJECT', requires: 'schedule_gantt_pdf' },
   { key: 'plans',             label: 'Plans',            icon: ImageIcon,       route: '/plans',                            section: 'PROJECT' },
@@ -83,7 +84,7 @@ const NAV_ITEMS: NavItem[] = [
   { key: 'leads',             label: 'Leads',            icon: TrendingUp,      route: '/leads',                            section: 'NETWORK' },
   { key: 'contacts',          label: 'Contacts',         icon: Users,           route: '/contacts',                         section: 'NETWORK' },
   { key: 'hire',              label: 'Hire',             icon: HardHat,         route: '/(tabs)/discover/hire',            section: 'NETWORK' },
-  { key: 'construction-ai',   label: 'Construction AI',  icon: Gavel,           route: '/(tabs)/construction-ai',          section: 'NETWORK' },
+  { key: 'construction-ai',   label: 'AI Hub',           icon: Gavel,           route: '/(tabs)/construction-ai',          section: 'NETWORK' },
 
   // ── ACCOUNT
   { key: 'notifications',     label: 'Notifications',    icon: Bell,            route: '/notifications-inbox',              section: 'ACCOUNT' },
@@ -93,6 +94,22 @@ const NAV_ITEMS: NavItem[] = [
 ];
 
 const SECTIONS = ['PROJECT', 'FIELD OPS', 'FINANCIAL', 'CLIENT', 'MARKETPLACE', 'NETWORK', 'ACCOUNT'];
+
+// Per-section icon tint — when an item isn't hovered or active, the
+// icon shows in its section's signature color (at 80% opacity for the
+// dark sidebar). Project = brand green, Field Ops = amber (warm/urgent),
+// Financial = emerald, Client = blue (comms), Marketplace = orange,
+// Network = violet (people + AI), Account = muted slate. Picks a hue
+// per section instead of every icon being grey.
+const SECTION_TINT: Record<string, string> = {
+  'PROJECT':     '#22C55E', // brand green (lighter on dark bg)
+  'FIELD OPS':   '#F59E0B', // amber
+  'FINANCIAL':   '#10B981', // emerald
+  'CLIENT':      '#3B82F6', // blue
+  'MARKETPLACE': '#FB923C', // orange
+  'NETWORK':     '#A78BFA', // violet
+  'ACCOUNT':     '#94A3B8', // slate
+};
 
 function isActiveRoute(pathname: string, navKey: string, route: string): boolean {
   if (navKey === 'home') return pathname === '/' || pathname.includes('(home)');
@@ -206,7 +223,11 @@ const DesktopSidebar = React.memo(function DesktopSidebar({ width }: DesktopSide
                       the active item. */}
                   <Icon
                     size={18}
-                    color={active ? Colors.textOnPrimary : hovered ? Colors.text : Colors.textSecondary}
+                    color={
+                      active
+                        ? Colors.textOnPrimary
+                        : (SECTION_TINT[item.section] ?? '#94A3B8')
+                    }
                     strokeWidth={active ? 2.2 : 1.8}
                   />
                   <Text style={[

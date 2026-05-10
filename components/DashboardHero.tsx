@@ -415,10 +415,10 @@ export default function DashboardHero({ onNewProjectPress }: DashboardHeroProps)
         <View style={[styles.actionRail, isWide && styles.actionRailWide]}>
           <ActionRow
             Icon={Gavel}
-            title="Ask the code"
-            sub="Permit Q&A · 8 metros · 172 sections"
-            onPress={() => router.push('/permit-qa' as never)}
-            testID="dashboard-action-permit-qa"
+            title="AI Hub"
+            sub="Permit Q&A · Code check · 8 metros · 172 sections"
+            onPress={() => router.push('/(tabs)/construction-ai' as never)}
+            testID="dashboard-action-ai-hub"
           />
           <ActionRow
             Icon={CalendarCheck}
