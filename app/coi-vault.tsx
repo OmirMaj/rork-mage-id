@@ -14,8 +14,12 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  Alert, Platform, ActivityIndicator, Image,
+  Alert, Platform, ActivityIndicator,
 } from 'react-native';
+// expo-image: COI viewer displays full-page certificate scans.
+// Migrated from RN Image so the disk cache survives across screen
+// pops — the GC reopens the same COI repeatedly.
+import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -342,7 +346,7 @@ function COICard({
       </View>
 
       {coi.fileUri ? (
-        <Image source={{ uri: coi.fileUri }} style={styles.coiImage} resizeMode="contain" />
+        <Image source={{ uri: coi.fileUri }} style={styles.coiImage} contentFit="contain" />
       ) : null}
 
       {/* Validation findings */}

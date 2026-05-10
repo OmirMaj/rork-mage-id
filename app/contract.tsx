@@ -28,7 +28,7 @@ import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useAuth } from '@/contexts/AuthContext';
 import {
-  fetchActiveContract, saveContract, setContractStatus,
+  fetchActiveContract, fetchContractsForProject, saveContract, setContractStatus,
   buildDraftContract, defaultPaymentSchedule,
 } from '@/utils/contractEngine';
 import { generateUUID } from '@/utils/generateId';
@@ -68,13 +68,22 @@ export default function ContractScreen() {
   const [saving, setSaving] = useState(false);
   const [signing, setSigning] = useState(false);
   const [signatureModal, setSignatureModal] = useState(false);
+  // Vision-doc feature #1 (Living Contract): version history. We
+  // load every version of the contract for this project so the GC
+  // (and the homeowner via portal, later) can see the audit trail
+  // of amendments. Only surfaces when 2+ versions exist — silent
+  // for the common single-version case so it doesn't add noise.
+  const [historyVersions, setHistoryVersions] = useState<ProjectContract[]>([]);
 
   // Load (or seed a draft for) this project's contract.
   useEffect(() => {
     let cancelled = false;
     (async () => {
       if (!project) { setLoading(false); return; }
-      const existing = await fetchActiveContract(project.id);
+      const [existing, allVersions] = await Promise.all([
+        fetchActiveContract(project.id),
+        fetchContractsForProject(project.id),
+      ]);
       if (cancelled) return;
       if (existing) {
         setContract(existing);
@@ -89,6 +98,7 @@ export default function ContractScreen() {
           updatedAt: new Date().toISOString(),
         });
       }
+      setHistoryVersions(allVersions);
       setLoading(false);
     })();
     return () => { cancelled = true; };
@@ -389,6 +399,56 @@ export default function ContractScreen() {
               current={contract.status}
               startedAt={contract.sentAt ?? contract.createdAt}
             />
+          </View>
+        )}
+
+        {/* Version history — vision-doc feature #1 (Living Contract).
+            Only renders when there's a real history (2+ versions on
+            file). For the common new-contract case the section is
+            silent. Contract value + status per version is the audit
+            trail a GC's lawyer wants in a dispute. */}
+        {historyVersions.length > 1 && (
+          <View style={styles.historyCard}>
+            <View style={styles.historyHead}>
+              <FileText size={14} color={Colors.primary} />
+              <Text style={styles.historyTitle}>Contract version history</Text>
+              <View style={styles.historyCountPill}>
+                <Text style={styles.historyCountText}>{historyVersions.length}</Text>
+              </View>
+            </View>
+            <Text style={styles.historyHint}>
+              Every CO, selection change, and schedule shift recorded against this project. The signed
+              record of what was agreed at every stage.
+            </Text>
+            <View style={styles.historyList}>
+              {historyVersions.map((v, idx) => {
+                const active = v.id === contract.id;
+                return (
+                  <View
+                    key={v.id || `version-${v.version}`}
+                    style={[
+                      styles.historyRow,
+                      idx < historyVersions.length - 1 && styles.historyRowBorder,
+                      active && styles.historyRowActive,
+                    ]}
+                  >
+                    <View style={styles.historyVersionPill}>
+                      <Text style={styles.historyVersionText}>v{v.version}</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.historyRowTitle} numberOfLines={1}>
+                        {v.title}
+                        {active ? ' · current' : ''}
+                      </Text>
+                      <Text style={styles.historyRowSub} numberOfLines={1}>
+                        {formatMoney(v.contractValue)} · {v.status}
+                        {v.signedAt ? ` · signed ${new Date(v.signedAt).toLocaleDateString()}` : ''}
+                      </Text>
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
           </View>
         )}
 
@@ -835,6 +895,92 @@ function SignatureModal({ visible, onClose, onSign, signing, defaultName }: {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   center: { alignItems: 'center', justifyContent: 'center' },
+
+  // Version history (Living Contract feature)
+  historyCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: Tokens.radius.lg,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+    marginBottom: 12,
+  },
+  historyHead: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 8,
+  },
+  historyTitle: {
+    flex: 1,
+    fontSize: Type.subheadline.fontSize,
+    fontWeight: '800' as const,
+    color: Colors.text,
+    letterSpacing: -0.2,
+  },
+  historyCountPill: {
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+    borderRadius: Tokens.radius.full,
+    backgroundColor: Colors.primary + '15',
+  },
+  historyCountText: {
+    fontSize: Type.caption2.fontSize,
+    fontWeight: '900' as const,
+    color: Colors.primary,
+  },
+  historyHint: {
+    fontSize: Type.caption1.fontSize,
+    color: Colors.textMuted,
+    marginTop: 6,
+    marginBottom: 10,
+    lineHeight: 16,
+  },
+  historyList: {
+    backgroundColor: Colors.background,
+    borderRadius: Tokens.radius.md,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+    overflow: 'hidden' as const,
+  },
+  historyRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  historyRowBorder: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Colors.borderLight,
+  },
+  historyRowActive: {
+    backgroundColor: Colors.primary + '08',
+  },
+  historyVersionPill: {
+    minWidth: 32,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: Tokens.radius.sm,
+    backgroundColor: Colors.primary,
+    alignItems: 'center' as const,
+  },
+  historyVersionText: {
+    fontSize: Type.caption2.fontSize,
+    fontWeight: '900' as const,
+    color: Colors.background,
+    letterSpacing: 0.4,
+  },
+  historyRowTitle: {
+    fontSize: Type.bodyCompact.fontSize,
+    fontWeight: '700' as const,
+    color: Colors.text,
+  },
+  historyRowSub: {
+    fontSize: Type.caption2.fontSize,
+    color: Colors.textMuted,
+    marginTop: 1,
+  },
+
   header: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 10,
     paddingHorizontal: 16, paddingTop: 14, paddingBottom: 14,

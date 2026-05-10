@@ -331,6 +331,21 @@ function RootLayoutNav() {
       <Stack.Screen name="trial-design" options={{ headerShown: false }} />
       <Stack.Screen name="estimate-review" options={{ title: 'AI Review' }} />
       <Stack.Screen name="map-takeoff" options={{ title: 'Map Takeoff', headerShown: false }} />
+      <Stack.Screen name="sub-change-requests" options={{ title: 'Sub Change Requests' }} />
+      <Stack.Screen name="oac-actions" options={{ title: 'OAC Actions' }} />
+      <Stack.Screen name="delivery-receipts" options={{ title: 'Deliveries' }} />
+      <Stack.Screen name="draw-periods" options={{ title: 'Draw Periods' }} />
+      <Stack.Screen name="owner-supplied" options={{ title: 'Owner-Supplied Items' }} />
+      <Stack.Screen name="ship-readiness" options={{ title: 'Ship readiness' }} />
+      <Stack.Screen name="compliance-hub" options={{ title: 'Compliance hub' }} />
+      <Stack.Screen name="permit-calendar" options={{ title: 'Permit calendar' }} />
+      <Stack.Screen name="insurance-claim" options={{ title: 'Insurance claim' }} />
+      <Stack.Screen name="permit-templates" options={{ title: 'Permit templates' }} />
+      <Stack.Screen name="permit-leads" options={{ title: 'Permit leads' }} />
+      <Stack.Screen name="bid-analytics" options={{ title: 'Bid analytics' }} />
+      <Stack.Screen name="expeditor-directory" options={{ title: 'Expeditor directory' }} />
+      <Stack.Screen name="permit-qa" options={{ title: 'Permit Q&A' }} />
+      <Stack.Screen name="licenses" options={{ title: 'Licenses' }} />
       <Stack.Screen name="schedule-wizard" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="ai-punch" options={{ title: 'AI Punch from Photos' }} />
       <Stack.Screen name="photo-triage" options={{ title: 'AI Photo Triage' }} />

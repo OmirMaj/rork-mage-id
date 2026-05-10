@@ -18,8 +18,14 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Image, Alert, Platform, ActivityIndicator,
+  Alert, Platform, ActivityIndicator,
 } from 'react-native';
+// expo-image: better thumbnail caching + lower memory ceiling than the
+// stock RN Image. The triage gallery routinely loads 30-60 photos at
+// once during a site-walk dump; on stock RN Image that's an OOM risk
+// on older iPhones. expo-image's content-fit + transition props match
+// the stock Image API closely enough that the migration is mechanical.
+import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';

@@ -295,6 +295,114 @@ export function formatCurrency(n: number): string {
   return n < 0 ? '-' + formatted : formatted;
 }
 
+/**
+ * Vision-doc feature #14: "Three actions to fix it" suggestions.
+ *
+ * When a forecast week is projected to go negative, surface three
+ * concrete actions the GC can take to close the gap. The same
+ * ranking algorithm a CFO would apply: invoice receivables first
+ * (free cash), defer outflows second (no cost), draw line of credit
+ * last (interest cost).
+ *
+ * Pure compute — pulls from data already loaded on the home screen.
+ * No network, no state.
+ */
+export interface CashFlowAction {
+  /** Human-readable label, e.g. "Invoice #47 early — $32,500". */
+  label: string;
+  /** Why this helps (one short sentence). */
+  reason: string;
+  /** Route the action button takes the GC to. */
+  routePath: string;
+  /** Optional params to pass to the route. */
+  routeParams?: Record<string, string>;
+  /** Estimated dollar impact toward closing the gap. */
+  estimatedImpact: number;
+  /** UI tint hint — 'positive' for revenue, 'neutral' for deferral, 'cost' for borrowing. */
+  tone: 'positive' | 'neutral' | 'cost';
+}
+
+export interface DangerWeekActionsInput {
+  /** The negative-balance week the GC is closing the gap on. */
+  dangerWeek: CashFlowWeek;
+  /** All invoices — used to find unpaid receivables to invoice early. */
+  invoices: Invoice[];
+  /** Forecast horizon — reserved for v1.1 multi-week deferral analysis. */
+  forecast: CashFlowWeek[];
+}
+
+export function computeDangerWeekActions(input: DangerWeekActionsInput): CashFlowAction[] {
+  const { dangerWeek, invoices, forecast } = input;
+  const gap = Math.abs(dangerWeek.runningBalance);
+  const actions: CashFlowAction[] = [];
+
+  // 1. INVOICE EARLY: largest unpaid receivable. Free cash, no cost.
+  const unpaid = invoices
+    .filter(i => i.status !== 'paid' && (i.totalDue ?? 0) - (i.amountPaid ?? 0) > 0)
+    .sort((a, b) =>
+      ((b.totalDue ?? 0) - (b.amountPaid ?? 0))
+      - ((a.totalDue ?? 0) - (a.amountPaid ?? 0)),
+    );
+  if (unpaid.length > 0) {
+    const top = unpaid[0];
+    const remaining = (top.totalDue ?? 0) - (top.amountPaid ?? 0);
+    actions.push({
+      label: `Invoice #${top.number} early — ${formatCurrency(remaining)}`,
+      reason: 'Largest unpaid receivable. Send today to land cash before the gap week.',
+      routePath: '/invoice',
+      routeParams: { id: top.id },
+      estimatedImpact: remaining,
+      tone: 'positive',
+    });
+  }
+
+  // 2. DEFER OUTFLOW: largest expense in the danger week. No cost
+  // beyond a vendor conversation. The forecast engine already
+  // enumerates expenseItems per week.
+  const sortedExpenses = [...(dangerWeek.expenseItems ?? [])]
+    .sort((a, b) => b.amount - a.amount);
+  if (sortedExpenses.length > 0) {
+    const top = sortedExpenses[0];
+    actions.push({
+      label: `Push "${top.description}" by 1 week — ${formatCurrency(top.amount)}`,
+      reason: 'Largest scheduled outflow in this week. Renegotiate with the vendor or shift the PO.',
+      routePath: '/cash-flow',
+      estimatedImpact: top.amount,
+      tone: 'neutral',
+    });
+  }
+
+  // 3. LINE OF CREDIT: backstop if 1+2 don't fully close the gap.
+  // Conservative model: invoice (1) lands fully, deferral (2) is
+  // 50% effective. Whatever's left is the borrow.
+  const projectedGap = Math.max(
+    0,
+    gap
+      - (actions[0]?.estimatedImpact ?? 0)
+      - 0.5 * (actions[1]?.estimatedImpact ?? 0),
+  );
+  if (projectedGap > 1000) {
+    actions.push({
+      label: `Tap line of credit for ${formatCurrency(projectedGap)}`,
+      reason: 'Cleanest backstop if invoicing + deferring don\'t close the gap. Set up before you need it.',
+      routePath: '/cash-flow',
+      estimatedImpact: projectedGap,
+      tone: 'cost',
+    });
+  } else {
+    actions.push({
+      label: 'No additional financing needed',
+      reason: `Invoicing early + deferring the outflow covers the projected ${formatCurrency(gap)} gap.`,
+      routePath: '/cash-flow',
+      estimatedImpact: 0,
+      tone: 'positive',
+    });
+  }
+
+  void forecast;
+  return actions.slice(0, 3);
+}
+
 export function formatCurrencyShort(n: number): string {
   const abs = Math.abs(n);
   let formatted: string;

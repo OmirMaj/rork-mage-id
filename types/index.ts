@@ -3254,6 +3254,32 @@ export interface Warranty {
   status: WarrantyStatus;
   claims: WarrantyClaim[];
   reminderDays?: number;
+  // Vision-doc feature #16: Material installation record. Pre-fix
+  // the GC had warranty title + provider but no SKU/model/lot trail.
+  // 6 months post-handover when the homeowner calls about a buckling
+  // floor, the GC can't tell them which lot of which model failed.
+  // These fields are optional — old warranties stay valid; new ones
+  // capture the install detail. The closeout binder's Home Manual
+  // PDF auto-pulls them when present.
+  /** Manufacturer model number (e.g. "Sub-Zero BI-36U/S"). */
+  manufacturerModel?: string;
+  /** SKU / part number from the supplier — used for warranty claims. */
+  manufacturerSku?: string;
+  /** Lot or batch number — manufacturer recalls reference this. */
+  lotNumber?: string;
+  /** Calendar date the material was installed (distinct from
+   *  warranty startDate which may be activation-date). */
+  installDate?: string;
+  /** Subcontractor who performed the installation. Their workmanship
+   *  warranty terms (often 1-2 yrs) layer on top of the manufacturer's. */
+  installSubcontractorId?: string;
+  /** Sub workmanship warranty length in months — separate from the
+   *  manufacturer's durationMonths. */
+  workmanshipMonths?: number;
+  /** Free-text maintenance recommendations the homeowner needs to
+   *  follow to keep the warranty valid (e.g. "annual HVAC service",
+   *  "no abrasive cleaners on quartz"). Carried into Home Manual. */
+  maintenanceNotes?: string;
   createdAt: string;
   updatedAt: string;
 }

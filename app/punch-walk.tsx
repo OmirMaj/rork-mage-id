@@ -22,8 +22,11 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput,
-  Alert, Platform, Modal, Image, KeyboardAvoidingView,
+  Alert, Platform, Modal, KeyboardAvoidingView,
 } from 'react-native';
+// expo-image: punch walk captures a photo per item — a 30-item walk
+// produces 30 thumbnails. expo-image's disk cache keeps memory low.
+import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';

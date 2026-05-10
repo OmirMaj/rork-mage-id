@@ -8,7 +8,9 @@ import * as Haptics from 'expo-haptics';
 import {
   ClipboardList, DollarSign, AlertTriangle, CheckCircle2, ChevronRight,
   Receipt, Wrench, Calendar, TrendingUp, FolderOpen, FileDown,
-  Inbox, Wallet, UserPlus, Gavel,
+  Inbox, Wallet, UserPlus, Gavel, ListChecks, MessageSquare, ShieldCheck,
+  Truck, Banknote, Package, FileWarning, Trophy, Bookmark, Building,
+  Sparkles, Users,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
@@ -21,6 +23,12 @@ import { generateForecast, type CashFlowWeek } from '@/utils/cashFlowEngine';
 import { loadCashFlowData, isSetupComplete } from '@/utils/cashFlowStorage';
 import { formatMoney, formatMoneyShort } from '@/utils/formatters';
 import { computeARAgingReport } from '@/utils/financialReports';
+import { aggregateOpenActionItems } from '@/utils/oacActionItems';
+import { useSubChangeRequests } from '@/hooks/useSubChangeRequests';
+import { useDeliveryReceipts } from '@/hooks/useDeliveryReceipts';
+import { useDrawPeriods } from '@/hooks/useDrawPeriods';
+import { useOwnerSuppliedItems } from '@/hooks/useOwnerSuppliedItems';
+import { useContractorLicenses } from '@/hooks/useContractorLicenses';
 import type { Project } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -141,7 +149,12 @@ function computeStats(
 export default function SummaryScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { projects, invoices, punchItems, changeOrders, isLoading } = useProjects();
+  const { projects, invoices, punchItems, changeOrders, rfis, oacMeetings, cois, permits, isLoading } = useProjects();
+  const { pendingCount: pendingSubChangeRequests } = useSubChangeRequests();
+  const { receipts: deliveryReceipts } = useDeliveryReceipts();
+  const { draws } = useDrawPeriods();
+  const { items: ownerSuppliedItems } = useOwnerSuppliedItems();
+  const { licenses } = useContractorLicenses();
 
   const active = useMemo(
     () => projects.filter(p => p.status !== 'closed' && p.status !== 'completed'),
@@ -172,6 +185,95 @@ export default function SummaryScreen() {
   // most urgent. Tapping the row deep-links into the dedicated
   // /reports?tab=aging view for the full row-level breakdown.
   const aging = useMemo(() => computeARAgingReport(invoices, projects), [invoices, projects]);
+
+  // Cross-project decision-loop counts. These power the Tools group's
+  // subtitles so a GC scanning Summary sees what's waiting before
+  // tapping in. Pre-fix the counts only existed on the dashboard hero
+  // (home tab); the summary tab's "Tools" group was just nav links.
+  const pendingApprovalCount = useMemo(() => {
+    const co = changeOrders.filter(c =>
+      c.status === 'submitted' || c.status === 'under_review' || c.status === 'revised',
+    ).length;
+    const openRfis = rfis.filter(r => r.status !== 'closed' && r.status !== 'answered').length;
+    return co + openRfis;
+  }, [changeOrders, rfis]);
+
+  const openOACActionCount = useMemo(
+    () => aggregateOpenActionItems({ meetings: oacMeetings, projects }).length,
+    [oacMeetings, projects],
+  );
+
+  // Recent damaged-delivery count — surfaces material credit follow-ups.
+  // Looks at the last 14 days; older damage flags should already have
+  // a supplier credit attached.
+  const recentDamagedDeliveries = useMemo(() => {
+    const cutoff = Date.now() - 14 * 86_400_000;
+    return deliveryReceipts.filter(r => {
+      const t = Date.parse(r.date);
+      return r.hasDamage && Number.isFinite(t) && t >= cutoff;
+    }).length;
+  }, [deliveryReceipts]);
+
+  // Active draws (open + submitted) plus draws awaiting funding —
+  // the two states the GC needs to act on.
+  const activeDrawCount = useMemo(
+    () => draws.filter(d => d.status === 'open' || d.status === 'submitted' || d.status === 'approved').length,
+    [draws],
+  );
+
+  // OFCI/OFOI items at risk: needBy in next 7d AND not yet on site
+  // or installed. Drives the "what's the homeowner not delivering on
+  // time" loop closer.
+  const atRiskOfciCount = useMemo(() => {
+    const cutoff = Date.now() + 7 * 86_400_000;
+    return ownerSuppliedItems.filter(i => {
+      if (!i.needBy) return false;
+      if (i.status === 'on_site' || i.status === 'installed' || i.status === 'cancelled') return false;
+      const t = Date.parse(i.needBy);
+      return Number.isFinite(t) && t <= cutoff;
+    }).length;
+  }, [ownerSuppliedItems]);
+
+  // Compliance alerts: COIs + permits + licenses expiring/at-risk in
+  // next 60 days. Mirrors the calc in app/compliance-hub.tsx so the
+  // count here matches what's rendered there. One missed COI = $5K-
+  // $25K exposure; one missed permit deadline = re-filing cost; one
+  // missed license = can't pull permits = schedule slip. Vision-doc
+  // features #7 + #19.
+  const complianceAlertCount = useMemo(() => {
+    const cutoff = Date.now() + 60 * 86_400_000;
+    let count = 0;
+    for (const coi of cois) {
+      const expiries = (coi.coverages ?? [])
+        .map(c => c.expiresAt)
+        .filter((d): d is string => !!d)
+        .map(d => Date.parse(d))
+        .filter(t => Number.isFinite(t));
+      if (expiries.length === 0) continue;
+      const earliest = Math.min(...expiries);
+      if (earliest <= cutoff) count++;
+    }
+    for (const p of permits) {
+      if (p.status === 'inspection_passed' || p.status === 'expired') continue;
+      if (p.status === 'denied' || p.status === 'inspection_failed') {
+        count++;
+        continue;
+      }
+      if (p.status === 'inspection_scheduled' && p.inspectionDate) {
+        const t = Date.parse(p.inspectionDate);
+        if (Number.isFinite(t) && t <= cutoff) { count++; continue; }
+      }
+      if (p.expiresDate) {
+        const t = Date.parse(p.expiresDate);
+        if (Number.isFinite(t) && t <= cutoff) count++;
+      }
+    }
+    for (const lic of licenses) {
+      const t = Date.parse(lic.expiresDate);
+      if (Number.isFinite(t) && t <= cutoff) count++;
+    }
+    return count;
+  }, [cois, permits, licenses]);
 
   // Cash flow forecast — moved here from the home tab so Your Projects
   // stays focused on the project list, and Summary becomes the financial
@@ -314,6 +416,184 @@ export default function SummaryScreen() {
         <View style={styles.toolsGroup}>
           <Text style={styles.toolsHeader}>Tools</Text>
           <View style={styles.toolsCard}>
+            {/* Decision-loop closers — the three docks where commitments
+                across every project surface for the GC to chase down.
+                Putting these at the top of Tools puts what's waiting on
+                the GC ahead of the rarer report exports. */}
+            {projects.length > 0 && (
+              <NavRow
+                Icon={ShieldCheck}
+                title="Approvals"
+                subtitle={pendingApprovalCount > 0
+                  ? `${pendingApprovalCount} change order${pendingApprovalCount === 1 ? '' : 's'} / RFI${pendingApprovalCount === 1 ? '' : 's'} need a decision`
+                  : 'Change orders, RFIs, bid awards across all projects'}
+                onPress={() => router.push('/approvals' as never)}
+                testID="summary-approvals"
+              />
+            )}
+            {projects.length > 0 && (
+              <View style={styles.toolsDivider} />
+            )}
+            {projects.length > 0 && (
+              <NavRow
+                Icon={ListChecks}
+                title="OAC actions"
+                subtitle={openOACActionCount > 0
+                  ? `${openOACActionCount} open action item${openOACActionCount === 1 ? '' : 's'} from owner-architect meetings`
+                  : 'Owner-architect meeting follow-ups'}
+                onPress={() => router.push('/oac-actions' as never)}
+                testID="summary-oac-actions"
+              />
+            )}
+            {projects.length > 0 && (
+              <View style={styles.toolsDivider} />
+            )}
+            {projects.length > 0 && (
+              <NavRow
+                Icon={MessageSquare}
+                title="Sub change requests"
+                subtitle={pendingSubChangeRequests > 0
+                  ? `${pendingSubChangeRequests} request${pendingSubChangeRequests === 1 ? '' : 's'} from subs awaiting your review`
+                  : 'Field-discovered scope from subcontractors'}
+                onPress={() => router.push('/sub-change-requests' as never)}
+                testID="summary-sub-change-requests"
+              />
+            )}
+            {projects.length > 0 && (
+              <View style={styles.toolsDivider} />
+            )}
+            {projects.length > 0 && (
+              <NavRow
+                Icon={Truck}
+                title="Deliveries"
+                subtitle={recentDamagedDeliveries > 0
+                  ? `${recentDamagedDeliveries} delivery${recentDamagedDeliveries === 1 ? '' : ' deliveries'} flagged for damage in last 14 days`
+                  : `${deliveryReceipts.length} delivery receipt${deliveryReceipts.length === 1 ? '' : 's'} on file`}
+                onPress={() => router.push('/delivery-receipts' as never)}
+                testID="summary-deliveries"
+              />
+            )}
+            {projects.length > 0 && (
+              <View style={styles.toolsDivider} />
+            )}
+            {projects.length > 0 && (
+              <NavRow
+                Icon={Banknote}
+                title="Draw periods"
+                subtitle={activeDrawCount > 0
+                  ? `${activeDrawCount} draw${activeDrawCount === 1 ? '' : 's'} active or awaiting funding`
+                  : 'Lender-facing rollup — invoices, lien waivers, AIA pay app'}
+                onPress={() => router.push('/draw-periods' as never)}
+                testID="summary-draw-periods"
+              />
+            )}
+            {projects.length > 0 && (
+              <View style={styles.toolsDivider} />
+            )}
+            {projects.length > 0 && (
+              <NavRow
+                Icon={Package}
+                title="OFCI / OFOI"
+                subtitle={atRiskOfciCount > 0
+                  ? `${atRiskOfciCount} owner-supplied item${atRiskOfciCount === 1 ? '' : 's'} at risk this week`
+                  : 'Track appliances, fixtures, and specialty items the homeowner sources'}
+                onPress={() => router.push('/owner-supplied' as never)}
+                testID="summary-owner-supplied"
+              />
+            )}
+            {projects.length > 0 && (
+              <View style={styles.toolsDivider} />
+            )}
+            {projects.length > 0 && (
+              <NavRow
+                Icon={FileWarning}
+                title="Compliance hub"
+                subtitle={complianceAlertCount > 0
+                  ? `${complianceAlertCount} alert${complianceAlertCount === 1 ? '' : 's'} — COI / permit / license expiry`
+                  : 'Insurance, permits, licenses — all current'}
+                onPress={() => router.push('/compliance-hub' as never)}
+                testID="summary-compliance-hub"
+              />
+            )}
+            {projects.length > 0 && (
+              <View style={styles.toolsDivider} />
+            )}
+            {projects.length > 0 && (
+              <NavRow
+                Icon={Calendar}
+                title="Permit calendar"
+                subtitle="Every regulatory deadline across every project"
+                onPress={() => router.push('/permit-calendar' as never)}
+                testID="summary-permit-calendar"
+              />
+            )}
+            {projects.length > 0 && (
+              <View style={styles.toolsDivider} />
+            )}
+            {projects.length > 0 && (
+              <NavRow
+                Icon={Building}
+                title="Permit leads"
+                subtitle="Public bids and permit filings near you"
+                onPress={() => router.push('/permit-leads' as never)}
+                testID="summary-permit-leads"
+              />
+            )}
+            {projects.length > 0 && (
+              <View style={styles.toolsDivider} />
+            )}
+            {projects.length > 0 && (
+              <NavRow
+                Icon={Bookmark}
+                title="Permit templates"
+                subtitle="Reusable filing patterns — file in 30 min instead of 6 hours"
+                onPress={() => router.push('/permit-templates' as never)}
+                testID="summary-permit-templates"
+              />
+            )}
+            {projects.length > 0 && (
+              <View style={styles.toolsDivider} />
+            )}
+            {projects.length > 0 && (
+              <NavRow
+                Icon={Trophy}
+                title="Bid analytics"
+                subtitle="Win rate, avg amounts, project-size breakdowns"
+                onPress={() => router.push('/bid-analytics' as never)}
+                testID="summary-bid-analytics"
+              />
+            )}
+            {projects.length > 0 && (
+              <View style={styles.toolsDivider} />
+            )}
+            {projects.length > 0 && (
+              <NavRow
+                Icon={ShieldCheck}
+                title="Insurance claim package"
+                subtitle="Bundle photos + DFRs + punch items for an adjuster in one click"
+                onPress={() => router.push('/insurance-claim' as never)}
+                testID="summary-insurance-claim"
+              />
+            )}
+            <View style={styles.toolsDivider} />
+            <NavRow
+              Icon={Sparkles}
+              title="Permit Q&A agent"
+              subtitle="Ask DOB / building-code questions and get fast answers"
+              onPress={() => router.push('/permit-qa' as never)}
+              testID="summary-permit-qa"
+            />
+            <View style={styles.toolsDivider} />
+            <NavRow
+              Icon={Users}
+              title="Expeditors / PEs / RAs"
+              subtitle="Verified directory with one-tap quote requests"
+              onPress={() => router.push('/expeditor-directory' as never)}
+              testID="summary-expeditor-directory"
+            />
+            {projects.length > 0 && (
+              <View style={styles.toolsDivider} />
+            )}
             {projects.length > 0 && (
               <NavRow
                 Icon={Inbox}

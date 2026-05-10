@@ -82,6 +82,16 @@ export default function WarrantiesScreen() {
   const [startDate, setStartDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [durationMonths, setDurationMonths] = useState('12');
   const [coverage, setCoverage] = useState('');
+  // Vision-doc feature #16 — material installation record fields.
+  // All optional. New warranties can capture the SKU/lot trail; old
+  // ones stay valid without it. Closeout binder pulls these into the
+  // Home Manual PDF when present.
+  const [manufacturerModel, setManufacturerModel] = useState('');
+  const [manufacturerSku, setManufacturerSku] = useState('');
+  const [lotNumber, setLotNumber] = useState('');
+  const [installDate, setInstallDate] = useState('');
+  const [workmanshipMonths, setWorkmanshipMonths] = useState('');
+  const [maintenanceNotes, setMaintenanceNotes] = useState('');
 
   const resetForm = useCallback(() => {
     setEditingId(null);
@@ -93,6 +103,12 @@ export default function WarrantiesScreen() {
     setStartDate(new Date().toISOString().slice(0, 10));
     setDurationMonths('12');
     setCoverage('');
+    setManufacturerModel('');
+    setManufacturerSku('');
+    setLotNumber('');
+    setInstallDate('');
+    setWorkmanshipMonths('');
+    setMaintenanceNotes('');
   }, [project, projects]);
 
   const openNew = useCallback(() => {
@@ -110,6 +126,12 @@ export default function WarrantiesScreen() {
     setStartDate(w.startDate.slice(0, 10));
     setDurationMonths(String(w.durationMonths));
     setCoverage(w.coverageDetails ?? '');
+    setManufacturerModel(w.manufacturerModel ?? '');
+    setManufacturerSku(w.manufacturerSku ?? '');
+    setLotNumber(w.lotNumber ?? '');
+    setInstallDate(w.installDate ? w.installDate.slice(0, 10) : '');
+    setWorkmanshipMonths(w.workmanshipMonths != null ? String(w.workmanshipMonths) : '');
+    setMaintenanceNotes(w.maintenanceNotes ?? '');
     setShowForm(true);
   }, []);
 
@@ -121,6 +143,7 @@ export default function WarrantiesScreen() {
     const proj = projects.find(p => p.id === formProjectId);
     const startISO = new Date(startDate).toISOString();
     const endISO = addMonths(startISO, months);
+    const workmanship = workmanshipMonths.trim() ? parseInt(workmanshipMonths.trim(), 10) : NaN;
     const payload = {
       projectId: formProjectId,
       projectName: proj?.name ?? 'Project',
@@ -133,6 +156,13 @@ export default function WarrantiesScreen() {
       endDate: endISO,
       coverageDetails: coverage.trim() || undefined,
       reminderDays: 30,
+      // Vision-doc feature #16 fields (all optional).
+      manufacturerModel: manufacturerModel.trim() || undefined,
+      manufacturerSku: manufacturerSku.trim() || undefined,
+      lotNumber: lotNumber.trim() || undefined,
+      installDate: installDate.trim() ? new Date(installDate).toISOString() : undefined,
+      workmanshipMonths: Number.isFinite(workmanship) && workmanship > 0 ? workmanship : undefined,
+      maintenanceNotes: maintenanceNotes.trim() || undefined,
     };
     if (editingId) {
       updateWarranty(editingId, payload);
@@ -142,7 +172,7 @@ export default function WarrantiesScreen() {
     if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setShowForm(false);
     resetForm();
-  }, [title, formProjectId, durationMonths, projects, startDate, category, description, provider, coverage, editingId, updateWarranty, addWarranty, resetForm]);
+  }, [title, formProjectId, durationMonths, projects, startDate, category, description, provider, coverage, manufacturerModel, manufacturerSku, lotNumber, installDate, workmanshipMonths, maintenanceNotes, editingId, updateWarranty, addWarranty, resetForm]);
 
   const handleDelete = useCallback((w: Warranty) => {
     Alert.alert('Delete Warranty', `Remove "${w.title}"?`, [
@@ -290,6 +320,76 @@ export default function WarrantiesScreen() {
 
                 <Text style={styles.fieldLabel}>Coverage Details</Text>
                 <TextInput style={[styles.input, { minHeight: 80, paddingTop: 12, textAlignVertical: 'top' as const }]} value={coverage} onChangeText={setCoverage} placeholder="What's covered (parts, labor, etc.)" placeholderTextColor={Colors.textMuted} multiline />
+
+                {/* Material installation record (vision-doc #16) — all optional.
+                    Captures the SKU/lot trail so 6 months post-handover the
+                    GC can answer "which model failed?" in 5 seconds. */}
+                <Text style={[styles.fieldLabel, { marginTop: 18, color: Colors.primary }]}>Material details (optional)</Text>
+                <View style={{ flexDirection: 'row' as const, gap: 10 }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.fieldLabel}>Model #</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={manufacturerModel}
+                      onChangeText={setManufacturerModel}
+                      placeholder="BI-36U/S"
+                      placeholderTextColor={Colors.textMuted}
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.fieldLabel}>SKU / Part #</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={manufacturerSku}
+                      onChangeText={setManufacturerSku}
+                      placeholder="3201234"
+                      placeholderTextColor={Colors.textMuted}
+                    />
+                  </View>
+                </View>
+
+                <View style={{ flexDirection: 'row' as const, gap: 10 }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.fieldLabel}>Lot # (optional)</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={lotNumber}
+                      onChangeText={setLotNumber}
+                      placeholder="L2026-04-22"
+                      placeholderTextColor={Colors.textMuted}
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.fieldLabel}>Install date</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={installDate}
+                      onChangeText={setInstallDate}
+                      placeholder="YYYY-MM-DD"
+                      placeholderTextColor={Colors.textMuted}
+                    />
+                  </View>
+                </View>
+
+                <Text style={styles.fieldLabel}>Sub workmanship (months)</Text>
+                <TextInput
+                  style={styles.input}
+                  value={workmanshipMonths}
+                  onChangeText={setWorkmanshipMonths}
+                  keyboardType="number-pad"
+                  placeholder="12"
+                  placeholderTextColor={Colors.textMuted}
+                />
+
+                <Text style={styles.fieldLabel}>Maintenance notes</Text>
+                <TextInput
+                  style={[styles.input, { minHeight: 60, paddingTop: 12, textAlignVertical: 'top' as const }]}
+                  value={maintenanceNotes}
+                  onChangeText={setMaintenanceNotes}
+                  placeholder="Annual service required to keep warranty valid. No abrasive cleaners."
+                  placeholderTextColor={Colors.textMuted}
+                  multiline
+                />
 
                 <Text style={styles.fieldLabel}>Notes</Text>
                 <TextInput style={[styles.input, { minHeight: 60, paddingTop: 12, textAlignVertical: 'top' as const }]} value={description} onChangeText={setDescription} placeholder="Optional notes" placeholderTextColor={Colors.textMuted} multiline />

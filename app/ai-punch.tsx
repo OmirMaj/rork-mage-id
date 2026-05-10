@@ -13,8 +13,12 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
-  Image, Alert, Platform, ActivityIndicator,
+  Alert, Platform, ActivityIndicator,
 } from 'react-native';
+// expo-image: lower-memory thumbnail loader for the punch grid.
+// Migrated from RN Image because users routinely upload 20-40 site
+// photos in one batch and stock Image holds full bitmaps in memory.
+import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';

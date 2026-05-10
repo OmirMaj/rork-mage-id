@@ -1,8 +1,13 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Platform, Modal,
-  TextInput, Pressable, KeyboardAvoidingView, Image, LayoutAnimation, UIManager,
+  TextInput, Pressable, KeyboardAvoidingView, LayoutAnimation, UIManager,
 } from 'react-native';
+// expo-image: photo grids (project photos, lightbox) on this screen
+// can render 50+ thumbnails at once. Stock RN Image holds full bitmaps
+// in memory — expo-image's disk-cached thumbnails cut memory pressure
+// noticeably on older iPhones.
+import { Image } from 'expo-image';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
@@ -2700,7 +2705,7 @@ export default function ProjectDetailScreen() {
                           testID={`photo-thumb-${photo.id}`}
                         >
                           {photo.uri ? (
-                            <Image source={{ uri: photo.uri }} style={styles.photoThumbImage} resizeMode="cover" />
+                            <Image source={{ uri: photo.uri }} style={styles.photoThumbImage} contentFit="cover" />
                           ) : (
                             <Camera size={20} color={Colors.textMuted} />
                           )}
@@ -3272,7 +3277,7 @@ export default function ProjectDetailScreen() {
               onPress={(e) => e.stopPropagation()}
               style={styles.lightboxImageWrap}
             >
-              <Image source={{ uri: lightboxPhoto.uri }} style={styles.lightboxImage} resizeMode="contain" />
+              <Image source={{ uri: lightboxPhoto.uri }} style={styles.lightboxImage} contentFit="contain" />
               {/* Markup overlay — re-renders the same SVG primitives the
                   annotator drew, scaled to the displayed image. We use
                   the actual rendered size (square crop) for now; web/RN

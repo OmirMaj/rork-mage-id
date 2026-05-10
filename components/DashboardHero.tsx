@@ -33,7 +33,7 @@
 //   "Approvals" → /approvals
 //   "Run Estimate Review" → most-recent project's /estimate-review
 
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ImageBackground, ScrollView, Platform,
 } from 'react-native';
@@ -41,6 +41,7 @@ import { useRouter } from 'expo-router';
 import {
   ChevronRight, Plus, CalendarCheck, Search, ListChecks, Sparkles,
   Briefcase, Clock, Image as ImageIcon, Users, FileText, ShieldCheck,
+  AlertTriangle,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useAuth } from '@/contexts/AuthContext';
@@ -48,6 +49,8 @@ import { useProjects } from '@/contexts/ProjectContext';
 import { useTimeEntries } from '@/hooks/useTimeEntries';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { formatMoneyShort } from '@/utils/formatters';
+import { generateForecast, computeDangerWeekActions, type CashFlowWeek, type CashFlowAction } from '@/utils/cashFlowEngine';
+import { loadCashFlowData, isSetupComplete } from '@/utils/cashFlowStorage';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -61,6 +64,65 @@ export default function DashboardHero({ onNewProjectPress }: DashboardHeroProps)
   const { projects, invoices, changeOrders, rfis, settings, projectPhotos } = useProjects();
   const { liveEntries } = useTimeEntries();
   const responsive = useResponsiveLayout();
+
+  // ─── Cash flow danger zone ────────────────────────────────
+  // Vision-doc feature #2: surface "you're going to be broke on
+  // June 14" before the GC opens any other tab. Self-contained —
+  // loads the same data the Summary tab uses, but renders nothing
+  // when the forecast is healthy or setup is incomplete. The
+  // CashFlowAlerts component handles the same logic on summary
+  // with a richer surface; here we just need the silent watchdog.
+  const [forecast, setForecast] = useState<CashFlowWeek[] | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        if (!(await isSetupComplete())) return;
+        const data = await loadCashFlowData();
+        if (cancelled) return;
+        if (data.startingBalance > 0 || data.expenses.length > 0) {
+          const f = generateForecast(
+            data.startingBalance,
+            data.expenses,
+            [],
+            data.expectedPayments,
+            8,
+            data.defaultPaymentTerms,
+          );
+          if (!cancelled) setForecast(f);
+        }
+      } catch (err) {
+        console.warn('[DashboardHero] cash flow forecast load failed', err);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [projects]);
+
+  // First week within the next 6 where running balance goes
+  // negative. We deliberately stop at week 6 — any further out and
+  // the forecast is too speculative to alarm on. If no danger week
+  // is found, the banner stays hidden.
+  const dangerWeek = useMemo(() => {
+    if (!forecast || forecast.length === 0) return null;
+    return forecast.slice(0, 6).find(w => w.runningBalance < 0) ?? null;
+  }, [forecast]);
+
+  const dangerWeeksAway = useMemo(() => {
+    if (!forecast || !dangerWeek) return 0;
+    return forecast.indexOf(dangerWeek) + 1;
+  }, [forecast, dangerWeek]);
+
+  // Vision-doc feature #14: "Three actions to fix it". When the danger
+  // banner appears, surface concrete next steps. Each action has a
+  // route — tap once to land on the screen where the GC executes it.
+  const dangerActions = useMemo<CashFlowAction[]>(() => {
+    if (!dangerWeek || !forecast) return [];
+    return computeDangerWeekActions({
+      dangerWeek,
+      invoices,
+      forecast,
+    });
+  }, [dangerWeek, forecast, invoices]);
 
   // ─── Greeting ─────────────────────────────────────────────
   // Pulls the GC's first name from settings.branding.contactName,
@@ -143,6 +205,73 @@ export default function DashboardHero({ onNewProjectPress }: DashboardHeroProps)
 
   return (
     <View style={styles.container}>
+      {/* Cash flow danger zone — silent until there's a week with a
+          negative running balance in the next 6 weeks. Tap to /cash-flow.
+          Vision-doc feature #2: "Three actions to fix it" — left for
+          v1.1; for now we just surface the problem. */}
+      {dangerWeek && (
+        <View style={styles.dangerBlock}>
+          <TouchableOpacity
+            style={styles.dangerBanner}
+            activeOpacity={0.85}
+            onPress={() => router.push('/cash-flow' as never)}
+            accessibilityRole="button"
+            accessibilityLabel="Open cash flow"
+            testID="dashboard-cash-danger"
+          >
+            <View style={styles.dangerIconWrap}>
+              <AlertTriangle size={14} color={Colors.error} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.dangerTitle} numberOfLines={1}>
+                Tight cash week ahead
+              </Text>
+              <Text style={styles.dangerBody} numberOfLines={2}>
+                In {dangerWeeksAway} week{dangerWeeksAway === 1 ? '' : 's'} ({new Date(dangerWeek.weekStart).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}) projected balance dips to {formatMoneyShort(dangerWeek.runningBalance)}.
+              </Text>
+            </View>
+            <ChevronRight size={14} color={Colors.error} />
+          </TouchableOpacity>
+
+          {/* Vision-doc feature #14: three actions to fix it. Inline
+              under the banner so the GC sees the solution on the same
+              screen as the problem. */}
+          {dangerActions.length > 0 && (
+            <View style={styles.dangerActions}>
+              <Text style={styles.dangerActionsHeader}>Three actions to close the gap</Text>
+              {dangerActions.map((action, idx) => (
+                <TouchableOpacity
+                  key={`${action.routePath}-${idx}`}
+                  style={styles.dangerActionRow}
+                  activeOpacity={0.85}
+                  onPress={() => router.push({
+                    pathname: action.routePath as never,
+                    params: action.routeParams as never,
+                  })}
+                  testID={`dashboard-cash-action-${idx}`}
+                >
+                  <View
+                    style={[
+                      styles.dangerActionDot,
+                      action.tone === 'positive' && { backgroundColor: Colors.success },
+                      action.tone === 'neutral' && { backgroundColor: Colors.warning },
+                      action.tone === 'cost' && { backgroundColor: Colors.info },
+                    ]}
+                  >
+                    <Text style={styles.dangerActionDotText}>{idx + 1}</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.dangerActionLabel} numberOfLines={1}>{action.label}</Text>
+                    <Text style={styles.dangerActionReason} numberOfLines={2}>{action.reason}</Text>
+                  </View>
+                  <ChevronRight size={12} color={Colors.textMuted} />
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+        </View>
+      )}
+
       {/* Hero header */}
       <View style={styles.heroRow}>
         <View style={{ flex: 1 }}>
@@ -504,6 +633,91 @@ const styles = StyleSheet.create({
   actionIcon: { width: 28, height: 28, borderRadius: 14, backgroundColor: Colors.surface, alignItems: 'center' as const, justifyContent: 'center' as const, borderWidth: 1, borderColor: Colors.borderLight },
   actionTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800' as const, color: Colors.text, letterSpacing: -0.2 },
   actionSub: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 1 },
+
+  dangerBlock: { marginBottom: 4, gap: 0 },
+  dangerBanner: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 10,
+    padding: 12,
+    borderTopLeftRadius: Tokens.radius.md,
+    borderTopRightRadius: Tokens.radius.md,
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
+    backgroundColor: Colors.error + '12',
+    borderWidth: 1,
+    borderColor: Colors.error + '40',
+  },
+  dangerActions: {
+    backgroundColor: Colors.error + '06',
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: Colors.error + '40',
+    borderBottomLeftRadius: Tokens.radius.md,
+    borderBottomRightRadius: Tokens.radius.md,
+    paddingHorizontal: 12,
+    paddingTop: 10,
+    paddingBottom: 4,
+  },
+  dangerActionsHeader: {
+    fontSize: Type.caption2.fontSize,
+    fontWeight: '900' as const,
+    color: Colors.error,
+    letterSpacing: 0.6,
+    textTransform: 'uppercase' as const,
+    marginBottom: 6,
+  },
+  dangerActionRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'flex-start' as const,
+    gap: 10,
+    paddingVertical: 8,
+  },
+  dangerActionDot: {
+    width: 22,
+    height: 22,
+    borderRadius: Tokens.radius.full,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    marginTop: 1,
+  },
+  dangerActionDotText: {
+    fontSize: Type.caption2.fontSize,
+    fontWeight: '900' as const,
+    color: '#FFFFFF',
+  },
+  dangerActionLabel: {
+    fontSize: Type.bodyCompact.fontSize,
+    fontWeight: '800' as const,
+    color: Colors.text,
+  },
+  dangerActionReason: {
+    fontSize: Type.caption1.fontSize,
+    color: Colors.textSecondary,
+    marginTop: 2,
+    lineHeight: 16,
+  },
+  dangerIconWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: Tokens.radius.sm,
+    backgroundColor: Colors.error + '15',
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+  },
+  dangerTitle: {
+    fontSize: Type.bodyCompact.fontSize,
+    fontWeight: '800' as const,
+    color: Colors.error,
+    letterSpacing: -0.2,
+  },
+  dangerBody: {
+    fontSize: Type.caption1.fontSize,
+    color: Colors.textSecondary,
+    marginTop: 2,
+    lineHeight: 16,
+  },
 });
 
 void Tokens;
