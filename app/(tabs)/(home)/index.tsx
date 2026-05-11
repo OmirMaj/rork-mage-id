@@ -49,10 +49,12 @@ import { Tokens } from '@/constants/designTokens';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import PageHeader from '@/components/PageHeader';
 import ProjectRow from '@/components/ProjectRow';
+import { useTheme } from '@/contexts/ThemeContext';
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { colors: themeColors } = useTheme();
   const notifFeed = useNotificationFeed();
   // Same width threshold as DesktopActionRail in the tabs layout — when the
   // rail is mounted, the inline SmartInbox below would duplicate its content.
@@ -361,7 +363,7 @@ export default function HomeScreen() {
     // visual rhythm of the project list so content appears to fade in
     // rather than punch through a loader. Premium-app feel.
     return (
-      <View style={[styles.container, { paddingTop: insets.top + 16 }]}>
+      <View style={[styles.container, { backgroundColor: themeColors.bg, paddingTop: insets.top + 16 }]}>
         <SkeletonCard />
         <SkeletonCard />
         <SkeletonCard />
@@ -372,7 +374,7 @@ export default function HomeScreen() {
 
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
       <FlatList
         // At tablet+ widths the project list is rendered as a single bordered
         // table inside ListFooterComponent (denseProjectList). FlatList still
