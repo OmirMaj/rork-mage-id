@@ -271,7 +271,7 @@ export const [SubscriptionProvider, useSubscription] = createContextHook(() => {
       const result = await Purchases.purchasePackage(pkg);
       return result;
     },
-    onSuccess: async (data) => {
+    onSuccess: async (data, variables) => {
       const newTier = tierFromCustomerInfo(data.customerInfo);
       console.log('[RC] Purchase successful, new tier:', newTier);
       // Update UI state synchronously so any subscriber re-renders this frame.
@@ -287,6 +287,35 @@ export const [SubscriptionProvider, useSubscription] = createContextHook(() => {
         // Also refresh the Supabase mirror so cross-device tier is consistent.
         await queryClient.invalidateQueries({ queryKey: ['subscription-supabase', userId] });
       }
+      // Analytics: this is THE conversion event. period + cents inferred
+      // from the RevenueCat package metadata.
+      try {
+        const pkg = variables;
+        const period = pkg.identifier.includes('annual') ? 'annual' : 'monthly';
+        const cents = Math.round((pkg.product?.price ?? 0) * 100);
+        const a = await import('@/utils/analytics');
+        a.trackEvent({
+          name: 'subscription_purchase_completed',
+          props: { tier: newTier, period, cents },
+        });
+        a.setUserProperties({ tier: newTier });
+      } catch { /* analytics should never block purchase flow */ }
+    },
+    onError: async (err, variables) => {
+      try {
+        const a = await import('@/utils/analytics');
+        const errorKind = err && typeof err === 'object' && 'userCancelled' in err && (err as { userCancelled: boolean }).userCancelled
+          ? 'user_cancelled'
+          : (err instanceof Error ? err.message.slice(0, 60) : 'unknown');
+        const period = variables.identifier.includes('annual') ? 'annual' : 'monthly';
+        const tierMatch = variables.identifier.match(/(pro|business|enterprise)/);
+        const tier = tierMatch?.[1] ?? 'unknown';
+        a.trackEvent({
+          name: 'subscription_purchase_failed',
+          props: { tier, error_kind: errorKind },
+        });
+        void period; // captured for completeness, not yet in event schema
+      } catch { /* never block */ }
     },
   });
 

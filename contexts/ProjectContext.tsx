@@ -1130,6 +1130,17 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
     saveProjectsMutation.mutate(updated);
     syncProjectToSupabase(project, 'upsert');
     geocodeIfNeeded(project);
+    // Analytics: project_created is the activation moment of the funnel.
+    // Determine "via" from the project's metadata: name pattern "Sample —"
+    // indicates the seeded demo flavor; otherwise it's a manual creation.
+    // Voice + lead-conversion paths set this explicitly via their own
+    // dedicated entry points (not via addProject), so they don't double-fire.
+    const via: 'manual' | 'sample' | 'voice' | 'lead_conversion' =
+      project.name.startsWith('Sample —') || project.name.startsWith('Sample -') ? 'sample' : 'manual';
+    void import('@/utils/analytics').then(a => {
+      a.trackEvent({ name: 'project_created_typed', props: { type: project.type, via } });
+      a.setUserProperties({ project_count: updated.length, is_activated: true });
+    }).catch(() => {});
   }, [projects, saveProjectsMutation, syncProjectToSupabase, geocodeIfNeeded]);
 
   const updateProject = useCallback((id: string, updates: Partial<Project>) => {

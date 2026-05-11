@@ -135,6 +135,28 @@ export default function TabLayout() {
       // "Create a project from the Projects tab" forcing new users to
       // discover the tab switch on their own.
       initialRouteName="(home)"
+      screenListeners={{
+        // Analytics: fire tab_viewed every time a tab becomes focused.
+        // `route.name` is the folder name ((home), summary, discover,
+        // settings, construction-ai, etc.) — we normalize it to the
+        // analytics tab enum here.
+        focus: (e) => {
+          const routeName = (e.target ?? '').split('-')[0];
+          const tabMap: Record<string, 'summary' | 'home' | 'discover' | 'tools' | 'settings' | 'ai_hub'> = {
+            'summary': 'summary',
+            '(home)': 'home',
+            'discover': 'discover',
+            'tools': 'tools',
+            'settings': 'settings',
+            'construction-ai': 'ai_hub',
+          };
+          const tab = tabMap[routeName];
+          if (!tab) return;
+          void import('@/utils/analytics').then(a =>
+            a.trackEvent({ name: 'tab_viewed', props: { tab } })
+          ).catch(() => {});
+        },
+      }}
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: Colors.primary,
