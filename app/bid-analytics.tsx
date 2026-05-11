@@ -142,7 +142,7 @@ export default function BidAnalyticsScreen() {
           headerTitleStyle: { fontWeight: '700' as const, color: Colors.text },
         }}
       />
-      <ScrollView contentContainerStyle={{ paddingTop: 12, paddingBottom: insets.bottom + 30 }}>
+      <ScrollView contentContainerStyle={{ paddingTop: Tokens.spacing.sm, paddingBottom: insets.bottom + 30 }}>
         {/* Hero — win rate front and center */}
         <View style={styles.hero}>
           <View style={styles.heroIconWrap}>
@@ -324,9 +324,9 @@ const styles = StyleSheet.create({
   hero: {
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.lg,
-    marginHorizontal: 16,
-    marginBottom: 12,
-    padding: 16,
+    marginHorizontal: Tokens.spacing.md,
+    marginBottom: Tokens.spacing.sm,
+    padding: Tokens.spacing.md,
     borderWidth: 1,
     borderColor: Colors.borderLight,
   },
@@ -337,7 +337,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary + '15',
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
-    marginBottom: 8,
+    marginBottom: Tokens.spacing.xs,
   },
   heroTitle: {
     fontSize: Type.title1.fontSize,
@@ -348,7 +348,7 @@ const styles = StyleSheet.create({
   heroSub: {
     fontSize: Type.footnote.fontSize,
     color: Colors.textSecondary,
-    marginTop: 4,
+    marginTop: Tokens.spacing.xxs,
   },
 
   calloutCard: {
@@ -357,9 +357,9 @@ const styles = StyleSheet.create({
     gap: 10,
     backgroundColor: Colors.warning + '12',
     borderRadius: Tokens.radius.md,
-    padding: 12,
-    marginHorizontal: 16,
-    marginBottom: 16,
+    padding: Tokens.spacing.sm,
+    marginHorizontal: Tokens.spacing.md,
+    marginBottom: Tokens.spacing.md,
     borderWidth: 1,
     borderColor: Colors.warning + '30',
   },
@@ -372,9 +372,9 @@ const styles = StyleSheet.create({
 
   statsGrid: {
     flexDirection: 'row' as const,
-    gap: 8,
-    paddingHorizontal: 16,
-    marginBottom: 16,
+    gap: Tokens.spacing.xs,
+    paddingHorizontal: Tokens.spacing.md,
+    marginBottom: Tokens.spacing.md,
   },
   statCell: {
     flex: 1,
@@ -384,7 +384,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: Colors.borderLight,
-    gap: 4,
+    gap: Tokens.spacing.xxs,
   },
   statValue: {
     fontSize: Type.title2.fontSize,
@@ -400,12 +400,12 @@ const styles = StyleSheet.create({
     letterSpacing: 0.4,
   },
 
-  section: { paddingHorizontal: 16, marginBottom: 18 },
+  section: { paddingHorizontal: Tokens.spacing.md, marginBottom: 18 },
   sectionTitle: {
     fontSize: Type.subheadline.fontSize,
     fontWeight: '800' as const,
     color: Colors.text,
-    marginBottom: 8,
+    marginBottom: Tokens.spacing.xs,
     letterSpacing: -0.2,
   },
 
@@ -431,12 +431,12 @@ const styles = StyleSheet.create({
     fontWeight: '900' as const,
     color: Colors.text,
     letterSpacing: -0.4,
-    marginTop: 4,
+    marginTop: Tokens.spacing.xxs,
   },
   compareNote: {
     fontSize: Type.caption1.fontSize,
     color: Colors.textSecondary,
-    marginTop: 8,
+    marginTop: Tokens.spacing.xs,
     fontStyle: 'italic' as const,
     lineHeight: 17,
   },
@@ -451,7 +451,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingVertical: Tokens.spacing.sm,
   },
   bucketRowBorder: {
     borderBottomWidth: StyleSheet.hairlineWidth,
@@ -477,12 +477,12 @@ const styles = StyleSheet.create({
   dowRow: {
     flexDirection: 'row' as const,
     gap: 6,
-    paddingVertical: 8,
+    paddingVertical: Tokens.spacing.xs,
   },
   dowCell: {
     flex: 1,
     alignItems: 'center' as const,
-    gap: 4,
+    gap: Tokens.spacing.xxs,
   },
   dowBar: {
     width: '100%',
@@ -504,7 +504,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary + '08',
     borderRadius: Tokens.radius.md,
     padding: 14,
-    marginHorizontal: 16,
+    marginHorizontal: Tokens.spacing.md,
     marginBottom: 18,
     borderWidth: 1,
     borderColor: Colors.primary + '30',
@@ -526,8 +526,8 @@ const styles = StyleSheet.create({
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
     gap: 6,
-    paddingVertical: 12,
-    marginHorizontal: 16,
+    paddingVertical: Tokens.spacing.sm,
+    marginHorizontal: Tokens.spacing.md,
     borderRadius: Tokens.radius.md,
     backgroundColor: Colors.surface,
     borderWidth: 1,
@@ -541,10 +541,10 @@ const styles = StyleSheet.create({
 
   footer: {
     flexDirection: 'row' as const,
-    gap: 8,
+    gap: Tokens.spacing.xs,
     alignItems: 'flex-start' as const,
     paddingHorizontal: 18,
-    paddingVertical: 16,
+    paddingVertical: Tokens.spacing.md,
     opacity: 0.7,
   },
   footerText: {

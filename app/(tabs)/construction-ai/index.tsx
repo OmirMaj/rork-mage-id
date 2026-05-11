@@ -161,7 +161,7 @@ export default function ConstructionAITab() {
 
   if (!canAccess('ai_code_check')) {
     return (
-      <View style={[styles.container, { paddingTop: insets.top + 16, paddingHorizontal: 24 }]}>
+      <View style={[styles.container, { paddingTop: insets.top + 16, paddingHorizontal: Tokens.spacing.xl }]}>
         <View style={styles.lockedHero}>
           <View style={styles.lockedIconWrap}>
             <Gavel size={36} color={Colors.primary} />
@@ -292,7 +292,7 @@ Be specific to the cited location if possible. If the location is not in the US,
         style={{ flex: 1 }}
       >
         <ScrollView
-          contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 80 }}
+          contentContainerStyle={{ padding: Tokens.spacing.lg, paddingBottom: insets.bottom + 80 }}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
@@ -568,7 +568,7 @@ function ResultModal({
         </View>
 
         <ScrollView
-          contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 24, gap: 10 }}
+          contentContainerStyle={{ padding: Tokens.spacing.md, paddingBottom: insets.bottom + 24, gap: 10 }}
           showsVerticalScrollIndicator={false}
         >
           {result.summary ? (
@@ -696,7 +696,7 @@ function AccordionSection({
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
-  hero: { alignItems: 'center' as const, marginBottom: 20, gap: 6 },
+  hero: { alignItems: 'center' as const, marginBottom: Tokens.spacing.lg, gap: 6 },
   heroIconWrap: {
     width: 56, height: 56, borderRadius: 28,
     backgroundColor: Colors.primary + '14',
@@ -706,7 +706,7 @@ const styles = StyleSheet.create({
   heroTitle: { ...Type.displaySm, color: Colors.ink },
   heroSubtitle: {
     fontSize: Type.bodyCompact.fontSize, color: Colors.textMuted, textAlign: 'center' as const,
-    paddingHorizontal: 20, lineHeight: 20,
+    paddingHorizontal: Tokens.spacing.lg, lineHeight: 20,
   },
 
   // Permit Q&A banner — vivid amber-to-orange gradient simulated via
@@ -716,8 +716,8 @@ const styles = StyleSheet.create({
   permitQaBanner: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
-    gap: 12,
-    padding: 16,
+    gap: Tokens.spacing.sm,
+    padding: Tokens.spacing.md,
     borderRadius: Tokens.radius.lg,
     backgroundColor: '#D97706', // amber-700 — semantic match for code/permit
     marginBottom: 18,
@@ -728,7 +728,7 @@ const styles = StyleSheet.create({
     alignItems: 'center' as const, justifyContent: 'center' as const,
   },
   permitQaTitleRow: {
-    flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8,
+    flexDirection: 'row' as const, alignItems: 'center' as const, gap: Tokens.spacing.xs,
   },
   permitQaTitle: {
     fontSize: Type.headline.fontSize,
@@ -737,7 +737,7 @@ const styles = StyleSheet.create({
     letterSpacing: -0.2,
   },
   permitQaBadge: {
-    paddingHorizontal: 6, paddingVertical: 2,
+    paddingHorizontal: 6, paddingVertical: Tokens.spacing.hairline,
     borderRadius: 6,
     backgroundColor: 'rgba(255,255,255,0.22)',
   },
@@ -748,7 +748,7 @@ const styles = StyleSheet.create({
   permitQaSubtitle: {
     fontSize: Type.caption1.fontSize,
     color: 'rgba(255,255,255,0.85)',
-    marginTop: 2,
+    marginTop: Tokens.spacing.hairline,
   },
   codeCheckSectionLabel: {
     fontSize: Type.caption1.fontSize,
@@ -756,22 +756,22 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase' as const,
     letterSpacing: 0.6,
     fontWeight: '600' as const,
-    marginBottom: 2,
+    marginBottom: Tokens.spacing.hairline,
   },
 
   label: {
     fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.textMuted,
-    marginTop: 16, marginBottom: 8, letterSpacing: 0.5,
+    marginTop: Tokens.spacing.md, marginBottom: Tokens.spacing.xs, letterSpacing: 0.5,
   },
   inputRow: {
     flexDirection: 'row' as const, alignItems: 'center' as const,
     backgroundColor: Colors.surface, borderRadius: Tokens.radius.card, borderWidth: 1,
-    borderColor: Colors.cardBorder, paddingHorizontal: 12, paddingVertical: 10, gap: 8,
+    borderColor: Colors.cardBorder, paddingHorizontal: Tokens.spacing.sm, paddingVertical: 10, gap: Tokens.spacing.xs,
   },
   input: { flex: 1, fontSize: Type.subhead.fontSize, color: Colors.text, padding: 0 },
-  chipWrap: { flexDirection: 'row' as const, flexWrap: 'wrap' as const, gap: 8 },
+  chipWrap: { flexDirection: 'row' as const, flexWrap: 'wrap' as const, gap: Tokens.spacing.xs },
   chip: {
-    paddingHorizontal: 12, paddingVertical: 8, borderRadius: Tokens.radius.panel,
+    paddingHorizontal: Tokens.spacing.sm, paddingVertical: Tokens.spacing.xs, borderRadius: Tokens.radius.panel,
     backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.cardBorder,
   },
   chipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
@@ -781,8 +781,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     gap: 6,
-    marginTop: 16,
-    marginBottom: 8,
+    marginTop: Tokens.spacing.md,
+    marginBottom: Tokens.spacing.xs,
   },
   presetHeaderText: {
     fontSize: Type.caption1.fontSize,
@@ -792,7 +792,7 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase' as const,
   },
   presetList: {
-    gap: 8,
+    gap: Tokens.spacing.xs,
   },
   presetPill: {
     backgroundColor: Colors.surface,
@@ -800,7 +800,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.cardBorder,
     paddingVertical: 10,
-    paddingHorizontal: 12,
+    paddingHorizontal: Tokens.spacing.sm,
   },
   presetPillActive: {
     borderColor: Colors.primary,
@@ -817,28 +817,28 @@ const styles = StyleSheet.create({
   },
   textArea: {
     backgroundColor: Colors.surface, borderRadius: Tokens.radius.card, borderWidth: 1,
-    borderColor: Colors.cardBorder, padding: 12, minHeight: 100,
+    borderColor: Colors.cardBorder, padding: Tokens.spacing.sm, minHeight: 100,
     fontSize: Type.subhead.fontSize, color: Colors.text,
   },
   runBtn: {
-    marginTop: 20, flexDirection: 'row' as const, alignItems: 'center' as const,
-    justifyContent: 'center' as const, gap: 8,
+    marginTop: Tokens.spacing.lg, flexDirection: 'row' as const, alignItems: 'center' as const,
+    justifyContent: 'center' as const, gap: Tokens.spacing.xs,
     backgroundColor: Colors.primary, borderRadius: Tokens.radius.lg, paddingVertical: 14,
   },
   runBtnDisabled: { opacity: 0.5 },
   runBtnText: { color: '#FFF', fontSize: Type.callout.fontSize, fontWeight: '700' as const },
   quotaText: {
     fontSize: Type.caption1.fontSize, color: Colors.textMuted, textAlign: 'center' as const,
-    marginTop: 8,
+    marginTop: Tokens.spacing.xs,
   },
   reopenBtn: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
-    gap: 8,
-    marginTop: 16,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+    gap: Tokens.spacing.xs,
+    marginTop: Tokens.spacing.md,
+    paddingVertical: Tokens.spacing.sm,
+    paddingHorizontal: Tokens.spacing.md,
     borderRadius: Tokens.radius.card,
     backgroundColor: Colors.primary + '10',
     borderWidth: 1,
@@ -856,7 +856,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.55)',
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
-    padding: 24,
+    padding: Tokens.spacing.xl,
   },
   loadingCard: {
     backgroundColor: Colors.surface,
@@ -864,7 +864,7 @@ const styles = StyleSheet.create({
     padding: 28,
     alignItems: 'center' as const,
     minWidth: 260,
-    gap: 12,
+    gap: Tokens.spacing.sm,
   },
   loadingIconStack: {
     width: 96,
@@ -883,7 +883,7 @@ const styles = StyleSheet.create({
     fontSize: Type.subheadline.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
-    marginTop: 8,
+    marginTop: Tokens.spacing.xs,
   },
   loadingStep: {
     fontSize: Type.bodyCompact.fontSize,
@@ -894,7 +894,7 @@ const styles = StyleSheet.create({
   loadingDots: {
     flexDirection: 'row' as const,
     gap: 6,
-    marginTop: 4,
+    marginTop: Tokens.spacing.xxs,
   },
   loadingDot: {
     width: 8,
@@ -914,9 +914,9 @@ const styles = StyleSheet.create({
   resultHeader: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
-    gap: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    gap: Tokens.spacing.sm,
+    paddingHorizontal: Tokens.spacing.md,
+    paddingVertical: Tokens.spacing.sm,
     borderBottomWidth: 0.5,
     borderBottomColor: Colors.borderLight,
     backgroundColor: Colors.surface,
@@ -953,29 +953,29 @@ const styles = StyleSheet.create({
   },
   resultCardHeader: {
     flexDirection: 'row' as const, alignItems: 'center' as const,
-    gap: 8, marginBottom: 10,
+    gap: Tokens.spacing.xs, marginBottom: 10,
   },
   resultCardTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
   resultBody: { fontSize: Type.bodyCompact.fontSize, color: Colors.text, lineHeight: 20 },
   codeRow: { marginBottom: 10 },
-  codeLabel: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.primary, marginBottom: 2 },
+  codeLabel: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.primary, marginBottom: Tokens.spacing.hairline },
   codeReq: { fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 19 },
-  bulletRow: { fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 20, marginBottom: 4 },
+  bulletRow: { fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 20, marginBottom: Tokens.spacing.xxs },
   disclaimer: {
     fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontStyle: 'italic' as const,
-    textAlign: 'center' as const, paddingHorizontal: 20, marginTop: 4,
+    textAlign: 'center' as const, paddingHorizontal: Tokens.spacing.lg, marginTop: Tokens.spacing.xxs,
   },
 
   // Accordion
   accordionHeader: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
-    gap: 8,
+    gap: Tokens.spacing.xs,
   },
   accordionCount: {
     backgroundColor: Colors.fillTertiary,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
+    paddingHorizontal: Tokens.spacing.xs,
+    paddingVertical: Tokens.spacing.hairline,
     borderRadius: Tokens.radius.md,
     minWidth: 22,
     alignItems: 'center' as const,
@@ -997,13 +997,13 @@ const styles = StyleSheet.create({
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
     paddingBottom: 80,
-    gap: 12,
+    gap: Tokens.spacing.sm,
   },
   lockedIconWrap: {
     width: 88, height: 88, borderRadius: 44,
     backgroundColor: Colors.primary + '14',
     alignItems: 'center' as const, justifyContent: 'center' as const,
-    marginBottom: 8,
+    marginBottom: Tokens.spacing.xs,
   },
   lockedTitle: {
     fontSize: 26, fontWeight: '700' as const, color: Colors.text,
@@ -1012,11 +1012,11 @@ const styles = StyleSheet.create({
   lockedBody: {
     fontSize: Type.subhead.fontSize, color: Colors.textMuted,
     textAlign: 'center' as const, lineHeight: 22,
-    paddingHorizontal: 12, marginBottom: 12,
+    paddingHorizontal: Tokens.spacing.sm, marginBottom: Tokens.spacing.sm,
   },
   lockedCta: {
     flexDirection: 'row' as const, alignItems: 'center' as const,
-    justifyContent: 'center' as const, gap: 8,
+    justifyContent: 'center' as const, gap: Tokens.spacing.xs,
     backgroundColor: Colors.primary, borderRadius: Tokens.radius.lg,
     paddingVertical: 14, paddingHorizontal: 28,
   },

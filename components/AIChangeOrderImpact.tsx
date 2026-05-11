@@ -159,14 +159,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 20,
+    gap: Tokens.spacing.xs,
+    paddingVertical: Tokens.spacing.sm,
+    paddingHorizontal: Tokens.spacing.lg,
     backgroundColor: `${Colors.primary}08`,
     borderRadius: Tokens.radius.card,
     borderWidth: 1,
     borderColor: `${Colors.primary}20`,
-    marginVertical: 8,
+    marginVertical: Tokens.spacing.xs,
   },
   triggerDisabled: {
     opacity: 0.5,
@@ -179,11 +179,11 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.lg,
-    padding: 16,
-    marginVertical: 8,
+    padding: Tokens.spacing.md,
+    marginVertical: Tokens.spacing.xs,
     borderWidth: 0.5,
     borderColor: Colors.borderLight,
-    gap: 12,
+    gap: Tokens.spacing.sm,
   },
   header: {
     flexDirection: 'row',
@@ -206,12 +206,12 @@ const styles = StyleSheet.create({
     color: Colors.primary,
     backgroundColor: `${Colors.primary}12`,
     paddingHorizontal: 6,
-    paddingVertical: 2,
+    paddingVertical: Tokens.spacing.hairline,
     borderRadius: 4,
     letterSpacing: 0.5,
   },
   section: {
-    padding: 12,
+    padding: Tokens.spacing.sm,
     backgroundColor: Colors.fillSecondary,
     borderRadius: Tokens.radius.md,
     gap: 6,
@@ -235,7 +235,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 6,
-    marginLeft: 4,
+    marginLeft: Tokens.spacing.xxs,
   },
   taskText: {
     fontSize: Type.footnote.fontSize,
@@ -246,7 +246,7 @@ const styles = StyleSheet.create({
     fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
     color: Colors.text,
-    marginTop: 4,
+    marginTop: Tokens.spacing.xxs,
   },
   costGrid: {
     flexDirection: 'row',
@@ -256,7 +256,7 @@ const styles = StyleSheet.create({
   costItem: {
     flex: 1,
     minWidth: '45%',
-    padding: 8,
+    padding: Tokens.spacing.xs,
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.sm,
     alignItems: 'center',
@@ -285,10 +285,10 @@ const styles = StyleSheet.create({
     lineHeight: 19,
   },
   compRow: {
-    padding: 8,
+    padding: Tokens.spacing.xs,
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.sm,
-    gap: 2,
+    gap: Tokens.spacing.hairline,
   },
   compDesc: {
     fontSize: Type.footnote.fontSize,
@@ -300,7 +300,7 @@ const styles = StyleSheet.create({
   },
   reanalyzeBtn: {
     alignItems: 'center',
-    paddingVertical: 8,
+    paddingVertical: Tokens.spacing.xs,
   },
   reanalyzeText: {
     fontSize: Type.footnote.fontSize,

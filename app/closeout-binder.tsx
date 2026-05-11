@@ -472,7 +472,7 @@ export default function CloseoutBinderScreen() {
           <Text style={styles.loadingText}>Loading your binder…</Text>
         </View>
       ) : (
-        <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 130 }}>
+        <ScrollView contentContainerStyle={{ padding: Tokens.spacing.md, paddingBottom: insets.bottom + 130 }}>
           {/* Status timeline — small and informational so the GC always
               knows where this binder stands. */}
           {(finalizedAt || sentAt) && (
@@ -867,12 +867,12 @@ const modalStyles = StyleSheet.create({
   sheet: {
     backgroundColor: Colors.surface,
     borderTopLeftRadius: 20, borderTopRightRadius: 20,
-    paddingHorizontal: 18, paddingTop: 16, paddingBottom: 22,
-    gap: 8,
+    paddingHorizontal: 18, paddingTop: Tokens.spacing.md, paddingBottom: 22,
+    gap: Tokens.spacing.xs,
   },
   head: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    paddingBottom: 12, marginBottom: 4,
+    flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.sm,
+    paddingBottom: Tokens.spacing.sm, marginBottom: Tokens.spacing.xxs,
     borderBottomWidth: 1, borderBottomColor: Colors.borderLight,
   },
   headSub: {
@@ -881,17 +881,17 @@ const modalStyles = StyleSheet.create({
   },
   headTitle: {
     fontSize: Type.callout.fontSize, fontWeight: '800' as const, color: Colors.text,
-    marginTop: 2,
+    marginTop: Tokens.spacing.hairline,
   },
   label: {
     fontSize: Type.caption2.fontSize, fontWeight: '800' as const, color: Colors.textMuted,
     letterSpacing: 0.6, textTransform: 'uppercase' as const,
-    marginTop: 12, marginBottom: 5,
+    marginTop: Tokens.spacing.sm, marginBottom: 5,
   },
   input: {
     backgroundColor: Colors.background,
     borderWidth: 1, borderColor: Colors.border, borderRadius: Tokens.radius.md,
-    paddingHorizontal: 12, paddingVertical: 10,
+    paddingHorizontal: Tokens.spacing.sm, paddingVertical: 10,
     fontSize: Type.bodyCompact.fontSize, color: Colors.text,
   },
   helper: {
@@ -901,7 +901,7 @@ const modalStyles = StyleSheet.create({
   cta: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const, justifyContent: 'center' as const,
-    gap: 8,
+    gap: Tokens.spacing.xs,
     backgroundColor: Colors.primary,
     borderRadius: Tokens.radius.card, paddingVertical: 14,
     marginTop: 14,
@@ -918,48 +918,48 @@ const styles = StyleSheet.create({
 
   header: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 10,
-    paddingHorizontal: 16, paddingTop: 14, paddingBottom: 14,
+    paddingHorizontal: Tokens.spacing.md, paddingTop: 14, paddingBottom: 14,
     borderBottomWidth: 1, borderBottomColor: Colors.border,
   },
   eyebrow: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.primary, letterSpacing: 1.4, textTransform: 'uppercase' },
-  title:   { fontSize: Type.title3.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.4, marginTop: 4 },
-  statusPill: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: Tokens.radius.full, marginTop: 6 },
+  title:   { fontSize: Type.title3.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.4, marginTop: Tokens.spacing.xxs },
+  statusPill: { paddingHorizontal: 9, paddingVertical: Tokens.spacing.xxs, borderRadius: Tokens.radius.full, marginTop: 6 },
   statusPillText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.8 },
   emptyTitle: { fontSize: Type.callout.fontSize, fontWeight: '800', color: Colors.text },
-  emptyBack: { marginTop: 12, paddingHorizontal: 18, paddingVertical: 10, borderRadius: Tokens.radius.md, backgroundColor: Colors.primary },
+  emptyBack: { marginTop: Tokens.spacing.sm, paddingHorizontal: 18, paddingVertical: 10, borderRadius: Tokens.radius.md, backgroundColor: Colors.primary },
   emptyBackText: { color: '#FFF', fontWeight: '800', fontSize: Type.footnote.fontSize },
 
-  timeline: { gap: 4, marginBottom: 10, paddingHorizontal: 4 },
+  timeline: { gap: Tokens.spacing.xxs, marginBottom: 10, paddingHorizontal: Tokens.spacing.xxs },
   timelineRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   timelineText: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, fontWeight: '600' },
 
-  previewCard: { backgroundColor: Colors.primary + '0D', borderRadius: Tokens.radius.lg, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: Colors.primary + '30', gap: 8 },
+  previewCard: { backgroundColor: Colors.primary + '0D', borderRadius: Tokens.radius.lg, padding: 14, marginBottom: Tokens.spacing.sm, borderWidth: 1, borderColor: Colors.primary + '30', gap: Tokens.spacing.xs },
   previewHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   previewTitle: { fontSize: Type.footnote.fontSize, fontWeight: '800', color: Colors.primary, letterSpacing: -0.2 },
   previewBody: { fontSize: Type.caption1.fontSize, color: Colors.text, lineHeight: 17 },
-  previewList: { gap: 4 },
-  previewRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 4 },
+  previewList: { gap: Tokens.spacing.xxs },
+  previewRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: Tokens.spacing.xxs },
   previewRowLabel: { fontSize: Type.caption1.fontSize, color: Colors.text, fontWeight: '600' },
   previewRowValue: { fontSize: Type.caption1.fontSize, color: Colors.primary, fontWeight: '800' },
-  emptyHint: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontStyle: 'italic', lineHeight: 16, marginTop: 4 },
+  emptyHint: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontStyle: 'italic', lineHeight: 16, marginTop: Tokens.spacing.xxs },
 
-  card: { backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 14, borderWidth: 1, borderColor: Colors.border, marginBottom: 12 },
-  cardHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 4 },
+  card: { backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 14, borderWidth: 1, borderColor: Colors.border, marginBottom: Tokens.spacing.sm },
+  cardHead: { flexDirection: 'row', alignItems: 'flex-start', gap: Tokens.spacing.xs, marginBottom: Tokens.spacing.xxs },
   cardLabel: { fontSize: Type.caption2.fontSize, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 6 },
   cardHelper: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginBottom: 10, lineHeight: 17 },
 
-  smallBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 9, backgroundColor: Colors.primary + '0D', borderWidth: 1, borderColor: Colors.primary + '30' },
+  smallBtn: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xxs, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 9, backgroundColor: Colors.primary + '0D', borderWidth: 1, borderColor: Colors.primary + '30' },
   smallBtnText: { fontSize: Type.caption1.fontSize, fontWeight: '800', color: Colors.primary },
 
-  textarea: { backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border, borderRadius: Tokens.radius.md, paddingHorizontal: 12, paddingVertical: 11, fontSize: Type.bodyCompact.fontSize, color: Colors.text, minHeight: 110 },
+  textarea: { backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border, borderRadius: Tokens.radius.md, paddingHorizontal: Tokens.spacing.sm, paddingVertical: 11, fontSize: Type.bodyCompact.fontSize, color: Colors.text, minHeight: 110 },
 
   // AIA closeout form rows — clean tappable list inside the binder card
   aiaFormRow: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
-    gap: 12,
+    gap: Tokens.spacing.sm,
     paddingVertical: 11,
-    paddingHorizontal: 4,
+    paddingHorizontal: Tokens.spacing.xxs,
     borderBottomWidth: 1,
     borderBottomColor: Colors.borderLight,
   },
@@ -969,16 +969,16 @@ const styles = StyleSheet.create({
     alignItems: 'center' as const, justifyContent: 'center' as const,
   },
   aiaFormTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.text },
-  aiaFormSub: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 2, lineHeight: 15 },
+  aiaFormSub: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: Tokens.spacing.hairline, lineHeight: 15 },
 
-  maintRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: Colors.border },
+  maintRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Tokens.spacing.xs, paddingVertical: Tokens.spacing.xs, borderBottomWidth: 1, borderBottomColor: Colors.border },
   maintMain: { flex: 1, gap: 6 },
   maintTask: { fontSize: Type.footnote.fontSize, color: Colors.text, fontWeight: '600', padding: 0 },
-  maintMeta: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  maintMeta: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xxs },
   maintFreq: { flex: 1, fontSize: Type.caption2.fontSize, color: Colors.textMuted, padding: 0 },
 
-  actionBar: { flexDirection: 'row', gap: 8, paddingHorizontal: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: Colors.border, backgroundColor: Colors.surface },
-  secondary: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 13, borderRadius: 11, backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border },
+  actionBar: { flexDirection: 'row', gap: Tokens.spacing.xs, paddingHorizontal: 14, paddingTop: Tokens.spacing.sm, borderTopWidth: 1, borderTopColor: Colors.border, backgroundColor: Colors.surface },
+  secondary: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingHorizontal: Tokens.spacing.sm, paddingVertical: 13, borderRadius: 11, backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border },
   secondaryText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.text },
   primary: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 14, borderRadius: 11, backgroundColor: Colors.primary, shadowColor: Colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.28, shadowRadius: 8, elevation: 4 },
   primaryText: { fontSize: Type.footnote.fontSize, fontWeight: '800', color: '#FFF' },

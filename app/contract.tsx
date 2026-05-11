@@ -391,9 +391,9 @@ export default function ContractScreen() {
         <StatusPill status={contract.status} />
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 100 }}>
+      <ScrollView contentContainerStyle={{ padding: Tokens.spacing.md, paddingBottom: insets.bottom + 100 }}>
         {contract.status !== 'void' && (
-          <View style={{ marginBottom: 12 }}>
+          <View style={{ marginBottom: Tokens.spacing.sm }}>
             <StatusPipeline
               stages={CONTRACT_PIPELINE_STAGES}
               current={contract.status}
@@ -903,12 +903,12 @@ const styles = StyleSheet.create({
     padding: 14,
     borderWidth: 1,
     borderColor: Colors.borderLight,
-    marginBottom: 12,
+    marginBottom: Tokens.spacing.sm,
   },
   historyHead: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
-    gap: 8,
+    gap: Tokens.spacing.xs,
   },
   historyTitle: {
     flex: 1,
@@ -946,7 +946,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     gap: 10,
-    paddingHorizontal: 12,
+    paddingHorizontal: Tokens.spacing.sm,
     paddingVertical: 10,
   },
   historyRowBorder: {
@@ -983,25 +983,25 @@ const styles = StyleSheet.create({
 
   header: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 10,
-    paddingHorizontal: 16, paddingTop: 14, paddingBottom: 14,
+    paddingHorizontal: Tokens.spacing.md, paddingTop: 14, paddingBottom: 14,
     borderBottomWidth: 1, borderBottomColor: Colors.border,
   },
   eyebrow: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.primary, letterSpacing: 1.4, textTransform: 'uppercase' },
-  title:   { fontSize: Type.title3.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.4, marginTop: 4 },
+  title:   { fontSize: Type.title3.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.4, marginTop: Tokens.spacing.xxs },
 
-  pill: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: Tokens.radius.full },
+  pill: { paddingHorizontal: 9, paddingVertical: Tokens.spacing.xxs, borderRadius: Tokens.radius.full },
   pillText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
 
   card: {
     backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 14,
-    borderWidth: 1, borderColor: Colors.border, marginBottom: 12,
+    borderWidth: 1, borderColor: Colors.border, marginBottom: Tokens.spacing.sm,
   },
-  cardHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 4 },
+  cardHead: { flexDirection: 'row', alignItems: 'flex-start', gap: Tokens.spacing.xs, marginBottom: Tokens.spacing.xxs },
   cardLabel: { fontSize: Type.caption2.fontSize, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 6 },
   cardHelper: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginBottom: 10, lineHeight: 17 },
 
   smallBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
+    flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xxs,
     paddingHorizontal: 10, paddingVertical: 6, borderRadius: 9,
     backgroundColor: Colors.primary + '0D',
     borderWidth: 1, borderColor: Colors.primary + '30',
@@ -1011,7 +1011,7 @@ const styles = StyleSheet.create({
   input: {
     backgroundColor: Colors.background,
     borderWidth: 1, borderColor: Colors.border, borderRadius: Tokens.radius.md,
-    paddingHorizontal: 12, paddingVertical: 11,
+    paddingHorizontal: Tokens.spacing.sm, paddingVertical: 11,
     fontSize: Type.bodyCompact.fontSize, color: Colors.text,
   },
   inputDisabled: { opacity: 0.7 },
@@ -1019,10 +1019,10 @@ const styles = StyleSheet.create({
   inputTermsMultiline: { minHeight: 200, paddingTop: 11, fontSize: Type.caption1.fontSize, lineHeight: 18 },
 
   amountField: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
+    flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs,
     backgroundColor: Colors.background, borderRadius: Tokens.radius.md,
     borderWidth: 1, borderColor: Colors.border,
-    paddingHorizontal: 14, paddingVertical: 8,
+    paddingHorizontal: 14, paddingVertical: Tokens.spacing.xs,
   },
   amountInput: { flex: 1, fontSize: Type.subheadline.fontSize, fontWeight: '800', color: Colors.text },
 
@@ -1037,7 +1037,7 @@ const styles = StyleSheet.create({
     borderRadius: Tokens.radius.card,
     borderWidth: 1,
     borderColor: Colors.border,
-    paddingTop: 12,
+    paddingTop: Tokens.spacing.sm,
     paddingBottom: 14,
     paddingHorizontal: 14,
     marginBottom: 10,
@@ -1046,25 +1046,25 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 10,
-    gap: 8,
+    gap: Tokens.spacing.xs,
   },
   milestoneTrash: {
     width: 28, height: 28, borderRadius: Tokens.radius.sm,
     alignItems: 'center', justifyContent: 'center',
     backgroundColor: Colors.errorLight,
   },
-  milestoneStatus: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: Tokens.radius.full },
+  milestoneStatus: { paddingHorizontal: 9, paddingVertical: Tokens.spacing.xxs, borderRadius: Tokens.radius.full },
   milestoneStatusText: { fontSize: 9, fontWeight: '800', letterSpacing: 0.6 },
   milestoneFieldLabel: {
     fontSize: 10, fontWeight: '800', color: Colors.textMuted,
-    letterSpacing: 0.7, textTransform: 'uppercase', marginBottom: 4,
+    letterSpacing: 0.7, textTransform: 'uppercase', marginBottom: Tokens.spacing.xxs,
   },
   milestoneLabelInput: {
     backgroundColor: Colors.background,
     borderWidth: 1, borderColor: Colors.border, borderRadius: 9,
-    paddingHorizontal: 12, paddingVertical: 10,
+    paddingHorizontal: Tokens.spacing.sm, paddingVertical: 10,
     fontSize: Type.bodyCompact.fontSize, fontWeight: '600', color: Colors.text,
-    marginBottom: 12,
+    marginBottom: Tokens.spacing.sm,
   },
   milestoneFieldsRow: {
     flexDirection: 'row',
@@ -1075,7 +1075,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 6,
     backgroundColor: Colors.background,
     borderWidth: 1, borderColor: Colors.border, borderRadius: 9,
-    paddingHorizontal: 12, paddingVertical: 10,
+    paddingHorizontal: Tokens.spacing.sm, paddingVertical: 10,
     minHeight: 44,
   },
   milestoneAmountInput: {
@@ -1086,7 +1086,7 @@ const styles = StyleSheet.create({
   milestoneTriggerBox: {
     backgroundColor: Colors.fillSecondary,
     borderWidth: 1, borderColor: Colors.border, borderRadius: 9,
-    paddingHorizontal: 12, paddingVertical: 10,
+    paddingHorizontal: Tokens.spacing.sm, paddingVertical: 10,
     minHeight: 44,
     justifyContent: 'center',
   },
@@ -1097,14 +1097,14 @@ const styles = StyleSheet.create({
   milestoneTriggerInput: {
     fontSize: Type.footnote.fontSize, color: Colors.text,
     backgroundColor: Colors.background, borderRadius: 9,
-    paddingHorizontal: 12, paddingVertical: 10,
+    paddingHorizontal: Tokens.spacing.sm, paddingVertical: 10,
     borderWidth: 1, borderColor: Colors.border,
     minHeight: 44,
   },
 
   scheduleTotalRow: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingTop: 12, marginTop: 6,
+    paddingTop: Tokens.spacing.sm, marginTop: 6,
     borderTopWidth: 1, borderTopColor: Colors.border,
   },
   scheduleTotalLabel: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: Colors.textMuted, letterSpacing: 0.4, textTransform: 'uppercase' },
@@ -1116,7 +1116,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     backgroundColor: Colors.warningLight,
     borderRadius: 9,
-    paddingHorizontal: 12,
+    paddingHorizontal: Tokens.spacing.sm,
     paddingVertical: 10,
     marginTop: 10,
     gap: 10,
@@ -1137,9 +1137,9 @@ const styles = StyleSheet.create({
   rebalanceText: { fontSize: Type.caption2.fontSize, color: '#FFF', fontWeight: '800', letterSpacing: 0.3 },
 
   allowanceRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
+    flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs,
     backgroundColor: Colors.surface, borderRadius: Tokens.radius.md,
-    paddingHorizontal: 12, paddingVertical: 10, marginBottom: 8,
+    paddingHorizontal: Tokens.spacing.sm, paddingVertical: 10, marginBottom: Tokens.spacing.xs,
     borderWidth: 1, borderColor: Colors.border,
     minHeight: 48,
   },
@@ -1148,25 +1148,25 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   allowanceAmountField: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    paddingHorizontal: 10, paddingVertical: 8,
+    flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xxs,
+    paddingHorizontal: 10, paddingVertical: Tokens.spacing.xs,
     backgroundColor: Colors.background, borderRadius: Tokens.radius.sm,
     borderWidth: 1, borderColor: Colors.border,
     minWidth: 110,
   },
   allowanceAmount: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text, padding: 0, flex: 1 },
-  allowanceEmpty: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, fontStyle: 'italic', textAlign: 'center', paddingVertical: 12 },
+  allowanceEmpty: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, fontStyle: 'italic', textAlign: 'center', paddingVertical: Tokens.spacing.sm },
 
   sigBlock: {
     paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.border,
   },
   sigLabel: { fontSize: 10, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.6, textTransform: 'uppercase' },
-  sigName:  { fontSize: Type.callout.fontSize, fontWeight: '800', color: Colors.text, fontStyle: 'italic', marginTop: 4 },
-  sigDate:  { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 2 },
+  sigName:  { fontSize: Type.callout.fontSize, fontWeight: '800', color: Colors.text, fontStyle: 'italic', marginTop: Tokens.spacing.xxs },
+  sigDate:  { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: Tokens.spacing.hairline },
 
   actionRow: { flexDirection: 'row', gap: 10, marginTop: 10 },
   primaryBtn: {
-    flex: 1.4, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    flex: 1.4, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Tokens.spacing.xs,
     paddingVertical: 14, borderRadius: Tokens.radius.card,
     backgroundColor: Colors.primary,
     shadowColor: Colors.primary, shadowOffset: { width: 0, height: 4 },
@@ -1193,18 +1193,18 @@ const styles = StyleSheet.create({
 
   // Modal
   modalOverlay: { flex: 1, backgroundColor: 'rgba(11, 13, 16, 0.75)', justifyContent: 'flex-end' },
-  modalCard: { backgroundColor: Colors.surface, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 20, gap: 12 },
+  modalCard: { backgroundColor: Colors.surface, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: Tokens.spacing.lg, gap: Tokens.spacing.sm },
   modalTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: Colors.text },
   modalBody: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, lineHeight: 18 },
   modalNameInput: {
     backgroundColor: Colors.background,
     borderWidth: 1, borderColor: Colors.border, borderRadius: Tokens.radius.md,
-    paddingHorizontal: 14, paddingVertical: 12,
+    paddingHorizontal: 14, paddingVertical: Tokens.spacing.sm,
     fontSize: Type.subhead.fontSize, fontWeight: '700', color: Colors.text,
   },
   modalActions: { flexDirection: 'row', gap: 10 },
-  modalCancel: { flex: 1, paddingVertical: 12, borderRadius: 11, backgroundColor: Colors.background, alignItems: 'center', borderWidth: 1, borderColor: Colors.border },
+  modalCancel: { flex: 1, paddingVertical: Tokens.spacing.sm, borderRadius: 11, backgroundColor: Colors.background, alignItems: 'center', borderWidth: 1, borderColor: Colors.border },
   modalCancelText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
-  modalConfirm: { flex: 1.4, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 11, backgroundColor: Colors.primary },
+  modalConfirm: { flex: 1.4, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: Tokens.spacing.sm, borderRadius: 11, backgroundColor: Colors.primary },
   modalConfirmText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800', color: '#FFF' },
 });

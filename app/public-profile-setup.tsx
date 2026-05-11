@@ -95,7 +95,7 @@ export default function PublicProfileSetupScreen() {
         options={{
           title: 'Public Profile',
           headerLeft: () => (
-            <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }} accessibilityRole="button" accessibilityLabel="Back">
+            <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: Tokens.spacing.xxs }} accessibilityRole="button" accessibilityLabel="Back">
               <ChevronLeft size={24} color={Colors.primary} />
             </TouchableOpacity>
           ),
@@ -181,7 +181,7 @@ export default function PublicProfileSetupScreen() {
                 placeholder="e.g. Brownstone gut renovation, Park Slope"
                 placeholderTextColor={Colors.textMuted}
               />
-              <Text style={[styles.label, { marginTop: 12 }]}>Story (optional)</Text>
+              <Text style={[styles.label, { marginTop: Tokens.spacing.sm }]}>Story (optional)</Text>
               <TextInput
                 style={[styles.input, styles.inputMulti]}
                 value={profile.publicBody ?? ''}
@@ -222,7 +222,7 @@ export default function PublicProfileSetupScreen() {
                 />
               </View>
               <TextInput
-                style={[styles.input, { marginTop: 8 }]}
+                style={[styles.input, { marginTop: Tokens.spacing.xs }]}
                 value={profile.testimonialAuthor ?? ''}
                 onChangeText={v => persist({ testimonialAuthor: v })}
                 placeholder="— Sarah Patel, Owner"
@@ -284,7 +284,7 @@ const styles = StyleSheet.create({
   muted: { color: Colors.textMuted, fontSize: Type.footnote.fontSize, lineHeight: 18, fontStyle: 'italic' },
 
   hero: {
-    margin: 16, padding: 18, borderRadius: Tokens.radius.panel,
+    margin: Tokens.spacing.md, padding: 18, borderRadius: Tokens.radius.panel,
     backgroundColor: Colors.primary + '0D',
     borderWidth: 1, borderColor: Colors.primary + '20',
   },
@@ -292,14 +292,14 @@ const styles = StyleSheet.create({
     width: 38, height: 38, borderRadius: 11,
     backgroundColor: Colors.primary + '15',
     alignItems: 'center', justifyContent: 'center',
-    marginBottom: 12,
+    marginBottom: Tokens.spacing.sm,
   },
-  heroEyebrow: { fontSize: Type.caption2.fontSize, fontWeight: '700', letterSpacing: 1.5, color: Colors.primary, textTransform: 'uppercase', marginBottom: 4 },
-  heroTitle: { fontSize: Type.title2.fontSize, fontWeight: '800', color: Colors.text, marginBottom: 8 },
+  heroEyebrow: { fontSize: Type.caption2.fontSize, fontWeight: '700', letterSpacing: 1.5, color: Colors.primary, textTransform: 'uppercase', marginBottom: Tokens.spacing.xxs },
+  heroTitle: { fontSize: Type.title2.fontSize, fontWeight: '800', color: Colors.text, marginBottom: Tokens.spacing.xs },
   heroBody: { fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 19 },
 
-  section: { marginHorizontal: 16, marginBottom: 22 },
-  sectionTitle: { fontSize: Type.callout.fontSize, fontWeight: '700', color: Colors.text, marginBottom: 4 },
+  section: { marginHorizontal: Tokens.spacing.md, marginBottom: 22 },
+  sectionTitle: { fontSize: Type.callout.fontSize, fontWeight: '700', color: Colors.text, marginBottom: Tokens.spacing.xxs },
   sectionSubtitle: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, marginBottom: 10, lineHeight: 18 },
 
   togglesCard: {
@@ -307,7 +307,7 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: Colors.border, overflow: 'hidden',
   },
   toggleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 13 },
-  toggleLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
+  toggleLeft: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.sm, flex: 1 },
   toggleLabels: { flex: 1 },
   toggleLabel: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600', color: Colors.text },
   toggleDesc: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 1 },
@@ -316,30 +316,30 @@ const styles = StyleSheet.create({
   input: {
     backgroundColor: Colors.card, borderRadius: Tokens.radius.md,
     borderWidth: 1, borderColor: Colors.border,
-    paddingHorizontal: 12, paddingVertical: 12,
+    paddingHorizontal: Tokens.spacing.sm, paddingVertical: Tokens.spacing.sm,
     fontSize: Type.bodyCompact.fontSize, color: Colors.text,
   },
   inputMulti: { minHeight: 90, textAlignVertical: 'top' as const },
 
   linkBox: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
+    flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs,
     backgroundColor: Colors.card, borderRadius: Tokens.radius.md,
-    paddingHorizontal: 12, paddingVertical: 12,
+    paddingHorizontal: Tokens.spacing.sm, paddingVertical: Tokens.spacing.sm,
     borderWidth: 1, borderColor: Colors.border, marginBottom: 10,
   },
   linkText: { flex: 1, fontSize: Type.caption1.fontSize, color: Colors.text },
-  shareRow: { flexDirection: 'row', gap: 8 },
+  shareRow: { flexDirection: 'row', gap: Tokens.spacing.xs },
   shareBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-    paddingVertical: 12, borderRadius: Tokens.radius.md,
+    paddingVertical: Tokens.spacing.sm, borderRadius: Tokens.radius.md,
     backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,
   },
   shareBtnPrimary: { backgroundColor: Colors.primary, borderColor: Colors.primary },
   shareBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
 
-  quoteRow: { flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
+  quoteRow: { flexDirection: 'row', gap: Tokens.spacing.xs, alignItems: 'flex-start' },
 
-  statRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8 },
-  statLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 2 },
+  statRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: Tokens.spacing.xs },
+  statLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: Tokens.spacing.hairline },
   statValue: { fontSize: Type.callout.fontSize, fontWeight: '700', color: Colors.text },
 });

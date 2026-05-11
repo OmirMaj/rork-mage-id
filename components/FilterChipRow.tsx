@@ -94,9 +94,9 @@ export default function FilterChipRow<T extends string = string>({
 const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
-    gap: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    gap: Tokens.spacing.xs,
+    paddingHorizontal: Tokens.spacing.md,
+    paddingVertical: Tokens.spacing.xs,
     alignItems: 'center',
   },
   chip: {
@@ -104,7 +104,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     paddingVertical: 7,
-    paddingHorizontal: 12,
+    paddingHorizontal: Tokens.spacing.sm,
     borderRadius: 20,
     backgroundColor: Colors.fillSecondary,
     borderWidth: 1,

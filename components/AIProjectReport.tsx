@@ -185,7 +185,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    gap: Tokens.spacing.xs,
     backgroundColor: Colors.primary + '10',
     borderRadius: Tokens.radius.card,
     paddingVertical: 14,
@@ -207,13 +207,13 @@ const styles = StyleSheet.create({
     borderRadius: 3,
     backgroundColor: Colors.border,
     alignSelf: 'center',
-    marginBottom: 8,
+    marginBottom: Tokens.spacing.xs,
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
+    paddingHorizontal: Tokens.spacing.lg,
     paddingBottom: 14,
     borderBottomWidth: 0.5,
     borderBottomColor: Colors.borderLight,
@@ -221,7 +221,7 @@ const styles = StyleSheet.create({
   headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: Tokens.spacing.xs,
   },
   modalTitle: {
     fontSize: Type.subheadline.fontSize,
@@ -232,13 +232,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    padding: 16,
-    gap: 12,
+    padding: Tokens.spacing.md,
+    gap: Tokens.spacing.sm,
   },
   projectBanner: {
     backgroundColor: Colors.primary + '0A',
     borderRadius: Tokens.radius.card,
-    padding: 16,
+    padding: Tokens.spacing.md,
     borderLeftWidth: 4,
     borderLeftColor: Colors.primary,
   },
@@ -250,15 +250,15 @@ const styles = StyleSheet.create({
   projectMeta: {
     fontSize: Type.footnote.fontSize,
     color: Colors.textSecondary,
-    marginTop: 2,
+    marginTop: Tokens.spacing.hairline,
   },
   section: {
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.lg,
-    padding: 16,
+    padding: Tokens.spacing.md,
     borderWidth: 0.5,
     borderColor: Colors.borderLight,
-    gap: 8,
+    gap: Tokens.spacing.xs,
   },
   sectionTitle: {
     fontSize: Type.bodyCompact.fontSize,
@@ -266,7 +266,7 @@ const styles = StyleSheet.create({
     color: Colors.text,
     textTransform: 'uppercase' as const,
     letterSpacing: 0.5,
-    marginBottom: 4,
+    marginBottom: Tokens.spacing.xxs,
   },
   sectionText: {
     fontSize: Type.bodyCompact.fontSize,
@@ -283,7 +283,7 @@ const styles = StyleSheet.create({
     borderRadius: Tokens.radius.card,
     padding: 14,
     borderLeftWidth: 3,
-    gap: 4,
+    gap: Tokens.spacing.xxs,
   },
   statusLabel: {
     fontSize: Type.caption2.fontSize,
@@ -299,7 +299,7 @@ const styles = StyleSheet.create({
   listRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 8,
+    gap: Tokens.spacing.xs,
   },
   listText: {
     fontSize: Type.bodyCompact.fontSize,
@@ -311,6 +311,6 @@ const styles = StyleSheet.create({
     fontSize: Type.caption2.fontSize,
     color: Colors.textMuted,
     textAlign: 'center',
-    marginTop: 8,
+    marginTop: Tokens.spacing.xs,
   },
 });

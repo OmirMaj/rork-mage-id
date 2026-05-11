@@ -309,12 +309,12 @@ const styles = StyleSheet.create({
   levelBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: Tokens.spacing.xxs,
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: Tokens.radius.sm,
     backgroundColor: Colors.primary + '15',
-    marginRight: 8,
+    marginRight: Tokens.spacing.xs,
   },
   levelBtnText: {
     fontSize: Type.caption2.fontSize,
@@ -357,8 +357,8 @@ const styles = StyleSheet.create({
   laneName: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: Colors.text, flex: 1 },
   laneCap: { fontSize: 10, color: Colors.textSecondary, fontWeight: '600' },
   overloadBadge: {
-    marginLeft: 4,
-    padding: 2,
+    marginLeft: Tokens.spacing.xxs,
+    padding: Tokens.spacing.hairline,
     borderRadius: Tokens.radius.md,
     backgroundColor: Colors.error + '22',
   },
@@ -367,9 +367,9 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 24,
-    gap: 8,
+    padding: Tokens.spacing.xl,
+    gap: Tokens.spacing.xs,
   },
-  emptyTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text, marginTop: 8 },
+  emptyTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text, marginTop: Tokens.spacing.xs },
   emptyText: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, textAlign: 'center', maxWidth: 280 },
 });

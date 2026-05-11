@@ -136,7 +136,7 @@ export default function EquipmentDetailScreen() {
       }} />
       <ScrollView
         style={styles.container}
-        contentContainerStyle={{ paddingBottom: insets.bottom + 100, padding: 16 }}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 100, padding: Tokens.spacing.md }}
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.headerCard}>
@@ -211,7 +211,7 @@ export default function EquipmentDetailScreen() {
 
         <Text style={styles.fieldLabel}>Notes</Text>
         <TextInput
-          style={[styles.input, { minHeight: 70, paddingTop: 12 }]}
+          style={[styles.input, { minHeight: 70, paddingTop: Tokens.spacing.sm }]}
           value={editNotes}
           onChangeText={setEditNotes}
           placeholder="Notes..."
@@ -325,10 +325,10 @@ const styles = StyleSheet.create({
   headerCard: {
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.panel,
-    padding: 20,
+    padding: Tokens.spacing.lg,
     alignItems: 'center',
     gap: 10,
-    marginBottom: 20,
+    marginBottom: Tokens.spacing.lg,
   },
   equipIconWrap: {
     width: 56,
@@ -339,7 +339,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   statusBadge: {
-    paddingHorizontal: 12,
+    paddingHorizontal: Tokens.spacing.sm,
     paddingVertical: 5,
     borderRadius: Tokens.radius.sm,
   },
@@ -357,13 +357,13 @@ const styles = StyleSheet.create({
     fontWeight: '600' as const,
     color: Colors.textSecondary,
     marginBottom: 6,
-    marginTop: 12,
+    marginTop: Tokens.spacing.sm,
   },
   input: {
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.card,
     paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingVertical: Tokens.spacing.sm,
     fontSize: Type.subhead.fontSize,
     color: Colors.text,
     borderWidth: 1,
@@ -376,11 +376,11 @@ const styles = StyleSheet.create({
   pickerBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: Tokens.spacing.xs,
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.card,
     paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingVertical: Tokens.spacing.sm,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
   },
@@ -398,11 +398,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 6,
-    marginTop: 8,
+    marginTop: Tokens.spacing.xs,
   },
   optionChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: Tokens.spacing.sm,
+    paddingVertical: Tokens.spacing.xs,
     borderRadius: Tokens.radius.sm,
     backgroundColor: Colors.fillTertiary,
   },
@@ -432,8 +432,8 @@ const styles = StyleSheet.create({
     fontSize: Type.subheadline.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
-    marginTop: 24,
-    marginBottom: 12,
+    marginTop: Tokens.spacing.xl,
+    marginBottom: Tokens.spacing.sm,
   },
   noDataText: {
     fontSize: Type.bodyCompact.fontSize,
@@ -444,8 +444,8 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.card,
     padding: 14,
-    marginBottom: 8,
-    gap: 4,
+    marginBottom: Tokens.spacing.xs,
+    gap: Tokens.spacing.xxs,
   },
   maintCardOverdue: {
     borderLeftWidth: 3,
@@ -454,7 +454,7 @@ const styles = StyleSheet.create({
   maintHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: Tokens.spacing.xs,
   },
   maintDesc: {
     flex: 1,
@@ -470,19 +470,19 @@ const styles = StyleSheet.create({
   chartCard: {
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.card,
-    padding: 12,
-    marginBottom: 12,
+    padding: Tokens.spacing.sm,
+    marginBottom: Tokens.spacing.sm,
     overflow: 'hidden',
   },
   logBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    gap: Tokens.spacing.xs,
     paddingVertical: 14,
     borderRadius: Tokens.radius.card,
     backgroundColor: Colors.primary + '12',
-    marginTop: 8,
+    marginTop: Tokens.spacing.xs,
   },
   logBtnText: {
     fontSize: Type.subhead.fontSize,
@@ -493,11 +493,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    gap: Tokens.spacing.xs,
     backgroundColor: Colors.primary,
     borderRadius: Tokens.radius.lg,
-    paddingVertical: 16,
-    marginTop: 24,
+    paddingVertical: Tokens.spacing.md,
+    marginTop: Tokens.spacing.xl,
     shadowColor: Colors.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
@@ -513,9 +513,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    gap: Tokens.spacing.xs,
     paddingVertical: 14,
-    marginTop: 12,
+    marginTop: Tokens.spacing.sm,
   },
   deleteBtnText: {
     fontSize: Type.subhead.fontSize,
@@ -527,21 +527,21 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.overlay,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    padding: Tokens.spacing.lg,
   },
   modalCard: {
     backgroundColor: Colors.surface,
     borderRadius: 20,
-    padding: 24,
+    padding: Tokens.spacing.xl,
     width: '100%',
     maxWidth: 400,
-    gap: 4,
+    gap: Tokens.spacing.xxs,
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: Tokens.spacing.sm,
   },
   modalTitle: {
     fontSize: Type.title3.fontSize,

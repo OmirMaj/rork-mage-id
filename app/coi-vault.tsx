@@ -194,7 +194,7 @@ function COIVaultInner() {
           </TouchableOpacity>
         </View>
 
-        <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 30 }}>
+        <ScrollView contentContainerStyle={{ padding: Tokens.spacing.md, paddingBottom: insets.bottom + 30 }}>
           <View style={styles.titleBlock}>
             <Text style={styles.eyebrow}>Insurance vault</Text>
             <Text style={styles.title}>{activeSub.companyName}</Text>
@@ -277,7 +277,7 @@ function COIVaultInner() {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 30 }}>
+      <ScrollView contentContainerStyle={{ padding: Tokens.spacing.md, paddingBottom: insets.bottom + 30 }}>
         {subcontractors.length === 0 ? (
           <View style={styles.emptyState}>
             <Shield size={36} color={Colors.textMuted} />
@@ -436,9 +436,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row' as const,
     alignItems: 'flex-start' as const,
     gap: 10,
-    marginHorizontal: 16,
-    marginTop: 12,
-    paddingVertical: 12,
+    marginHorizontal: Tokens.spacing.md,
+    marginTop: Tokens.spacing.sm,
+    paddingVertical: Tokens.spacing.sm,
     paddingHorizontal: 14,
     borderRadius: Tokens.radius.panel,
     backgroundColor: Colors.surface,
@@ -458,7 +458,7 @@ const styles = StyleSheet.create({
   },
   compliancePill: {
     paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingVertical: Tokens.spacing.xxs,
     borderRadius: 999,
   },
   compliancePillText: {
@@ -469,11 +469,11 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   emptyState: { alignItems: 'center', paddingTop: 60, gap: 10 },
   emptyTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '800' as const, color: Colors.text },
-  emptyBody: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, textAlign: 'center', lineHeight: 19, paddingHorizontal: 32 },
+  emptyBody: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, textAlign: 'center', lineHeight: 19, paddingHorizontal: Tokens.spacing['2xl'] },
 
   listHeader: {
-    paddingHorizontal: 16,
-    paddingTop: 12, paddingBottom: 16,
+    paddingHorizontal: Tokens.spacing.md,
+    paddingTop: Tokens.spacing.sm, paddingBottom: Tokens.spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: Colors.borderLight,
   },
@@ -481,15 +481,15 @@ const styles = StyleSheet.create({
     fontSize: 10, fontWeight: '800' as const, color: Colors.textMuted,
     letterSpacing: 0.7, textTransform: 'uppercase' as const,
   },
-  title: { fontSize: Type.title2.fontSize, fontWeight: '800' as const, color: Colors.text, marginTop: 2, letterSpacing: -0.4 },
-  subtitle: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2 },
+  title: { fontSize: Type.title2.fontSize, fontWeight: '800' as const, color: Colors.text, marginTop: Tokens.spacing.hairline, letterSpacing: -0.4 },
+  subtitle: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: Tokens.spacing.hairline },
 
   subRow: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
-    gap: 12,
+    gap: Tokens.spacing.sm,
     backgroundColor: Colors.surface,
-    borderRadius: Tokens.radius.card, padding: 12, marginBottom: 8,
+    borderRadius: Tokens.radius.card, padding: Tokens.spacing.sm, marginBottom: Tokens.spacing.xs,
     borderWidth: 1, borderColor: Colors.cardBorder,
   },
   subStatusIcon: {
@@ -497,43 +497,43 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   subName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
-  subMeta: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 2 },
+  subMeta: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: Tokens.spacing.hairline },
   statusPill: {
-    paddingHorizontal: 10, paddingVertical: 4, borderRadius: Tokens.radius.full,
+    paddingHorizontal: 10, paddingVertical: Tokens.spacing.xxs, borderRadius: Tokens.radius.full,
   },
   statusPillText: { fontSize: 10, fontWeight: '800' as const, letterSpacing: 0.4, textTransform: 'uppercase' as const },
 
   detailHeader: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
-    paddingHorizontal: 16, paddingVertical: 12,
+    paddingHorizontal: Tokens.spacing.md, paddingVertical: Tokens.spacing.sm,
     borderBottomWidth: 1, borderBottomColor: Colors.borderLight,
-    gap: 12,
+    gap: Tokens.spacing.sm,
   },
-  headerBack: { flexDirection: 'row', alignItems: 'center', gap: 4, flex: 1 },
+  headerBack: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xxs, flex: 1 },
   headerBackText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.primary },
   uploadBtn: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     gap: 6,
-    paddingHorizontal: 12, paddingVertical: 8,
+    paddingHorizontal: Tokens.spacing.sm, paddingVertical: Tokens.spacing.xs,
     backgroundColor: Colors.primary, borderRadius: Tokens.radius.md,
   },
   uploadBtnText: { color: '#fff', fontWeight: '800' as const, fontSize: Type.caption1.fontSize },
   btnDisabled: { opacity: 0.5 },
-  titleBlock: { marginBottom: 16 },
+  titleBlock: { marginBottom: Tokens.spacing.md },
 
   coiCard: {
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.lg,
     padding: 14,
-    marginBottom: 12,
+    marginBottom: Tokens.spacing.sm,
     borderWidth: 1, borderColor: Colors.cardBorder,
   },
   coiHeader: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10 },
   coiStatusIcon: { width: 32, height: 32, borderRadius: Tokens.radius.md, alignItems: 'center' as const, justifyContent: 'center' as const },
   coiTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.text },
-  coiMeta: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 2 },
+  coiMeta: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: Tokens.spacing.hairline },
   deleteBtn: { padding: 6 },
   coiImage: {
     width: '100%' as const,
@@ -544,7 +544,7 @@ const styles = StyleSheet.create({
 
   findingsCard: {
     backgroundColor: Colors.background,
-    borderRadius: Tokens.radius.md, padding: 12,
+    borderRadius: Tokens.radius.md, padding: Tokens.spacing.sm,
     marginTop: 10,
     borderWidth: 1, borderColor: Colors.borderLight,
   },
@@ -553,28 +553,28 @@ const styles = StyleSheet.create({
     letterSpacing: 0.7, textTransform: 'uppercase' as const,
     marginBottom: 6,
   },
-  findingRow: { flexDirection: 'row' as const, gap: 8, paddingVertical: 4, alignItems: 'flex-start' as const },
+  findingRow: { flexDirection: 'row' as const, gap: Tokens.spacing.xs, paddingVertical: Tokens.spacing.xxs, alignItems: 'flex-start' as const },
   findingDot: { width: 6, height: 6, borderRadius: 3, marginTop: 6 },
   findingText: { flex: 1, fontSize: Type.caption1.fontSize, color: Colors.text, lineHeight: 16 },
 
   coveragesCard: {
     backgroundColor: Colors.background,
-    borderRadius: Tokens.radius.md, padding: 12, marginTop: 8,
+    borderRadius: Tokens.radius.md, padding: Tokens.spacing.sm, marginTop: Tokens.spacing.xs,
     borderWidth: 1, borderColor: Colors.borderLight,
   },
-  coverageRow: { paddingVertical: 4 },
+  coverageRow: { paddingVertical: Tokens.spacing.xxs },
   coverageType: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: Colors.text },
-  coverageMeta: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 2 },
+  coverageMeta: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: Tokens.spacing.hairline },
 
   notesLabel: {
     fontSize: 10, fontWeight: '800' as const, color: Colors.textMuted,
     letterSpacing: 0.7, textTransform: 'uppercase' as const,
-    marginTop: 12, marginBottom: 5,
+    marginTop: Tokens.spacing.sm, marginBottom: 5,
   },
   notesInput: {
     backgroundColor: Colors.background,
     borderWidth: 1, borderColor: Colors.border,
-    borderRadius: Tokens.radius.md, paddingHorizontal: 12, paddingVertical: 10,
+    borderRadius: Tokens.radius.md, paddingHorizontal: Tokens.spacing.sm, paddingVertical: 10,
     fontSize: Type.caption1.fontSize, color: Colors.text,
     minHeight: 50,
   },

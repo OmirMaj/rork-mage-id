@@ -116,13 +116,13 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: Tokens.spacing.sm,
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.lg,
     padding: 14,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
-    marginBottom: 12,
+    marginBottom: Tokens.spacing.sm,
   },
   micBtn: {
     width: 44,

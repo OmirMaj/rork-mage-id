@@ -436,40 +436,40 @@ export default function SharedScheduleScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
-  centered: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, gap: 12 },
+  centered: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: Tokens.spacing['2xl'], gap: Tokens.spacing.sm },
   header: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    paddingHorizontal: 16, paddingVertical: 12,
+    flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.sm,
+    paddingHorizontal: Tokens.spacing.md, paddingVertical: Tokens.spacing.sm,
     borderBottomWidth: 1, borderBottomColor: Colors.cardBorder,
     backgroundColor: Colors.surface,
   },
-  backBtn: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  backBtn: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.hairline },
   backText: { color: Colors.primary, fontSize: Type.bodyCompact.fontSize, fontWeight: '600' },
-  titleWrap: { flex: 1, marginHorizontal: 8 },
+  titleWrap: { flex: 1, marginHorizontal: Tokens.spacing.xs },
   title: { fontSize: Type.subhead.fontSize, fontWeight: '700', color: Colors.text },
-  sub: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, marginTop: 2 },
+  sub: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, marginTop: Tokens.spacing.hairline },
   lockBadge: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    paddingHorizontal: 8, paddingVertical: 4, borderRadius: Tokens.radius.md,
+    flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xxs,
+    paddingHorizontal: Tokens.spacing.xs, paddingVertical: Tokens.spacing.xxs, borderRadius: Tokens.radius.md,
     backgroundColor: Colors.fillSecondary,
   },
   lockBadgeText: { fontSize: 10, fontWeight: '700', color: Colors.textSecondary },
-  body: { flex: 1, padding: 12 },
+  body: { flex: 1, padding: Tokens.spacing.sm },
   primaryBtn: {
     backgroundColor: Colors.primary,
-    paddingHorizontal: 20, paddingVertical: 12, borderRadius: Tokens.radius.md, marginTop: 12,
+    paddingHorizontal: Tokens.spacing.lg, paddingVertical: Tokens.spacing.sm, borderRadius: Tokens.radius.md, marginTop: Tokens.spacing.sm,
   },
   primaryBtnText: { color: '#fff', fontWeight: '700' },
-  narrowIntro: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, marginBottom: 16, fontStyle: 'italic' },
+  narrowIntro: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, marginBottom: Tokens.spacing.md, fontStyle: 'italic' },
   narrowRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.borderLight },
-  narrowIdx: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, width: 24, paddingTop: 2 },
+  narrowIdx: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, width: 24, paddingTop: Tokens.spacing.hairline },
   narrowTitle: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: Colors.text },
-  narrowMeta: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, marginTop: 2 },
+  narrowMeta: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, marginTop: Tokens.spacing.hairline },
 
   // Sub-mode banner
   subBanner: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    margin: 12, padding: 14, borderRadius: Tokens.radius.lg,
+    flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.sm,
+    margin: Tokens.spacing.sm, padding: 14, borderRadius: Tokens.radius.lg,
     backgroundColor: Colors.success + '14',
     borderWidth: 1, borderColor: Colors.success + '30',
   },
@@ -479,10 +479,10 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   subBannerTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.1 },
-  subBannerBody: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2, lineHeight: 16 },
+  subBannerBody: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: Tokens.spacing.hairline, lineHeight: 16 },
 
   // Sub-mode task list
-  subList: { padding: 12, gap: 10 },
+  subList: { padding: Tokens.spacing.sm, gap: 10 },
   subRow: {
     backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 14,
     borderWidth: 1, borderColor: Colors.cardBorder,
@@ -491,21 +491,21 @@ const styles = StyleSheet.create({
   subRowHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   subRowIdx: {
     fontSize: Type.caption2.fontSize, fontWeight: '800', color: Colors.textMuted,
-    width: 22, textAlign: 'center', paddingTop: 2,
+    width: 22, textAlign: 'center', paddingTop: Tokens.spacing.hairline,
     backgroundColor: Colors.fillSecondary, borderRadius: Tokens.radius.xs, height: 22,
     lineHeight: 22,
   },
   subRowTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text, lineHeight: 19 },
-  subRowMeta: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 2, letterSpacing: 0.3, textTransform: 'uppercase' as const, fontWeight: '700' },
+  subRowMeta: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: Tokens.spacing.hairline, letterSpacing: 0.3, textTransform: 'uppercase' as const, fontWeight: '700' },
   subRowDates: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingHorizontal: 10, paddingVertical: 8, borderRadius: Tokens.radius.sm,
+    paddingHorizontal: 10, paddingVertical: Tokens.spacing.xs, borderRadius: Tokens.radius.sm,
     backgroundColor: Colors.primary + '0D',
   },
   subRowDateText: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: Colors.primary },
-  subRowActions: { flexDirection: 'row', gap: 8 },
+  subRowActions: { flexDirection: 'row', gap: Tokens.spacing.xs },
   subBtn: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4,
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Tokens.spacing.xxs,
     paddingVertical: 11, borderRadius: Tokens.radius.md,
     backgroundColor: Colors.background,
     borderWidth: 1, borderColor: Colors.cardBorder,
@@ -529,11 +529,11 @@ const styles = StyleSheet.create({
   subBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700' },
 
   subUpdateRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4,
+    flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs, marginTop: Tokens.spacing.xxs,
   },
   subUpdateChip: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    paddingHorizontal: 8, paddingVertical: 5, borderRadius: Tokens.radius.full,
+    flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xxs,
+    paddingHorizontal: Tokens.spacing.xs, paddingVertical: 5, borderRadius: Tokens.radius.full,
     backgroundColor: Colors.success + '14',
     borderWidth: 1, borderColor: Colors.success + '30',
   },
@@ -550,11 +550,11 @@ const styles = StyleSheet.create({
   modalCard: {
     backgroundColor: Colors.background,
     borderTopLeftRadius: 22, borderTopRightRadius: 22,
-    padding: 16, gap: 12,
+    padding: Tokens.spacing.md, gap: Tokens.spacing.sm,
   },
   modalHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   modalTitle: { fontSize: Type.callout.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.2 },
-  modalSub: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2 },
+  modalSub: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: Tokens.spacing.hairline },
   modalCloseBtn: {
     width: 32, height: 32, borderRadius: Tokens.radius.sm,
     alignItems: 'center', justifyContent: 'center',
@@ -562,7 +562,7 @@ const styles = StyleSheet.create({
   },
   modalInput: {
     minHeight: 80,
-    padding: 12, borderRadius: Tokens.radius.md,
+    padding: Tokens.spacing.sm, borderRadius: Tokens.radius.md,
     backgroundColor: Colors.card,
     borderWidth: 1, borderColor: Colors.cardBorder,
     color: Colors.text, fontSize: Type.bodyCompact.fontSize, lineHeight: 20,
@@ -571,7 +571,7 @@ const styles = StyleSheet.create({
   modalActions: { flexDirection: 'row', gap: 10 },
   modalBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-    paddingVertical: 12, borderRadius: Tokens.radius.md,
+    paddingVertical: Tokens.spacing.sm, borderRadius: Tokens.radius.md,
   },
   modalBtnSecondary: { backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.cardBorder },
   modalBtnSecondaryText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },

@@ -127,7 +127,7 @@ function ScheduleHealthDetailImpl({ visible, onClose, result, onJumpToTask }: Sc
             <Text style={styles.heroSummary}>{result.summary}</Text>
           </View>
 
-          <ScrollView style={styles.list} contentContainerStyle={{ paddingBottom: 12 }}>
+          <ScrollView style={styles.list} contentContainerStyle={{ paddingBottom: Tokens.spacing.sm }}>
             {sorted.map((c, i) => (
               <CheckRow
                 key={c.key + i}
@@ -230,9 +230,9 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   badgeCompact: {
-    paddingHorizontal: 8, paddingVertical: 4, borderRadius: Tokens.radius.sm, gap: 4,
+    paddingHorizontal: Tokens.spacing.xs, paddingVertical: Tokens.spacing.xxs, borderRadius: Tokens.radius.sm, gap: Tokens.spacing.xxs,
   },
-  badgeBody: { flexDirection: 'row', alignItems: 'baseline', gap: 2 },
+  badgeBody: { flexDirection: 'row', alignItems: 'baseline', gap: Tokens.spacing.hairline },
   badgeScore: { fontSize: Type.callout.fontSize, fontWeight: '900', letterSpacing: -0.4 },
   badgeScoreCompact: { fontSize: Type.footnote.fontSize },
   badgeLabel: { fontSize: 10, fontWeight: '700', color: Colors.textMuted },
@@ -244,12 +244,12 @@ const styles = StyleSheet.create({
     maxHeight: '90%' as const,
     backgroundColor: Colors.background,
     borderTopLeftRadius: 22, borderTopRightRadius: 22,
-    paddingHorizontal: 16, paddingTop: 10, gap: 8,
+    paddingHorizontal: Tokens.spacing.md, paddingTop: 10, gap: Tokens.spacing.xs,
   },
   modalHandle: {
     width: 40, height: 4, borderRadius: 2,
     backgroundColor: Colors.border,
-    alignSelf: 'center', marginBottom: 8,
+    alignSelf: 'center', marginBottom: Tokens.spacing.xs,
   },
   modalHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   modalTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.2 },
@@ -261,54 +261,54 @@ const styles = StyleSheet.create({
 
   // Hero
   heroWrap: {
-    alignItems: 'center', paddingVertical: 14, gap: 8,
+    alignItems: 'center', paddingVertical: 14, gap: Tokens.spacing.xs,
   },
   heroRing: {
     width: 96, height: 96, borderRadius: 48,
     borderWidth: 4,
     alignItems: 'center', justifyContent: 'center',
-    flexDirection: 'row', gap: 2,
+    flexDirection: 'row', gap: Tokens.spacing.hairline,
   },
   heroScore: { fontSize: 36, fontWeight: '900', letterSpacing: -1 },
-  heroOver: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.textMuted, alignSelf: 'flex-end', marginBottom: 8 },
+  heroOver: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.textMuted, alignSelf: 'flex-end', marginBottom: Tokens.spacing.xs },
   heroGradePill: {
-    paddingHorizontal: 12, paddingVertical: 4, borderRadius: Tokens.radius.full,
+    paddingHorizontal: Tokens.spacing.sm, paddingVertical: Tokens.spacing.xxs, borderRadius: Tokens.radius.full,
   },
   heroGrade: { fontSize: Type.subheadline.fontSize, fontWeight: '900', letterSpacing: 0.5 },
   heroSummary: {
     fontSize: Type.footnote.fontSize, color: Colors.text, textAlign: 'center', lineHeight: 18,
-    paddingHorizontal: 24, marginTop: 4,
+    paddingHorizontal: Tokens.spacing.xl, marginTop: Tokens.spacing.xxs,
   },
 
   // Check list
-  list: { flex: 1, marginTop: 8 },
+  list: { flex: 1, marginTop: Tokens.spacing.xs },
   checkRow: {
     backgroundColor: Colors.card,
-    borderRadius: Tokens.radius.card, padding: 12,
+    borderRadius: Tokens.radius.card, padding: Tokens.spacing.sm,
     borderWidth: 1, borderColor: Colors.border,
     borderLeftWidth: 4,
-    marginBottom: 8,
+    marginBottom: Tokens.spacing.xs,
   },
   checkRowHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   checkLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' as const },
   checkLabel: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.1 },
-  checkDesc: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2, lineHeight: 16 },
+  checkDesc: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: Tokens.spacing.hairline, lineHeight: 16 },
   dcmaPill: {
-    paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4,
+    paddingHorizontal: 6, paddingVertical: Tokens.spacing.hairline, borderRadius: 4,
     backgroundColor: Colors.primary + '12',
     borderWidth: 1, borderColor: Colors.primary + '30',
   },
   dcmaPillText: { fontSize: 9, fontWeight: '800', color: Colors.primary, letterSpacing: 0.3 },
-  checkScorePill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: Tokens.radius.sm, minWidth: 36, alignItems: 'center' },
+  checkScorePill: { paddingHorizontal: 10, paddingVertical: Tokens.spacing.xxs, borderRadius: Tokens.radius.sm, minWidth: 36, alignItems: 'center' },
   checkScoreText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '900' },
   checkBody: {
     marginTop: 10, paddingTop: 10,
     borderTopWidth: 1, borderTopColor: Colors.border,
-    gap: 8,
+    gap: Tokens.spacing.xs,
   },
   checkSuggestion: {
     fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 18, fontStyle: 'italic',
-    paddingHorizontal: 4,
+    paddingHorizontal: Tokens.spacing.xxs,
   },
 
   flaggedList: {
@@ -316,8 +316,8 @@ const styles = StyleSheet.create({
     borderRadius: Tokens.radius.sm, padding: 10,
     gap: 6,
   },
-  flaggedHead: { fontSize: Type.caption2.fontSize, fontWeight: '800', color: Colors.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.5, marginBottom: 4 },
-  flaggedRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6 },
+  flaggedHead: { fontSize: Type.caption2.fontSize, fontWeight: '800', color: Colors.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.5, marginBottom: Tokens.spacing.xxs },
+  flaggedRow: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs, paddingVertical: 6 },
   flaggedDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: Colors.warning },
   flaggedTitle: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: Colors.text },
   flaggedReason: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 1 },

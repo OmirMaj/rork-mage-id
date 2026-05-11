@@ -1008,7 +1008,7 @@ function ScheduleProScreenInner() {
       {/* Earned-value rollup — only renders when there's a linked estimate
           with budget-bearing items, otherwise zero-gracefully hides. */}
       {evSnapshot.totalBudget > 0 && (
-        <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
+        <View style={{ paddingHorizontal: Tokens.spacing.md, paddingTop: Tokens.spacing.xs }}>
           <EarnedValuePanel snapshot={evSnapshot} tasks={rolledTasks} />
         </View>
       )}
@@ -1017,7 +1017,7 @@ function ScheduleProScreenInner() {
           daily updates via the shared URL. Hidden when nothing's been
           posted yet (component returns null). */}
       {project?.id && (
-        <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
+        <View style={{ paddingHorizontal: Tokens.spacing.md, paddingTop: Tokens.spacing.xs }}>
           <SubUpdatesPanel
             projectId={project.id}
             tasks={rolledTasks}
@@ -1320,33 +1320,33 @@ function HeaderBtn({
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
-  centered: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, gap: 12 },
-  emptyTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700', color: Colors.text, marginTop: 8 },
+  centered: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: Tokens.spacing['2xl'], gap: Tokens.spacing.sm },
+  emptyTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700', color: Colors.text, marginTop: Tokens.spacing.xs },
   emptyBody: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, textAlign: 'center', lineHeight: 20, maxWidth: 440 },
   primaryBtn: {
     backgroundColor: Colors.primary,
-    paddingHorizontal: 20, paddingVertical: 12, borderRadius: Tokens.radius.md, marginTop: 12,
+    paddingHorizontal: Tokens.spacing.lg, paddingVertical: Tokens.spacing.sm, borderRadius: Tokens.radius.md, marginTop: Tokens.spacing.sm,
   },
   primaryBtnText: { color: Colors.textOnPrimary, fontWeight: '700', fontSize: Type.bodyCompact.fontSize },
 
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
+    paddingHorizontal: Tokens.spacing.md,
     paddingVertical: 10,
-    gap: 16,
+    gap: Tokens.spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: Colors.cardBorder,
     backgroundColor: Colors.surface,
   },
   headerBack: {
-    flexDirection: 'row', alignItems: 'center', gap: 2,
+    flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.hairline,
   },
   headerBackText: { color: Colors.primary, fontSize: Type.bodyCompact.fontSize, fontWeight: '600' },
-  headerTitleWrap: { flex: 1, marginHorizontal: 12 },
+  headerTitleWrap: { flex: 1, marginHorizontal: Tokens.spacing.sm },
   headerTitle: { fontSize: Type.callout.fontSize, fontWeight: '700', color: Colors.text },
-  headerSub: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, marginTop: 2 },
-  headerActions: { flexDirection: 'row', gap: 8 },
+  headerSub: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, marginTop: Tokens.spacing.hairline },
+  headerActions: { flexDirection: 'row', gap: Tokens.spacing.xs },
   headerBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
     paddingHorizontal: 10, paddingVertical: 6,
@@ -1359,9 +1359,9 @@ const styles = StyleSheet.create({
 
   body: {
     flex: 1,
-    padding: 12,
+    padding: Tokens.spacing.sm,
     flexDirection: 'row',
-    gap: 12,
+    gap: Tokens.spacing.sm,
   },
   paneFull: { flex: 1 },
   // Split-view ratios. The grid's compact column set is ~900px wide at its
@@ -1374,14 +1374,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     backgroundColor: Colors.fillTertiary,
     borderRadius: Tokens.radius.sm,
-    padding: 2,
-    marginRight: 4,
+    padding: Tokens.spacing.hairline,
+    marginRight: Tokens.spacing.xxs,
   },
   paneBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
+    gap: Tokens.spacing.xxs,
+    paddingHorizontal: Tokens.spacing.xs,
     paddingVertical: 5,
     borderRadius: Tokens.radius.xs,
   },

@@ -219,14 +219,14 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.45)',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 20,
+    padding: Tokens.spacing.lg,
   },
   card: {
     width: '100%',
     maxWidth: 420,
     backgroundColor: Colors.surface,
     borderRadius: 20,
-    padding: 24,
+    padding: Tokens.spacing.xl,
     alignItems: 'center',
   },
   iconWrap: {
@@ -236,7 +236,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary + '15',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 16,
+    marginBottom: Tokens.spacing.md,
   },
   title: {
     fontSize: Type.title2.fontSize,
@@ -255,18 +255,18 @@ const styles = StyleSheet.create({
     fontSize: Type.subhead.fontSize,
     fontWeight: '700',
     color: Colors.primary,
-    marginTop: 4,
+    marginTop: Tokens.spacing.xxs,
     marginBottom: 18,
     textAlign: 'center',
   },
   tips: {
     width: '100%',
-    gap: 12,
-    marginBottom: 16,
+    gap: Tokens.spacing.sm,
+    marginBottom: Tokens.spacing.md,
   },
   tipRow: {
     flexDirection: 'row',
-    gap: 12,
+    gap: Tokens.spacing.sm,
     alignItems: 'flex-start',
   },
   tipIcon: {
@@ -285,7 +285,7 @@ const styles = StyleSheet.create({
     fontSize: Type.footnote.fontSize,
     fontWeight: '700',
     color: Colors.text,
-    marginBottom: 2,
+    marginBottom: Tokens.spacing.hairline,
   },
   tipText: {
     fontSize: Type.footnote.fontSize,
@@ -295,12 +295,12 @@ const styles = StyleSheet.create({
   statusBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: Tokens.spacing.xs,
     alignSelf: 'stretch',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: Tokens.spacing.sm,
+    paddingVertical: Tokens.spacing.xs,
     borderRadius: Tokens.radius.md,
-    marginBottom: 12,
+    marginBottom: Tokens.spacing.sm,
   },
   statusBannerSuccess: {
     backgroundColor: Colors.successLight,
@@ -342,8 +342,8 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   secondaryBtn: {
-    paddingVertical: 8,
-    paddingHorizontal: 4,
+    paddingVertical: Tokens.spacing.xs,
+    paddingHorizontal: Tokens.spacing.xxs,
   },
   secondaryBtnText: {
     fontSize: Type.bodyCompact.fontSize,

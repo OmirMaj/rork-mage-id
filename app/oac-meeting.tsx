@@ -399,7 +399,7 @@ function OACMeetingInner() {
           </View>
         </View>
 
-        <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 100 }}>
+        <ScrollView contentContainerStyle={{ padding: Tokens.spacing.md, paddingBottom: insets.bottom + 100 }}>
           {/* Title row */}
           <View style={styles.titleBlock}>
             <Text style={styles.eyebrow}>OAC Meeting #{active.number}</Text>
@@ -648,7 +648,7 @@ function OACMeetingInner() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 30 }}>
+      <ScrollView contentContainerStyle={{ padding: Tokens.spacing.md, paddingBottom: insets.bottom + 30 }}>
         {meetings.length === 0 ? (
           <View style={styles.emptyState}>
             <Calendar size={36} color={Colors.textMuted} />
@@ -812,7 +812,7 @@ function buildMinutesEmailHtml(opts: {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   center: { alignItems: 'center', justifyContent: 'center' },
-  notFound: { fontSize: Type.callout.fontSize, color: Colors.text, fontWeight: '600' as const, marginBottom: 12 },
+  notFound: { fontSize: Type.callout.fontSize, color: Colors.text, fontWeight: '600' as const, marginBottom: Tokens.spacing.sm },
   backBtn: { paddingHorizontal: 18, paddingVertical: 10, backgroundColor: Colors.primary, borderRadius: Tokens.radius.md },
   backBtnText: { color: '#fff', fontWeight: '700' as const },
 
@@ -820,10 +820,10 @@ const styles = StyleSheet.create({
   listHeader: {
     flexDirection: 'row' as const,
     alignItems: 'flex-end' as const,
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 16,
-    gap: 12,
+    paddingHorizontal: Tokens.spacing.md,
+    paddingTop: Tokens.spacing.sm,
+    paddingBottom: Tokens.spacing.md,
+    gap: Tokens.spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: Colors.borderLight,
   },
@@ -831,8 +831,8 @@ const styles = StyleSheet.create({
     fontSize: 10, fontWeight: '800' as const, color: Colors.textMuted,
     letterSpacing: 0.7, textTransform: 'uppercase' as const,
   },
-  title: { fontSize: Type.title2.fontSize, fontWeight: '800' as const, color: Colors.text, marginTop: 2, letterSpacing: -0.4 },
-  subtitle: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2 },
+  title: { fontSize: Type.title2.fontSize, fontWeight: '800' as const, color: Colors.text, marginTop: Tokens.spacing.hairline, letterSpacing: -0.4 },
+  subtitle: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: Tokens.spacing.hairline },
   newMeetingBtn: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
@@ -842,14 +842,14 @@ const styles = StyleSheet.create({
   },
   emptyState: { alignItems: 'center', paddingTop: 60, gap: 10 },
   emptyTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '800' as const, color: Colors.text },
-  emptyBody: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, textAlign: 'center', lineHeight: 19, paddingHorizontal: 32 },
+  emptyBody: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, textAlign: 'center', lineHeight: 19, paddingHorizontal: Tokens.spacing['2xl'] },
   meetingRow: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     backgroundColor: Colors.surface,
-    borderRadius: Tokens.radius.card, padding: 12, marginBottom: 8,
+    borderRadius: Tokens.radius.card, padding: Tokens.spacing.sm, marginBottom: Tokens.spacing.xs,
     borderWidth: 1, borderColor: Colors.cardBorder,
-    gap: 12,
+    gap: Tokens.spacing.sm,
   },
   meetingBadge: {
     width: 44, height: 44, borderRadius: Tokens.radius.card,
@@ -858,61 +858,61 @@ const styles = StyleSheet.create({
   },
   meetingBadgeText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800' as const, color: Colors.primary },
   meetingTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
-  meetingMeta: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2 },
+  meetingMeta: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: Tokens.spacing.hairline },
 
   // Detail mode
   detailHeader: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
-    paddingHorizontal: 16, paddingVertical: 12,
+    paddingHorizontal: Tokens.spacing.md, paddingVertical: Tokens.spacing.sm,
     borderBottomWidth: 1, borderBottomColor: Colors.borderLight,
   },
-  headerBack: { flexDirection: 'row', alignItems: 'center', gap: 4, flex: 1 },
+  headerBack: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xxs, flex: 1 },
   headerBackText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.primary },
   statusPill: {
     paddingHorizontal: 10, paddingVertical: 5, borderRadius: Tokens.radius.full,
     backgroundColor: Colors.primary + '15',
   },
   statusPillText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: Colors.primary, letterSpacing: 0.4 },
-  titleBlock: { marginBottom: 16 },
+  titleBlock: { marginBottom: Tokens.spacing.md },
 
   card: {
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.lg, padding: 14,
     borderWidth: 1, borderColor: Colors.cardBorder,
-    marginBottom: 12,
+    marginBottom: Tokens.spacing.sm,
   },
-  cardHead: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, marginBottom: 8 },
+  cardHead: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: Tokens.spacing.xs, marginBottom: Tokens.spacing.xs },
   cardLabel: { flex: 1, fontSize: Type.caption2.fontSize, fontWeight: '800' as const, color: Colors.textMuted, letterSpacing: 0.6, textTransform: 'uppercase' as const },
-  cardHelper: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, lineHeight: 16, marginBottom: 8 },
+  cardHelper: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, lineHeight: 16, marginBottom: Tokens.spacing.xs },
   emptyHint: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, fontStyle: 'italic' as const },
   smallBtn: {
-    flexDirection: 'row' as const, alignItems: 'center' as const, gap: 4,
+    flexDirection: 'row' as const, alignItems: 'center' as const, gap: Tokens.spacing.xxs,
     paddingHorizontal: 10, paddingVertical: 6, borderRadius: 9,
     backgroundColor: Colors.primary + '0D',
     borderWidth: 1, borderColor: Colors.primary + '30',
     alignSelf: 'flex-start' as const,
-    marginTop: 8,
+    marginTop: Tokens.spacing.xs,
   },
   smallBtnText: { fontSize: Type.caption1.fontSize, fontWeight: '800' as const, color: Colors.primary },
 
   attendeeRow: { paddingVertical: 6 },
   attendeeName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
-  attendeeMeta: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2 },
+  attendeeMeta: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: Tokens.spacing.hairline },
 
-  section: { marginTop: 6, marginBottom: 4 },
+  section: { marginTop: 6, marginBottom: Tokens.spacing.xxs },
   sectionLabel: {
     fontSize: 10, fontWeight: '800' as const, color: Colors.primary,
     letterSpacing: 0.7, textTransform: 'uppercase' as const,
-    marginTop: 8, marginBottom: 4,
+    marginTop: Tokens.spacing.xs, marginBottom: Tokens.spacing.xxs,
   },
   agendaItem: {
     flexDirection: 'row' as const,
     gap: 10,
-    paddingVertical: 8,
+    paddingVertical: Tokens.spacing.xs,
     borderBottomWidth: 1, borderBottomColor: Colors.borderLight,
   },
-  agendaCheck: { paddingTop: 2 },
+  agendaCheck: { paddingTop: Tokens.spacing.hairline },
   agendaTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text, lineHeight: 19 },
   agendaTitleDone: { color: Colors.textMuted, textDecorationLine: 'line-through' as const },
   agendaDetail: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, marginTop: 3, lineHeight: 16 },
@@ -932,24 +932,24 @@ const styles = StyleSheet.create({
   transcriptCard: {
     backgroundColor: Colors.background,
     borderRadius: Tokens.radius.sm, padding: 10,
-    marginTop: 8,
+    marginTop: Tokens.spacing.xs,
   },
-  transcriptLabel: { fontSize: 10, fontWeight: '800' as const, color: Colors.textMuted, letterSpacing: 0.6, textTransform: 'uppercase' as const, marginBottom: 4 },
+  transcriptLabel: { fontSize: 10, fontWeight: '800' as const, color: Colors.textMuted, letterSpacing: 0.6, textTransform: 'uppercase' as const, marginBottom: Tokens.spacing.xxs },
   transcriptText: { fontSize: Type.caption1.fontSize, color: Colors.text, lineHeight: 16 },
 
   minutesInput: {
     backgroundColor: Colors.background,
     borderWidth: 1, borderColor: Colors.border,
-    borderRadius: Tokens.radius.md, padding: 12,
+    borderRadius: Tokens.radius.md, padding: Tokens.spacing.sm,
     fontSize: Type.footnote.fontSize, color: Colors.text,
     minHeight: 200,
-    marginBottom: 12,
+    marginBottom: Tokens.spacing.sm,
   },
 
   primaryBtn: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const, justifyContent: 'center' as const,
-    gap: 8,
+    gap: Tokens.spacing.xs,
     backgroundColor: Colors.primary,
     borderRadius: Tokens.radius.card, paddingVertical: 14,
   },
@@ -959,14 +959,14 @@ const styles = StyleSheet.create({
   actionRow: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
-    paddingVertical: 8,
+    paddingVertical: Tokens.spacing.xs,
     borderBottomWidth: 1, borderBottomColor: Colors.borderLight,
     gap: 10,
   },
   actionDesc: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.text },
-  actionMeta: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 2 },
+  actionMeta: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: Tokens.spacing.hairline },
   actionStatus: {
-    paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.full,
+    paddingHorizontal: Tokens.spacing.xs, paddingVertical: 3, borderRadius: Tokens.radius.full,
     backgroundColor: Colors.warning + '15',
   },
   actionStatusDone: { backgroundColor: Colors.success + '15' },
@@ -974,12 +974,12 @@ const styles = StyleSheet.create({
   actionStatusTextDone: { color: Colors.success },
 
   uploadAudioBtn: {
-    flexDirection: 'row' as const, alignItems: 'center' as const, gap: 12,
-    marginTop: 10, padding: 12,
+    flexDirection: 'row' as const, alignItems: 'center' as const, gap: Tokens.spacing.sm,
+    marginTop: 10, padding: Tokens.spacing.sm,
     borderRadius: Tokens.radius.md,
     backgroundColor: Colors.primary + '0D',
     borderWidth: 1, borderColor: Colors.primary + '30',
   },
   uploadAudioLabel: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
-  uploadAudioSub: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2, lineHeight: 16 },
+  uploadAudioSub: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: Tokens.spacing.hairline, lineHeight: 16 },
 });

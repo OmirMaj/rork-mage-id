@@ -220,7 +220,7 @@ export default function RfpResponsesReviewScreen() {
       </View>
 
       <ScrollView
-        contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 80 }}
+        contentContainerStyle={{ padding: Tokens.spacing.md, paddingBottom: insets.bottom + 80 }}
         refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => { void refetch(); }} tintColor={Colors.primary} />}
       >
         {isLoading && (
@@ -375,22 +375,22 @@ export default function RfpResponsesReviewScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
-  centered: { alignItems: 'center', justifyContent: 'center', padding: 24 },
+  centered: { alignItems: 'center', justifyContent: 'center', padding: Tokens.spacing.xl },
   header: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 10,
-    paddingHorizontal: 16, paddingTop: 14, paddingBottom: 12,
+    paddingHorizontal: Tokens.spacing.md, paddingTop: 14, paddingBottom: Tokens.spacing.sm,
     borderBottomWidth: 1, borderBottomColor: Colors.border,
   },
   eyebrow: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.primary, letterSpacing: 1.4, textTransform: 'uppercase' },
-  title:   { fontSize: Type.title3.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.4, marginTop: 4 },
+  title:   { fontSize: Type.title3.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.4, marginTop: Tokens.spacing.xxs },
 
   controls: {
-    paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8,
+    paddingHorizontal: Tokens.spacing.md, paddingTop: Tokens.spacing.sm, paddingBottom: Tokens.spacing.xs,
     borderBottomWidth: 1, borderBottomColor: Colors.border,
-    gap: 8,
+    gap: Tokens.spacing.xs,
   },
-  tabRow: { flexDirection: 'row', gap: 8 },
-  tab: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 9, backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border },
+  tabRow: { flexDirection: 'row', gap: Tokens.spacing.xs },
+  tab: { paddingHorizontal: Tokens.spacing.sm, paddingVertical: 7, borderRadius: 9, backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border },
   tabActive: { backgroundColor: Colors.text, borderColor: Colors.text },
   tabText: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: Colors.text },
   tabTextActive: { color: '#FFF' },
@@ -403,47 +403,47 @@ const styles = StyleSheet.create({
   loading: { padding: 30, alignItems: 'center' },
   emptyCard: {
     backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 28,
-    alignItems: 'center', gap: 8, marginTop: 22,
+    alignItems: 'center', gap: Tokens.spacing.xs, marginTop: 22,
     borderWidth: 1, borderColor: Colors.border,
   },
-  emptyTitle: { fontSize: Type.callout.fontSize, fontWeight: '800', color: Colors.text, marginTop: 4, textAlign: 'center' },
+  emptyTitle: { fontSize: Type.callout.fontSize, fontWeight: '800', color: Colors.text, marginTop: Tokens.spacing.xxs, textAlign: 'center' },
   emptyBody: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, textAlign: 'center', lineHeight: 19, maxWidth: 320 },
 
   card: {
     backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 14,
-    borderWidth: 1, borderColor: Colors.border, marginBottom: 12, gap: 8,
+    borderWidth: 1, borderColor: Colors.border, marginBottom: Tokens.spacing.sm, gap: Tokens.spacing.xs,
   },
   cardAwarded:  { borderColor: Colors.success, borderWidth: 2, backgroundColor: Colors.success + '08' },
   cardDeclined: { opacity: 0.65 },
-  cardHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  cardHead: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs },
   identityWrap: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
   identityIcon: { width: 36, height: 36, borderRadius: Tokens.radius.md, backgroundColor: Colors.primary + '15', alignItems: 'center', justifyContent: 'center' },
   identityName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
-  identityMeta: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 2 },
+  identityMeta: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: Tokens.spacing.hairline },
 
-  awardedPill:    { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: Tokens.radius.full, backgroundColor: Colors.success + '20' },
+  awardedPill:    { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xxs, paddingHorizontal: Tokens.spacing.xs, paddingVertical: Tokens.spacing.xxs, borderRadius: Tokens.radius.full, backgroundColor: Colors.success + '20' },
   awardedPillText:{ fontSize: 9, fontWeight: '800', color: Colors.success, letterSpacing: 0.6 },
-  shortlistPill:  { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: Tokens.radius.full, backgroundColor: Colors.warning + '20' },
+  shortlistPill:  { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xxs, paddingHorizontal: Tokens.spacing.xs, paddingVertical: Tokens.spacing.xxs, borderRadius: Tokens.radius.full, backgroundColor: Colors.warning + '20' },
   shortlistPillText:{ fontSize: 9, fontWeight: '800', color: Colors.warning, letterSpacing: 0.6 },
-  declinedPill:   { paddingHorizontal: 8, paddingVertical: 4, borderRadius: Tokens.radius.full, backgroundColor: Colors.error + '15' },
+  declinedPill:   { paddingHorizontal: Tokens.spacing.xs, paddingVertical: Tokens.spacing.xxs, borderRadius: Tokens.radius.full, backgroundColor: Colors.error + '15' },
   declinedPillText:{ fontSize: 9, fontWeight: '800', color: Colors.error, letterSpacing: 0.6 },
 
   siteVisitRow: { flexDirection: 'row', alignItems: 'center', gap: 6, padding: 10, borderRadius: Tokens.radius.md, backgroundColor: Colors.warning + '0D', borderWidth: 1, borderColor: Colors.warning + '30' },
   siteVisitText: { fontSize: Type.caption1.fontSize, color: Colors.warning, fontWeight: '700' },
 
-  amountWrap: { paddingVertical: 4 },
+  amountWrap: { paddingVertical: Tokens.spacing.xxs },
   amountValue: { fontSize: 26, fontWeight: '800', color: Colors.text, letterSpacing: -0.6 },
-  amountSummary: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2, lineHeight: 17 },
+  amountSummary: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: Tokens.spacing.hairline, lineHeight: 17 },
 
-  messageBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 10, borderRadius: Tokens.radius.md, backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border },
+  messageBox: { flexDirection: 'row', alignItems: 'flex-start', gap: Tokens.spacing.xs, padding: 10, borderRadius: Tokens.radius.md, backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border },
   messageText: { flex: 1, fontSize: Type.caption1.fontSize, color: Colors.text, lineHeight: 17 },
 
   contactRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  contactItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  contactItem: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xxs },
   contactText: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontWeight: '600' },
 
-  actionRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4 },
-  actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 9, borderWidth: 1 },
+  actionRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: Tokens.spacing.xxs },
+  actionBtn: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xxs, paddingHorizontal: 10, paddingVertical: Tokens.spacing.xs, borderRadius: 9, borderWidth: 1 },
   shortlistBtn: { backgroundColor: Colors.warning + '08', borderColor: Colors.warning + '40' },
   unshortBtn:   { backgroundColor: Colors.background, borderColor: Colors.border },
   declineBtn:   { backgroundColor: Colors.background, borderColor: Colors.error + '40' },
@@ -453,6 +453,6 @@ const styles = StyleSheet.create({
   undeclineRow: { paddingTop: 6, alignSelf: 'flex-start' },
   undeclineText: { fontSize: Type.caption1.fontSize, color: Colors.primary, fontWeight: '700' },
 
-  backCta: { paddingHorizontal: 18, paddingVertical: 11, borderRadius: Tokens.radius.md, backgroundColor: Colors.primary, marginTop: 12 },
+  backCta: { paddingHorizontal: 18, paddingVertical: 11, borderRadius: Tokens.radius.md, backgroundColor: Colors.primary, marginTop: Tokens.spacing.sm },
   backCtaText: { color: '#FFF', fontWeight: '700' },
 });

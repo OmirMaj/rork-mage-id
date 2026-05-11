@@ -248,7 +248,7 @@ export default function LienWaiversScreen() {
         }}
       />
 
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 80 }}>
+      <ScrollView contentContainerStyle={{ padding: Tokens.spacing.md, paddingBottom: insets.bottom + 80 }}>
         {loading && (
           <View style={styles.loading}><ActivityIndicator size="small" color={Colors.primary} /></View>
         )}
@@ -532,24 +532,24 @@ const styles = StyleSheet.create({
 
   header: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 10,
-    paddingHorizontal: 16, paddingTop: 14, paddingBottom: 14,
+    paddingHorizontal: Tokens.spacing.md, paddingTop: 14, paddingBottom: 14,
     borderBottomWidth: 1, borderBottomColor: Colors.border,
   },
   eyebrow: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.primary, letterSpacing: 1.4, textTransform: 'uppercase' },
-  title:   { fontSize: Type.title3.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.4, marginTop: 4 },
-  addBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 9, backgroundColor: Colors.primary },
+  title:   { fontSize: Type.title3.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.4, marginTop: Tokens.spacing.xxs },
+  addBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: Tokens.spacing.sm, paddingVertical: Tokens.spacing.xs, borderRadius: 9, backgroundColor: Colors.primary },
   addBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: '#FFF' },
 
   loading: { padding: 30, alignItems: 'center' },
   emptyCard: { backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 28, alignItems: 'center', gap: 10, marginTop: 22, borderWidth: 1, borderColor: Colors.border },
-  emptyTitle: { fontSize: Type.callout.fontSize, fontWeight: '800', color: Colors.text, marginTop: 4 },
+  emptyTitle: { fontSize: Type.callout.fontSize, fontWeight: '800', color: Colors.text, marginTop: Tokens.spacing.xxs },
   emptyBody:  { fontSize: Type.footnote.fontSize, color: Colors.textMuted, textAlign: 'center', lineHeight: 19, maxWidth: 320 },
-  bigCta: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 18, paddingVertical: 11, borderRadius: 11, backgroundColor: Colors.primary, marginTop: 8 },
+  bigCta: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 18, paddingVertical: 11, borderRadius: 11, backgroundColor: Colors.primary, marginTop: Tokens.spacing.xs },
   bigCtaText: { color: '#FFF', fontSize: Type.bodyCompact.fontSize, fontWeight: '800' },
 
   disclaimer: {
-    flexDirection: 'row', alignItems: 'flex-start', gap: 8,
-    padding: 12, borderRadius: Tokens.radius.md, marginBottom: 12,
+    flexDirection: 'row', alignItems: 'flex-start', gap: Tokens.spacing.xs,
+    padding: Tokens.spacing.sm, borderRadius: Tokens.radius.md, marginBottom: Tokens.spacing.sm,
     backgroundColor: Colors.warning + '0D',
     borderWidth: 1, borderColor: Colors.warning + '30',
   },
@@ -560,36 +560,36 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: Colors.border,
     marginBottom: 10, gap: 10,
   },
-  waiverHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  waiverHead: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs },
   waiverType: { fontSize: 9, fontWeight: '800', color: Colors.primary, letterSpacing: 0.8 },
   waiverSubName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800', color: Colors.text, marginTop: 3 },
-  statusPill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.full },
+  statusPill: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xxs, paddingHorizontal: Tokens.spacing.xs, paddingVertical: 3, borderRadius: Tokens.radius.full },
   statusPillText: { fontSize: 9, fontWeight: '800', letterSpacing: 0.5 },
 
-  waiverGrid: { flexDirection: 'row', gap: 12 },
-  waiverField: { flex: 1, padding: 8, borderRadius: Tokens.radius.sm, backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border },
+  waiverGrid: { flexDirection: 'row', gap: Tokens.spacing.sm },
+  waiverField: { flex: 1, padding: Tokens.spacing.xs, borderRadius: Tokens.radius.sm, backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border },
   waiverFieldLabel: { fontSize: 9, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.6 },
-  waiverFieldValue: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text, marginTop: 2 },
+  waiverFieldValue: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text, marginTop: Tokens.spacing.hairline },
 
-  sigPreview: { flexDirection: 'row', alignItems: 'center', gap: 6, padding: 8, borderRadius: Tokens.radius.sm, backgroundColor: Colors.success + '0D', borderWidth: 1, borderColor: Colors.success + '30' },
+  sigPreview: { flexDirection: 'row', alignItems: 'center', gap: 6, padding: Tokens.spacing.xs, borderRadius: Tokens.radius.sm, backgroundColor: Colors.success + '0D', borderWidth: 1, borderColor: Colors.success + '30' },
   sigPreviewText: { flex: 1, fontSize: Type.caption2.fontSize, color: Colors.text },
 
   waiverActions: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
-  actionPrimary: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 9, backgroundColor: Colors.primary },
+  actionPrimary: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: Tokens.spacing.sm, paddingVertical: Tokens.spacing.xs, borderRadius: 9, backgroundColor: Colors.primary },
   actionPrimaryText: { fontSize: Type.caption1.fontSize, fontWeight: '800', color: '#FFF' },
-  actionSecondary: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 9, backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border },
+  actionSecondary: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: Tokens.spacing.xs, borderRadius: 9, backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border },
   actionSecondaryText: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: Colors.text },
-  actionGhost: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 9 },
+  actionGhost: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xxs, paddingHorizontal: 10, paddingVertical: Tokens.spacing.xs, borderRadius: 9 },
   actionGhostText: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: Colors.warning },
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(11, 13, 16, 0.75)', justifyContent: 'flex-end' },
-  modalCard: { backgroundColor: Colors.surface, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 20, gap: 8 },
+  modalCard: { backgroundColor: Colors.surface, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: Tokens.spacing.lg, gap: Tokens.spacing.xs },
   modalTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: Colors.text },
   modalBody: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, lineHeight: 18 },
-  modalLabel: { fontSize: Type.caption2.fontSize, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.6, textTransform: 'uppercase', marginTop: 8 },
+  modalLabel: { fontSize: Type.caption2.fontSize, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.6, textTransform: 'uppercase', marginTop: Tokens.spacing.xs },
   modalInput: {
     backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border, borderRadius: Tokens.radius.md,
-    paddingHorizontal: 12, paddingVertical: 11, fontSize: Type.bodyCompact.fontSize, color: Colors.text,
+    paddingHorizontal: Tokens.spacing.sm, paddingVertical: 11, fontSize: Type.bodyCompact.fontSize, color: Colors.text,
   },
   modalRow: { flexDirection: 'row', gap: 10, marginTop: -4 },
   typeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
@@ -597,12 +597,12 @@ const styles = StyleSheet.create({
   typeChipActive: { backgroundColor: Colors.primary + '15', borderColor: Colors.primary },
   typeChipText: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.text },
   typeChipTextActive: { color: Colors.primary },
-  typeHint: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, lineHeight: 16, marginTop: 4, fontStyle: 'italic' },
+  typeHint: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, lineHeight: 16, marginTop: Tokens.spacing.xxs, fontStyle: 'italic' },
 
-  modalActions: { flexDirection: 'row', gap: 10, marginTop: 12 },
-  modalCancel: { flex: 1, paddingVertical: 12, borderRadius: 11, backgroundColor: Colors.background, alignItems: 'center', borderWidth: 1, borderColor: Colors.border },
+  modalActions: { flexDirection: 'row', gap: 10, marginTop: Tokens.spacing.sm },
+  modalCancel: { flex: 1, paddingVertical: Tokens.spacing.sm, borderRadius: 11, backgroundColor: Colors.background, alignItems: 'center', borderWidth: 1, borderColor: Colors.border },
   modalCancelText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
-  modalConfirm: { flex: 1.4, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 11, backgroundColor: Colors.primary },
+  modalConfirm: { flex: 1.4, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: Tokens.spacing.sm, borderRadius: 11, backgroundColor: Colors.primary },
   modalConfirmDisabled: { opacity: 0.45 },
   modalConfirmText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800', color: '#FFF' },
 });

@@ -156,7 +156,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.lg,
     padding: 14,
-    marginTop: 8,
+    marginTop: Tokens.spacing.xs,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
   },
@@ -179,8 +179,8 @@ const styles = StyleSheet.create({
   predRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    marginBottom: 8,
+    gap: Tokens.spacing.sm,
+    marginBottom: Tokens.spacing.xs,
   },
   predItem: {
     flex: 1,
@@ -196,8 +196,8 @@ const styles = StyleSheet.create({
     color: Colors.text,
   },
   confBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingHorizontal: Tokens.spacing.xs,
+    paddingVertical: Tokens.spacing.xxs,
     borderRadius: Tokens.radius.xs,
   },
   confText: {
@@ -208,7 +208,7 @@ const styles = StyleSheet.create({
     fontSize: Type.footnote.fontSize,
     color: Colors.textSecondary,
     lineHeight: 18,
-    marginBottom: 8,
+    marginBottom: Tokens.spacing.xs,
   },
   tipRow: {
     flexDirection: 'row',

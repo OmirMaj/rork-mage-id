@@ -208,7 +208,7 @@ export default function AccountSecurityScreen() {
   return (
     <View style={styles.container}>
       <Stack.Screen options={{ title: 'Account Security', headerStyle: { backgroundColor: Colors.background }, headerTintColor: Colors.primary, headerTitleStyle: { fontWeight: '700' as const, color: Colors.text } }} />
-      <ScrollView contentContainerStyle={{ paddingTop: 12, paddingBottom: insets.bottom + 30 }} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={{ paddingTop: Tokens.spacing.sm, paddingBottom: insets.bottom + 30 }} showsVerticalScrollIndicator={false}>
         <View style={styles.headerWrap}>
           <Shield size={28} color={Colors.primary} />
           <Text style={styles.headerTitle}>Two-Factor Authentication</Text>
@@ -249,7 +249,7 @@ export default function AccountSecurityScreen() {
               placeholderTextColor={Colors.textMuted}
               autoFocus
             />
-            <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: Tokens.spacing.sm }}>
               <TouchableOpacity
                 style={[styles.actionBtn, styles.actionSecondary]}
                 onPress={() => { setPending(null); setCode(''); }}
@@ -324,7 +324,7 @@ export default function AccountSecurityScreen() {
               ))}
             </View>
             <TouchableOpacity
-              style={[styles.actionBtn, { marginTop: 8 }]}
+              style={[styles.actionBtn, { marginTop: Tokens.spacing.xs }]}
               onPress={handleEnroll}
               activeOpacity={0.85}
               disabled={enrolling}
@@ -350,43 +350,43 @@ export default function AccountSecurityScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
-  headerWrap: { alignItems: 'center' as const, paddingHorizontal: 24, paddingVertical: 20, gap: 6 },
-  headerTitle: { fontSize: Type.title2.fontSize, fontWeight: '800' as const, color: Colors.text, letterSpacing: -0.4, marginTop: 4 },
+  headerWrap: { alignItems: 'center' as const, paddingHorizontal: Tokens.spacing.xl, paddingVertical: Tokens.spacing.lg, gap: 6 },
+  headerTitle: { fontSize: Type.title2.fontSize, fontWeight: '800' as const, color: Colors.text, letterSpacing: -0.4, marginTop: Tokens.spacing.xxs },
   headerSub: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, textAlign: 'center' as const, lineHeight: 18 },
 
-  loadingWrap: { paddingVertical: 32, alignItems: 'center' as const },
+  loadingWrap: { paddingVertical: Tokens.spacing['2xl'], alignItems: 'center' as const },
 
-  card: { backgroundColor: Colors.surface, marginHorizontal: 16, padding: 16, borderRadius: Tokens.radius.lg, borderWidth: 1, borderColor: Colors.borderLight, gap: 8, marginBottom: 12 },
+  card: { backgroundColor: Colors.surface, marginHorizontal: Tokens.spacing.md, padding: Tokens.spacing.md, borderRadius: Tokens.radius.lg, borderWidth: 1, borderColor: Colors.borderLight, gap: Tokens.spacing.xs, marginBottom: Tokens.spacing.sm },
   cardTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text },
   cardSub: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, lineHeight: 18 },
-  inlineRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8 },
+  inlineRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: Tokens.spacing.xs },
 
-  appsRow: { flexDirection: 'row' as const, flexWrap: 'wrap' as const, gap: 6, marginTop: 8 },
-  appChip: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: Tokens.radius.sm, backgroundColor: Colors.fillTertiary },
+  appsRow: { flexDirection: 'row' as const, flexWrap: 'wrap' as const, gap: 6, marginTop: Tokens.spacing.xs },
+  appChip: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: Tokens.spacing.xxs, paddingHorizontal: 10, paddingVertical: 6, borderRadius: Tokens.radius.sm, backgroundColor: Colors.fillTertiary },
   appChipText: { fontSize: Type.caption2.fontSize, color: Colors.text, fontWeight: '600' as const },
 
   actionBtn: { flex: 1, minHeight: 44, flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 6, backgroundColor: Colors.primary, borderRadius: Tokens.radius.lg, paddingHorizontal: 14 },
   actionBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.textOnPrimary },
   actionSecondary: { backgroundColor: Colors.fillTertiary },
 
-  secretRow: { gap: 6, marginTop: 4 },
+  secretRow: { gap: 6, marginTop: Tokens.spacing.xxs },
   secretLabel: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontWeight: '600' as const },
   secretBox: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'space-between' as const, padding: 10, backgroundColor: Colors.fillTertiary, borderRadius: Tokens.radius.sm },
   secretText: { fontSize: Type.footnote.fontSize, color: Colors.text, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', flex: 1 },
 
-  codeLabel: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, fontWeight: '600' as const, marginTop: 8 },
+  codeLabel: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, fontWeight: '600' as const, marginTop: Tokens.spacing.xs },
   codeInput: {
     minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: Colors.fillTertiary,
     paddingHorizontal: 14, fontSize: Type.title3.fontSize, color: Colors.text, letterSpacing: 4,
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
   },
 
-  factorRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, marginHorizontal: 16, padding: 12, borderRadius: Tokens.radius.lg, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.borderLight, marginBottom: 8 },
+  factorRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, marginHorizontal: Tokens.spacing.md, padding: Tokens.spacing.sm, borderRadius: Tokens.radius.lg, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.borderLight, marginBottom: Tokens.spacing.xs },
   factorName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
-  factorMeta: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 2 },
-  unenrollBtn: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: Tokens.radius.sm, backgroundColor: Colors.error + '14' },
+  factorMeta: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: Tokens.spacing.hairline },
+  unenrollBtn: { paddingHorizontal: Tokens.spacing.sm, paddingVertical: 7, borderRadius: Tokens.radius.sm, backgroundColor: Colors.error + '14' },
   unenrollBtnText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: Colors.error },
 
-  footer: { flexDirection: 'row' as const, gap: 8, alignItems: 'flex-start' as const, paddingHorizontal: 18, paddingVertical: 16, opacity: 0.7 },
+  footer: { flexDirection: 'row' as const, gap: Tokens.spacing.xs, alignItems: 'flex-start' as const, paddingHorizontal: 18, paddingVertical: Tokens.spacing.md, opacity: 0.7 },
   footerText: { flex: 1, fontSize: Type.caption2.fontSize, color: Colors.textMuted, lineHeight: 14 },
 });

@@ -124,15 +124,15 @@ function Stat({ label, value, icon, accent }: { label: string; value: string; ic
 
 const styles = StyleSheet.create({
   card: {
-    marginHorizontal: 20,
-    marginBottom: 16,
+    marginHorizontal: Tokens.spacing.lg,
+    marginBottom: Tokens.spacing.md,
     backgroundColor: Colors.card,
     borderRadius: Tokens.radius.panel,
     borderWidth: 1,
     borderColor: Colors.border,
-    padding: 16,
+    padding: Tokens.spacing.md,
   },
-  head: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 4 },
+  head: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.sm, marginBottom: Tokens.spacing.xxs },
   headIcon: {
     width: 30, height: 30, borderRadius: 9,
     backgroundColor: Colors.primary + '15',
@@ -141,7 +141,7 @@ const styles = StyleSheet.create({
   eyebrow: {
     fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.textMuted,
     letterSpacing: 0.6, textTransform: 'uppercase',
-    marginBottom: 2,
+    marginBottom: Tokens.spacing.hairline,
   },
   endingBalance: { fontSize: Type.title2.fontSize, fontWeight: '800', color: Colors.text },
   spark: { alignSelf: 'center', marginVertical: 6 },
@@ -149,10 +149,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     paddingTop: 10,
     borderTopWidth: 1, borderTopColor: Colors.border,
-    marginTop: 4, gap: 8,
+    marginTop: Tokens.spacing.xxs, gap: Tokens.spacing.xs,
   },
   stat: { flex: 1 },
-  statHead: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 2 },
+  statHead: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xxs, marginBottom: Tokens.spacing.hairline },
   statLabel: {
     fontSize: 10, fontWeight: '700', color: Colors.textMuted,
     letterSpacing: 0.5, textTransform: 'uppercase',

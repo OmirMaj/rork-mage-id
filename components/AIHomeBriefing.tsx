@@ -180,11 +180,11 @@ export default React.memo(function AIHomeBriefing({ projects, invoices, subscrip
 
 const styles = StyleSheet.create({
   container: {
-    marginHorizontal: 20,
-    marginBottom: 20,
+    marginHorizontal: Tokens.spacing.lg,
+    marginBottom: Tokens.spacing.lg,
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.panel,
-    padding: 16,
+    padding: Tokens.spacing.md,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
     shadowColor: '#000',
@@ -197,7 +197,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 12,
+    marginBottom: Tokens.spacing.sm,
   },
   headerLeft: {
     flexDirection: 'row',
@@ -219,7 +219,7 @@ const styles = StyleSheet.create({
     fontSize: Type.bodyCompact.fontSize,
     color: Colors.text,
     lineHeight: 20,
-    marginBottom: 12,
+    marginBottom: Tokens.spacing.sm,
   },
   projectRow: {
     flexDirection: 'row',
@@ -235,11 +235,11 @@ const styles = StyleSheet.create({
     borderRadius: Tokens.radius.lg,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 2,
+    marginTop: Tokens.spacing.hairline,
   },
   projectInfo: {
     flex: 1,
-    gap: 2,
+    gap: Tokens.spacing.hairline,
   },
   projectName: {
     fontSize: Type.bodyCompact.fontSize,
@@ -255,13 +255,13 @@ const styles = StyleSheet.create({
     fontSize: Type.footnote.fontSize,
     color: Colors.primary,
     fontWeight: '500' as const,
-    marginTop: 2,
+    marginTop: Tokens.spacing.hairline,
   },
   urgentSection: {
     backgroundColor: Colors.errorLight,
     borderRadius: Tokens.radius.md,
     padding: 10,
-    marginTop: 8,
+    marginTop: Tokens.spacing.xs,
     gap: 6,
   },
   urgentRow: {
@@ -279,7 +279,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 12,
+    marginTop: Tokens.spacing.sm,
     paddingTop: 10,
     borderTopWidth: 0.5,
     borderTopColor: Colors.borderLight,
@@ -287,7 +287,7 @@ const styles = StyleSheet.create({
   viewFullBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: Tokens.spacing.xxs,
   },
   viewFullText: {
     fontSize: Type.footnote.fontSize,
@@ -303,7 +303,7 @@ const styles = StyleSheet.create({
     height: 12,
     backgroundColor: Colors.fillTertiary,
     borderRadius: Tokens.radius.xs,
-    marginBottom: 8,
+    marginBottom: Tokens.spacing.xs,
     width: '100%',
   },
   skeletonShort: {

@@ -260,7 +260,7 @@ export default function LeadDetailScreen() {
           <View style={styles.section}>
             <Text style={styles.sectionLabel}>Stage</Text>
             {existing && stage !== 'lost' && (
-              <View style={{ marginBottom: 12 }}>
+              <View style={{ marginBottom: Tokens.spacing.sm }}>
                 <StatusPipeline
                   stages={LEAD_PIPELINE_STAGES}
                   current={mapLeadStage(stage)}
@@ -537,17 +537,17 @@ const LOST_REASONS = [
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: Colors.background },
-  quickRow: { flexDirection: 'row', gap: 8, padding: 16, paddingBottom: 0, flexWrap: 'wrap' },
+  quickRow: { flexDirection: 'row', gap: Tokens.spacing.xs, padding: Tokens.spacing.md, paddingBottom: 0, flexWrap: 'wrap' },
   quickBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     backgroundColor: Colors.surface,
-    paddingHorizontal: 12, paddingVertical: 10, borderRadius: Tokens.radius.card,
+    paddingHorizontal: Tokens.spacing.sm, paddingVertical: 10, borderRadius: Tokens.radius.card,
     borderWidth: 1, borderColor: Colors.cardBorder,
   },
   quickBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.text },
   scoreCard: {
     flexDirection: 'row', alignItems: 'center', gap: 14,
-    margin: 16, marginBottom: 0,
+    margin: Tokens.spacing.md, marginBottom: 0,
     backgroundColor: Colors.surface,
     padding: 14, borderRadius: Tokens.radius.lg, borderWidth: 1, borderColor: Colors.cardBorder,
   },
@@ -560,21 +560,21 @@ const styles = StyleSheet.create({
   scoreCircleText: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: Colors.primary },
   scoreCircleTextHot: { color: '#FFF' },
   scoreCardTitle: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: Colors.textMuted, letterSpacing: 0.5, textTransform: 'uppercase' },
-  scoreCardReason: { fontSize: Type.footnote.fontSize, color: Colors.text, marginTop: 2, lineHeight: 18 },
-  section: { padding: 16, paddingBottom: 8 },
-  sectionLabel: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: Colors.textMuted, letterSpacing: 0.5, textTransform: 'uppercase', marginBottom: 8 },
-  fieldLabel: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, marginTop: 12, marginBottom: 6, fontWeight: '600' as const },
+  scoreCardReason: { fontSize: Type.footnote.fontSize, color: Colors.text, marginTop: Tokens.spacing.hairline, lineHeight: 18 },
+  section: { padding: Tokens.spacing.md, paddingBottom: Tokens.spacing.xs },
+  sectionLabel: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: Colors.textMuted, letterSpacing: 0.5, textTransform: 'uppercase', marginBottom: Tokens.spacing.xs },
+  fieldLabel: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, marginTop: Tokens.spacing.sm, marginBottom: 6, fontWeight: '600' as const },
   input: {
     backgroundColor: Colors.surface,
-    paddingHorizontal: 14, paddingVertical: 12,
+    paddingHorizontal: 14, paddingVertical: Tokens.spacing.sm,
     borderRadius: Tokens.radius.card, borderWidth: 1, borderColor: Colors.cardBorder,
     fontSize: Type.subhead.fontSize, color: Colors.text,
   },
   multilineInput: { minHeight: 80 },
-  budgetRow: { flexDirection: 'row', marginTop: 4 },
+  budgetRow: { flexDirection: 'row', marginTop: Tokens.spacing.xxs },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   chip: {
-    paddingHorizontal: 12, paddingVertical: 8,
+    paddingHorizontal: Tokens.spacing.sm, paddingVertical: Tokens.spacing.xs,
     backgroundColor: Colors.surface, borderRadius: Tokens.radius.md,
     borderWidth: 1, borderColor: Colors.cardBorder,
   },
@@ -582,21 +582,21 @@ const styles = StyleSheet.create({
   chipText: { fontSize: Type.footnote.fontSize, color: Colors.text, fontWeight: '500' as const },
   chipTextActive: { color: '#FFF' },
   convertBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    marginTop: 12,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Tokens.spacing.xs,
+    marginTop: Tokens.spacing.sm,
     backgroundColor: Colors.success,
     paddingVertical: 14, borderRadius: Tokens.radius.card,
   },
   convertBtnText: { color: '#FFF', fontSize: Type.subhead.fontSize, fontWeight: '700' as const },
   convertedBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    marginTop: 12,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Tokens.spacing.xs,
+    marginTop: Tokens.spacing.sm,
     backgroundColor: Colors.primary + '15',
     paddingVertical: 14, borderRadius: Tokens.radius.card,
     borderWidth: 1, borderColor: Colors.primary + '40',
   },
   convertedBtnText: { color: Colors.primary, fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const },
-  touchKindRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 },
+  touchKindRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: Tokens.spacing.xs },
   chipSmall: {
     paddingHorizontal: 10, paddingVertical: 6,
     backgroundColor: Colors.surface, borderRadius: Tokens.radius.sm,
@@ -614,31 +614,31 @@ const styles = StyleSheet.create({
   },
   touchAddBtn: {
     backgroundColor: Colors.text,
-    paddingHorizontal: 14, paddingVertical: 12, borderRadius: Tokens.radius.card,
+    paddingHorizontal: 14, paddingVertical: Tokens.spacing.sm, borderRadius: Tokens.radius.card,
   },
   touchAddBtnDisabled: { backgroundColor: Colors.fillTertiary },
   touchAddBtnText: { color: '#FFF', fontSize: Type.footnote.fontSize, fontWeight: '600' as const },
-  touchList: { marginTop: 12, gap: 10 },
+  touchList: { marginTop: Tokens.spacing.sm, gap: 10 },
   touchRow: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 10,
     backgroundColor: Colors.surface,
-    padding: 12, borderRadius: Tokens.radius.card,
+    padding: Tokens.spacing.sm, borderRadius: Tokens.radius.card,
     borderWidth: 1, borderColor: Colors.cardBorder,
   },
   touchKindBadge: {
     backgroundColor: Colors.primary + '15',
-    paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.xs,
+    paddingHorizontal: Tokens.spacing.xs, paddingVertical: 3, borderRadius: Tokens.radius.xs,
   },
   touchKindBadgeText: { fontSize: 10, fontWeight: '700' as const, color: Colors.primary, textTransform: 'uppercase' },
   touchBody: { fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 18 },
-  touchMeta: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 2 },
-  emptyText: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, textAlign: 'center', paddingVertical: 12 },
+  touchMeta: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: Tokens.spacing.hairline },
+  emptyText: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, textAlign: 'center', paddingVertical: Tokens.spacing.sm },
   saveBar: {
     position: 'absolute', left: 0, right: 0, bottom: 0,
-    flexDirection: 'row', gap: 8,
+    flexDirection: 'row', gap: Tokens.spacing.xs,
     backgroundColor: Colors.background,
     borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: Colors.cardBorder,
-    paddingHorizontal: 16, paddingTop: 12,
+    paddingHorizontal: Tokens.spacing.md, paddingTop: Tokens.spacing.sm,
   },
   deleteBtn: {
     width: 48, height: 48, borderRadius: Tokens.radius.card,
@@ -647,7 +647,7 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: Colors.error + '30',
   },
   saveBtn: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Tokens.spacing.xs,
     backgroundColor: Colors.primary,
     paddingVertical: 14, borderRadius: Tokens.radius.card,
   },
@@ -660,12 +660,12 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.5)',
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
-    padding: 24,
+    padding: Tokens.spacing.xl,
   },
   lostModalCard: {
     backgroundColor: Colors.card,
     borderRadius: Tokens.radius.card,
-    padding: 20,
+    padding: Tokens.spacing.lg,
     width: '100%' as const,
     maxWidth: 420,
   },
@@ -678,13 +678,13 @@ const styles = StyleSheet.create({
   lostModalSubtitle: {
     fontSize: Type.footnote.fontSize,
     color: Colors.textMuted,
-    marginBottom: 16,
+    marginBottom: Tokens.spacing.md,
     lineHeight: 19,
   },
   lostReasonChips: {
     flexDirection: 'row' as const,
     flexWrap: 'wrap' as const,
-    gap: 8,
+    gap: Tokens.spacing.xs,
     marginBottom: 18,
   },
   lostModalActions: {
@@ -693,7 +693,7 @@ const styles = StyleSheet.create({
   },
   lostModalSkipBtn: {
     flex: 1,
-    paddingVertical: 12,
+    paddingVertical: Tokens.spacing.sm,
     borderRadius: Tokens.radius.md,
     backgroundColor: Colors.fillTertiary,
     alignItems: 'center' as const,
@@ -701,7 +701,7 @@ const styles = StyleSheet.create({
   lostModalSkipText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.textMuted },
   lostModalSaveBtn: {
     flex: 1,
-    paddingVertical: 12,
+    paddingVertical: Tokens.spacing.sm,
     borderRadius: Tokens.radius.md,
     backgroundColor: Colors.primary,
     alignItems: 'center' as const,

@@ -100,14 +100,14 @@ function FeatureExplainerSheetImpl({
           contentContainerStyle={styles.body}
           showsVerticalScrollIndicator={false}
         >
-          <Text style={[Type.title2, { color: Colors.text, marginBottom: 8 }]}>{term}</Text>
-          <Text style={[Type.body, { color: Colors.textSecondary, marginBottom: 16 }]}>
+          <Text style={[Type.title2, { color: Colors.text, marginBottom: Tokens.spacing.xs }]}>{term}</Text>
+          <Text style={[Type.body, { color: Colors.textSecondary, marginBottom: Tokens.spacing.md }]}>
             {definition}
           </Text>
 
           {whenToUse && whenToUse.length > 0 && (
             <View style={styles.bullets}>
-              <Text style={[Type.subheadEmphasized, { color: Colors.text, marginBottom: 8 }]}>
+              <Text style={[Type.subheadEmphasized, { color: Colors.text, marginBottom: Tokens.spacing.xs }]}>
                 When you&apos;d use this
               </Text>
               {whenToUse.map((b, i) => (
@@ -168,8 +168,8 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
     borderTopLeftRadius: 18,
     borderTopRightRadius: 18,
-    paddingHorizontal: 20,
-    paddingTop: 8,
+    paddingHorizontal: Tokens.spacing.lg,
+    paddingTop: Tokens.spacing.xs,
   },
   handle: {
     alignSelf: 'center',
@@ -182,7 +182,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 4,
+    marginBottom: Tokens.spacing.xxs,
   },
   closeBtn: {
     width: 32, height: 32, borderRadius: Tokens.radius.panel,
@@ -191,14 +191,14 @@ const styles = StyleSheet.create({
   },
   body: {
     paddingTop: 14,
-    paddingBottom: 8,
+    paddingBottom: Tokens.spacing.xs,
   },
   bullets: { marginBottom: 18 },
   bulletRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 10,
-    marginBottom: 8,
+    marginBottom: Tokens.spacing.xs,
   },
   bulletDot: {
     width: 5, height: 5, borderRadius: 3,
@@ -209,10 +209,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    paddingVertical: 12,
+    paddingVertical: Tokens.spacing.sm,
     paddingHorizontal: 14,
     borderRadius: Tokens.radius.card,
     backgroundColor: Colors.primary + '0E',
-    marginBottom: 8,
+    marginBottom: Tokens.spacing.xs,
   },
 });

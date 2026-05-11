@@ -503,7 +503,7 @@ function WalkInner({ projectName, projectId, subcontractors, onAdd, onDelete, on
                 <X size={18} color={Colors.text} />
               </TouchableOpacity>
             </View>
-            <ScrollView contentContainerStyle={{ padding: 12 }}>
+            <ScrollView contentContainerStyle={{ padding: Tokens.spacing.sm }}>
               {TRADE_ORDER.map(t => (
                 <TouchableOpacity
                   key={t}
@@ -545,7 +545,7 @@ function ProjectPicker({ projects, onPick, onBack }: {
           <Text style={styles.headerTitle}>Pick a project</Text>
         </View>
       </View>
-      <ScrollView contentContainerStyle={{ padding: 16 }}>
+      <ScrollView contentContainerStyle={{ padding: Tokens.spacing.md }}>
         {projects.length === 0 ? (
           <View style={styles.emptyCard}>
             <AlertTriangle size={18} color={Colors.warning} />
@@ -595,7 +595,7 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: Colors.background },
 
   header: {
-    flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, gap: 8,
+    flexDirection: 'row', alignItems: 'center', paddingHorizontal: Tokens.spacing.sm, paddingVertical: Tokens.spacing.xs, gap: Tokens.spacing.xs,
     borderBottomWidth: 1, borderBottomColor: Colors.borderLight,
   },
   headerBtn: {
@@ -605,20 +605,20 @@ const styles = StyleSheet.create({
   headerEyebrow: { fontSize: 10, color: Colors.primary, fontWeight: '800', letterSpacing: 2, textTransform: 'uppercase' },
   headerTitle: { fontSize: Type.body.fontSize, fontWeight: '700', color: Colors.text },
   sessionChip: {
-    minWidth: 28, height: 28, borderRadius: Tokens.radius.lg, paddingHorizontal: 8,
+    minWidth: 28, height: 28, borderRadius: Tokens.radius.lg, paddingHorizontal: Tokens.spacing.xs,
     backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center',
   },
   sessionChipText: { color: Colors.textOnPrimary, fontWeight: '800', fontSize: Type.caption1.fontSize },
 
   locationRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 14, marginTop: 14,
+    flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs, marginHorizontal: 14, marginTop: 14,
     backgroundColor: Colors.card, borderRadius: Tokens.radius.card, paddingHorizontal: 14, paddingVertical: 10,
     borderWidth: 1, borderColor: Colors.borderLight,
   },
   locationInput: { flex: 1, fontSize: Type.bodyCompact.fontSize, color: Colors.text },
 
   descCard: {
-    backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 16, marginHorizontal: 14, marginTop: 12,
+    backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: Tokens.spacing.md, marginHorizontal: 14, marginTop: Tokens.spacing.sm,
     borderWidth: 1, borderColor: Colors.borderLight,
   },
   descInput: {
@@ -626,7 +626,7 @@ const styles = StyleSheet.create({
     lineHeight: 24, fontWeight: '500',
   },
 
-  metaRow: { flexDirection: 'row', gap: 8, marginTop: 12, flexWrap: 'wrap' },
+  metaRow: { flexDirection: 'row', gap: Tokens.spacing.xs, marginTop: Tokens.spacing.sm, flexWrap: 'wrap' },
   metaChip: {
     flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 6,
     borderRadius: Tokens.radius.sm, backgroundColor: Colors.fillSecondary,
@@ -638,7 +638,7 @@ const styles = StyleSheet.create({
   metaChipGhostText: { fontSize: Type.caption2.fontSize, color: Colors.primary, fontWeight: '600' },
 
   photoPreview: {
-    marginTop: 12, position: 'relative', alignSelf: 'flex-start',
+    marginTop: Tokens.spacing.sm, position: 'relative', alignSelf: 'flex-start',
     borderRadius: Tokens.radius.md, overflow: 'hidden',
   },
   photoImg: { width: 110, height: 82, borderRadius: Tokens.radius.md },
@@ -650,7 +650,7 @@ const styles = StyleSheet.create({
   actionRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, marginTop: 14 },
   voiceWrap: { flex: 1, alignItems: 'center' },
   cameraBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingVertical: 12,
+    flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: Tokens.spacing.md, paddingVertical: Tokens.spacing.sm,
     borderRadius: Tokens.radius.card, backgroundColor: Colors.fillSecondary,
   },
   cameraBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.text },
@@ -661,37 +661,37 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary + '0F',
     borderRadius: Tokens.radius.card,
     paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingVertical: Tokens.spacing.sm,
     borderWidth: 1,
     borderColor: Colors.primary + '40',
     marginTop: 10,
   },
   aiPunchBtnTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.primary },
-  aiPunchBtnSub: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2 },
+  aiPunchBtnSub: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: Tokens.spacing.hairline },
 
   saveBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    marginHorizontal: 14, marginTop: 14, paddingVertical: 16, borderRadius: Tokens.radius.lg,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Tokens.spacing.xs,
+    marginHorizontal: 14, marginTop: 14, paddingVertical: Tokens.spacing.md, borderRadius: Tokens.radius.lg,
     backgroundColor: Colors.primary,
   },
   saveBtnDisabled: { backgroundColor: Colors.textMuted },
   saveBtnText: { color: Colors.textOnPrimary, fontWeight: '800', fontSize: Type.subhead.fontSize },
 
-  hint: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, textAlign: 'center', marginHorizontal: 20, marginTop: 10, lineHeight: 15 },
+  hint: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, textAlign: 'center', marginHorizontal: Tokens.spacing.lg, marginTop: 10, lineHeight: 15 },
 
   sessionCard: {
-    marginHorizontal: 14, marginTop: 20, padding: 14, borderRadius: Tokens.radius.lg,
+    marginHorizontal: 14, marginTop: Tokens.spacing.lg, padding: 14, borderRadius: Tokens.radius.lg,
     backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.borderLight,
   },
   sessionTitle: { fontSize: Type.caption2.fontSize, color: Colors.primary, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 1.1, marginBottom: 10 },
-  sessionRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-start', paddingVertical: 8, borderTopWidth: 1, borderTopColor: Colors.borderLight },
+  sessionRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-start', paddingVertical: Tokens.spacing.xs, borderTopWidth: 1, borderTopColor: Colors.borderLight },
   sessionDot: { width: 8, height: 8, borderRadius: 4, marginTop: 6 },
   sessionDesc: { fontSize: Type.footnote.fontSize, color: Colors.text, fontWeight: '600' },
-  sessionMeta: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, marginTop: 2 },
+  sessionMeta: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, marginTop: Tokens.spacing.hairline },
 
   emptyCard: {
     flexDirection: 'row', gap: 10, alignItems: 'flex-start',
-    marginHorizontal: 14, marginTop: 20, padding: 14, borderRadius: Tokens.radius.lg,
+    marginHorizontal: 14, marginTop: Tokens.spacing.lg, padding: 14, borderRadius: Tokens.radius.lg,
     backgroundColor: Colors.fillSecondary,
   },
   emptyText: { flex: 1, fontSize: Type.caption1.fontSize, color: Colors.textSecondary, lineHeight: 17 },
@@ -700,15 +700,15 @@ const styles = StyleSheet.create({
   modalSheet: { backgroundColor: Colors.card, borderTopLeftRadius: 18, borderTopRightRadius: 18, maxHeight: '70%' },
   modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 14, borderBottomWidth: 1, borderBottomColor: Colors.borderLight },
   modalTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700', color: Colors.text },
-  tradeOption: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, paddingHorizontal: 14, borderRadius: Tokens.radius.md },
+  tradeOption: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: Tokens.spacing.sm, paddingHorizontal: 14, borderRadius: Tokens.radius.md },
   tradeOptionActive: { backgroundColor: `${Colors.primary}15` },
   tradeOptionText: { flex: 1, fontSize: Type.bodyCompact.fontSize, color: Colors.text, fontWeight: '600' },
 
   pickerRow: {
     flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14,
-    backgroundColor: Colors.card, borderRadius: Tokens.radius.card, marginBottom: 8,
+    backgroundColor: Colors.card, borderRadius: Tokens.radius.card, marginBottom: Tokens.spacing.xs,
     borderWidth: 1, borderColor: Colors.borderLight,
   },
   pickerRowTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
-  pickerRowSub: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, marginTop: 2 },
+  pickerRowSub: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, marginTop: Tokens.spacing.hairline },
 });

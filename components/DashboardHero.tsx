@@ -548,11 +548,11 @@ void Clock;
 
 const styles = StyleSheet.create({
   container: {
-    margin: 12,
-    padding: 16,
+    margin: Tokens.spacing.sm,
+    padding: Tokens.spacing.md,
     borderRadius: 24,
     backgroundColor: Colors.surface,
-    gap: 16,
+    gap: Tokens.spacing.md,
     // Soft shadow for the cream-card-on-tinted-bg look the Prepperly
     // reference uses. Not as aggressive as a card-on-card pattern;
     // the subtlety matters.
@@ -565,43 +565,43 @@ const styles = StyleSheet.create({
     borderColor: Colors.borderLight,
   },
 
-  heroRow: { flexDirection: 'row' as const, alignItems: 'flex-start' as const, gap: 12 },
+  heroRow: { flexDirection: 'row' as const, alignItems: 'flex-start' as const, gap: Tokens.spacing.sm },
   greeting: { fontSize: Type.bodyCompact.fontSize, color: Colors.textMuted, fontWeight: '600' as const },
   // Greeting name in Fraunces — mirrors onboarding's "Build it. *Bill it.*"
   // treatment. The brand voice now greets the user every time they open
   // the app, not just on first launch.
-  greetingName: { ...Type.displaySm, color: Colors.ink, marginTop: 2 },
-  heroActions: { flexDirection: 'row' as const, gap: 8, alignItems: 'center' as const, marginTop: 6 },
+  greetingName: { ...Type.displaySm, color: Colors.ink, marginTop: Tokens.spacing.hairline },
+  heroActions: { flexDirection: 'row' as const, gap: Tokens.spacing.xs, alignItems: 'center' as const, marginTop: 6 },
   heroActionLight: {
-    flexDirection: 'row' as const, alignItems: 'center' as const, gap: 4,
-    paddingHorizontal: 12, paddingVertical: 8,
+    flexDirection: 'row' as const, alignItems: 'center' as const, gap: Tokens.spacing.xxs,
+    paddingHorizontal: Tokens.spacing.sm, paddingVertical: Tokens.spacing.xs,
     borderRadius: 999, backgroundColor: Colors.surface,
     borderWidth: 1, borderColor: Colors.borderLight,
   },
   heroActionLightText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.text },
   heroActionDark: {
-    flexDirection: 'row' as const, alignItems: 'center' as const, gap: 4,
-    paddingHorizontal: 12, paddingVertical: 8,
+    flexDirection: 'row' as const, alignItems: 'center' as const, gap: Tokens.spacing.xxs,
+    paddingHorizontal: Tokens.spacing.sm, paddingVertical: Tokens.spacing.xs,
     borderRadius: 999, backgroundColor: '#0F1115',
   },
   heroActionDarkText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.surface },
 
-  statRow: { flexDirection: 'row' as const, gap: 8, flexWrap: 'wrap' as const },
+  statRow: { flexDirection: 'row' as const, gap: Tokens.spacing.xs, flexWrap: 'wrap' as const },
   statRowWide: {},
   statCard: {
     flex: 1,
     minWidth: 100,
-    padding: 12,
+    padding: Tokens.spacing.sm,
     borderRadius: 16,
     backgroundColor: Colors.surfaceAlt,
-    gap: 4,
+    gap: Tokens.spacing.xxs,
   },
-  statIcon: { width: 26, height: 26, borderRadius: 13, alignItems: 'center' as const, justifyContent: 'center' as const, marginBottom: 4 },
+  statIcon: { width: 26, height: 26, borderRadius: 13, alignItems: 'center' as const, justifyContent: 'center' as const, marginBottom: Tokens.spacing.xxs },
   statLabel: { fontSize: 10, fontWeight: '700' as const, color: Colors.textMuted, letterSpacing: 0.4, textTransform: 'uppercase' as const },
   statValue: { fontSize: 26, fontWeight: '700' as const, color: Colors.text, letterSpacing: -0.7 },
   statSub: { fontSize: Type.caption2.fontSize, color: Colors.textMuted },
 
-  imgRow: { gap: 10, paddingVertical: 4 },
+  imgRow: { gap: 10, paddingVertical: Tokens.spacing.xxs },
   imgRowWide: { flexDirection: 'row' as const },
   imgCard: {
     width: 200,
@@ -625,36 +625,36 @@ const styles = StyleSheet.create({
   featureBg: { flex: 1, justifyContent: 'flex-end' as const },
   featureBgImg: { borderRadius: 20 },
   featureScrim: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.35)' },
-  featureContent: { padding: 16, gap: 4 },
+  featureContent: { padding: Tokens.spacing.md, gap: Tokens.spacing.xxs },
   featureLabel: { fontSize: 10, fontWeight: '700' as const, color: 'rgba(255,255,255,0.85)', letterSpacing: 0.5, textTransform: 'uppercase' as const },
   // featureTitle uses Fraunces serif for the marquee feature card — it
   // sits over a photo background so the serif reads naturally and
   // distinguishes itself from the surrounding sans-serif UI.
   featureTitle: { ...Type.displaySm, color: Colors.surface, fontSize: 26, lineHeight: 30 },
   featureMeta: { fontSize: Type.footnote.fontSize, color: 'rgba(255,255,255,0.85)' },
-  featureCta: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 4, marginTop: 8, alignSelf: 'flex-start' as const, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.18)' },
+  featureCta: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: Tokens.spacing.xxs, marginTop: Tokens.spacing.xs, alignSelf: 'flex-start' as const, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.18)' },
   featureCtaText: { fontSize: 11, fontWeight: '700' as const, color: Colors.surface },
 
-  featureCardEmpty: { padding: 20, borderRadius: 20, backgroundColor: Colors.surfaceAlt, alignItems: 'center' as const, gap: 4, borderWidth: 1, borderColor: Colors.borderLight, borderStyle: 'dashed' as const },
-  featureEmptyTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: Colors.text, marginTop: 4 },
+  featureCardEmpty: { padding: Tokens.spacing.lg, borderRadius: 20, backgroundColor: Colors.surfaceAlt, alignItems: 'center' as const, gap: Tokens.spacing.xxs, borderWidth: 1, borderColor: Colors.borderLight, borderStyle: 'dashed' as const },
+  featureEmptyTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: Colors.text, marginTop: Tokens.spacing.xxs },
   featureEmptySub: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, textAlign: 'center' as const },
 
   actionRail: { gap: 6 },
   actionRailWide: { flex: 1 },
   actionRow: {
     flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10,
-    padding: 12, borderRadius: 14, backgroundColor: Colors.surfaceAlt,
+    padding: Tokens.spacing.sm, borderRadius: 14, backgroundColor: Colors.surfaceAlt,
   },
   actionIcon: { width: 28, height: 28, borderRadius: 14, backgroundColor: Colors.surface, alignItems: 'center' as const, justifyContent: 'center' as const, borderWidth: 1, borderColor: Colors.borderLight },
   actionTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text, letterSpacing: -0.2 },
   actionSub: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 1 },
 
-  dangerBlock: { marginBottom: 4, gap: 0 },
+  dangerBlock: { marginBottom: Tokens.spacing.xxs, gap: 0 },
   dangerBanner: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     gap: 10,
-    padding: 12,
+    padding: Tokens.spacing.sm,
     borderTopLeftRadius: Tokens.radius.md,
     borderTopRightRadius: Tokens.radius.md,
     borderBottomLeftRadius: 0,
@@ -671,9 +671,9 @@ const styles = StyleSheet.create({
     borderColor: Colors.error + '40',
     borderBottomLeftRadius: Tokens.radius.md,
     borderBottomRightRadius: Tokens.radius.md,
-    paddingHorizontal: 12,
+    paddingHorizontal: Tokens.spacing.sm,
     paddingTop: 10,
-    paddingBottom: 4,
+    paddingBottom: Tokens.spacing.xxs,
   },
   dangerActionsHeader: {
     fontSize: Type.caption2.fontSize,
@@ -687,7 +687,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row' as const,
     alignItems: 'flex-start' as const,
     gap: 10,
-    paddingVertical: 8,
+    paddingVertical: Tokens.spacing.xs,
   },
   dangerActionDot: {
     width: 22,
@@ -710,7 +710,7 @@ const styles = StyleSheet.create({
   dangerActionReason: {
     fontSize: Type.caption1.fontSize,
     color: Colors.textSecondary,
-    marginTop: 2,
+    marginTop: Tokens.spacing.hairline,
     lineHeight: 16,
   },
   dangerIconWrap: {
@@ -730,7 +730,7 @@ const styles = StyleSheet.create({
   dangerBody: {
     fontSize: Type.caption1.fontSize,
     color: Colors.textSecondary,
-    marginTop: 2,
+    marginTop: Tokens.spacing.hairline,
     lineHeight: 16,
   },
 });

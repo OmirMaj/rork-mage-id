@@ -309,7 +309,7 @@ export default function NotificationsInboxScreen() {
       <FlatList
         data={feed.items}
         keyExtractor={i => i.id}
-        contentContainerStyle={{ paddingBottom: insets.bottom + 32, paddingHorizontal: 16, paddingTop: 8 }}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 32, paddingHorizontal: Tokens.spacing.md, paddingTop: Tokens.spacing.xs }}
         ListEmptyComponent={
           <View style={styles.empty}>
             <Bell size={40} color={Colors.textMuted} />
@@ -369,11 +369,11 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   header: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
-    paddingHorizontal: 16, paddingVertical: 12,
+    paddingHorizontal: Tokens.spacing.md, paddingVertical: Tokens.spacing.sm,
     borderBottomWidth: 1, borderBottomColor: Colors.border,
   },
   title: { fontSize: Type.title2.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.4 },
-  subtitle: { fontSize: Type.caption1.fontSize, color: Colors.primary, fontWeight: '700', marginTop: 2 },
+  subtitle: { fontSize: Type.caption1.fontSize, color: Colors.primary, fontWeight: '700', marginTop: Tokens.spacing.hairline },
   headerAction: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
     paddingHorizontal: 10, paddingVertical: 6,
@@ -389,8 +389,8 @@ const styles = StyleSheet.create({
   },
 
   row: {
-    flexDirection: 'row', gap: 12,
-    paddingHorizontal: 14, paddingVertical: 14, marginVertical: 4,
+    flexDirection: 'row', gap: Tokens.spacing.sm,
+    paddingHorizontal: 14, paddingVertical: 14, marginVertical: Tokens.spacing.xxs,
     backgroundColor: Colors.card, borderRadius: Tokens.radius.lg,
     borderWidth: 1, borderColor: Colors.border,
   },
@@ -405,7 +405,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
     borderWidth: 2, borderColor: Colors.card,
   },
-  rowHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
+  rowHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Tokens.spacing.xxs },
   rowEyebrow: { fontSize: 10, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.6 },
   rowTime: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontWeight: '600' },
   rowTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
@@ -417,15 +417,15 @@ const styles = StyleSheet.create({
   },
 
   empty: {
-    alignItems: 'center', padding: 40, marginTop: 40,
+    alignItems: 'center', padding: Tokens.spacing['3xl'], marginTop: Tokens.spacing['3xl'],
     gap: 10,
   },
-  emptyTitle: { fontSize: Type.callout.fontSize, fontWeight: '700', color: Colors.text, marginTop: 4 },
+  emptyTitle: { fontSize: Type.callout.fontSize, fontWeight: '700', color: Colors.text, marginTop: Tokens.spacing.xxs },
   emptyBody: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, textAlign: 'center', lineHeight: 19, maxWidth: 280 },
 
   clearAll: {
     flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6,
-    paddingVertical: 16, marginTop: 6,
+    paddingVertical: Tokens.spacing.md, marginTop: 6,
   },
   clearAllText: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: Colors.error },
 });

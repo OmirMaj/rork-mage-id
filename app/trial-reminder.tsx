@@ -29,6 +29,7 @@ import * as Haptics from 'expo-haptics';
 import * as Notifications from 'expo-notifications';
 import { Bell, Check, BellRing, BellOff } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import { Tokens } from '@/constants/designTokens';
 import { Type } from '@/constants/typography';
 
 const REMINDER_KEY = 'trial_reminder_days';
@@ -174,42 +175,42 @@ export default function TrialReminderScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background, paddingHorizontal: 24 },
+  container: { flex: 1, backgroundColor: Colors.background, paddingHorizontal: Tokens.spacing.xl },
 
-  brandRow: { alignItems: 'center' as const, marginBottom: 8 },
+  brandRow: { alignItems: 'center' as const, marginBottom: Tokens.spacing.xs },
   brandLogoBg: { backgroundColor: Colors.surfaceAlt, paddingHorizontal: 14, paddingVertical: 7, borderRadius: 12 },
   brandLogo: { fontSize: 16, fontWeight: '900' as const, color: Colors.text, letterSpacing: -0.4 },
 
   titleRow: { marginTop: 14 },
   title: { fontSize: 30, fontWeight: '900' as const, color: Colors.text, letterSpacing: -0.7, lineHeight: 36 },
 
-  illoWrap: { alignItems: 'center' as const, justifyContent: 'center' as const, marginTop: 24, height: 160 },
+  illoWrap: { alignItems: 'center' as const, justifyContent: 'center' as const, marginTop: Tokens.spacing.xl, height: 160 },
   illoCalendar: { width: 120, height: 130, borderRadius: 18, backgroundColor: '#3FA1F0', position: 'relative' as const, alignItems: 'center' as const, paddingTop: 22, shadowColor: '#000', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.18, shadowRadius: 18, elevation: 8 },
   illoCalendarTop: { position: 'absolute' as const, left: 0, right: 0, top: 0, height: 22, borderTopLeftRadius: 18, borderTopRightRadius: 18, backgroundColor: '#FFC857' },
-  illoCalendarBody: { width: 95, height: 90, borderRadius: 8, backgroundColor: Colors.surface, alignItems: 'center' as const, justifyContent: 'center' as const, marginTop: 4 },
+  illoCalendarBody: { width: 95, height: 90, borderRadius: 8, backgroundColor: Colors.surface, alignItems: 'center' as const, justifyContent: 'center' as const, marginTop: Tokens.spacing.xxs },
   illoEmoji: { fontSize: 38 },
   illoRing: { position: 'absolute' as const, top: -6, left: 14, width: 12, height: 12, borderRadius: 6, backgroundColor: '#9CA3AF' },
 
-  previewWrap: { marginTop: 12, height: 70 },
-  previewCard: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, backgroundColor: Colors.surface, borderRadius: 16, padding: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 },
+  previewWrap: { marginTop: Tokens.spacing.sm, height: 70 },
+  previewCard: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, backgroundColor: Colors.surface, borderRadius: 16, padding: Tokens.spacing.sm, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 },
   previewCardBack: { position: 'absolute' as const, left: 6, right: 6, top: 8, height: 60, backgroundColor: Colors.fillTertiary, zIndex: -1 },
   previewIcon: { width: 32, height: 32, borderRadius: 8, backgroundColor: Colors.primary, alignItems: 'center' as const, justifyContent: 'center' as const },
   previewIconLetter: { fontSize: 16, fontWeight: '900' as const, color: Colors.surface },
   previewHead: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'space-between' as const },
   previewTitle: { fontSize: 13, fontWeight: '800' as const, color: Colors.text },
   previewTime: { fontSize: 11, color: Colors.textMuted },
-  previewBody: { fontSize: 12, color: Colors.textSecondary, marginTop: 2 },
+  previewBody: { fontSize: 12, color: Colors.textSecondary, marginTop: Tokens.spacing.hairline },
 
-  optionsWrap: { paddingTop: 20 },
+  optionsWrap: { paddingTop: Tokens.spacing.lg },
   options: { backgroundColor: Colors.surfaceAlt, borderRadius: 18, padding: 6 },
-  optionRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 12, padding: 14, borderRadius: 14 },
+  optionRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: Tokens.spacing.sm, padding: 14, borderRadius: 14 },
   optionRowActive: { backgroundColor: Colors.primary + '15' },
   optionLabel: { flex: 1, fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.textMuted },
   optionLabelActive: { color: Colors.text },
   optionRadio: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: Colors.fillSecondary, alignItems: 'center' as const, justifyContent: 'center' as const },
   optionRadioActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
 
-  footer: { position: 'absolute' as const, left: 24, right: 24, bottom: 0, paddingTop: 12, backgroundColor: Colors.background },
+  footer: { position: 'absolute' as const, left: 24, right: 24, bottom: 0, paddingTop: Tokens.spacing.sm, backgroundColor: Colors.background },
   continueBtn: { minHeight: 56, borderRadius: 999, backgroundColor: Colors.primary, alignItems: 'center' as const, justifyContent: 'center' as const, shadowColor: Colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 10, elevation: 4 },
   continueBtnText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.textOnPrimary, letterSpacing: -0.2 },
 });

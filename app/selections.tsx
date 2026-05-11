@@ -205,7 +205,7 @@ export default function SelectionsScreen() {
         </View>
       )}
 
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 80 }}>
+      <ScrollView contentContainerStyle={{ padding: Tokens.spacing.md, paddingBottom: insets.bottom + 80 }}>
         {loading && (
           <View style={styles.loading}>
             <ActivityIndicator size="small" color={Colors.primary} />
@@ -299,7 +299,7 @@ function CategoryCard({ category, curating, onCurate, onChoose, onDelete, onDraf
 
       {chosen && (
         <View style={[styles.chosenBanner, isExceeded && { backgroundColor: Colors.error + '0D', borderColor: Colors.error + '30' }]}>
-          <View style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-start' }}>
+          <View style={{ flexDirection: 'row', gap: Tokens.spacing.xs, alignItems: 'flex-start' }}>
             {isExceeded
               ? <AlertTriangle size={14} color={Colors.error} />
               : <CheckCircle2  size={14} color={Colors.success} />}
@@ -496,28 +496,28 @@ const styles = StyleSheet.create({
 
   header: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 10,
-    paddingHorizontal: 16, paddingTop: 14, paddingBottom: 14,
+    paddingHorizontal: Tokens.spacing.md, paddingTop: 14, paddingBottom: 14,
     borderBottomWidth: 1, borderBottomColor: Colors.border,
   },
   eyebrow: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.primary, letterSpacing: 1.4, textTransform: 'uppercase' },
-  title:   { fontSize: Type.title3.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.4, marginTop: 4 },
+  title:   { fontSize: Type.title3.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.4, marginTop: Tokens.spacing.xxs },
   addBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
-    paddingHorizontal: 12, paddingVertical: 8, borderRadius: 9,
+    paddingHorizontal: Tokens.spacing.sm, paddingVertical: Tokens.spacing.xs, borderRadius: 9,
     backgroundColor: Colors.primary,
   },
   addBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: '#FFF' },
 
   summaryStrip: {
     flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 16, paddingVertical: 12,
+    paddingHorizontal: Tokens.spacing.md, paddingVertical: Tokens.spacing.sm,
     borderBottomWidth: 1, borderBottomColor: Colors.border,
     backgroundColor: Colors.surface,
   },
   summaryStat: { flex: 1 },
-  summaryStatLabel: { fontSize: 9, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 4 },
+  summaryStatLabel: { fontSize: 9, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: Tokens.spacing.xxs },
   summaryStatValue: { fontSize: Type.callout.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.3 },
-  summaryDiv: { width: 1, alignSelf: 'stretch', backgroundColor: Colors.border, marginVertical: 4 },
+  summaryDiv: { width: 1, alignSelf: 'stretch', backgroundColor: Colors.border, marginVertical: Tokens.spacing.xxs },
 
   loading: { padding: 30, alignItems: 'center' },
   emptyCard: {
@@ -525,44 +525,44 @@ const styles = StyleSheet.create({
     alignItems: 'center', gap: 10, marginTop: 22,
     borderWidth: 1, borderColor: Colors.border,
   },
-  emptyTitle: { fontSize: Type.callout.fontSize, fontWeight: '800', color: Colors.text, marginTop: 4 },
+  emptyTitle: { fontSize: Type.callout.fontSize, fontWeight: '800', color: Colors.text, marginTop: Tokens.spacing.xxs },
   emptyBody:  { fontSize: Type.footnote.fontSize, color: Colors.textMuted, textAlign: 'center', lineHeight: 19, maxWidth: 320 },
   bigCta: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: 18, paddingVertical: 11, borderRadius: 11,
-    backgroundColor: Colors.primary, marginTop: 8,
+    backgroundColor: Colors.primary, marginTop: Tokens.spacing.xs,
   },
   bigCtaText: { color: '#FFF', fontSize: Type.bodyCompact.fontSize, fontWeight: '800' },
 
   catCard: {
     backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 14,
-    borderWidth: 1, borderColor: Colors.border, marginBottom: 12, gap: 12,
+    borderWidth: 1, borderColor: Colors.border, marginBottom: Tokens.spacing.sm, gap: Tokens.spacing.sm,
   },
   catHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   catName: { fontSize: Type.subhead.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.2 },
-  catBrief: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 2, fontStyle: 'italic' },
+  catBrief: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: Tokens.spacing.hairline, fontStyle: 'italic' },
   catBudget: { alignItems: 'flex-end' },
   catBudgetLabel: { fontSize: 9, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.6 },
   catBudgetValue: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800', color: Colors.text },
 
   chosenBanner: {
-    flexDirection: 'column', gap: 8,
-    padding: 12, borderRadius: Tokens.radius.md,
+    flexDirection: 'column', gap: Tokens.spacing.xs,
+    padding: Tokens.spacing.sm, borderRadius: Tokens.radius.md,
     backgroundColor: Colors.success + '0D',
     borderWidth: 1, borderColor: Colors.success + '30',
   },
   chosenTitle: { fontSize: Type.footnote.fontSize, fontWeight: '800', color: Colors.success },
-  chosenSub:   { fontSize: Type.caption2.fontSize, color: Colors.text, marginTop: 2 },
+  chosenSub:   { fontSize: Type.caption2.fontSize, color: Colors.text, marginTop: Tokens.spacing.hairline },
 
   draftCoCta: {
-    paddingVertical: 8, paddingHorizontal: 12, borderRadius: Tokens.radius.sm,
+    paddingVertical: Tokens.spacing.xs, paddingHorizontal: Tokens.spacing.sm, borderRadius: Tokens.radius.sm,
     backgroundColor: Colors.error + '12',
     borderWidth: 1, borderColor: Colors.error + '40',
   },
   draftCoCtaText: { fontSize: Type.caption1.fontSize, fontWeight: '800', color: Colors.error, letterSpacing: -0.1 },
 
   curateCta: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Tokens.spacing.xs,
     paddingVertical: 14, borderRadius: Tokens.radius.card,
     backgroundColor: Colors.primary,
     shadowColor: Colors.primary, shadowOffset: { width: 0, height: 4 },
@@ -570,28 +570,28 @@ const styles = StyleSheet.create({
   },
   curateCtaText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800', color: '#FFF' },
 
-  optionsList: { gap: 8 },
+  optionsList: { gap: Tokens.spacing.xs },
   opt: {
-    backgroundColor: Colors.background, borderRadius: Tokens.radius.card, padding: 12,
+    backgroundColor: Colors.background, borderRadius: Tokens.radius.card, padding: Tokens.spacing.sm,
     borderWidth: 1.5, borderColor: Colors.border, gap: 6,
   },
   optChosen: { borderColor: Colors.success, backgroundColor: Colors.success + '08' },
   optOver:   { borderColor: Colors.warning + '60' },
   optHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  tierPill: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: Tokens.radius.full },
+  tierPill: { paddingHorizontal: 7, paddingVertical: Tokens.spacing.hairline, borderRadius: Tokens.radius.full },
   tierPillText: { fontSize: 9, fontWeight: '800', letterSpacing: 0.5 },
   optTotal: { fontSize: Type.callout.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.2 },
   optName:  { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.text },
   optBrand: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 1 },
-  optDesc:  { fontSize: Type.caption1.fontSize, color: Colors.text, lineHeight: 17, marginTop: 2 },
-  highlightsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4 },
+  optDesc:  { fontSize: Type.caption1.fontSize, color: Colors.text, lineHeight: 17, marginTop: Tokens.spacing.hairline },
+  highlightsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: Tokens.spacing.xxs },
   highlight: {
     flexDirection: 'row', alignItems: 'center', gap: 3,
-    paddingHorizontal: 6, paddingVertical: 2, borderRadius: Tokens.radius.xs,
+    paddingHorizontal: 6, paddingVertical: Tokens.spacing.hairline, borderRadius: Tokens.radius.xs,
     backgroundColor: Colors.warning + '0D', borderWidth: 1, borderColor: Colors.warning + '30',
   },
   highlightText: { fontSize: 9, fontWeight: '700', color: Colors.text },
-  optFoot: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 4 },
+  optFoot: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs, flexWrap: 'wrap', marginTop: Tokens.spacing.xxs },
   optMeta: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   optMetaText: { fontSize: 10, fontWeight: '600', color: Colors.textMuted },
   chosenPill: { flexDirection: 'row', alignItems: 'center', gap: 3, marginLeft: 'auto' },
@@ -599,21 +599,21 @@ const styles = StyleSheet.create({
 
   regenerateBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5,
-    paddingVertical: 8, borderRadius: 9,
+    paddingVertical: Tokens.spacing.xs, borderRadius: 9,
     borderWidth: 1, borderColor: Colors.border, borderStyle: 'dashed',
   },
   regenerateText: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.primary },
 
   // Modal
   modalOverlay: { flex: 1, backgroundColor: 'rgba(11, 13, 16, 0.75)', justifyContent: 'flex-end' },
-  modalCard: { backgroundColor: Colors.surface, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 20, gap: 10 },
+  modalCard: { backgroundColor: Colors.surface, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: Tokens.spacing.lg, gap: 10 },
   modalTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: Colors.text },
   modalBody:  { fontSize: Type.footnote.fontSize, color: Colors.textMuted, lineHeight: 18 },
-  modalLabel: { fontSize: Type.caption2.fontSize, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.6, textTransform: 'uppercase', marginTop: 8 },
+  modalLabel: { fontSize: Type.caption2.fontSize, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.6, textTransform: 'uppercase', marginTop: Tokens.spacing.xs },
   modalInput: {
     backgroundColor: Colors.background,
     borderWidth: 1, borderColor: Colors.border, borderRadius: Tokens.radius.md,
-    paddingHorizontal: 12, paddingVertical: 11,
+    paddingHorizontal: Tokens.spacing.sm, paddingVertical: 11,
     fontSize: Type.bodyCompact.fontSize, color: Colors.text,
   },
   modalAmountField: {
@@ -622,10 +622,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
   },
   modalAmountInput: { flex: 1, paddingVertical: 11, fontSize: Type.bodyCompact.fontSize, color: Colors.text },
-  modalActions: { flexDirection: 'row', gap: 10, marginTop: 12 },
-  modalCancel: { flex: 1, paddingVertical: 12, borderRadius: 11, backgroundColor: Colors.background, alignItems: 'center', borderWidth: 1, borderColor: Colors.border },
+  modalActions: { flexDirection: 'row', gap: 10, marginTop: Tokens.spacing.sm },
+  modalCancel: { flex: 1, paddingVertical: Tokens.spacing.sm, borderRadius: 11, backgroundColor: Colors.background, alignItems: 'center', borderWidth: 1, borderColor: Colors.border },
   modalCancelText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
-  modalConfirm: { flex: 1.4, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 11, backgroundColor: Colors.primary },
+  modalConfirm: { flex: 1.4, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: Tokens.spacing.sm, borderRadius: 11, backgroundColor: Colors.primary },
   modalConfirmDisabled: { opacity: 0.45 },
   modalConfirmText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800', color: '#FFF' },
 });

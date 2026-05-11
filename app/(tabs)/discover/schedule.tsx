@@ -417,7 +417,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
             <ChevronRight size={18} color={Colors.textMuted} />
           </TouchableOpacity>
 
-          <Text style={[s.sectionTitle, { marginTop: 24 }]}>Start from Template</Text>
+          <Text style={[s.sectionTitle, { marginTop: Tokens.spacing.xl }]}>Start from Template</Text>
           {SCHEDULE_TEMPLATES.map(template => (
             <TouchableOpacity
               key={template.id}
@@ -444,7 +444,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
 
           {projectsWithSchedules.length > 0 && (
             <>
-              <Text style={[s.sectionTitle, { marginTop: 24 }]}>Existing Schedules</Text>
+              <Text style={[s.sectionTitle, { marginTop: Tokens.spacing.xl }]}>Existing Schedules</Text>
               {projectsWithSchedules.map(project => (
                 <TouchableOpacity
                   key={project.id}
@@ -595,20 +595,20 @@ const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   heroSection: {
     alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingTop: 20,
-    paddingBottom: 24,
+    paddingHorizontal: Tokens.spacing.xl,
+    paddingTop: Tokens.spacing.lg,
+    paddingBottom: Tokens.spacing.xl,
   },
   heroIconWrap: {
     width: 56, height: 56, borderRadius: Tokens.radius.panel,
     backgroundColor: '#FF9F0A' + '15',
     alignItems: 'center', justifyContent: 'center',
-    marginBottom: 12,
+    marginBottom: Tokens.spacing.sm,
   },
   heroTitle: { fontSize: Type.title2.fontSize, fontWeight: '700' as const, color: Colors.text, marginBottom: 6 },
   heroDesc: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, textAlign: 'center', lineHeight: 20 },
   aiSection: {
-    marginHorizontal: 16,
+    marginHorizontal: Tokens.spacing.md,
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.xl,
     padding: 18,
@@ -618,9 +618,9 @@ const s = StyleSheet.create({
     shadowRadius: 10,
     elevation: 3,
   },
-  aiHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
+  aiHeader: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs, marginBottom: 6 },
   aiTitle: { fontSize: Type.body.fontSize, fontWeight: '600' as const, color: Colors.text },
-  aiDesc: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, marginBottom: 12, lineHeight: 18 },
+  aiDesc: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, marginBottom: Tokens.spacing.sm, lineHeight: 18 },
   aiInput: {
     minHeight: 100,
     borderRadius: Tokens.radius.lg,
@@ -638,7 +638,7 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    gap: Tokens.spacing.xs,
     backgroundColor: '#FF9F0A',
     borderRadius: Tokens.radius.lg,
     paddingVertical: 15,
@@ -661,9 +661,9 @@ const s = StyleSheet.create({
   divider: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 24,
-    marginVertical: 24,
-    gap: 12,
+    paddingHorizontal: Tokens.spacing.xl,
+    marginVertical: Tokens.spacing.xl,
+    gap: Tokens.spacing.sm,
   },
   dividerLine: { flex: 1, height: 1, backgroundColor: Colors.cardBorder },
   dividerText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.textMuted, letterSpacing: 0.5 },
@@ -673,18 +673,18 @@ const s = StyleSheet.create({
     color: Colors.textSecondary,
     letterSpacing: 0.5,
     textTransform: 'uppercase' as const,
-    paddingHorizontal: 20,
+    paddingHorizontal: Tokens.spacing.lg,
     marginBottom: 10,
   },
   scratchCard: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
-    marginHorizontal: 16,
-    marginBottom: 8,
+    marginHorizontal: Tokens.spacing.md,
+    marginBottom: Tokens.spacing.xs,
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.lg,
     padding: 14,
-    gap: 12,
+    gap: Tokens.spacing.sm,
     borderWidth: 1.5,
     borderColor: Colors.warning + '40',
     borderStyle: 'dashed' as const,
@@ -694,7 +694,7 @@ const s = StyleSheet.create({
     backgroundColor: Colors.surface,
     borderTopLeftRadius: 22,
     borderTopRightRadius: 22,
-    padding: 16,
+    padding: Tokens.spacing.md,
     paddingBottom: 28,
     width: '100%' as const,
     maxWidth: 480,
@@ -706,9 +706,9 @@ const s = StyleSheet.create({
     borderRadius: 2,
     backgroundColor: Colors.borderLight,
     alignSelf: 'center' as const,
-    marginBottom: 12,
+    marginBottom: Tokens.spacing.sm,
   },
-  actionSheetTitle: { fontSize: 19, fontWeight: '800' as const, color: Colors.text, marginBottom: 4, paddingHorizontal: 6, letterSpacing: -0.3 },
+  actionSheetTitle: { fontSize: 19, fontWeight: '800' as const, color: Colors.text, marginBottom: Tokens.spacing.xxs, paddingHorizontal: 6, letterSpacing: -0.3 },
   actionSheetSub: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, marginBottom: 18, paddingHorizontal: 6 },
   actionRow: {
     flexDirection: 'row' as const,
@@ -725,10 +725,10 @@ const s = StyleSheet.create({
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
   },
-  actionTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text, marginBottom: 2 },
+  actionTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text, marginBottom: Tokens.spacing.hairline },
   actionSub: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary },
   actionCancel: {
-    marginTop: 8,
+    marginTop: Tokens.spacing.xs,
     paddingVertical: 14,
     alignItems: 'center' as const,
     borderRadius: Tokens.radius.card,
@@ -738,12 +738,12 @@ const s = StyleSheet.create({
   templateCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginHorizontal: 16,
-    marginBottom: 8,
+    marginHorizontal: Tokens.spacing.md,
+    marginBottom: Tokens.spacing.xs,
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.lg,
     padding: 14,
-    gap: 12,
+    gap: Tokens.spacing.sm,
     // Black outline matches every other card across the app.
     borderWidth: 1,
     borderColor: Colors.cardBorder,
@@ -753,18 +753,18 @@ const s = StyleSheet.create({
     backgroundColor: Colors.primary + '12',
     alignItems: 'center', justifyContent: 'center',
   },
-  templateInfo: { flex: 1, gap: 2 },
+  templateInfo: { flex: 1, gap: Tokens.spacing.hairline },
   templateName: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: Colors.text },
   templateMeta: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary },
   existingCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginHorizontal: 16,
-    marginBottom: 8,
+    marginHorizontal: Tokens.spacing.md,
+    marginBottom: Tokens.spacing.xs,
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.lg,
     padding: 14,
-    gap: 12,
+    gap: Tokens.spacing.sm,
     // Black outline matches every other card across the app.
     borderWidth: 1,
     borderColor: Colors.cardBorder,
@@ -777,7 +777,7 @@ const s = StyleSheet.create({
   existingMeta: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   healthBadge: {
     paddingHorizontal: 6,
-    paddingVertical: 2,
+    paddingVertical: Tokens.spacing.hairline,
     borderRadius: Tokens.radius.xs,
   },
   healthText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const },
@@ -785,28 +785,28 @@ const s = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.overlay,
     justifyContent: 'center',
-    padding: 24,
+    padding: Tokens.spacing.xl,
   },
   modalCard: {
     backgroundColor: Colors.surface,
     borderRadius: 20,
-    padding: 20,
+    padding: Tokens.spacing.lg,
     maxHeight: '80%' as any,
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: Tokens.spacing.md,
   },
   modalTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: Colors.text },
   pickerOption: {
     paddingVertical: 14,
-    paddingHorizontal: 16,
+    paddingHorizontal: Tokens.spacing.md,
     borderRadius: Tokens.radius.card,
     backgroundColor: Colors.surfaceAlt,
-    marginBottom: 8,
+    marginBottom: Tokens.spacing.xs,
   },
   pickerName: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: Colors.text },
-  pickerMeta: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, marginTop: 2 },
+  pickerMeta: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, marginTop: Tokens.spacing.hairline },
 });

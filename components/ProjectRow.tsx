@@ -181,7 +181,7 @@ const styles = StyleSheet.create({
   nameCol: {
     flex: 2.2,
     minWidth: 0,
-    gap: 2,
+    gap: Tokens.spacing.hairline,
   },
   name: {
     fontSize: Type.body.fontSize,
@@ -201,7 +201,7 @@ const styles = StyleSheet.create({
   metaCol: {
     flex: 1,
     minWidth: 80,
-    gap: 2,
+    gap: Tokens.spacing.hairline,
   },
   totalCol: {
     alignItems: 'flex-end',
@@ -230,7 +230,7 @@ const styles = StyleSheet.create({
   burnCol: {
     flex: 1.2,
     minWidth: 110,
-    gap: 4,
+    gap: Tokens.spacing.xxs,
   },
   burnHeaderRow: {
     flexDirection: 'row',
@@ -256,7 +256,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingVertical: Tokens.spacing.xxs,
     borderRadius: 999,
   },
   statusDot: {

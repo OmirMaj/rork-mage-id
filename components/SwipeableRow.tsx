@@ -25,6 +25,7 @@ import { Animated, Platform, StyleSheet, Text, TouchableOpacity, View } from 're
 import { Swipeable } from 'react-native-gesture-handler';
 import * as Haptics from 'expo-haptics';
 import { Colors } from '@/constants/colors';
+import { Tokens } from '@/constants/designTokens';
 import { Type } from '@/constants/typography';
 
 export interface SwipeAction {
@@ -152,7 +153,7 @@ const styles = StyleSheet.create({
   action: {
     justifyContent: 'center' as const,
     alignItems: 'center' as const,
-    gap: 4,
+    gap: Tokens.spacing.xxs,
   },
   actionLabel: {
     color: '#fff',

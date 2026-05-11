@@ -159,7 +159,7 @@ export default function SubChangeRequestsScreen() {
         }}
       />
       <ScrollView
-        contentContainerStyle={{ paddingTop: 12, paddingBottom: insets.bottom + 30 }}
+        contentContainerStyle={{ paddingTop: Tokens.spacing.sm, paddingBottom: insets.bottom + 30 }}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={Colors.primary} />
@@ -202,7 +202,7 @@ export default function SubChangeRequestsScreen() {
             }
           />
         ) : (
-          <View style={{ paddingHorizontal: 12 }}>
+          <View style={{ paddingHorizontal: Tokens.spacing.sm }}>
             {filtered.map(req => {
               const projName = projectName.get(req.projectId) ?? 'Unknown project';
               return (
@@ -248,7 +248,7 @@ export default function SubChangeRequestsScreen() {
                   )}
 
                   {req.reviewNotes && (
-                    <View style={[styles.notesRow, { backgroundColor: Colors.fillTertiary, padding: 8, borderRadius: Tokens.radius.sm }]}>
+                    <View style={[styles.notesRow, { backgroundColor: Colors.fillTertiary, padding: Tokens.spacing.xs, borderRadius: Tokens.radius.sm }]}>
                       <FileText size={11} color={Colors.textMuted} />
                       <Text style={[styles.notesText, { fontStyle: 'italic' }]}>Your review note: {req.reviewNotes}</Text>
                     </View>
@@ -338,19 +338,19 @@ function statusColor(status: SubChangeRequest['status']): string {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
-  headerRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, paddingHorizontal: 16, marginTop: 6 },
+  headerRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, paddingHorizontal: Tokens.spacing.md, marginTop: 6 },
   headerTitle: { flex: 1, fontSize: Type.title2.fontSize, fontWeight: '900' as const, color: Colors.text, letterSpacing: -0.4 },
-  headerBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: Tokens.radius.full, backgroundColor: Colors.warning + '20' },
+  headerBadge: { paddingHorizontal: 10, paddingVertical: Tokens.spacing.xxs, borderRadius: Tokens.radius.full, backgroundColor: Colors.warning + '20' },
   headerBadgeText: { fontSize: Type.footnote.fontSize, fontWeight: '900' as const, color: Colors.warning },
-  headerSub: { paddingHorizontal: 16, fontSize: Type.footnote.fontSize, color: Colors.textMuted, marginBottom: 12, marginTop: 4 },
+  headerSub: { paddingHorizontal: Tokens.spacing.md, fontSize: Type.footnote.fontSize, color: Colors.textMuted, marginBottom: Tokens.spacing.sm, marginTop: Tokens.spacing.xxs },
 
-  filterRow: { flexDirection: 'row' as const, gap: 6, paddingHorizontal: 16, marginBottom: 12 },
-  filterChip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: Tokens.radius.full, backgroundColor: Colors.fillTertiary },
+  filterRow: { flexDirection: 'row' as const, gap: 6, paddingHorizontal: Tokens.spacing.md, marginBottom: Tokens.spacing.sm },
+  filterChip: { paddingHorizontal: Tokens.spacing.sm, paddingVertical: 7, borderRadius: Tokens.radius.full, backgroundColor: Colors.fillTertiary },
   filterChipActive: { backgroundColor: Colors.primary },
   filterChipText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.textMuted },
   filterChipTextActive: { color: Colors.textOnPrimary },
 
-  loadingWrap: { padding: 36, alignItems: 'center' as const, gap: 8 },
+  loadingWrap: { padding: 36, alignItems: 'center' as const, gap: Tokens.spacing.xs },
   loadingText: { fontSize: Type.footnote.fontSize, color: Colors.textMuted },
 
   card: {
@@ -369,7 +369,7 @@ const styles = StyleSheet.create({
   cardAmount: { fontSize: Type.subheadline.fontSize, fontWeight: '900' as const, color: Colors.text, letterSpacing: -0.3 },
   cardDescription: { fontSize: Type.bodyCompact.fontSize, color: Colors.text, lineHeight: 20 },
 
-  cardChipRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 4, alignSelf: 'flex-start' as const, paddingHorizontal: 8, paddingVertical: 4, borderRadius: Tokens.radius.sm, backgroundColor: Colors.warning + '15' },
+  cardChipRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: Tokens.spacing.xxs, alignSelf: 'flex-start' as const, paddingHorizontal: Tokens.spacing.xs, paddingVertical: Tokens.spacing.xxs, borderRadius: Tokens.radius.sm, backgroundColor: Colors.warning + '15' },
   cardChipText: { fontSize: Type.caption2.fontSize, color: Colors.warning, fontWeight: '700' as const },
 
   photoRow: { flexDirection: 'row' as const, gap: 6, flexWrap: 'wrap' as const },
@@ -381,7 +381,7 @@ const styles = StyleSheet.create({
   notesText: { flex: 1, fontSize: Type.caption1.fontSize, color: Colors.text, lineHeight: 16 },
 
   actionRow: { flexDirection: 'row' as const, gap: 6, paddingTop: 6, borderTopWidth: 1, borderTopColor: Colors.borderLight },
-  actionBtn: { flex: 1, flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 4, paddingVertical: 10, borderRadius: Tokens.radius.sm },
+  actionBtn: { flex: 1, flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: Tokens.spacing.xxs, paddingVertical: 10, borderRadius: Tokens.radius.sm },
   actionApprove: { backgroundColor: Colors.success + '12' },
   actionRevise: { backgroundColor: Colors.warning + '12' },
   actionReject: { backgroundColor: Colors.error + '12' },

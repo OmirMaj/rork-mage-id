@@ -60,7 +60,7 @@ function IntegrationCard({ item, onConnect }: { item: Integration; onConnect: (i
           <View style={styles.cardNameRow}>
             <Text style={styles.cardName} numberOfLines={1}>{item.name}</Text>
             {item.tier === 'link' && (
-              <ExternalLink size={12} color={Colors.textMuted} style={{ marginLeft: 4 }} />
+              <ExternalLink size={12} color={Colors.textMuted} style={{ marginLeft: Tokens.spacing.xxs }} />
             )}
           </View>
           <Text style={styles.cardDesc} numberOfLines={2}>{item.description}</Text>
@@ -299,14 +299,14 @@ export default function IntegrationsScreen() {
             integration_requests. The integrations the most users ask
             for ship first; the screen reinforces that. */}
         <View style={{
-          marginHorizontal: 16, marginTop: 12, padding: 12,
+          marginHorizontal: Tokens.spacing.md, marginTop: Tokens.spacing.sm, padding: Tokens.spacing.sm,
           backgroundColor: Colors.primary + '12', borderRadius: 12,
           borderWidth: 1, borderColor: Colors.primary + '30',
         }}>
           <Text style={{ fontSize: 12, fontWeight: '800' as const, color: Colors.primary, letterSpacing: 0.5 }}>
             QUICKBOOKS IS LIVE · VOTE FOR THE REST
           </Text>
-          <Text style={{ fontSize: 13, color: Colors.text, marginTop: 4, lineHeight: 18 }}>
+          <Text style={{ fontSize: 13, color: Colors.text, marginTop: Tokens.spacing.xxs, lineHeight: 18 }}>
             Tap QuickBooks to connect your company via OAuth — invoice + bill sync starts immediately. Other integrations are vote-based; the ones with the most demand ship first. {qboLoading ? 'Loading…' : qboConnections.length > 0 ? `Connected to ${qboConnections[0].companyName ?? 'your QBO company'}.` : ''}
           </Text>
         </View>
@@ -377,7 +377,7 @@ export default function IntegrationsScreen() {
 
             {filtered.filter(i => i.status === 'disconnected' || i.status === 'error').length > 0 && (
               <>
-                <Text style={[styles.sectionLabel, { marginTop: 12 }]}>AVAILABLE</Text>
+                <Text style={[styles.sectionLabel, { marginTop: Tokens.spacing.sm }]}>AVAILABLE</Text>
                 {filtered.filter(i => i.status === 'disconnected' || i.status === 'error').map(item => (
                   <IntegrationCard key={item.id} item={item} onConnect={handleConnect} />
                 ))}
@@ -386,7 +386,7 @@ export default function IntegrationsScreen() {
 
             {filtered.filter(i => i.status === 'coming_soon').length > 0 && (
               <>
-                <Text style={[styles.sectionLabel, { marginTop: 12 }]}>COMING SOON</Text>
+                <Text style={[styles.sectionLabel, { marginTop: Tokens.spacing.sm }]}>COMING SOON</Text>
                 {filtered.filter(i => i.status === 'coming_soon').map(item => (
                   <IntegrationCard key={item.id} item={item} onConnect={handleConnect} />
                 ))}
@@ -411,8 +411,8 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   heroSection: {
     alignItems: 'center',
-    paddingVertical: 24,
-    paddingHorizontal: 20,
+    paddingVertical: Tokens.spacing.xl,
+    paddingHorizontal: Tokens.spacing.lg,
     gap: 6,
   },
   heroIconWrap: {
@@ -422,7 +422,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary + '14',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 8,
+    marginBottom: Tokens.spacing.xs,
   },
   heroTitle: {
     fontSize: 24,
@@ -436,12 +436,12 @@ const styles = StyleSheet.create({
   },
   heroStats: {
     flexDirection: 'row',
-    marginTop: 16,
+    marginTop: Tokens.spacing.md,
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.panel,
     paddingVertical: 14,
-    paddingHorizontal: 20,
-    gap: 20,
+    paddingHorizontal: Tokens.spacing.lg,
+    gap: Tokens.spacing.lg,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.04,
@@ -450,16 +450,16 @@ const styles = StyleSheet.create({
   },
   heroStat: { alignItems: 'center', flex: 1 },
   heroStatValue: { fontSize: Type.title2.fontSize, fontWeight: '700' as const, color: Colors.text },
-  heroStatLabel: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 2 },
+  heroStatLabel: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: Tokens.spacing.hairline },
   heroStatDivider: { width: 1, backgroundColor: Colors.borderLight },
   categoryRow: {
-    paddingHorizontal: 16,
-    gap: 8,
-    paddingBottom: 16,
+    paddingHorizontal: Tokens.spacing.md,
+    gap: Tokens.spacing.xs,
+    paddingBottom: Tokens.spacing.md,
   },
   categoryChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingHorizontal: Tokens.spacing.md,
+    paddingVertical: Tokens.spacing.xs,
     borderRadius: 20,
     backgroundColor: Colors.surface,
     borderWidth: 1,
@@ -478,7 +478,7 @@ const styles = StyleSheet.create({
     color: '#fff',
   },
   listSection: {
-    paddingHorizontal: 16,
+    paddingHorizontal: Tokens.spacing.md,
   },
   sectionLabel: {
     fontSize: Type.caption1.fontSize,
@@ -486,10 +486,10 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
     letterSpacing: 0.6,
     marginBottom: 10,
-    paddingHorizontal: 4,
+    paddingHorizontal: Tokens.spacing.xxs,
   },
   card: {
-    marginBottom: 8,
+    marginBottom: Tokens.spacing.xs,
     borderRadius: Tokens.radius.lg,
     backgroundColor: Colors.surface,
     shadowColor: '#000',
@@ -502,7 +502,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     padding: 14,
-    gap: 12,
+    gap: Tokens.spacing.sm,
   },
   cardIcon: {
     width: 44,
@@ -515,15 +515,15 @@ const styles = StyleSheet.create({
     fontSize: Type.title3.fontSize,
     fontWeight: '700' as const,
   },
-  cardInfo: { flex: 1, gap: 2 },
+  cardInfo: { flex: 1, gap: Tokens.spacing.hairline },
   cardNameRow: { flexDirection: 'row', alignItems: 'center' },
   cardName: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: Colors.text },
   cardDesc: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, lineHeight: 16 },
-  cardConnectedDate: { fontSize: Type.caption2.fontSize, color: Colors.primary, fontWeight: '500' as const, marginTop: 2 },
+  cardConnectedDate: { fontSize: Type.caption2.fontSize, color: Colors.primary, fontWeight: '500' as const, marginTop: Tokens.spacing.hairline },
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: Tokens.spacing.xxs,
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: Tokens.radius.sm,
@@ -532,7 +532,7 @@ const styles = StyleSheet.create({
   emptyState: {
     alignItems: 'center',
     paddingVertical: 60,
-    gap: 8,
+    gap: Tokens.spacing.xs,
   },
   emptyTitle: { fontSize: Type.body.fontSize, fontWeight: '600' as const, color: Colors.text },
   emptyDesc: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary },

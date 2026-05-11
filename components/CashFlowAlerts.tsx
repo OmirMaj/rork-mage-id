@@ -169,9 +169,9 @@ export default function CashFlowAlerts({ forecast, invoices }: CashFlowAlertsPro
 
 const styles = StyleSheet.create({
   container: {
-    paddingHorizontal: 20,
-    gap: 8,
-    marginBottom: 16,
+    paddingHorizontal: Tokens.spacing.lg,
+    gap: Tokens.spacing.xs,
+    marginBottom: Tokens.spacing.md,
   },
   alertCard: {
     borderRadius: Tokens.radius.lg,
@@ -182,7 +182,7 @@ const styles = StyleSheet.create({
   alertTop: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: Tokens.spacing.xs,
   },
   alertTitle: {
     flex: 1,
@@ -206,9 +206,9 @@ const styles = StyleSheet.create({
   alertAction: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: Tokens.spacing.xxs,
     paddingLeft: 26,
-    marginTop: 2,
+    marginTop: Tokens.spacing.hairline,
   },
   alertActionText: {
     fontSize: Type.footnote.fontSize,

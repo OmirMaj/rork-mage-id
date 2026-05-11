@@ -402,7 +402,7 @@ const styles = StyleSheet.create({
   topSection: {
     backgroundColor: Colors.primary,
     paddingBottom: 28,
-    paddingHorizontal: 20,
+    paddingHorizontal: Tokens.spacing.lg,
     borderBottomLeftRadius: 32,
     borderBottomRightRadius: 32,
   },
@@ -413,7 +413,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.15)',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 16,
+    marginBottom: Tokens.spacing.md,
   },
   logoRow: {
     flexDirection: 'row',
@@ -440,20 +440,20 @@ const styles = StyleSheet.create({
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '500' as const,
     color: 'rgba(255,255,255,0.7)',
-    marginTop: 2,
+    marginTop: Tokens.spacing.hairline,
   },
   formWrapper: {
     flex: 1,
   },
   formContainer: {
-    padding: 24,
+    padding: Tokens.spacing.xl,
     paddingTop: 28,
   },
   errorBanner: {
     backgroundColor: Colors.errorLight,
     borderRadius: Tokens.radius.card,
     padding: 14,
-    marginBottom: 20,
+    marginBottom: Tokens.spacing.lg,
     borderWidth: 1,
     borderColor: 'rgba(255,59,48,0.15)',
   },
@@ -470,8 +470,8 @@ const styles = StyleSheet.create({
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '600' as const,
     color: Colors.text,
-    marginBottom: 8,
-    marginLeft: 2,
+    marginBottom: Tokens.spacing.xs,
+    marginLeft: Tokens.spacing.hairline,
   },
   inputWrapper: {
     flexDirection: 'row',
@@ -496,9 +496,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: Colors.primary,
     borderRadius: Tokens.radius.lg,
-    paddingVertical: 16,
-    gap: 8,
-    marginTop: 8,
+    paddingVertical: Tokens.spacing.md,
+    gap: Tokens.spacing.xs,
+    marginTop: Tokens.spacing.xs,
   },
   signupButtonDisabled: {
     opacity: 0.7,
@@ -514,7 +514,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 18,
     marginTop: 14,
-    paddingHorizontal: 8,
+    paddingHorizontal: Tokens.spacing.xs,
   },
   legalLink: {
     color: Colors.primary,
@@ -540,9 +540,9 @@ const styles = StyleSheet.create({
   dividerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 24,
-    marginBottom: 16,
-    gap: 12,
+    marginTop: Tokens.spacing.xl,
+    marginBottom: Tokens.spacing.md,
+    gap: Tokens.spacing.sm,
   },
   dividerLine: {
     flex: 1,
@@ -556,14 +556,14 @@ const styles = StyleSheet.create({
   },
   primaryAuthStack: {
     gap: 10,
-    marginBottom: 16,
+    marginBottom: Tokens.spacing.md,
   },
   primaryAuthButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,
-    paddingVertical: 16,
+    paddingVertical: Tokens.spacing.md,
     borderRadius: Tokens.radius.lg,
     borderWidth: 1.5,
   },
@@ -587,7 +587,7 @@ const styles = StyleSheet.create({
   },
   socialRow: {
     flexDirection: 'row',
-    gap: 12,
+    gap: Tokens.spacing.sm,
   },
   socialButton: {
     flex: 1,

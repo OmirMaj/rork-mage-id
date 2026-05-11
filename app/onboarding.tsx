@@ -372,7 +372,7 @@ export default function OnboardingScreen() {
             })}
           </Animated.View>
 
-          <Animated.View style={{ opacity: ctaOpacity, marginTop: 20, transform: [{ scale: ctaScale }] }}>
+          <Animated.View style={{ opacity: ctaOpacity, marginTop: Tokens.spacing.lg, transform: [{ scale: ctaScale }] }}>
             <Pressable
               onPress={handlePreviewNext}
               style={({ pressed }) => [styles.ctaPrimary, pressed && { opacity: 0.92 }]}
@@ -436,7 +436,7 @@ export default function OnboardingScreen() {
             ))}
           </Animated.View>
 
-          <Animated.View style={{ opacity: ctaOpacity, marginTop: 12 }}>
+          <Animated.View style={{ opacity: ctaOpacity, marginTop: Tokens.spacing.sm }}>
             <TouchableOpacity onPress={handleSkip} hitSlop={8}>
               <Text style={styles.signInText}>
                 <Text style={styles.signInLink}>Skip — pick later</Text>
@@ -459,8 +459,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingBottom: 8,
+    paddingHorizontal: Tokens.spacing.lg,
+    paddingBottom: Tokens.spacing.xs,
   },
   wordmark: {
     fontSize: Type.bodyCompact.fontSize,
@@ -470,7 +470,7 @@ const styles = StyleSheet.create({
   },
   skipBtn: {
     paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingVertical: Tokens.spacing.xs,
     borderRadius: Tokens.radius.full,
     backgroundColor: 'rgba(244,239,230,0.10)',
   },
@@ -500,7 +500,7 @@ const styles = StyleSheet.create({
 
   body: {
     flex: 1,
-    paddingHorizontal: 24,
+    paddingHorizontal: Tokens.spacing.xl,
   },
 
   eyebrow: {
@@ -540,7 +540,7 @@ const styles = StyleSheet.create({
     fontSize: Type.subhead.fontSize,
     lineHeight: 22,
     color: BRAND.fog,
-    marginBottom: 32,
+    marginBottom: Tokens.spacing['2xl'],
     maxWidth: 520,
   },
 
@@ -548,10 +548,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    gap: Tokens.spacing.xs,
     backgroundColor: BRAND.cream,
     paddingHorizontal: 22,
-    paddingVertical: 16,
+    paddingVertical: Tokens.spacing.md,
     borderRadius: Tokens.radius.lg,
     ...continuousCorners, // iOS squircle — premium polish marker
     alignSelf: 'flex-start',
@@ -583,13 +583,13 @@ const styles = StyleSheet.create({
   // ── Preview cards ───────────────────────────────────────────────
   previewList: {
     gap: 10,
-    marginTop: 4,
+    marginTop: Tokens.spacing.xxs,
   },
   previewCard: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 12,
-    paddingHorizontal: 16,
+    gap: Tokens.spacing.sm,
+    paddingHorizontal: Tokens.spacing.md,
     paddingVertical: 14,
     borderRadius: Tokens.radius.lg,
     ...continuousCorners,
@@ -617,21 +617,21 @@ const styles = StyleSheet.create({
     fontSize: Type.footnote.fontSize,
     fontWeight: '500',
     color: BRAND.fog,
-    marginTop: 4,
+    marginTop: Tokens.spacing.xxs,
     lineHeight: 18,
   },
 
   // ── Routing card list ───────────────────────────────────────────
   bandList: {
     gap: 10,
-    marginTop: 4,
+    marginTop: Tokens.spacing.xxs,
   },
   bandCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 16,
+    gap: Tokens.spacing.sm,
+    paddingHorizontal: Tokens.spacing.md,
+    paddingVertical: Tokens.spacing.md,
     borderRadius: Tokens.radius.lg,
     ...continuousCorners,
     backgroundColor: 'rgba(244,239,230,0.08)',
@@ -653,7 +653,7 @@ const styles = StyleSheet.create({
     fontSize: Type.caption1.fontSize,
     fontWeight: '500',
     color: BRAND.fog,
-    marginTop: 4,
+    marginTop: Tokens.spacing.xxs,
     lineHeight: 16,
   },
   bandArrow: {

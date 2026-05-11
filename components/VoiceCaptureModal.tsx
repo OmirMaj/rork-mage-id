@@ -387,9 +387,9 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    paddingHorizontal: 20,
+    paddingHorizontal: Tokens.spacing.lg,
     paddingTop: 18,
-    paddingBottom: 12,
+    paddingBottom: Tokens.spacing.sm,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: Colors.cardBorder,
   },
@@ -401,7 +401,7 @@ const styles = StyleSheet.create({
   contextLine: {
     fontSize: Type.footnote.fontSize,
     color: Colors.textMuted,
-    marginTop: 2,
+    marginTop: Tokens.spacing.hairline,
   },
   closeBtn: {
     width: 32,
@@ -412,22 +412,22 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
   },
   body: {
-    padding: 20,
-    gap: 24,
+    padding: Tokens.spacing.lg,
+    gap: Tokens.spacing.xl,
   },
   suggestionsCard: {
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.lg,
-    padding: 16,
+    padding: Tokens.spacing.md,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
-    gap: 8,
+    gap: Tokens.spacing.xs,
   },
   suggestionsHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginBottom: 4,
+    marginBottom: Tokens.spacing.xxs,
   },
   suggestionsHeader: {
     fontSize: Type.caption1.fontSize,
@@ -468,7 +468,7 @@ const styles = StyleSheet.create({
   checklistCard: {
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.lg,
-    padding: 16,
+    padding: Tokens.spacing.md,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
     marginTop: 10,
@@ -480,7 +480,7 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     letterSpacing: 1,
     textTransform: 'uppercase',
-    marginBottom: 4,
+    marginBottom: Tokens.spacing.xxs,
   },
   checklistRow: {
     flexDirection: 'row',
@@ -508,13 +508,13 @@ const styles = StyleSheet.create({
   checklistHint: {
     fontSize: Type.caption1.fontSize,
     color: Colors.textMuted,
-    marginTop: 2,
+    marginTop: Tokens.spacing.hairline,
     lineHeight: 16,
   },
   recorderArea: {
     alignItems: 'center',
-    paddingTop: 12,
-    gap: 16,
+    paddingTop: Tokens.spacing.sm,
+    gap: Tokens.spacing.md,
   },
   bigBtnWrap: {
     alignItems: 'center',
@@ -550,11 +550,11 @@ const styles = StyleSheet.create({
   errorCard: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 8,
+    gap: Tokens.spacing.xs,
     backgroundColor: Colors.error + '15',
     borderRadius: Tokens.radius.card,
-    padding: 12,
-    marginTop: 4,
+    padding: Tokens.spacing.sm,
+    marginTop: Tokens.spacing.xxs,
     borderWidth: 1,
     borderColor: Colors.error + '40',
     width: '100%',

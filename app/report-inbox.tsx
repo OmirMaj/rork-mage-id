@@ -289,7 +289,7 @@ export default function ReportInboxScreen() {
       {/* Native nav header (Stack.Screen above) already handles insets.top.
           The previous insets.top + 56 added a redundant ~110px of space
           below the header. Just give the filter bar a comfortable inset. */}
-      <View style={[styles.filtersBar, { paddingTop: 12 }]}>
+      <View style={[styles.filtersBar, { paddingTop: Tokens.spacing.sm }]}>
         <FilterChipRow chips={kindChips} value={kindFilter} onChange={setKindFilter} />
         <FilterChipRow chips={statusChips} value={statusFilter} onChange={setStatusFilter} />
         {projects.length > 1 && (
@@ -325,22 +325,22 @@ export default function ReportInboxScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
-  headerBack: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingVertical: 6, paddingLeft: 4, minWidth: 72 },
+  headerBack: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.hairline, paddingVertical: 6, paddingLeft: Tokens.spacing.xxs, minWidth: 72 },
   headerBackText: { fontSize: Type.callout.fontSize, fontWeight: '500', color: Colors.primary },
-  filtersBar: { backgroundColor: Colors.surface, borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight, paddingBottom: 4 },
-  listContent: { padding: 12, gap: 8 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: Colors.card, borderRadius: Tokens.radius.card, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderColor: Colors.cardBorder },
+  filtersBar: { backgroundColor: Colors.surface, borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight, paddingBottom: Tokens.spacing.xxs },
+  listContent: { padding: Tokens.spacing.sm, gap: Tokens.spacing.xs },
+  row: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.sm, backgroundColor: Colors.card, borderRadius: Tokens.radius.card, paddingHorizontal: Tokens.spacing.sm, paddingVertical: 10, borderWidth: 1, borderColor: Colors.cardBorder },
   rowIcon: { width: 32, height: 32, borderRadius: Tokens.radius.sm, alignItems: 'center', justifyContent: 'center' },
   rowMain: { flex: 1 },
   rowPrimary: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
   rowProject: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontWeight: '600', marginTop: 1 },
   rowSecondary: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, marginTop: 1 },
   rowRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  badge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.sm },
+  badge: { paddingHorizontal: Tokens.spacing.xs, paddingVertical: 3, borderRadius: Tokens.radius.sm },
   badgeText: { fontSize: Type.caption2.fontSize, fontWeight: '700' },
-  overduePill: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: Colors.errorLight, paddingHorizontal: 6, paddingVertical: 2, borderRadius: Tokens.radius.xs },
+  overduePill: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: Colors.errorLight, paddingHorizontal: 6, paddingVertical: Tokens.spacing.hairline, borderRadius: Tokens.radius.xs },
   overduePillText: { fontSize: 9, fontWeight: '800', color: Colors.error, letterSpacing: 0.5 },
-  emptyWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 30, gap: 8 },
+  emptyWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 30, gap: Tokens.spacing.xs },
   emptyTitle: { fontSize: Type.body.fontSize, fontWeight: '700', color: Colors.text },
   emptySub: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, textAlign: 'center', maxWidth: 280 },
 });

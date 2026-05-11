@@ -690,7 +690,7 @@ const styles = StyleSheet.create({
   },
   inlineBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingHorizontal: 12, paddingVertical: 8, borderRadius: Tokens.radius.md,
+    paddingHorizontal: Tokens.spacing.sm, paddingVertical: Tokens.spacing.xs, borderRadius: Tokens.radius.md,
     backgroundColor: Colors.primary + '15', borderWidth: 1, borderColor: Colors.primary + '40',
   },
   inlineBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.primary },
@@ -705,15 +705,15 @@ const styles = StyleSheet.create({
     padding: 22, paddingBottom: 36,
     minHeight: 360,
   },
-  modalHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 16 },
+  modalHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: Tokens.spacing.md },
   modalEyebrow: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.primary, letterSpacing: 1.4, textTransform: 'uppercase' },
-  modalTitle: { fontSize: Type.title2.fontSize, fontWeight: '800', color: Colors.text, marginTop: 4, letterSpacing: -0.4 },
+  modalTitle: { fontSize: Type.title2.fontSize, fontWeight: '800', color: Colors.text, marginTop: Tokens.spacing.xxs, letterSpacing: -0.4 },
   closeBtn: {
     width: 32, height: 32, borderRadius: 9, borderWidth: 1, borderColor: Colors.border,
     backgroundColor: Colors.card, alignItems: 'center', justifyContent: 'center',
   },
 
-  pickerWrap: { marginBottom: 12 },
+  pickerWrap: { marginBottom: Tokens.spacing.sm },
   pickerLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 6 },
   pickerRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
   pickerChip: {
@@ -724,52 +724,52 @@ const styles = StyleSheet.create({
   pickerChipActive: { backgroundColor: Colors.text, borderColor: Colors.text },
   pickerChipText: { fontSize: Type.caption1.fontSize, fontWeight: '600', color: Colors.text },
   pickerChipTextActive: { color: '#FFF' },
-  projectHint: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, marginBottom: 12 },
+  projectHint: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, marginBottom: Tokens.spacing.sm },
   projectHintEmph: { color: Colors.text, fontWeight: '700' },
-  projectHintWarn: { fontSize: Type.footnote.fontSize, color: Colors.warning, marginBottom: 12, fontWeight: '600' },
+  projectHintWarn: { fontSize: Type.footnote.fontSize, color: Colors.warning, marginBottom: Tokens.spacing.sm, fontWeight: '600' },
 
-  bodyWrap: { gap: 12 },
+  bodyWrap: { gap: Tokens.spacing.sm },
   tipsBox: {
     backgroundColor: Colors.card, borderRadius: Tokens.radius.card, padding: 14,
     borderWidth: 1, borderColor: Colors.border,
   },
   tipsTitle: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.textMuted, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.6 },
-  tipsLine: { fontSize: 12.5, color: Colors.text, lineHeight: 18, marginBottom: 4, fontStyle: 'italic' },
+  tipsLine: { fontSize: 12.5, color: Colors.text, lineHeight: 18, marginBottom: Tokens.spacing.xxs, fontStyle: 'italic' },
 
-  parsingWrap: { alignItems: 'center', justifyContent: 'center', padding: 30, gap: 12 },
+  parsingWrap: { alignItems: 'center', justifyContent: 'center', padding: 30, gap: Tokens.spacing.sm },
   parsingText: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, fontWeight: '600' },
 
   previewCard: {
     backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 14,
     borderWidth: 1, borderColor: Colors.border, gap: 10,
   },
-  previewHead: { flexDirection: 'row', gap: 12, alignItems: 'flex-start', marginBottom: 4 },
+  previewHead: { flexDirection: 'row', gap: Tokens.spacing.sm, alignItems: 'flex-start', marginBottom: Tokens.spacing.xxs },
   previewIconWrap: {
     width: 36, height: 36, borderRadius: 11,
     backgroundColor: Colors.primary + '15',
     alignItems: 'center', justifyContent: 'center',
   },
   previewKind: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.primary, textTransform: 'uppercase', letterSpacing: 0.6 },
-  previewReason: { fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 18, marginTop: 2 },
-  previewBody: { gap: 8, paddingTop: 4, borderTopWidth: 1, borderTopColor: Colors.border },
-  previewMetaRow: { flexDirection: 'row', gap: 12 },
+  previewReason: { fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 18, marginTop: Tokens.spacing.hairline },
+  previewBody: { gap: Tokens.spacing.xs, paddingTop: Tokens.spacing.xxs, borderTopWidth: 1, borderTopColor: Colors.border },
+  previewMetaRow: { flexDirection: 'row', gap: Tokens.spacing.sm },
   previewNote: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, fontStyle: 'italic' },
   unsureText: { fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 19 },
 
-  field: { marginBottom: 4 },
+  field: { marginBottom: Tokens.spacing.xxs },
   fieldSmall: { flex: 1 },
-  fieldLabel: { fontSize: 10, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 2 },
+  fieldLabel: { fontSize: 10, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: Tokens.spacing.hairline },
   fieldValue: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600', color: Colors.text },
 
   lineItemRow: {
-    flexDirection: 'row', justifyContent: 'space-between', gap: 8,
+    flexDirection: 'row', justifyContent: 'space-between', gap: Tokens.spacing.xs,
     paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: Colors.border,
   },
   lineItemName: { flex: 1, fontSize: Type.footnote.fontSize, color: Colors.text, fontWeight: '600' },
   lineItemQty: { fontSize: Type.caption1.fontSize, color: Colors.textMuted },
   lineItemAmt: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.text, fontVariant: ['tabular-nums'] },
 
-  ctaRow: { flexDirection: 'row', gap: 8, marginTop: 4 },
+  ctaRow: { flexDirection: 'row', gap: Tokens.spacing.xs, marginTop: Tokens.spacing.xxs },
   ctaSecondary: {
     flex: 1, paddingVertical: 13, borderRadius: 11,
     backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,

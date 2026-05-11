@@ -194,15 +194,15 @@ const styles = StyleSheet.create({
   initCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    padding: 16,
+    gap: Tokens.spacing.xs,
+    padding: Tokens.spacing.md,
     backgroundColor: `${Colors.primary}08`,
     borderRadius: Tokens.radius.lg,
     borderWidth: 1,
     borderColor: `${Colors.primary}20`,
     borderStyle: 'dashed',
-    marginHorizontal: 16,
-    marginVertical: 8,
+    marginHorizontal: Tokens.spacing.md,
+    marginVertical: Tokens.spacing.xs,
   },
   initText: {
     fontSize: Type.bodyCompact.fontSize,
@@ -212,9 +212,9 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.lg,
-    padding: 16,
-    marginHorizontal: 16,
-    marginVertical: 8,
+    padding: Tokens.spacing.md,
+    marginHorizontal: Tokens.spacing.md,
+    marginVertical: Tokens.spacing.xs,
     borderWidth: 0.5,
     borderColor: Colors.borderLight,
     gap: 10,
@@ -238,7 +238,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    padding: 8,
+    padding: Tokens.spacing.xs,
   },
   loadingText: {
     fontSize: Type.bodyCompact.fontSize,
@@ -246,10 +246,10 @@ const styles = StyleSheet.create({
     fontStyle: 'italic' as const,
   },
   riskItem: {
-    padding: 12,
+    padding: Tokens.spacing.sm,
     borderRadius: Tokens.radius.md,
     borderLeftWidth: 3,
-    gap: 4,
+    gap: Tokens.spacing.xxs,
   },
   riskHeader: {
     flexDirection: 'row',
@@ -267,18 +267,18 @@ const styles = StyleSheet.create({
   riskReason: {
     fontSize: Type.caption1.fontSize,
     color: Colors.textSecondary,
-    marginLeft: 4,
+    marginLeft: Tokens.spacing.xxs,
   },
   riskRec: {
     fontSize: Type.footnote.fontSize,
     color: Colors.primary,
     fontWeight: '600' as const,
-    marginTop: 2,
+    marginTop: Tokens.spacing.hairline,
   },
   confidenceRow: {
     flexDirection: 'row',
-    gap: 12,
-    marginTop: 4,
+    gap: Tokens.spacing.sm,
+    marginTop: Tokens.spacing.xxs,
   },
   confItem: {
     flex: 1,

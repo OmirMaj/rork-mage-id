@@ -374,8 +374,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingHorizontal: Tokens.spacing.lg,
+    paddingVertical: Tokens.spacing.md,
     borderBottomWidth: 0.5,
     borderBottomColor: Colors.borderLight,
     backgroundColor: Colors.surface,
@@ -385,7 +385,7 @@ const styles = StyleSheet.create({
   headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: Tokens.spacing.xs,
   },
   headerTitle: {
     fontSize: Type.body.fontSize,
@@ -393,7 +393,7 @@ const styles = StyleSheet.create({
     color: Colors.text,
   },
   projectBadge: {
-    paddingHorizontal: 20,
+    paddingHorizontal: Tokens.spacing.lg,
     paddingVertical: 6,
     backgroundColor: Colors.fillSecondary,
   },
@@ -405,8 +405,8 @@ const styles = StyleSheet.create({
   emptyState: {
     flex: 1,
     alignItems: 'center',
-    paddingTop: 32,
-    paddingHorizontal: 24,
+    paddingTop: Tokens.spacing['2xl'],
+    paddingHorizontal: Tokens.spacing.xl,
   },
   emptyIcon: {
     width: 64,
@@ -415,7 +415,7 @@ const styles = StyleSheet.create({
     backgroundColor: `${Colors.primary}15`,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 16,
+    marginBottom: Tokens.spacing.md,
   },
   emptyTitle: {
     fontSize: Type.subheadline.fontSize,
@@ -428,18 +428,18 @@ const styles = StyleSheet.create({
     fontSize: Type.bodyCompact.fontSize,
     color: Colors.textSecondary,
     textAlign: 'center',
-    marginBottom: 20,
+    marginBottom: Tokens.spacing.lg,
   },
   suggestedPrompts: {
     width: '100%',
-    gap: 8,
+    gap: Tokens.spacing.xs,
   },
   suggestChip: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+    paddingVertical: Tokens.spacing.sm,
+    paddingHorizontal: Tokens.spacing.md,
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.card,
     borderWidth: 1,
@@ -451,8 +451,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   messageList: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: Tokens.spacing.md,
+    paddingVertical: Tokens.spacing.sm,
   },
   bubbleRow: {
     marginBottom: 10,
@@ -465,7 +465,7 @@ const styles = StyleSheet.create({
   },
   bubble: {
     maxWidth: '85%',
-    padding: 12,
+    padding: Tokens.spacing.sm,
     borderRadius: Tokens.radius.panel,
   },
   userBubble: {
@@ -481,8 +481,8 @@ const styles = StyleSheet.create({
   aiLabel: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    marginBottom: 4,
+    gap: Tokens.spacing.xxs,
+    marginBottom: Tokens.spacing.xxs,
   },
   aiLabelText: {
     fontSize: 10,
@@ -544,7 +544,7 @@ const styles = StyleSheet.create({
   typingRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: Tokens.spacing.xs,
   },
   typingText: {
     fontSize: Type.footnote.fontSize,
@@ -566,15 +566,15 @@ const styles = StyleSheet.create({
   inputRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
+    paddingHorizontal: Tokens.spacing.md,
     paddingVertical: 10,
-    gap: 8,
+    gap: Tokens.spacing.xs,
   },
   chatInput: {
     flex: 1,
     backgroundColor: Colors.fillSecondary,
     borderRadius: 20,
-    paddingHorizontal: 16,
+    paddingHorizontal: Tokens.spacing.md,
     paddingVertical: 10,
     fontSize: Type.subhead.fontSize,
     color: Colors.text,

@@ -214,7 +214,7 @@ export default function WarrantyWalkScreen() {
         options={{
           title: '11-month walk',
           headerLeft: () => (
-            <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }}>
+            <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: Tokens.spacing.xxs }}>
               <ChevronLeft size={24} color={Colors.primary} />
             </TouchableOpacity>
           ),
@@ -333,7 +333,7 @@ const styles = StyleSheet.create({
   loadingText: { fontSize: Type.body.fontSize, color: Colors.textMuted },
 
   hero: {
-    margin: 16, padding: 18, borderRadius: Tokens.radius.panel,
+    margin: Tokens.spacing.md, padding: 18, borderRadius: Tokens.radius.panel,
     backgroundColor: Colors.primary + '0D',
     borderWidth: 1, borderColor: Colors.primary + '20',
   },
@@ -341,41 +341,41 @@ const styles = StyleSheet.create({
     width: 38, height: 38, borderRadius: 11,
     backgroundColor: Colors.primary + '15',
     alignItems: 'center', justifyContent: 'center',
-    marginBottom: 12,
+    marginBottom: Tokens.spacing.sm,
   },
-  heroTitle: { fontSize: Type.title2.fontSize, fontWeight: '800', color: Colors.text, marginBottom: 8 },
+  heroTitle: { fontSize: Type.title2.fontSize, fontWeight: '800', color: Colors.text, marginBottom: Tokens.spacing.xs },
   heroBody: { fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 19 },
   doneBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    marginTop: 12, padding: 8, borderRadius: Tokens.radius.md,
+    marginTop: Tokens.spacing.sm, padding: Tokens.spacing.xs, borderRadius: Tokens.radius.md,
     backgroundColor: Colors.success + '14', alignSelf: 'flex-start',
   },
   doneBadgeText: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: Colors.success },
 
-  summaryRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, marginBottom: 12 },
+  summaryRow: { flexDirection: 'row', gap: Tokens.spacing.xs, paddingHorizontal: Tokens.spacing.md, marginBottom: Tokens.spacing.sm },
   summaryCell: {
-    flex: 1, padding: 12, borderRadius: Tokens.radius.md,
+    flex: 1, padding: Tokens.spacing.sm, borderRadius: Tokens.radius.md,
     backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,
     alignItems: 'center',
   },
   summaryValue: { fontSize: Type.title3.fontSize, fontWeight: '800', color: Colors.text },
-  summaryLabel: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 2, textTransform: 'uppercase', letterSpacing: 0.4 },
+  summaryLabel: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: Tokens.spacing.hairline, textTransform: 'uppercase', letterSpacing: 0.4 },
 
-  phaseGroup: { marginBottom: 12 },
+  phaseGroup: { marginBottom: Tokens.spacing.sm },
   phaseLabel: {
-    paddingHorizontal: 16, marginTop: 6, marginBottom: 6,
+    paddingHorizontal: Tokens.spacing.md, marginTop: 6, marginBottom: 6,
     fontSize: Type.caption2.fontSize, fontWeight: '800', color: Colors.textMuted,
     textTransform: 'uppercase', letterSpacing: 0.6,
   },
   itemCard: {
-    marginHorizontal: 16, marginBottom: 6, padding: 12,
+    marginHorizontal: Tokens.spacing.md, marginBottom: 6, padding: Tokens.spacing.sm,
     borderRadius: Tokens.radius.card,
     backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,
   },
   itemHeader: { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
-  checkbox: { paddingTop: 2 },
+  checkbox: { paddingTop: Tokens.spacing.hairline },
   itemTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
-  itemHint: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2, lineHeight: 16 },
+  itemHint: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: Tokens.spacing.hairline, lineHeight: 16 },
   flagBtn: { padding: 6 },
   itemNotes: {
     marginTop: 10, padding: 10, borderRadius: Tokens.radius.md,
@@ -384,30 +384,30 @@ const styles = StyleSheet.create({
   },
 
   sectionLabel: {
-    paddingHorizontal: 16, marginTop: 6, marginBottom: 6,
+    paddingHorizontal: Tokens.spacing.md, marginTop: 6, marginBottom: 6,
     fontSize: Type.caption2.fontSize, fontWeight: '800', color: Colors.textMuted,
     textTransform: 'uppercase', letterSpacing: 0.6,
   },
   overallNotes: {
-    marginHorizontal: 16, padding: 12, borderRadius: Tokens.radius.md,
+    marginHorizontal: Tokens.spacing.md, padding: Tokens.spacing.sm, borderRadius: Tokens.radius.md,
     backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,
     minHeight: 80, fontSize: Type.bodyCompact.fontSize, color: Colors.text,
     textAlignVertical: 'top' as const,
   },
 
   primaryBtn: {
-    marginHorizontal: 16, marginTop: 12,
+    marginHorizontal: Tokens.spacing.md, marginTop: Tokens.spacing.sm,
     paddingVertical: 14, borderRadius: Tokens.radius.md,
     backgroundColor: Colors.primary,
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Tokens.spacing.xs,
   },
   primaryBtnText: { color: '#FFF', fontSize: Type.body.fontSize, fontWeight: '700' },
   secondaryBtn: {
-    marginHorizontal: 16, marginTop: 12,
-    paddingVertical: 12, borderRadius: Tokens.radius.md,
+    marginHorizontal: Tokens.spacing.md, marginTop: Tokens.spacing.sm,
+    paddingVertical: Tokens.spacing.sm, borderRadius: Tokens.radius.md,
     backgroundColor: Colors.primary + '12',
     borderWidth: 1, borderColor: Colors.primary + '30',
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Tokens.spacing.xs,
   },
   secondaryBtnText: { color: Colors.primary, fontSize: Type.footnote.fontSize, fontWeight: '700' },
 });

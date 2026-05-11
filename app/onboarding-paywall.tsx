@@ -495,13 +495,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
+    paddingHorizontal: Tokens.spacing.lg,
+    paddingVertical: Tokens.spacing.sm,
   },
   brandRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: Tokens.spacing.xs,
   },
   brandBadge: {
     width: 24,
@@ -526,8 +526,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   scroll: {
-    paddingHorizontal: 24,
-    paddingTop: 8,
+    paddingHorizontal: Tokens.spacing.xl,
+    paddingTop: Tokens.spacing.xs,
   },
   hero: {
     fontSize: 30,
@@ -539,7 +539,7 @@ const styles = StyleSheet.create({
   },
   featureBlock: {
     position: 'relative',
-    marginBottom: 24,
+    marginBottom: Tokens.spacing.xl,
   },
   railWrap: {
     position: 'absolute',
@@ -564,7 +564,7 @@ const styles = StyleSheet.create({
   railIconWrap: {
     width: 68,
     alignItems: 'center',
-    paddingTop: 2,
+    paddingTop: Tokens.spacing.hairline,
   },
   railIcon: {
     width: 32,
@@ -575,7 +575,7 @@ const styles = StyleSheet.create({
   },
   featureCopy: {
     flex: 1,
-    paddingTop: 2,
+    paddingTop: Tokens.spacing.hairline,
   },
   featureTitle: {
     fontSize: Type.callout.fontSize,
@@ -593,8 +593,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     backgroundColor: Colors.surfaceAlt,
     borderRadius: Tokens.radius.card,
-    padding: 4,
-    marginBottom: 12,
+    padding: Tokens.spacing.xxs,
+    marginBottom: Tokens.spacing.sm,
   },
   periodOption: {
     flex: 1,
@@ -624,7 +624,7 @@ const styles = StyleSheet.create({
   saveBadge: {
     backgroundColor: Colors.success + '25',
     paddingHorizontal: 6,
-    paddingVertical: 2,
+    paddingVertical: Tokens.spacing.hairline,
     borderRadius: 5,
   },
   saveBadgeText: {
@@ -657,7 +657,7 @@ const styles = StyleSheet.create({
     top: -9,
     right: 10,
     backgroundColor: Colors.primary,
-    paddingHorizontal: 8,
+    paddingHorizontal: Tokens.spacing.xs,
     paddingVertical: 3,
     borderRadius: 5,
   },
@@ -678,13 +678,13 @@ const styles = StyleSheet.create({
   planTagline: {
     fontSize: Type.caption2.fontSize,
     color: Colors.textMuted,
-    marginTop: 2,
+    marginTop: Tokens.spacing.hairline,
     marginBottom: 14,
   },
   planPriceBlock: {
     flexDirection: 'row',
     alignItems: 'baseline',
-    gap: 2,
+    gap: Tokens.spacing.hairline,
   },
   planPriceTop: {
     fontSize: 24,
@@ -703,7 +703,7 @@ const styles = StyleSheet.create({
   planPriceBottom: {
     fontSize: Type.caption2.fontSize,
     color: Colors.textMuted,
-    marginTop: 2,
+    marginTop: Tokens.spacing.hairline,
   },
   priceFootnote: {
     fontSize: Type.caption1.fontSize,
@@ -739,7 +739,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,
-    marginTop: 16,
+    marginTop: Tokens.spacing.md,
   },
   legalLink: {
     fontSize: Type.caption1.fontSize,

@@ -265,8 +265,8 @@ export const TakeoffFieldVerifyButton = memo(TakeoffFieldVerifyButtonImpl);
 
 const styles = StyleSheet.create({
   btn: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    paddingHorizontal: 6, paddingVertical: 2, borderRadius: Tokens.radius.xs,
+    flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xxs,
+    paddingHorizontal: 6, paddingVertical: Tokens.spacing.hairline, borderRadius: Tokens.radius.xs,
     backgroundColor: Colors.primary + '0D',
     borderWidth: 1, borderColor: Colors.primary + '20',
   },
@@ -275,12 +275,12 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.success + '0D', borderColor: Colors.success + '30',
   },
   btnVerifiedText: { fontSize: Type.caption2.fontSize, color: Colors.success, fontWeight: '700' },
-  btnDeltaText: { fontSize: 10, fontWeight: '800', marginLeft: 2 },
+  btnDeltaText: { fontSize: 10, fontWeight: '800', marginLeft: Tokens.spacing.hairline },
 
   modalBackdrop: {
     flex: 1, backgroundColor: 'rgba(0,0,0,0.55)',
     alignItems: 'center', justifyContent: 'center',
-    paddingHorizontal: 16,
+    paddingHorizontal: Tokens.spacing.md,
   },
   modalCard: {
     width: '100%', maxWidth: 460,
@@ -295,24 +295,24 @@ const styles = StyleSheet.create({
   },
   modalTitle: { fontSize: Type.subhead.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.2 },
   modalImage: { width: '100%', height: 220, backgroundColor: '#1a1a1a' },
-  modalBody: { padding: 14, gap: 8 },
+  modalBody: { padding: 14, gap: Tokens.spacing.xs },
   modalLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5 },
   modalInput: {
-    backgroundColor: Colors.card, borderRadius: Tokens.radius.md, padding: 12,
+    backgroundColor: Colors.card, borderRadius: Tokens.radius.md, padding: Tokens.spacing.sm,
     borderWidth: 1, borderColor: Colors.border,
     fontSize: Type.bodyCompact.fontSize, color: Colors.text,
   },
   modalNote: { fontSize: Type.caption1.fontSize, color: Colors.text, lineHeight: 16, fontStyle: 'italic' },
-  gpsRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  gpsRow: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xxs },
   gpsText: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontWeight: '600' },
-  timestampText: { fontSize: 10, color: Colors.textMuted, marginTop: 4 },
+  timestampText: { fontSize: 10, color: Colors.textMuted, marginTop: Tokens.spacing.xxs },
   commitBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     padding: 14, backgroundColor: Colors.primary,
     borderTopWidth: 1, borderTopColor: Colors.border,
   },
   commitBtnText: { color: '#FFF', fontSize: Type.bodyCompact.fontSize, fontWeight: '700' },
-  deleteBtn: { padding: 12, alignItems: 'center', borderTopWidth: 1, borderTopColor: Colors.border },
+  deleteBtn: { padding: Tokens.spacing.sm, alignItems: 'center', borderTopWidth: 1, borderTopColor: Colors.border },
   deleteBtnText: { color: Colors.error, fontSize: Type.footnote.fontSize, fontWeight: '700' },
 
   compareRow: {
@@ -321,8 +321,8 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: Colors.border,
     overflow: 'hidden',
   },
-  compareItem: { flex: 1, alignItems: 'center', paddingVertical: 12 },
+  compareItem: { flex: 1, alignItems: 'center', paddingVertical: Tokens.spacing.sm },
   compareLabel: { fontSize: 10, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5 },
-  compareValue: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: Colors.text, marginTop: 4 },
+  compareValue: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: Colors.text, marginTop: Tokens.spacing.xxs },
   compareDivider: { width: 1, alignSelf: 'stretch', backgroundColor: Colors.border },
 });

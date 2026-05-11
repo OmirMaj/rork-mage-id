@@ -287,7 +287,7 @@ export default function BillFromEstimateScreen() {
           headerTintColor: Colors.primary,
           headerTitleStyle: { fontWeight: '700' as const, color: Colors.text },
         }} />
-        <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 40, gap: 16 }}>
+        <ScrollView contentContainerStyle={{ padding: Tokens.spacing.lg, paddingBottom: insets.bottom + 40, gap: Tokens.spacing.md }}>
           <View style={styles.emptyCard}>
             <ClipboardList size={28} color={Colors.textMuted} />
             <Text style={styles.emptyTitle}>No estimate yet</Text>
@@ -321,7 +321,7 @@ export default function BillFromEstimateScreen() {
       }} />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ScrollView
-          contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 180, gap: 14 }}
+          contentContainerStyle={{ padding: Tokens.spacing.md, paddingBottom: insets.bottom + 180, gap: 14 }}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
@@ -532,22 +532,22 @@ export default function BillFromEstimateScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
-  center: { justifyContent: 'center', alignItems: 'center', padding: 24 },
-  notFoundText: { fontSize: Type.callout.fontSize, color: Colors.textSecondary, marginBottom: 12 },
-  backBtn: { backgroundColor: Colors.primary, paddingHorizontal: 20, paddingVertical: 10, borderRadius: Tokens.radius.md },
+  center: { justifyContent: 'center', alignItems: 'center', padding: Tokens.spacing.xl },
+  notFoundText: { fontSize: Type.callout.fontSize, color: Colors.textSecondary, marginBottom: Tokens.spacing.sm },
+  backBtn: { backgroundColor: Colors.primary, paddingHorizontal: Tokens.spacing.lg, paddingVertical: 10, borderRadius: Tokens.radius.md },
   backBtnText: { color: Colors.textOnPrimary, fontWeight: '600' as const },
 
   hero: {
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.panel,
-    padding: 16,
+    padding: Tokens.spacing.md,
     gap: 10,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
   },
   heroLabel: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.5 },
   heroTitle: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: Colors.text },
-  heroRow: { flexDirection: 'row', gap: 10, marginTop: 4 },
+  heroRow: { flexDirection: 'row', gap: 10, marginTop: Tokens.spacing.xxs },
   heroMetric: { flex: 1, backgroundColor: Colors.surfaceAlt, padding: 10, borderRadius: Tokens.radius.md },
   heroMetricLabel: { fontSize: 10, color: Colors.textMuted, textTransform: 'uppercase' as const, marginBottom: 3 },
   heroMetricValue: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text },
@@ -556,12 +556,12 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surfaceAlt,
     borderRadius: 3,
     overflow: 'hidden' as const,
-    marginTop: 4,
+    marginTop: Tokens.spacing.xxs,
   },
   progressFill: { height: '100%', backgroundColor: Colors.info, borderRadius: 3 },
 
-  presetRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  presetLabel: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, fontWeight: '600' as const, marginRight: 4 },
+  presetRow: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs },
+  presetLabel: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, fontWeight: '600' as const, marginRight: Tokens.spacing.xxs },
   presetBtn: {
     flex: 1,
     backgroundColor: Colors.surface,
@@ -576,7 +576,7 @@ const styles = StyleSheet.create({
   helpBanner: {
     flexDirection: 'row',
     alignItems: 'flex-start' as const,
-    gap: 8,
+    gap: Tokens.spacing.xs,
     backgroundColor: Colors.infoLight,
     padding: 10,
     borderRadius: Tokens.radius.md,
@@ -595,7 +595,7 @@ const styles = StyleSheet.create({
   rowCardDone: { opacity: 0.55, backgroundColor: Colors.successLight },
   rowHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   rowName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
-  rowMeta: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 2 },
+  rowMeta: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: Tokens.spacing.hairline },
   rowLineTotal: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
 
   rowStatusLine: { flexDirection: 'row', justifyContent: 'space-between' as const },
@@ -629,8 +629,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: Colors.surfaceAlt,
     borderRadius: Tokens.radius.md,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: Tokens.spacing.sm,
+    paddingVertical: Tokens.spacing.xs,
     gap: 6,
   },
   rowPctInput: {
@@ -643,7 +643,7 @@ const styles = StyleSheet.create({
   miniPresetRow: { flexDirection: 'row', gap: 6, marginTop: 6 },
   miniPreset: {
     flex: 1,
-    paddingVertical: 4,
+    paddingVertical: Tokens.spacing.xxs,
     borderRadius: Tokens.radius.xs,
     alignItems: 'center',
     backgroundColor: Colors.surfaceAlt,
@@ -659,10 +659,10 @@ const styles = StyleSheet.create({
     borderRadius: Tokens.radius.md,
     paddingHorizontal: 10,
     paddingVertical: 9,
-    gap: 2,
+    gap: Tokens.spacing.hairline,
   },
   rowAmtText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.success },
-  rowAmtHint: { fontSize: 10, color: Colors.textMuted, marginTop: 4 },
+  rowAmtHint: { fontSize: 10, color: Colors.textMuted, marginTop: Tokens.spacing.xxs },
 
   footer: {
     position: 'absolute' as const,
@@ -670,13 +670,13 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
     borderTopWidth: 1,
     borderTopColor: Colors.cardBorder,
-    paddingHorizontal: 16,
-    paddingTop: 12,
+    paddingHorizontal: Tokens.spacing.md,
+    paddingTop: Tokens.spacing.sm,
     gap: 10,
   },
-  footerTotals: { gap: 4 },
+  footerTotals: { gap: Tokens.spacing.xxs },
   footerTotalRow: { flexDirection: 'row', justifyContent: 'space-between' as const },
-  footerTotalRowBold: { borderTopWidth: 1, borderTopColor: Colors.cardBorder, paddingTop: 6, marginTop: 4 },
+  footerTotalRowBold: { borderTopWidth: 1, borderTopColor: Colors.cardBorder, paddingTop: 6, marginTop: Tokens.spacing.xxs },
   footerTotalLabel: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary },
   footerTotalValue: { fontSize: Type.footnote.fontSize, color: Colors.text, fontWeight: '600' as const },
   footerTotalLabelBold: { fontSize: Type.subhead.fontSize, color: Colors.text, fontWeight: '700' as const },
@@ -686,7 +686,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    gap: Tokens.spacing.xs,
     backgroundColor: Colors.primary,
     borderRadius: Tokens.radius.lg,
     paddingVertical: 14,
@@ -697,7 +697,7 @@ const styles = StyleSheet.create({
   emptyCard: {
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.panel,
-    padding: 24,
+    padding: Tokens.spacing.xl,
     alignItems: 'center',
     gap: 10,
     borderWidth: 1,

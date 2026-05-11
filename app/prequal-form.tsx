@@ -173,7 +173,7 @@ function PrequalFormInner({ packet, subCompanyName, onSave, onExit }: {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={{ flex: 1 }}
       >
-        <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 160 + insets.bottom }} keyboardShouldPersistTaps="handled">
+        <ScrollView contentContainerStyle={{ padding: Tokens.spacing.md, paddingBottom: 160 + insets.bottom }} keyboardShouldPersistTaps="handled">
           {/* Intro */}
           <View style={styles.introCard}>
             <ShieldCheck size={18} color={Colors.primary} />
@@ -427,7 +427,7 @@ function PrequalFormInner({ packet, subCompanyName, onSave, onExit }: {
 function ErrorState({ title, body, onBack }: { title: string; body: string; onBack: () => void }) {
   const insets = useSafeAreaInsets();
   return (
-    <View style={[styles.root, { paddingTop: insets.top, justifyContent: 'center', alignItems: 'center', padding: 24 }]}>
+    <View style={[styles.root, { paddingTop: insets.top, justifyContent: 'center', alignItems: 'center', padding: Tokens.spacing.xl }]}>
       <Stack.Screen options={{ headerShown: false }} />
       <AlertTriangle size={32} color={Colors.warning} />
       <Text style={styles.errorTitle}>{title}</Text>
@@ -504,8 +504,8 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: Colors.background },
 
   header: {
-    flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8,
-    gap: 8, borderBottomWidth: 1, borderBottomColor: Colors.borderLight,
+    flexDirection: 'row', alignItems: 'center', paddingHorizontal: Tokens.spacing.sm, paddingVertical: Tokens.spacing.xs,
+    gap: Tokens.spacing.xs, borderBottomWidth: 1, borderBottomColor: Colors.borderLight,
   },
   headerBtn: {
     width: 36, height: 36, borderRadius: Tokens.radius.xl, alignItems: 'center', justifyContent: 'center',
@@ -514,29 +514,29 @@ const styles = StyleSheet.create({
   headerEyebrow: { fontSize: 10, color: Colors.primary, fontWeight: '800', letterSpacing: 2, textTransform: 'uppercase' },
   headerTitle: { fontSize: Type.body.fontSize, fontWeight: '700', color: Colors.text },
 
-  savingChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: Tokens.radius.sm, backgroundColor: Colors.fillSecondary },
+  savingChip: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xxs, paddingHorizontal: Tokens.spacing.xs, paddingVertical: Tokens.spacing.xxs, borderRadius: Tokens.radius.sm, backgroundColor: Colors.fillSecondary },
   savingChipText: { fontSize: 10, color: Colors.textSecondary, fontWeight: '600' },
 
   introCard: {
     flexDirection: 'row', gap: 10, padding: 14, borderRadius: Tokens.radius.card, backgroundColor: Colors.card,
-    borderLeftWidth: 3, borderLeftColor: Colors.primary, marginBottom: 12,
+    borderLeftWidth: 3, borderLeftColor: Colors.primary, marginBottom: Tokens.spacing.sm,
   },
-  introTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.text, marginBottom: 2 },
+  introTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.text, marginBottom: Tokens.spacing.hairline },
   introBody: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, lineHeight: 17 },
 
   checklistCard: {
-    padding: 12, borderRadius: Tokens.radius.md, borderLeftWidth: 3, marginBottom: 18,
+    padding: Tokens.spacing.sm, borderRadius: Tokens.radius.md, borderLeftWidth: 3, marginBottom: 18,
   },
   checklistTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.text },
-  checklistSub: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, marginTop: 4, lineHeight: 15 },
+  checklistSub: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, marginTop: Tokens.spacing.xxs, lineHeight: 15 },
 
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 22, marginBottom: 10 },
   sectionHeaderText: { fontSize: Type.caption2.fontSize, color: Colors.primary, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 1.1 },
 
-  field: { marginBottom: 12 },
-  fieldLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 },
+  field: { marginBottom: Tokens.spacing.sm },
+  fieldLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: Tokens.spacing.xxs },
   input: {
-    backgroundColor: Colors.fillSecondary, borderRadius: Tokens.radius.md, paddingHorizontal: 12,
+    backgroundColor: Colors.fillSecondary, borderRadius: Tokens.radius.md, paddingHorizontal: Tokens.spacing.sm,
     paddingVertical: Platform.OS === 'ios' ? 12 : 10, fontSize: Type.bodyCompact.fontSize, color: Colors.text,
   },
   row: { flexDirection: 'row', gap: 10 },
@@ -549,26 +549,26 @@ const styles = StyleSheet.create({
   toggleLabel: { flex: 1, fontSize: Type.footnote.fontSize, color: Colors.text, paddingRight: 10 },
 
   licenseCard: {
-    padding: 12, borderRadius: Tokens.radius.md, backgroundColor: Colors.card, marginBottom: 10,
+    padding: Tokens.spacing.sm, borderRadius: Tokens.radius.md, backgroundColor: Colors.card, marginBottom: 10,
     borderWidth: 1, borderColor: Colors.borderLight,
   },
-  removeBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4, alignSelf: 'flex-end' },
+  removeBtn: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xxs, marginTop: Tokens.spacing.xxs, alignSelf: 'flex-end' },
   removeBtnText: { fontSize: Type.caption2.fontSize, color: Colors.error, fontWeight: '600' },
 
   addLicenseBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-    paddingVertical: 12, borderRadius: Tokens.radius.md, borderWidth: 1, borderStyle: 'dashed',
-    borderColor: Colors.primary, marginTop: 4,
+    paddingVertical: Tokens.spacing.sm, borderRadius: Tokens.radius.md, borderWidth: 1, borderStyle: 'dashed',
+    borderColor: Colors.primary, marginTop: Tokens.spacing.xxs,
   },
   addLicenseText: { color: Colors.primary, fontSize: Type.footnote.fontSize, fontWeight: '700' },
 
   submitBar: {
     position: 'absolute', left: 0, right: 0, bottom: 0,
-    paddingHorizontal: 16, paddingTop: 12,
+    paddingHorizontal: Tokens.spacing.md, paddingTop: Tokens.spacing.sm,
     backgroundColor: Colors.card, borderTopWidth: 1, borderTopColor: Colors.borderLight,
   },
   submitBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Tokens.spacing.xs,
     paddingVertical: 14, borderRadius: Tokens.radius.card, backgroundColor: Colors.primary,
   },
   submitBtnDisabled: { backgroundColor: Colors.textMuted },
@@ -576,13 +576,13 @@ const styles = StyleSheet.create({
   submitHelper: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, textAlign: 'center', marginTop: 6, lineHeight: 15 },
 
   submittedChip: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Tokens.spacing.xs,
     paddingVertical: 14, borderRadius: Tokens.radius.card, backgroundColor: Colors.successLight,
   },
   submittedText: { color: Colors.success, fontSize: Type.footnote.fontSize, fontWeight: '700' },
 
-  errorTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700', color: Colors.text, marginTop: 12 },
+  errorTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700', color: Colors.text, marginTop: Tokens.spacing.sm },
   errorBody: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, textAlign: 'center', marginTop: 6, lineHeight: 18 },
-  errorBtn: { marginTop: 20, paddingHorizontal: 24, paddingVertical: 10, borderRadius: Tokens.radius.md, backgroundColor: Colors.primary },
+  errorBtn: { marginTop: Tokens.spacing.lg, paddingHorizontal: Tokens.spacing.xl, paddingVertical: 10, borderRadius: Tokens.radius.md, backgroundColor: Colors.primary },
   errorBtnText: { color: Colors.textOnPrimary, fontWeight: '700' },
 });

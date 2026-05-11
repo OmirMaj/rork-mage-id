@@ -132,14 +132,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 20,
+    gap: Tokens.spacing.xs,
+    paddingVertical: Tokens.spacing.sm,
+    paddingHorizontal: Tokens.spacing.lg,
     backgroundColor: `${Colors.primary}08`,
     borderRadius: Tokens.radius.card,
     borderWidth: 1,
     borderColor: `${Colors.primary}20`,
-    marginVertical: 8,
+    marginVertical: Tokens.spacing.xs,
   },
   triggerText: {
     fontSize: Type.bodyCompact.fontSize,
@@ -149,8 +149,8 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.lg,
-    padding: 16,
-    marginVertical: 8,
+    padding: Tokens.spacing.md,
+    marginVertical: Tokens.spacing.xs,
     borderWidth: 0.5,
     borderColor: Colors.borderLight,
     gap: 10,
@@ -172,7 +172,7 @@ const styles = StyleSheet.create({
   },
   scoreBadge: {
     paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingVertical: Tokens.spacing.xxs,
     borderRadius: Tokens.radius.sm,
   },
   scoreText: {
@@ -182,12 +182,12 @@ const styles = StyleSheet.create({
   issueRow: {
     flexDirection: 'row',
     gap: 10,
-    padding: 12,
+    padding: Tokens.spacing.sm,
     borderRadius: Tokens.radius.md,
   },
   issueContent: {
     flex: 1,
-    gap: 2,
+    gap: Tokens.spacing.hairline,
   },
   issueTitle: {
     fontSize: Type.bodyCompact.fontSize,
@@ -204,10 +204,10 @@ const styles = StyleSheet.create({
     fontStyle: 'italic' as const,
   },
   missingSection: {
-    padding: 12,
+    padding: Tokens.spacing.sm,
     backgroundColor: Colors.fillSecondary,
     borderRadius: Tokens.radius.md,
-    gap: 4,
+    gap: Tokens.spacing.xxs,
   },
   missingTitle: {
     fontSize: Type.footnote.fontSize,
@@ -229,7 +229,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    paddingVertical: 8,
+    paddingVertical: Tokens.spacing.xs,
   },
   revalidateText: {
     fontSize: Type.footnote.fontSize,

@@ -657,7 +657,7 @@ export default function GridPane({
         const level = task.outlineLevel ?? 0;
         const isSummary = !!task.isSummary;
         display = (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingLeft: level * 12 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xxs, paddingLeft: level * 12 }}>
             {isSummary ? (
               <TouchableOpacity
                 onPress={() => onEdit(task.id, { collapsed: !task.collapsed })}
@@ -694,7 +694,7 @@ export default function GridPane({
         const hasAnchor = task.anchorType && task.anchorType !== 'none';
         if (Platform.OS === 'web' && !compact && cpmRow) {
           return (
-            <View key={col.key} style={[...cellStyle, styles.cellDate, { flexDirection: 'row', alignItems: 'center', gap: 4 }]}>
+            <View key={col.key} style={[...cellStyle, styles.cellDate, { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xxs }]}>
               <TouchableOpacity
                 onPress={() => handlePickStart(task)}
                 activeOpacity={0.6}
@@ -719,7 +719,7 @@ export default function GridPane({
           );
         }
         display = (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xxs }}>
             {hasAnchor && <Anchor size={10} color={Colors.primary} />}
             <Text style={styles.cellText}>{label}</Text>
           </View>
@@ -1411,15 +1411,15 @@ const anchorStyles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: Tokens.spacing.xs,
     paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingVertical: Tokens.spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
   },
   title: { fontSize: Type.subhead.fontSize, fontWeight: '700', color: Colors.text },
-  subtitle: { flex: 1, fontSize: Type.footnote.fontSize, color: Colors.textSecondary, marginLeft: 4 },
-  closeBtn: { padding: 4 },
+  subtitle: { flex: 1, fontSize: Type.footnote.fontSize, color: Colors.textSecondary, marginLeft: Tokens.spacing.xxs },
+  closeBtn: { padding: Tokens.spacing.xxs },
   option: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -1432,7 +1432,7 @@ const anchorStyles = StyleSheet.create({
   optionActive: { backgroundColor: Colors.primaryLight },
   radio: {
     width: 16, height: 16, borderRadius: Tokens.radius.sm, borderWidth: 1.5, borderColor: Colors.border,
-    alignItems: 'center', justifyContent: 'center', marginTop: 2,
+    alignItems: 'center', justifyContent: 'center', marginTop: Tokens.spacing.hairline,
   },
   radioActive: { borderColor: Colors.primary },
   radioDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.primary },
@@ -1444,7 +1444,7 @@ const anchorStyles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
     paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingVertical: Tokens.spacing.sm,
     borderTopWidth: 1,
     borderTopColor: Colors.border,
   },
@@ -1454,7 +1454,7 @@ const anchorStyles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
     borderRadius: Tokens.radius.xs,
-    paddingHorizontal: 8,
+    paddingHorizontal: Tokens.spacing.xs,
     paddingVertical: 6,
     fontSize: Type.bodyCompact.fontSize,
     color: Colors.text,
@@ -1462,18 +1462,18 @@ const anchorStyles = StyleSheet.create({
   footer: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
-    gap: 8,
+    gap: Tokens.spacing.xs,
     paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingVertical: Tokens.spacing.sm,
     borderTopWidth: 1,
     borderTopColor: Colors.border,
   },
   btnGhost: {
-    paddingHorizontal: 14, paddingVertical: 8, borderRadius: Tokens.radius.xs,
+    paddingHorizontal: 14, paddingVertical: Tokens.spacing.xs, borderRadius: Tokens.radius.xs,
   },
   btnGhostText: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: Colors.textSecondary },
   btnPrimary: {
-    paddingHorizontal: 14, paddingVertical: 8, borderRadius: Tokens.radius.xs,
+    paddingHorizontal: 14, paddingVertical: Tokens.spacing.xs, borderRadius: Tokens.radius.xs,
     backgroundColor: Colors.primary,
   },
   btnDisabled: { opacity: 0.45 },
@@ -1624,8 +1624,8 @@ const styles = StyleSheet.create({
     top: ROW_HEIGHT,
     left: 0,
     backgroundColor: Colors.error,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingHorizontal: Tokens.spacing.xs,
+    paddingVertical: Tokens.spacing.xxs,
     borderRadius: Tokens.radius.xs,
     zIndex: 100,
     minWidth: 180,
@@ -1650,8 +1650,8 @@ const styles = StyleSheet.create({
   statusChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
+    gap: Tokens.spacing.xxs,
+    paddingHorizontal: Tokens.spacing.xs,
     paddingVertical: 3,
     borderRadius: Tokens.radius.md,
   },
@@ -1676,9 +1676,9 @@ const styles = StyleSheet.create({
   banner: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    gap: Tokens.spacing.xs,
+    paddingHorizontal: Tokens.spacing.sm,
+    paddingVertical: Tokens.spacing.xs,
     borderBottomWidth: 1,
   },
   bannerError: {
@@ -1721,8 +1721,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: Tokens.spacing.sm,
+    paddingVertical: Tokens.spacing.xs,
     borderTopWidth: 1,
     borderTopColor: Colors.cardBorder,
     backgroundColor: Colors.surface,
@@ -1736,7 +1736,7 @@ const styles = StyleSheet.create({
     fontSize: Type.caption1.fontSize,
     fontWeight: '700',
     color: Colors.text,
-    marginRight: 4,
+    marginRight: Tokens.spacing.xxs,
   },
   bulkBtnRow: {
     flex: 1,
@@ -1748,7 +1748,7 @@ const styles = StyleSheet.create({
   bulkBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: Tokens.spacing.xxs,
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: Tokens.radius.sm,

@@ -144,7 +144,7 @@ const CashFlowChart = React.memo(function CashFlowChart({
         ref={scrollRef}
         horizontal
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ width: Math.max(totalWidth, 300), paddingLeft: Y_GUTTER, paddingRight: 16 }}
+        contentContainerStyle={{ width: Math.max(totalWidth, 300), paddingLeft: Y_GUTTER, paddingRight: Tokens.spacing.md }}
       >
         <View style={{ height: CHART_HEIGHT + LABEL_HEIGHT }}>
           {/* Subtle grid + zero line */}
@@ -340,8 +340,8 @@ const styles = StyleSheet.create({
   container: {
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.xl,
-    padding: 16,
-    paddingLeft: 12,
+    padding: Tokens.spacing.md,
+    paddingLeft: Tokens.spacing.sm,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
     overflow: 'hidden' as const,
@@ -402,7 +402,7 @@ const styles = StyleSheet.create({
     width: BAR_WIDTH,
     alignItems: 'center' as const,
     borderRadius: Tokens.radius.md,
-    paddingHorizontal: 2,
+    paddingHorizontal: Tokens.spacing.hairline,
   },
   barColumnSelected: {
     backgroundColor: Colors.fillSecondary,
@@ -462,7 +462,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center' as const,
     gap: 18,
     marginTop: 14,
-    paddingTop: 12,
+    paddingTop: Tokens.spacing.sm,
     borderTopWidth: 1,
     borderTopColor: Colors.borderLight,
   },

@@ -1966,7 +1966,7 @@ function BarView({
           left: bar.x,
           top: bar.y - 28,
           flexDirection: 'row',
-          gap: 4,
+          gap: Tokens.spacing.xxs,
           zIndex: 16,
         }}
       >
@@ -1999,7 +1999,7 @@ function BarView({
           left: bar.x + bar.w + 8,
           top: bar.y + BAR_HEIGHT / 2 - 8,
           paddingHorizontal: 6,
-          paddingVertical: 2,
+          paddingVertical: Tokens.spacing.hairline,
           borderRadius: 4,
           backgroundColor: varianceColor + '22',
           zIndex: 3,
@@ -2037,11 +2037,11 @@ const styles = StyleSheet.create({
   toolbar: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: Tokens.spacing.sm,
+    paddingVertical: Tokens.spacing.xs,
     borderBottomWidth: 1,
     borderBottomColor: Colors.cardBorder,
-    gap: 16,
+    gap: Tokens.spacing.md,
     backgroundColor: Colors.surfaceAlt,
   },
   toolbarTitle: {
@@ -2053,7 +2053,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     backgroundColor: Colors.fillTertiary,
     borderRadius: Tokens.radius.sm,
-    padding: 2,
+    padding: Tokens.spacing.hairline,
     position: 'relative',
   },
   // The animated white pill that sits behind the active segment. Soft shadow
@@ -2121,7 +2121,7 @@ const styles = StyleSheet.create({
   navGroup: {
     flexDirection: 'row',
     gap: 6,
-    marginLeft: 8,
+    marginLeft: Tokens.spacing.xs,
   },
   navBtn: {
     paddingHorizontal: 10,
@@ -2141,7 +2141,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginLeft: 'auto',
-    gap: 12,
+    gap: Tokens.spacing.sm,
   },
   legendItem: {
     flexDirection: 'row',
@@ -2177,9 +2177,9 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
   },
   gutterHeader: {
-    paddingHorizontal: 12,
+    paddingHorizontal: Tokens.spacing.sm,
     justifyContent: 'flex-end',
-    paddingBottom: 8,
+    paddingBottom: Tokens.spacing.xs,
     borderBottomWidth: 1,
     borderBottomColor: Colors.cardBorder,
   },
@@ -2193,8 +2193,8 @@ const styles = StyleSheet.create({
   gutterRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    gap: 8,
+    paddingHorizontal: Tokens.spacing.sm,
+    gap: Tokens.spacing.xs,
     borderBottomWidth: 1,
     borderBottomColor: Colors.borderLight,
   },
@@ -2261,8 +2261,8 @@ const styles = StyleSheet.create({
   monthCell: {
     position: 'absolute',
     top: 0,
-    paddingHorizontal: 4,
-    paddingTop: 4,
+    paddingHorizontal: Tokens.spacing.xxs,
+    paddingTop: Tokens.spacing.xxs,
   },
   monthText: {
     fontSize: 10,
@@ -2295,7 +2295,7 @@ const styles = StyleSheet.create({
   barLabel: {
     flex: 1,
     justifyContent: 'center',
-    paddingHorizontal: 8,
+    paddingHorizontal: Tokens.spacing.xs,
   },
   barLabelText: {
     fontSize: Type.caption2.fontSize,
@@ -2324,7 +2324,7 @@ const styles = StyleSheet.create({
   tooltipBody: {
     color: '#fff',
     fontSize: Type.caption2.fontSize,
-    marginTop: 2,
+    marginTop: Tokens.spacing.hairline,
   },
   tooltipDelta: {
     color: Colors.accentLight,
@@ -2338,7 +2338,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
     borderRadius: Tokens.radius.md,
     paddingVertical: 10,
-    paddingHorizontal: 12,
+    paddingHorizontal: Tokens.spacing.sm,
     zIndex: 1001,
     shadowColor: '#000',
     shadowOpacity: 0.18,
@@ -2349,17 +2349,17 @@ const styles = StyleSheet.create({
     fontSize: Type.caption1.fontSize,
     fontWeight: '700',
     color: Colors.text,
-    marginBottom: 8,
+    marginBottom: Tokens.spacing.xs,
   },
   linkTypeRow: {
     flexDirection: 'row',
-    gap: 4,
-    marginBottom: 8,
+    gap: Tokens.spacing.xxs,
+    marginBottom: Tokens.spacing.xs,
   },
   linkTypeBtn: {
     flex: 1,
     paddingVertical: 6,
-    paddingHorizontal: 4,
+    paddingHorizontal: Tokens.spacing.xxs,
     borderRadius: Tokens.radius.xs,
     backgroundColor: Colors.fillTertiary,
     alignItems: 'center',
@@ -2377,7 +2377,7 @@ const styles = StyleSheet.create({
   linkLagRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: Tokens.spacing.xxs,
     flexWrap: 'wrap',
     marginBottom: 6,
   },
@@ -2385,7 +2385,7 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '600',
     color: Colors.textSecondary,
-    marginRight: 4,
+    marginRight: Tokens.spacing.xxs,
   },
   linkLagBtn: {
     paddingVertical: 3,
@@ -2400,7 +2400,7 @@ const styles = StyleSheet.create({
   },
   linkCancel: {
     alignItems: 'center',
-    paddingVertical: 4,
+    paddingVertical: Tokens.spacing.xxs,
   },
   linkCancelText: {
     fontSize: Type.caption2.fontSize,
@@ -2408,8 +2408,8 @@ const styles = StyleSheet.create({
   },
 
   footer: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: Tokens.spacing.sm,
+    paddingVertical: Tokens.spacing.xs,
     borderTopWidth: 1,
     borderTopColor: Colors.cardBorder,
     backgroundColor: Colors.surfaceAlt,
@@ -2430,14 +2430,14 @@ const styles = StyleSheet.create({
     borderRadius: Tokens.radius.md,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
-    paddingVertical: 12,
+    paddingVertical: Tokens.spacing.sm,
     paddingHorizontal: 14,
     shadowColor: '#000',
     shadowOpacity: 0.16,
     shadowRadius: 18,
     shadowOffset: { width: 0, height: 8 },
     zIndex: 999,
-    gap: 8,
+    gap: Tokens.spacing.xs,
   },
   hoverCardHeader: {
     flexDirection: 'row',
@@ -2460,11 +2460,11 @@ const styles = StyleSheet.create({
     fontSize: Type.caption2.fontSize,
     color: Colors.textSecondary,
     fontWeight: '500',
-    marginTop: 2,
+    marginTop: Tokens.spacing.hairline,
   },
   hoverCardCriticalPill: {
     paddingHorizontal: 7,
-    paddingVertical: 2,
+    paddingVertical: Tokens.spacing.hairline,
     borderRadius: 999,
     backgroundColor: Colors.errorLight,
     alignSelf: 'flex-start',
@@ -2502,8 +2502,8 @@ const styles = StyleSheet.create({
   },
   hoverCardMetaRow: {
     flexDirection: 'row',
-    gap: 12,
-    marginTop: 2,
+    gap: Tokens.spacing.sm,
+    marginTop: Tokens.spacing.hairline,
   },
   hoverCardMeta: {
     flex: 1,
@@ -2520,7 +2520,7 @@ const styles = StyleSheet.create({
     fontSize: Type.caption1.fontSize,
     color: Colors.text,
     fontWeight: '700',
-    marginTop: 2,
+    marginTop: Tokens.spacing.hairline,
   },
   hoverCardCrew: {
     fontSize: Type.caption2.fontSize,
@@ -2531,8 +2531,8 @@ const styles = StyleSheet.create({
 
   // As-built hover chips (Phase 5)
   chipBtn: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingHorizontal: Tokens.spacing.xs,
+    paddingVertical: Tokens.spacing.xxs,
     borderRadius: Tokens.radius.card,
     backgroundColor: Colors.surface,
     borderWidth: 1,

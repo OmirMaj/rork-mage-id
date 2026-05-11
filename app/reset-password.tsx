@@ -175,7 +175,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    padding: 24,
+    padding: Tokens.spacing.xl,
   },
   iconWrap: {
     width: 64,
@@ -184,7 +184,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary + '15',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 20,
+    marginBottom: Tokens.spacing.lg,
     alignSelf: 'center',
   },
   title: {
@@ -192,23 +192,23 @@ const styles = StyleSheet.create({
     fontWeight: '800' as const,
     color: Colors.text,
     textAlign: 'center',
-    marginBottom: 8,
+    marginBottom: Tokens.spacing.xs,
   },
   subtitle: {
     fontSize: Type.subhead.fontSize,
     color: Colors.textSecondary,
     textAlign: 'center',
-    marginBottom: 32,
+    marginBottom: Tokens.spacing['2xl'],
   },
   inputGroup: {
-    marginBottom: 20,
+    marginBottom: Tokens.spacing.lg,
   },
   inputLabel: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '600' as const,
     color: Colors.text,
-    marginBottom: 8,
-    marginLeft: 2,
+    marginBottom: Tokens.spacing.xs,
+    marginLeft: Tokens.spacing.hairline,
   },
   inputWrapper: {
     flexDirection: 'row',
@@ -233,9 +233,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: Colors.primary,
     borderRadius: Tokens.radius.lg,
-    paddingVertical: 16,
-    gap: 8,
-    marginTop: 8,
+    paddingVertical: Tokens.spacing.md,
+    gap: Tokens.spacing.xs,
+    marginTop: Tokens.spacing.xs,
   },
   submitButtonDisabled: {
     opacity: 0.7,
@@ -247,7 +247,7 @@ const styles = StyleSheet.create({
   },
   backButton: {
     alignSelf: 'center',
-    paddingVertical: 16,
+    paddingVertical: Tokens.spacing.md,
   },
   backText: {
     fontSize: Type.subhead.fontSize,
@@ -256,16 +256,16 @@ const styles = StyleSheet.create({
   },
   successContainer: {
     alignItems: 'center',
-    padding: 24,
+    padding: Tokens.spacing.xl,
   },
   successIcon: {
-    marginBottom: 20,
+    marginBottom: Tokens.spacing.lg,
   },
   successTitle: {
     fontSize: 24,
     fontWeight: '800' as const,
     color: Colors.text,
-    marginBottom: 8,
+    marginBottom: Tokens.spacing.xs,
   },
   successText: {
     fontSize: Type.subhead.fontSize,

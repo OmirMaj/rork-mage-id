@@ -306,7 +306,7 @@ function UpdateRow({
 const styles = StyleSheet.create({
   tile: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
-    padding: 12, borderRadius: Tokens.radius.card,
+    padding: Tokens.spacing.sm, borderRadius: Tokens.radius.card,
     backgroundColor: Colors.card,
     borderWidth: 1, borderColor: Colors.border,
   },
@@ -316,7 +316,7 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   tileLabel: { fontSize: Type.footnote.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.1 },
-  tileSub: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 2, lineHeight: 14 },
+  tileSub: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: Tokens.spacing.hairline, lineHeight: 14 },
   blockerBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 3,
     paddingHorizontal: 7, paddingVertical: 3, borderRadius: Tokens.radius.full,
@@ -330,16 +330,16 @@ const styles = StyleSheet.create({
     maxHeight: '92%' as const,
     backgroundColor: Colors.background,
     borderTopLeftRadius: 22, borderTopRightRadius: 22,
-    paddingHorizontal: 16, paddingTop: 10,
-    gap: 12,
+    paddingHorizontal: Tokens.spacing.md, paddingTop: 10,
+    gap: Tokens.spacing.sm,
   },
   modalHandle: {
     width: 40, height: 4, borderRadius: 2,
-    backgroundColor: Colors.border, alignSelf: 'center', marginBottom: 4,
+    backgroundColor: Colors.border, alignSelf: 'center', marginBottom: Tokens.spacing.xxs,
   },
   modalHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   modalTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.2 },
-  modalSub: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 4, lineHeight: 17 },
+  modalSub: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: Tokens.spacing.xxs, lineHeight: 17 },
   modalCloseBtn: {
     width: 32, height: 32, borderRadius: Tokens.radius.sm,
     alignItems: 'center', justifyContent: 'center',
@@ -347,36 +347,36 @@ const styles = StyleSheet.create({
   },
 
   statsRow: {
-    flexDirection: 'row', gap: 8,
-    paddingVertical: 4,
+    flexDirection: 'row', gap: Tokens.spacing.xs,
+    paddingVertical: Tokens.spacing.xxs,
   },
   statCol: {
-    flex: 1, padding: 12, borderRadius: Tokens.radius.card,
+    flex: 1, padding: Tokens.spacing.sm, borderRadius: Tokens.radius.card,
     backgroundColor: Colors.card,
     borderWidth: 1, borderColor: Colors.border,
     alignItems: 'center',
   },
   statValue: { fontSize: Type.title2.fontSize, fontWeight: '900', color: Colors.text, letterSpacing: -0.5 },
-  statLabel: { fontSize: 10, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.5, marginTop: 2 },
+  statLabel: { fontSize: 10, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.5, marginTop: Tokens.spacing.hairline },
 
   row: {
-    backgroundColor: Colors.card, borderRadius: Tokens.radius.card, padding: 12,
+    backgroundColor: Colors.card, borderRadius: Tokens.radius.card, padding: Tokens.spacing.sm,
     borderWidth: 1, borderColor: Colors.border,
-    marginBottom: 8, gap: 8,
+    marginBottom: Tokens.spacing.xs, gap: Tokens.spacing.xs,
   },
   rowBlocker: { borderColor: Colors.error + '40', borderLeftWidth: 4 },
   rowHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   rowTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
-  rowMeta: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 2 },
+  rowMeta: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: Tokens.spacing.hairline },
   progressPill: {
-    paddingHorizontal: 10, paddingVertical: 4, borderRadius: Tokens.radius.sm,
+    paddingHorizontal: 10, paddingVertical: Tokens.spacing.xxs, borderRadius: Tokens.radius.sm,
     backgroundColor: Colors.primary + '14',
   },
   progressPillText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '900', color: Colors.primary, letterSpacing: -0.2 },
 
   statRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
   statChip: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
+    flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xxs,
     paddingHorizontal: 7, paddingVertical: 3, borderRadius: Tokens.radius.xs,
     backgroundColor: Colors.background,
     borderWidth: 1, borderColor: Colors.border,
@@ -385,7 +385,7 @@ const styles = StyleSheet.create({
 
   blockerCard: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 6,
-    padding: 8, borderRadius: Tokens.radius.sm,
+    padding: Tokens.spacing.xs, borderRadius: Tokens.radius.sm,
     backgroundColor: Colors.error + '08',
     borderWidth: 1, borderColor: Colors.error + '30',
   },
@@ -400,13 +400,13 @@ const styles = StyleSheet.create({
   applyRow: {
     flexDirection: 'row',
     justifyContent: 'flex-start',
-    marginTop: 4,
+    marginTop: Tokens.spacing.xxs,
   },
   applyBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingHorizontal: 12,
+    paddingHorizontal: Tokens.spacing.sm,
     paddingVertical: 7,
     borderRadius: Tokens.radius.sm,
     backgroundColor: Colors.primary,

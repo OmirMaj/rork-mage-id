@@ -194,7 +194,7 @@ export const EarnedValuePanel = memo(EarnedValuePanelImpl);
 const styles = StyleSheet.create({
   tile: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
-    padding: 12, borderRadius: Tokens.radius.card,
+    padding: Tokens.spacing.sm, borderRadius: Tokens.radius.card,
     backgroundColor: Colors.card,
     borderWidth: 1, borderColor: Colors.border,
   },
@@ -205,8 +205,8 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   tileLabel: { fontSize: Type.footnote.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.1 },
-  tileSub: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 2, lineHeight: 14 },
-  spiPill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: Tokens.radius.full },
+  tileSub: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: Tokens.spacing.hairline, lineHeight: 14 },
+  spiPill: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xxs, paddingHorizontal: Tokens.spacing.xs, paddingVertical: Tokens.spacing.xxs, borderRadius: Tokens.radius.full },
   spiText: { fontSize: Type.caption2.fontSize, fontWeight: '800', letterSpacing: 0.2 },
 
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
@@ -214,12 +214,12 @@ const styles = StyleSheet.create({
     maxHeight: '90%' as const,
     backgroundColor: Colors.background,
     borderTopLeftRadius: 22, borderTopRightRadius: 22,
-    paddingHorizontal: 16, paddingTop: 10, gap: 12,
+    paddingHorizontal: Tokens.spacing.md, paddingTop: 10, gap: Tokens.spacing.sm,
   },
   modalHandle: {
     width: 40, height: 4, borderRadius: 2,
     backgroundColor: Colors.border,
-    alignSelf: 'center', marginBottom: 4,
+    alignSelf: 'center', marginBottom: Tokens.spacing.xxs,
   },
   modalHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   modalTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.2 },
@@ -230,19 +230,19 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.card,
   },
 
-  kpiRow: { flexDirection: 'row', gap: 8 },
+  kpiRow: { flexDirection: 'row', gap: Tokens.spacing.xs },
   kpiCol: {
-    flex: 1, padding: 12, borderRadius: Tokens.radius.card,
+    flex: 1, padding: Tokens.spacing.sm, borderRadius: Tokens.radius.card,
     backgroundColor: Colors.card,
     borderWidth: 1, borderColor: Colors.border,
   },
   kpiLabel: { fontSize: 10, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.5, textTransform: 'uppercase' as const },
-  kpiValue: { fontSize: Type.subheadline.fontSize, fontWeight: '900', color: Colors.text, marginTop: 4, letterSpacing: -0.5 },
+  kpiValue: { fontSize: Type.subheadline.fontSize, fontWeight: '900', color: Colors.text, marginTop: Tokens.spacing.xxs, letterSpacing: -0.5 },
 
-  indicesRow: { flexDirection: 'row', gap: 8 },
+  indicesRow: { flexDirection: 'row', gap: Tokens.spacing.xs },
   indexCard: {
     flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10,
-    padding: 12, borderRadius: Tokens.radius.card,
+    padding: Tokens.spacing.sm, borderRadius: Tokens.radius.card,
     backgroundColor: Colors.card,
     borderWidth: 1.5,
   },
@@ -251,20 +251,20 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   indexLabel: { fontSize: 10, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.5, textTransform: 'uppercase' as const },
-  indexValue: { fontSize: Type.subheadline.fontSize, fontWeight: '900', marginTop: 2, letterSpacing: -0.3 },
+  indexValue: { fontSize: Type.subheadline.fontSize, fontWeight: '900', marginTop: Tokens.spacing.hairline, letterSpacing: -0.3 },
   indexHint: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 1 },
 
   listHead: { fontSize: Type.caption2.fontSize, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.5, textTransform: 'uppercase' as const, marginTop: 6 },
   list: { flex: 1 },
   taskRow: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
-    padding: 12, borderRadius: Tokens.radius.md,
+    padding: Tokens.spacing.sm, borderRadius: Tokens.radius.md,
     backgroundColor: Colors.card,
     borderWidth: 1, borderColor: Colors.border,
     marginBottom: 6,
   },
   taskTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.text },
-  taskMeta: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 2 },
+  taskMeta: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: Tokens.spacing.hairline },
   progressBar: {
     height: 4, borderRadius: 2,
     backgroundColor: Colors.border,
@@ -275,10 +275,10 @@ const styles = StyleSheet.create({
   },
   taskMoneyCol: { alignItems: 'flex-end' },
   taskBudget: { fontSize: Type.footnote.fontSize, fontWeight: '900', color: Colors.text, letterSpacing: -0.2 },
-  taskEarned: { fontSize: 10, color: Colors.textMuted, marginTop: 2 },
+  taskEarned: { fontSize: 10, color: Colors.textMuted, marginTop: Tokens.spacing.hairline },
 
   emptyText: {
     fontSize: Type.caption1.fontSize, color: Colors.textMuted, fontStyle: 'italic',
-    paddingVertical: 24, textAlign: 'center', lineHeight: 18,
+    paddingVertical: Tokens.spacing.xl, textAlign: 'center', lineHeight: 18,
   },
 });

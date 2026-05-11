@@ -194,10 +194,10 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.panel,
-    padding: 16,
-    marginHorizontal: 16,
-    marginTop: 12,
-    marginBottom: 8,
+    padding: Tokens.spacing.md,
+    marginHorizontal: Tokens.spacing.md,
+    marginTop: Tokens.spacing.sm,
+    marginBottom: Tokens.spacing.xs,
     borderWidth: 1,
     borderColor: Colors.borderLight,
   },
@@ -205,7 +205,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'baseline',
     gap: 6,
-    marginBottom: 12,
+    marginBottom: Tokens.spacing.sm,
   },
   headerTitle: {
     fontSize: Type.body.fontSize,
@@ -221,13 +221,13 @@ const styles = StyleSheet.create({
   chipRow: {
     flexDirection: 'row',
     gap: 6,
-    marginBottom: 12,
+    marginBottom: Tokens.spacing.sm,
     flexWrap: 'wrap',
   },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: Tokens.spacing.xxs,
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: Tokens.radius.full,
@@ -265,12 +265,12 @@ const styles = StyleSheet.create({
     color: Colors.surface,
   },
   list: {
-    gap: 2,
+    gap: Tokens.spacing.hairline,
   },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: Tokens.spacing.xxs,
     paddingVertical: 10,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: Colors.borderLight,
@@ -297,19 +297,19 @@ const styles = StyleSheet.create({
   rowSub: {
     fontSize: Type.caption1.fontSize,
     color: Colors.textSecondary,
-    marginTop: 2,
+    marginTop: Tokens.spacing.hairline,
   },
   dismissBtn: {
-    paddingHorizontal: 4,
+    paddingHorizontal: Tokens.spacing.xxs,
     paddingVertical: 6,
   },
   showAllBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
+    gap: Tokens.spacing.xxs,
     paddingVertical: 10,
-    marginTop: 4,
+    marginTop: Tokens.spacing.xxs,
   },
   showAllText: {
     fontSize: Type.footnote.fontSize,
@@ -318,7 +318,7 @@ const styles = StyleSheet.create({
   },
   emptyWrap: {
     alignItems: 'center',
-    paddingVertical: 20,
+    paddingVertical: Tokens.spacing.lg,
   },
   emptyIcon: {
     width: 40,
@@ -327,7 +327,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.successLight,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 8,
+    marginBottom: Tokens.spacing.xs,
   },
   emptyText: {
     fontSize: Type.bodyCompact.fontSize,
@@ -337,6 +337,6 @@ const styles = StyleSheet.create({
   emptySub: {
     fontSize: Type.caption1.fontSize,
     color: Colors.textSecondary,
-    marginTop: 2,
+    marginTop: Tokens.spacing.hairline,
   },
 });

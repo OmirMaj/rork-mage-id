@@ -212,7 +212,7 @@ export default function RetentionScreen() {
                     <Text style={[styles.detailLabel, { color: Colors.success }]}>Released</Text>
                     <Text style={[styles.detailValue, { color: Colors.success }]}>{formatCurrencyPrecise(pr.retentionReleased)}</Text>
                   </View>
-                  <View style={[styles.detailRow, { borderTopWidth: 1, borderTopColor: Colors.borderLight, paddingTop: 8, marginTop: 4 }]}>
+                  <View style={[styles.detailRow, { borderTopWidth: 1, borderTopColor: Colors.borderLight, paddingTop: Tokens.spacing.xs, marginTop: Tokens.spacing.xxs }]}>
                     <Text style={styles.detailLabelBold}>Pending Release</Text>
                     <Text style={[styles.detailValueBold, { color: isComplete ? Colors.success : Colors.error }]}>
                       {formatCurrencyPrecise(pr.retentionPending)}
@@ -243,7 +243,7 @@ export default function RetentionScreen() {
                             {formatCurrency(inv.totalDue)} total
                           </Text>
                         </View>
-                        <View style={{ alignItems: 'flex-end' as const, gap: 2 }}>
+                        <View style={{ alignItems: 'flex-end' as const, gap: Tokens.spacing.hairline }}>
                           <Text style={[styles.invoiceRetention, { color: invDone ? Colors.success : Colors.warning }]}>
                             {formatCurrency(invPending)}
                           </Text>
@@ -276,33 +276,33 @@ export default function RetentionScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
-  hero: { alignItems: 'center' as const, paddingVertical: 28, paddingHorizontal: 20, gap: 6 },
-  heroIconWrap: { width: 56, height: 56, borderRadius: 28, backgroundColor: Colors.warning + '15', alignItems: 'center' as const, justifyContent: 'center' as const, marginBottom: 8 },
+  hero: { alignItems: 'center' as const, paddingVertical: 28, paddingHorizontal: Tokens.spacing.lg, gap: 6 },
+  heroIconWrap: { width: 56, height: 56, borderRadius: 28, backgroundColor: Colors.warning + '15', alignItems: 'center' as const, justifyContent: 'center' as const, marginBottom: Tokens.spacing.xs },
   heroAmount: { fontSize: 36, fontWeight: '800' as const, color: Colors.text, letterSpacing: -1.2 },
   heroLabel: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, fontWeight: '600' as const },
-  heroMeta: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 4 },
+  heroMeta: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: Tokens.spacing.xxs },
 
-  metricsRow: { flexDirection: 'row' as const, gap: 10, paddingHorizontal: 16, marginBottom: 20 },
-  metricCard: { flex: 1, backgroundColor: Colors.surface, borderRadius: Tokens.radius.lg, padding: 12, borderWidth: 1, gap: 4, alignItems: 'flex-start' as const },
-  metricValue: { fontSize: Type.subheadline.fontSize, fontWeight: '800' as const, color: Colors.text, marginTop: 4 },
+  metricsRow: { flexDirection: 'row' as const, gap: 10, paddingHorizontal: Tokens.spacing.md, marginBottom: Tokens.spacing.lg },
+  metricCard: { flex: 1, backgroundColor: Colors.surface, borderRadius: Tokens.radius.lg, padding: Tokens.spacing.sm, borderWidth: 1, gap: Tokens.spacing.xxs, alignItems: 'flex-start' as const },
+  metricValue: { fontSize: Type.subheadline.fontSize, fontWeight: '800' as const, color: Colors.text, marginTop: Tokens.spacing.xxs },
   metricLabel: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontWeight: '600' as const },
 
-  emptyState: { margin: 16, padding: 28, backgroundColor: Colors.surface, borderRadius: Tokens.radius.panel, borderWidth: 1, borderColor: Colors.cardBorder, alignItems: 'center' as const, gap: 10 },
+  emptyState: { margin: Tokens.spacing.md, padding: 28, backgroundColor: Colors.surface, borderRadius: Tokens.radius.panel, borderWidth: 1, borderColor: Colors.cardBorder, alignItems: 'center' as const, gap: 10 },
   emptyTitle: { fontSize: Type.body.fontSize, fontWeight: '700' as const, color: Colors.text, marginTop: 6 },
   emptyBody: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, textAlign: 'center' as const, lineHeight: 19 },
-  emptyBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6, paddingVertical: 10, paddingHorizontal: 16, borderRadius: Tokens.radius.md, backgroundColor: Colors.primary + '15', marginTop: 6 },
+  emptyBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6, paddingVertical: 10, paddingHorizontal: Tokens.spacing.md, borderRadius: Tokens.radius.md, backgroundColor: Colors.primary + '15', marginTop: 6 },
   emptyBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.primary },
 
-  projectCard: { marginHorizontal: 16, marginBottom: 12, backgroundColor: Colors.surface, borderRadius: Tokens.radius.panel, borderWidth: 1, borderColor: Colors.cardBorder, overflow: 'hidden' as const },
-  projectHeader: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 12, padding: 14 },
+  projectCard: { marginHorizontal: Tokens.spacing.md, marginBottom: Tokens.spacing.sm, backgroundColor: Colors.surface, borderRadius: Tokens.radius.panel, borderWidth: 1, borderColor: Colors.cardBorder, overflow: 'hidden' as const },
+  projectHeader: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: Tokens.spacing.sm, padding: 14 },
   projectIconWrap: { width: 36, height: 36, borderRadius: Tokens.radius.md, backgroundColor: Colors.fillTertiary, alignItems: 'center' as const, justifyContent: 'center' as const },
   projectName: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text },
-  projectMeta: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2 },
+  projectMeta: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: Tokens.spacing.hairline },
   projectAmountWrap: { alignItems: 'flex-end' as const },
   projectAmount: { fontSize: Type.callout.fontSize, fontWeight: '800' as const, color: Colors.warning },
   projectAmountLabel: { fontSize: 10, color: Colors.textMuted, fontWeight: '600' as const, textTransform: 'uppercase' as const, letterSpacing: 0.4 },
 
-  progressBarWrap: { paddingHorizontal: 14, paddingBottom: 12, flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10 },
+  progressBarWrap: { paddingHorizontal: 14, paddingBottom: Tokens.spacing.sm, flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10 },
   progressBarTrack: { flex: 1, height: 6, borderRadius: 3, backgroundColor: Colors.fillSecondary, overflow: 'hidden' as const },
   progressBarFill: { height: '100%' as const, borderRadius: 3 },
   progressBarText: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontWeight: '600' as const, minWidth: 70, textAlign: 'right' as const },
@@ -314,14 +314,14 @@ const styles = StyleSheet.create({
   detailLabelBold: { fontSize: Type.bodyCompact.fontSize, color: Colors.text, fontWeight: '700' as const },
   detailValueBold: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800' as const },
 
-  invoicesSectionLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: Colors.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.6, marginTop: 10, marginBottom: 4 },
-  invoiceRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, paddingVertical: 8 },
+  invoicesSectionLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: Colors.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.6, marginTop: 10, marginBottom: Tokens.spacing.xxs },
+  invoiceRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, paddingVertical: Tokens.spacing.xs },
   invoiceIconWrap: { width: 28, height: 28, borderRadius: Tokens.radius.sm, backgroundColor: Colors.primary + '12', alignItems: 'center' as const, justifyContent: 'center' as const },
   invoiceTitle: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.text },
-  invoiceMeta: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 2 },
+  invoiceMeta: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: Tokens.spacing.hairline },
   invoiceRetention: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const },
   invoiceRetentionLabel: { fontSize: 10, color: Colors.textMuted, fontWeight: '600' as const },
 
-  tipCard: { marginHorizontal: 16, marginTop: 8, padding: 14, backgroundColor: Colors.primary + '10', borderRadius: Tokens.radius.card, flexDirection: 'row' as const, alignItems: 'flex-start' as const, gap: 10 },
+  tipCard: { marginHorizontal: Tokens.spacing.md, marginTop: Tokens.spacing.xs, padding: 14, backgroundColor: Colors.primary + '10', borderRadius: Tokens.radius.card, flexDirection: 'row' as const, alignItems: 'flex-start' as const, gap: 10 },
   tipText: { flex: 1, fontSize: Type.caption1.fontSize, color: Colors.primary, lineHeight: 17, fontWeight: '500' as const },
 });

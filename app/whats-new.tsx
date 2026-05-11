@@ -28,7 +28,7 @@ export default function WhatsNewScreen() {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <Stack.Screen options={{ title: "What's new" }} />
-      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 40 }}>
+      <ScrollView contentContainerStyle={{ padding: Tokens.spacing.lg, paddingBottom: insets.bottom + 40 }}>
         <Text style={styles.eyebrow}>RELEASE NOTES</Text>
         <Text style={styles.heading}>
           What's <Text style={styles.headingItalic}>new</Text>
@@ -104,12 +104,12 @@ const styles = StyleSheet.create({
     ...Type.monoSm,
     color: Colors.accent,
     fontWeight: '600' as const,
-    marginBottom: 8,
+    marginBottom: Tokens.spacing.xs,
   },
   heading: {
     ...Type.display,
     color: Colors.ink,
-    marginBottom: 4,
+    marginBottom: Tokens.spacing.xxs,
   },
   headingItalic: {
     ...Type.displayItalic,
@@ -130,7 +130,7 @@ const styles = StyleSheet.create({
   releaseHeader: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
-    gap: 12,
+    gap: Tokens.spacing.sm,
     marginBottom: 6,
   },
   releaseVersion: {
@@ -149,11 +149,11 @@ const styles = StyleSheet.create({
   tagRow: {
     flexDirection: 'row' as const,
     gap: 6,
-    marginBottom: 12,
+    marginBottom: Tokens.spacing.sm,
   },
   tag: {
     backgroundColor: Colors.accentSoft,
-    paddingHorizontal: 8,
+    paddingHorizontal: Tokens.spacing.xs,
     paddingVertical: 3,
     borderRadius: Tokens.radius.xs,
   },
@@ -173,14 +173,14 @@ const styles = StyleSheet.create({
   itemList: { gap: 14 },
   item: {
     flexDirection: 'row' as const,
-    gap: 12,
+    gap: Tokens.spacing.sm,
   },
   itemBullet: {
     width: 6,
     height: 6,
     borderRadius: 3,
     backgroundColor: Colors.accent,
-    marginTop: 8,
+    marginTop: Tokens.spacing.xs,
   },
   itemTitle: {
     fontSize: Type.bodyEmphasized.fontSize,

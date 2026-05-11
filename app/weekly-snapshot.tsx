@@ -216,7 +216,7 @@ export default function WeeklySnapshotScreen() {
         adding a SECOND chunk of dead space (~110px on iOS) above the
         hero card. Now we just add a small gap below the native header.
       */}
-      <ScrollView contentContainerStyle={[styles.scroll, { paddingTop: 16, paddingBottom: insets.bottom + 30 }]}>
+      <ScrollView contentContainerStyle={[styles.scroll, { paddingTop: Tokens.spacing.md, paddingBottom: insets.bottom + 30 }]}>
         <BlueprintReveal>
           <View style={styles.heroCard}>
             <Text style={styles.heroLabel}>{range.label}</Text>
@@ -353,35 +353,35 @@ export default function WeeklySnapshotScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
-  scroll: { paddingHorizontal: 16, gap: 12 },
+  scroll: { paddingHorizontal: Tokens.spacing.md, gap: Tokens.spacing.sm },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.background },
-  notFound: { fontSize: Type.callout.fontSize, color: Colors.textSecondary, marginBottom: 16 },
-  backBtn: { paddingHorizontal: 20, paddingVertical: 10, backgroundColor: Colors.primary, borderRadius: Tokens.radius.md },
+  notFound: { fontSize: Type.callout.fontSize, color: Colors.textSecondary, marginBottom: Tokens.spacing.md },
+  backBtn: { paddingHorizontal: Tokens.spacing.lg, paddingVertical: 10, backgroundColor: Colors.primary, borderRadius: Tokens.radius.md },
   backBtnText: { color: '#fff', fontWeight: '600' },
-  headerBack: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingVertical: 6, paddingLeft: 4, minWidth: 72 },
+  headerBack: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.hairline, paddingVertical: 6, paddingLeft: Tokens.spacing.xxs, minWidth: 72 },
   headerBackText: { fontSize: Type.callout.fontSize, fontWeight: '500', color: Colors.primary },
-  heroCard: { backgroundColor: Colors.primary, borderRadius: Tokens.radius.xl, padding: 18, marginTop: 4, gap: 10 },
+  heroCard: { backgroundColor: Colors.primary, borderRadius: Tokens.radius.xl, padding: 18, marginTop: Tokens.spacing.xxs, gap: 10 },
   heroLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: 'rgba(255,255,255,0.65)', letterSpacing: 0.6, textTransform: 'uppercase' },
   heroProject: { fontSize: Type.title2.fontSize, fontWeight: '800', color: '#fff', letterSpacing: -0.5, marginTop: -4 },
   row: { flexDirection: 'row', gap: 10 },
-  card: { backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 14, borderWidth: 1, borderColor: Colors.cardBorder, gap: 4 },
+  card: { backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 14, borderWidth: 1, borderColor: Colors.cardBorder, gap: Tokens.spacing.xxs },
   cardHalf: { flex: 1 },
-  cardThird: { flex: 1, paddingVertical: 12, paddingHorizontal: 10 },
+  cardThird: { flex: 1, paddingVertical: Tokens.spacing.sm, paddingHorizontal: 10 },
   cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   cardLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.textSecondary, letterSpacing: 0.5, textTransform: 'uppercase' },
-  cardBigValue: { fontSize: Type.title2.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.5, marginTop: 4 },
-  cardBigValueSmall: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: Colors.text, marginTop: 4 },
+  cardBigValue: { fontSize: Type.title2.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.5, marginTop: Tokens.spacing.xxs },
+  cardBigValueSmall: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: Colors.text, marginTop: Tokens.spacing.xxs },
   cardSub: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontWeight: '500' },
-  cardEmpty: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, fontStyle: 'italic', marginTop: 4 },
+  cardEmpty: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, fontStyle: 'italic', marginTop: Tokens.spacing.xxs },
   cardArrow: { color: Colors.textMuted, fontWeight: '500' },
-  warnPill: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', backgroundColor: Colors.errorLight, paddingHorizontal: 7, paddingVertical: 3, borderRadius: Tokens.radius.xs, marginTop: 4 },
+  warnPill: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xxs, alignSelf: 'flex-start', backgroundColor: Colors.errorLight, paddingHorizontal: 7, paddingVertical: 3, borderRadius: Tokens.radius.xs, marginTop: Tokens.spacing.xxs },
   warnPillText: { fontSize: 10, fontWeight: '700', color: Colors.error },
-  successPill: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', backgroundColor: Colors.successLight, paddingHorizontal: 7, paddingVertical: 3, borderRadius: Tokens.radius.xs, marginTop: 4 },
+  successPill: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xxs, alignSelf: 'flex-start', backgroundColor: Colors.successLight, paddingHorizontal: 7, paddingVertical: 3, borderRadius: Tokens.radius.xs, marginTop: Tokens.spacing.xxs },
   successPillText: { fontSize: 10, fontWeight: '700', color: Colors.success },
   burnPct: { marginLeft: 'auto', fontSize: Type.footnote.fontSize, fontWeight: '800', color: Colors.text },
   actionsCard: { backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 14, borderWidth: 1, borderColor: Colors.cardBorder },
-  actionsLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.textSecondary, letterSpacing: 0.5, textTransform: 'uppercase', marginBottom: 8 },
-  actionsRow: { flexDirection: 'row', gap: 8 },
-  actionBtn: { flex: 1, paddingVertical: 12, borderRadius: Tokens.radius.md, backgroundColor: Colors.fillSecondary, alignItems: 'center' },
+  actionsLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.textSecondary, letterSpacing: 0.5, textTransform: 'uppercase', marginBottom: Tokens.spacing.xs },
+  actionsRow: { flexDirection: 'row', gap: Tokens.spacing.xs },
+  actionBtn: { flex: 1, paddingVertical: Tokens.spacing.sm, borderRadius: Tokens.radius.md, backgroundColor: Colors.fillSecondary, alignItems: 'center' },
   actionBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600', color: Colors.text },
 });

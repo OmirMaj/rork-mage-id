@@ -384,7 +384,7 @@ export default function LoginScreen() {
             </TouchableOpacity>
           ) : (
             <Animated.View style={{ transform: [{ translateX: shakeAnim }] }}>
-              <View style={[styles.inputGroup, { marginTop: 12 }]}>
+              <View style={[styles.inputGroup, { marginTop: Tokens.spacing.sm }]}>
                 <Text style={styles.inputLabel}>Password</Text>
                 <View style={styles.inputWrapper}>
                   <Lock size={18} color={Colors.textSecondary} strokeWidth={1.8} />
@@ -496,7 +496,7 @@ const styles = StyleSheet.create({
   topSection: {
     backgroundColor: Colors.ink,
     paddingHorizontal: 28,
-    paddingBottom: 40,
+    paddingBottom: Tokens.spacing['3xl'],
     alignItems: 'flex-start' as const,
     overflow: 'hidden' as const,
   },
@@ -544,8 +544,8 @@ const styles = StyleSheet.create({
   brandRow: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
-    gap: 8,
-    marginBottom: 32,
+    gap: Tokens.spacing.xs,
+    marginBottom: Tokens.spacing['2xl'],
     zIndex: 1,
   },
   logoChip: {
@@ -569,7 +569,7 @@ const styles = StyleSheet.create({
     fontWeight: '700' as const,
     color: Colors.orange,
     letterSpacing: 2.5,
-    marginBottom: 12,
+    marginBottom: Tokens.spacing.sm,
     zIndex: 1,
   },
   heroLine: {
@@ -598,14 +598,14 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   formContainer: {
-    padding: 24,
-    paddingTop: 32,
+    padding: Tokens.spacing.xl,
+    paddingTop: Tokens.spacing['2xl'],
   },
   errorBanner: {
     backgroundColor: Colors.errorLight,
     borderRadius: Tokens.radius.card,
     padding: 14,
-    marginBottom: 20,
+    marginBottom: Tokens.spacing.lg,
     borderWidth: 1,
     borderColor: 'rgba(255,59,48,0.15)',
   },
@@ -616,14 +616,14 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   inputGroup: {
-    marginBottom: 20,
+    marginBottom: Tokens.spacing.lg,
   },
   inputLabel: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '600' as const,
     color: Colors.text,
-    marginBottom: 8,
-    marginLeft: 2,
+    marginBottom: Tokens.spacing.xs,
+    marginLeft: Tokens.spacing.hairline,
   },
   inputWrapper: {
     flexDirection: 'row',
@@ -646,8 +646,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 8,
-    paddingHorizontal: 2,
+    marginBottom: Tokens.spacing.xs,
+    paddingHorizontal: Tokens.spacing.hairline,
   },
   rememberLabel: {
     fontSize: Type.bodyCompact.fontSize,
@@ -660,9 +660,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: Colors.ink,
     borderRadius: Tokens.radius.lg,
-    paddingVertical: 16,
-    gap: 8,
-    marginTop: 8,
+    paddingVertical: Tokens.spacing.md,
+    gap: Tokens.spacing.xs,
+    marginTop: Tokens.spacing.xs,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.18,
@@ -687,7 +687,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: Colors.primary,
     backgroundColor: Colors.surface,
-    marginTop: 12,
+    marginTop: Tokens.spacing.sm,
   },
   biometricText: {
     fontSize: Type.subhead.fontSize,
@@ -697,9 +697,9 @@ const styles = StyleSheet.create({
   dividerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 24,
-    marginBottom: 16,
-    gap: 12,
+    marginTop: Tokens.spacing.xl,
+    marginBottom: Tokens.spacing.md,
+    gap: Tokens.spacing.sm,
   },
   dividerLine: {
     flex: 1,
@@ -713,19 +713,19 @@ const styles = StyleSheet.create({
   },
   socialRow: {
     flexDirection: 'row',
-    gap: 12,
+    gap: Tokens.spacing.sm,
   },
   primaryAuthStack: {
     gap: 10,
-    marginTop: 4,
-    marginBottom: 16,
+    marginTop: Tokens.spacing.xxs,
+    marginBottom: Tokens.spacing.md,
   },
   primaryAuthButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,
-    paddingVertical: 16,
+    paddingVertical: Tokens.spacing.md,
     borderRadius: Tokens.radius.lg,
     borderWidth: 1.5,
   },
@@ -749,13 +749,13 @@ const styles = StyleSheet.create({
   },
   magicLinkStack: {
     gap: 10,
-    marginBottom: 16,
+    marginBottom: Tokens.spacing.md,
   },
   magicLinkButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    gap: Tokens.spacing.xs,
     paddingVertical: 14,
     borderRadius: Tokens.radius.lg,
     backgroundColor: Colors.primary + '0F',
@@ -783,9 +783,9 @@ const styles = StyleSheet.create({
   },
   passwordModeToggle: {
     alignSelf: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    marginTop: 4,
+    paddingVertical: Tokens.spacing.xs,
+    paddingHorizontal: Tokens.spacing.md,
+    marginTop: Tokens.spacing.xxs,
   },
   passwordModeToggleText: {
     fontSize: Type.footnote.fontSize,
@@ -824,7 +824,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    marginTop: 24,
+    marginTop: Tokens.spacing.xl,
   },
   signupPrompt: {
     fontSize: Type.subhead.fontSize,
@@ -840,8 +840,8 @@ const styles = StyleSheet.create({
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
     gap: 6,
-    marginTop: 16,
-    paddingVertical: 8,
+    marginTop: Tokens.spacing.md,
+    paddingVertical: Tokens.spacing.xs,
   },
   forgotText: {
     fontSize: Type.bodyCompact.fontSize,

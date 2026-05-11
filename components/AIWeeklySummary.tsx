@@ -98,8 +98,8 @@ export default function AIWeeklySummary({ projects, visible, onClose }: Props) {
         {paywallReason ? (
           <View style={styles.loadingState}>
             <Sparkles size={40} color={Colors.primary} />
-            <Text style={[styles.headerTitle, { marginTop: 16, textAlign: 'center' }]}>Pro Feature</Text>
-            <Text style={[styles.loadingSubtext, { marginTop: 8, textAlign: 'center', paddingHorizontal: 24 }]}>{paywallReason}</Text>
+            <Text style={[styles.headerTitle, { marginTop: Tokens.spacing.md, textAlign: 'center' }]}>Pro Feature</Text>
+            <Text style={[styles.loadingSubtext, { marginTop: Tokens.spacing.xs, textAlign: 'center', paddingHorizontal: Tokens.spacing.xl }]}>{paywallReason}</Text>
           </View>
         ) : isLoading && !result ? (
           <View style={styles.loadingState}>
@@ -288,8 +288,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingHorizontal: Tokens.spacing.lg,
+    paddingVertical: Tokens.spacing.md,
     borderBottomWidth: 0.5,
     borderBottomColor: Colors.borderLight,
     backgroundColor: Colors.surface,
@@ -297,7 +297,7 @@ const styles = StyleSheet.create({
   headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: Tokens.spacing.xs,
   },
   headerTitle: {
     fontSize: Type.body.fontSize,
@@ -308,7 +308,7 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 12,
+    gap: Tokens.spacing.sm,
   },
   loadingText: {
     fontSize: Type.callout.fontSize,
@@ -323,14 +323,14 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    padding: 16,
-    paddingBottom: 40,
-    gap: 12,
+    padding: Tokens.spacing.md,
+    paddingBottom: Tokens.spacing['3xl'],
+    gap: Tokens.spacing.sm,
   },
   weekBadge: {
     alignSelf: 'center',
     backgroundColor: Colors.fillTertiary,
-    paddingHorizontal: 16,
+    paddingHorizontal: Tokens.spacing.md,
     paddingVertical: 6,
     borderRadius: Tokens.radius.card,
   },
@@ -342,10 +342,10 @@ const styles = StyleSheet.create({
   overviewCard: {
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.lg,
-    padding: 16,
+    padding: Tokens.spacing.md,
     borderWidth: 0.5,
     borderColor: Colors.borderLight,
-    gap: 12,
+    gap: Tokens.spacing.sm,
   },
   sectionLabel: {
     fontSize: Type.caption2.fontSize,
@@ -355,7 +355,7 @@ const styles = StyleSheet.create({
   },
   overviewGrid: {
     flexDirection: 'row',
-    gap: 8,
+    gap: Tokens.spacing.xs,
   },
   overviewItem: {
     flex: 1,
@@ -378,7 +378,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingTop: 8,
+    paddingTop: Tokens.spacing.xs,
     borderTopWidth: 0.5,
     borderTopColor: Colors.borderLight,
   },
@@ -394,10 +394,10 @@ const styles = StyleSheet.create({
   projectCard: {
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.lg,
-    padding: 16,
+    padding: Tokens.spacing.md,
     borderWidth: 0.5,
     borderColor: Colors.borderLight,
-    gap: 8,
+    gap: Tokens.spacing.xs,
   },
   projectHeader: {
     flexDirection: 'row',
@@ -413,9 +413,9 @@ const styles = StyleSheet.create({
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    gap: Tokens.spacing.xxs,
+    paddingHorizontal: Tokens.spacing.xs,
+    paddingVertical: Tokens.spacing.xxs,
     borderRadius: Tokens.radius.xs,
   },
   statusText: {
@@ -424,7 +424,7 @@ const styles = StyleSheet.create({
   },
   progressRow: {
     flexDirection: 'row',
-    gap: 4,
+    gap: Tokens.spacing.xxs,
   },
   progressLabel: {
     fontSize: Type.footnote.fontSize,
@@ -460,8 +460,8 @@ const styles = StyleSheet.create({
   },
   overallRec: {
     flexDirection: 'row',
-    gap: 8,
-    padding: 16,
+    gap: Tokens.spacing.xs,
+    padding: Tokens.spacing.md,
     backgroundColor: `${Colors.primary}08`,
     borderRadius: Tokens.radius.lg,
     borderWidth: 1,
@@ -477,18 +477,18 @@ const styles = StyleSheet.create({
     fontSize: Type.caption2.fontSize,
     color: Colors.textMuted,
     textAlign: 'center',
-    marginTop: 8,
+    marginTop: Tokens.spacing.xs,
   },
 
   // ─── Issues breakdown ───
   issuesSection: {
-    marginTop: 4,
-    marginBottom: 16,
+    marginTop: Tokens.spacing.xxs,
+    marginBottom: Tokens.spacing.md,
   },
   issuesHeader: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
-    gap: 8,
+    gap: Tokens.spacing.xs,
     marginBottom: 6,
   },
   issuesTitle: {
@@ -513,7 +513,7 @@ const styles = StyleSheet.create({
   issuesHelper: {
     fontSize: Type.caption1.fontSize,
     color: Colors.textMuted,
-    marginBottom: 12,
+    marginBottom: Tokens.spacing.sm,
     lineHeight: 17,
   },
   issueCard: {
@@ -529,11 +529,11 @@ const styles = StyleSheet.create({
   issueHead: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
-    gap: 8,
+    gap: Tokens.spacing.xs,
   },
   severityPill: {
     paddingHorizontal: 7,
-    paddingVertical: 2,
+    paddingVertical: Tokens.spacing.hairline,
     borderRadius: Tokens.radius.full,
   },
   severityText: {
@@ -558,13 +558,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row' as const,
     alignItems: 'flex-start' as const,
     gap: 10,
-    paddingTop: 8,
+    paddingTop: Tokens.spacing.xs,
     borderTopWidth: 0.5,
     borderTopColor: Colors.borderLight,
   },
   issueRowFix: {
     paddingTop: 10,
-    paddingBottom: 4,
+    paddingBottom: Tokens.spacing.xxs,
   },
   issueRowIcon: {
     width: 20,
@@ -572,7 +572,7 @@ const styles = StyleSheet.create({
     borderRadius: Tokens.radius.xs,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
-    marginTop: 2,
+    marginTop: Tokens.spacing.hairline,
   },
   issueRowLabel: {
     fontSize: 9,
@@ -593,13 +593,13 @@ const styles = StyleSheet.create({
   noIssuesCard: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
-    gap: 12,
+    gap: Tokens.spacing.sm,
     padding: 14,
     borderRadius: Tokens.radius.card,
     backgroundColor: Colors.success + '0D',
     borderWidth: 1,
     borderColor: Colors.success + '30',
-    marginBottom: 16,
+    marginBottom: Tokens.spacing.md,
   },
   noIssuesTitle: {
     fontSize: Type.bodyCompact.fontSize,
@@ -610,6 +610,6 @@ const styles = StyleSheet.create({
     fontSize: Type.caption1.fontSize,
     color: Colors.textSecondary,
     lineHeight: 17,
-    marginTop: 2,
+    marginTop: Tokens.spacing.hairline,
   },
 });

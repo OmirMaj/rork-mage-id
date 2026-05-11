@@ -368,7 +368,7 @@ function AIAPayAppScreenInner() {
         options={{
           title: 'Progress Billing',
           headerLeft: () => (
-            <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }} accessibilityRole="button" accessibilityLabel="Back">
+            <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: Tokens.spacing.xxs }} accessibilityRole="button" accessibilityLabel="Back">
               <ChevronLeft size={24} color={Colors.primary} />
             </TouchableOpacity>
           ),
@@ -731,9 +731,9 @@ const styles = StyleSheet.create({
   carriedRow: {
     flexDirection: 'row' as const,
     alignItems: 'flex-start' as const,
-    gap: 8,
-    marginTop: 12,
-    paddingHorizontal: 12,
+    gap: Tokens.spacing.xs,
+    marginTop: Tokens.spacing.sm,
+    paddingHorizontal: Tokens.spacing.sm,
     paddingVertical: 10,
     borderRadius: 12,
     backgroundColor: Colors.primary + '12',
@@ -748,18 +748,18 @@ const styles = StyleSheet.create({
     fontWeight: '500' as const,
   },
   container: { flex: 1, backgroundColor: Colors.background },
-  loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, backgroundColor: Colors.background },
+  loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Tokens.spacing.sm, backgroundColor: Colors.background },
   loadingText: { fontSize: Type.bodyCompact.fontSize, color: Colors.textMuted },
 
   hero: {
-    margin: 16, padding: 16, borderRadius: Tokens.radius.panel,
+    margin: Tokens.spacing.md, padding: Tokens.spacing.md, borderRadius: Tokens.radius.panel,
     backgroundColor: Colors.primary + '10',
     borderWidth: 1, borderColor: Colors.primary + '30',
   },
-  heroHeaderRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  heroHeaderRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Tokens.spacing.sm },
   heroTitleBlock: { flex: 1 },
-  heroLabel: { fontSize: 10, color: Colors.primary, fontWeight: '700', letterSpacing: 1.5, marginBottom: 4 },
-  heroTitle: { fontSize: Type.title3.fontSize, fontWeight: '800', color: Colors.text, marginBottom: 2 },
+  heroLabel: { fontSize: 10, color: Colors.primary, fontWeight: '700', letterSpacing: 1.5, marginBottom: Tokens.spacing.xxs },
+  heroTitle: { fontSize: Type.title3.fontSize, fontWeight: '800', color: Colors.text, marginBottom: Tokens.spacing.hairline },
   heroSub: { fontSize: Type.footnote.fontSize, color: Colors.textMuted },
   progressBadge: {
     alignItems: 'center', justifyContent: 'center',
@@ -769,28 +769,28 @@ const styles = StyleSheet.create({
   progressBadgeNum: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: '#FFF', lineHeight: 20 },
   progressBadgeLabel: { fontSize: 9, color: '#FFFFFFCC', fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
 
-  heroStats: { flexDirection: 'row', gap: 12, marginTop: 14 },
-  heroStat: { flex: 1, backgroundColor: Colors.card, borderRadius: Tokens.radius.card, padding: 12, borderWidth: 1, borderColor: Colors.border },
-  heroStatLabel: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontWeight: '600', marginBottom: 4 },
+  heroStats: { flexDirection: 'row', gap: Tokens.spacing.sm, marginTop: 14 },
+  heroStat: { flex: 1, backgroundColor: Colors.card, borderRadius: Tokens.radius.card, padding: Tokens.spacing.sm, borderWidth: 1, borderColor: Colors.border },
+  heroStatLabel: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontWeight: '600', marginBottom: Tokens.spacing.xxs },
   heroStatValue: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: Colors.text },
-  heroStatSub: { fontSize: 10, color: Colors.textMuted, marginTop: 2 },
+  heroStatSub: { fontSize: 10, color: Colors.textMuted, marginTop: Tokens.spacing.hairline },
 
-  section: { marginHorizontal: 16, marginBottom: 20 },
+  section: { marginHorizontal: Tokens.spacing.md, marginBottom: Tokens.spacing.lg },
   sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  sectionTitle: { fontSize: Type.callout.fontSize, fontWeight: '700', color: Colors.text, marginBottom: 4 },
+  sectionTitle: { fontSize: Type.callout.fontSize, fontWeight: '700', color: Colors.text, marginBottom: Tokens.spacing.xxs },
   sectionTitleCount: { fontSize: Type.caption1.fontSize, color: Colors.textMuted },
   sectionHint: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginBottom: 10, lineHeight: 16 },
 
   formRow: { marginBottom: 10 },
-  formLabel: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginBottom: 4, fontWeight: '600' },
+  formLabel: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginBottom: Tokens.spacing.xxs, fontWeight: '600' },
   formInput: {
     backgroundColor: Colors.card, borderRadius: Tokens.radius.md, borderWidth: 1, borderColor: Colors.border,
-    paddingHorizontal: 12, paddingVertical: 10, fontSize: Type.bodyCompact.fontSize, color: Colors.text,
+    paddingHorizontal: Tokens.spacing.sm, paddingVertical: 10, fontSize: Type.bodyCompact.fontSize, color: Colors.text,
   },
 
-  retainageChips: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+  retainageChips: { flexDirection: 'row', gap: Tokens.spacing.xs, alignItems: 'center' },
   chip: {
-    paddingHorizontal: 12, paddingVertical: 8, borderRadius: Tokens.radius.sm,
+    paddingHorizontal: Tokens.spacing.sm, paddingVertical: Tokens.spacing.xs, borderRadius: Tokens.radius.sm,
     backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,
   },
   chipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
@@ -798,27 +798,27 @@ const styles = StyleSheet.create({
   chipTextActive: { color: '#FFF' },
 
   sovCard: {
-    backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 12,
+    backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: Tokens.spacing.sm,
     marginBottom: 10, borderWidth: 1, borderColor: Colors.border,
   },
   sovHeaderRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 10 },
   sovItemNoPill: {
-    paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.xs,
+    paddingHorizontal: Tokens.spacing.xs, paddingVertical: 3, borderRadius: Tokens.radius.xs,
     backgroundColor: Colors.primary + '15',
   },
   sovItemNoText: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.primary },
   sovDescription: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '600', color: Colors.text, lineHeight: 18 },
 
-  sovValueRow: { flexDirection: 'row', gap: 8, marginBottom: 10 },
+  sovValueRow: { flexDirection: 'row', gap: Tokens.spacing.xs, marginBottom: 10 },
   sovValueCol: { flex: 1 },
-  sovValueLabel: { fontSize: 10, color: Colors.textMuted, fontWeight: '600', marginBottom: 4 },
+  sovValueLabel: { fontSize: 10, color: Colors.textMuted, fontWeight: '600', marginBottom: Tokens.spacing.xxs },
   sovValueNum: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
   sovInput: {
     backgroundColor: Colors.background, borderRadius: Tokens.radius.sm, borderWidth: 1, borderColor: Colors.border,
-    paddingHorizontal: 8, paddingVertical: 8, fontSize: Type.footnote.fontSize, color: Colors.text,
+    paddingHorizontal: Tokens.spacing.xs, paddingVertical: Tokens.spacing.xs, fontSize: Type.footnote.fontSize, color: Colors.text,
   },
 
-  sovProgressRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
+  sovProgressRow: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs, marginBottom: Tokens.spacing.xs },
   sovProgressBar: { flex: 1, height: 6, backgroundColor: Colors.border, borderRadius: 3, overflow: 'hidden' },
   sovProgressFill: { height: '100%', backgroundColor: Colors.success, borderRadius: 3 },
   sovProgressPct: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.text, width: 38, textAlign: 'right' },
@@ -844,11 +844,11 @@ const styles = StyleSheet.create({
     position: 'absolute', bottom: 0, left: 0, right: 0,
     backgroundColor: Colors.background,
     borderTopWidth: 1, borderTopColor: Colors.border,
-    paddingHorizontal: 16, paddingTop: 12,
+    paddingHorizontal: Tokens.spacing.md, paddingTop: Tokens.spacing.sm,
   },
   generateBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 8, backgroundColor: Colors.primary, borderRadius: Tokens.radius.card,
+    gap: Tokens.spacing.xs, backgroundColor: Colors.primary, borderRadius: Tokens.radius.card,
     paddingVertical: 14,
   },
   generateBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700', color: '#FFF' },
@@ -863,18 +863,18 @@ const styles = StyleSheet.create({
   saveBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.primary },
   bottomBarHint: {
     fontSize: Type.caption2.fontSize, color: Colors.textMuted, textAlign: 'center',
-    marginTop: 8, lineHeight: 15,
+    marginTop: Tokens.spacing.xs, lineHeight: 15,
   },
 
   modalBackdrop: {
     flex: 1, backgroundColor: 'rgba(11,13,16,0.55)',
     alignItems: 'center', justifyContent: 'center',
-    padding: 24,
+    padding: Tokens.spacing.xl,
   },
   modalCard: {
     backgroundColor: Colors.background,
     borderRadius: 20,
-    padding: 24,
+    padding: Tokens.spacing.xl,
     maxWidth: 440, width: '100%',
     borderWidth: 1, borderColor: Colors.border,
   },
@@ -884,7 +884,7 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
     marginBottom: 14,
   },
-  modalTitle: { fontSize: Type.title3.fontSize, fontWeight: '800', color: Colors.text, marginBottom: 12, letterSpacing: -0.3 },
+  modalTitle: { fontSize: Type.title3.fontSize, fontWeight: '800', color: Colors.text, marginBottom: Tokens.spacing.sm, letterSpacing: -0.3 },
   modalBody: { fontSize: Type.bodyCompact.fontSize, color: Colors.text, lineHeight: 20 },
   modalBodyEmph: { fontWeight: '700', color: Colors.text },
   modalCta: {
@@ -892,11 +892,11 @@ const styles = StyleSheet.create({
     paddingVertical: 13, paddingHorizontal: 18,
     borderRadius: Tokens.radius.card,
     alignItems: 'center', justifyContent: 'center',
-    marginTop: 16,
+    marginTop: Tokens.spacing.md,
     flex: 1,
   },
   modalCtaText: { color: '#FFF', fontSize: Type.bodyCompact.fontSize, fontWeight: '700' },
-  modalCtaRow: { flexDirection: 'row', gap: 10, marginTop: 16 },
+  modalCtaRow: { flexDirection: 'row', gap: 10, marginTop: Tokens.spacing.md },
   modalCtaSecondary: {
     backgroundColor: Colors.card,
     paddingVertical: 13, paddingHorizontal: 18,

@@ -188,7 +188,7 @@ export function ProjectFilesBrowser({ projectId, projectName }: Props) {
               homeowner or subs.
             </Text>
             <TouchableOpacity
-              style={[styles.uploadBtn, { marginTop: 16, paddingHorizontal: 18, paddingVertical: 12 }]}
+              style={[styles.uploadBtn, { marginTop: Tokens.spacing.md, paddingHorizontal: 18, paddingVertical: Tokens.spacing.sm }]}
               onPress={handleUpload}
               disabled={uploading}
               activeOpacity={0.85}
@@ -250,7 +250,7 @@ export function ProjectFilesBrowser({ projectId, projectName }: Props) {
         anything you upload — contracts, signed PDFs, inspection photos, permits.
       </Text>
       {loadingCounts && Object.keys(counts).length === 0 ? (
-        <ActivityIndicator color={Colors.primary} style={{ marginVertical: 32 }} />
+        <ActivityIndicator color={Colors.primary} style={{ marginVertical: Tokens.spacing['2xl'] }} />
       ) : (
         <View style={styles.grid}>
           {DEFAULT_FOLDERS.map(f => {
@@ -280,18 +280,18 @@ export function ProjectFilesBrowser({ projectId, projectName }: Props) {
 }
 
 const styles = StyleSheet.create({
-  container: { paddingHorizontal: 16, paddingVertical: 12, gap: 8 },
+  container: { paddingHorizontal: Tokens.spacing.md, paddingVertical: Tokens.spacing.sm, gap: Tokens.spacing.xs },
   projectName: {
     fontSize: 11, fontWeight: '800' as const, color: Colors.textMuted,
     letterSpacing: 0.5, textTransform: 'uppercase' as const,
   },
   gridTitle: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: Colors.text, letterSpacing: -0.3 },
-  gridSub: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, marginBottom: 8 },
-  grid: { flexDirection: 'row' as const, flexWrap: 'wrap' as const, gap: 8 },
+  gridSub: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, marginBottom: Tokens.spacing.xs },
+  grid: { flexDirection: 'row' as const, flexWrap: 'wrap' as const, gap: Tokens.spacing.xs },
   folderTile: {
     width: '48%' as const,
     paddingVertical: 14,
-    paddingHorizontal: 12,
+    paddingHorizontal: Tokens.spacing.sm,
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.lg,
     borderWidth: 0.5, borderColor: Colors.borderLight,
@@ -301,12 +301,12 @@ const styles = StyleSheet.create({
     width: 36, height: 36, borderRadius: 18,
     alignItems: 'center' as const, justifyContent: 'center' as const,
     backgroundColor: Colors.primary + '14',
-    marginBottom: 4,
+    marginBottom: Tokens.spacing.xxs,
   },
   folderLabel: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
   folderCount: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary },
 
-  fileListHeader: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, marginBottom: 8 },
+  fileListHeader: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, marginBottom: Tokens.spacing.xs },
   backBtn: {
     width: 32, height: 32, borderRadius: 16,
     alignItems: 'center' as const, justifyContent: 'center' as const,
@@ -319,23 +319,23 @@ const styles = StyleSheet.create({
   folderTitle: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: Colors.text, letterSpacing: -0.3 },
   uploadBtn: {
     flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6,
-    paddingHorizontal: 12, paddingVertical: 8,
+    paddingHorizontal: Tokens.spacing.sm, paddingVertical: Tokens.spacing.xs,
     borderRadius: Tokens.radius.md,
     backgroundColor: Colors.primary,
   },
   uploadBtnText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: Colors.surface },
 
-  loadingWrap: { padding: 32, alignItems: 'center' as const, gap: 12 },
+  loadingWrap: { padding: Tokens.spacing['2xl'], alignItems: 'center' as const, gap: Tokens.spacing.sm },
   muted: { fontSize: Type.bodyCompact.fontSize, color: Colors.textMuted },
 
-  emptyFolder: { padding: 32, alignItems: 'center' as const, gap: 8 },
-  emptyFolderTitle: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: Colors.text, marginTop: 8 },
+  emptyFolder: { padding: Tokens.spacing['2xl'], alignItems: 'center' as const, gap: Tokens.spacing.xs },
+  emptyFolderTitle: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: Colors.text, marginTop: Tokens.spacing.xs },
   emptyFolderBody: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, textAlign: 'center' as const, lineHeight: 20 },
 
-  fileList: { gap: 6, paddingBottom: 24 },
+  fileList: { gap: 6, paddingBottom: Tokens.spacing.xl },
   fileRow: {
     flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10,
-    paddingHorizontal: 12, paddingVertical: 10,
+    paddingHorizontal: Tokens.spacing.sm, paddingVertical: 10,
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.md,
     borderWidth: 0.5, borderColor: Colors.borderLight,
@@ -346,6 +346,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary + '14',
   },
   fileName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
-  fileMeta: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, marginTop: 2 },
+  fileMeta: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, marginTop: Tokens.spacing.hairline },
   fileAction: { padding: 6 },
 });

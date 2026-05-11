@@ -342,7 +342,7 @@ export default function DiscoverScreen() {
           onPress={() => navigateTo('/(tabs)/discover/materials')}
         />
 
-        <View style={[styles.sectionHeaderRow, { marginTop: 24 }]}>
+        <View style={[styles.sectionHeaderRow, { marginTop: Tokens.spacing.xl }]}>
           <View style={[styles.sectionAccent, { backgroundColor: Colors.primary }]} />
           <View>
             <Text style={styles.sectionLabel}>MAGE ID MARKETPLACE</Text>
@@ -362,7 +362,7 @@ export default function DiscoverScreen() {
         {/* External-jobs group: all share `info` (blue) tone — they're
             inbound opportunities you sift through. Keeps semantic
             grouping while killing the unmotivated rainbow. */}
-        <View style={[styles.sectionHeaderRow, { marginTop: 24 }]}>
+        <View style={[styles.sectionHeaderRow, { marginTop: Tokens.spacing.xl }]}>
           <View style={[styles.sectionAccent, { backgroundColor: Colors.info }]} />
           <View>
             <Text style={styles.sectionLabel}>ONLINE JOBS & BIDS</Text>
@@ -405,7 +405,7 @@ export default function DiscoverScreen() {
 
         {/* Live-databases group: third tone (`accent` orange) — these are
             external resources you visit, not work happening in MAGE ID. */}
-        <View style={[styles.sectionHeaderRow, { marginTop: 24 }]}>
+        <View style={[styles.sectionHeaderRow, { marginTop: Tokens.spacing.xl }]}>
           <View style={[styles.sectionAccent, { backgroundColor: Colors.accent }]} />
           <View>
             <Text style={styles.sectionLabel}>LIVE BID DATABASES</Text>
@@ -455,18 +455,18 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   headerArea: {
     backgroundColor: Colors.surface,
-    paddingHorizontal: 20,
+    paddingHorizontal: Tokens.spacing.lg,
     paddingBottom: 0,
     borderBottomWidth: 0.5,
     borderBottomColor: Colors.borderLight,
   },
-  largeTitle: { ...Type.display, color: Colors.ink, marginTop: 8 },
-  headerSubtitle: { fontSize: Type.subhead.fontSize, color: Colors.textSecondary, marginTop: 2, marginBottom: 14 },
+  largeTitle: { ...Type.display, color: Colors.ink, marginTop: Tokens.spacing.xs },
+  headerSubtitle: { fontSize: Type.subhead.fontSize, color: Colors.textSecondary, marginTop: Tokens.spacing.hairline, marginBottom: 14 },
   tabBarScroll: { marginHorizontal: -20 },
   tabBar: {
     flexDirection: 'row',
     gap: 6,
-    paddingHorizontal: 20,
+    paddingHorizontal: Tokens.spacing.lg,
     paddingBottom: 14,
   },
   tabPill: {
@@ -474,7 +474,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 5,
     paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingVertical: Tokens.spacing.xs,
     borderRadius: 20,
     backgroundColor: Colors.background,
     borderWidth: 1,
@@ -494,10 +494,10 @@ const styles = StyleSheet.create({
   },
   quickActions: {
     flexDirection: 'row',
-    paddingHorizontal: 20,
-    gap: 12,
+    paddingHorizontal: Tokens.spacing.lg,
+    gap: Tokens.spacing.sm,
     marginTop: 18,
-    marginBottom: 8,
+    marginBottom: Tokens.spacing.xs,
   },
   quickAction: {
     flex: 1,
@@ -505,7 +505,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.lg,
     paddingVertical: 14,
-    gap: 8,
+    gap: Tokens.spacing.xs,
     borderWidth: 1,
     borderColor: Colors.primary + '20',
   },
@@ -525,9 +525,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    paddingHorizontal: 20,
+    paddingHorizontal: Tokens.spacing.lg,
     marginTop: 18,
-    marginBottom: 12,
+    marginBottom: Tokens.spacing.sm,
   },
   sectionAccent: {
     width: 4,
@@ -548,7 +548,7 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
   navCard: {
-    marginHorizontal: 16,
+    marginHorizontal: Tokens.spacing.md,
     marginBottom: 10,
     borderRadius: Tokens.radius.panel,
     backgroundColor: Colors.surface,
@@ -560,7 +560,7 @@ const styles = StyleSheet.create({
   navCardInner: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
+    padding: Tokens.spacing.md,
     gap: 14,
   },
   navIconWrap: {
@@ -570,17 +570,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  navInfo: { flex: 1, gap: 2 },
+  navInfo: { flex: 1, gap: Tokens.spacing.hairline },
   navTitle: { fontSize: Type.body.fontSize, fontWeight: '700' as const, color: Colors.text },
   navSubtitle: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary },
   navRight: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: Tokens.spacing.xs,
   },
   navCountBadge: {
     paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingVertical: Tokens.spacing.xxs,
     borderRadius: Tokens.radius.md,
   },
   navCountText: {
@@ -590,9 +590,9 @@ const styles = StyleSheet.create({
   bidSourcesGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    paddingHorizontal: 16,
+    paddingHorizontal: Tokens.spacing.md,
     gap: 10,
-    marginBottom: 20,
+    marginBottom: Tokens.spacing.lg,
   },
   bidSourceCard: {
     width: '47.5%' as any,
@@ -606,37 +606,37 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 8,
+    marginBottom: Tokens.spacing.xs,
   },
   bidSourceDot: { width: 8, height: 8, borderRadius: 4 },
   bidSourceTypeBadge: {
     paddingHorizontal: 6,
-    paddingVertical: 2,
+    paddingVertical: Tokens.spacing.hairline,
     borderRadius: 4,
   },
   bidSourceTypeText: { fontSize: 9, fontWeight: '700' as const, textTransform: 'uppercase' as const },
-  bidSourceName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text, marginBottom: 4 },
+  bidSourceName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text, marginBottom: Tokens.spacing.xxs },
   bidSourceDesc: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, lineHeight: 15, marginBottom: 10 },
   bidSourceFooter: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: Tokens.spacing.xxs,
   },
   bidSourceLink: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const },
   tipCard: {
-    marginHorizontal: 16,
+    marginHorizontal: Tokens.spacing.md,
     backgroundColor: Colors.primary + '08',
     borderRadius: Tokens.radius.lg,
-    padding: 16,
+    padding: Tokens.spacing.md,
     borderWidth: 1,
     borderColor: Colors.primary + '18',
-    marginBottom: 20,
+    marginBottom: Tokens.spacing.lg,
   },
   tipHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginBottom: 8,
+    gap: Tokens.spacing.xs,
+    marginBottom: Tokens.spacing.xs,
   },
   tipTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.primary },
   tipText: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, lineHeight: 19 },

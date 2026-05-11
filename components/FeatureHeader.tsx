@@ -59,7 +59,7 @@ function FeatureHeaderImpl({
       <View style={styles.titleRow}>
         <View style={{ flex: 1, minWidth: 0 }}>
           {!!eyebrow && (
-            <Text style={[Type.eyebrow, { color: Colors.textMuted, marginBottom: 4 }]} numberOfLines={1}>
+            <Text style={[Type.eyebrow, { color: Colors.textMuted, marginBottom: Tokens.spacing.xxs }]} numberOfLines={1}>
               {eyebrow}
             </Text>
           )}
@@ -100,14 +100,14 @@ export const FeatureHeader = memo(FeatureHeaderImpl);
 
 const styles = StyleSheet.create({
   root: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 8,
+    paddingHorizontal: Tokens.spacing.md,
+    paddingTop: Tokens.spacing.sm,
+    paddingBottom: Tokens.spacing.xs,
   },
   titleRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 12,
+    gap: Tokens.spacing.sm,
   },
   chip: {
     width: 32,
@@ -116,6 +116,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: Colors.fillTertiary,
-    marginTop: 2,
+    marginTop: Tokens.spacing.hairline,
   },
 });

@@ -193,7 +193,7 @@ export default function RfpDetailScreen() {
       </View>
 
       <ScrollView
-        contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 100 }}
+        contentContainerStyle={{ padding: Tokens.spacing.md, paddingBottom: insets.bottom + 100 }}
         showsVerticalScrollIndicator={false}
       >
         {/* Hero photo gallery */}
@@ -425,25 +425,25 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   header: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 10,
-    paddingHorizontal: 16, paddingTop: 14, paddingBottom: 16,
+    paddingHorizontal: Tokens.spacing.md, paddingTop: 14, paddingBottom: Tokens.spacing.md,
     borderBottomWidth: 1, borderBottomColor: Colors.border,
   },
   eyebrow: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.primary, letterSpacing: 1.4, textTransform: 'uppercase' },
-  title:   { fontSize: Type.title3.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.4, marginTop: 4 },
+  title:   { fontSize: Type.title3.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.4, marginTop: Tokens.spacing.xxs },
 
   gallery: { marginBottom: 14, marginHorizontal: -2 },
-  galleryImage: { width: 220, height: 160, borderRadius: Tokens.radius.card, marginRight: 8, backgroundColor: Colors.background },
+  galleryImage: { width: 220, height: 160, borderRadius: Tokens.radius.card, marginRight: Tokens.spacing.xs, backgroundColor: Colors.background },
 
   metaRow: { marginBottom: 14 },
   metaPills: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  pill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: Tokens.radius.full },
+  pill: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xxs, paddingHorizontal: Tokens.spacing.xs, paddingVertical: Tokens.spacing.xxs, borderRadius: Tokens.radius.full },
   pillText: { fontSize: 9, fontWeight: '800', letterSpacing: 0.6 },
 
   card: {
     backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 14,
-    borderWidth: 1, borderColor: Colors.border, marginBottom: 12, gap: 8,
+    borderWidth: 1, borderColor: Colors.border, marginBottom: Tokens.spacing.sm, gap: Tokens.spacing.xs,
   },
-  cardRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  cardRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Tokens.spacing.xs },
   cardRowText: { flex: 1, fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 19 },
   cardRowMuted: { color: Colors.textMuted, fontSize: Type.caption1.fontSize },
   cardLabel: { fontSize: Type.caption2.fontSize, fontWeight: '800', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.6 },
@@ -458,7 +458,7 @@ const styles = StyleSheet.create({
   drawingName: { flex: 1, fontSize: Type.footnote.fontSize, color: Colors.text, fontWeight: '600' },
 
   primaryCta: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Tokens.spacing.xs,
     paddingVertical: 14, borderRadius: Tokens.radius.card,
     backgroundColor: Colors.primary, marginTop: 10,
     shadowColor: Colors.primary, shadowOffset: { width: 0, height: 4 },
@@ -475,7 +475,7 @@ const styles = StyleSheet.create({
   ownerActions: { flexDirection: 'row', gap: 10 },
 
   dimmedCta: {
-    paddingVertical: 16, borderRadius: Tokens.radius.card, marginTop: 10,
+    paddingVertical: Tokens.spacing.md, borderRadius: Tokens.radius.card, marginTop: 10,
     backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border,
     alignItems: 'center',
   },
@@ -494,18 +494,18 @@ const styles = StyleSheet.create({
   qaCard: {
     backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 14,
     borderWidth: 1, borderColor: Colors.border,
-    marginTop: 4, marginBottom: 10, gap: 10,
+    marginTop: Tokens.spacing.xxs, marginBottom: 10, gap: 10,
   },
   qaHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   qaTitle: { flex: 1, fontSize: Type.bodyCompact.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.2 },
-  qaCount: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: Tokens.radius.full, backgroundColor: Colors.primary + '15' },
+  qaCount: { paddingHorizontal: 7, paddingVertical: Tokens.spacing.hairline, borderRadius: Tokens.radius.full, backgroundColor: Colors.primary + '15' },
   qaCountText: { fontSize: Type.caption2.fontSize, fontWeight: '800', color: Colors.primary, letterSpacing: 0.4 },
   qaHelper: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, lineHeight: 17 },
 
   qaCompose: { gap: 6 },
   qaInput: {
     backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border, borderRadius: Tokens.radius.md,
-    paddingHorizontal: 12, paddingVertical: 10,
+    paddingHorizontal: Tokens.spacing.sm, paddingVertical: 10,
     fontSize: Type.footnote.fontSize, color: Colors.text, minHeight: 70,
   },
   qaAskBtn: {
@@ -516,21 +516,21 @@ const styles = StyleSheet.create({
   },
   qaAskBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: '#FFF' },
 
-  qaEmpty: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, fontStyle: 'italic', paddingVertical: 8 },
+  qaEmpty: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, fontStyle: 'italic', paddingVertical: Tokens.spacing.xs },
   qaList: { gap: 10 },
   qaRow: {
     backgroundColor: Colors.background, borderRadius: Tokens.radius.md, padding: 11,
-    borderWidth: 1, borderColor: Colors.border, gap: 8,
+    borderWidth: 1, borderColor: Colors.border, gap: Tokens.spacing.xs,
   },
   qaQuestion: { gap: 3 },
   qaAuthor: { fontSize: 10, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.6, textTransform: 'uppercase' },
   qaText: { fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 18 },
   qaAnswer: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 6,
-    paddingTop: 8, borderTopWidth: 1, borderTopColor: Colors.border,
+    paddingTop: Tokens.spacing.xs, borderTopWidth: 1, borderTopColor: Colors.border,
   },
   qaAnswerText: { flex: 1, fontSize: Type.footnote.fontSize, color: Colors.text, fontWeight: '600', lineHeight: 18 },
   qaAnswerCta: { paddingTop: 6, alignSelf: 'flex-start' },
   qaAnswerCtaText: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: Colors.primary },
-  qaPending: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontStyle: 'italic', paddingTop: 4 },
+  qaPending: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontStyle: 'italic', paddingTop: Tokens.spacing.xxs },
 });

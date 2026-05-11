@@ -67,16 +67,16 @@ export default function WarrantyWalkBanner({ alerts }: Props) {
 
 const styles = StyleSheet.create({
   wrap: {
-    paddingHorizontal: 16,
-    paddingTop: 4,
-    paddingBottom: 8,
-    gap: 8,
+    paddingHorizontal: Tokens.spacing.md,
+    paddingTop: Tokens.spacing.xxs,
+    paddingBottom: Tokens.spacing.xs,
+    gap: Tokens.spacing.xs,
   },
   row: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     gap: 10,
-    paddingHorizontal: 12,
+    paddingHorizontal: Tokens.spacing.sm,
     paddingVertical: 10,
     borderWidth: 1,
     borderRadius: Tokens.radius.card,
@@ -90,7 +90,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.6, textTransform: 'uppercase' as const,
   },
   body: {
-    fontSize: Type.footnote.fontSize, color: Colors.text, marginTop: 2,
+    fontSize: Type.footnote.fontSize, color: Colors.text, marginTop: Tokens.spacing.hairline,
   },
   bodyStrong: { fontWeight: '700' as const },
   extra: {

@@ -114,8 +114,8 @@ const rowStyles = StyleSheet.create({
   wrapper: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
-    padding: 12,
-    gap: 12,
+    padding: Tokens.spacing.sm,
+    gap: Tokens.spacing.sm,
   },
   avatar: {
     width: 40,
@@ -130,7 +130,7 @@ const rowStyles = StyleSheet.create({
 
 const cardStyles = StyleSheet.create({
   card: {
-    marginHorizontal: 16,
+    marginHorizontal: Tokens.spacing.md,
     marginBottom: 10,
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.panel,
@@ -141,8 +141,8 @@ const cardStyles = StyleSheet.create({
   row: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
-    padding: 16,
-    gap: 12,
+    padding: Tokens.spacing.md,
+    gap: Tokens.spacing.sm,
   },
   icon: {
     width: 42,
@@ -154,12 +154,12 @@ const cardStyles = StyleSheet.create({
   lineLong: { height: 14, backgroundColor: Colors.fillTertiary, borderRadius: 7, width: '70%' as const },
   lineShort: { height: 10, backgroundColor: Colors.fillTertiary, borderRadius: 5, width: '40%' as const },
   pill: { width: 80, height: 22, borderRadius: 11, backgroundColor: Colors.fillTertiary },
-  divider: { height: 0.5, backgroundColor: Colors.borderLight, marginHorizontal: 16 },
+  divider: { height: 0.5, backgroundColor: Colors.borderLight, marginHorizontal: Tokens.spacing.md },
   metaRow: {
     flexDirection: 'row' as const,
-    paddingHorizontal: 16,
+    paddingHorizontal: Tokens.spacing.md,
     paddingVertical: 14,
-    gap: 12,
+    gap: Tokens.spacing.sm,
   },
   metaBlock: {
     flex: 1,

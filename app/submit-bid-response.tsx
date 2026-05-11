@@ -147,7 +147,7 @@ export default function SubmitBidResponseScreen() {
       </View>
 
       <ScrollView
-        contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 100 }}
+        contentContainerStyle={{ padding: Tokens.spacing.md, paddingBottom: insets.bottom + 100 }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
@@ -272,19 +272,19 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   header: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 10,
-    paddingHorizontal: 16, paddingTop: 14, paddingBottom: 16,
+    paddingHorizontal: Tokens.spacing.md, paddingTop: 14, paddingBottom: Tokens.spacing.md,
     borderBottomWidth: 1, borderBottomColor: Colors.border,
   },
   eyebrow: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.primary, letterSpacing: 1.4, textTransform: 'uppercase' },
-  title:   { fontSize: Type.title3.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.4, marginTop: 4 },
+  title:   { fontSize: Type.title3.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.4, marginTop: Tokens.spacing.xxs },
 
   card: {
     backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 14,
-    borderWidth: 1, borderColor: Colors.border, marginBottom: 12,
+    borderWidth: 1, borderColor: Colors.border, marginBottom: Tokens.spacing.sm,
   },
   cardLabel: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 6 },
   helper: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginBottom: 10, lineHeight: 17 },
-  charCount: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, alignSelf: 'flex-end', marginTop: 4 },
+  charCount: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, alignSelf: 'flex-end', marginTop: Tokens.spacing.xxs },
 
   toggleRow: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
@@ -298,7 +298,7 @@ const styles = StyleSheet.create({
   toggleDotActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
 
   amountField: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
+    flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs,
     backgroundColor: Colors.background, borderRadius: Tokens.radius.md, borderWidth: 1, borderColor: Colors.border,
     paddingHorizontal: 14, paddingVertical: 10,
   },
@@ -306,25 +306,25 @@ const styles = StyleSheet.create({
 
   input: {
     backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border, borderRadius: Tokens.radius.md,
-    paddingHorizontal: 12, paddingVertical: 11, fontSize: Type.bodyCompact.fontSize, color: Colors.text,
+    paddingHorizontal: Tokens.spacing.sm, paddingVertical: 11, fontSize: Type.bodyCompact.fontSize, color: Colors.text,
   },
   inputMultiline: { minHeight: 120, paddingTop: 11 },
 
-  identityRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  identityRow: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs },
   identityText: { flex: 1, fontSize: Type.footnote.fontSize, color: Colors.text, fontWeight: '600' },
-  identityHelper: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 8, fontStyle: 'italic', lineHeight: 16 },
+  identityHelper: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: Tokens.spacing.xs, fontStyle: 'italic', lineHeight: 16 },
 
   errorCard: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 10,
     padding: 14, borderRadius: Tokens.radius.card,
     backgroundColor: Colors.error + '0D',
     borderWidth: 1, borderColor: Colors.error + '30',
-    marginBottom: 12,
+    marginBottom: Tokens.spacing.sm,
   },
   errorText: { flex: 1, fontSize: Type.footnote.fontSize, color: Colors.error, lineHeight: 18 },
 
   submitBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Tokens.spacing.xs,
     paddingVertical: 14, borderRadius: Tokens.radius.card,
     backgroundColor: Colors.primary,
     shadowColor: Colors.primary, shadowOffset: { width: 0, height: 4 },
@@ -333,5 +333,5 @@ const styles = StyleSheet.create({
   submitBtnDisabled: { opacity: 0.6 },
   submitBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '800', color: '#FFF', letterSpacing: 0.2 },
 
-  disclaimer: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, textAlign: 'center', marginTop: 14, fontStyle: 'italic', paddingHorizontal: 16, lineHeight: 16 },
+  disclaimer: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, textAlign: 'center', marginTop: 14, fontStyle: 'italic', paddingHorizontal: Tokens.spacing.md, lineHeight: 16 },
 });

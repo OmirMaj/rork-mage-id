@@ -273,7 +273,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   header: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
-    paddingHorizontal: 12, paddingVertical: 10,
+    paddingHorizontal: Tokens.spacing.sm, paddingVertical: 10,
     borderBottomWidth: 1, borderBottomColor: Colors.border,
     backgroundColor: Colors.card,
   },
@@ -283,8 +283,8 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   headerTitle: { fontSize: Type.subhead.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.2 },
-  headerSubtitle: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 2 },
-  zoomGroup: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  headerSubtitle: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: Tokens.spacing.hairline },
+  zoomGroup: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xxs },
   zoomText: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.textMuted, minWidth: 38, textAlign: 'center' },
 
   body: { flex: 1, flexDirection: 'column' },
@@ -293,7 +293,7 @@ const styles = StyleSheet.create({
   imageWrap: { flex: 1, backgroundColor: '#1a1a1a', position: 'relative' },
   imageWrapWide: { flex: 1 },
   imageScrollContent: { alignItems: 'center', justifyContent: 'center', flexGrow: 1 },
-  imageLoading: { alignItems: 'center', justifyContent: 'center', padding: 40, gap: 12 },
+  imageLoading: { alignItems: 'center', justifyContent: 'center', padding: Tokens.spacing['3xl'], gap: Tokens.spacing.sm },
   imageLoadingText: { color: '#FFF', fontSize: Type.caption1.fontSize, opacity: 0.7 },
 
   pageNav: {
@@ -313,18 +313,18 @@ const styles = StyleSheet.create({
   pagePillText: { color: '#FFF', fontSize: Type.caption2.fontSize, fontWeight: '800', letterSpacing: 0.4, textAlign: 'center' },
 
   sidebar: {
-    height: 240, padding: 12,
+    height: 240, padding: Tokens.spacing.sm,
     borderTopWidth: 1, borderTopColor: Colors.border,
     backgroundColor: Colors.card,
   },
   sidebarWide: { width: 320, height: '100%', borderTopWidth: 0, borderLeftWidth: 1, borderLeftColor: Colors.border },
   sidebarTitle: { fontSize: Type.footnote.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.1 },
-  sidebarHelper: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 2, marginBottom: 8, lineHeight: 15 },
+  sidebarHelper: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: Tokens.spacing.hairline, marginBottom: Tokens.spacing.xs, lineHeight: 15 },
   sidebarScroll: { flex: 1 },
-  sidebarEmpty: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, fontStyle: 'italic', paddingVertical: 12, textAlign: 'center' },
+  sidebarEmpty: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, fontStyle: 'italic', paddingVertical: Tokens.spacing.sm, textAlign: 'center' },
   sidebarRow: {
     flexDirection: 'row', gap: 10, alignItems: 'flex-start',
-    paddingVertical: 8, paddingHorizontal: 4,
+    paddingVertical: Tokens.spacing.xs, paddingHorizontal: Tokens.spacing.xxs,
     borderTopWidth: 1, borderTopColor: Colors.border,
   },
   sidebarRowIcon: {
@@ -333,8 +333,8 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   sidebarRowTitle: { fontSize: Type.caption1.fontSize, fontWeight: '600', color: Colors.text, lineHeight: 16 },
-  sidebarRowMeta: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
+  sidebarRowMeta: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: Tokens.spacing.xxs },
   sidebarRowQty: { fontSize: Type.caption1.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.1 },
-  sidebarRowPill: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: Tokens.radius.full },
+  sidebarRowPill: { paddingHorizontal: 6, paddingVertical: Tokens.spacing.hairline, borderRadius: Tokens.radius.full },
   sidebarRowPillText: { fontSize: 9, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5 },
 });

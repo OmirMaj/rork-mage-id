@@ -234,7 +234,7 @@ export default function PermitQAScreen() {
       >
         <ScrollView
           ref={scrollRef}
-          contentContainerStyle={{ paddingTop: 12, paddingBottom: 16 }}
+          contentContainerStyle={{ paddingTop: Tokens.spacing.sm, paddingBottom: Tokens.spacing.md }}
           keyboardShouldPersistTaps="handled"
         >
           {/* Metro picker */}
@@ -330,7 +330,7 @@ export default function PermitQAScreen() {
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.messageRole}>PERMIT § AGENT</Text>
-                <View style={{ flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, marginTop: 4 }}>
+                <View style={{ flexDirection: 'row' as const, alignItems: 'center' as const, gap: Tokens.spacing.xs, marginTop: Tokens.spacing.xxs }}>
                   <ActivityIndicator size="small" color={Colors.accent} />
                   <Text style={styles.messageContent}>Looking up code…</Text>
                 </View>
@@ -371,14 +371,14 @@ const styles = StyleSheet.create({
   metroBar: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
-    gap: 8,
+    gap: Tokens.spacing.xs,
     paddingHorizontal: 14,
     paddingVertical: 11,
     backgroundColor: Colors.ink,
-    marginHorizontal: 16,
+    marginHorizontal: Tokens.spacing.md,
     borderRadius: Tokens.radius.md,
-    marginBottom: 12,
-    marginTop: 4,
+    marginBottom: Tokens.spacing.sm,
+    marginTop: Tokens.spacing.xxs,
   },
   metroBarText: {
     flex: 1,
@@ -396,8 +396,8 @@ const styles = StyleSheet.create({
     borderRadius: Tokens.radius.md,
     borderWidth: 1,
     borderColor: Colors.borderLight,
-    marginHorizontal: 16,
-    marginBottom: 12,
+    marginHorizontal: Tokens.spacing.md,
+    marginBottom: Tokens.spacing.sm,
     overflow: 'hidden' as const,
   },
   pickerItem: {
@@ -405,7 +405,7 @@ const styles = StyleSheet.create({
     alignItems: 'center' as const,
     justifyContent: 'space-between' as const,
     paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingVertical: Tokens.spacing.sm,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: Colors.borderLight,
   },
@@ -416,8 +416,8 @@ const styles = StyleSheet.create({
   // landing aesthetic so Permit Q&A reads as "the same product" the
   // user saw before signing up.
   emptyHero: {
-    marginHorizontal: 16,
-    paddingHorizontal: 20,
+    marginHorizontal: Tokens.spacing.md,
+    paddingHorizontal: Tokens.spacing.lg,
     paddingTop: 22,
     paddingBottom: 18,
     backgroundColor: Colors.cream,
@@ -429,7 +429,7 @@ const styles = StyleSheet.create({
     ...Type.monoSm,
     color: Colors.concrete,
     fontWeight: '600' as const,
-    marginBottom: 12,
+    marginBottom: Tokens.spacing.sm,
   },
   emptyTitle: {
     ...Type.displaySm,
@@ -446,7 +446,7 @@ const styles = StyleSheet.create({
     marginBottom: 18,
     lineHeight: 21,
   },
-  starterList: { gap: 8 },
+  starterList: { gap: Tokens.spacing.xs },
   starterChip: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
@@ -454,7 +454,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.off,
     borderWidth: 1,
     borderColor: Colors.bone,
-    paddingHorizontal: 12,
+    paddingHorizontal: Tokens.spacing.sm,
     paddingVertical: 11,
     borderRadius: Tokens.radius.md,
   },
@@ -476,7 +476,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.warning + '10',
     borderRadius: Tokens.radius.sm,
     padding: 10,
-    marginTop: 16,
+    marginTop: Tokens.spacing.md,
   },
   disclaimerText: {
     flex: 1,
@@ -488,7 +488,7 @@ const styles = StyleSheet.create({
   message: {
     flexDirection: 'row' as const,
     gap: 10,
-    paddingHorizontal: 16,
+    paddingHorizontal: Tokens.spacing.md,
     paddingVertical: 10,
   },
   messageUser: {},
@@ -499,7 +499,7 @@ const styles = StyleSheet.create({
     borderRadius: Tokens.radius.full,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
-    marginTop: 2,
+    marginTop: Tokens.spacing.hairline,
   },
   messageIconUser: { backgroundColor: Colors.ink },
   messageIconAgent: { backgroundColor: Colors.accent },
@@ -512,14 +512,14 @@ const styles = StyleSheet.create({
   messageContent: {
     fontSize: Type.body.fontSize,
     color: Colors.ink,
-    marginTop: 4,
+    marginTop: Tokens.spacing.xxs,
     lineHeight: 22,
   },
 
   composer: {
     flexDirection: 'row' as const,
     alignItems: 'flex-end' as const,
-    gap: 8,
+    gap: Tokens.spacing.xs,
     paddingHorizontal: 14,
     paddingTop: 10,
     borderTopWidth: 1,
@@ -532,7 +532,7 @@ const styles = StyleSheet.create({
     maxHeight: 120,
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.md,
-    paddingHorizontal: 12,
+    paddingHorizontal: Tokens.spacing.sm,
     paddingVertical: 10,
     fontSize: Type.body.fontSize,
     color: Colors.text,

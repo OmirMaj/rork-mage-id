@@ -214,14 +214,14 @@ const CostBreakdownReport = React.memo(function CostBreakdownReport({
 export default CostBreakdownReport;
 
 const s = StyleSheet.create({
-  container: { gap: 12 },
+  container: { gap: Tokens.spacing.sm },
   sectionTitle: {
     fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.text,
-    paddingHorizontal: 16, paddingTop: 8,
+    paddingHorizontal: Tokens.spacing.md, paddingTop: Tokens.spacing.xs,
   },
   barContainer: {
-    marginHorizontal: 16, backgroundColor: Colors.surface, borderRadius: Tokens.radius.card, padding: 12,
-    borderWidth: 1, borderColor: Colors.cardBorder, gap: 8,
+    marginHorizontal: Tokens.spacing.md, backgroundColor: Colors.surface, borderRadius: Tokens.radius.card, padding: Tokens.spacing.sm,
+    borderWidth: 1, borderColor: Colors.cardBorder, gap: Tokens.spacing.xs,
   },
   barTrack: {
     flexDirection: 'row', height: 12, borderRadius: Tokens.radius.xs, overflow: 'hidden' as const,
@@ -229,35 +229,35 @@ const s = StyleSheet.create({
   },
   barSegment: { height: '100%' },
   legendRow: { flexDirection: 'row', flexWrap: 'wrap' as const, gap: 10 },
-  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xxs },
   legendDot: { width: 8, height: 8, borderRadius: 4 },
   legendText: { fontSize: 10, fontWeight: '600' as const, color: Colors.textSecondary },
   divisionTable: {
-    marginHorizontal: 16, backgroundColor: Colors.surface, borderRadius: Tokens.radius.card,
+    marginHorizontal: Tokens.spacing.md, backgroundColor: Colors.surface, borderRadius: Tokens.radius.card,
     borderWidth: 1, borderColor: Colors.cardBorder, overflow: 'hidden' as const,
   },
   tableHeader: {
-    flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 8,
-    backgroundColor: Colors.fillSecondary, gap: 4,
+    flexDirection: 'row', paddingHorizontal: Tokens.spacing.sm, paddingVertical: Tokens.spacing.xs,
+    backgroundColor: Colors.fillSecondary, gap: Tokens.spacing.xxs,
   },
   tableHeaderCell: {
     flex: 1, fontSize: 10, fontWeight: '700' as const, color: Colors.textMuted,
     textTransform: 'uppercase' as const, letterSpacing: 0.3,
   },
   tableRow: {
-    flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 8,
-    borderTopWidth: 0.5, borderTopColor: Colors.borderLight, alignItems: 'center', gap: 4,
+    flexDirection: 'row', paddingHorizontal: Tokens.spacing.sm, paddingVertical: Tokens.spacing.xs,
+    borderTopWidth: 0.5, borderTopColor: Colors.borderLight, alignItems: 'center', gap: Tokens.spacing.xxs,
   },
   tableCell: { flex: 1 },
   tableDot: { width: 6, height: 6, borderRadius: 3 },
   tableCellText: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary },
   tableCellBold: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: Colors.text },
   metricsGrid: {
-    flexDirection: 'row', flexWrap: 'wrap' as const, paddingHorizontal: 16, gap: 8,
+    flexDirection: 'row', flexWrap: 'wrap' as const, paddingHorizontal: Tokens.spacing.md, gap: Tokens.spacing.xs,
   },
   metricCard: {
     flex: 1, minWidth: 70, backgroundColor: Colors.surface, borderRadius: Tokens.radius.md, padding: 10,
-    alignItems: 'center', gap: 4, borderWidth: 1, borderColor: Colors.cardBorder,
+    alignItems: 'center', gap: Tokens.spacing.xxs, borderWidth: 1, borderColor: Colors.cardBorder,
   },
   metricLabel: { fontSize: 10, fontWeight: '600' as const, color: Colors.textMuted },
   metricValue: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800' as const, color: Colors.text },

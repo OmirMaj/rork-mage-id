@@ -204,15 +204,15 @@ export default PipelineHeroChart;
 
 const styles = StyleSheet.create({
   card: {
-    marginHorizontal: 20,
-    marginBottom: 24,
+    marginHorizontal: Tokens.spacing.lg,
+    marginBottom: Tokens.spacing.xl,
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.panel,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
     paddingVertical: 18,
-    paddingHorizontal: 20,
-    gap: 12,
+    paddingHorizontal: Tokens.spacing.lg,
+    gap: Tokens.spacing.sm,
   },
   headerRow: {
     flexDirection: 'row',
@@ -222,7 +222,7 @@ const styles = StyleSheet.create({
   headerLeft: {
     flex: 1,
     minWidth: 0,
-    gap: 4,
+    gap: Tokens.spacing.xxs,
   },
   eyebrow: {
     fontSize: Type.caption1.fontSize,
@@ -244,8 +244,8 @@ const styles = StyleSheet.create({
   deltaPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
+    gap: Tokens.spacing.xxs,
+    paddingHorizontal: Tokens.spacing.xs,
     paddingVertical: 3,
     borderRadius: 10,
   },
@@ -258,16 +258,16 @@ const styles = StyleSheet.create({
     fontSize: Type.caption1.fontSize,
     color: Colors.textSecondary,
     fontWeight: '500' as const,
-    marginTop: 2,
+    marginTop: Tokens.spacing.hairline,
   },
   chartWrap: {
-    marginTop: 4,
+    marginTop: Tokens.spacing.xxs,
   },
   xAxis: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingHorizontal: 4,
-    marginTop: 4,
+    paddingHorizontal: Tokens.spacing.xxs,
+    marginTop: Tokens.spacing.xxs,
   },
   xLabel: {
     fontSize: 10,

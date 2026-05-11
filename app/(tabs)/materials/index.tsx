@@ -214,7 +214,7 @@ export default function MaterialsScreen() {
             <Text style={styles.liveLabel}>LIVE PRICING</Text>
           </View>
         </View>
-        <View style={{ flexDirection: 'row', gap: 8 }}>
+        <View style={{ flexDirection: 'row', gap: Tokens.spacing.xs }}>
           {priceAlerts.length > 0 && (
             <TouchableOpacity
               style={[styles.refreshBtn, showAlerts && { backgroundColor: Colors.accent + '20' }]}
@@ -280,7 +280,7 @@ export default function MaterialsScreen() {
               </TouchableOpacity>
             ))}
           </ScrollView>
-          <Text style={[styles.pickerLabel, { marginTop: 8 }]}>METRO AREA</Text>
+          <Text style={[styles.pickerLabel, { marginTop: Tokens.spacing.xs }]}>METRO AREA</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.pickerScroll}>
             {Object.entries(CITY_ADJUSTMENTS).map(([city, adj]) => (
               <TouchableOpacity
@@ -452,40 +452,40 @@ export default function MaterialsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   listContainer: {},
-  headerArea: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginBottom: 4 },
+  headerArea: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: Tokens.spacing.lg, marginBottom: Tokens.spacing.xxs },
   largeTitle: { fontSize: Type.largeTitle.fontSize, fontWeight: '700' as const, color: Colors.text, letterSpacing: -0.5 },
-  liveRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 },
+  liveRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: Tokens.spacing.hairline },
   liveDot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: Colors.success },
   liveLabel: { fontSize: 10, fontWeight: '700' as const, color: Colors.success, letterSpacing: 0.8 },
-  refreshBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: Colors.primary + '12', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20 },
+  refreshBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: Colors.primary + '12', paddingHorizontal: Tokens.spacing.sm, paddingVertical: 7, borderRadius: 20 },
   refreshBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.primary },
   alertBadge: { position: 'absolute', top: -4, right: -4, width: 16, height: 16, borderRadius: Tokens.radius.sm, backgroundColor: Colors.error, alignItems: 'center', justifyContent: 'center' },
   alertBadgeText: { fontSize: 9, fontWeight: '700' as const, color: '#fff' },
-  updatedRow: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 20, marginBottom: 12 },
+  updatedRow: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: Tokens.spacing.lg, marginBottom: Tokens.spacing.sm },
   updatedText: { flex: 1, fontSize: Type.caption2.fontSize, color: Colors.textMuted },
-  searchWrap: { paddingHorizontal: 16, marginBottom: 12 },
-  searchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.fillTertiary, borderRadius: Tokens.radius.card, paddingHorizontal: 12, gap: 8, height: 40 },
+  searchWrap: { paddingHorizontal: Tokens.spacing.md, marginBottom: Tokens.spacing.sm },
+  searchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.fillTertiary, borderRadius: Tokens.radius.card, paddingHorizontal: Tokens.spacing.sm, gap: Tokens.spacing.xs, height: 40 },
   searchInput: { flex: 1, fontSize: Type.subhead.fontSize, color: Colors.text },
   clearBtn: { width: 18, height: 18, borderRadius: 9, backgroundColor: Colors.textMuted, alignItems: 'center', justifyContent: 'center' },
-  alertsSection: { marginHorizontal: 16, marginBottom: 16, gap: 8 },
-  alertsSectionTitle: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: Colors.textSecondary, letterSpacing: 0.5, marginBottom: 4 },
-  alertCard: { backgroundColor: Colors.surface, borderRadius: Tokens.radius.card, padding: 14, borderWidth: 1, borderColor: Colors.cardBorder, gap: 8 },
+  alertsSection: { marginHorizontal: Tokens.spacing.md, marginBottom: Tokens.spacing.md, gap: Tokens.spacing.xs },
+  alertsSectionTitle: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: Colors.textSecondary, letterSpacing: 0.5, marginBottom: Tokens.spacing.xxs },
+  alertCard: { backgroundColor: Colors.surface, borderRadius: Tokens.radius.card, padding: 14, borderWidth: 1, borderColor: Colors.cardBorder, gap: Tokens.spacing.xs },
   alertCardTop: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   alertMatName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
-  alertDetail: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, marginTop: 2 },
-  alertStatusBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.xs },
+  alertDetail: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, marginTop: Tokens.spacing.hairline },
+  alertStatusBadge: { paddingHorizontal: Tokens.spacing.xs, paddingVertical: 3, borderRadius: Tokens.radius.xs },
   alertStatusText: { fontSize: 10, fontWeight: '700' as const },
   alertProgressTrack: { height: 4, backgroundColor: Colors.fillTertiary, borderRadius: 2, overflow: 'hidden' as const },
   alertProgressFill: { height: 4, borderRadius: 2 },
-  alertActions: { flexDirection: 'row', gap: 12 },
-  alertActionBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  alertActions: { flexDirection: 'row', gap: Tokens.spacing.sm },
+  alertActionBtn: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xxs },
   alertActionText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const },
-  savingsBanner: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, backgroundColor: Colors.success + '12', borderRadius: Tokens.radius.md, paddingHorizontal: 12, paddingVertical: 10, gap: 8, marginBottom: 20 },
+  savingsBanner: { flexDirection: 'row', alignItems: 'center', marginHorizontal: Tokens.spacing.md, backgroundColor: Colors.success + '12', borderRadius: Tokens.radius.md, paddingHorizontal: Tokens.spacing.sm, paddingVertical: 10, gap: Tokens.spacing.xs, marginBottom: Tokens.spacing.lg },
   savingsText: { flex: 1, fontSize: Type.footnote.fontSize, color: Colors.success, fontWeight: '500' as const, lineHeight: 17 },
-  sectionHeader: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: Colors.textSecondary, letterSpacing: 0.5, paddingHorizontal: 20, marginBottom: 8 },
+  sectionHeader: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: Colors.textSecondary, letterSpacing: 0.5, paddingHorizontal: Tokens.spacing.lg, marginBottom: Tokens.spacing.xs },
   categoryCard: {
-    marginHorizontal: 16,
-    marginBottom: 8,
+    marginHorizontal: Tokens.spacing.md,
+    marginBottom: Tokens.spacing.xs,
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.lg,
     borderWidth: 1,
@@ -496,11 +496,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     padding: 14,
-    gap: 12,
+    gap: Tokens.spacing.sm,
   },
   categoryEmoji: { width: 44, height: 44, borderRadius: Tokens.radius.card, alignItems: 'center', justifyContent: 'center' },
   emojiText: { fontSize: Type.title3.fontSize },
-  categoryInfo: { flex: 1, gap: 2 },
+  categoryInfo: { flex: 1, gap: Tokens.spacing.hairline },
   categoryTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   categoryName: { fontSize: Type.callout.fontSize, fontWeight: '600' as const, color: Colors.text },
   categoryAlertDot: {
@@ -512,28 +512,28 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   categoryCount: { fontSize: Type.caption1.fontSize, color: Colors.textMuted },
-  categoryStats: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 },
+  categoryStats: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs, marginTop: Tokens.spacing.hairline },
   priceRangeText: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, fontWeight: '500' as const },
   discountChip: {
     backgroundColor: Colors.success + '15',
     paddingHorizontal: 6,
-    paddingVertical: 2,
+    paddingVertical: Tokens.spacing.hairline,
     borderRadius: 4,
   },
   discountChipText: { fontSize: 10, fontWeight: '700' as const, color: Colors.success },
-  emptyState: { alignItems: 'center', paddingVertical: 60, gap: 8 },
+  emptyState: { alignItems: 'center', paddingVertical: 60, gap: Tokens.spacing.xs },
   emptyTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '600' as const, color: Colors.text },
   emptyDesc: { fontSize: Type.bodyCompact.fontSize, color: Colors.textMuted },
-  sourceNote: { marginHorizontal: 16, marginTop: 16, padding: 12, backgroundColor: Colors.fillTertiary, borderRadius: Tokens.radius.md },
+  sourceNote: { marginHorizontal: Tokens.spacing.md, marginTop: Tokens.spacing.md, padding: Tokens.spacing.sm, backgroundColor: Colors.fillTertiary, borderRadius: Tokens.radius.md },
   sourceText: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, lineHeight: 16 },
-  locationBanner: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginBottom: 8, backgroundColor: Colors.primary + '08', borderRadius: Tokens.radius.md, paddingHorizontal: 12, paddingVertical: 10, gap: 6, borderWidth: 1, borderColor: Colors.primary + '20' },
+  locationBanner: { flexDirection: 'row', alignItems: 'center', marginHorizontal: Tokens.spacing.md, marginBottom: Tokens.spacing.xs, backgroundColor: Colors.primary + '08', borderRadius: Tokens.radius.md, paddingHorizontal: Tokens.spacing.sm, paddingVertical: 10, gap: 6, borderWidth: 1, borderColor: Colors.primary + '20' },
   locationText: { flex: 1, fontSize: Type.footnote.fontSize, color: Colors.text },
   locationBold: { fontWeight: '700' as const, color: Colors.primary },
-  locationMultiplier: { backgroundColor: Colors.primary + '18', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
+  locationMultiplier: { backgroundColor: Colors.primary + '18', paddingHorizontal: 6, paddingVertical: Tokens.spacing.hairline, borderRadius: 4 },
   multiplierText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: Colors.primary },
-  locationPicker: { marginHorizontal: 16, marginBottom: 12, backgroundColor: Colors.surface, borderRadius: Tokens.radius.card, padding: 12, borderWidth: 1, borderColor: Colors.cardBorder },
+  locationPicker: { marginHorizontal: Tokens.spacing.md, marginBottom: Tokens.spacing.sm, backgroundColor: Colors.surface, borderRadius: Tokens.radius.card, padding: Tokens.spacing.sm, borderWidth: 1, borderColor: Colors.cardBorder },
   pickerLabel: { fontSize: 10, fontWeight: '700' as const, color: Colors.textMuted, letterSpacing: 0.5, marginBottom: 6 },
-  pickerScroll: { flexDirection: 'row', marginBottom: 4 },
+  pickerScroll: { flexDirection: 'row', marginBottom: Tokens.spacing.xxs },
   pickerChip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: Tokens.radius.sm, backgroundColor: Colors.background, marginRight: 6, alignItems: 'center' },
   pickerChipActive: { backgroundColor: Colors.primary },
   pickerChipText: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, fontWeight: '500' as const },

@@ -288,7 +288,7 @@ function ListView(props: {
         Snapshot the plan as a named version. Compare any two baselines, or compare a baseline against today&apos;s plan to see variance.
       </Text>
 
-      <ScrollView style={{ maxHeight: 380 }} contentContainerStyle={{ gap: 8, paddingBottom: 8 }} showsVerticalScrollIndicator={false}>
+      <ScrollView style={{ maxHeight: 380 }} contentContainerStyle={{ gap: Tokens.spacing.xs, paddingBottom: Tokens.spacing.xs }} showsVerticalScrollIndicator={false}>
         {baselines.length === 0 ? (
           <View style={styles.emptyBox}>
             <Bookmark size={20} color={Colors.textMuted} />
@@ -514,7 +514,7 @@ function CompareResult(props: {
           <Text style={styles.emptyText}>Plans match exactly. No variance.</Text>
         </View>
       ) : (
-        <ScrollView style={{ maxHeight: 380 }} contentContainerStyle={{ gap: 4 }} showsVerticalScrollIndicator={false}>
+        <ScrollView style={{ maxHeight: 380 }} contentContainerStyle={{ gap: Tokens.spacing.xxs }} showsVerticalScrollIndicator={false}>
           {diff.map(d => {
             const sign = d.endDelta > 0 ? '+' : '';
             const color = d.endDelta > 0 ? Colors.error : d.endDelta < 0 ? Colors.success : Colors.textMuted;
@@ -550,13 +550,13 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     padding: 22,
-    gap: 12,
+    gap: Tokens.spacing.sm,
   },
   header: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
-    gap: 8,
-    paddingBottom: 8,
+    gap: Tokens.spacing.xs,
+    paddingBottom: Tokens.spacing.xs,
     borderBottomWidth: 1,
     borderBottomColor: Colors.borderLight,
   },
@@ -575,21 +575,21 @@ const styles = StyleSheet.create({
 
   emptyBox: {
     alignItems: 'center' as const,
-    gap: 8,
+    gap: Tokens.spacing.xs,
     paddingVertical: 28,
   },
   emptyText: {
     fontSize: Type.footnote.fontSize,
     color: Colors.textMuted,
     textAlign: 'center' as const,
-    paddingHorizontal: 24,
+    paddingHorizontal: Tokens.spacing.xl,
   },
 
   baselineRow: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     gap: 10,
-    padding: 12,
+    padding: Tokens.spacing.sm,
     backgroundColor: Colors.surfaceAlt,
     borderRadius: Tokens.radius.card,
     borderWidth: 1,
@@ -614,7 +614,7 @@ const styles = StyleSheet.create({
     alignItems: 'center' as const,
     gap: 3,
     paddingHorizontal: 6,
-    paddingVertical: 2,
+    paddingVertical: Tokens.spacing.hairline,
     borderRadius: 999,
     backgroundColor: Colors.primary + '18',
   },
@@ -627,18 +627,18 @@ const styles = StyleSheet.create({
   baselineMeta: {
     fontSize: Type.caption2.fontSize,
     color: Colors.textMuted,
-    marginTop: 2,
+    marginTop: Tokens.spacing.hairline,
   },
   baselineNote: {
     fontSize: Type.caption1.fontSize,
     color: Colors.textSecondary,
-    marginTop: 4,
+    marginTop: Tokens.spacing.xxs,
     fontStyle: 'italic' as const,
   },
   baselineActions: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
-    gap: 4,
+    gap: Tokens.spacing.xxs,
   },
   iconBtn: {
     width: 28, height: 28, borderRadius: 14,
@@ -652,12 +652,12 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
     letterSpacing: 0.7,
     textTransform: 'uppercase' as const,
-    marginTop: 4,
+    marginTop: Tokens.spacing.xxs,
   },
   input: {
     backgroundColor: Colors.surfaceAlt,
     borderRadius: Tokens.radius.card,
-    paddingHorizontal: 12,
+    paddingHorizontal: Tokens.spacing.sm,
     paddingVertical: 10,
     fontSize: Type.bodyCompact.fontSize,
     color: Colors.text,
@@ -665,11 +665,11 @@ const styles = StyleSheet.create({
 
   compareSlotsRow: {
     flexDirection: 'row' as const,
-    gap: 8,
+    gap: Tokens.spacing.xs,
   },
   compareSlot: {
     flex: 1,
-    padding: 12,
+    padding: Tokens.spacing.sm,
     backgroundColor: Colors.surfaceAlt,
     borderRadius: Tokens.radius.card,
     borderWidth: 1,
@@ -686,7 +686,7 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase' as const,
   },
   compareSlotValue: {
-    marginTop: 4,
+    marginTop: Tokens.spacing.xxs,
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
@@ -697,7 +697,7 @@ const styles = StyleSheet.create({
     alignItems: 'center' as const,
     justifyContent: 'space-between' as const,
     paddingVertical: 10,
-    paddingHorizontal: 12,
+    paddingHorizontal: Tokens.spacing.sm,
     borderRadius: Tokens.radius.card,
     backgroundColor: Colors.surfaceAlt,
     borderWidth: 1,
@@ -720,11 +720,11 @@ const styles = StyleSheet.create({
   diffRow: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
+    paddingVertical: Tokens.spacing.xs,
+    paddingHorizontal: Tokens.spacing.sm,
     borderRadius: Tokens.radius.sm,
     backgroundColor: Colors.surfaceAlt,
-    gap: 12,
+    gap: Tokens.spacing.sm,
   },
   diffName: {
     flex: 1,
@@ -739,7 +739,7 @@ const styles = StyleSheet.create({
 
   footerRow: {
     flexDirection: 'row' as const,
-    gap: 8,
+    gap: Tokens.spacing.xs,
     paddingTop: 6,
   },
   footerBtn: {

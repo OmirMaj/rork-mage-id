@@ -128,7 +128,7 @@ export default function EquipmentScreen() {
         ))}
       </View>
 
-      <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 100, paddingHorizontal: 16 }} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 100, paddingHorizontal: Tokens.spacing.md }} showsVerticalScrollIndicator={false}>
         {filteredEquipment.length === 0 ? (
           <View style={styles.emptyState}>
             <Truck size={48} color={Colors.textMuted} />
@@ -294,15 +294,15 @@ const styles = StyleSheet.create({
     fontWeight: '700' as const,
     color: Colors.text,
     letterSpacing: -0.5,
-    paddingHorizontal: 20,
-    paddingTop: 4,
-    marginBottom: 16,
+    paddingHorizontal: Tokens.spacing.lg,
+    paddingTop: Tokens.spacing.xxs,
+    marginBottom: Tokens.spacing.md,
   },
   statsRow: {
     flexDirection: 'row',
     gap: 10,
-    paddingHorizontal: 16,
-    marginBottom: 16,
+    paddingHorizontal: Tokens.spacing.md,
+    marginBottom: Tokens.spacing.md,
   },
   statCard: {
     flex: 1,
@@ -310,7 +310,7 @@ const styles = StyleSheet.create({
     borderRadius: Tokens.radius.lg,
     padding: 14,
     alignItems: 'center',
-    gap: 4,
+    gap: Tokens.spacing.xxs,
   },
   statValue: {
     fontSize: 24,
@@ -324,13 +324,13 @@ const styles = StyleSheet.create({
   },
   filterRow: {
     flexDirection: 'row',
-    gap: 8,
-    paddingHorizontal: 16,
-    marginBottom: 16,
+    gap: Tokens.spacing.xs,
+    paddingHorizontal: Tokens.spacing.md,
+    marginBottom: Tokens.spacing.md,
   },
   filterChip: {
     paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingVertical: Tokens.spacing.xs,
     borderRadius: Tokens.radius.md,
     backgroundColor: Colors.fillTertiary,
   },
@@ -349,7 +349,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingTop: 60,
-    paddingHorizontal: 32,
+    paddingHorizontal: Tokens.spacing['2xl'],
     gap: 10,
   },
   emptyTitle: {
@@ -365,7 +365,7 @@ const styles = StyleSheet.create({
     maxWidth: 320,
   },
   emptyCtaBtn: {
-    marginTop: 12,
+    marginTop: Tokens.spacing.sm,
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     gap: 6,
@@ -382,14 +382,14 @@ const styles = StyleSheet.create({
   equipCard: {
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.panel,
-    padding: 16,
+    padding: Tokens.spacing.md,
     marginBottom: 10,
     gap: 10,
   },
   equipCardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: Tokens.spacing.sm,
   },
   equipIconWrap: {
     width: 40,
@@ -401,7 +401,7 @@ const styles = StyleSheet.create({
   },
   equipCardInfo: {
     flex: 1,
-    gap: 2,
+    gap: Tokens.spacing.hairline,
   },
   equipName: {
     fontSize: Type.callout.fontSize,
@@ -414,7 +414,7 @@ const styles = StyleSheet.create({
   },
   statusBadge: {
     paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingVertical: Tokens.spacing.xxs,
     borderRadius: Tokens.radius.sm,
   },
   statusBadgeText: {
@@ -440,8 +440,8 @@ const styles = StyleSheet.create({
   overdueBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
+    gap: Tokens.spacing.xxs,
+    paddingHorizontal: Tokens.spacing.xs,
     paddingVertical: 3,
     borderRadius: Tokens.radius.xs,
     backgroundColor: Colors.errorLight,
@@ -475,14 +475,14 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    padding: 24,
+    padding: Tokens.spacing.xl,
     maxHeight: '85%',
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: Tokens.spacing.md,
   },
   modalTitle: {
     fontSize: Type.title3.fontSize,
@@ -500,7 +500,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surfaceAlt,
     borderRadius: Tokens.radius.card,
     paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingVertical: Tokens.spacing.sm,
     fontSize: Type.subhead.fontSize,
     color: Colors.text,
   },
@@ -534,7 +534,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surfaceAlt,
     borderRadius: Tokens.radius.card,
     paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingVertical: Tokens.spacing.sm,
   },
   pickerBtnText: {
     fontSize: Type.subhead.fontSize,
@@ -544,11 +544,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 6,
-    marginTop: 8,
+    marginTop: Tokens.spacing.xs,
   },
   catChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: Tokens.spacing.sm,
+    paddingVertical: Tokens.spacing.xs,
     borderRadius: Tokens.radius.sm,
     backgroundColor: Colors.fillTertiary,
   },
@@ -570,9 +570,9 @@ const styles = StyleSheet.create({
   saveBtn: {
     backgroundColor: Colors.primary,
     borderRadius: Tokens.radius.lg,
-    paddingVertical: 16,
+    paddingVertical: Tokens.spacing.md,
     alignItems: 'center',
-    marginTop: 20,
+    marginTop: Tokens.spacing.lg,
     shadowColor: Colors.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
@@ -588,8 +588,8 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 40,
-    gap: 16,
+    paddingHorizontal: Tokens.spacing['3xl'],
+    gap: Tokens.spacing.md,
   },
   lockedIconWrap: {
     width: 80,
@@ -598,7 +598,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.accent + '15',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 8,
+    marginBottom: Tokens.spacing.xs,
   },
   lockedTitle: {
     fontSize: 24,
@@ -613,10 +613,10 @@ const styles = StyleSheet.create({
   },
   upgradeBtn: {
     backgroundColor: Colors.accent,
-    paddingHorizontal: 32,
+    paddingHorizontal: Tokens.spacing['2xl'],
     paddingVertical: 14,
     borderRadius: Tokens.radius.lg,
-    marginTop: 8,
+    marginTop: Tokens.spacing.xs,
   },
   upgradeBtnText: {
     fontSize: Type.callout.fontSize,

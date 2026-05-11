@@ -134,7 +134,7 @@ export default function PermitLeadsScreen() {
         }}
       />
       <ScrollView
-        contentContainerStyle={{ paddingTop: 12, paddingBottom: insets.bottom + 30 }}
+        contentContainerStyle={{ paddingTop: Tokens.spacing.sm, paddingBottom: insets.bottom + 30 }}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
@@ -186,7 +186,7 @@ export default function PermitLeadsScreen() {
 
         {/* Empty / loading */}
         {isLoading ? (
-          <View style={{ padding: 40, alignItems: 'center' }}>
+          <View style={{ padding: Tokens.spacing['3xl'], alignItems: 'center' }}>
             <ActivityIndicator color={Colors.primary} />
           </View>
         ) : filtered.length === 0 ? (
@@ -261,9 +261,9 @@ const styles = StyleSheet.create({
   hero: {
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.lg,
-    marginHorizontal: 16,
-    marginBottom: 12,
-    padding: 16,
+    marginHorizontal: Tokens.spacing.md,
+    marginBottom: Tokens.spacing.sm,
+    padding: Tokens.spacing.md,
     borderWidth: 1,
     borderColor: Colors.borderLight,
   },
@@ -274,7 +274,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary + '15',
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
-    marginBottom: 8,
+    marginBottom: Tokens.spacing.xs,
   },
   heroTitle: {
     fontSize: Type.title2.fontSize,
@@ -285,12 +285,12 @@ const styles = StyleSheet.create({
   heroSub: {
     fontSize: Type.footnote.fontSize,
     color: Colors.textSecondary,
-    marginTop: 4,
+    marginTop: Tokens.spacing.xxs,
     lineHeight: 18,
   },
-  chipRow: { flexDirection: 'row' as const, gap: 8, paddingHorizontal: 16, marginBottom: 12 },
+  chipRow: { flexDirection: 'row' as const, gap: Tokens.spacing.xs, paddingHorizontal: Tokens.spacing.md, marginBottom: Tokens.spacing.sm },
   chip: {
-    paddingHorizontal: 12,
+    paddingHorizontal: Tokens.spacing.sm,
     paddingVertical: 7,
     borderRadius: Tokens.radius.full,
     borderWidth: 1,
@@ -303,11 +303,11 @@ const styles = StyleSheet.create({
   card: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
-    gap: 12,
+    gap: Tokens.spacing.sm,
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.lg,
-    padding: 12,
-    marginHorizontal: 16,
+    padding: Tokens.spacing.sm,
+    marginHorizontal: Tokens.spacing.md,
     marginBottom: 10,
     borderWidth: 1,
     borderColor: Colors.borderLight,
@@ -330,18 +330,18 @@ const styles = StyleSheet.create({
     fontSize: Type.subheadline.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
-    marginTop: 2,
+    marginTop: Tokens.spacing.hairline,
   },
   cardMeta: {
     flexDirection: 'row' as const,
     flexWrap: 'wrap' as const,
     gap: 6,
-    marginTop: 8,
+    marginTop: Tokens.spacing.xs,
   },
   metaPill: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
-    gap: 4,
+    gap: Tokens.spacing.xxs,
     paddingHorizontal: 7,
     paddingVertical: 3,
     borderRadius: Tokens.radius.full,
@@ -352,10 +352,10 @@ const styles = StyleSheet.create({
   metaText: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, fontWeight: '600' as const },
   footer: {
     flexDirection: 'row' as const,
-    gap: 8,
+    gap: Tokens.spacing.xs,
     alignItems: 'flex-start' as const,
     paddingHorizontal: 18,
-    paddingVertical: 16,
+    paddingVertical: Tokens.spacing.md,
     opacity: 0.7,
   },
   footerText: {

@@ -698,9 +698,9 @@ const s = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   modalHeader: {
-    paddingTop: 8,
-    paddingHorizontal: 20,
-    paddingBottom: 12,
+    paddingTop: Tokens.spacing.xs,
+    paddingHorizontal: Tokens.spacing.lg,
+    paddingBottom: Tokens.spacing.sm,
     backgroundColor: Colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: Colors.borderLight,
@@ -711,7 +711,7 @@ const s = StyleSheet.create({
     borderRadius: 2,
     backgroundColor: Colors.fillTertiary,
     alignSelf: 'center',
-    marginBottom: 12,
+    marginBottom: Tokens.spacing.sm,
   },
   modalTitleRow: {
     flexDirection: 'row',
@@ -721,7 +721,7 @@ const s = StyleSheet.create({
   modalTitleLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: Tokens.spacing.xs,
   },
   modalTitle: {
     fontSize: Type.title3.fontSize,
@@ -738,13 +738,13 @@ const s = StyleSheet.create({
   },
   scrollBody: {
     flex: 1,
-    paddingHorizontal: 20,
+    paddingHorizontal: Tokens.spacing.lg,
   },
   heroSection: {
     alignItems: 'center',
-    paddingTop: 24,
-    paddingBottom: 20,
-    gap: 8,
+    paddingTop: Tokens.spacing.xl,
+    paddingBottom: Tokens.spacing.lg,
+    gap: Tokens.spacing.xs,
   },
   heroIconWrap: {
     width: 64,
@@ -753,7 +753,7 @@ const s = StyleSheet.create({
     backgroundColor: Colors.primary + '12',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 4,
+    marginBottom: Tokens.spacing.xxs,
   },
   heroTitle: {
     fontSize: Type.title2.fontSize,
@@ -765,10 +765,10 @@ const s = StyleSheet.create({
     color: Colors.textSecondary,
     textAlign: 'center',
     lineHeight: 20,
-    paddingHorizontal: 20,
+    paddingHorizontal: Tokens.spacing.lg,
   },
   quickPromptsSection: {
-    marginBottom: 16,
+    marginBottom: Tokens.spacing.md,
   },
   sectionLabel: {
     fontSize: Type.footnote.fontSize,
@@ -780,12 +780,12 @@ const s = StyleSheet.create({
   },
   quickPromptsRow: {
     flexDirection: 'row',
-    gap: 8,
-    paddingRight: 20,
+    gap: Tokens.spacing.xs,
+    paddingRight: Tokens.spacing.lg,
   },
   quickChip: {
     paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingVertical: Tokens.spacing.xs,
     borderRadius: 20,
     backgroundColor: Colors.surface,
     borderWidth: 1,
@@ -805,7 +805,7 @@ const s = StyleSheet.create({
     fontWeight: '600' as const,
   },
   inputSection: {
-    marginBottom: 16,
+    marginBottom: Tokens.spacing.md,
   },
   descInput: {
     minHeight: 100,
@@ -820,8 +820,8 @@ const s = StyleSheet.create({
   },
   detailsRow: {
     flexDirection: 'row',
-    gap: 12,
-    marginBottom: 16,
+    gap: Tokens.spacing.sm,
+    marginBottom: Tokens.spacing.md,
   },
   detailField: {
     flex: 1,
@@ -859,12 +859,12 @@ const s = StyleSheet.create({
   },
   typeRow: {
     flexDirection: 'row',
-    gap: 8,
-    paddingRight: 20,
+    gap: Tokens.spacing.xs,
+    paddingRight: Tokens.spacing.lg,
   },
   typeChip: {
     paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingVertical: Tokens.spacing.xs,
     borderRadius: 20,
     backgroundColor: Colors.surface,
     borderWidth: 1,
@@ -885,18 +885,18 @@ const s = StyleSheet.create({
   },
   qualityRow: {
     flexDirection: 'row',
-    gap: 8,
+    gap: Tokens.spacing.xs,
   },
   qualityChip: {
     flex: 1,
     paddingVertical: 10,
-    paddingHorizontal: 8,
+    paddingHorizontal: Tokens.spacing.xs,
     borderRadius: Tokens.radius.card,
     backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: Colors.border,
     alignItems: 'center',
-    gap: 2,
+    gap: Tokens.spacing.hairline,
   },
   qualityChipActive: {
     backgroundColor: Colors.primary + '12',
@@ -921,11 +921,11 @@ const s = StyleSheet.create({
   errorBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: Tokens.spacing.xs,
     backgroundColor: Colors.errorLight,
     borderRadius: Tokens.radius.card,
     padding: 14,
-    marginBottom: 12,
+    marginBottom: Tokens.spacing.sm,
   },
   errorText: {
     flex: 1,
@@ -941,7 +941,7 @@ const s = StyleSheet.create({
     backgroundColor: Colors.primary,
     borderRadius: Tokens.radius.panel,
     paddingVertical: 18,
-    marginTop: 8,
+    marginTop: Tokens.spacing.xs,
     shadowColor: Colors.primary,
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.25,
@@ -957,8 +957,8 @@ const s = StyleSheet.create({
     color: '#FFF',
   },
   disclaimer: {
-    paddingTop: 12,
-    paddingHorizontal: 4,
+    paddingTop: Tokens.spacing.sm,
+    paddingHorizontal: Tokens.spacing.xxs,
   },
   disclaimerText: {
     fontSize: Type.caption2.fontSize,
@@ -970,8 +970,8 @@ const s = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 40,
-    gap: 16,
+    paddingHorizontal: Tokens.spacing['3xl'],
+    gap: Tokens.spacing.md,
   },
   loadingIcon: {
     width: 80,
@@ -980,7 +980,7 @@ const s = StyleSheet.create({
     backgroundColor: Colors.primary + '12',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 8,
+    marginBottom: Tokens.spacing.xs,
   },
   loadingTitle: {
     fontSize: Type.title3.fontSize,
@@ -999,7 +999,7 @@ const s = StyleSheet.create({
     backgroundColor: Colors.fillTertiary,
     borderRadius: 2,
     overflow: 'hidden',
-    marginTop: 8,
+    marginTop: Tokens.spacing.xs,
   },
   progressFill: {
     height: '100%',
@@ -1007,14 +1007,14 @@ const s = StyleSheet.create({
     borderRadius: 2,
   },
   loadingSteps: {
-    gap: 8,
-    marginTop: 16,
+    gap: Tokens.spacing.xs,
+    marginTop: Tokens.spacing.md,
     width: '100%',
   },
   loadingStepRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: Tokens.spacing.xs,
   },
   loadingStepText: {
     fontSize: Type.footnote.fontSize,
@@ -1022,21 +1022,21 @@ const s = StyleSheet.create({
   },
   resultContainer: {
     flex: 1,
-    paddingHorizontal: 20,
+    paddingHorizontal: Tokens.spacing.lg,
   },
   resultHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingTop: 16,
-    paddingBottom: 8,
+    paddingTop: Tokens.spacing.md,
+    paddingBottom: Tokens.spacing.xs,
   },
   resultBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: Tokens.spacing.xxs,
     paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingVertical: Tokens.spacing.xxs,
     borderRadius: Tokens.radius.sm,
     backgroundColor: Colors.primary + '12',
   },
@@ -1047,7 +1047,7 @@ const s = StyleSheet.create({
   },
   confidenceBadge: {
     paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingVertical: Tokens.spacing.xxs,
     borderRadius: Tokens.radius.sm,
   },
   confidenceText: {
@@ -1058,14 +1058,14 @@ const s = StyleSheet.create({
     fontSize: Type.bodyCompact.fontSize,
     color: Colors.textSecondary,
     lineHeight: 20,
-    marginBottom: 16,
+    marginBottom: Tokens.spacing.md,
   },
   summaryCard: {
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.card,
     padding: 14,
-    marginTop: 12,
-    marginBottom: 8,
+    marginTop: Tokens.spacing.sm,
+    marginBottom: Tokens.spacing.xs,
     borderWidth: 0.5,
     borderColor: Colors.borderLight,
   },
@@ -1085,8 +1085,8 @@ const s = StyleSheet.create({
   totalCard: {
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.panel,
-    padding: 16,
-    marginBottom: 16,
+    padding: Tokens.spacing.md,
+    marginBottom: Tokens.spacing.md,
     borderWidth: 1,
     borderColor: Colors.primary + '20',
   },
@@ -1108,12 +1108,12 @@ const s = StyleSheet.create({
   totalDivider: {
     height: 1,
     backgroundColor: Colors.borderLight,
-    marginVertical: 12,
+    marginVertical: Tokens.spacing.sm,
   },
   totalBreakdownGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: Tokens.spacing.xs,
   },
   totalBreakdownItem: {
     flex: 1,
@@ -1139,8 +1139,8 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
-    marginTop: 12,
+    gap: Tokens.spacing.xxs,
+    marginTop: Tokens.spacing.sm,
   },
   costPerSqftText: {
     fontSize: Type.footnote.fontSize,
@@ -1185,7 +1185,7 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 8,
+    paddingVertical: Tokens.spacing.xs,
     paddingHorizontal: 10,
     backgroundColor: Colors.background,
     borderRadius: Tokens.radius.md,
@@ -1202,7 +1202,7 @@ const s = StyleSheet.create({
   itemMeta: {
     fontSize: Type.caption2.fontSize,
     color: Colors.textMuted,
-    marginTop: 2,
+    marginTop: Tokens.spacing.hairline,
   },
   itemPrice: {
     fontSize: Type.bodyCompact.fontSize,
@@ -1220,7 +1220,7 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginBottom: 2,
+    marginBottom: Tokens.spacing.hairline,
   },
   warningsTitle: {
     fontSize: Type.bodyCompact.fontSize,
@@ -1236,14 +1236,14 @@ const s = StyleSheet.create({
     backgroundColor: Colors.successLight,
     borderRadius: Tokens.radius.lg,
     padding: 14,
-    marginBottom: 16,
+    marginBottom: Tokens.spacing.md,
     gap: 6,
   },
   tipsHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginBottom: 2,
+    marginBottom: Tokens.spacing.hairline,
   },
   tipsTitle: {
     fontSize: Type.bodyCompact.fontSize,
@@ -1280,7 +1280,7 @@ const s = StyleSheet.create({
     justifyContent: 'center',
     gap: 6,
     paddingVertical: 14,
-    marginTop: 4,
+    marginTop: Tokens.spacing.xxs,
   },
   regenerateBtnText: {
     fontSize: Type.bodyCompact.fontSize,

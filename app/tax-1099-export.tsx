@@ -155,7 +155,7 @@ export default function Tax1099ExportScreen() {
         options={{
           title: '1099-NEC Export',
           headerLeft: () => (
-            <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }}>
+            <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: Tokens.spacing.xxs }}>
               <ChevronLeft size={24} color={Colors.primary} />
             </TouchableOpacity>
           ),
@@ -280,7 +280,7 @@ export default function Tax1099ExportScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   hero: {
-    margin: 16, padding: 18, borderRadius: Tokens.radius.panel,
+    margin: Tokens.spacing.md, padding: 18, borderRadius: Tokens.radius.panel,
     backgroundColor: Colors.primary + '0D',
     borderWidth: 1, borderColor: Colors.primary + '20',
   },
@@ -288,66 +288,66 @@ const styles = StyleSheet.create({
     width: 38, height: 38, borderRadius: 11,
     backgroundColor: Colors.primary + '15',
     alignItems: 'center', justifyContent: 'center',
-    marginBottom: 12,
+    marginBottom: Tokens.spacing.sm,
   },
-  heroTitle: { fontSize: Type.title2.fontSize, fontWeight: '800', color: Colors.text, marginBottom: 8 },
+  heroTitle: { fontSize: Type.title2.fontSize, fontWeight: '800', color: Colors.text, marginBottom: Tokens.spacing.xs },
   heroBody: { fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 19 },
   sectionLabel: {
-    marginHorizontal: 16, marginTop: 8, marginBottom: 6,
+    marginHorizontal: Tokens.spacing.md, marginTop: Tokens.spacing.xs, marginBottom: 6,
     fontSize: Type.caption1.fontSize, fontWeight: '800', color: Colors.textMuted,
     textTransform: 'uppercase', letterSpacing: 0.6,
   },
-  yearRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, marginBottom: 12 },
+  yearRow: { flexDirection: 'row', gap: Tokens.spacing.xs, paddingHorizontal: Tokens.spacing.md, marginBottom: Tokens.spacing.sm },
   yearChip: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999,
+    paddingHorizontal: Tokens.spacing.sm, paddingVertical: 7, borderRadius: 999,
     backgroundColor: Colors.fillTertiary, borderWidth: 1, borderColor: Colors.border,
   },
   yearChipActive: { backgroundColor: Colors.text, borderColor: Colors.text },
   yearChipText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.text },
   yearChipTextActive: { color: '#FFF' },
-  busyWrap: { padding: 24, alignItems: 'center', gap: 8 },
+  busyWrap: { padding: Tokens.spacing.xl, alignItems: 'center', gap: Tokens.spacing.xs },
   busyText: { fontSize: Type.caption1.fontSize, color: Colors.textMuted },
-  summaryGrid: { flexDirection: 'row', gap: 8, marginHorizontal: 16, marginBottom: 12 },
+  summaryGrid: { flexDirection: 'row', gap: Tokens.spacing.xs, marginHorizontal: Tokens.spacing.md, marginBottom: Tokens.spacing.sm },
   summaryCell: {
     flex: 1, padding: 14, borderRadius: Tokens.radius.md,
     backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,
   },
   summaryValue: { fontSize: Type.title2.fontSize, fontWeight: '800', color: Colors.text },
-  summaryLabel: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 4 },
+  summaryLabel: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: Tokens.spacing.xxs },
   warnBanner: {
-    flexDirection: 'row', gap: 8, alignItems: 'flex-start',
-    marginHorizontal: 16, marginBottom: 12, padding: 12,
+    flexDirection: 'row', gap: Tokens.spacing.xs, alignItems: 'flex-start',
+    marginHorizontal: Tokens.spacing.md, marginBottom: Tokens.spacing.sm, padding: Tokens.spacing.sm,
     borderRadius: Tokens.radius.md, backgroundColor: '#FFF4E0',
     borderWidth: 1, borderColor: Colors.warning + '40',
   },
-  warnTitle: { fontSize: Type.caption1.fontSize, fontWeight: '800', color: '#7A4500', marginBottom: 2 },
+  warnTitle: { fontSize: Type.caption1.fontSize, fontWeight: '800', color: '#7A4500', marginBottom: Tokens.spacing.hairline },
   warnBody: { fontSize: Type.caption2.fontSize, color: '#7A4500', lineHeight: 16 },
   emptyCard: {
-    margin: 16, padding: 16, borderRadius: Tokens.radius.card,
+    margin: Tokens.spacing.md, padding: Tokens.spacing.md, borderRadius: Tokens.radius.card,
     backgroundColor: Colors.fillTertiary, borderWidth: 1, borderColor: Colors.border,
   },
   emptyText: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, textAlign: 'center' },
   row: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
-    marginHorizontal: 16, marginBottom: 6, padding: 12,
+    marginHorizontal: Tokens.spacing.md, marginBottom: 6, padding: Tokens.spacing.sm,
     backgroundColor: Colors.card, borderRadius: Tokens.radius.md,
     borderWidth: 1, borderColor: Colors.border,
   },
   rowName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
-  rowMeta: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2 },
-  rowNotes: { fontSize: 11, color: '#7A4500', marginTop: 4, fontStyle: 'italic' },
-  flag: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, borderWidth: 1 },
+  rowMeta: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: Tokens.spacing.hairline },
+  rowNotes: { fontSize: 11, color: '#7A4500', marginTop: Tokens.spacing.xxs, fontStyle: 'italic' },
+  flag: { paddingHorizontal: Tokens.spacing.xs, paddingVertical: Tokens.spacing.xxs, borderRadius: 999, borderWidth: 1 },
   flagText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.4 },
   exportBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    marginHorizontal: 16, marginTop: 14,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Tokens.spacing.xs,
+    marginHorizontal: Tokens.spacing.md, marginTop: 14,
     paddingVertical: 14, borderRadius: Tokens.radius.md,
     backgroundColor: Colors.primary,
   },
   exportBtnText: { color: '#FFF', fontSize: Type.body.fontSize, fontWeight: '700' },
   disclaimerText: {
-    marginHorizontal: 16, marginTop: 12,
+    marginHorizontal: Tokens.spacing.md, marginTop: Tokens.spacing.sm,
     fontSize: 11, color: Colors.textMuted, lineHeight: 16, fontStyle: 'italic',
   },
 });

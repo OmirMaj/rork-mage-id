@@ -40,6 +40,7 @@ import { useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { Unlock, Bell, Crown, X, Check } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import { Tokens } from '@/constants/designTokens';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { Type } from '@/constants/typography';
 
@@ -243,33 +244,33 @@ function TimelineStop({
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background, paddingHorizontal: 20 },
+  container: { flex: 1, backgroundColor: Colors.background, paddingHorizontal: Tokens.spacing.lg },
 
-  headerRow: { flexDirection: 'row' as const, alignItems: 'center' as const, marginBottom: 16 },
-  brandLogoBg: { backgroundColor: Colors.surfaceAlt, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10 },
+  headerRow: { flexDirection: 'row' as const, alignItems: 'center' as const, marginBottom: Tokens.spacing.md },
+  brandLogoBg: { backgroundColor: Colors.surfaceAlt, paddingHorizontal: Tokens.spacing.sm, paddingVertical: 6, borderRadius: 10 },
   brandLogo: { fontSize: 14, fontWeight: '900' as const, color: Colors.text, letterSpacing: -0.4 },
   closeBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: Colors.surfaceAlt, alignItems: 'center' as const, justifyContent: 'center' as const },
 
-  title: { fontSize: 36, fontWeight: '900' as const, color: Colors.text, letterSpacing: -1, marginBottom: 24 },
+  title: { fontSize: 36, fontWeight: '900' as const, color: Colors.text, letterSpacing: -1, marginBottom: Tokens.spacing.xl },
 
-  timeline: { gap: 0, marginBottom: 16 },
+  timeline: { gap: 0, marginBottom: Tokens.spacing.md },
   stopRow: { flexDirection: 'row' as const, alignItems: 'flex-start' as const, gap: 14 },
   stopIconCol: { width: 32, alignItems: 'center' as const },
   stopIcon: { width: 32, height: 32, borderRadius: 16, alignItems: 'center' as const, justifyContent: 'center' as const, zIndex: 2 },
   stopRail: { position: 'absolute' as const, top: 32, bottom: -16, width: 3, backgroundColor: Colors.fillTertiary, alignSelf: 'center' as const, borderRadius: 2 },
-  stopBody: { flex: 1, paddingBottom: 22, paddingTop: 4 },
+  stopBody: { flex: 1, paddingBottom: 22, paddingTop: Tokens.spacing.xxs },
   stopTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '900' as const, color: Colors.text, letterSpacing: -0.3 },
-  stopText: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, lineHeight: 19, marginTop: 4 },
+  stopText: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, lineHeight: 19, marginTop: Tokens.spacing.xxs },
 
   optionsWrap: { gap: 10, marginTop: 10 },
   optionCard: {
-    flexDirection: 'row' as const, alignItems: 'center' as const, gap: 12,
-    padding: 16, borderRadius: 18, backgroundColor: Colors.surface,
+    flexDirection: 'row' as const, alignItems: 'center' as const, gap: Tokens.spacing.sm,
+    padding: Tokens.spacing.md, borderRadius: 18, backgroundColor: Colors.surface,
     borderWidth: 1.5, borderColor: Colors.borderLight,
   },
   optionCardActive: { backgroundColor: Colors.primary + '15', borderColor: Colors.primary },
   optionTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '900' as const, color: Colors.text },
-  optionSub: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2 },
+  optionSub: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: Tokens.spacing.hairline },
   optionRadio: { width: 26, height: 26, borderRadius: 13, borderWidth: 2, borderColor: Colors.fillSecondary, alignItems: 'center' as const, justifyContent: 'center' as const },
   optionRadioActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
 
@@ -280,8 +281,8 @@ const styles = StyleSheet.create({
     position: 'absolute' as const, left: 0, right: 0, bottom: 0,
     backgroundColor: Colors.background,
     borderTopWidth: 1, borderTopColor: Colors.borderLight,
-    paddingHorizontal: 20, paddingTop: 14,
-    alignItems: 'center' as const, gap: 8,
+    paddingHorizontal: Tokens.spacing.lg, paddingTop: 14,
+    alignItems: 'center' as const, gap: Tokens.spacing.xs,
   },
   redeemBtn: { width: '100%', minHeight: 56, borderRadius: 999, backgroundColor: Colors.primary, alignItems: 'center' as const, justifyContent: 'center' as const, shadowColor: Colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 10, elevation: 4 },
   redeemBtnText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.textOnPrimary, letterSpacing: -0.2 },

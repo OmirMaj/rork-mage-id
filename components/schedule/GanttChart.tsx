@@ -204,7 +204,7 @@ const s = StyleSheet.create({
   headerLabel: {
     width: 130,
     justifyContent: 'center',
-    paddingLeft: 12,
+    paddingLeft: Tokens.spacing.sm,
     borderRightWidth: 1,
     borderRightColor: Colors.borderLight,
   },
@@ -224,7 +224,7 @@ const s = StyleSheet.create({
     borderRightWidth: 0.5,
     borderRightColor: Colors.borderLight,
     justifyContent: 'center',
-    paddingLeft: 4,
+    paddingLeft: Tokens.spacing.xxs,
   },
   weekLabel: {
     fontSize: 9,
@@ -243,7 +243,7 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 12,
+    paddingHorizontal: Tokens.spacing.sm,
     paddingVertical: 6,
     backgroundColor: Colors.surfaceAlt,
     borderLeftWidth: 3,
@@ -270,13 +270,13 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 3,
-    paddingHorizontal: 8,
+    paddingHorizontal: Tokens.spacing.xs,
     borderRightWidth: 1,
     borderRightColor: Colors.borderLight,
   },
   ganttLabelIcons: {
     flexDirection: 'row',
-    gap: 2,
+    gap: Tokens.spacing.hairline,
   },
   ganttLabelText: {
     flex: 1,
@@ -293,7 +293,7 @@ const s = StyleSheet.create({
     flex: 1,
     height: 20,
     justifyContent: 'center',
-    marginHorizontal: 2,
+    marginHorizontal: Tokens.spacing.hairline,
   },
   ganttBar: {
     position: 'absolute' as const,

@@ -58,9 +58,9 @@ export default function OfflineSyncPill({ variant = 'compact' }: Props) {
 
 const styles = StyleSheet.create({
   pill: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
+    flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xxs,
     backgroundColor: 'rgba(255, 159, 27, 0.12)',
-    paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.full,
+    paddingHorizontal: Tokens.spacing.xs, paddingVertical: 3, borderRadius: Tokens.radius.full,
     borderWidth: 1, borderColor: 'rgba(255, 159, 27, 0.35)',
   },
   text: {

@@ -199,9 +199,9 @@ export default function DailyHeroPhoto({ forcePhoto }: DailyHeroProps) {
 
 const styles = StyleSheet.create({
   wrapper: {
-    paddingHorizontal: 12,
-    paddingTop: 8,
-    paddingBottom: 4,
+    paddingHorizontal: Tokens.spacing.sm,
+    paddingTop: Tokens.spacing.xs,
+    paddingBottom: Tokens.spacing.xxs,
   },
   card: {
     height: 220,
@@ -248,7 +248,7 @@ const styles = StyleSheet.create({
     left: 18,
     right: 60, // leave room for the tap chevron
     bottom: 16,
-    gap: 4,
+    gap: Tokens.spacing.xxs,
   },
   eyebrow: {
     ...Type.monoSm,
@@ -270,6 +270,6 @@ const styles = StyleSheet.create({
     fontSize: Type.footnote.fontSize,
     color: 'rgba(244,239,230,0.78)',
     fontWeight: '500' as const,
-    marginTop: 2,
+    marginTop: Tokens.spacing.hairline,
   },
 });

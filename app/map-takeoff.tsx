@@ -383,8 +383,8 @@ const styles = StyleSheet.create({
 
   topBar: {
     position: 'absolute' as const, top: 0, left: 0, right: 0, zIndex: 10,
-    flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8,
-    paddingHorizontal: 12, paddingBottom: 10,
+    flexDirection: 'row' as const, alignItems: 'center' as const, gap: Tokens.spacing.xs,
+    paddingHorizontal: Tokens.spacing.sm, paddingBottom: 10,
   },
   topTitle: { flex: 1, paddingHorizontal: 6 },
   topTitleText: { fontSize: Type.subheadline.fontSize, fontWeight: '900' as const, color: Colors.text, textShadowColor: 'rgba(255,255,255,0.6)', textShadowRadius: 6, letterSpacing: -0.3 },
@@ -422,17 +422,17 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
     borderTopLeftRadius: 28, borderTopRightRadius: 28,
     paddingHorizontal: 18, paddingTop: 18,
-    gap: 12,
+    gap: Tokens.spacing.sm,
     shadowColor: '#000', shadowOffset: { width: 0, height: -6 }, shadowOpacity: 0.12, shadowRadius: 12, elevation: 12,
   },
 
-  statRow: { flexDirection: 'row' as const, alignItems: 'stretch' as const, paddingVertical: 4 },
-  statCell: { flex: 1, alignItems: 'flex-start' as const, gap: 2 },
-  statCellDivider: { width: 1, marginHorizontal: 12, backgroundColor: Colors.borderLight },
+  statRow: { flexDirection: 'row' as const, alignItems: 'stretch' as const, paddingVertical: Tokens.spacing.xxs },
+  statCell: { flex: 1, alignItems: 'flex-start' as const, gap: Tokens.spacing.hairline },
+  statCellDivider: { width: 1, marginHorizontal: Tokens.spacing.sm, backgroundColor: Colors.borderLight },
   statLabel: { fontSize: 10, fontWeight: '800' as const, color: Colors.textMuted, letterSpacing: 0.5, textTransform: 'uppercase' as const },
   statValue: { fontSize: 22, fontWeight: '900' as const, color: Colors.text, letterSpacing: -0.5 },
 
-  hintBox: { padding: 12, borderRadius: 12, backgroundColor: Colors.fillTertiary },
+  hintBox: { padding: Tokens.spacing.sm, borderRadius: 12, backgroundColor: Colors.fillTertiary },
   hintText: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, textAlign: 'center' as const },
 
   actionRow: { flexDirection: 'row' as const, gap: 10 },
@@ -441,10 +441,10 @@ const styles = StyleSheet.create({
   actionPrimary: { backgroundColor: Colors.primary },
   actionBtnText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, letterSpacing: -0.2 },
 
-  fallbackWrap: { flex: 1, paddingHorizontal: 32, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 12 },
-  fallbackTitle: { fontSize: Type.title2.fontSize, fontWeight: '900' as const, color: Colors.text, textAlign: 'center' as const, letterSpacing: -0.4, marginTop: 8 },
+  fallbackWrap: { flex: 1, paddingHorizontal: Tokens.spacing['2xl'], alignItems: 'center' as const, justifyContent: 'center' as const, gap: Tokens.spacing.sm },
+  fallbackTitle: { fontSize: Type.title2.fontSize, fontWeight: '900' as const, color: Colors.text, textAlign: 'center' as const, letterSpacing: -0.4, marginTop: Tokens.spacing.xs },
   fallbackBody: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, textAlign: 'center' as const, lineHeight: 22 },
-  fallbackBtn: { marginTop: 8, flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6, paddingHorizontal: 18, paddingVertical: 12, borderRadius: 999, backgroundColor: Colors.primary },
+  fallbackBtn: { marginTop: Tokens.spacing.xs, flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6, paddingHorizontal: 18, paddingVertical: Tokens.spacing.sm, borderRadius: 999, backgroundColor: Colors.primary },
   fallbackBtnText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.textOnPrimary },
 });
 

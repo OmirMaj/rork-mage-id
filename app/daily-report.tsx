@@ -994,7 +994,7 @@ export default function DailyReportScreen() {
             accessibilityLabel="Change report date"
           >
             <Text style={styles.topBarTitle}>Daily Report</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xxs }}>
               <Text style={styles.topBarDate}>
                 {new Date(reportDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
               </Text>
@@ -1038,7 +1038,7 @@ export default function DailyReportScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
+          <View style={{ paddingHorizontal: Tokens.spacing.md, paddingTop: Tokens.spacing.xs }}>
             <VoiceRecorder
               onTranscriptReady={async (transcript) => {
                 setVoiceLoading(true);
@@ -1146,7 +1146,7 @@ export default function DailyReportScreen() {
 
           {showVoiceBanner && !voiceParsed && (
             <TouchableOpacity
-              style={{ marginHorizontal: 16, marginBottom: 8, backgroundColor: Colors.infoLight, borderRadius: Tokens.radius.md, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 8 }}
+              style={{ marginHorizontal: Tokens.spacing.md, marginBottom: Tokens.spacing.xs, backgroundColor: Colors.infoLight, borderRadius: Tokens.radius.md, padding: Tokens.spacing.sm, flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs }}
               onPress={() => setShowVoiceBanner(false)}
               activeOpacity={0.7}
             >
@@ -1156,7 +1156,7 @@ export default function DailyReportScreen() {
           )}
 
           {!existingReport && todaysProjectPhotos.length > 0 && (
-            <View style={{ paddingHorizontal: 16, marginBottom: 8 }}>
+            <View style={{ paddingHorizontal: Tokens.spacing.md, marginBottom: Tokens.spacing.xs }}>
               <AIDFRFromPhotos
                 projectName={project.name}
                 weatherStr={[weather.conditions, weather.temperature].filter(Boolean).join(' · ') || 'Clear'}
@@ -1176,7 +1176,7 @@ export default function DailyReportScreen() {
           )}
 
           {!existingReport && project.schedule && project.schedule.tasks.length > 0 && (
-            <View style={{ paddingHorizontal: 16, marginBottom: 4 }}>
+            <View style={{ paddingHorizontal: Tokens.spacing.md, marginBottom: Tokens.spacing.xxs }}>
               <AIDailyReportGen
                 projectName={project.name}
                 tasks={project.schedule.tasks}
@@ -1930,7 +1930,7 @@ export default function DailyReportScreen() {
                   horizontal
                   showsHorizontalScrollIndicator={false}
                   contentContainerStyle={styles.recipientChipsRow}
-                  style={{ maxHeight: 50, marginTop: 4, marginBottom: 8 }}
+                  style={{ maxHeight: 50, marginTop: Tokens.spacing.xxs, marginBottom: Tokens.spacing.xs }}
                 >
                   {recipients.map(r => (
                     <View key={r.email} style={styles.recipientChip}>
@@ -1967,7 +1967,7 @@ export default function DailyReportScreen() {
                 placeholderTextColor={Colors.textMuted}
               />
               <Text style={styles.modalFieldLabel}>Email</Text>
-              <View style={{ flexDirection: 'row', gap: 8 }}>
+              <View style={{ flexDirection: 'row', gap: Tokens.spacing.xs }}>
                 <TextInput
                   style={[styles.modalInput, { flex: 1 }]}
                   value={sendRecipientEmail}
@@ -2010,7 +2010,7 @@ export default function DailyReportScreen() {
                   their own list. */}
               {recipients.length > 0 && (
                 <TouchableOpacity
-                  style={[styles.toggleRow, { marginTop: 8 }]}
+                  style={[styles.toggleRow, { marginTop: Tokens.spacing.xs }]}
                   onPress={() => setRememberRecipientsForProject(v => !v)}
                   activeOpacity={0.7}
                   accessibilityRole="switch"
@@ -2059,7 +2059,7 @@ export default function DailyReportScreen() {
                 </View>
               </TouchableOpacity>
 
-              <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
+              <View style={{ flexDirection: 'row', gap: 10, marginTop: Tokens.spacing.sm }}>
                 <TouchableOpacity style={styles.saveDraftBtn} onPress={() => setShowSendRecipient(false)} activeOpacity={0.7}>
                   <Text style={styles.saveDraftBtnText}>Cancel</Text>
                 </TouchableOpacity>
@@ -2135,7 +2135,7 @@ export default function DailyReportScreen() {
             <Text style={styles.modalHelper}>
               Used to group reports by phase on the project. Auto-detect picks the most-active phase from your schedule on this date.
             </Text>
-            <ScrollView style={{ maxHeight: 360 }} contentContainerStyle={{ gap: 6, paddingVertical: 4 }} showsVerticalScrollIndicator={false}>
+            <ScrollView style={{ maxHeight: 360 }} contentContainerStyle={{ gap: 6, paddingVertical: Tokens.spacing.xxs }} showsVerticalScrollIndicator={false}>
               <TouchableOpacity
                 style={[styles.phaseRow, !phaseOverride && styles.phaseRowActive]}
                 onPress={() => { setPhaseOverride(undefined); setShowPhasePicker(false); }}
@@ -2348,7 +2348,7 @@ const roleTileStyles = StyleSheet.create({
   // 4-up grid on phone width truncates a horizontal layout to "Sup...".
   tile: {
     alignItems: 'flex-start' as const,
-    gap: 4,
+    gap: Tokens.spacing.xxs,
     paddingVertical: 10,
     paddingHorizontal: 10,
     borderRadius: Tokens.radius.card,
@@ -2360,7 +2360,7 @@ const roleTileStyles = StyleSheet.create({
     width: 28, height: 28, borderRadius: 8,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
-    marginBottom: 4,
+    marginBottom: Tokens.spacing.xxs,
   },
   label: {
     fontSize: Type.caption2.fontSize,
@@ -2377,16 +2377,16 @@ const roleTileStyles = StyleSheet.create({
 
 const voiceStyles = StyleSheet.create({
   previewCard: {
-    marginHorizontal: 16, marginBottom: 8,
+    marginHorizontal: Tokens.spacing.md, marginBottom: Tokens.spacing.xs,
     backgroundColor: Colors.primary + '0D',
     borderWidth: 1, borderColor: Colors.primary + '30',
-    borderRadius: Tokens.radius.card, padding: 14, gap: 8,
+    borderRadius: Tokens.radius.card, padding: 14, gap: Tokens.spacing.xs,
   },
-  previewHead: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 },
+  previewHead: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: Tokens.spacing.xxs },
   previewTitle: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '800', color: Colors.primary, letterSpacing: -0.2 },
   previewHelper: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, lineHeight: 15 },
-  previewList: { gap: 6, marginTop: 4 },
-  row: { flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
+  previewList: { gap: 6, marginTop: Tokens.spacing.xxs },
+  row: { flexDirection: 'row', gap: Tokens.spacing.xs, alignItems: 'flex-start' },
   rowLabel: { width: 90, fontSize: Type.caption2.fontSize, fontWeight: '800', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, paddingTop: 1 },
   rowValue: { flex: 1, fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 18 },
 });
@@ -2394,25 +2394,25 @@ const voiceStyles = StyleSheet.create({
 const hsStyles = StyleSheet.create({
   helperText: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginBottom: 10, lineHeight: 17 },
   publishedPill: {
-    backgroundColor: 'rgba(30,142,74,0.12)', paddingHorizontal: 8, paddingVertical: 3,
+    backgroundColor: 'rgba(30,142,74,0.12)', paddingHorizontal: Tokens.spacing.xs, paddingVertical: 3,
     borderRadius: Tokens.radius.full, marginLeft: 'auto',
   },
   publishedPillText: { fontSize: 9, fontWeight: '800', color: Colors.successDark, letterSpacing: 0.6 },
   aiBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-    paddingHorizontal: 12, paddingVertical: 11, borderRadius: 11,
+    paddingHorizontal: Tokens.spacing.sm, paddingVertical: 11, borderRadius: 11,
     backgroundColor: Colors.primary + '0F', borderWidth: 1, borderColor: Colors.primary + '40',
   },
   aiBtnDisabled: { opacity: 0.7 },
   aiBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.primary },
-  highlightsBlock: { marginTop: 10, gap: 4 },
-  highlightsLabel: { fontSize: 10, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 4 },
-  highlightRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingVertical: 2 },
+  highlightsBlock: { marginTop: 10, gap: Tokens.spacing.xxs },
+  highlightsLabel: { fontSize: 10, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: Tokens.spacing.xxs },
+  highlightRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Tokens.spacing.xs, paddingVertical: Tokens.spacing.hairline },
   highlightDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: Colors.primary, marginTop: 7 },
   highlightText: { flex: 1, fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 19 },
-  lookingAhead: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 8, fontStyle: 'italic' },
+  lookingAhead: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: Tokens.spacing.xs, fontStyle: 'italic' },
   publishBtn: {
-    marginTop: 12, paddingVertical: 11, borderRadius: 11,
+    marginTop: Tokens.spacing.sm, paddingVertical: 11, borderRadius: 11,
     backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border,
     alignItems: 'center',
   },
@@ -2424,15 +2424,15 @@ const hsStyles = StyleSheet.create({
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   center: { alignItems: 'center', justifyContent: 'center' },
-  notFoundText: { fontSize: Type.subheadline.fontSize, color: Colors.textSecondary, marginBottom: 16 },
+  notFoundText: { fontSize: Type.subheadline.fontSize, color: Colors.textSecondary, marginBottom: Tokens.spacing.md },
 
   // Custom top bar — replaces the default Stack header so Save Draft +
   // Submit can sit at the top right (matches the mock).
   topBar: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
-    paddingHorizontal: 16,
-    paddingBottom: 12,
+    paddingHorizontal: Tokens.spacing.md,
+    paddingBottom: Tokens.spacing.sm,
     gap: 10,
     backgroundColor: Colors.background,
     borderBottomWidth: 1,
@@ -2463,11 +2463,11 @@ const styles = StyleSheet.create({
   topBarActions: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
-    gap: 8,
+    gap: Tokens.spacing.xs,
   },
   topBarDraftBtn: {
-    paddingHorizontal: 8,
-    paddingVertical: 8,
+    paddingHorizontal: Tokens.spacing.xs,
+    paddingVertical: Tokens.spacing.xs,
   },
   topBarDraftText: {
     fontSize: Type.bodyCompact.fontSize,
@@ -2476,7 +2476,7 @@ const styles = StyleSheet.create({
   },
   topBarSubmitBtn: {
     paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingVertical: Tokens.spacing.xs,
     borderRadius: Tokens.radius.full,
     backgroundColor: Colors.primary,
   },
@@ -2486,18 +2486,18 @@ const styles = StyleSheet.create({
     color: Colors.textOnPrimary,
     letterSpacing: -0.2,
   },
-  backBtn: { backgroundColor: Colors.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: Tokens.radius.md },
+  backBtn: { backgroundColor: Colors.primary, paddingHorizontal: Tokens.spacing.xl, paddingVertical: Tokens.spacing.sm, borderRadius: Tokens.radius.md },
   backBtnText: { color: Colors.textOnPrimary, fontSize: Type.subhead.fontSize, fontWeight: '600' as const },
-  heroCard: { backgroundColor: Colors.primary, marginHorizontal: 20, marginTop: 12, borderRadius: Tokens.radius.panel, padding: 20, gap: 4 },
+  heroCard: { backgroundColor: Colors.primary, marginHorizontal: Tokens.spacing.lg, marginTop: Tokens.spacing.sm, borderRadius: Tokens.radius.panel, padding: Tokens.spacing.lg, gap: Tokens.spacing.xxs },
   heroLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' as const, letterSpacing: 0.5 },
   heroProject: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: Colors.textOnPrimary },
-  heroDate: { fontSize: Type.bodyCompact.fontSize, color: 'rgba(255,255,255,0.8)', marginTop: 2 },
+  heroDate: { fontSize: Type.bodyCompact.fontSize, color: 'rgba(255,255,255,0.8)', marginTop: Tokens.spacing.hairline },
   heroDayRow: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     gap: 5,
     marginTop: 6,
-    paddingTop: 8,
+    paddingTop: Tokens.spacing.xs,
     borderTopWidth: 1,
     borderTopColor: 'rgba(255,255,255,0.18)',
   },
@@ -2506,83 +2506,83 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.85)',
     fontWeight: '600' as const,
   },
-  statusBadge: { alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 4, borderRadius: Tokens.radius.sm, marginTop: 6 },
+  statusBadge: { alignSelf: 'flex-start', paddingHorizontal: Tokens.spacing.sm, paddingVertical: Tokens.spacing.xxs, borderRadius: Tokens.radius.sm, marginTop: 6 },
   statusText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const },
-  sectionCard: { marginHorizontal: 20, marginTop: 16, backgroundColor: Colors.card, borderRadius: Tokens.radius.panel, padding: 18, borderWidth: 1, borderColor: Colors.cardBorder },
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
+  sectionCard: { marginHorizontal: Tokens.spacing.lg, marginTop: Tokens.spacing.md, backgroundColor: Colors.card, borderRadius: Tokens.radius.panel, padding: 18, borderWidth: 1, borderColor: Colors.cardBorder },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs, marginBottom: Tokens.spacing.sm },
   sectionTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text },
   sectionTotal: { flex: 1, fontSize: Type.caption1.fontSize, color: Colors.textMuted, fontWeight: '600' as const },
   roleTileGrid: {
     flexDirection: 'row' as const,
-    gap: 8,
-    marginBottom: 12,
+    gap: Tokens.spacing.xs,
+    marginBottom: Tokens.spacing.sm,
   },
   workforceTotalLine: {
     fontSize: Type.caption2.fontSize,
     color: Colors.textMuted,
-    marginBottom: 8,
+    marginBottom: Tokens.spacing.xs,
   },
   refreshBtn: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: Tokens.radius.sm, backgroundColor: Colors.infoLight },
   refreshBtnText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.info },
   weatherGrid: { gap: 10 },
   weatherItem: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  weatherInput: { flex: 1, minHeight: 38, borderRadius: Tokens.radius.md, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 12, fontSize: Type.bodyCompact.fontSize, color: Colors.text },
+  weatherInput: { flex: 1, minHeight: 38, borderRadius: Tokens.radius.md, backgroundColor: Colors.surfaceAlt, paddingHorizontal: Tokens.spacing.sm, fontSize: Type.bodyCompact.fontSize, color: Colors.text },
   weatherValue: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
   addSmallBtn: { width: 32, height: 32, borderRadius: Tokens.radius.panel, backgroundColor: Colors.primary + '15', alignItems: 'center', justifyContent: 'center' },
   emptyText: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, fontStyle: 'italic' as const },
   mpRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderTopWidth: 1, borderTopColor: Colors.borderLight, gap: 10 },
-  mpInfo: { flex: 1, gap: 2 },
+  mpInfo: { flex: 1, gap: Tokens.spacing.hairline },
   mpTrade: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
   mpMeta: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary },
-  textArea: { minHeight: 80, borderRadius: Tokens.radius.card, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 14, paddingTop: 12, fontSize: Type.bodyCompact.fontSize, color: Colors.text },
+  textArea: { minHeight: 80, borderRadius: Tokens.radius.card, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 14, paddingTop: Tokens.spacing.sm, fontSize: Type.bodyCompact.fontSize, color: Colors.text },
   textInput: { minHeight: 44, borderRadius: Tokens.radius.card, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 14, fontSize: Type.bodyCompact.fontSize, color: Colors.text },
   readOnlyText: { fontSize: Type.bodyCompact.fontSize, color: Colors.text, lineHeight: 20 },
-  incidentToggle: { flexDirection: 'row', alignItems: 'center' as const, gap: 10, paddingVertical: 12, paddingHorizontal: 12, borderRadius: Tokens.radius.card, backgroundColor: Colors.surfaceAlt, borderWidth: 1, borderColor: Colors.cardBorder },
+  incidentToggle: { flexDirection: 'row', alignItems: 'center' as const, gap: 10, paddingVertical: Tokens.spacing.sm, paddingHorizontal: Tokens.spacing.sm, borderRadius: Tokens.radius.card, backgroundColor: Colors.surfaceAlt, borderWidth: 1, borderColor: Colors.cardBorder },
   incidentToggleActive: { backgroundColor: Colors.errorLight, borderColor: Colors.error + '40' },
   incidentToggleDot: { width: 16, height: 16, borderRadius: Tokens.radius.sm, borderWidth: 2, borderColor: Colors.border },
   incidentToggleDotActive: { backgroundColor: Colors.error, borderColor: Colors.error },
   incidentToggleText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
   incidentBlock: { marginTop: 10, gap: 6 },
-  incidentLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.textSecondary, marginTop: 8 },
+  incidentLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.textSecondary, marginTop: Tokens.spacing.xs },
   severityRow: { flexDirection: 'row', flexWrap: 'wrap' as const, gap: 6 },
-  toolboxBlock: { marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: Colors.borderLight, gap: 8 },
+  toolboxBlock: { marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: Colors.borderLight, gap: Tokens.spacing.xs },
   toolboxToggleActive: { borderColor: Colors.success, backgroundColor: Colors.success + '0F' },
-  toolboxReadOnly: { marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: Colors.borderLight },
+  toolboxReadOnly: { marginTop: Tokens.spacing.sm, paddingTop: 10, borderTopWidth: 1, borderTopColor: Colors.borderLight },
   toolboxReadOnlyTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.text },
-  toolboxReadOnlySub: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 2 },
-  severityChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: Tokens.radius.md, backgroundColor: Colors.fillTertiary },
+  toolboxReadOnlySub: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: Tokens.spacing.hairline },
+  severityChip: { paddingHorizontal: Tokens.spacing.sm, paddingVertical: 6, borderRadius: Tokens.radius.md, backgroundColor: Colors.fillTertiary },
   severityChipActive: { backgroundColor: Colors.error },
   severityChipText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.textSecondary },
   severityChipTextActive: { color: '#FFF' },
-  checkboxRow: { flexDirection: 'row', flexWrap: 'wrap' as const, gap: 12, marginTop: 8 },
+  checkboxRow: { flexDirection: 'row', flexWrap: 'wrap' as const, gap: Tokens.spacing.sm, marginTop: Tokens.spacing.xs },
   checkboxItem: { flexDirection: 'row', alignItems: 'center' as const, gap: 6 },
   checkbox: { width: 18, height: 18, borderRadius: 4, borderWidth: 2, borderColor: Colors.border },
   checkboxActive: { backgroundColor: Colors.error, borderColor: Colors.error },
   checkboxLabel: { fontSize: Type.footnote.fontSize, color: Colors.text, fontWeight: '500' as const },
-  addMaterialRow: { flexDirection: 'row', gap: 8, marginBottom: 8 },
-  materialInput: { flex: 1, minHeight: 40, borderRadius: Tokens.radius.md, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 12, fontSize: Type.bodyCompact.fontSize, color: Colors.text },
+  addMaterialRow: { flexDirection: 'row', gap: Tokens.spacing.xs, marginBottom: Tokens.spacing.xs },
+  materialInput: { flex: 1, minHeight: 40, borderRadius: Tokens.radius.md, backgroundColor: Colors.surfaceAlt, paddingHorizontal: Tokens.spacing.sm, fontSize: Type.bodyCompact.fontSize, color: Colors.text },
   addMaterialBtn: { width: 40, height: 40, borderRadius: Tokens.radius.md, backgroundColor: Colors.primary + '15', alignItems: 'center', justifyContent: 'center' },
-  materialRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6 },
+  materialRow: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs, paddingVertical: 6 },
   materialDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: Colors.primary },
   materialText: { flex: 1, fontSize: Type.bodyCompact.fontSize, color: Colors.text },
   photoActions: { flexDirection: 'row', gap: 10, marginBottom: 10 },
   photoBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 10, borderRadius: Tokens.radius.md, backgroundColor: Colors.primary + '10', borderWidth: 1, borderColor: Colors.primary + '20' },
   photoBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.primary },
-  photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
+  photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Tokens.spacing.xs, marginTop: Tokens.spacing.xxs },
   photoCard: { width: 80, height: 80, borderRadius: Tokens.radius.md, backgroundColor: Colors.surfaceAlt, overflow: 'hidden' as const, position: 'relative' as const },
-  photoPlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 4 },
+  photoPlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Tokens.spacing.xxs },
   photoTimestamp: { fontSize: 9, color: Colors.textMuted },
   photoRemoveBtn: { position: 'absolute', top: 4, right: 4, width: 20, height: 20, borderRadius: Tokens.radius.md, backgroundColor: Colors.errorLight, alignItems: 'center', justifyContent: 'center' },
-  bottomBar: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: Colors.surface, borderTopWidth: 0.5, borderTopColor: Colors.borderLight, paddingHorizontal: 20, paddingTop: 12, flexDirection: 'row', gap: 10 },
+  bottomBar: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: Colors.surface, borderTopWidth: 0.5, borderTopColor: Colors.borderLight, paddingHorizontal: Tokens.spacing.lg, paddingTop: Tokens.spacing.sm, flexDirection: 'row', gap: 10 },
   toggleRow: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
-    gap: 12,
-    paddingVertical: 12,
+    gap: Tokens.spacing.sm,
+    paddingVertical: Tokens.spacing.sm,
     paddingHorizontal: 14,
     backgroundColor: Colors.fillSecondary,
     borderRadius: Tokens.radius.md,
-    marginTop: 12,
+    marginTop: Tokens.spacing.sm,
   },
   toggleIconWrap: {
     width: 32, height: 32, borderRadius: 16,
@@ -2590,11 +2590,11 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary + '14',
   },
   toggleTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
-  toggleSub: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, marginTop: 2 },
+  toggleSub: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, marginTop: Tokens.spacing.hairline },
   toggleSwitch: {
     width: 38, height: 22, borderRadius: 11,
     backgroundColor: Colors.fillTertiary,
-    padding: 2,
+    padding: Tokens.spacing.hairline,
     justifyContent: 'center' as const,
   },
   toggleSwitchOn: { backgroundColor: Colors.primary },
@@ -2604,16 +2604,16 @@ const styles = StyleSheet.create({
   saveDraftBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
   saveProjectBtn: { flex: 1, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: Colors.primary + '15', borderWidth: 1.5, borderColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
   saveProjectBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.primary },
-  sendBtn: { flex: 1.2, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 },
+  sendBtn: { flex: 1.2, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: Tokens.spacing.xs },
   sendBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.textOnPrimary },
-  selectedRecipientCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.primary + '10', borderRadius: Tokens.radius.card, paddingHorizontal: 12, paddingVertical: 10, gap: 10, borderWidth: 1, borderColor: Colors.primary + '25' },
+  selectedRecipientCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.primary + '10', borderRadius: Tokens.radius.card, paddingHorizontal: Tokens.spacing.sm, paddingVertical: 10, gap: 10, borderWidth: 1, borderColor: Colors.primary + '25' },
   selectedRecipientName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
   selectedRecipientEmail: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary },
   clearRecipientBtn: { width: 24, height: 24, borderRadius: Tokens.radius.card, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
-  pickContactBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', marginTop: 8, paddingVertical: 6, paddingHorizontal: 10, borderRadius: Tokens.radius.sm, backgroundColor: Colors.primary + '10' },
+  pickContactBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', marginTop: Tokens.spacing.xs, paddingVertical: 6, paddingHorizontal: 10, borderRadius: Tokens.radius.sm, backgroundColor: Colors.primary + '10' },
   pickContactText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.primary },
   // Recipient chips (multi-recipient distribution list).
-  recipientChipsRow: { flexDirection: 'row', gap: 6, paddingVertical: 4 },
+  recipientChipsRow: { flexDirection: 'row', gap: 6, paddingVertical: Tokens.spacing.xxs },
   recipientChip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -2635,8 +2635,8 @@ const styles = StyleSheet.create({
   recipientHelpText: {
     fontSize: Type.footnote.fontSize,
     color: Colors.textMuted,
-    marginTop: 4,
-    marginBottom: 4,
+    marginTop: Tokens.spacing.xxs,
+    marginBottom: Tokens.spacing.xxs,
   },
   addRecipientBtn: {
     minWidth: 70,
@@ -2644,7 +2644,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
+    gap: Tokens.spacing.xxs,
     backgroundColor: Colors.primary,
     borderRadius: Tokens.radius.card,
     paddingHorizontal: 14,
@@ -2662,14 +2662,14 @@ const styles = StyleSheet.create({
   phasePillRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: Tokens.spacing.xs,
     backgroundColor: Colors.surfaceAlt,
     borderRadius: Tokens.radius.card,
-    paddingHorizontal: 12,
+    paddingHorizontal: Tokens.spacing.sm,
     paddingVertical: 10,
-    marginHorizontal: 16,
-    marginTop: 4,
-    marginBottom: 8,
+    marginHorizontal: Tokens.spacing.md,
+    marginTop: Tokens.spacing.xxs,
+    marginBottom: Tokens.spacing.xs,
     borderWidth: 1,
     borderColor: Colors.borderLight,
   },
@@ -2691,7 +2691,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary + '15',
     borderRadius: Tokens.radius.sm,
     paddingHorizontal: 6,
-    paddingVertical: 2,
+    paddingVertical: Tokens.spacing.hairline,
   },
   phasePillOverrideBadgeText: {
     fontSize: Type.caption2.fontSize,
@@ -2707,9 +2707,9 @@ const styles = StyleSheet.create({
   phaseRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
+    gap: Tokens.spacing.sm,
+    paddingHorizontal: Tokens.spacing.sm,
+    paddingVertical: Tokens.spacing.sm,
     borderRadius: Tokens.radius.card,
     backgroundColor: Colors.surfaceAlt,
   },
@@ -2726,29 +2726,29 @@ const styles = StyleSheet.create({
   phaseRowSub: {
     fontSize: Type.caption1.fontSize,
     color: Colors.textMuted,
-    marginTop: 2,
+    marginTop: Tokens.spacing.hairline,
   },
   modalOverlay: { flex: 1, backgroundColor: Colors.overlay, justifyContent: 'flex-end' },
-  modalCard: { backgroundColor: Colors.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 22, gap: 8 },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  modalCard: { backgroundColor: Colors.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 22, gap: Tokens.spacing.xs },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Tokens.spacing.xs },
   modalTitle: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: Colors.text },
-  modalFieldLabel: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.textSecondary, marginTop: 4 },
-  modalInput: { minHeight: 44, borderRadius: Tokens.radius.card, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 12, fontSize: Type.subhead.fontSize, color: Colors.text },
+  modalFieldLabel: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.textSecondary, marginTop: Tokens.spacing.xxs },
+  modalInput: { minHeight: 44, borderRadius: Tokens.radius.card, backgroundColor: Colors.surfaceAlt, paddingHorizontal: Tokens.spacing.sm, fontSize: Type.subhead.fontSize, color: Colors.text },
   modalRow: { flexDirection: 'row', gap: 10 },
-  modalAddBtn: { backgroundColor: Colors.primary, borderRadius: Tokens.radius.lg, paddingVertical: 14, alignItems: 'center', marginTop: 8 },
+  modalAddBtn: { backgroundColor: Colors.primary, borderRadius: Tokens.radius.lg, paddingVertical: 14, alignItems: 'center', marginTop: Tokens.spacing.xs },
   modalAddBtnText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.textOnPrimary },
 
   modalHelper: {
     fontSize: Type.footnote.fontSize,
     color: Colors.textMuted,
-    marginBottom: 4,
+    marginBottom: Tokens.spacing.xxs,
   },
   modalDoneBtn: {
     backgroundColor: Colors.primary,
     borderRadius: Tokens.radius.lg,
     paddingVertical: 14,
     alignItems: 'center' as const,
-    marginTop: 12,
+    marginTop: Tokens.spacing.sm,
   },
   modalDoneBtnText: {
     fontSize: Type.callout.fontSize,
@@ -2760,7 +2760,7 @@ const styles = StyleSheet.create({
     alignItems: 'center' as const,
     gap: 10,
     paddingVertical: 10,
-    paddingHorizontal: 12,
+    paddingHorizontal: Tokens.spacing.sm,
     borderRadius: Tokens.radius.card,
     backgroundColor: Colors.surfaceAlt,
   },
@@ -2775,15 +2775,15 @@ const styles = StyleSheet.create({
   pickerMeta: {
     fontSize: Type.caption2.fontSize,
     color: Colors.textMuted,
-    marginTop: 2,
+    marginTop: Tokens.spacing.hairline,
   },
   pctStepperRow: {
     flexDirection: 'row' as const,
-    gap: 4,
+    gap: Tokens.spacing.xxs,
   },
   pctStepBtn: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingHorizontal: Tokens.spacing.xs,
+    paddingVertical: Tokens.spacing.xxs,
     borderRadius: Tokens.radius.sm,
     borderWidth: 1,
     borderColor: Colors.borderLight,
@@ -2807,7 +2807,7 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingVertical: 6,
     paddingLeft: 10,
-    paddingRight: 8,
+    paddingRight: Tokens.spacing.xs,
     borderRadius: Tokens.radius.full,
     backgroundColor: Colors.surfaceAlt,
     borderWidth: 1,
@@ -2825,7 +2825,7 @@ const styles = StyleSheet.create({
   },
   progressChipPctPill: {
     paddingHorizontal: 7,
-    paddingVertical: 2,
+    paddingVertical: Tokens.spacing.hairline,
     borderRadius: Tokens.radius.full,
   },
   progressChipPctText: {
@@ -2842,15 +2842,15 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between' as const,
     flexWrap: 'wrap' as const,
     gap: 10,
-    paddingHorizontal: 16,
+    paddingHorizontal: Tokens.spacing.md,
     marginTop: -6,
-    marginBottom: 12,
+    marginBottom: Tokens.spacing.sm,
   },
   progressPill: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     gap: 6,
-    paddingHorizontal: 12,
+    paddingHorizontal: Tokens.spacing.sm,
     paddingVertical: 7,
     borderRadius: 999,
     backgroundColor: Colors.fillTertiary,
@@ -2871,7 +2871,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     gap: 6,
-    paddingHorizontal: 12,
+    paddingHorizontal: Tokens.spacing.sm,
     paddingVertical: 7,
     borderRadius: 999,
     backgroundColor: Colors.primary + '12',

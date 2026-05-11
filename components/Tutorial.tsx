@@ -228,7 +228,7 @@ function buildQuizDemo(question: string, options: string[], correctIdx: number):
     return (
       <View style={demoStyles.mockScreen}>
         <Text style={demoStyles.quizQuestion}>{question}</Text>
-        <View style={{ gap: 8 }}>
+        <View style={{ gap: Tokens.spacing.xs }}>
           {options.map((o, i) => {
             const isPicked = picked === i;
             const isCorrect = completed && i === correctIdx;
@@ -759,14 +759,14 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
-    paddingHorizontal: 20,
+    paddingHorizontal: Tokens.spacing.lg,
   },
   topBar: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     justifyContent: 'space-between' as const,
-    marginBottom: 12,
-    gap: 12,
+    marginBottom: Tokens.spacing.sm,
+    gap: Tokens.spacing.sm,
   },
   closeBtn: {
     width: 36,
@@ -780,7 +780,7 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row' as const,
     justifyContent: 'center' as const,
-    gap: 4,
+    gap: Tokens.spacing.xxs,
   },
   progressDot: {
     width: 6,
@@ -807,7 +807,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.cardBorder,
     borderRadius: 2,
     overflow: 'hidden' as const,
-    marginBottom: 16,
+    marginBottom: Tokens.spacing.md,
   },
   progressFill: {
     height: '100%' as const,
@@ -816,7 +816,7 @@ const styles = StyleSheet.create({
   scroll: {
     flexGrow: 1,
     alignItems: 'center' as const,
-    paddingVertical: 8,
+    paddingVertical: Tokens.spacing.xs,
   },
   iconWrap: {
     width: 56,
@@ -825,32 +825,32 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary + '14',
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
-    marginBottom: 12,
+    marginBottom: Tokens.spacing.sm,
   },
   title: {
     fontSize: Type.title2.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
     textAlign: 'center' as const,
-    marginBottom: 8,
+    marginBottom: Tokens.spacing.xs,
   },
   body: {
     fontSize: Type.bodyCompact.fontSize,
     color: Colors.textMuted,
     textAlign: 'center' as const,
     lineHeight: 20,
-    paddingHorizontal: 12,
-    marginBottom: 16,
+    paddingHorizontal: Tokens.spacing.sm,
+    marginBottom: Tokens.spacing.md,
   },
   instructionRow: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     gap: 6,
     backgroundColor: Colors.primary + '10',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: Tokens.spacing.sm,
+    paddingVertical: Tokens.spacing.xs,
     borderRadius: Tokens.radius.md,
-    marginBottom: 12,
+    marginBottom: Tokens.spacing.sm,
     alignSelf: 'center' as const,
   },
   instructionText: {
@@ -863,7 +863,7 @@ const styles = StyleSheet.create({
     alignItems: 'center' as const,
     gap: 6,
     marginTop: 10,
-    paddingVertical: 8,
+    paddingVertical: Tokens.spacing.xs,
     paddingHorizontal: 14,
     borderRadius: Tokens.radius.md,
     borderWidth: 1,
@@ -877,8 +877,8 @@ const styles = StyleSheet.create({
   },
   actions: {
     flexDirection: 'row' as const,
-    gap: 12,
-    marginBottom: 8,
+    gap: Tokens.spacing.sm,
+    marginBottom: Tokens.spacing.xs,
   },
   secondaryBtn: {
     flex: 1,
@@ -918,7 +918,7 @@ const styles = StyleSheet.create({
   },
   skipRow: {
     alignItems: 'center' as const,
-    paddingVertical: 12,
+    paddingVertical: Tokens.spacing.sm,
   },
   skipText: {
     fontSize: Type.footnote.fontSize,
@@ -940,7 +940,7 @@ const demoStyles = StyleSheet.create({
     minHeight: 180,
   },
   mockHeader: {
-    paddingBottom: 8,
+    paddingBottom: Tokens.spacing.xs,
     borderBottomWidth: 0.5,
     borderBottomColor: Colors.borderLight,
     marginBottom: 10,
@@ -952,13 +952,13 @@ const demoStyles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   mockBody: {
-    gap: 8,
+    gap: Tokens.spacing.xs,
   },
   mockProjectRow: {
     backgroundColor: Colors.fillTertiary,
     borderRadius: Tokens.radius.sm,
     paddingVertical: 10,
-    paddingHorizontal: 12,
+    paddingHorizontal: Tokens.spacing.sm,
   },
   mockProjectText: {
     fontSize: Type.footnote.fontSize,
@@ -966,7 +966,7 @@ const demoStyles = StyleSheet.create({
     fontWeight: '500' as const,
   },
   mockEmpty: {
-    paddingVertical: 16,
+    paddingVertical: Tokens.spacing.md,
     alignItems: 'center' as const,
   },
   mockEmptyText: {
@@ -1012,13 +1012,13 @@ const demoStyles = StyleSheet.create({
     justifyContent: 'space-around' as const,
     backgroundColor: Colors.fillSecondary,
     borderRadius: Tokens.radius.card,
-    padding: 8,
+    padding: Tokens.spacing.xs,
     marginBottom: 10,
   },
   tabItem: {
     alignItems: 'center' as const,
-    gap: 2,
-    paddingVertical: 8,
+    gap: Tokens.spacing.hairline,
+    paddingVertical: Tokens.spacing.xs,
     paddingHorizontal: 10,
     borderRadius: Tokens.radius.sm,
     position: 'relative' as const,
@@ -1042,7 +1042,7 @@ const demoStyles = StyleSheet.create({
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     gap: 6,
-    paddingVertical: 8,
+    paddingVertical: Tokens.spacing.xs,
     justifyContent: 'center' as const,
   },
   hintText: {
@@ -1078,7 +1078,7 @@ const demoStyles = StyleSheet.create({
   ganttLabels: {
     flexDirection: 'row' as const,
     justifyContent: 'space-between' as const,
-    paddingHorizontal: 2,
+    paddingHorizontal: Tokens.spacing.hairline,
   },
   ganttLabel: {
     flex: 1,
@@ -1100,7 +1100,7 @@ const demoStyles = StyleSheet.create({
     justifyContent: 'space-between' as const,
     backgroundColor: Colors.fillTertiary,
     borderRadius: Tokens.radius.md,
-    paddingVertical: 12,
+    paddingVertical: Tokens.spacing.sm,
     paddingHorizontal: 14,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
@@ -1125,8 +1125,8 @@ const demoStyles = StyleSheet.create({
     gap: 10,
     backgroundColor: Colors.primary,
     borderRadius: Tokens.radius.lg,
-    paddingVertical: 16,
-    paddingHorizontal: 24,
+    paddingVertical: Tokens.spacing.md,
+    paddingHorizontal: Tokens.spacing.xl,
     alignSelf: 'center' as const,
   },
   startBtnDone: {

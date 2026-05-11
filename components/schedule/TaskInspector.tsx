@@ -156,7 +156,7 @@ export default function TaskInspector({
         <TouchableOpacity onPress={onClose} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={18} color={Colors.textSecondary} /></TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.body} contentContainerStyle={{ paddingBottom: 32 }}>
+      <ScrollView style={styles.body} contentContainerStyle={{ paddingBottom: Tokens.spacing['2xl'] }}>
         {/* Schedule block — raw CPM numbers. Makes the "why" of the bar
             position legible without the user having to open settings. */}
         <View style={styles.section}>
@@ -384,18 +384,18 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: Tokens.spacing.xs,
     paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingVertical: Tokens.spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
   },
   headerTitle: { flex: 1, fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
-  closeBtn: { padding: 4 },
+  closeBtn: { padding: Tokens.spacing.xxs },
   body: { flex: 1 },
   section: {
     paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingVertical: Tokens.spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: Colors.borderLight,
   },
@@ -403,7 +403,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginBottom: 8,
+    marginBottom: Tokens.spacing.xs,
   },
   sectionTitle: {
     fontSize: Type.caption2.fontSize,
@@ -427,8 +427,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingHorizontal: Tokens.spacing.xs,
+    paddingVertical: Tokens.spacing.xxs,
     borderRadius: Tokens.radius.xs,
     borderWidth: 1,
     borderColor: Colors.border,
@@ -459,7 +459,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 4,
+    paddingVertical: Tokens.spacing.xxs,
     gap: 10,
   },
   depTitle: { fontSize: Type.caption1.fontSize, color: Colors.text, flex: 1 },
@@ -469,7 +469,7 @@ const styles = StyleSheet.create({
   sectionHead: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
 
   // Photo grid
-  photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 6 },
+  photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Tokens.spacing.xs, marginTop: 6 },
   photoTile: {
     width: 72, height: 72, borderRadius: Tokens.radius.md,
     overflow: 'hidden',
@@ -488,15 +488,15 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
     backgroundColor: Colors.primary + '0D',
     borderColor: Colors.primary + '30', borderStyle: 'dashed',
-    gap: 4,
+    gap: Tokens.spacing.xxs,
   },
   photoAddLabel: { fontSize: 10, fontWeight: '700', color: Colors.primary },
 
   // Subscribers
-  subRow: { flexDirection: 'row', gap: 6, marginTop: 8 },
+  subRow: { flexDirection: 'row', gap: 6, marginTop: Tokens.spacing.xs },
   subInput: {
     flex: 1,
-    paddingHorizontal: 10, paddingVertical: 8, borderRadius: Tokens.radius.sm,
+    paddingHorizontal: 10, paddingVertical: Tokens.spacing.xs, borderRadius: Tokens.radius.sm,
     borderWidth: 1, borderColor: Colors.border,
     backgroundColor: Colors.background,
     fontSize: Type.caption1.fontSize, color: Colors.text,
@@ -507,7 +507,7 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   subAddBtnDisabled: { opacity: 0.4 },
-  subList: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
+  subList: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: Tokens.spacing.xs },
   subChip: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
     paddingLeft: 10, paddingRight: 6, paddingVertical: 5, borderRadius: Tokens.radius.full,

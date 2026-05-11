@@ -28,7 +28,7 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    padding: 20,
+    padding: Tokens.spacing.lg,
     backgroundColor: Colors.background,
   },
   iconContainer: {
@@ -38,7 +38,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.warningLight,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 16,
+    marginBottom: Tokens.spacing.md,
   },
   title: {
     fontSize: Type.title2.fontSize,
@@ -49,11 +49,11 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: Type.subhead.fontSize,
     color: Colors.textSecondary,
-    marginBottom: 24,
+    marginBottom: Tokens.spacing.xl,
   },
   link: {
     backgroundColor: Colors.primary,
-    paddingHorizontal: 24,
+    paddingHorizontal: Tokens.spacing.xl,
     paddingVertical: 14,
     borderRadius: Tokens.radius.card,
   },

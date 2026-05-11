@@ -89,7 +89,7 @@ const styles = StyleSheet.create({
   pill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: Tokens.spacing.xxs,
     borderRadius: Tokens.radius.sm,
     alignSelf: 'flex-start',
   },

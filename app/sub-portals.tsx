@@ -61,7 +61,7 @@ export default function SubPortalsListScreen() {
         options={{
           title: 'Sub Portals',
           headerLeft: () => (
-            <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }} accessibilityRole="button" accessibilityLabel="Back">
+            <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: Tokens.spacing.xxs }} accessibilityRole="button" accessibilityLabel="Back">
               <ChevronLeft size={24} color={Colors.primary} />
             </TouchableOpacity>
           ),
@@ -77,7 +77,7 @@ export default function SubPortalsListScreen() {
       <FlatList
         data={pairs}
         keyExtractor={p => p.key}
-        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 32 }}
+        contentContainerStyle={{ paddingHorizontal: Tokens.spacing.md, paddingBottom: insets.bottom + 32 }}
         ListEmptyComponent={
           <View style={styles.empty}>
             <Inbox size={32} color={Colors.textMuted} />
@@ -125,15 +125,15 @@ function PairRowItem({ item, onPress }: { item: PairRow; onPress: () => void }) 
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
-  headerWrap: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 18 },
+  headerWrap: { paddingHorizontal: Tokens.spacing.md, paddingTop: Tokens.spacing.sm, paddingBottom: 18 },
   title: { fontSize: Type.title1.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.5 },
   subtitle: { fontSize: Type.bodyCompact.fontSize, color: Colors.textMuted, marginTop: 6, lineHeight: 20 },
 
   empty: {
-    alignItems: 'center', padding: 36, marginTop: 32,
+    alignItems: 'center', padding: 36, marginTop: Tokens.spacing['2xl'],
     backgroundColor: Colors.card, borderRadius: Tokens.radius.lg,
     borderWidth: 1, borderColor: Colors.border, borderStyle: 'dashed',
-    gap: 8,
+    gap: Tokens.spacing.xs,
   },
   emptyTitle: { fontSize: Type.callout.fontSize, fontWeight: '700', color: Colors.text },
   emptyBody: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, textAlign: 'center', lineHeight: 18 },
@@ -150,11 +150,11 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   rowTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700', color: Colors.text },
-  rowMeta: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2 },
+  rowMeta: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: Tokens.spacing.hairline },
   rowFoot: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 6 },
   rowAmount: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
   pendingBadge: {
-    paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.full,
+    paddingHorizontal: Tokens.spacing.xs, paddingVertical: 3, borderRadius: Tokens.radius.full,
     backgroundColor: Colors.primary + '18',
   },
   pendingBadgeText: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.primary },

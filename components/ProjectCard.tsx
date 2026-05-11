@@ -222,7 +222,7 @@ export default React.memo(ProjectCard);
 
 const styles = StyleSheet.create({
   wrapper: {
-    marginHorizontal: 16,
+    marginHorizontal: Tokens.spacing.md,
     marginBottom: 10,
   },
   card: {
@@ -244,8 +244,8 @@ const styles = StyleSheet.create({
   topRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
-    gap: 12,
+    padding: Tokens.spacing.md,
+    gap: Tokens.spacing.sm,
   },
   iconWrap: {
     width: 42,
@@ -281,8 +281,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingHorizontal: Tokens.spacing.xs,
+    paddingVertical: Tokens.spacing.xxs,
     borderRadius: 20,
   },
   statusDotInner: {
@@ -297,18 +297,18 @@ const styles = StyleSheet.create({
   separator: {
     height: 0.5,
     backgroundColor: Colors.borderLight,
-    marginHorizontal: 16,
+    marginHorizontal: Tokens.spacing.md,
   },
   bottomRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
+    paddingHorizontal: Tokens.spacing.md,
     paddingVertical: 14,
-    gap: 4,
+    gap: Tokens.spacing.xxs,
   },
   metaItem: {
     flex: 1,
-    gap: 2,
+    gap: Tokens.spacing.hairline,
   },
   metaLabel: {
     fontSize: Type.caption2.fontSize,
@@ -329,10 +329,10 @@ const styles = StyleSheet.create({
     width: 0.5,
     height: 28,
     backgroundColor: Colors.borderLight,
-    marginHorizontal: 8,
+    marginHorizontal: Tokens.spacing.xs,
   },
   chevron: {
-    marginLeft: 4,
+    marginLeft: Tokens.spacing.xxs,
   },
   burnTrack: {
     height: 3,

@@ -371,16 +371,16 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: Colors.background,
     borderTopLeftRadius: 22, borderTopRightRadius: 22,
-    paddingHorizontal: 16, paddingTop: 10,
+    paddingHorizontal: Tokens.spacing.md, paddingTop: 10,
   },
   handle: {
     width: 40, height: 4, borderRadius: 2,
     backgroundColor: Colors.border,
-    alignSelf: 'center', marginBottom: 8,
+    alignSelf: 'center', marginBottom: Tokens.spacing.xs,
   },
-  head: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 12 },
+  head: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: Tokens.spacing.sm },
   title: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.2 },
-  sub: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2 },
+  sub: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: Tokens.spacing.hairline },
   closeBtn: {
     width: 32, height: 32, borderRadius: Tokens.radius.sm,
     alignItems: 'center', justifyContent: 'center',
@@ -390,7 +390,7 @@ const styles = StyleSheet.create({
   section: { marginBottom: 14 },
   row2: { flexDirection: 'row', gap: 10 },
   label: { fontSize: Type.caption2.fontSize, fontWeight: '800', color: Colors.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.5, marginBottom: 6 },
-  labelRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 6 },
+  labelRow: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xxs, marginBottom: 6 },
 
   // Progress
   progressBar: {
@@ -404,9 +404,9 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary + '40',
   },
   progressText: { fontSize: Type.callout.fontSize, fontWeight: '800', color: Colors.text, textAlign: 'center', letterSpacing: -0.2 },
-  progressBtnRow: { flexDirection: 'row', gap: 6, marginTop: 8 },
+  progressBtnRow: { flexDirection: 'row', gap: 6, marginTop: Tokens.spacing.xs },
   progressBtn: {
-    flex: 1, paddingVertical: 8, borderRadius: Tokens.radius.sm,
+    flex: 1, paddingVertical: Tokens.spacing.xs, borderRadius: Tokens.radius.sm,
     backgroundColor: Colors.card,
     borderWidth: 1, borderColor: Colors.border,
     alignItems: 'center',
@@ -417,23 +417,23 @@ const styles = StyleSheet.create({
   numberInput: {
     backgroundColor: Colors.card, borderRadius: Tokens.radius.md,
     borderWidth: 1, borderColor: Colors.border,
-    padding: 12, fontSize: Type.bodyCompact.fontSize, color: Colors.text, marginTop: 6,
+    padding: Tokens.spacing.sm, fontSize: Type.bodyCompact.fontSize, color: Colors.text, marginTop: 6,
   },
 
   textArea: {
     backgroundColor: Colors.card, borderRadius: Tokens.radius.md,
     borderWidth: 1, borderColor: Colors.border,
-    padding: 12, fontSize: Type.bodyCompact.fontSize, color: Colors.text,
+    padding: Tokens.spacing.sm, fontSize: Type.bodyCompact.fontSize, color: Colors.text,
     minHeight: 70, textAlignVertical: 'top' as const,
   },
   textAreaWarn: {
     borderColor: Colors.warning + '60',
     backgroundColor: Colors.warning + '08',
   },
-  blockerHint: { fontSize: Type.caption2.fontSize, color: Colors.warning, fontStyle: 'italic', marginTop: 4 },
+  blockerHint: { fontSize: Type.caption2.fontSize, color: Colors.warning, fontStyle: 'italic', marginTop: Tokens.spacing.xxs },
 
   // Photos
-  photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Tokens.spacing.xs },
   photoTile: {
     width: 72, height: 72, borderRadius: Tokens.radius.md,
     overflow: 'hidden',
@@ -452,11 +452,11 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
     backgroundColor: Colors.primary + '0D',
     borderColor: Colors.primary + '30', borderStyle: 'dashed',
-    gap: 4,
+    gap: Tokens.spacing.xxs,
   },
   photoAddLabel: { fontSize: 10, fontWeight: '700', color: Colors.primary },
 
-  footer: { flexDirection: 'row', gap: 10, paddingTop: 12, borderTopWidth: 1, borderTopColor: Colors.border },
+  footer: { flexDirection: 'row', gap: 10, paddingTop: Tokens.spacing.sm, borderTopWidth: 1, borderTopColor: Colors.border },
   secondaryBtn: {
     flex: 1, paddingVertical: 14, borderRadius: Tokens.radius.card,
     backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,

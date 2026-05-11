@@ -103,15 +103,15 @@ const styles = StyleSheet.create({
   root: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 16,
-    gap: 16,
+    paddingHorizontal: Tokens.spacing.lg,
+    paddingTop: Tokens.spacing.md,
+    paddingBottom: Tokens.spacing.md,
+    gap: Tokens.spacing.md,
   },
   left: {
     flex: 1,
     minWidth: 0,
-    gap: 4,
+    gap: Tokens.spacing.xxs,
   },
   titleRow: {
     flexDirection: 'row',
@@ -145,9 +145,9 @@ const styles = StyleSheet.create({
   searchField: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: Tokens.spacing.xs,
     height: 36,
-    paddingHorizontal: 12,
+    paddingHorizontal: Tokens.spacing.sm,
     borderRadius: Tokens.radius.md,
     backgroundColor: Colors.fillTertiary,
     borderWidth: 1,
@@ -165,7 +165,7 @@ const styles = StyleSheet.create({
   },
   kbdWrap: {
     paddingHorizontal: 6,
-    paddingVertical: 2,
+    paddingVertical: Tokens.spacing.hairline,
     borderRadius: 4,
     backgroundColor: 'rgba(60,60,67,0.08)',
   },

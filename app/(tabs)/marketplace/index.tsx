@@ -258,14 +258,14 @@ export default function MarketplaceScreen() {
                   validating the UX with real suppliers before opening the
                   payment plumbing. */}
               <View style={{
-                marginTop: 12, padding: 12,
+                marginTop: Tokens.spacing.sm, padding: Tokens.spacing.sm,
                 backgroundColor: Colors.warning + '15', borderRadius: 12,
                 borderWidth: 1, borderColor: Colors.warning + '40',
               }}>
                 <Text style={{ fontSize: 12, fontWeight: '800' as const, color: Colors.warning, letterSpacing: 0.5 }}>
                   PREVIEW
                 </Text>
-                <Text style={{ fontSize: 13, color: Colors.text, marginTop: 4, lineHeight: 18 }}>
+                <Text style={{ fontSize: 13, color: Colors.text, marginTop: Tokens.spacing.xxs, lineHeight: 18 }}>
                   Marketplace is in preview. Suppliers and listings shown are reference data — orders here won&apos;t actually ship. We&apos;re onboarding real suppliers; tap &quot;Contact&quot; to reach out directly.
                 </Text>
               </View>
@@ -345,7 +345,7 @@ export default function MarketplaceScreen() {
           </View>
         }
         ListFooterComponent={
-          <View style={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 100, gap: 10 }}>
+          <View style={{ paddingHorizontal: Tokens.spacing.md, paddingBottom: insets.bottom + 100, gap: 10 }}>
             {viewMode === 'suppliers'
               ? filteredSuppliers.map(supplier => (
                   <View key={supplier.id}>
@@ -635,9 +635,9 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: Colors.surface,
-    paddingHorizontal: 20,
-    paddingBottom: 12,
-    gap: 8,
+    paddingHorizontal: Tokens.spacing.lg,
+    paddingBottom: Tokens.spacing.sm,
+    gap: Tokens.spacing.xs,
     borderBottomWidth: 0.5,
     borderBottomColor: Colors.borderLight,
   },
@@ -657,10 +657,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: Colors.fillTertiary,
     borderRadius: Tokens.radius.lg,
-    paddingHorizontal: 12,
-    gap: 8,
+    paddingHorizontal: Tokens.spacing.sm,
+    gap: Tokens.spacing.xs,
     height: 44,
-    marginTop: 4,
+    marginTop: Tokens.spacing.xxs,
   },
   searchInput: {
     flex: 1,
@@ -669,7 +669,7 @@ const styles = StyleSheet.create({
   },
   modeRow: {
     flexDirection: 'row',
-    gap: 8,
+    gap: Tokens.spacing.xs,
   },
   modeBtn: {
     flex: 1,
@@ -698,15 +698,15 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.borderLight,
   },
   categoriesContent: {
-    paddingHorizontal: 16,
+    paddingHorizontal: Tokens.spacing.md,
     paddingVertical: 10,
     gap: 6,
   },
   categoryChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 12,
+    gap: Tokens.spacing.xxs,
+    paddingHorizontal: Tokens.spacing.sm,
     paddingVertical: 7,
     borderRadius: 20,
     backgroundColor: Colors.fillTertiary,
@@ -727,7 +727,7 @@ const styles = StyleSheet.create({
     fontWeight: '600' as const,
   },
   resultsHeader: {
-    paddingHorizontal: 20,
+    paddingHorizontal: Tokens.spacing.lg,
     paddingVertical: 10,
   },
   resultsCount: {
@@ -739,7 +739,7 @@ const styles = StyleSheet.create({
   supplierCard: {
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.panel,
-    padding: 16,
+    padding: Tokens.spacing.md,
     gap: 10,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
@@ -750,11 +750,11 @@ const styles = StyleSheet.create({
   featuredBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: Tokens.spacing.xxs,
     alignSelf: 'flex-start',
     backgroundColor: '#FFF8E1',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingHorizontal: Tokens.spacing.xs,
+    paddingVertical: Tokens.spacing.xxs,
     borderRadius: Tokens.radius.xs,
   },
   featuredText: {
@@ -767,7 +767,7 @@ const styles = StyleSheet.create({
   supplierTop: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: Tokens.spacing.sm,
   },
   supplierAvatar: {
     width: 44,
@@ -779,7 +779,7 @@ const styles = StyleSheet.create({
   },
   supplierInfo: {
     flex: 1,
-    gap: 4,
+    gap: Tokens.spacing.xxs,
   },
   supplierName: {
     fontSize: Type.callout.fontSize,
@@ -810,10 +810,10 @@ const styles = StyleSheet.create({
   supplierChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: Tokens.spacing.xxs,
     backgroundColor: Colors.fillTertiary,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingHorizontal: Tokens.spacing.xs,
+    paddingVertical: Tokens.spacing.xxs,
     borderRadius: Tokens.radius.xs,
   },
   supplierChipText: {
@@ -872,8 +872,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 3,
     backgroundColor: Colors.successLight,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingHorizontal: Tokens.spacing.xs,
+    paddingVertical: Tokens.spacing.xxs,
     borderRadius: Tokens.radius.xs,
   },
   stockText: {
@@ -887,19 +887,19 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
     borderRadius: Tokens.radius.md,
     padding: 10,
-    gap: 8,
+    gap: Tokens.spacing.xs,
   },
   listingPriceBlock: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'baseline',
-    gap: 2,
+    gap: Tokens.spacing.hairline,
   },
   listingPriceLabel: {
     fontSize: 9,
     fontWeight: '700' as const,
     color: Colors.textMuted,
-    marginRight: 4,
+    marginRight: Tokens.spacing.xxs,
     letterSpacing: 0.5,
   },
   listingRetail: {
@@ -943,7 +943,7 @@ const styles = StyleSheet.create({
   listingSupplierRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: Tokens.spacing.xxs,
   },
   listingSupplierText: {
     fontSize: Type.caption1.fontSize,
@@ -953,7 +953,7 @@ const styles = StyleSheet.create({
   listingLeadRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: Tokens.spacing.xxs,
   },
   listingLeadText: {
     fontSize: Type.caption2.fontSize,
@@ -985,13 +985,13 @@ const styles = StyleSheet.create({
     borderRadius: 3,
     backgroundColor: Colors.border,
     alignSelf: 'center',
-    marginBottom: 8,
+    marginBottom: Tokens.spacing.xs,
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
+    paddingHorizontal: Tokens.spacing.lg,
     paddingBottom: 14,
     borderBottomWidth: 0.5,
     borderBottomColor: Colors.borderLight,
@@ -1002,7 +1002,7 @@ const styles = StyleSheet.create({
     fontWeight: '700' as const,
     color: Colors.text,
     letterSpacing: -0.3,
-    marginRight: 12,
+    marginRight: Tokens.spacing.sm,
   },
   modalCloseBtn: {
     width: 32,
@@ -1014,8 +1014,8 @@ const styles = StyleSheet.create({
   },
   supplierDetailHeader: {
     alignItems: 'center',
-    paddingVertical: 24,
-    paddingHorizontal: 20,
+    paddingVertical: Tokens.spacing.xl,
+    paddingHorizontal: Tokens.spacing.lg,
     gap: 10,
   },
   supplierDetailAvatar: {
@@ -1025,18 +1025,18 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary + '12',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 4,
+    marginBottom: Tokens.spacing.xxs,
   },
   ratingRowLarge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: Tokens.spacing.xxs,
   },
   ratingTextLarge: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
-    marginLeft: 4,
+    marginLeft: Tokens.spacing.xxs,
   },
   supplierDetailDesc: {
     fontSize: Type.bodyCompact.fontSize,
@@ -1047,8 +1047,8 @@ const styles = StyleSheet.create({
   contactGrid: {
     flexDirection: 'row',
     gap: 10,
-    paddingHorizontal: 20,
-    marginBottom: 20,
+    paddingHorizontal: Tokens.spacing.lg,
+    marginBottom: Tokens.spacing.lg,
   },
   contactBtn: {
     flex: 1,
@@ -1066,12 +1066,12 @@ const styles = StyleSheet.create({
     color: Colors.text,
   },
   detailInfoCard: {
-    marginHorizontal: 20,
+    marginHorizontal: Tokens.spacing.lg,
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.lg,
     padding: 14,
-    gap: 8,
-    marginBottom: 20,
+    gap: Tokens.spacing.xs,
+    marginBottom: Tokens.spacing.lg,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
   },
@@ -1088,18 +1088,18 @@ const styles = StyleSheet.create({
   detailInfoDivider: {
     height: 0.5,
     backgroundColor: Colors.borderLight,
-    marginLeft: 24,
+    marginLeft: Tokens.spacing.xl,
   },
   detailSectionLabel: {
     fontSize: Type.caption1.fontSize,
     fontWeight: '600' as const,
     color: Colors.textMuted,
     letterSpacing: 0.6,
-    paddingHorizontal: 20,
-    marginBottom: 8,
+    paddingHorizontal: Tokens.spacing.lg,
+    marginBottom: Tokens.spacing.xs,
   },
   detailListingsCard: {
-    marginHorizontal: 20,
+    marginHorizontal: Tokens.spacing.lg,
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.lg,
     overflow: 'hidden' as const,
@@ -1110,12 +1110,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingVertical: Tokens.spacing.sm,
     gap: 10,
   },
   detailListingInfo: {
     flex: 1,
-    gap: 2,
+    gap: Tokens.spacing.hairline,
   },
   detailListingName: {
     fontSize: Type.bodyCompact.fontSize,
@@ -1138,7 +1138,7 @@ const styles = StyleSheet.create({
   detailSaveBadge: {
     backgroundColor: Colors.successLight,
     paddingHorizontal: 6,
-    paddingVertical: 2,
+    paddingVertical: Tokens.spacing.hairline,
     borderRadius: 4,
   },
   detailSaveText: {
@@ -1155,19 +1155,19 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.overlay,
     justifyContent: 'center',
-    padding: 20,
+    padding: Tokens.spacing.lg,
   },
   popupCard: {
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius["2xl"],
-    padding: 20,
-    gap: 12,
+    padding: Tokens.spacing.lg,
+    gap: Tokens.spacing.sm,
     maxHeight: '85%',
   },
   popupHeader: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 12,
+    gap: Tokens.spacing.sm,
   },
   popupTitle: {
     flex: 1,
@@ -1205,7 +1205,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 3,
     backgroundColor: Colors.successLight,
-    paddingHorizontal: 8,
+    paddingHorizontal: Tokens.spacing.xs,
     paddingVertical: 3,
     borderRadius: Tokens.radius.xs,
   },
@@ -1222,17 +1222,17 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
     borderRadius: Tokens.radius.card,
-    padding: 12,
+    padding: Tokens.spacing.sm,
     flexDirection: 'row',
     alignItems: 'baseline',
-    gap: 2,
+    gap: Tokens.spacing.hairline,
   },
   popupPriceLabel: {
     fontSize: 9,
     fontWeight: '700' as const,
     color: Colors.textMuted,
     letterSpacing: 0.5,
-    marginRight: 4,
+    marginRight: Tokens.spacing.xxs,
   },
   popupRetail: {
     fontSize: Type.callout.fontSize,
@@ -1253,12 +1253,12 @@ const styles = StyleSheet.create({
     fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
     color: Colors.textSecondary,
-    marginTop: 2,
+    marginTop: Tokens.spacing.hairline,
   },
   popupQtyRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: Tokens.spacing.sm,
   },
   popupQtyBtn: {
     width: 44,
@@ -1287,7 +1287,7 @@ const styles = StyleSheet.create({
   popupBulkBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: Tokens.spacing.xs,
     backgroundColor: Colors.successLight,
     borderRadius: Tokens.radius.md,
     padding: 10,
@@ -1329,11 +1329,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    gap: Tokens.spacing.xs,
     backgroundColor: Colors.primary,
     borderRadius: Tokens.radius.lg,
-    paddingVertical: 16,
-    marginTop: 4,
+    paddingVertical: Tokens.spacing.md,
+    marginTop: Tokens.spacing.xxs,
     shadowColor: Colors.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
@@ -1349,7 +1349,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    gap: Tokens.spacing.xs,
     backgroundColor: Colors.primary + '10',
     borderRadius: Tokens.radius.lg,
     paddingVertical: 14,

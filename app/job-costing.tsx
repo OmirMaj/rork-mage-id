@@ -138,7 +138,7 @@ function JobCostingInner() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 80 + insets.bottom }}>
+      <ScrollView contentContainerStyle={{ padding: Tokens.spacing.md, paddingBottom: 80 + insets.bottom }}>
 
         {/* KPI cards */}
         <View style={styles.kpiGrid}>
@@ -584,7 +584,7 @@ function PhaseDetailModal({ line, summary, onClose }: {
             <Text style={styles.modalTitle}>{line.phase}</Text>
             <TouchableOpacity onPress={onClose} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={Colors.text} /></TouchableOpacity>
           </View>
-          <View style={{ padding: 16 }}>
+          <View style={{ padding: Tokens.spacing.md }}>
             <DetailRow label="Budget" value={formatMoneyFull(line.budget)} />
             <DetailRow label="Committed" value={formatMoneyFull(line.committed)} />
             <DetailRow label="Actual paid" value={formatMoneyFull(line.actual)} />
@@ -639,13 +639,13 @@ function DetailRow({ label, value, bold, color }: {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: Colors.background },
-  errorWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
+  errorWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Tokens.spacing.xl },
   errorText: { fontSize: Type.subhead.fontSize, color: Colors.textSecondary },
 
   // Header
   header: {
-    flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingBottom: 12, paddingTop: 6,
-    gap: 8, borderBottomWidth: 1, borderBottomColor: Colors.borderLight,
+    flexDirection: 'row', alignItems: 'center', paddingHorizontal: Tokens.spacing.sm, paddingBottom: Tokens.spacing.sm, paddingTop: 6,
+    gap: Tokens.spacing.xs, borderBottomWidth: 1, borderBottomColor: Colors.borderLight,
   },
   headerBtn: {
     width: 36, height: 36, borderRadius: Tokens.radius.xl, alignItems: 'center', justifyContent: 'center',
@@ -657,7 +657,7 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: Type.body.fontSize, fontWeight: '700', color: Colors.text },
 
   // KPI grid
-  kpiGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 12 },
+  kpiGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: Tokens.spacing.sm },
   kpiCard: {
     flexBasis: '48%', backgroundColor: Colors.card, borderRadius: Tokens.radius.card, padding: 14,
     borderLeftWidth: 3, shadowColor: Colors.shadow, shadowOffset: { width: 0, height: 1 },
@@ -665,39 +665,39 @@ const styles = StyleSheet.create({
   },
   kpiHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
   kpiLabel: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
-  kpiValue: { fontSize: Type.title2.fontSize, fontWeight: '800', marginBottom: 2 },
+  kpiValue: { fontSize: Type.title2.fontSize, fontWeight: '800', marginBottom: Tokens.spacing.hairline },
   kpiSub: { fontSize: Type.caption2.fontSize, color: Colors.textMuted },
 
   // Banner
   banner: {
-    borderRadius: Tokens.radius.card, padding: 14, marginBottom: 16, borderLeftWidth: 4,
+    borderRadius: Tokens.radius.card, padding: 14, marginBottom: Tokens.spacing.md, borderLeftWidth: 4,
   },
   bannerTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700', color: Colors.text },
   bannerSub: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, marginTop: 3 },
 
   // Sections
   section: {
-    backgroundColor: Colors.card, borderRadius: Tokens.radius.card, padding: 14, marginBottom: 12,
+    backgroundColor: Colors.card, borderRadius: Tokens.radius.card, padding: 14, marginBottom: Tokens.spacing.sm,
     shadowColor: Colors.shadow, shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 1, shadowRadius: 2, elevation: 1,
   },
   sectionTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text, marginBottom: 10 },
   sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
-  addLink: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  addLink: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xxs },
   addLinkText: { fontSize: Type.footnote.fontSize, color: Colors.primary, fontWeight: '600' },
 
   warningSection: { backgroundColor: Colors.errorLight, borderWidth: 1, borderColor: `${Colors.error}40` },
   warningHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
   warningTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.error },
-  warningItem: { fontSize: Type.caption1.fontSize, color: Colors.text, marginLeft: 6, marginTop: 2 },
+  warningItem: { fontSize: Type.caption1.fontSize, color: Colors.text, marginLeft: 6, marginTop: Tokens.spacing.hairline },
 
   // Variance rows
   varianceRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8,
+    flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: Tokens.spacing.xs,
     borderBottomWidth: 1, borderBottomColor: Colors.borderLight,
   },
   varianceName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600', color: Colors.text },
-  varianceSub: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, marginTop: 2 },
+  varianceSub: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, marginTop: Tokens.spacing.hairline },
   varianceDelta: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' },
 
   // Phase bar
@@ -707,7 +707,7 @@ const styles = StyleSheet.create({
   },
   phaseHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
   phaseName: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.text, flex: 1 },
-  phasePill: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: Tokens.radius.sm },
+  phasePill: { paddingHorizontal: Tokens.spacing.xs, paddingVertical: Tokens.spacing.hairline, borderRadius: Tokens.radius.sm },
   phasePillText: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
   phaseTrack: {
     height: 14, backgroundColor: Colors.fillSecondary, borderRadius: 4, overflow: 'hidden',
@@ -726,51 +726,51 @@ const styles = StyleSheet.create({
     borderTopWidth: 1, borderTopColor: Colors.borderLight,
   },
   commitmentNumBox: {
-    width: 44, paddingVertical: 4, borderRadius: Tokens.radius.xs, backgroundColor: Colors.fillSecondary,
+    width: 44, paddingVertical: Tokens.spacing.xxs, borderRadius: Tokens.radius.xs, backgroundColor: Colors.fillSecondary,
     alignItems: 'center',
   },
   commitmentNumText: { fontSize: 10, fontWeight: '700', color: Colors.text },
   commitmentTitle: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: Colors.text },
   commitmentSub: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, marginTop: 1 },
   commitmentAmount: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.text, fontVariant: ['tabular-nums'] },
-  deleteBtn: { padding: 4 },
-  statusChip: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: Tokens.radius.xs },
+  deleteBtn: { padding: Tokens.spacing.xxs },
+  statusChip: { paddingHorizontal: 6, paddingVertical: Tokens.spacing.hairline, borderRadius: Tokens.radius.xs },
   statusChipText: { fontSize: 9, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
 
   // Empty state
-  emptyBox: { alignItems: 'center', padding: 20 },
-  emptyText: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, textAlign: 'center', marginTop: 8, marginBottom: 8 },
-  emptyCta: { backgroundColor: Colors.primary, paddingHorizontal: 14, paddingVertical: 8, borderRadius: Tokens.radius.sm },
+  emptyBox: { alignItems: 'center', padding: Tokens.spacing.lg },
+  emptyText: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, textAlign: 'center', marginTop: Tokens.spacing.xs, marginBottom: Tokens.spacing.xs },
+  emptyCta: { backgroundColor: Colors.primary, paddingHorizontal: 14, paddingVertical: Tokens.spacing.xs, borderRadius: Tokens.radius.sm },
   emptyCtaText: { color: Colors.textOnPrimary, fontSize: Type.footnote.fontSize, fontWeight: '700' },
 
-  footerNote: { fontSize: 10, color: Colors.textMuted, textAlign: 'center', marginTop: 16, lineHeight: 14, paddingHorizontal: 16 },
+  footerNote: { fontSize: 10, color: Colors.textMuted, textAlign: 'center', marginTop: Tokens.spacing.md, lineHeight: 14, paddingHorizontal: Tokens.spacing.md },
 
   // Modal
   modalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: Colors.overlay },
   modalCard: { backgroundColor: Colors.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '90%' },
   modalHeader: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    padding: 16, borderBottomWidth: 1, borderBottomColor: Colors.borderLight,
+    padding: Tokens.spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.borderLight,
   },
   modalTitle: { fontSize: Type.body.fontSize, fontWeight: '700', color: Colors.text },
-  modalFooter: { flexDirection: 'row', gap: 10, padding: 16, borderTopWidth: 1, borderTopColor: Colors.borderLight },
+  modalFooter: { flexDirection: 'row', gap: 10, padding: Tokens.spacing.md, borderTopWidth: 1, borderTopColor: Colors.borderLight },
 
-  btnGhost: { flex: 1, paddingVertical: 12, alignItems: 'center', borderRadius: Tokens.radius.md, backgroundColor: Colors.fillSecondary },
+  btnGhost: { flex: 1, paddingVertical: Tokens.spacing.sm, alignItems: 'center', borderRadius: Tokens.radius.md, backgroundColor: Colors.fillSecondary },
   btnGhostText: { color: Colors.text, fontSize: Type.bodyCompact.fontSize, fontWeight: '600' },
-  btnPrimary: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: Tokens.radius.md, backgroundColor: Colors.primary },
+  btnPrimary: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: Tokens.spacing.sm, borderRadius: Tokens.radius.md, backgroundColor: Colors.primary },
   btnPrimaryText: { color: Colors.textOnPrimary, fontSize: Type.bodyCompact.fontSize, fontWeight: '700' },
 
   // Form
-  segWrap: { flexDirection: 'row', margin: 16, backgroundColor: Colors.fillSecondary, borderRadius: Tokens.radius.md, padding: 2 },
-  segBtn: { flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: Tokens.radius.sm },
+  segWrap: { flexDirection: 'row', margin: Tokens.spacing.md, backgroundColor: Colors.fillSecondary, borderRadius: Tokens.radius.md, padding: Tokens.spacing.hairline },
+  segBtn: { flex: 1, paddingVertical: Tokens.spacing.xs, alignItems: 'center', borderRadius: Tokens.radius.sm },
   segBtnActive: { backgroundColor: Colors.surface },
   segBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: Colors.textSecondary },
   segBtnTextActive: { color: Colors.text },
 
-  fieldWrap: { marginHorizontal: 16, marginBottom: 12 },
-  fieldLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 },
+  fieldWrap: { marginHorizontal: Tokens.spacing.md, marginBottom: Tokens.spacing.sm },
+  fieldLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: Tokens.spacing.xxs },
   input: {
-    backgroundColor: Colors.fillSecondary, borderRadius: Tokens.radius.md, paddingHorizontal: 12, paddingVertical: 10,
+    backgroundColor: Colors.fillSecondary, borderRadius: Tokens.radius.md, paddingHorizontal: Tokens.spacing.sm, paddingVertical: 10,
     fontSize: Type.bodyCompact.fontSize, color: Colors.text,
   },
 

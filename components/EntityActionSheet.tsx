@@ -236,8 +236,8 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
     borderTopLeftRadius: 18,
     borderTopRightRadius: 18,
-    paddingHorizontal: 8,
-    paddingTop: 8,
+    paddingHorizontal: Tokens.spacing.xs,
+    paddingTop: Tokens.spacing.xs,
   },
   handle: {
     alignSelf: 'center',
@@ -245,13 +245,13 @@ const styles = StyleSheet.create({
     height: 4,
     borderRadius: 2,
     backgroundColor: Colors.border,
-    marginBottom: 8,
+    marginBottom: Tokens.spacing.xs,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 8,
+    paddingHorizontal: Tokens.spacing.xs,
+    paddingVertical: Tokens.spacing.xs,
   },
   title: {
     flex: 1,
@@ -265,10 +265,10 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 12,
+    paddingHorizontal: Tokens.spacing.sm,
+    paddingVertical: Tokens.spacing.sm,
     borderRadius: Tokens.radius.md,
-    gap: 12,
+    gap: Tokens.spacing.sm,
   },
   rowIcon: {
     width: 34, height: 34,

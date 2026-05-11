@@ -345,7 +345,7 @@ export default function PhotoTriageScreen() {
         options={{
           title: 'AI Photo Triage',
           headerLeft: () => (
-            <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }}>
+            <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: Tokens.spacing.xxs }}>
               <ChevronLeft size={24} color={Colors.primary} />
             </TouchableOpacity>
           ),
@@ -541,7 +541,7 @@ const styles = StyleSheet.create({
   loadingText: { fontSize: Type.body.fontSize, color: Colors.textMuted },
 
   hero: {
-    margin: 16, padding: 18, borderRadius: Tokens.radius.panel,
+    margin: Tokens.spacing.md, padding: 18, borderRadius: Tokens.radius.panel,
     backgroundColor: Colors.primary + '0D',
     borderWidth: 1, borderColor: Colors.primary + '20',
   },
@@ -549,23 +549,23 @@ const styles = StyleSheet.create({
     width: 38, height: 38, borderRadius: 11,
     backgroundColor: Colors.primary + '15',
     alignItems: 'center', justifyContent: 'center',
-    marginBottom: 12,
+    marginBottom: Tokens.spacing.sm,
   },
-  heroTitle: { fontSize: Type.title2.fontSize, fontWeight: '800', color: Colors.text, marginBottom: 8 },
+  heroTitle: { fontSize: Type.title2.fontSize, fontWeight: '800', color: Colors.text, marginBottom: Tokens.spacing.xs },
   heroBody: { fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 19 },
 
-  actionRow: { flexDirection: 'row', gap: 10, marginHorizontal: 16, marginBottom: 16 },
+  actionRow: { flexDirection: 'row', gap: 10, marginHorizontal: Tokens.spacing.md, marginBottom: Tokens.spacing.md },
   actionBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-    paddingVertical: 12, borderRadius: Tokens.radius.md,
+    paddingVertical: Tokens.spacing.sm, borderRadius: Tokens.radius.md,
     backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,
   },
   actionBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.text },
 
-  gallerySection: { marginHorizontal: 16, marginBottom: 16 },
-  pickedSection: { marginHorizontal: 16, marginBottom: 16 },
-  sectionTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700', color: Colors.text, marginBottom: 8 },
-  galleryScroll: { gap: 8, paddingVertical: 4 },
+  gallerySection: { marginHorizontal: Tokens.spacing.md, marginBottom: Tokens.spacing.md },
+  pickedSection: { marginHorizontal: Tokens.spacing.md, marginBottom: Tokens.spacing.md },
+  sectionTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700', color: Colors.text, marginBottom: Tokens.spacing.xs },
+  galleryScroll: { gap: Tokens.spacing.xs, paddingVertical: Tokens.spacing.xxs },
   galleryThumb: {
     width: 84, height: 84, borderRadius: Tokens.radius.md,
     overflow: 'hidden', borderWidth: 2, borderColor: 'transparent',
@@ -587,43 +587,43 @@ const styles = StyleSheet.create({
   },
 
   analyzeBtn: {
-    marginHorizontal: 16, paddingVertical: 14, borderRadius: Tokens.radius.md,
+    marginHorizontal: Tokens.spacing.md, paddingVertical: 14, borderRadius: Tokens.radius.md,
     backgroundColor: Colors.primary,
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Tokens.spacing.xs,
   },
   analyzeText: { color: '#FFF', fontSize: Type.body.fontSize, fontWeight: '700' },
 
   errorBanner: {
-    marginHorizontal: 16, marginTop: 12,
-    paddingHorizontal: 12, paddingVertical: 10, borderRadius: Tokens.radius.md,
+    marginHorizontal: Tokens.spacing.md, marginTop: Tokens.spacing.sm,
+    paddingHorizontal: Tokens.spacing.sm, paddingVertical: 10, borderRadius: Tokens.radius.md,
     backgroundColor: Colors.error + '15',
     borderWidth: 1, borderColor: Colors.error + '30',
-    flexDirection: 'row', alignItems: 'center', gap: 8,
+    flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs,
   },
   errorText: { fontSize: Type.caption1.fontSize, color: Colors.error, flex: 1, lineHeight: 17 },
 
-  bucket: { marginHorizontal: 16, marginBottom: 18 },
-  bucketHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
+  bucket: { marginHorizontal: Tokens.spacing.md, marginBottom: 18 },
+  bucketHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Tokens.spacing.xxs },
   bucketBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999,
   },
   bucketBadgeText: { color: '#FFF', fontSize: Type.caption2.fontSize, fontWeight: '800', letterSpacing: 0.4 },
   bucketCount: { fontSize: Type.subhead.fontSize, fontWeight: '700', color: Colors.text },
-  bucketHelper: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginBottom: 8 },
+  bucketHelper: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginBottom: Tokens.spacing.xs },
 
   entryCard: {
-    flexDirection: 'row', gap: 12,
+    flexDirection: 'row', gap: Tokens.spacing.sm,
     backgroundColor: Colors.card, borderRadius: Tokens.radius.card,
     borderWidth: 1, borderColor: Colors.border,
-    padding: 12, marginBottom: 8,
+    padding: Tokens.spacing.sm, marginBottom: Tokens.spacing.xs,
   },
   entryThumb: { width: 64, height: 64, borderRadius: Tokens.radius.md },
   entryTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
-  entryMeta: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2 },
-  entryRationale: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 4, fontStyle: 'italic' },
+  entryMeta: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: Tokens.spacing.hairline },
+  entryRationale: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: Tokens.spacing.xxs, fontStyle: 'italic' },
 
-  classChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
+  classChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: Tokens.spacing.xs },
   classChip: {
     paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999,
     backgroundColor: Colors.fillTertiary,
@@ -634,7 +634,7 @@ const styles = StyleSheet.create({
   discardBtn: { padding: 6 },
 
   applyBtn: {
-    marginHorizontal: 16, marginTop: 8, paddingVertical: 14, borderRadius: Tokens.radius.md,
+    marginHorizontal: Tokens.spacing.md, marginTop: Tokens.spacing.xs, paddingVertical: 14, borderRadius: Tokens.radius.md,
     backgroundColor: Colors.text,
     alignItems: 'center', justifyContent: 'center',
   },

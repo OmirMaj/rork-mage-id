@@ -16,6 +16,7 @@
 import React, { ReactNode, useEffect, useRef, useState } from 'react';
 import { Animated, Easing, StyleSheet, View, ViewStyle } from 'react-native';
 import { Colors } from '@/constants/colors';
+import { Tokens } from '@/constants/designTokens';
 
 interface SawCutRevealProps {
   /** When true, content is expanded. */
@@ -136,7 +137,7 @@ const styles = StyleSheet.create({
     width: '100%',
     overflow: 'hidden',
     position: 'relative',
-    marginBottom: 4,
+    marginBottom: Tokens.spacing.xxs,
   },
   blade: {
     position: 'absolute',

@@ -270,12 +270,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#1C1C1E',
     borderRightWidth: 1,
     borderRightColor: 'rgba(255,255,255,0.06)',
-    paddingHorizontal: 12,
+    paddingHorizontal: Tokens.spacing.sm,
   },
   brandSection: {
     alignItems: 'center' as const,
-    paddingBottom: 20,
-    marginBottom: 8,
+    paddingBottom: Tokens.spacing.lg,
+    marginBottom: Tokens.spacing.xs,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255,255,255,0.06)',
   },
@@ -286,7 +286,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
-    marginBottom: 8,
+    marginBottom: Tokens.spacing.xs,
   },
   brandName: {
     fontSize: Type.callout.fontSize,
@@ -299,30 +299,30 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.4)',
     fontWeight: '500' as const,
     letterSpacing: 0.5,
-    marginTop: 2,
+    marginTop: Tokens.spacing.hairline,
   },
   navScroll: {
     flex: 1,
   },
   navSection: {
-    marginBottom: 16,
+    marginBottom: Tokens.spacing.md,
   },
   sectionLabel: {
     fontSize: 10,
     fontWeight: '700' as const,
     color: 'rgba(255,255,255,0.3)',
     letterSpacing: 1.2,
-    paddingHorizontal: 12,
+    paddingHorizontal: Tokens.spacing.sm,
     marginBottom: 6,
   },
   navItem: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
-    gap: 12,
+    gap: Tokens.spacing.sm,
     paddingVertical: 10,
-    paddingHorizontal: 12,
+    paddingHorizontal: Tokens.spacing.sm,
     borderRadius: Tokens.radius.md,
-    marginBottom: 2,
+    marginBottom: Tokens.spacing.hairline,
     position: 'relative' as const,
   },
   // Solid pill in brand green for the active item — high-contrast against
@@ -355,7 +355,7 @@ const styles = StyleSheet.create({
   kbdWrap: {
     marginLeft: 'auto' as const,
     paddingHorizontal: 6,
-    paddingVertical: 2,
+    paddingVertical: Tokens.spacing.hairline,
     borderRadius: 4,
     backgroundColor: 'rgba(255,255,255,0.08)',
   },
@@ -367,13 +367,13 @@ const styles = StyleSheet.create({
   },
   footer: {
     alignItems: 'center' as const,
-    paddingTop: 12,
+    paddingTop: Tokens.spacing.sm,
   },
   footerDivider: {
     height: 1,
     backgroundColor: 'rgba(255,255,255,0.06)',
     alignSelf: 'stretch' as const,
-    marginBottom: 12,
+    marginBottom: Tokens.spacing.sm,
   },
   footerText: {
     fontSize: Type.caption2.fontSize,
@@ -384,7 +384,7 @@ const styles = StyleSheet.create({
   footerSubtext: {
     fontSize: 9,
     color: 'rgba(255,255,255,0.15)',
-    marginTop: 2,
+    marginTop: Tokens.spacing.hairline,
   },
   lockBadge: {
     marginLeft: 'auto' as const,

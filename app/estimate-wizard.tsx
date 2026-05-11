@@ -377,7 +377,7 @@ Use current regional pricing where possible. Round reasonably. Keep it under 15 
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <Stack.Screen options={{ title: 'Estimate' }} />
-        <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 100 }}>
+        <ScrollView contentContainerStyle={{ padding: Tokens.spacing.lg, paddingBottom: insets.bottom + 100 }}>
           {/* "Client preview" banner — reminds the GC that what they see
               IS what the homeowner sees. Soft contextual cue at the top. */}
           <View style={styles.previewBanner}>
@@ -734,7 +734,7 @@ Use current regional pricing where possible. Round reasonably. Keep it under 15 
         </View>
 
         <ScrollView
-          contentContainerStyle={{ padding: 20, paddingBottom: 120 }}
+          contentContainerStyle={{ padding: Tokens.spacing.lg, paddingBottom: 120 }}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
@@ -965,7 +965,7 @@ function StepCard({ icon, title, subtitle, children }: {
       <View style={styles.stepIconWrap}>{icon}</View>
       <Text style={styles.stepTitle}>{title}</Text>
       <Text style={styles.stepSubtitle}>{subtitle}</Text>
-      <View style={{ marginTop: 16 }}>{children}</View>
+      <View style={{ marginTop: Tokens.spacing.md }}>{children}</View>
     </View>
   );
 }
@@ -973,7 +973,7 @@ function StepCard({ icon, title, subtitle, children }: {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   progressWrap: {
-    paddingHorizontal: 20, paddingTop: 12, paddingBottom: 4,
+    paddingHorizontal: Tokens.spacing.lg, paddingTop: Tokens.spacing.sm, paddingBottom: Tokens.spacing.xxs,
   },
   progressTrack: {
     height: 4, backgroundColor: Colors.cardBorder, borderRadius: 2, overflow: 'hidden' as const,
@@ -986,11 +986,11 @@ const styles = StyleSheet.create({
     width: 64, height: 64, borderRadius: 32,
     backgroundColor: Colors.primary + '14',
     alignItems: 'center' as const, justifyContent: 'center' as const,
-    marginBottom: 12,
+    marginBottom: Tokens.spacing.sm,
   },
   stepTitle: { fontSize: 24, fontWeight: '700' as const, color: Colors.text, marginBottom: 6 },
   stepSubtitle: { fontSize: Type.subhead.fontSize, color: Colors.textMuted, lineHeight: 21 },
-  chipWrap: { flexDirection: 'row' as const, flexWrap: 'wrap' as const, gap: 8 },
+  chipWrap: { flexDirection: 'row' as const, flexWrap: 'wrap' as const, gap: Tokens.spacing.xs },
   chip: {
     paddingHorizontal: 14, paddingVertical: 10, borderRadius: Tokens.radius.xl,
     backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.cardBorder,
@@ -1000,18 +1000,18 @@ const styles = StyleSheet.create({
   chipTextActive: { color: '#FFF' },
   input: {
     backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.cardBorder,
-    borderRadius: Tokens.radius.card, paddingHorizontal: 14, paddingVertical: 12,
+    borderRadius: Tokens.radius.card, paddingHorizontal: 14, paddingVertical: Tokens.spacing.sm,
     fontSize: Type.callout.fontSize, color: Colors.text,
   },
   textArea: {
     backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.cardBorder,
-    borderRadius: Tokens.radius.card, padding: 12, minHeight: 120,
+    borderRadius: Tokens.radius.card, padding: Tokens.spacing.sm, minHeight: 120,
     fontSize: Type.subhead.fontSize, color: Colors.text,
   },
   hint: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 6 },
   footer: {
-    flexDirection: 'row' as const, gap: 12,
-    paddingHorizontal: 20, paddingTop: 12,
+    flexDirection: 'row' as const, gap: Tokens.spacing.sm,
+    paddingHorizontal: Tokens.spacing.lg, paddingTop: Tokens.spacing.sm,
     borderTopWidth: 1, borderTopColor: Colors.cardBorder,
     backgroundColor: Colors.background,
   },
@@ -1030,30 +1030,30 @@ const styles = StyleSheet.create({
   secondaryText: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: Colors.text },
   // Result view
   resultHero: {
-    alignItems: 'center' as const, marginBottom: 24, gap: 4,
+    alignItems: 'center' as const, marginBottom: Tokens.spacing.xl, gap: Tokens.spacing.xxs,
   },
   resultHeroTitle: {
-    fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.textMuted, marginTop: 8,
+    fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.textMuted, marginTop: Tokens.spacing.xs,
   },
   resultTotal: {
-    fontSize: 44, fontWeight: '800' as const, color: Colors.text, marginTop: 4,
+    fontSize: 44, fontWeight: '800' as const, color: Colors.text, marginTop: Tokens.spacing.xxs,
   },
   resultSubtitle: { fontSize: Type.footnote.fontSize, color: Colors.textMuted },
   resultCostPerSqft: {
     fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.primary,
-    marginTop: 4, letterSpacing: 0.3,
+    marginTop: Tokens.spacing.xxs, letterSpacing: 0.3,
   },
-  resultBody: { fontSize: Type.bodyCompact.fontSize, color: Colors.text, lineHeight: 21, marginBottom: 20 },
+  resultBody: { fontSize: Type.bodyCompact.fontSize, color: Colors.text, lineHeight: 21, marginBottom: Tokens.spacing.lg },
   // At-a-glance stat tiles below hero
   statGrid: {
-    flexDirection: 'row' as const, gap: 8,
-    marginBottom: 16,
+    flexDirection: 'row' as const, gap: Tokens.spacing.xs,
+    marginBottom: Tokens.spacing.md,
   },
   statTile: {
     flex: 1, backgroundColor: Colors.surface, borderRadius: Tokens.radius.card,
-    paddingVertical: 12, paddingHorizontal: 10,
+    paddingVertical: Tokens.spacing.sm, paddingHorizontal: 10,
     borderWidth: 1, borderColor: Colors.cardBorder,
-    alignItems: 'center' as const, gap: 4,
+    alignItems: 'center' as const, gap: Tokens.spacing.xxs,
   },
   statLabel: {
     fontSize: 10, fontWeight: '700' as const, color: Colors.textMuted,
@@ -1063,7 +1063,7 @@ const styles = StyleSheet.create({
   // Scope summary card
   summaryCard: {
     backgroundColor: Colors.surface, borderRadius: Tokens.radius.lg, padding: 14,
-    borderWidth: 1, borderColor: Colors.cardBorder, marginBottom: 16, gap: 6,
+    borderWidth: 1, borderColor: Colors.cardBorder, marginBottom: Tokens.spacing.md, gap: 6,
   },
   summaryLabel: {
     fontSize: 10, fontWeight: '800' as const, color: Colors.textMuted,
@@ -1072,17 +1072,17 @@ const styles = StyleSheet.create({
   summaryText: { fontSize: Type.bodyCompact.fontSize, color: Colors.text, lineHeight: 21 },
   // Where-the-budget-goes breakdown card
   breakdownCard: {
-    backgroundColor: Colors.surface, borderRadius: Tokens.radius.lg, padding: 16,
-    borderWidth: 1, borderColor: Colors.cardBorder, marginBottom: 20,
+    backgroundColor: Colors.surface, borderRadius: Tokens.radius.lg, padding: Tokens.spacing.md,
+    borderWidth: 1, borderColor: Colors.cardBorder, marginBottom: Tokens.spacing.lg,
   },
   breakdownTitle: {
     fontSize: Type.caption2.fontSize, fontWeight: '800' as const, color: Colors.textMuted,
-    letterSpacing: 1.4, textTransform: 'uppercase' as const, marginBottom: 12,
+    letterSpacing: 1.4, textTransform: 'uppercase' as const, marginBottom: Tokens.spacing.sm,
   },
   breakdownRow: { marginBottom: 10 },
   breakdownHead: {
     flexDirection: 'row' as const, justifyContent: 'space-between' as const,
-    marginBottom: 4,
+    marginBottom: Tokens.spacing.xxs,
   },
   breakdownCat: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.text },
   breakdownAmt: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.text },
@@ -1096,12 +1096,12 @@ const styles = StyleSheet.create({
   categoryCard: {
     backgroundColor: Colors.surface, borderRadius: Tokens.radius.lg,
     borderWidth: 1, borderColor: Colors.cardBorder,
-    marginBottom: 12, overflow: 'hidden' as const,
+    marginBottom: Tokens.spacing.sm, overflow: 'hidden' as const,
   },
   categoryHeader: {
     flexDirection: 'row' as const, justifyContent: 'space-between' as const,
     alignItems: 'center' as const,
-    paddingHorizontal: 14, paddingVertical: 12,
+    paddingHorizontal: 14, paddingVertical: Tokens.spacing.sm,
     backgroundColor: Colors.background,
     borderBottomWidth: 1, borderBottomColor: Colors.cardBorder,
   },
@@ -1109,7 +1109,7 @@ const styles = StyleSheet.create({
     fontSize: Type.bodyCompact.fontSize, fontWeight: '800' as const, color: Colors.text,
     letterSpacing: 0.2,
   },
-  categoryHeadRight: { alignItems: 'flex-end' as const, gap: 2 },
+  categoryHeadRight: { alignItems: 'flex-end' as const, gap: Tokens.spacing.hairline },
   categoryMeta: {
     fontSize: 10, fontWeight: '700' as const, color: Colors.textMuted,
     letterSpacing: 0.6, textTransform: 'uppercase' as const,
@@ -1118,15 +1118,15 @@ const styles = StyleSheet.create({
   lineItemNew: {
     flexDirection: 'row' as const, alignItems: 'center' as const,
     paddingVertical: 10, paddingHorizontal: 14,
-    borderBottomWidth: 1, borderBottomColor: Colors.cardBorder, gap: 12,
+    borderBottomWidth: 1, borderBottomColor: Colors.cardBorder, gap: Tokens.spacing.sm,
   },
   totalsBlockNew: {
-    marginTop: 8, padding: 16, borderRadius: Tokens.radius.lg,
+    marginTop: Tokens.spacing.xs, padding: Tokens.spacing.md, borderRadius: Tokens.radius.lg,
     backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.cardBorder,
   },
   grandSubLabel: {
     fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: Colors.textMuted,
-    marginTop: 2, letterSpacing: 0.2,
+    marginTop: Tokens.spacing.hairline, letterSpacing: 0.2,
   },
   // "Client preview" banner at top of result screen
   previewBanner: {
@@ -1136,7 +1136,7 @@ const styles = StyleSheet.create({
     borderRadius: Tokens.radius.md,
     paddingVertical: 10,
     paddingHorizontal: 14,
-    marginBottom: 16,
+    marginBottom: Tokens.spacing.md,
     alignItems: 'center' as const,
   },
   previewBannerText: {
@@ -1152,11 +1152,11 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.card,
     paddingVertical: 14,
-    paddingHorizontal: 16,
+    paddingHorizontal: Tokens.spacing.md,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
-    marginBottom: 16,
-    gap: 16,
+    marginBottom: Tokens.spacing.md,
+    gap: Tokens.spacing.md,
   },
   metaCol: { flex: 1 },
   metaLabel: {
@@ -1165,7 +1165,7 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
     letterSpacing: 1,
     textTransform: 'uppercase' as const,
-    marginBottom: 4,
+    marginBottom: Tokens.spacing.xxs,
   },
   metaValue: {
     fontSize: Type.footnote.fontSize,
@@ -1185,7 +1185,7 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
     fontStyle: 'italic' as const,
     lineHeight: 20,
-    marginTop: 8,
+    marginTop: Tokens.spacing.xs,
   },
   specialReq: {
     backgroundColor: Colors.background,
@@ -1199,30 +1199,30 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
     letterSpacing: 0.8,
     textTransform: 'uppercase' as const,
-    marginBottom: 4,
+    marginBottom: Tokens.spacing.xxs,
   },
   specialReqText: { fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 19 },
   // Inclusions card
   includedCard: {
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.lg,
-    padding: 16,
+    padding: Tokens.spacing.md,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
-    marginTop: 8,
-    marginBottom: 12,
+    marginTop: Tokens.spacing.xs,
+    marginBottom: Tokens.spacing.sm,
   },
   includedChips: {
     flexDirection: 'row' as const,
     flexWrap: 'wrap' as const,
     gap: 6,
-    marginTop: 4,
+    marginTop: Tokens.spacing.xxs,
     marginBottom: 10,
   },
   includedChip: {
     backgroundColor: Colors.successLight,
     borderRadius: Tokens.radius.full,
-    paddingVertical: 4,
+    paddingVertical: Tokens.spacing.xxs,
     paddingHorizontal: 10,
   },
   includedChipText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: '#1B5E20' },
@@ -1231,51 +1231,51 @@ const styles = StyleSheet.create({
   excludedCard: {
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.lg,
-    padding: 16,
+    padding: Tokens.spacing.md,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
-    marginBottom: 12,
+    marginBottom: Tokens.spacing.sm,
   },
   excludedItem: {
-    fontSize: Type.caption1.fontSize, color: Colors.textMuted, lineHeight: 22, paddingLeft: 4,
+    fontSize: Type.caption1.fontSize, color: Colors.textMuted, lineHeight: 22, paddingLeft: Tokens.spacing.xxs,
   },
   // Payment terms card
   paymentCard: {
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.lg,
-    paddingTop: 4,
-    paddingBottom: 4,
-    paddingHorizontal: 16,
+    paddingTop: Tokens.spacing.xxs,
+    paddingBottom: Tokens.spacing.xxs,
+    paddingHorizontal: Tokens.spacing.md,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
-    marginBottom: 12,
+    marginBottom: Tokens.spacing.sm,
   },
   paymentRow: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     justifyContent: 'space-between' as const,
-    paddingVertical: 12,
+    paddingVertical: Tokens.spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: Colors.cardBorder,
-    gap: 12,
+    gap: Tokens.spacing.sm,
   },
   paymentRowLeft: { flex: 1 },
   paymentRowTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.text },
-  paymentRowDesc: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 2, lineHeight: 16 },
+  paymentRowDesc: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: Tokens.spacing.hairline, lineHeight: 16 },
   paymentRowAmt: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800' as const, color: Colors.primary },
   // Acceptance / next-steps card
   acceptanceCard: {
     backgroundColor: '#0F1216',
     borderRadius: Tokens.radius.lg,
     padding: 18,
-    marginTop: 8,
-    marginBottom: 16,
+    marginTop: Tokens.spacing.xs,
+    marginBottom: Tokens.spacing.md,
   },
   acceptanceTitle: {
     fontSize: Type.callout.fontSize,
     fontWeight: '800' as const,
     color: Colors.primary,
-    marginBottom: 8,
+    marginBottom: Tokens.spacing.xs,
   },
   acceptanceBody: {
     fontSize: Type.footnote.fontSize,
@@ -1284,17 +1284,17 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text,
-    letterSpacing: 0.3, marginTop: 16, marginBottom: 10,
+    letterSpacing: 0.3, marginTop: Tokens.spacing.md, marginBottom: 10,
   },
   lineItem: {
     flexDirection: 'row' as const, alignItems: 'center' as const,
-    paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.cardBorder, gap: 12,
+    paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.cardBorder, gap: Tokens.spacing.sm,
   },
   lineCategory: { fontSize: Type.caption2.fontSize, color: Colors.primary, fontWeight: '700' as const, letterSpacing: 0.5 },
-  lineDesc: { fontSize: Type.bodyCompact.fontSize, color: Colors.text, marginTop: 2 },
-  lineMeta: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2 },
+  lineDesc: { fontSize: Type.bodyCompact.fontSize, color: Colors.text, marginTop: Tokens.spacing.hairline },
+  lineMeta: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: Tokens.spacing.hairline },
   lineTotal: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text },
-  totalsBlock: { marginTop: 16 },
+  totalsBlock: { marginTop: Tokens.spacing.md },
   totalRow: {
     flexDirection: 'row' as const, justifyContent: 'space-between' as const,
     paddingVertical: 6,
@@ -1307,21 +1307,21 @@ const styles = StyleSheet.create({
   },
   grandLabel: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.text },
   grandValue: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: Colors.primary },
-  notesBlock: { marginTop: 8 },
-  noteRow: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, lineHeight: 20, marginBottom: 4 },
+  notesBlock: { marginTop: Tokens.spacing.xs },
+  noteRow: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, lineHeight: 20, marginBottom: Tokens.spacing.xxs },
   disclaimer: {
     fontSize: Type.caption1.fontSize, color: Colors.textMuted, fontStyle: 'italic' as const,
-    textAlign: 'center' as const, marginTop: 16, paddingHorizontal: 12,
+    textAlign: 'center' as const, marginTop: Tokens.spacing.md, paddingHorizontal: Tokens.spacing.sm,
   },
   actionRow: {
-    flexDirection: 'row' as const, gap: 12, marginTop: 20,
+    flexDirection: 'row' as const, gap: Tokens.spacing.sm, marginTop: Tokens.spacing.lg,
   },
   // Result-screen action stack — buttons stack vertically and span full
   // width so the two-button layout doesn't look cramped when only Share
   // and New Estimate are present.
   resultActions: {
-    marginTop: 24,
-    gap: 12,
+    marginTop: Tokens.spacing.xl,
+    gap: Tokens.spacing.sm,
     alignItems: 'stretch' as const,
   },
   resultPrimaryBtn: {
@@ -1332,7 +1332,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
     borderRadius: Tokens.radius.lg,
     paddingVertical: 18,
-    paddingHorizontal: 20,
+    paddingHorizontal: Tokens.spacing.lg,
     shadowColor: Colors.primary,
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.28,
@@ -1349,10 +1349,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
-    gap: 8,
+    gap: Tokens.spacing.xs,
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.lg,
-    paddingVertical: 16,
+    paddingVertical: Tokens.spacing.md,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
   },
@@ -1373,23 +1373,23 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    padding: 20,
+    padding: Tokens.spacing.lg,
     gap: 6,
   },
-  emailModalHead: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'space-between' as const, marginBottom: 8 },
+  emailModalHead: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'space-between' as const, marginBottom: Tokens.spacing.xs },
   emailModalTitle: { fontSize: Type.title3.fontSize, fontWeight: '900' as const, color: Colors.text, letterSpacing: -0.4 },
-  emailModalLabel: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: Colors.textMuted, marginTop: 8 },
+  emailModalLabel: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: Colors.textMuted, marginTop: Tokens.spacing.xs },
   emailModalInput: {
     minHeight: 44,
     borderRadius: Tokens.radius.card,
     backgroundColor: Colors.surfaceAlt,
-    paddingHorizontal: 12,
+    paddingHorizontal: Tokens.spacing.sm,
     paddingVertical: 10,
     fontSize: Type.subhead.fontSize,
     color: Colors.text,
   },
   emailModalBody: { minHeight: 140, paddingTop: 10 },
-  emailTermsRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, paddingVertical: 12 },
+  emailTermsRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, paddingVertical: Tokens.spacing.sm },
   emailTermsBox: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: Colors.fillSecondary, alignItems: 'center' as const, justifyContent: 'center' as const },
   emailTermsBoxOn: { backgroundColor: Colors.primary, borderColor: Colors.primary },
   emailTermsLabel: { flex: 1, fontSize: Type.footnote.fontSize, color: Colors.text },
@@ -1398,5 +1398,5 @@ const styles = StyleSheet.create({
   emailCancelBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
   emailSendBtn: { flex: 1.4, minHeight: 48, flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 6, borderRadius: 999, backgroundColor: Colors.primary },
   emailSendBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.surface },
-  emailFootnote: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 8, textAlign: 'center' as const },
+  emailFootnote: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: Tokens.spacing.xs, textAlign: 'center' as const },
 });

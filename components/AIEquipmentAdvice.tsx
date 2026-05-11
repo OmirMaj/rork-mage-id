@@ -131,11 +131,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    gap: Tokens.spacing.xs,
     backgroundColor: Colors.primary + '10',
     borderRadius: Tokens.radius.card,
     paddingVertical: 14,
-    marginTop: 12,
+    marginTop: Tokens.spacing.sm,
     borderWidth: 1,
     borderColor: Colors.primary + '25',
   },
@@ -148,7 +148,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.lg,
     padding: 14,
-    marginTop: 12,
+    marginTop: Tokens.spacing.sm,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
   },
@@ -171,10 +171,10 @@ const styles = StyleSheet.create({
   recBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: Tokens.spacing.xs,
     borderRadius: Tokens.radius.md,
-    padding: 12,
-    marginBottom: 12,
+    padding: Tokens.spacing.sm,
+    marginBottom: Tokens.spacing.sm,
   },
   recIcon: {
     fontSize: Type.subheadline.fontSize,
@@ -186,7 +186,7 @@ const styles = StyleSheet.create({
   },
   statsRow: {
     flexDirection: 'row',
-    gap: 8,
+    gap: Tokens.spacing.xs,
     marginBottom: 10,
   },
   statItem: {
@@ -195,7 +195,7 @@ const styles = StyleSheet.create({
     borderRadius: Tokens.radius.sm,
     padding: 10,
     alignItems: 'center',
-    gap: 2,
+    gap: Tokens.spacing.hairline,
   },
   statLabel: {
     fontSize: 10,
@@ -212,7 +212,7 @@ const styles = StyleSheet.create({
     fontSize: Type.footnote.fontSize,
     color: Colors.text,
     lineHeight: 19,
-    marginBottom: 8,
+    marginBottom: Tokens.spacing.xs,
   },
   reconsiderRow: {
     flexDirection: 'row',

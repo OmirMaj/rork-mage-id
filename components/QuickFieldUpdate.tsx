@@ -614,8 +614,8 @@ export default function QuickFieldUpdate() {
 
 const styles = StyleSheet.create({
   wrap: {
-    marginHorizontal: 20,
-    marginBottom: 20,
+    marginHorizontal: Tokens.spacing.lg,
+    marginBottom: Tokens.spacing.lg,
     padding: 14,
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.panel,
@@ -626,7 +626,7 @@ const styles = StyleSheet.create({
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: Tokens.spacing.xs,
   },
   titleIconWrap: {
     width: 22,
@@ -660,7 +660,7 @@ const styles = StyleSheet.create({
   },
   inputRow: {
     flexDirection: 'row',
-    gap: 8,
+    gap: Tokens.spacing.xs,
     alignItems: 'center',
   },
   input: {
@@ -668,7 +668,7 @@ const styles = StyleSheet.create({
     minHeight: 42,
     borderRadius: Tokens.radius.md,
     backgroundColor: Colors.surfaceAlt,
-    paddingHorizontal: 12,
+    paddingHorizontal: Tokens.spacing.sm,
     fontSize: Type.bodyCompact.fontSize,
     color: Colors.text,
   },
@@ -685,8 +685,8 @@ const styles = StyleSheet.create({
   },
   suggestRow: {
     gap: 6,
-    paddingVertical: 2,
-    paddingRight: 4,
+    paddingVertical: Tokens.spacing.hairline,
+    paddingRight: Tokens.spacing.xxs,
   },
   suggestChip: {
     flexDirection: 'row',
@@ -729,29 +729,29 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.overlay,
     justifyContent: 'center',
-    padding: 24,
+    padding: Tokens.spacing.xl,
   },
   pickerCard: {
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.panel,
-    padding: 16,
+    padding: Tokens.spacing.md,
     gap: 6,
   },
   pickerTitle: {
     fontSize: Type.subhead.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
-    marginBottom: 8,
+    marginBottom: Tokens.spacing.xs,
   },
   pickerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingVertical: 10,
-    paddingHorizontal: 12,
+    paddingHorizontal: Tokens.spacing.sm,
     borderRadius: Tokens.radius.md,
     backgroundColor: Colors.surfaceAlt,
-    gap: 12,
+    gap: Tokens.spacing.sm,
   },
   pickerRowActive: {
     backgroundColor: Colors.primary + '15',

@@ -274,7 +274,7 @@ export default function WarrantiesScreen() {
                 {!project && (
                   <>
                     <Text style={styles.fieldLabel}>Project</Text>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingVertical: 4 }}>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingVertical: Tokens.spacing.xxs }}>
                       {projects.map(p => (
                         <TouchableOpacity
                           key={p.id}
@@ -292,7 +292,7 @@ export default function WarrantiesScreen() {
                 <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder="e.g. Roof - 10-Year Manufacturer" placeholderTextColor={Colors.textMuted} />
 
                 <Text style={styles.fieldLabel}>Category</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingVertical: 4 }}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingVertical: Tokens.spacing.xxs }}>
                   {CATEGORIES.map(c => (
                     <TouchableOpacity
                       key={c.key}
@@ -319,7 +319,7 @@ export default function WarrantiesScreen() {
                 </View>
 
                 <Text style={styles.fieldLabel}>Coverage Details</Text>
-                <TextInput style={[styles.input, { minHeight: 80, paddingTop: 12, textAlignVertical: 'top' as const }]} value={coverage} onChangeText={setCoverage} placeholder="What's covered (parts, labor, etc.)" placeholderTextColor={Colors.textMuted} multiline />
+                <TextInput style={[styles.input, { minHeight: 80, paddingTop: Tokens.spacing.sm, textAlignVertical: 'top' as const }]} value={coverage} onChangeText={setCoverage} placeholder="What's covered (parts, labor, etc.)" placeholderTextColor={Colors.textMuted} multiline />
 
                 {/* Material installation record (vision-doc #16) — all optional.
                     Captures the SKU/lot trail so 6 months post-handover the
@@ -383,7 +383,7 @@ export default function WarrantiesScreen() {
 
                 <Text style={styles.fieldLabel}>Maintenance notes</Text>
                 <TextInput
-                  style={[styles.input, { minHeight: 60, paddingTop: 12, textAlignVertical: 'top' as const }]}
+                  style={[styles.input, { minHeight: 60, paddingTop: Tokens.spacing.sm, textAlignVertical: 'top' as const }]}
                   value={maintenanceNotes}
                   onChangeText={setMaintenanceNotes}
                   placeholder="Annual service required to keep warranty valid. No abrasive cleaners."
@@ -392,7 +392,7 @@ export default function WarrantiesScreen() {
                 />
 
                 <Text style={styles.fieldLabel}>Notes</Text>
-                <TextInput style={[styles.input, { minHeight: 60, paddingTop: 12, textAlignVertical: 'top' as const }]} value={description} onChangeText={setDescription} placeholder="Optional notes" placeholderTextColor={Colors.textMuted} multiline />
+                <TextInput style={[styles.input, { minHeight: 60, paddingTop: Tokens.spacing.sm, textAlignVertical: 'top' as const }]} value={description} onChangeText={setDescription} placeholder="Optional notes" placeholderTextColor={Colors.textMuted} multiline />
 
                 <View style={styles.formActions}>
                   <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowForm(false)}>
@@ -413,19 +413,19 @@ export default function WarrantiesScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
-  hero: { marginHorizontal: 20, marginTop: 16, marginBottom: 12, padding: 16, backgroundColor: Colors.primary + '10', borderRadius: Tokens.radius.panel, borderWidth: 1, borderColor: Colors.primary + '25', gap: 4 },
-  heroTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: Colors.text, marginTop: 4 },
+  hero: { marginHorizontal: Tokens.spacing.lg, marginTop: Tokens.spacing.md, marginBottom: Tokens.spacing.sm, padding: Tokens.spacing.md, backgroundColor: Colors.primary + '10', borderRadius: Tokens.radius.panel, borderWidth: 1, borderColor: Colors.primary + '25', gap: Tokens.spacing.xxs },
+  heroTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: Colors.text, marginTop: Tokens.spacing.xxs },
   heroSub: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, lineHeight: 18 },
-  metricsRow: { flexDirection: 'row', gap: 10, paddingHorizontal: 20, marginBottom: 16 },
-  metricCard: { flex: 1, padding: 14, borderRadius: Tokens.radius.lg, backgroundColor: Colors.successLight, alignItems: 'center' as const, gap: 2 },
+  metricsRow: { flexDirection: 'row', gap: 10, paddingHorizontal: Tokens.spacing.lg, marginBottom: Tokens.spacing.md },
+  metricCard: { flex: 1, padding: 14, borderRadius: Tokens.radius.lg, backgroundColor: Colors.successLight, alignItems: 'center' as const, gap: Tokens.spacing.hairline },
   metricValue: { fontSize: Type.title2.fontSize, fontWeight: '800' as const, color: Colors.success },
   metricLabel: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, fontWeight: '600' as const },
-  emptyState: { alignItems: 'center', paddingVertical: 40, paddingHorizontal: 40, gap: 10 },
+  emptyState: { alignItems: 'center', paddingVertical: Tokens.spacing['3xl'], paddingHorizontal: Tokens.spacing['3xl'], gap: 10 },
   emptyTitle: { fontSize: Type.body.fontSize, fontWeight: '700' as const, color: Colors.text },
   emptyDesc: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, textAlign: 'center' as const, lineHeight: 18 },
-  card: { marginHorizontal: 20, marginBottom: 10, padding: 16, borderRadius: Tokens.radius.lg, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.cardBorder, gap: 4, position: 'relative' as const },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' as const, marginBottom: 4 },
-  statusPill: { flexDirection: 'row', alignItems: 'center' as const, gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.sm },
+  card: { marginHorizontal: Tokens.spacing.lg, marginBottom: 10, padding: Tokens.spacing.md, borderRadius: Tokens.radius.lg, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.cardBorder, gap: Tokens.spacing.xxs, position: 'relative' as const },
+  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' as const, marginBottom: Tokens.spacing.xxs },
+  statusPill: { flexDirection: 'row', alignItems: 'center' as const, gap: Tokens.spacing.xxs, paddingHorizontal: Tokens.spacing.xs, paddingVertical: 3, borderRadius: Tokens.radius.sm },
   statusText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const },
   categoryText: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontWeight: '600' as const, textTransform: 'uppercase' as const, letterSpacing: 0.3 },
   cardTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text },
@@ -435,19 +435,19 @@ const styles = StyleSheet.create({
   dateText: { fontSize: Type.caption1.fontSize, color: Colors.textMuted },
   daysText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const },
   deleteBtn: { position: 'absolute' as const, top: 10, right: 10, width: 26, height: 26, borderRadius: Tokens.radius.xs, backgroundColor: Colors.errorLight, alignItems: 'center' as const, justifyContent: 'center' as const },
-  addBtn: { flexDirection: 'row', alignItems: 'center' as const, justifyContent: 'center' as const, gap: 8, marginHorizontal: 20, marginTop: 12, paddingVertical: 14, borderRadius: Tokens.radius.lg, backgroundColor: Colors.primary + '12', borderWidth: 1, borderColor: Colors.primary + '25' },
+  addBtn: { flexDirection: 'row', alignItems: 'center' as const, justifyContent: 'center' as const, gap: Tokens.spacing.xs, marginHorizontal: Tokens.spacing.lg, marginTop: Tokens.spacing.sm, paddingVertical: 14, borderRadius: Tokens.radius.lg, backgroundColor: Colors.primary + '12', borderWidth: 1, borderColor: Colors.primary + '25' },
   addBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: Colors.primary },
   modalOverlay: { flex: 1, backgroundColor: Colors.overlay, justifyContent: 'flex-end' as const },
-  modalCard: { backgroundColor: Colors.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 22, gap: 4, maxHeight: '90%' },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' as const, marginBottom: 8 },
+  modalCard: { backgroundColor: Colors.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 22, gap: Tokens.spacing.xxs, maxHeight: '90%' },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' as const, marginBottom: Tokens.spacing.xs },
   modalTitle: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: Colors.text },
-  fieldLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.textSecondary, marginTop: 10, marginBottom: 4 },
+  fieldLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.textSecondary, marginTop: 10, marginBottom: Tokens.spacing.xxs },
   input: { minHeight: 44, borderRadius: Tokens.radius.card, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 14, fontSize: Type.subhead.fontSize, color: Colors.text },
-  chip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: Tokens.radius.md, backgroundColor: Colors.fillTertiary },
+  chip: { paddingHorizontal: 14, paddingVertical: Tokens.spacing.xs, borderRadius: Tokens.radius.md, backgroundColor: Colors.fillTertiary },
   chipActive: { backgroundColor: Colors.primary },
   chipText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.textSecondary },
   chipTextActive: { color: '#FFF' },
-  formActions: { flexDirection: 'row', gap: 10, marginTop: 16 },
+  formActions: { flexDirection: 'row', gap: 10, marginTop: Tokens.spacing.md },
   cancelBtn: { flex: 1, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: Colors.fillTertiary, alignItems: 'center' as const, justifyContent: 'center' as const },
   cancelBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text },
   saveBtn: { flex: 2, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: Colors.primary, alignItems: 'center' as const, justifyContent: 'center' as const },

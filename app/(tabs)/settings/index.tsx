@@ -1028,7 +1028,7 @@ export default function SettingsScreen() {
           <View style={styles.pdfPreviewNote}>
             <FileText size={14} color={Colors.primary} />
             <View style={{ flex: 1 }}>
-              <Text style={[styles.pdfPreviewNoteText, { color: Colors.textSecondary, fontWeight: '600' as const, marginBottom: 2 }]}>Preview</Text>
+              <Text style={[styles.pdfPreviewNoteText, { color: Colors.textSecondary, fontWeight: '600' as const, marginBottom: Tokens.spacing.hairline }]}>Preview</Text>
               <Text style={[styles.pdfPreviewNoteText, { color: Colors.text }]} numberOfLines={1}>{pdfNamingPreview}</Text>
             </View>
           </View>
@@ -1039,7 +1039,7 @@ export default function SettingsScreen() {
           Customize the app's accent colors to match your brand.
         </Text>
         <View style={styles.group}>
-          <View style={{ padding: 16 }}>
+          <View style={{ padding: Tokens.spacing.md }}>
             <View style={styles.themeGrid}>
               {THEME_PRESETS.map(theme => (
                 <TouchableOpacity
@@ -1260,7 +1260,7 @@ export default function SettingsScreen() {
                 <View style={[styles.iconWrap, { backgroundColor: Colors.success }]}>
                   <Store size={14} color="#fff" />
                 </View>
-                <View style={{ flex: 1, gap: 2 }}>
+                <View style={{ flex: 1, gap: Tokens.spacing.hairline }}>
                   <Text style={styles.rowLabel}>{supplierProfile.companyName}</Text>
                   <Text style={styles.supplierRegisteredSub}>Registered Supplier</Text>
                 </View>
@@ -1308,7 +1308,7 @@ export default function SettingsScreen() {
           Upgrade to unlock premium features for your business.
         </Text>
         <View style={styles.group}>
-          <View style={{ padding: 16, gap: 12 }}>
+          <View style={{ padding: Tokens.spacing.md, gap: Tokens.spacing.sm }}>
             {[
               {
                 id: 'free' as const,
@@ -1473,7 +1473,7 @@ export default function SettingsScreen() {
                   />
                 </TouchableOpacity>
                 {isOpen ? (
-                  <View style={{ paddingHorizontal: 16, paddingBottom: 12, paddingTop: 0 }}>
+                  <View style={{ paddingHorizontal: Tokens.spacing.md, paddingBottom: Tokens.spacing.sm, paddingTop: 0 }}>
                     <Text style={{ fontSize: Type.footnote.fontSize, color: Colors.textMuted, lineHeight: 19 }}>
                       {item.a}
                     </Text>
@@ -1815,8 +1815,8 @@ const styles = StyleSheet.create({
   largeTitle: {
     ...Type.display,
     color: Colors.ink,
-    paddingHorizontal: 20,
-    paddingTop: 4,
+    paddingHorizontal: Tokens.spacing.lg,
+    paddingTop: Tokens.spacing.xxs,
     marginBottom: 28,
   },
   // Profile hero card — sits at the top of Settings, replacing the small
@@ -1826,9 +1826,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     gap: 14,
-    marginHorizontal: 16,
-    marginTop: 8,
-    marginBottom: 24,
+    marginHorizontal: Tokens.spacing.md,
+    marginTop: Tokens.spacing.xs,
+    marginBottom: Tokens.spacing.xl,
     padding: 18,
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.xl,
@@ -1854,7 +1854,7 @@ const styles = StyleSheet.create({
     color: Colors.surface,
     letterSpacing: -0.5,
   },
-  profileMeta: { flex: 1, gap: 2 },
+  profileMeta: { flex: 1, gap: Tokens.spacing.hairline },
   profileName: {
     fontSize: Type.subheadline.fontSize,
     fontWeight: '800' as const,
@@ -1877,8 +1877,8 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   profileTierPill: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
+    paddingHorizontal: Tokens.spacing.xs,
+    paddingVertical: Tokens.spacing.hairline,
     borderRadius: Tokens.radius.sm,
     borderWidth: 1,
   },
@@ -1910,16 +1910,16 @@ const styles = StyleSheet.create({
   sectionSubtext: {
     fontSize: Type.footnote.fontSize,
     color: Colors.textMuted,
-    paddingHorizontal: 20,
+    paddingHorizontal: Tokens.spacing.lg,
     marginBottom: 10,
     lineHeight: 18,
   },
   group: {
     backgroundColor: Colors.surface,
-    marginHorizontal: 16,
+    marginHorizontal: Tokens.spacing.md,
     borderRadius: Tokens.radius.card,
     overflow: 'hidden' as const,
-    marginBottom: 20,
+    marginBottom: Tokens.spacing.lg,
     // Black outline matches every other card surface across the app.
     // Drops the soft shadow — the defined edge carries enough weight.
     borderWidth: 1,
@@ -1928,9 +1928,9 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    gap: 12,
+    paddingHorizontal: Tokens.spacing.md,
+    paddingVertical: Tokens.spacing.sm,
+    gap: Tokens.spacing.sm,
     minHeight: 52,
   },
   iconWrap: {
@@ -1949,7 +1949,7 @@ const styles = StyleSheet.create({
   rowSubtext: {
     fontSize: Type.caption1.fontSize,
     color: Colors.textMuted,
-    marginTop: 2,
+    marginTop: Tokens.spacing.hairline,
   },
   rowRight: {
     flexDirection: 'row',
@@ -1959,7 +1959,7 @@ const styles = StyleSheet.create({
   rowValue: {
     fontSize: Type.subhead.fontSize,
     color: Colors.textSecondary,
-    marginRight: 4,
+    marginRight: Tokens.spacing.xxs,
   },
   inlineInput: {
     flex: 1,
@@ -1986,7 +1986,7 @@ const styles = StyleSheet.create({
   },
   aboutBlock: {
     flex: 1,
-    gap: 2,
+    gap: Tokens.spacing.hairline,
   },
   aboutDesc: {
     fontSize: Type.caption1.fontSize,
@@ -1994,8 +1994,8 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
   logoPreviewContainer: {
-    padding: 16,
-    gap: 12,
+    padding: Tokens.spacing.md,
+    gap: Tokens.spacing.sm,
   },
   logoPreview: {
     width: '100%',
@@ -2012,7 +2012,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingVertical: Tokens.spacing.xs,
     borderRadius: Tokens.radius.sm,
     backgroundColor: Colors.primary + '12',
   },
@@ -2026,7 +2026,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingVertical: Tokens.spacing.xs,
     borderRadius: Tokens.radius.sm,
     backgroundColor: Colors.errorLight,
   },
@@ -2038,19 +2038,19 @@ const styles = StyleSheet.create({
   logoUploadRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
+    paddingHorizontal: Tokens.spacing.md,
     paddingVertical: 14,
-    gap: 12,
+    gap: Tokens.spacing.sm,
   },
   signaturePreviewContainer: {
-    padding: 16,
-    gap: 12,
+    padding: Tokens.spacing.md,
+    gap: Tokens.spacing.sm,
   },
   signaturePreviewBox: {
     backgroundColor: Colors.surfaceAlt,
     borderRadius: Tokens.radius.md,
     padding: 14,
-    gap: 8,
+    gap: Tokens.spacing.xs,
   },
   signaturePreviewLabel: {
     fontSize: Type.caption2.fontSize,
@@ -2062,7 +2062,7 @@ const styles = StyleSheet.create({
   signatureMiniPreview: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: Tokens.spacing.xs,
   },
   signatureSavedText: {
     fontSize: Type.bodyCompact.fontSize,
@@ -2105,16 +2105,16 @@ const styles = StyleSheet.create({
   signatureDrawRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
+    paddingHorizontal: Tokens.spacing.md,
     paddingVertical: 14,
-    gap: 12,
+    gap: Tokens.spacing.sm,
   },
   pdfPreviewNote: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 10,
-    marginHorizontal: 16,
-    marginBottom: 20,
+    marginHorizontal: Tokens.spacing.md,
+    marginBottom: Tokens.spacing.lg,
     backgroundColor: Colors.infoLight,
     borderRadius: Tokens.radius.card,
     padding: 14,
@@ -2127,9 +2127,9 @@ const styles = StyleSheet.create({
   },
   saveButton: {
     backgroundColor: Colors.primary,
-    marginHorizontal: 16,
+    marginHorizontal: Tokens.spacing.md,
     borderRadius: Tokens.radius.lg,
-    paddingVertical: 16,
+    paddingVertical: Tokens.spacing.md,
     alignItems: 'center',
     marginBottom: 28,
     shadowColor: Colors.primary,
@@ -2147,19 +2147,19 @@ const styles = StyleSheet.create({
   dangerNote: {
     fontSize: Type.caption1.fontSize,
     color: Colors.textMuted,
-    paddingHorizontal: 20,
+    paddingHorizontal: Tokens.spacing.lg,
     marginTop: -12,
-    marginBottom: 20,
+    marginBottom: Tokens.spacing.lg,
     lineHeight: 16,
   },
   supplierRegistered: {
-    padding: 16,
-    gap: 12,
+    padding: Tokens.spacing.md,
+    gap: Tokens.spacing.sm,
   },
   supplierRegisteredHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: Tokens.spacing.sm,
   },
   supplierRegisteredSub: {
     fontSize: Type.caption1.fontSize,
@@ -2168,15 +2168,15 @@ const styles = StyleSheet.create({
   },
   supplierRegisteredMeta: {
     flexDirection: 'row',
-    gap: 8,
+    gap: Tokens.spacing.xs,
   },
   supplierMetaChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: Tokens.spacing.xxs,
     backgroundColor: Colors.fillTertiary,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingHorizontal: Tokens.spacing.xs,
+    paddingVertical: Tokens.spacing.xxs,
     borderRadius: Tokens.radius.xs,
   },
   supplierMetaText: {
@@ -2201,9 +2201,9 @@ const styles = StyleSheet.create({
   supplierRegisterRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
+    paddingHorizontal: Tokens.spacing.md,
     paddingVertical: 14,
-    gap: 12,
+    gap: Tokens.spacing.sm,
   },
   supplierInput: {
     minHeight: 44,
@@ -2212,17 +2212,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     fontSize: Type.subhead.fontSize,
     color: Colors.text,
-    marginBottom: 4,
+    marginBottom: Tokens.spacing.xxs,
   },
   supplierCatGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 6,
-    marginBottom: 8,
+    marginBottom: Tokens.spacing.xs,
   },
   supplierCatChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: Tokens.spacing.sm,
+    paddingVertical: Tokens.spacing.xs,
     borderRadius: Tokens.radius.md,
     backgroundColor: Colors.fillTertiary,
   },
@@ -2266,10 +2266,10 @@ const styles = StyleSheet.create({
   supProfileHeader: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 12,
-    paddingHorizontal: 20,
+    gap: Tokens.spacing.sm,
+    paddingHorizontal: Tokens.spacing.lg,
     paddingTop: Platform.OS === 'ios' ? 18 : 20,
-    paddingBottom: 16,
+    paddingBottom: Tokens.spacing.md,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: Colors.border,
     backgroundColor: Colors.surface,
@@ -2284,7 +2284,7 @@ const styles = StyleSheet.create({
     fontSize: Type.footnote.fontSize,
     color: Colors.textSecondary,
     lineHeight: 18,
-    marginTop: 4,
+    marginTop: Tokens.spacing.xxs,
   },
   supProfileClose: {
     width: 32,
@@ -2298,7 +2298,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   supProfileScrollContent: {
-    padding: 20,
+    padding: Tokens.spacing.lg,
     gap: 14,
   },
   supFieldGroup: {
@@ -2314,7 +2314,7 @@ const styles = StyleSheet.create({
     minHeight: 44,
     borderRadius: Tokens.radius.md,
     backgroundColor: Colors.surfaceAlt,
-    paddingHorizontal: 12,
+    paddingHorizontal: Tokens.spacing.sm,
     paddingVertical: Platform.OS === 'ios' ? 12 : 8,
     fontSize: Type.subhead.fontSize,
     color: Colors.text,
@@ -2323,12 +2323,12 @@ const styles = StyleSheet.create({
   },
   supFieldInputMulti: {
     minHeight: 80,
-    paddingTop: 12,
+    paddingTop: Tokens.spacing.sm,
     textAlignVertical: 'top' as const,
   },
   supRow: {
     flexDirection: 'row',
-    gap: 12,
+    gap: Tokens.spacing.sm,
   },
   supRowItem: {
     flex: 1,
@@ -2337,12 +2337,12 @@ const styles = StyleSheet.create({
   supCatGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 2,
+    gap: Tokens.spacing.xs,
+    marginTop: Tokens.spacing.hairline,
   },
   supCatChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: Tokens.spacing.sm,
+    paddingVertical: Tokens.spacing.xs,
     borderRadius: Tokens.radius.full,
     backgroundColor: Colors.fillTertiary,
     borderWidth: StyleSheet.hairlineWidth,
@@ -2361,8 +2361,8 @@ const styles = StyleSheet.create({
     color: Colors.textOnPrimary,
   },
   supProfileFooter: {
-    paddingHorizontal: 20,
-    paddingTop: 12,
+    paddingHorizontal: Tokens.spacing.lg,
+    paddingTop: Tokens.spacing.sm,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: Colors.border,
     backgroundColor: Colors.surface,
@@ -2390,15 +2390,15 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.overlay,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    padding: Tokens.spacing.lg,
   },
   sigModalCard: {
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius["2xl"],
-    padding: 24,
+    padding: Tokens.spacing.xl,
     width: '100%',
     maxWidth: 400,
-    gap: 12,
+    gap: Tokens.spacing.sm,
   },
   sigModalHeader: {
     flexDirection: 'row',
@@ -2426,7 +2426,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
     paddingVertical: 10,
-    paddingHorizontal: 12,
+    paddingHorizontal: Tokens.spacing.sm,
     borderRadius: Tokens.radius.card,
     backgroundColor: Colors.surfaceAlt,
     borderWidth: 2,
@@ -2438,7 +2438,7 @@ const styles = StyleSheet.create({
   },
   themeSwatches: {
     flexDirection: 'row',
-    gap: 4,
+    gap: Tokens.spacing.xxs,
   },
   themeSwatch: {
     width: 20,
@@ -2454,15 +2454,15 @@ const styles = StyleSheet.create({
   planCard: {
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.lg,
-    padding: 16,
+    padding: Tokens.spacing.md,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
-    gap: 12,
+    gap: Tokens.spacing.sm,
   },
   planHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: Tokens.spacing.sm,
   },
   planIconWrap: {
     width: 36,
@@ -2482,7 +2482,7 @@ const styles = StyleSheet.create({
   },
   planActiveBadge: {
     paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingVertical: Tokens.spacing.xxs,
     borderRadius: Tokens.radius.sm,
   },
   planActiveBadgeText: {
@@ -2497,7 +2497,7 @@ const styles = StyleSheet.create({
   planFeatureRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: Tokens.spacing.xs,
   },
   planFeatureText: {
     fontSize: Type.footnote.fontSize,

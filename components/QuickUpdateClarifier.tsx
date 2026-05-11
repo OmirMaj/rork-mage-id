@@ -288,7 +288,7 @@ export default function QuickUpdateClarifier({
           </View>
           <ScrollView
             style={styles.taskList}
-            contentContainerStyle={{ paddingVertical: 4 }}
+            contentContainerStyle={{ paddingVertical: Tokens.spacing.xxs }}
             keyboardShouldPersistTaps="handled"
           >
             {rankedTasks.length === 0 ? (
@@ -364,8 +364,8 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingHorizontal: 18,
-    paddingTop: 8,
-    paddingBottom: 24,
+    paddingTop: Tokens.spacing.xs,
+    paddingBottom: Tokens.spacing.xl,
     maxHeight: '88%',
   },
   handle: {
@@ -374,12 +374,12 @@ const styles = StyleSheet.create({
     height: 4,
     borderRadius: 2,
     backgroundColor: Colors.borderLight,
-    marginBottom: 8,
+    marginBottom: Tokens.spacing.xs,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: Tokens.spacing.xs,
   },
   title: {
     fontSize: Type.body.fontSize,
@@ -389,7 +389,7 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: Type.caption1.fontSize,
     color: Colors.textSecondary,
-    marginTop: 2,
+    marginTop: Tokens.spacing.hairline,
   },
   closeBtn: {
     width: 30,
@@ -402,7 +402,7 @@ const styles = StyleSheet.create({
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 12,
+    marginTop: Tokens.spacing.sm,
     marginBottom: 6,
   },
   sectionLabel: {
@@ -417,20 +417,20 @@ const styles = StyleSheet.create({
     fontSize: Type.caption2.fontSize,
     color: Colors.primary,
     fontWeight: '600' as const,
-    marginLeft: 8,
+    marginLeft: Tokens.spacing.xs,
     maxWidth: 180,
   },
   actionChipsRow: {
-    gap: 8,
-    paddingVertical: 4,
-    paddingRight: 4,
+    gap: Tokens.spacing.xs,
+    paddingVertical: Tokens.spacing.xxs,
+    paddingRight: Tokens.spacing.xxs,
   },
   actionChip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: Tokens.spacing.sm,
+    paddingVertical: Tokens.spacing.xs,
     borderRadius: Tokens.radius.md,
     backgroundColor: Colors.surfaceAlt,
     borderWidth: 1,
@@ -445,7 +445,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    marginTop: 8,
+    marginTop: Tokens.spacing.xs,
   },
   valueLabel: {
     fontSize: Type.caption1.fontSize,
@@ -471,10 +471,10 @@ const styles = StyleSheet.create({
     fontSize: Type.bodyCompact.fontSize,
     color: Colors.textSecondary,
     fontWeight: '600' as const,
-    marginLeft: 2,
+    marginLeft: Tokens.spacing.hairline,
   },
   noteWrap: {
-    marginTop: 8,
+    marginTop: Tokens.spacing.xs,
     gap: 6,
   },
   noteInput: {
@@ -490,7 +490,7 @@ const styles = StyleSheet.create({
   searchRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: Tokens.spacing.xs,
     backgroundColor: Colors.surfaceAlt,
     borderRadius: Tokens.radius.md,
     paddingHorizontal: 10,
@@ -509,7 +509,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 10,
-    paddingHorizontal: 12,
+    paddingHorizontal: Tokens.spacing.sm,
     borderRadius: Tokens.radius.md,
     backgroundColor: Colors.surfaceAlt,
     marginBottom: 6,
@@ -536,12 +536,12 @@ const styles = StyleSheet.create({
   taskMeta: {
     fontSize: Type.caption2.fontSize,
     color: Colors.textMuted,
-    marginTop: 2,
+    marginTop: Tokens.spacing.hairline,
   },
   didYouMeanBadge: {
     backgroundColor: Colors.accent + '25',
     paddingHorizontal: 6,
-    paddingVertical: 2,
+    paddingVertical: Tokens.spacing.hairline,
     borderRadius: 4,
   },
   didYouMeanText: {
@@ -552,7 +552,7 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   tick: {
-    marginLeft: 8,
+    marginLeft: Tokens.spacing.xs,
   },
   emptyTasks: {
     fontSize: Type.caption1.fontSize,
@@ -561,7 +561,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   applyBtn: {
-    marginTop: 12,
+    marginTop: Tokens.spacing.sm,
     height: 48,
     borderRadius: Tokens.radius.card,
     backgroundColor: Colors.primary,

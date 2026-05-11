@@ -106,7 +106,7 @@ export default function WebhooksSettingsScreen() {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <Stack.Screen options={{ title: 'Webhooks' }} />
-      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 60 }}>
+      <ScrollView contentContainerStyle={{ padding: Tokens.spacing.lg, paddingBottom: insets.bottom + 60 }}>
         <Text style={styles.eyebrow}>INTEGRATIONS · OUTBOUND</Text>
         <Text style={styles.heading}>
           Webhooks <Text style={styles.headingItalic}>everywhere.</Text>
@@ -166,7 +166,7 @@ export default function WebhooksSettingsScreen() {
           </View>
         )}
 
-        {loading && <ActivityIndicator size="small" color={Colors.accent} style={{ marginTop: 32 }} />}
+        {loading && <ActivityIndicator size="small" color={Colors.accent} style={{ marginTop: Tokens.spacing['2xl'] }} />}
 
         {!loading && endpoints.length === 0 && !newOpen && (
           <View style={styles.empty}>
@@ -227,48 +227,48 @@ export default function WebhooksSettingsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
-  eyebrow: { ...Type.monoSm, color: Colors.accent, fontWeight: '600' as const, marginBottom: 8 },
-  heading: { ...Type.display, color: Colors.ink, marginBottom: 4 },
+  eyebrow: { ...Type.monoSm, color: Colors.accent, fontWeight: '600' as const, marginBottom: Tokens.spacing.xs },
+  heading: { ...Type.display, color: Colors.ink, marginBottom: Tokens.spacing.xxs },
   headingItalic: { ...Type.displayItalic, color: Colors.accent },
-  sub: { fontSize: Type.subhead.fontSize, color: Colors.textSecondary, lineHeight: 21, marginBottom: 16 },
+  sub: { fontSize: Type.subhead.fontSize, color: Colors.textSecondary, lineHeight: 21, marginBottom: Tokens.spacing.md },
   infoBox: {
-    flexDirection: 'row' as const, alignItems: 'flex-start' as const, gap: 8,
-    padding: 12, marginBottom: 16,
+    flexDirection: 'row' as const, alignItems: 'flex-start' as const, gap: Tokens.spacing.xs,
+    padding: Tokens.spacing.sm, marginBottom: Tokens.spacing.md,
     backgroundColor: Colors.accent + '10', borderRadius: Tokens.radius.md,
     borderWidth: 1, borderColor: Colors.accent + '30',
   },
   infoText: { flex: 1, fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 18 },
   addBtn: {
-    flexDirection: 'row' as const, alignItems: 'center' as const, alignSelf: 'flex-start' as const, gap: 4,
+    flexDirection: 'row' as const, alignItems: 'center' as const, alignSelf: 'flex-start' as const, gap: Tokens.spacing.xxs,
     backgroundColor: Colors.accent, paddingHorizontal: 14, paddingVertical: 9, borderRadius: Tokens.radius.full,
-    marginBottom: 16,
+    marginBottom: Tokens.spacing.md,
   },
   addBtnText: { ...Type.bodyCompact, color: Colors.cream, fontWeight: '700' as const },
   form: {
-    padding: 14, marginBottom: 16,
+    padding: 14, marginBottom: Tokens.spacing.md,
     backgroundColor: Colors.cream, borderRadius: Tokens.radius.lg, borderWidth: 1, borderColor: Colors.bone,
   },
-  formLabel: { ...Type.caption1, color: Colors.concrete, fontWeight: '700' as const, marginBottom: 6, marginTop: 4 },
+  formLabel: { ...Type.caption1, color: Colors.concrete, fontWeight: '700' as const, marginBottom: 6, marginTop: Tokens.spacing.xxs },
   input: {
     backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.cardBorder,
-    borderRadius: Tokens.radius.md, paddingHorizontal: 12, paddingVertical: 10,
-    fontSize: Type.body.fontSize, color: Colors.text, marginBottom: 8,
+    borderRadius: Tokens.radius.md, paddingHorizontal: Tokens.spacing.sm, paddingVertical: 10,
+    fontSize: Type.body.fontSize, color: Colors.text, marginBottom: Tokens.spacing.xs,
   },
-  formActions: { flexDirection: 'row' as const, gap: 8, marginTop: 8 },
+  formActions: { flexDirection: 'row' as const, gap: Tokens.spacing.xs, marginTop: Tokens.spacing.xs },
   cancelBtn: {
-    flexDirection: 'row' as const, alignItems: 'center' as const, gap: 4,
+    flexDirection: 'row' as const, alignItems: 'center' as const, gap: Tokens.spacing.xxs,
     paddingHorizontal: 14, paddingVertical: 9, borderRadius: Tokens.radius.full,
     backgroundColor: Colors.fillTertiary,
   },
   cancelText: { ...Type.bodyCompact, color: Colors.textSecondary, fontWeight: '600' as const },
   saveBtn: {
-    flex: 1, flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 4,
+    flex: 1, flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: Tokens.spacing.xxs,
     paddingHorizontal: 14, paddingVertical: 9, borderRadius: Tokens.radius.full,
     backgroundColor: Colors.accent,
   },
   saveText: { ...Type.bodyCompact, color: Colors.cream, fontWeight: '700' as const },
-  empty: { padding: 32, alignItems: 'center' as const, gap: 8, marginTop: 12 },
-  emptyTitle: { ...Type.headline, color: Colors.text, marginTop: 8 },
+  empty: { padding: Tokens.spacing['2xl'], alignItems: 'center' as const, gap: Tokens.spacing.xs, marginTop: Tokens.spacing.sm },
+  emptyTitle: { ...Type.headline, color: Colors.text, marginTop: Tokens.spacing.xs },
   emptyBody: { ...Type.footnote, color: Colors.textSecondary, textAlign: 'center' as const, maxWidth: 280, lineHeight: 18 },
   endpoint: {
     backgroundColor: Colors.surface, borderRadius: Tokens.radius.lg,
@@ -276,12 +276,12 @@ const styles = StyleSheet.create({
   },
   endpointHead: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10 },
   endpointLabel: { ...Type.bodyEmphasized, color: Colors.text },
-  endpointUrl: { ...Type.caption1, color: Colors.textMuted, marginTop: 2 },
-  endpointStats: { marginTop: 6, gap: 2 },
+  endpointUrl: { ...Type.caption1, color: Colors.textMuted, marginTop: Tokens.spacing.hairline },
+  endpointStats: { marginTop: 6, gap: Tokens.spacing.hairline },
   endpointStat: { ...Type.caption1, color: Colors.textSecondary },
   endpointActions: { flexDirection: 'row' as const, gap: 6, marginTop: 10 },
   miniBtn: {
-    flexDirection: 'row' as const, alignItems: 'center' as const, gap: 4,
+    flexDirection: 'row' as const, alignItems: 'center' as const, gap: Tokens.spacing.xxs,
     paddingHorizontal: 10, paddingVertical: 6, borderRadius: Tokens.radius.full,
     backgroundColor: Colors.fillTertiary,
   },

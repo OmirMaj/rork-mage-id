@@ -171,7 +171,7 @@ const styles = StyleSheet.create({
   title: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
   subtitle: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 1 },
   count: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: Colors.primary },
-  thumbsRow: { gap: 8, paddingVertical: 4, paddingRight: 4 },
+  thumbsRow: { gap: Tokens.spacing.xs, paddingVertical: Tokens.spacing.xxs, paddingRight: Tokens.spacing.xxs },
   thumb: {
     width: 86, height: 86, borderRadius: Tokens.radius.md,
     overflow: 'hidden', backgroundColor: Colors.background,
@@ -188,14 +188,14 @@ const styles = StyleSheet.create({
   },
   thumbCaption: {
     position: 'absolute', left: 0, right: 0, bottom: 0,
-    paddingHorizontal: 4, paddingVertical: 2,
+    paddingHorizontal: Tokens.spacing.xxs, paddingVertical: Tokens.spacing.hairline,
     backgroundColor: 'rgba(0,0,0,0.55)',
     color: '#FFF', fontSize: 9, fontWeight: '600',
   },
   btn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 8, paddingVertical: 12, paddingHorizontal: 16,
-    backgroundColor: Colors.primary, borderRadius: Tokens.radius.md, marginTop: 12,
+    gap: Tokens.spacing.xs, paddingVertical: Tokens.spacing.sm, paddingHorizontal: Tokens.spacing.md,
+    backgroundColor: Colors.primary, borderRadius: Tokens.radius.md, marginTop: Tokens.spacing.sm,
   },
   btnDisabled: { opacity: 0.5 },
   btnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: '#FFF' },

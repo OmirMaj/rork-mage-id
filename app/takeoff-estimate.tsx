@@ -526,7 +526,7 @@ function LineRow({
           </Text>
         </View>
         <Text style={styles.lineTotal}>{formatMoney(line.quantity * line.unitPrice)}</Text>
-        <Pencil size={14} color={Colors.textMuted} style={{ marginLeft: 8 }} />
+        <Pencil size={14} color={Colors.textMuted} style={{ marginLeft: Tokens.spacing.xs }} />
       </TouchableOpacity>
     );
   }
@@ -717,14 +717,14 @@ Be thorough and specific. The GC will review and edit every line; producing deta
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, gap: 12 },
-  statusText: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, marginTop: 12 },
-  emptyTitle: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: Colors.text, marginTop: 8 },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: Tokens.spacing['2xl'], gap: Tokens.spacing.sm },
+  statusText: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, marginTop: Tokens.spacing.sm },
+  emptyTitle: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: Colors.text, marginTop: Tokens.spacing.xs },
   emptyBody: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, textAlign: 'center', lineHeight: 20 },
 
   headerBar: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    paddingHorizontal: 16, paddingVertical: 12,
+    flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs,
+    paddingHorizontal: Tokens.spacing.md, paddingVertical: Tokens.spacing.sm,
     backgroundColor: Colors.surface,
     borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight,
   },
@@ -741,23 +741,23 @@ const styles = StyleSheet.create({
 
   banner: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
-    marginHorizontal: 16, marginTop: 12,
-    paddingHorizontal: 14, paddingVertical: 12,
+    marginHorizontal: Tokens.spacing.md, marginTop: Tokens.spacing.sm,
+    paddingHorizontal: 14, paddingVertical: Tokens.spacing.sm,
     borderRadius: Tokens.radius.lg,
   },
   bannerText: { flex: 1, fontSize: Type.bodyCompact.fontSize, fontWeight: '500' as const, lineHeight: 18 },
   bannerLink: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, textDecorationLine: 'underline' as const },
 
   sourceCard: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    marginHorizontal: 16, marginTop: 12, marginBottom: 4,
-    paddingHorizontal: 12, paddingVertical: 10,
+    flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs,
+    marginHorizontal: Tokens.spacing.md, marginTop: Tokens.spacing.sm, marginBottom: Tokens.spacing.xxs,
+    paddingHorizontal: Tokens.spacing.sm, paddingVertical: 10,
     borderRadius: Tokens.radius.md,
     backgroundColor: Colors.primary + '10',
   },
   sourceText: { flex: 1, fontSize: Type.caption1.fontSize, color: Colors.textSecondary, lineHeight: 16 },
 
-  divisionSection: { marginTop: 16, paddingHorizontal: 16 },
+  divisionSection: { marginTop: Tokens.spacing.md, paddingHorizontal: Tokens.spacing.md },
   divisionLabel: {
     fontSize: 11, fontWeight: '800' as const, color: Colors.textMuted,
     letterSpacing: 0.4, textTransform: 'uppercase' as const, marginBottom: 6,
@@ -765,60 +765,60 @@ const styles = StyleSheet.create({
 
   lineRow: {
     flexDirection: 'row', alignItems: 'center',
-    paddingVertical: 12, paddingHorizontal: 14,
+    paddingVertical: Tokens.spacing.sm, paddingHorizontal: 14,
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.md,
     borderWidth: 0.5, borderColor: Colors.borderLight,
     marginBottom: 6,
   },
   lineDesc: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text, lineHeight: 18 },
-  lineMeta: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, marginTop: 2 },
+  lineMeta: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, marginTop: Tokens.spacing.hairline },
   lineTotal: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800' as const, color: Colors.text, minWidth: 80, textAlign: 'right' },
 
   lineRowEditing: {
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.md,
     borderWidth: 1, borderColor: Colors.primary,
-    padding: 12, gap: 10, marginBottom: 6,
+    padding: Tokens.spacing.sm, gap: 10, marginBottom: 6,
     shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8,
   },
   editInputDesc: {
     borderWidth: 0.5, borderColor: Colors.borderLight,
     borderRadius: Tokens.radius.sm,
-    paddingHorizontal: 10, paddingVertical: 8,
+    paddingHorizontal: 10, paddingVertical: Tokens.spacing.xs,
     fontSize: Type.bodyCompact.fontSize, color: Colors.text,
     backgroundColor: Colors.fillSecondary,
     minHeight: 38,
   },
-  editInputRow: { flexDirection: 'row', gap: 8 },
+  editInputRow: { flexDirection: 'row', gap: Tokens.spacing.xs },
   editLabel: { fontSize: 10, fontWeight: '700' as const, color: Colors.textMuted, letterSpacing: 0.3, textTransform: 'uppercase' as const, marginBottom: 3 },
   editInputSmall: {
     borderWidth: 0.5, borderColor: Colors.borderLight,
     borderRadius: Tokens.radius.sm,
-    paddingHorizontal: 8, paddingVertical: 6,
+    paddingHorizontal: Tokens.spacing.xs, paddingVertical: 6,
     fontSize: Type.bodyCompact.fontSize, color: Colors.text,
     backgroundColor: Colors.fillSecondary,
   },
   editLineTotal: {
-    paddingVertical: 7, paddingHorizontal: 8,
+    paddingVertical: 7, paddingHorizontal: Tokens.spacing.xs,
     fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text,
   },
-  editActionsRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  deleteBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 6 },
+  editActionsRow: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs },
+  deleteBtn: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xxs, paddingHorizontal: Tokens.spacing.xs, paddingVertical: 6 },
   deleteBtnText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: Colors.errorDark },
-  cancelBtn: { paddingHorizontal: 12, paddingVertical: 8 },
+  cancelBtn: { paddingHorizontal: Tokens.spacing.sm, paddingVertical: Tokens.spacing.xs },
   cancelBtnText: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, fontWeight: '600' as const },
   commitBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    paddingHorizontal: 14, paddingVertical: 8,
+    flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xxs,
+    paddingHorizontal: 14, paddingVertical: Tokens.spacing.xs,
     borderRadius: Tokens.radius.sm, backgroundColor: Colors.primary,
   },
   commitBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.surface },
 
   addLineBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-    marginHorizontal: 16, marginTop: 12,
-    paddingVertical: 12,
+    marginHorizontal: Tokens.spacing.md, marginTop: Tokens.spacing.sm,
+    paddingVertical: Tokens.spacing.sm,
     borderRadius: Tokens.radius.md,
     borderWidth: 1, borderStyle: 'dashed' as const, borderColor: Colors.borderLight,
     backgroundColor: 'transparent',
@@ -829,20 +829,20 @@ const styles = StyleSheet.create({
     position: 'absolute' as const, left: 0, right: 0, bottom: 0,
     backgroundColor: Colors.surface,
     borderTopWidth: 0.5, borderTopColor: Colors.borderLight,
-    paddingHorizontal: 16, paddingTop: 12,
-    gap: 8,
+    paddingHorizontal: Tokens.spacing.md, paddingTop: Tokens.spacing.sm,
+    gap: Tokens.spacing.xs,
     shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 12, shadowOffset: { width: 0, height: -2 },
   },
   totalsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  totalsRowGrand: { paddingTop: 8, borderTopWidth: 0.5, borderTopColor: Colors.borderLight },
+  totalsRowGrand: { paddingTop: Tokens.spacing.xs, borderTopWidth: 0.5, borderTopColor: Colors.borderLight },
   totalsLabel: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary },
   totalsValue: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
   totalsGrandLabel: { fontSize: Type.body.fontSize, fontWeight: '800' as const, color: Colors.text },
   totalsGrandValue: { fontSize: Type.title3.fontSize, fontWeight: '900' as const, color: Colors.primary, letterSpacing: -0.3 },
 
-  markupPickerRow: { flexDirection: 'row', gap: 4, marginLeft: 4 },
+  markupPickerRow: { flexDirection: 'row', gap: Tokens.spacing.xxs, marginLeft: Tokens.spacing.xxs },
   markupPill: {
-    paddingHorizontal: 8, paddingVertical: 4,
+    paddingHorizontal: Tokens.spacing.xs, paddingVertical: Tokens.spacing.xxs,
     borderRadius: Tokens.radius.sm,
     backgroundColor: Colors.fillTertiary,
   },
@@ -851,8 +851,8 @@ const styles = StyleSheet.create({
   markupPillTextActive: { color: Colors.surface },
 
   saveBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    paddingVertical: 14, marginTop: 8,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Tokens.spacing.xs,
+    paddingVertical: 14, marginTop: Tokens.spacing.xs,
     borderRadius: Tokens.radius.lg,
     backgroundColor: Colors.primary,
     shadowColor: Colors.primary, shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 4 },
@@ -860,8 +860,8 @@ const styles = StyleSheet.create({
   saveBtnText: { fontSize: Type.body.fontSize, fontWeight: '800' as const, color: Colors.surface, letterSpacing: 0.2 },
 
   primaryBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    paddingHorizontal: 18, paddingVertical: 12, marginTop: 12,
+    flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs,
+    paddingHorizontal: 18, paddingVertical: Tokens.spacing.sm, marginTop: Tokens.spacing.sm,
     borderRadius: Tokens.radius.lg,
     backgroundColor: Colors.primary,
   },

@@ -248,7 +248,7 @@ const DOMINANT_HEIGHT = 250;
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#A6D7F2' },
 
-  collageWrap: { paddingHorizontal: 0, paddingBottom: 8 },
+  collageWrap: { paddingHorizontal: 0, paddingBottom: Tokens.spacing.xs },
   collageRow: {
     flexDirection: 'row' as const,
     justifyContent: 'space-between' as const,
@@ -295,7 +295,7 @@ const styles = StyleSheet.create({
 
   brandWrap: {
     marginTop: 'auto' as const,
-    paddingHorizontal: 24,
+    paddingHorizontal: Tokens.spacing.xl,
     alignItems: 'center' as const,
   },
   brandLogo: {
@@ -313,8 +313,8 @@ const styles = StyleSheet.create({
     borderRadius: 2,
     backgroundColor: Colors.surface,
     opacity: 0.85,
-    marginTop: 4,
-    marginBottom: 12,
+    marginTop: Tokens.spacing.xxs,
+    marginBottom: Tokens.spacing.sm,
   },
   tagline: {
     fontSize: Type.title3.fontSize,
@@ -328,7 +328,7 @@ const styles = StyleSheet.create({
   ctaStack: {
     width: '100%',
     marginTop: 28,
-    gap: 12,
+    gap: Tokens.spacing.sm,
   },
   ctaPill: {
     minHeight: 56,

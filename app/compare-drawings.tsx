@@ -146,7 +146,7 @@ export default function CompareDrawingsScreen() {
         options={{
           title: 'Compare Drawings',
           headerLeft: () => (
-            <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }}>
+            <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: Tokens.spacing.xxs }}>
               <ChevronLeft size={24} color={Colors.primary} />
             </TouchableOpacity>
           ),
@@ -364,7 +364,7 @@ const styles = StyleSheet.create({
   loadingText: { fontSize: Type.body.fontSize, color: Colors.textMuted },
 
   hero: {
-    margin: 16, padding: 18, borderRadius: Tokens.radius.panel,
+    margin: Tokens.spacing.md, padding: 18, borderRadius: Tokens.radius.panel,
     backgroundColor: Colors.primary + '0D',
     borderWidth: 1, borderColor: Colors.primary + '20',
   },
@@ -372,96 +372,96 @@ const styles = StyleSheet.create({
     width: 38, height: 38, borderRadius: 11,
     backgroundColor: Colors.primary + '15',
     alignItems: 'center', justifyContent: 'center',
-    marginBottom: 12,
+    marginBottom: Tokens.spacing.sm,
   },
-  heroTitle: { fontSize: Type.title2.fontSize, fontWeight: '800', color: Colors.text, marginBottom: 8 },
+  heroTitle: { fontSize: Type.title2.fontSize, fontWeight: '800', color: Colors.text, marginBottom: Tokens.spacing.xs },
   heroBody: { fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 19 },
   severityLabel: { fontSize: Type.caption2.fontSize, fontWeight: '800', color: Colors.text, marginBottom: 6, letterSpacing: 0.6 },
-  modelTag: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 8 },
+  modelTag: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: Tokens.spacing.xs },
 
   sectionLabel: {
-    marginHorizontal: 16, marginTop: 8, marginBottom: 8,
+    marginHorizontal: Tokens.spacing.md, marginTop: Tokens.spacing.xs, marginBottom: Tokens.spacing.xs,
     fontSize: Type.caption1.fontSize, fontWeight: '800', color: Colors.textMuted,
     textTransform: 'uppercase', letterSpacing: 0.6,
   },
 
   sheetCard: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    marginHorizontal: 16, marginBottom: 8, padding: 12,
+    flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.sm,
+    marginHorizontal: Tokens.spacing.md, marginBottom: Tokens.spacing.xs, padding: Tokens.spacing.sm,
     borderRadius: Tokens.radius.card, backgroundColor: Colors.card,
     borderWidth: 1, borderColor: Colors.border,
   },
   sheetThumb: { width: 50, height: 50, borderRadius: Tokens.radius.md, backgroundColor: Colors.fillTertiary },
   sheetTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
-  sheetMeta: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2 },
+  sheetMeta: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: Tokens.spacing.hairline },
 
   emptyCard: {
-    margin: 16, padding: 16, borderRadius: Tokens.radius.card,
+    margin: Tokens.spacing.md, padding: Tokens.spacing.md, borderRadius: Tokens.radius.card,
     backgroundColor: Colors.fillTertiary,
     borderWidth: 1, borderColor: Colors.border,
   },
-  emptyText: { fontSize: Type.subhead.fontSize, fontWeight: '700', color: Colors.text, marginBottom: 4 },
+  emptyText: { fontSize: Type.subhead.fontSize, fontWeight: '700', color: Colors.text, marginBottom: Tokens.spacing.xxs },
   emptyBody: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, lineHeight: 17 },
 
   summaryCard: {
-    marginHorizontal: 16, marginBottom: 12, padding: 14,
+    marginHorizontal: Tokens.spacing.md, marginBottom: Tokens.spacing.sm, padding: 14,
     backgroundColor: Colors.card, borderRadius: Tokens.radius.card,
     borderWidth: 1, borderColor: Colors.border,
   },
-  summaryLabel: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 8 },
-  summaryRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  summaryLabel: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: Tokens.spacing.xs },
+  summaryRow: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.sm },
   summaryThumb: { width: 50, height: 50, borderRadius: Tokens.radius.md },
   summaryTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
   changeBtn: { marginTop: 10 },
   changeBtnText: { fontSize: Type.caption1.fontSize, color: Colors.primary, fontWeight: '700' },
 
   primaryBtn: {
-    marginHorizontal: 16, paddingVertical: 14, borderRadius: Tokens.radius.md,
+    marginHorizontal: Tokens.spacing.md, paddingVertical: 14, borderRadius: Tokens.radius.md,
     backgroundColor: Colors.primary,
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Tokens.spacing.xs,
   },
   primaryBtnText: { color: '#FFF', fontSize: Type.body.fontSize, fontWeight: '700' },
 
-  busyWrap: { padding: 40, alignItems: 'center', gap: 12 },
+  busyWrap: { padding: Tokens.spacing['3xl'], alignItems: 'center', gap: Tokens.spacing.sm },
   busyText: { fontSize: Type.subhead.fontSize, fontWeight: '700', color: Colors.text },
   busySub: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, textAlign: 'center', maxWidth: 280, lineHeight: 17 },
 
   errorBanner: {
-    marginHorizontal: 16, marginTop: 12,
-    paddingHorizontal: 12, paddingVertical: 10, borderRadius: Tokens.radius.md,
+    marginHorizontal: Tokens.spacing.md, marginTop: Tokens.spacing.sm,
+    paddingHorizontal: Tokens.spacing.sm, paddingVertical: 10, borderRadius: Tokens.radius.md,
     backgroundColor: Colors.error + '15', borderWidth: 1, borderColor: Colors.error + '30',
-    flexDirection: 'row', alignItems: 'center', gap: 8,
+    flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs,
   },
   errorText: { fontSize: Type.caption1.fontSize, color: Colors.error, flex: 1, lineHeight: 17 },
 
-  previewRow: { flexDirection: 'row', gap: 8, marginHorizontal: 16, marginBottom: 12 },
-  previewItem: { flex: 1, padding: 8, borderRadius: Tokens.radius.md, backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border },
+  previewRow: { flexDirection: 'row', gap: Tokens.spacing.xs, marginHorizontal: Tokens.spacing.md, marginBottom: Tokens.spacing.sm },
+  previewItem: { flex: 1, padding: Tokens.spacing.xs, borderRadius: Tokens.radius.md, backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border },
   previewLabel: { fontSize: Type.caption2.fontSize, fontWeight: '800', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 6 },
   previewImg: { width: '100%', height: 140, borderRadius: 6, backgroundColor: Colors.fillTertiary },
   previewName: { fontSize: Type.caption1.fontSize, color: Colors.text, marginTop: 6 },
 
   changeCard: {
-    marginHorizontal: 16, marginBottom: 8, padding: 12,
+    marginHorizontal: Tokens.spacing.md, marginBottom: Tokens.spacing.xs, padding: Tokens.spacing.sm,
     borderRadius: Tokens.radius.card, backgroundColor: Colors.card,
     borderWidth: 1, borderColor: Colors.border,
   },
-  changeHeader: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
+  changeHeader: { flexDirection: 'row', gap: Tokens.spacing.sm, alignItems: 'flex-start' },
   changeIcon: {
     width: 26, height: 26, borderRadius: 13,
     alignItems: 'center', justifyContent: 'center',
   },
-  changeType: { fontSize: Type.caption1.fontSize, fontWeight: '800', color: Colors.text, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 4 },
+  changeType: { fontSize: Type.caption1.fontSize, fontWeight: '800', color: Colors.text, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: Tokens.spacing.xxs },
   changeDescription: { fontSize: Type.bodyCompact.fontSize, color: Colors.text, lineHeight: 19 },
-  impactChip: { alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, marginTop: 6 },
+  impactChip: { alignSelf: 'flex-start', paddingHorizontal: Tokens.spacing.xs, paddingVertical: 3, borderRadius: 999, marginTop: 6 },
   impactText: { fontSize: 10, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.4, color: Colors.text },
   suggestedAction: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, marginTop: 6, fontStyle: 'italic' },
 
   rfiCard: {
-    marginHorizontal: 16, marginBottom: 8, padding: 12,
+    marginHorizontal: Tokens.spacing.md, marginBottom: Tokens.spacing.xs, padding: Tokens.spacing.sm,
     borderRadius: Tokens.radius.md, backgroundColor: Colors.info + '10',
     borderWidth: 1, borderColor: Colors.info + '30',
-    flexDirection: 'row', gap: 8,
+    flexDirection: 'row', gap: Tokens.spacing.xs,
   },
-  rfiSubject: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text, marginBottom: 4 },
+  rfiSubject: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text, marginBottom: Tokens.spacing.xxs },
   rfiQuestion: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, lineHeight: 17 },
 });

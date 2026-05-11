@@ -373,7 +373,7 @@ export default function SafetyScreen() {
         )}
 
         {tab === 'osha' && (
-          <View style={{ padding: 16 }}>
+          <View style={{ padding: Tokens.spacing.md }}>
             <View style={styles.oshaSummary}>
               <Text style={styles.oshaYear}>{oshaSummary.year}</Text>
               <Text style={styles.oshaLabel}>OSHA 300A Summary</Text>
@@ -420,9 +420,9 @@ function Tab({ label, active, onPress }: { label: string; active: boolean; onPre
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
-  header: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 0 },
-  eyebrow: { ...Type.monoSm, color: Colors.accent, fontWeight: '600' as const, marginBottom: 8 },
-  heading: { ...Type.display, color: Colors.ink, marginBottom: 4 },
+  header: { paddingHorizontal: Tokens.spacing.lg, paddingTop: Tokens.spacing.xs, paddingBottom: 0 },
+  eyebrow: { ...Type.monoSm, color: Colors.accent, fontWeight: '600' as const, marginBottom: Tokens.spacing.xs },
+  heading: { ...Type.display, color: Colors.ink, marginBottom: Tokens.spacing.xxs },
   sub: { fontSize: Type.subhead.fontSize, color: Colors.textSecondary, marginBottom: 18, lineHeight: 21 },
   tabRow: {
     flexDirection: 'row' as const, gap: 6, marginBottom: 14,
@@ -436,79 +436,79 @@ const styles = StyleSheet.create({
   tabTextActive: { color: Colors.cream },
   sectionHead: {
     flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'space-between' as const,
-    paddingHorizontal: 20, paddingTop: 14, paddingBottom: 10,
+    paddingHorizontal: Tokens.spacing.lg, paddingTop: 14, paddingBottom: 10,
   },
   sectionTitle: { ...Type.title3, color: Colors.text },
   addBtn: {
-    flexDirection: 'row' as const, alignItems: 'center' as const, gap: 4,
-    backgroundColor: Colors.accent, paddingHorizontal: 12, paddingVertical: 6, borderRadius: Tokens.radius.full,
+    flexDirection: 'row' as const, alignItems: 'center' as const, gap: Tokens.spacing.xxs,
+    backgroundColor: Colors.accent, paddingHorizontal: Tokens.spacing.sm, paddingVertical: 6, borderRadius: Tokens.radius.full,
   },
   addBtnText: { ...Type.caption1, color: Colors.cream, fontWeight: '700' as const },
-  empty: { padding: 32, alignItems: 'center' as const, gap: 8 },
-  emptyTitle: { ...Type.headline, color: Colors.text, marginTop: 8 },
+  empty: { padding: Tokens.spacing['2xl'], alignItems: 'center' as const, gap: Tokens.spacing.xs },
+  emptyTitle: { ...Type.headline, color: Colors.text, marginTop: Tokens.spacing.xs },
   emptyBody: { ...Type.footnote, color: Colors.textSecondary, textAlign: 'center' as const, maxWidth: 280 },
   card: {
-    marginHorizontal: 16, marginBottom: 10, padding: 14,
+    marginHorizontal: Tokens.spacing.md, marginBottom: 10, padding: 14,
     backgroundColor: Colors.surface, borderRadius: Tokens.radius.lg,
     borderWidth: 1, borderColor: Colors.cardBorder,
   },
   cardHead: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6, marginBottom: 6 },
   cardDate: { ...Type.caption1, color: Colors.textSecondary, fontWeight: '600' as const },
-  cardTitle: { ...Type.bodyEmphasized, color: Colors.text, marginBottom: 4 },
+  cardTitle: { ...Type.bodyEmphasized, color: Colors.text, marginBottom: Tokens.spacing.xxs },
   cardBody: { ...Type.footnote, color: Colors.textSecondary, lineHeight: 18, marginBottom: 6 },
-  cardMeta: { ...Type.caption1, color: Colors.textMuted, marginBottom: 4 },
-  attendeesRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 4, marginTop: 4 },
+  cardMeta: { ...Type.caption1, color: Colors.textMuted, marginBottom: Tokens.spacing.xxs },
+  attendeesRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: Tokens.spacing.xxs, marginTop: Tokens.spacing.xxs },
   attendeesText: { ...Type.caption1, color: Colors.textMuted, flex: 1 },
   osha300Pill: {
     backgroundColor: Colors.error + '20',
-    paddingHorizontal: 6, paddingVertical: 2, borderRadius: Tokens.radius.xs,
+    paddingHorizontal: 6, paddingVertical: Tokens.spacing.hairline, borderRadius: Tokens.radius.xs,
   },
   osha300PillText: { ...Type.monoSm, color: Colors.error, fontWeight: '700' as const, fontSize: 9 },
   form: {
-    marginHorizontal: 16, padding: 14, marginBottom: 14,
+    marginHorizontal: Tokens.spacing.md, padding: 14, marginBottom: 14,
     backgroundColor: Colors.cream, borderRadius: Tokens.radius.lg,
     borderWidth: 1, borderColor: Colors.bone,
   },
-  formLabel: { ...Type.caption1, color: Colors.concrete, fontWeight: '700' as const, marginBottom: 6, marginTop: 8 },
+  formLabel: { ...Type.caption1, color: Colors.concrete, fontWeight: '700' as const, marginBottom: 6, marginTop: Tokens.spacing.xs },
   input: {
     backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.cardBorder,
-    borderRadius: Tokens.radius.md, paddingHorizontal: 12, paddingVertical: 10,
+    borderRadius: Tokens.radius.md, paddingHorizontal: Tokens.spacing.sm, paddingVertical: 10,
     fontSize: Type.body.fontSize, color: Colors.text,
   },
   chip: {
     backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.bone,
-    paddingHorizontal: 12, paddingVertical: 7, borderRadius: Tokens.radius.full, marginRight: 6,
+    paddingHorizontal: Tokens.spacing.sm, paddingVertical: 7, borderRadius: Tokens.radius.full, marginRight: 6,
   },
   chipText: { ...Type.caption1, color: Colors.concrete, fontWeight: '600' as const },
-  formActions: { flexDirection: 'row' as const, gap: 8, marginTop: 14 },
+  formActions: { flexDirection: 'row' as const, gap: Tokens.spacing.xs, marginTop: 14 },
   cancelBtn: {
-    flexDirection: 'row' as const, alignItems: 'center' as const, gap: 4,
+    flexDirection: 'row' as const, alignItems: 'center' as const, gap: Tokens.spacing.xxs,
     paddingHorizontal: 14, paddingVertical: 9, borderRadius: Tokens.radius.full,
     backgroundColor: Colors.fillTertiary,
   },
   cancelText: { ...Type.bodyCompact, color: Colors.textSecondary, fontWeight: '600' as const },
   saveBtn: {
-    flex: 1, flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 4,
+    flex: 1, flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: Tokens.spacing.xxs,
     paddingHorizontal: 14, paddingVertical: 9, borderRadius: Tokens.radius.full,
     backgroundColor: Colors.accent,
   },
   saveText: { ...Type.bodyCompact, color: Colors.cream, fontWeight: '700' as const },
   checkbox: {
-    flexDirection: 'row' as const, alignItems: 'flex-start' as const, gap: 8,
-    marginTop: 12, padding: 10, backgroundColor: Colors.surface, borderRadius: Tokens.radius.md,
+    flexDirection: 'row' as const, alignItems: 'flex-start' as const, gap: Tokens.spacing.xs,
+    marginTop: Tokens.spacing.sm, padding: 10, backgroundColor: Colors.surface, borderRadius: Tokens.radius.md,
     borderWidth: 1, borderColor: Colors.cardBorder,
   },
   checkboxActive: { backgroundColor: Colors.error + '15', borderColor: Colors.error },
   checkboxText: { ...Type.footnote, color: Colors.text, flex: 1, lineHeight: 18 },
   oshaSummary: {
-    backgroundColor: Colors.ink, padding: 24, borderRadius: Tokens.radius.panel,
+    backgroundColor: Colors.ink, padding: Tokens.spacing.xl, borderRadius: Tokens.radius.panel,
   },
-  oshaYear: { ...Type.monoSm, color: Colors.accent, fontWeight: '600' as const, marginBottom: 4 },
-  oshaLabel: { ...Type.displaySm, color: Colors.cream, marginBottom: 24 },
-  oshaStatRow: { flexDirection: 'row' as const, gap: 24, marginBottom: 24 },
+  oshaYear: { ...Type.monoSm, color: Colors.accent, fontWeight: '600' as const, marginBottom: Tokens.spacing.xxs },
+  oshaLabel: { ...Type.displaySm, color: Colors.cream, marginBottom: Tokens.spacing.xl },
+  oshaStatRow: { flexDirection: 'row' as const, gap: Tokens.spacing.xl, marginBottom: Tokens.spacing.xl },
   oshaStat: { flex: 1 },
   oshaStatValue: { ...Type.display, color: Colors.cream, fontSize: 48, lineHeight: 52 },
-  oshaStatLabel: { ...Type.caption1, color: 'rgba(244, 239, 230, 0.6)', marginTop: 4 },
+  oshaStatLabel: { ...Type.caption1, color: 'rgba(244, 239, 230, 0.6)', marginTop: Tokens.spacing.xxs },
   oshaNote: { ...Type.footnote, color: 'rgba(244, 239, 230, 0.7)', lineHeight: 18, marginBottom: 14 },
   oshaLink: {
     flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6,

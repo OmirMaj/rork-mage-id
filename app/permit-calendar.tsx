@@ -248,7 +248,7 @@ export default function PermitCalendarScreen() {
         }}
       />
       <ScrollView
-        contentContainerStyle={{ paddingTop: 12, paddingBottom: insets.bottom + 30 }}
+        contentContainerStyle={{ paddingTop: Tokens.spacing.sm, paddingBottom: insets.bottom + 30 }}
         showsVerticalScrollIndicator={false}
       >
         {/* Hero */}
@@ -329,9 +329,9 @@ const styles = StyleSheet.create({
   hero: {
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.lg,
-    marginHorizontal: 16,
-    marginBottom: 12,
-    padding: 16,
+    marginHorizontal: Tokens.spacing.md,
+    marginBottom: Tokens.spacing.sm,
+    padding: Tokens.spacing.md,
     borderWidth: 1,
     borderColor: Colors.borderLight,
   },
@@ -344,22 +344,22 @@ const styles = StyleSheet.create({
   heroSub: {
     fontSize: Type.footnote.fontSize,
     color: Colors.textMuted,
-    marginTop: 4,
+    marginTop: Tokens.spacing.xxs,
   },
 
   monthBlock: { marginBottom: 18 },
   monthHeader: {
-    paddingHorizontal: 16,
+    paddingHorizontal: Tokens.spacing.md,
     fontSize: Type.caption2.fontSize,
     fontWeight: '900' as const,
     color: Colors.textMuted,
     letterSpacing: 1.2,
     textTransform: 'uppercase' as const,
-    marginBottom: 8,
+    marginBottom: Tokens.spacing.xs,
   },
   card: {
     backgroundColor: Colors.surface,
-    marginHorizontal: 16,
+    marginHorizontal: Tokens.spacing.md,
     borderRadius: Tokens.radius.lg,
     borderWidth: 1,
     borderColor: Colors.borderLight,
@@ -368,9 +368,9 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
-    gap: 12,
+    gap: Tokens.spacing.sm,
     paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingVertical: Tokens.spacing.sm,
   },
   rowBorder: {
     borderBottomWidth: StyleSheet.hairlineWidth,
@@ -419,10 +419,10 @@ const styles = StyleSheet.create({
 
   footer: {
     flexDirection: 'row' as const,
-    gap: 8,
+    gap: Tokens.spacing.xs,
     alignItems: 'flex-start' as const,
     paddingHorizontal: 18,
-    paddingVertical: 16,
+    paddingVertical: Tokens.spacing.md,
     opacity: 0.7,
   },
   footerText: {

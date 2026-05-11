@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { Colors } from '@/constants/colors';
+import { Tokens } from '@/constants/designTokens';
 import { Type } from '@/constants/typography';
 
 export default function TrialOfferScreen() {
@@ -64,10 +65,10 @@ export default function TrialOfferScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background, paddingHorizontal: 24 },
+  container: { flex: 1, backgroundColor: Colors.background, paddingHorizontal: Tokens.spacing.xl },
 
   brandRow: { alignItems: 'center' as const },
-  brandLogoBg: { backgroundColor: Colors.surfaceAlt, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 14 },
+  brandLogoBg: { backgroundColor: Colors.surfaceAlt, paddingHorizontal: Tokens.spacing.md, paddingVertical: Tokens.spacing.xs, borderRadius: 14 },
   brandLogo: { fontSize: 18, fontWeight: '900' as const, color: Colors.text, letterSpacing: -0.5 },
 
   copyWrap: { flex: 1, justifyContent: 'center' as const, alignItems: 'center' as const, gap: 6 },
@@ -75,7 +76,7 @@ const styles = StyleSheet.create({
   lineLarge: { fontSize: 28, fontWeight: '800' as const, color: Colors.text, textAlign: 'center' as const, letterSpacing: -0.6 },
   pill: {
     paddingHorizontal: 22,
-    paddingVertical: 12,
+    paddingVertical: Tokens.spacing.sm,
     borderRadius: 16,
     backgroundColor: '#22C55E',
     marginVertical: 14,
@@ -89,7 +90,7 @@ const styles = StyleSheet.create({
   },
   pillText: { fontSize: 28, fontWeight: '800' as const, color: Colors.surface, letterSpacing: -0.6 },
 
-  footer: { paddingTop: 12 },
+  footer: { paddingTop: Tokens.spacing.sm },
   continueBtn: { minHeight: 56, borderRadius: 999, backgroundColor: Colors.primary, alignItems: 'center' as const, justifyContent: 'center' as const },
   continueBtnText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.textOnPrimary },
 });

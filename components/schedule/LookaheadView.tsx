@@ -358,7 +358,7 @@ function LookaheadView({
 }
 
 const s = StyleSheet.create({
-  container: { paddingHorizontal: 16, gap: 12 },
+  container: { paddingHorizontal: Tokens.spacing.md, gap: Tokens.spacing.sm },
 
   segmentControl: {
     flexDirection: 'row',
@@ -368,24 +368,24 @@ const s = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   segmentBtn: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingHorizontal: Tokens.spacing.md,
+    paddingVertical: Tokens.spacing.xs,
     borderRadius: Tokens.radius.md,
   },
   segmentBtnActive: { backgroundColor: Colors.primary },
   segmentBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.textSecondary },
   segmentBtnTextActive: { color: '#FFF' },
 
-  weekList: { gap: 16 },
+  weekList: { gap: Tokens.spacing.md },
 
-  weekSection: { gap: 8 },
+  weekSection: { gap: Tokens.spacing.xs },
   weekHeader: {
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.lg,
-    padding: 12,
+    padding: Tokens.spacing.sm,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
-    gap: 8,
+    gap: Tokens.spacing.xs,
   },
   weekHeaderTop: {
     flexDirection: 'row',
@@ -404,7 +404,7 @@ const s = StyleSheet.create({
 
   weekEmpty: {
     alignItems: 'center',
-    paddingVertical: 16,
+    paddingVertical: Tokens.spacing.md,
     backgroundColor: Colors.fillSecondary,
     borderRadius: Tokens.radius.card,
   },
@@ -414,14 +414,14 @@ const s = StyleSheet.create({
   // crew label keeps the visual weight tilted toward the task cards.
   crewGroup: {
     gap: 6,
-    marginTop: 4,
+    marginTop: Tokens.spacing.xxs,
   },
   crewGroupHeader: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
-    gap: 8,
-    paddingHorizontal: 4,
-    paddingVertical: 4,
+    gap: Tokens.spacing.xs,
+    paddingHorizontal: Tokens.spacing.xxs,
+    paddingVertical: Tokens.spacing.xxs,
   },
   crewGroupDot: {
     width: 8, height: 8, borderRadius: 4,
@@ -450,7 +450,7 @@ const s = StyleSheet.create({
     borderRadius: Tokens.radius.lg,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingLeft: 12,
+    paddingLeft: Tokens.spacing.sm,
     gap: 3,
   },
   swipeBgText: { fontSize: Type.caption1.fontSize, fontWeight: '800' as const, color: '#FFF' },
@@ -470,20 +470,20 @@ const s = StyleSheet.create({
   },
   taskCardBlocked: { borderColor: '#FF3B3025' },
   taskPhaseBar: { width: 4 },
-  taskCardBody: { flex: 1, padding: 12, gap: 6 },
+  taskCardBody: { flex: 1, padding: Tokens.spacing.sm, gap: 6 },
   taskCardTop: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  taskCardTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text, flex: 1, marginRight: 8 },
+  taskCardTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text, flex: 1, marginRight: Tokens.spacing.xs },
   blockedTag: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 3,
     backgroundColor: '#FF3B3012',
     paddingHorizontal: 6,
-    paddingVertical: 2,
+    paddingVertical: Tokens.spacing.hairline,
     borderRadius: Tokens.radius.xs,
   },
   blockedTagText: { fontSize: 9, fontWeight: '800' as const, color: Colors.error },

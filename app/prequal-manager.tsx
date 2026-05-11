@@ -177,7 +177,7 @@ function PrequalManagerInner() {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 80 + insets.bottom }}>
+      <ScrollView contentContainerStyle={{ padding: Tokens.spacing.md, paddingBottom: 80 + insets.bottom }}>
 
         {/* Counts */}
         <View style={styles.statsRow}>
@@ -335,7 +335,7 @@ function InviteModal({ sub, onClose, onSend }: {
             <Text style={styles.modalTitle}>Invite {sub?.companyName ?? 'sub'}</Text>
             <TouchableOpacity onPress={onClose} hitSlop={12} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={Colors.text} /></TouchableOpacity>
           </View>
-          <View style={{ padding: 16 }}>
+          <View style={{ padding: Tokens.spacing.md }}>
             <Text style={styles.fieldLabel}>Email</Text>
             <TextInput
               style={styles.input}
@@ -403,7 +403,7 @@ function ReviewModal({ packet, sub, onClose, onApprove, onNeedsChanges, onReject
           </View>
 
           <ScrollView style={{ maxHeight: 560 }}>
-            <View style={{ padding: 16 }}>
+            <View style={{ padding: Tokens.spacing.md }}>
               {/* Summary */}
               {review && (
                 <View style={[styles.reviewSummary, {
@@ -448,7 +448,7 @@ function ReviewModal({ packet, sub, onClose, onApprove, onNeedsChanges, onReject
               ))}
 
               {/* Packet details */}
-              <Text style={[styles.sectionLabel, { marginTop: 16 }]}>Packet details</Text>
+              <Text style={[styles.sectionLabel, { marginTop: Tokens.spacing.md }]}>Packet details</Text>
               <DetailLine label="Status" value={packet.status} />
               {packet.inviteSentAt && <DetailLine label="Invited" value={new Date(packet.inviteSentAt).toLocaleDateString()} />}
               {packet.submittedAt && <DetailLine label="Submitted" value={new Date(packet.submittedAt).toLocaleDateString()} />}
@@ -463,7 +463,7 @@ function ReviewModal({ packet, sub, onClose, onApprove, onNeedsChanges, onReject
               <DetailLine label="Years in business" value={String(packet.financials.yearsInBusiness ?? '—')} />
 
               {/* Reviewer note */}
-              <Text style={[styles.sectionLabel, { marginTop: 16 }]}>Reviewer note (optional)</Text>
+              <Text style={[styles.sectionLabel, { marginTop: Tokens.spacing.md }]}>Reviewer note (optional)</Text>
               <TextInput
                 style={[styles.input, { minHeight: 80, textAlignVertical: 'top' }]}
                 value={note}
@@ -515,8 +515,8 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: Colors.background },
 
   header: {
-    flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingBottom: 12, paddingTop: 6,
-    gap: 8, borderBottomWidth: 1, borderBottomColor: Colors.borderLight,
+    flexDirection: 'row', alignItems: 'center', paddingHorizontal: Tokens.spacing.sm, paddingBottom: Tokens.spacing.sm, paddingTop: 6,
+    gap: Tokens.spacing.xs, borderBottomWidth: 1, borderBottomColor: Colors.borderLight,
   },
   headerBtn: {
     width: 36, height: 36, borderRadius: Tokens.radius.xl, alignItems: 'center', justifyContent: 'center',
@@ -526,70 +526,70 @@ const styles = StyleSheet.create({
   headerEyebrow: { fontSize: 10, color: Colors.primary, fontWeight: '800', letterSpacing: 2, textTransform: 'uppercase' },
   headerTitle: { fontSize: Type.body.fontSize, fontWeight: '700', color: Colors.text },
 
-  statsRow: { flexDirection: 'row', gap: 8, marginBottom: 14 },
+  statsRow: { flexDirection: 'row', gap: Tokens.spacing.xs, marginBottom: 14 },
   statCard: {
-    flex: 1, backgroundColor: Colors.card, borderRadius: Tokens.radius.md, padding: 12, alignItems: 'center',
+    flex: 1, backgroundColor: Colors.card, borderRadius: Tokens.radius.md, padding: Tokens.spacing.sm, alignItems: 'center',
   },
   statValue: { fontSize: Type.title2.fontSize, fontWeight: '800' },
-  statLabel: { fontSize: 10, color: Colors.textSecondary, marginTop: 2, textTransform: 'uppercase', letterSpacing: 0.4 },
+  statLabel: { fontSize: 10, color: Colors.textSecondary, marginTop: Tokens.spacing.hairline, textTransform: 'uppercase', letterSpacing: 0.4 },
 
   banner: {
-    backgroundColor: Colors.card, padding: 12, borderRadius: Tokens.radius.md, borderLeftWidth: 3, borderLeftColor: Colors.primary,
-    marginBottom: 12, flexDirection: 'row', gap: 8, alignItems: 'flex-start',
+    backgroundColor: Colors.card, padding: Tokens.spacing.sm, borderRadius: Tokens.radius.md, borderLeftWidth: 3, borderLeftColor: Colors.primary,
+    marginBottom: Tokens.spacing.sm, flexDirection: 'row', gap: Tokens.spacing.xs, alignItems: 'flex-start',
   },
   bannerText: { flex: 1, fontSize: Type.caption2.fontSize, color: Colors.textSecondary, lineHeight: 16 },
 
   renewCard: {
-    backgroundColor: Colors.warningLight, padding: 12, borderRadius: Tokens.radius.md, marginBottom: 14,
+    backgroundColor: Colors.warningLight, padding: Tokens.spacing.sm, borderRadius: Tokens.radius.md, marginBottom: 14,
     borderWidth: 1, borderColor: `${Colors.warning}30`,
   },
   renewHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 },
   renewTitle: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: Colors.warning, textTransform: 'uppercase', letterSpacing: 0.5 },
-  renewItem: { fontSize: Type.caption1.fontSize, color: Colors.text, marginTop: 2 },
+  renewItem: { fontSize: Type.caption1.fontSize, color: Colors.text, marginTop: Tokens.spacing.hairline },
 
   listCard: { backgroundColor: Colors.card, borderRadius: Tokens.radius.card, overflow: 'hidden' },
   subRow: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14 },
   subRowBorder: { borderTopWidth: 1, borderTopColor: Colors.borderLight },
   subName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
-  subSub: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, marginTop: 2 },
-  subMissing: { fontSize: 10, color: Colors.warning, marginTop: 2, fontWeight: '600' },
+  subSub: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, marginTop: Tokens.spacing.hairline },
+  subMissing: { fontSize: 10, color: Colors.warning, marginTop: Tokens.spacing.hairline, fontWeight: '600' },
 
-  statusBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 7, paddingVertical: 4, borderRadius: 7, minWidth: 82 },
+  statusBadge: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xxs, paddingHorizontal: 7, paddingVertical: Tokens.spacing.xxs, borderRadius: 7, minWidth: 82 },
   statusBadgeText: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.4 },
 
-  emptyBox: { alignItems: 'center', padding: 40 },
-  emptyText: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, textAlign: 'center', marginTop: 8 },
-  footerNote: { fontSize: 10, color: Colors.textMuted, textAlign: 'center', marginTop: 16, paddingHorizontal: 14, lineHeight: 14 },
+  emptyBox: { alignItems: 'center', padding: Tokens.spacing['3xl'] },
+  emptyText: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, textAlign: 'center', marginTop: Tokens.spacing.xs },
+  footerNote: { fontSize: 10, color: Colors.textMuted, textAlign: 'center', marginTop: Tokens.spacing.md, paddingHorizontal: 14, lineHeight: 14 },
 
   // Modal
   modalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: Colors.overlay },
   modalCard: { backgroundColor: Colors.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '92%' },
-  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, borderBottomWidth: 1, borderBottomColor: Colors.borderLight },
+  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: Tokens.spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.borderLight },
   modalTitle: { fontSize: Type.body.fontSize, fontWeight: '700', color: Colors.text },
-  modalFooter: { flexDirection: 'row', gap: 8, padding: 16, borderTopWidth: 1, borderTopColor: Colors.borderLight },
+  modalFooter: { flexDirection: 'row', gap: Tokens.spacing.xs, padding: Tokens.spacing.md, borderTopWidth: 1, borderTopColor: Colors.borderLight },
 
-  btnGhost: { flex: 1, flexDirection: 'row', gap: 6, paddingVertical: 12, alignItems: 'center', justifyContent: 'center', borderRadius: Tokens.radius.md, backgroundColor: Colors.fillSecondary },
+  btnGhost: { flex: 1, flexDirection: 'row', gap: 6, paddingVertical: Tokens.spacing.sm, alignItems: 'center', justifyContent: 'center', borderRadius: Tokens.radius.md, backgroundColor: Colors.fillSecondary },
   btnGhostText: { color: Colors.text, fontSize: Type.footnote.fontSize, fontWeight: '700' },
-  btnPrimary: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: Tokens.radius.md, backgroundColor: Colors.primary },
+  btnPrimary: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: Tokens.spacing.sm, borderRadius: Tokens.radius.md, backgroundColor: Colors.primary },
   btnPrimaryText: { color: Colors.textOnPrimary, fontSize: Type.footnote.fontSize, fontWeight: '700' },
 
-  fieldLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 },
-  input: { backgroundColor: Colors.fillSecondary, borderRadius: Tokens.radius.md, paddingHorizontal: 12, paddingVertical: 10, fontSize: Type.bodyCompact.fontSize, color: Colors.text },
-  inviteHelp: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 8, lineHeight: 15 },
+  fieldLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: Tokens.spacing.xxs },
+  input: { backgroundColor: Colors.fillSecondary, borderRadius: Tokens.radius.md, paddingHorizontal: Tokens.spacing.sm, paddingVertical: 10, fontSize: Type.bodyCompact.fontSize, color: Colors.text },
+  inviteHelp: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: Tokens.spacing.xs, lineHeight: 15 },
 
-  reviewSummary: { borderRadius: Tokens.radius.md, padding: 12, borderLeftWidth: 3, marginBottom: 14 },
+  reviewSummary: { borderRadius: Tokens.radius.md, padding: Tokens.spacing.sm, borderLeftWidth: 3, marginBottom: 14 },
   reviewSummaryText: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: Colors.text },
 
-  sectionLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 },
+  sectionLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: Tokens.spacing.xs },
 
-  findingRow: { flexDirection: 'row', gap: 8, paddingVertical: 6, alignItems: 'flex-start' },
+  findingRow: { flexDirection: 'row', gap: Tokens.spacing.xs, paddingVertical: 6, alignItems: 'flex-start' },
   findingLabel: { fontSize: Type.caption1.fontSize, color: Colors.text, fontWeight: '600' },
   findingNote: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, marginTop: 1 },
 
-  copyLinkRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, marginBottom: 6 },
+  copyLinkRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: Tokens.spacing.xs, marginBottom: 6 },
   copyLinkText: { fontSize: Type.caption1.fontSize, color: Colors.primary, fontWeight: '600' },
 
-  detailLine: { flexDirection: 'row', paddingVertical: 4 },
+  detailLine: { flexDirection: 'row', paddingVertical: Tokens.spacing.xxs },
   detailLineLabel: { flex: 0.4, fontSize: Type.caption1.fontSize, color: Colors.textSecondary },
   detailLineValue: { flex: 0.6, fontSize: Type.caption1.fontSize, color: Colors.text, textAlign: 'right' },
 });

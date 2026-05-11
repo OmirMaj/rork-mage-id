@@ -445,14 +445,14 @@ function SummaryLine({ label, value, last }: { label: string; value: number; las
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
-  scroll: { padding: 16, gap: 0 },
+  scroll: { padding: Tokens.spacing.md, gap: 0 },
   hero: {
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.panel,
-    padding: 20,
+    padding: Tokens.spacing.lg,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
-    marginBottom: 20,
+    marginBottom: Tokens.spacing.lg,
     gap: 10,
   },
   heroIcon: {
@@ -465,18 +465,18 @@ const styles = StyleSheet.create({
 
   sectionLabel: {
     fontSize: Type.caption2.fontSize, fontWeight: '600', color: Colors.textSecondary,
-    letterSpacing: 0.8, marginBottom: 8, marginTop: 20,
+    letterSpacing: 0.8, marginBottom: Tokens.spacing.xs, marginTop: Tokens.spacing.lg,
   },
 
   // Quick CSV grid — three pills with entity icon + label + count.
   // Three across on phone; auto-wraps on narrow widths.
   quickCsvRow: {
-    flexDirection: 'row' as const, gap: 8, flexWrap: 'wrap' as const,
+    flexDirection: 'row' as const, gap: Tokens.spacing.xs, flexWrap: 'wrap' as const,
   },
   quickCsvBtn: {
     flex: 1, minWidth: 100,
-    flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8,
-    paddingVertical: 12, paddingHorizontal: 12,
+    flexDirection: 'row' as const, alignItems: 'center' as const, gap: Tokens.spacing.xs,
+    paddingVertical: Tokens.spacing.sm, paddingHorizontal: Tokens.spacing.sm,
     backgroundColor: Colors.surface, borderRadius: Tokens.radius.lg,
     borderWidth: 1, borderColor: Colors.cardBorder,
   },
@@ -492,8 +492,8 @@ const styles = StyleSheet.create({
 
   segment: {
     flexDirection: 'row', backgroundColor: Colors.surface,
-    borderRadius: Tokens.radius.card, padding: 4, borderWidth: 1, borderColor: Colors.cardBorder,
-    gap: 4,
+    borderRadius: Tokens.radius.card, padding: Tokens.spacing.xxs, borderWidth: 1, borderColor: Colors.cardBorder,
+    gap: Tokens.spacing.xxs,
   },
   segmentBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
@@ -506,7 +506,7 @@ const styles = StyleSheet.create({
   projectList: {
     backgroundColor: Colors.surface, borderRadius: Tokens.radius.card,
     borderWidth: 1, borderColor: Colors.cardBorder,
-    marginTop: 8, overflow: 'hidden',
+    marginTop: Tokens.spacing.xs, overflow: 'hidden',
   },
   projectRow: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
@@ -515,18 +515,18 @@ const styles = StyleSheet.create({
   projectRowActive: { backgroundColor: `${Colors.primary}08` },
   projectRowName: { fontSize: Type.subhead.fontSize, fontWeight: '600', color: Colors.text },
   projectRowNameActive: { color: Colors.primary },
-  projectRowMeta: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, marginTop: 2 },
+  projectRowMeta: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, marginTop: Tokens.spacing.hairline },
   emptyTxt: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, padding: 14, textAlign: 'center' },
 
   hintCard: {
-    flexDirection: 'row', alignItems: 'flex-start', gap: 8,
-    backgroundColor: `${Colors.primary}08`, padding: 12,
-    borderRadius: Tokens.radius.md, marginTop: 8,
+    flexDirection: 'row', alignItems: 'flex-start', gap: Tokens.spacing.xs,
+    backgroundColor: `${Colors.primary}08`, padding: Tokens.spacing.sm,
+    borderRadius: Tokens.radius.md, marginTop: Tokens.spacing.xs,
   },
   hintTxt: { flex: 1, fontSize: Type.caption1.fontSize, color: Colors.textSecondary, lineHeight: 17 },
 
   row: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
+    flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.sm,
     backgroundColor: Colors.surface, borderRadius: Tokens.radius.card,
     padding: 14, borderWidth: 1, borderColor: Colors.cardBorder,
   },
@@ -536,7 +536,7 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   rowLabel: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600', color: Colors.text },
-  rowSub: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, marginTop: 2 },
+  rowSub: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, marginTop: Tokens.spacing.hairline },
 
   summaryCard: {
     backgroundColor: Colors.surface, borderRadius: Tokens.radius.card,
@@ -544,7 +544,7 @@ const styles = StyleSheet.create({
   },
   summaryRow: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingHorizontal: 14, paddingVertical: 12,
+    paddingHorizontal: 14, paddingVertical: Tokens.spacing.sm,
     borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Colors.borderLight,
   },
   summaryLabel: { fontSize: Type.bodyCompact.fontSize, color: Colors.text },
@@ -555,30 +555,30 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: Colors.cardBorder,
     padding: 14, gap: 10,
   },
-  resultHeader: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: Colors.text, marginBottom: 4 },
+  resultHeader: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: Colors.text, marginBottom: Tokens.spacing.xxs },
   fileRow: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
-    paddingVertical: 10, paddingHorizontal: 12,
+    paddingVertical: 10, paddingHorizontal: Tokens.spacing.sm,
     backgroundColor: Colors.background, borderRadius: Tokens.radius.sm,
   },
   fileName: { flex: 1, fontSize: Type.caption1.fontSize, color: Colors.text, fontFamily: Platform.select({ ios: 'Menlo', default: 'monospace' }) },
 
   bottomBar: {
     position: 'absolute', left: 0, right: 0, bottom: 0,
-    paddingHorizontal: 16, paddingTop: 12,
+    paddingHorizontal: Tokens.spacing.md, paddingTop: Tokens.spacing.sm,
     backgroundColor: Colors.surface,
     borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: Colors.border,
   },
   primaryBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: Colors.primary, paddingVertical: 16, borderRadius: Tokens.radius.card,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Tokens.spacing.xs,
+    backgroundColor: Colors.primary, paddingVertical: Tokens.spacing.md, borderRadius: Tokens.radius.card,
   },
   primaryBtnDisabled: { opacity: 0.6 },
   primaryBtnTxt: { color: Colors.textOnPrimary, fontWeight: '700', fontSize: Type.subhead.fontSize },
 
   presetBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    paddingVertical: 11, paddingHorizontal: 12,
+    flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs,
+    paddingVertical: 11, paddingHorizontal: Tokens.spacing.sm,
     borderRadius: Tokens.radius.md,
     backgroundColor: Colors.primary + '12',
     borderWidth: 1, borderColor: Colors.primary + '30',

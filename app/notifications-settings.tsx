@@ -344,7 +344,7 @@ export default function NotificationsSettingsScreen() {
         options={{
           title: 'Notifications',
           headerLeft: () => (
-            <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }} accessibilityRole="button" accessibilityLabel="Back">
+            <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: Tokens.spacing.xxs }} accessibilityRole="button" accessibilityLabel="Back">
               <ChevronLeft size={24} color={Colors.primary} />
             </TouchableOpacity>
           ),
@@ -635,7 +635,7 @@ export default function NotificationsSettingsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   hero: {
-    margin: 16, padding: 18, borderRadius: Tokens.radius.panel,
+    margin: Tokens.spacing.md, padding: 18, borderRadius: Tokens.radius.panel,
     backgroundColor: Colors.primary + '0D',
     borderWidth: 1, borderColor: Colors.primary + '20',
   },
@@ -643,9 +643,9 @@ const styles = StyleSheet.create({
     width: 38, height: 38, borderRadius: 11,
     backgroundColor: Colors.primary + '15',
     alignItems: 'center', justifyContent: 'center',
-    marginBottom: 12,
+    marginBottom: Tokens.spacing.sm,
   },
-  heroTitle: { fontSize: Type.title2.fontSize, fontWeight: '800', color: Colors.text, marginBottom: 8 },
+  heroTitle: { fontSize: Type.title2.fontSize, fontWeight: '800', color: Colors.text, marginBottom: Tokens.spacing.xs },
   heroBody: { fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 19 },
   heroNote: {
     marginTop: 10, padding: 10, borderRadius: Tokens.radius.md,
@@ -653,16 +653,16 @@ const styles = StyleSheet.create({
     fontSize: Type.caption1.fontSize, color: '#7A4500', lineHeight: 17, fontWeight: '600',
   },
   permBanner: {
-    marginHorizontal: 16, marginBottom: 16, padding: 16,
+    marginHorizontal: Tokens.spacing.md, marginBottom: Tokens.spacing.md, padding: Tokens.spacing.md,
     borderRadius: Tokens.radius.lg, backgroundColor: Colors.text,
-    flexDirection: 'row', alignItems: 'flex-start', gap: 12,
+    flexDirection: 'row', alignItems: 'flex-start', gap: Tokens.spacing.sm,
   },
   permIcon: {
     width: 36, height: 36, borderRadius: Tokens.radius.md,
     backgroundColor: Colors.primary,
     alignItems: 'center', justifyContent: 'center',
   },
-  permTitle: { fontSize: Type.subhead.fontSize, fontWeight: '800', color: '#FFF', marginBottom: 4 },
+  permTitle: { fontSize: Type.subhead.fontSize, fontWeight: '800', color: '#FFF', marginBottom: Tokens.spacing.xxs },
   permBody: { fontSize: 12.5, color: '#D8DDE3', lineHeight: 18, marginBottom: 10 },
   permCta: {
     alignSelf: 'flex-start',
@@ -670,14 +670,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14, paddingVertical: 9, borderRadius: Tokens.radius.md,
   },
   permCtaText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: '#FFF' },
-  loadingWrap: { padding: 32, alignItems: 'center' },
+  loadingWrap: { padding: Tokens.spacing['2xl'], alignItems: 'center' },
 
-  section: { marginHorizontal: 16, marginBottom: 22 },
-  groupHeader: { marginBottom: 10, paddingHorizontal: 4 },
+  section: { marginHorizontal: Tokens.spacing.md, marginBottom: 22 },
+  groupHeader: { marginBottom: 10, paddingHorizontal: Tokens.spacing.xxs },
   groupTitle: { fontSize: Type.subhead.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.2 },
-  groupSubtitle: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2, lineHeight: 17 },
+  groupSubtitle: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: Tokens.spacing.hairline, lineHeight: 17 },
   tableHead: {
-    flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingBottom: 8,
+    flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingBottom: Tokens.spacing.xs,
   },
   tableHeadLabel: {
     flex: 1, fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.textMuted,
@@ -693,16 +693,16 @@ const styles = StyleSheet.create({
   },
   row: {
     flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 14, paddingVertical: 12, gap: 4,
+    paddingHorizontal: 14, paddingVertical: Tokens.spacing.sm, gap: Tokens.spacing.xxs,
   },
   rowDivider: { borderBottomWidth: 1, borderBottomColor: Colors.border },
-  rowLeft: { flex: 1, flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  rowLeft: { flex: 1, flexDirection: 'row', alignItems: 'flex-start', gap: Tokens.spacing.sm },
   rowLabel: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600', color: Colors.text },
-  rowDesc: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2, lineHeight: 16 },
+  rowDesc: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: Tokens.spacing.hairline, lineHeight: 16 },
   toggle: { width: 64, alignItems: 'center' },
   naLabel: { fontSize: Type.subheadline.fontSize, color: Colors.textMuted, fontWeight: '600' },
   savingHint: {
-    fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 8, fontStyle: 'italic', textAlign: 'right',
+    fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: Tokens.spacing.xs, fontStyle: 'italic', textAlign: 'right',
   },
 
   helperBody: {
@@ -714,10 +714,10 @@ const styles = StyleSheet.create({
   digestCard: {
     backgroundColor: Colors.card, borderRadius: Tokens.radius.card,
     borderWidth: 1, borderColor: Colors.border, overflow: 'hidden',
-    padding: 16,
+    padding: Tokens.spacing.md,
   },
   digestHeader: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
+    flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.sm,
   },
   digestIcon: {
     width: 36, height: 36, borderRadius: Tokens.radius.md,
@@ -726,7 +726,7 @@ const styles = StyleSheet.create({
   },
   digestTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
   digestSubtitle: {
-    fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2, lineHeight: 16,
+    fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: Tokens.spacing.hairline, lineHeight: 16,
   },
   digestDivider: { height: 1, backgroundColor: Colors.border, marginVertical: 14 },
   digestRow: {
@@ -740,9 +740,9 @@ const styles = StyleSheet.create({
   },
   digestRowValue: { fontSize: Type.bodyCompact.fontSize, color: Colors.text, fontWeight: '700' },
 
-  hourScroll: { gap: 8, paddingVertical: 4 },
+  hourScroll: { gap: Tokens.spacing.xs, paddingVertical: Tokens.spacing.xxs },
   hourPill: {
-    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999,
+    paddingHorizontal: 14, paddingVertical: Tokens.spacing.xs, borderRadius: 999,
     backgroundColor: Colors.fillTertiary,
     borderWidth: 1, borderColor: Colors.border,
   },
@@ -755,13 +755,13 @@ const styles = StyleSheet.create({
 
   channelRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingVertical: 8,
+    paddingVertical: Tokens.spacing.xs,
   },
   channelInfo: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   channelLabel: { fontSize: Type.bodyCompact.fontSize, color: Colors.text, fontWeight: '600' },
 
   locationCard: {
-    padding: 12, borderRadius: Tokens.radius.md,
+    padding: Tokens.spacing.sm, borderRadius: Tokens.radius.md,
     backgroundColor: Colors.fillTertiary,
     borderWidth: 1, borderColor: Colors.border,
   },
@@ -770,15 +770,15 @@ const styles = StyleSheet.create({
   locationBody: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, lineHeight: 17 },
   locationCta: {
     alignSelf: 'flex-start', marginTop: 10,
-    paddingHorizontal: 12, paddingVertical: 7, borderRadius: Tokens.radius.md,
+    paddingHorizontal: Tokens.spacing.sm, paddingVertical: 7, borderRadius: Tokens.radius.md,
     backgroundColor: Colors.text,
   },
   locationCtaText: { fontSize: Type.caption1.fontSize, color: '#FFF', fontWeight: '700' },
 
   previewBtn: {
-    marginTop: 14, paddingVertical: 12, borderRadius: Tokens.radius.md,
+    marginTop: 14, paddingVertical: Tokens.spacing.sm, borderRadius: Tokens.radius.md,
     backgroundColor: Colors.primary,
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Tokens.spacing.xs,
   },
   previewBtnText: { color: '#FFF', fontSize: Type.bodyCompact.fontSize, fontWeight: '700' },
 });

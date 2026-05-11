@@ -352,7 +352,7 @@ function SubPortalSetupScreenInner() {
         options={{
           title: 'Sub Portal',
           headerLeft: () => (
-            <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }} accessibilityRole="button" accessibilityLabel="Back">
+            <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: Tokens.spacing.xxs }} accessibilityRole="button" accessibilityLabel="Back">
               <ChevronLeft size={24} color={Colors.primary} />
             </TouchableOpacity>
           ),
@@ -609,11 +609,11 @@ function SubPortalSetupScreenInner() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
-  loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 20 },
+  loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Tokens.spacing.lg },
   loadingText: { color: Colors.textMuted, fontSize: Type.bodyCompact.fontSize },
 
   hero: {
-    margin: 16, padding: 18, borderRadius: Tokens.radius.panel,
+    margin: Tokens.spacing.md, padding: 18, borderRadius: Tokens.radius.panel,
     backgroundColor: Colors.primary + '0D',
     borderWidth: 1, borderColor: Colors.primary + '20',
   },
@@ -621,41 +621,41 @@ const styles = StyleSheet.create({
     width: 38, height: 38, borderRadius: 11,
     backgroundColor: Colors.primary + '15',
     alignItems: 'center', justifyContent: 'center',
-    marginBottom: 12,
+    marginBottom: Tokens.spacing.sm,
   },
   heroEyebrow: {
     fontSize: Type.caption2.fontSize, fontWeight: '700', letterSpacing: 1.5,
-    color: Colors.primary, textTransform: 'uppercase', marginBottom: 4,
+    color: Colors.primary, textTransform: 'uppercase', marginBottom: Tokens.spacing.xxs,
   },
-  heroTitle: { fontSize: Type.title2.fontSize, fontWeight: '800', color: Colors.text, marginBottom: 4 },
+  heroTitle: { fontSize: Type.title2.fontSize, fontWeight: '800', color: Colors.text, marginBottom: Tokens.spacing.xxs },
   heroMeta: { fontSize: Type.footnote.fontSize, color: Colors.textMuted },
-  heroStats: { flexDirection: 'row', gap: 12, marginTop: 14 },
-  heroStat: { flex: 1, padding: 12, borderRadius: Tokens.radius.md, backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border },
-  heroStatLabel: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontWeight: '700', letterSpacing: 0.4, textTransform: 'uppercase', marginBottom: 4 },
+  heroStats: { flexDirection: 'row', gap: Tokens.spacing.sm, marginTop: 14 },
+  heroStat: { flex: 1, padding: Tokens.spacing.sm, borderRadius: Tokens.radius.md, backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border },
+  heroStatLabel: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontWeight: '700', letterSpacing: 0.4, textTransform: 'uppercase', marginBottom: Tokens.spacing.xxs },
   heroStatValue: { fontSize: Type.body.fontSize, fontWeight: '800', color: Colors.text },
 
-  section: { marginHorizontal: 16, marginBottom: 22 },
-  sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
+  section: { marginHorizontal: Tokens.spacing.md, marginBottom: 22 },
+  sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Tokens.spacing.xxs },
   sectionTitle: { fontSize: Type.callout.fontSize, fontWeight: '700', color: Colors.text },
-  sectionSubtitle: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, marginTop: 2, marginBottom: 12, lineHeight: 18 },
+  sectionSubtitle: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, marginTop: Tokens.spacing.hairline, marginBottom: Tokens.spacing.sm, lineHeight: 18 },
 
   linkBox: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
+    flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs,
     backgroundColor: Colors.card, borderRadius: Tokens.radius.md,
-    paddingHorizontal: 12, paddingVertical: 12,
+    paddingHorizontal: Tokens.spacing.sm, paddingVertical: Tokens.spacing.sm,
     borderWidth: 1, borderColor: Colors.border,
     marginBottom: 10,
   },
   linkText: { flex: 1, fontSize: Type.caption1.fontSize, color: Colors.text },
-  shareRow: { flexDirection: 'row', gap: 8 },
+  shareRow: { flexDirection: 'row', gap: Tokens.spacing.xs },
   shareBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-    paddingVertical: 12, borderRadius: Tokens.radius.md,
+    paddingVertical: Tokens.spacing.sm, borderRadius: Tokens.radius.md,
     backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,
   },
   shareBtnPrimary: { backgroundColor: Colors.primary, borderColor: Colors.primary },
   shareBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
-  lastShared: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 8 },
+  lastShared: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: Tokens.spacing.xs },
 
   togglesCard: {
     backgroundColor: Colors.card, borderRadius: Tokens.radius.card,
@@ -663,7 +663,7 @@ const styles = StyleSheet.create({
   },
   toggleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 13 },
   toggleRowBorder: { borderBottomWidth: 1, borderBottomColor: Colors.border },
-  toggleLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
+  toggleLeft: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.sm, flex: 1 },
   toggleLabels: { flex: 1 },
   toggleLabel: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600', color: Colors.text },
   toggleDesc: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 1 },
@@ -672,7 +672,7 @@ const styles = StyleSheet.create({
   passcodeInput: {
     backgroundColor: Colors.background, borderRadius: Tokens.radius.sm,
     borderWidth: 1, borderColor: Colors.border,
-    paddingHorizontal: 12, paddingVertical: 8,
+    paddingHorizontal: Tokens.spacing.sm, paddingVertical: Tokens.spacing.xs,
     fontSize: Type.subheadline.fontSize, fontWeight: '700', letterSpacing: 4,
     minWidth: 100, textAlign: 'center',
     color: Colors.text,
@@ -684,7 +684,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,
   },
   commitHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 10 },
-  commitNumPill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.xs, backgroundColor: Colors.primary + '15' },
+  commitNumPill: { paddingHorizontal: Tokens.spacing.xs, paddingVertical: 3, borderRadius: Tokens.radius.xs, backgroundColor: Colors.primary + '15' },
   commitNumText: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.primary },
   commitDesc: { flex: 1, fontSize: Type.bodyCompact.fontSize, fontWeight: '600', color: Colors.text, lineHeight: 19 },
   commitFoot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
@@ -700,28 +700,28 @@ const styles = StyleSheet.create({
   emptyText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600', color: Colors.text },
   emptySub: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, textAlign: 'center', lineHeight: 17 },
 
-  pendingBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: Tokens.radius.full, backgroundColor: Colors.primary + '15' },
+  pendingBadge: { paddingHorizontal: 10, paddingVertical: Tokens.spacing.xxs, borderRadius: Tokens.radius.full, backgroundColor: Colors.primary + '15' },
   pendingBadgeText: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.primary },
 
   invoiceCard: {
     padding: 14, borderRadius: Tokens.radius.card,
     backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,
   },
-  invoiceHead: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, marginBottom: 8 },
+  invoiceHead: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, marginBottom: Tokens.spacing.xs },
   invoiceNum: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
-  invoiceMeta: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2 },
-  invoiceAmount: { fontSize: Type.title2.fontSize, fontWeight: '800', color: Colors.text, marginVertical: 4 },
-  invoiceRet: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginBottom: 4 },
+  invoiceMeta: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: Tokens.spacing.hairline },
+  invoiceAmount: { fontSize: Type.title2.fontSize, fontWeight: '800', color: Colors.text, marginVertical: Tokens.spacing.xxs },
+  invoiceRet: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginBottom: Tokens.spacing.xxs },
   invoiceDesc: { fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 18, marginVertical: 6 },
-  invoiceLines: { marginTop: 8, gap: 4, paddingTop: 8, borderTopWidth: 1, borderTopColor: Colors.border },
+  invoiceLines: { marginTop: Tokens.spacing.xs, gap: Tokens.spacing.xxs, paddingTop: Tokens.spacing.xs, borderTopWidth: 1, borderTopColor: Colors.border },
   invoiceLine: { flexDirection: 'row', justifyContent: 'space-between', gap: 10 },
   invoiceLineDesc: { flex: 1, fontSize: Type.caption1.fontSize, color: Colors.textMuted },
   invoiceLineAmt: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: Colors.text },
 
-  statusPill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.full },
+  statusPill: { paddingHorizontal: Tokens.spacing.xs, paddingVertical: 3, borderRadius: Tokens.radius.full },
   statusPillText: { fontSize: 10, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.6 },
 
-  invoiceCtas: { flexDirection: 'row', gap: 8, marginTop: 12 },
+  invoiceCtas: { flexDirection: 'row', gap: Tokens.spacing.xs, marginTop: Tokens.spacing.sm },
   invCtaApprove: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     paddingVertical: 11, borderRadius: Tokens.radius.md,

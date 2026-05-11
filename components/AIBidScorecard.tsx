@@ -280,7 +280,7 @@ export default function AIBidScorecard({ bid, testID }: AIBidScorecardProps) {
 
       {/* Strategy */}
       {score.bidStrategy ? (
-        <View style={[styles.section, { backgroundColor: Colors.primary + '0C', borderRadius: Tokens.radius.card, padding: 12 }]}>
+        <View style={[styles.section, { backgroundColor: Colors.primary + '0C', borderRadius: Tokens.radius.card, padding: Tokens.spacing.sm }]}>
           <View style={styles.sectionHeader}>
             <TrendingUp size={14} color={Colors.primary} />
             <Text style={[styles.sectionTitle, { color: Colors.primary }]}>Bid Strategy</Text>
@@ -301,23 +301,23 @@ export default function AIBidScorecard({ bid, testID }: AIBidScorecardProps) {
 
 const styles = StyleSheet.create({
   container: {
-    marginHorizontal: 16,
-    marginBottom: 16,
+    marginHorizontal: Tokens.spacing.md,
+    marginBottom: Tokens.spacing.md,
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.panel,
-    padding: 16,
+    padding: Tokens.spacing.md,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
-    gap: 12,
+    gap: Tokens.spacing.sm,
   },
-  loadingContainer: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 12, paddingVertical: 24 },
+  loadingContainer: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: Tokens.spacing.sm, paddingVertical: Tokens.spacing.xl },
   loadingText: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, fontWeight: '500' as const },
   heroRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10 },
   iconWrap: { width: 34, height: 34, borderRadius: Tokens.radius.md, backgroundColor: Colors.primary + '15', alignItems: 'center' as const, justifyContent: 'center' as const },
   title: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text },
-  subtitle: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2 },
+  subtitle: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: Tokens.spacing.hairline },
   refreshBtn: { width: 30, height: 30, borderRadius: Tokens.radius.sm, backgroundColor: Colors.fillTertiary, alignItems: 'center' as const, justifyContent: 'center' as const },
-  runBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 6, paddingVertical: 12, borderRadius: Tokens.radius.card, backgroundColor: Colors.primary },
+  runBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 6, paddingVertical: Tokens.spacing.sm, borderRadius: Tokens.radius.card, backgroundColor: Colors.primary },
   runBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: '#FFF' },
   errorText: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, marginBottom: 6 },
   gaugeCard: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 14, backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.lg, padding: 14 },
@@ -330,12 +330,12 @@ const styles = StyleSheet.create({
   winRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 5 },
   winText: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontWeight: '500' as const },
   winPct: { fontWeight: '700' as const, color: Colors.text },
-  decisionPill: { alignSelf: 'flex-start' as const, paddingHorizontal: 12, paddingVertical: 6, borderRadius: Tokens.radius.sm },
+  decisionPill: { alignSelf: 'flex-start' as const, paddingHorizontal: Tokens.spacing.sm, paddingVertical: 6, borderRadius: Tokens.radius.sm },
   decisionPillText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const },
   section: { gap: 6 },
-  sectionHeader: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6, marginBottom: 4 },
+  sectionHeader: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6, marginBottom: Tokens.spacing.xxs },
   sectionTitle: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: Colors.text, textTransform: 'uppercase' as const, letterSpacing: 0.4 },
-  bulletRow: { flexDirection: 'row' as const, alignItems: 'flex-start' as const, gap: 8, paddingLeft: 4, paddingVertical: 2 },
+  bulletRow: { flexDirection: 'row' as const, alignItems: 'flex-start' as const, gap: Tokens.spacing.xs, paddingLeft: Tokens.spacing.xxs, paddingVertical: Tokens.spacing.hairline },
   bulletDot: { width: 5, height: 5, borderRadius: 2.5, marginTop: 7 },
   bulletText: { flex: 1, fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 18 },
   strategyText: { fontSize: Type.footnote.fontSize, color: Colors.primary, lineHeight: 18, fontWeight: '500' as const },

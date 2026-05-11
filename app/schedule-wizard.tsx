@@ -373,7 +373,7 @@ function ProjectStep(props: {
       )}
 
       <Text style={styles.sectionLabel}>Your projects</Text>
-      <View style={{ gap: 8 }}>
+      <View style={{ gap: Tokens.spacing.xs }}>
         {projects.map(p => {
           const active = p.id === pickedId;
           return (
@@ -442,8 +442,8 @@ function TasksStep(props: {
         })}
       </ScrollView>
 
-      <Text style={[styles.sectionLabel, { marginTop: 24 }]}>Tasks ({tasks.length})</Text>
-      <View style={{ gap: 8 }}>
+      <Text style={[styles.sectionLabel, { marginTop: Tokens.spacing.xl }]}>Tasks ({tasks.length})</Text>
+      <View style={{ gap: Tokens.spacing.xs }}>
         {tasks.map((t, idx) => {
           const phaseColor = PHASE_COLORS[t.phase] ?? PHASE_COLORS.General;
           return (
@@ -548,7 +548,7 @@ function ScheduleStep(props: {
         </View>
       </ScrollView>
 
-      <Text style={[styles.helper, { marginTop: 16 }]}>
+      <Text style={[styles.helper, { marginTop: Tokens.spacing.md }]}>
         You can drag, resize, and reorder these tasks once you tap Save — this preview keeps the wizard quick.
       </Text>
     </View>
@@ -585,7 +585,7 @@ function ReviewStep(props: {
         <Text style={styles.reviewValue}>{totalDays} days</Text>
         <Text style={styles.reviewSub}>{fmtShort(startDate)} → {fmtShort(endDate)}</Text>
       </View>
-      <Text style={[styles.helper, { marginTop: 8 }]}>
+      <Text style={[styles.helper, { marginTop: Tokens.spacing.xs }]}>
         Saving creates the schedule and opens the operational view, where you can fine-tune dependencies, dates, and crew assignments.
       </Text>
     </View>
@@ -598,9 +598,9 @@ const styles = StyleSheet.create({
   topBar: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    gap: 12,
+    paddingHorizontal: Tokens.spacing.md,
+    paddingVertical: Tokens.spacing.sm,
+    gap: Tokens.spacing.sm,
   },
   topBarBackBtn: {
     width: 40, height: 40, borderRadius: Tokens.radius.full,
@@ -618,7 +618,7 @@ const styles = StyleSheet.create({
   },
   topBarPlaceholder: { width: 40 },
   topBarSaveBtn: {
-    paddingHorizontal: 12, paddingVertical: 8,
+    paddingHorizontal: Tokens.spacing.sm, paddingVertical: Tokens.spacing.xs,
   },
   topBarSaveText: {
     fontSize: Type.bodyCompact.fontSize,
@@ -629,9 +629,9 @@ const styles = StyleSheet.create({
   stepIndicatorRow: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    gap: 4,
+    paddingHorizontal: Tokens.spacing.md,
+    paddingVertical: Tokens.spacing.md,
+    gap: Tokens.spacing.xxs,
   },
   stepItem: {
     alignItems: 'center' as const,
@@ -672,9 +672,9 @@ const styles = StyleSheet.create({
   stepConnectorDone: { backgroundColor: Colors.primary },
 
   stepContent: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    gap: 12,
+    paddingHorizontal: Tokens.spacing.md,
+    paddingTop: Tokens.spacing.sm,
+    gap: Tokens.spacing.sm,
   },
   sectionLabel: {
     fontSize: 11,
@@ -682,7 +682,7 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
     letterSpacing: 0.7,
     textTransform: 'uppercase' as const,
-    marginTop: 4,
+    marginTop: Tokens.spacing.xxs,
   },
   helper: {
     fontSize: Type.footnote.fontSize,
@@ -724,8 +724,8 @@ const styles = StyleSheet.create({
   projectRow: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
-    gap: 12,
-    padding: 12,
+    gap: Tokens.spacing.sm,
+    padding: Tokens.spacing.sm,
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.card,
     borderWidth: 1, borderColor: Colors.cardBorder,
@@ -746,20 +746,20 @@ const styles = StyleSheet.create({
   projectSub: {
     fontSize: Type.caption1.fontSize,
     color: Colors.textMuted,
-    marginTop: 2,
+    marginTop: Tokens.spacing.hairline,
   },
 
   templateScrollContent: {
     gap: 10,
-    paddingRight: 16,
+    paddingRight: Tokens.spacing.md,
   },
   templateCard: {
     width: 130,
-    padding: 12,
+    padding: Tokens.spacing.sm,
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.card,
     borderWidth: 1, borderColor: Colors.cardBorder,
-    gap: 8,
+    gap: Tokens.spacing.xs,
   },
   templateCardActive: {
     borderColor: Colors.primary,
@@ -785,7 +785,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     gap: 10,
-    padding: 12,
+    padding: Tokens.spacing.sm,
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.card,
     borderWidth: 1, borderColor: Colors.cardBorder,
@@ -802,14 +802,14 @@ const styles = StyleSheet.create({
   taskMeta: {
     fontSize: Type.caption2.fontSize,
     color: Colors.textMuted,
-    marginTop: 2,
+    marginTop: Tokens.spacing.hairline,
   },
   addTaskBtn: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
     gap: 6,
-    padding: 12,
+    padding: Tokens.spacing.sm,
     borderRadius: Tokens.radius.card,
     borderWidth: 1, borderStyle: 'dashed' as const, borderColor: Colors.primary + '50',
     backgroundColor: Colors.primary + '08',
@@ -821,15 +821,15 @@ const styles = StyleSheet.create({
   },
 
   timelineWrap: {
-    marginTop: 8,
-    paddingVertical: 8,
+    marginTop: Tokens.spacing.xs,
+    paddingVertical: Tokens.spacing.xs,
   },
   timelineHeader: {
     flexDirection: 'row' as const,
     height: 24,
     borderBottomWidth: 1,
     borderBottomColor: Colors.borderLight,
-    marginBottom: 4,
+    marginBottom: Tokens.spacing.xxs,
   },
   timelineHeaderCell: {
     alignItems: 'flex-start' as const,
@@ -863,7 +863,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.card,
     borderWidth: 1, borderColor: Colors.cardBorder,
-    gap: 4,
+    gap: Tokens.spacing.xxs,
   },
   reviewLabel: {
     fontSize: 11,
@@ -886,8 +886,8 @@ const styles = StyleSheet.create({
   bottomCta: {
     position: 'absolute' as const,
     left: 0, right: 0, bottom: 0,
-    paddingHorizontal: 16,
-    paddingTop: 12,
+    paddingHorizontal: Tokens.spacing.md,
+    paddingTop: Tokens.spacing.sm,
     backgroundColor: Colors.background,
     borderTopWidth: 1,
     borderTopColor: Colors.borderLight,
@@ -896,8 +896,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
-    gap: 8,
-    paddingVertical: 16,
+    gap: Tokens.spacing.xs,
+    paddingVertical: Tokens.spacing.md,
     borderRadius: Tokens.radius.panel,
     backgroundColor: Colors.primary,
   },

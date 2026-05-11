@@ -587,9 +587,9 @@ function PlanViewerScreenInner() {
         onRequestClose={() => { setCalibrationInput(null); setPointBuffer([]); }}
       >
         <View style={styles.modalBackdrop}>
-          <View style={[styles.modalCard, { paddingBottom: 24 }]}>
+          <View style={[styles.modalCard, { paddingBottom: Tokens.spacing.xl }]}>
             <View style={styles.modalHeader}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs }}>
                 <Ruler size={16} color={Colors.primary} />
                 <Text style={styles.modalTitle}>Set scale</Text>
               </View>
@@ -659,7 +659,7 @@ function PinDetailModal({
       <View style={styles.modalBackdrop}>
         <View style={styles.modalCard}>
           <View style={styles.modalHeader}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs }}>
               <View style={[styles.modalPinBadge, { backgroundColor: pin.color ?? PIN_COLORS[pin.kind] }]}>
                 <MapPin size={12} color={Colors.surface} />
               </View>
@@ -769,7 +769,7 @@ function PhotoPicker({ photos, onPick, onBack }: {
       {photos.length === 0 ? (
         <Text style={styles.emptyHint}>No photos on this project yet.</Text>
       ) : (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 8 }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: Tokens.spacing.xs, paddingVertical: Tokens.spacing.xs }}>
           {photos.map(p => (
             <TouchableOpacity key={p.id} onPress={() => onPick(p.id)} style={styles.photoTile} accessibilityRole="button" accessibilityLabel="Add image">
               <Image source={{ uri: p.uri }} style={styles.photoTileImg} />
@@ -843,29 +843,29 @@ const styles = StyleSheet.create({
 
   toolbar: {
     flexDirection: 'row', backgroundColor: Colors.surface,
-    paddingHorizontal: 12, paddingTop: 10,
+    paddingHorizontal: Tokens.spacing.sm, paddingTop: 10,
     borderTopColor: Colors.borderLight, borderTopWidth: 1,
     gap: 6, justifyContent: 'space-around',
   },
   toolBtn: {
-    flex: 1, alignItems: 'center', gap: 2,
-    paddingVertical: 8, paddingHorizontal: 6, borderRadius: Tokens.radius.md,
+    flex: 1, alignItems: 'center', gap: Tokens.spacing.hairline,
+    paddingVertical: Tokens.spacing.xs, paddingHorizontal: 6, borderRadius: Tokens.radius.md,
   },
   toolBtnActive: { backgroundColor: Colors.primary },
-  toolBtnText: { color: Colors.text, fontSize: Type.caption2.fontSize, fontWeight: '600', marginTop: 2 },
+  toolBtnText: { color: Colors.text, fontSize: Type.caption2.fontSize, fontWeight: '600', marginTop: Tokens.spacing.hairline },
   toolBtnTextActive: { color: Colors.textOnPrimary },
   toolBtnTextDisabled: { color: Colors.textMuted },
 
   hintBar: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    paddingHorizontal: 14, paddingVertical: 8,
+    flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs,
+    paddingHorizontal: 14, paddingVertical: Tokens.spacing.xs,
     backgroundColor: '#F0F9F2',
     borderTopColor: Colors.borderLight, borderTopWidth: 1,
     borderBottomColor: Colors.borderLight, borderBottomWidth: 1,
   },
   hintText: { flex: 1, color: Colors.text, fontSize: Type.caption1.fontSize, fontWeight: '500' },
 
-  distanceRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 },
+  distanceRow: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs, marginTop: 6 },
   unitLabel: { color: Colors.textSecondary, fontSize: Type.footnote.fontSize, fontWeight: '600' },
   primaryBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
@@ -875,26 +875,26 @@ const styles = StyleSheet.create({
 
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
   modalCard: {
-    backgroundColor: Colors.surface, padding: 16, borderTopLeftRadius: 20, borderTopRightRadius: 20,
+    backgroundColor: Colors.surface, padding: Tokens.spacing.md, borderTopLeftRadius: 20, borderTopRightRadius: 20,
     gap: 10, maxHeight: '80%',
-    ...Platform.select({ web: { maxWidth: 520, alignSelf: 'center', width: '100%', borderRadius: Tokens.radius.panel, marginBottom: 20 } as object, default: {} as object }),
+    ...Platform.select({ web: { maxWidth: 520, alignSelf: 'center', width: '100%', borderRadius: Tokens.radius.panel, marginBottom: Tokens.spacing.lg } as object, default: {} as object }),
   },
-  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
+  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Tokens.spacing.xxs },
   modalTitle: { color: Colors.text, fontSize: Type.callout.fontSize, fontWeight: '700' },
   modalPinBadge: { width: 24, height: 24, borderRadius: Tokens.radius.card, alignItems: 'center', justifyContent: 'center' },
   iconBtn: { padding: 6, borderRadius: Tokens.radius.sm },
   label: { color: Colors.textSecondary, fontSize: Type.caption1.fontSize, fontWeight: '600' },
   input: {
-    backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.md, paddingHorizontal: 12, paddingVertical: 10,
+    backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.md, paddingHorizontal: Tokens.spacing.sm, paddingVertical: 10,
     color: Colors.text, fontSize: Type.bodyCompact.fontSize, borderColor: Colors.borderLight, borderWidth: 1, minHeight: 44,
   },
 
-  linkRow: { flexDirection: 'row', gap: 8, marginTop: 6 },
+  linkRow: { flexDirection: 'row', gap: Tokens.spacing.xs, marginTop: 6 },
   linkCell: {
     flex: 1, backgroundColor: Colors.surfaceAlt, padding: 10, borderRadius: Tokens.radius.md,
     borderColor: Colors.borderLight, borderWidth: 1, gap: 3,
   },
-  linkCellTitle: { color: Colors.text, fontSize: Type.caption1.fontSize, fontWeight: '700', marginTop: 4 },
+  linkCellTitle: { color: Colors.text, fontSize: Type.caption1.fontSize, fontWeight: '700', marginTop: Tokens.spacing.xxs },
   linkCellSub: { color: Colors.textSecondary, fontSize: 10 },
 
   linkedRow: {
@@ -907,14 +907,14 @@ const styles = StyleSheet.create({
   deleteBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     justifyContent: 'center',
-    paddingVertical: 10, borderRadius: Tokens.radius.md, marginTop: 8,
+    paddingVertical: 10, borderRadius: Tokens.radius.md, marginTop: Tokens.spacing.xs,
     borderColor: Colors.errorLight, borderWidth: 1,
   },
   deleteBtnText: { color: Colors.error, fontSize: Type.footnote.fontSize, fontWeight: '700' },
 
-  backLink: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingVertical: 4 },
+  backLink: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.hairline, paddingVertical: Tokens.spacing.xxs },
   backLinkText: { color: Colors.primary, fontSize: Type.footnote.fontSize, fontWeight: '600' },
-  emptyHint: { color: Colors.textSecondary, fontSize: Type.footnote.fontSize, padding: 20, textAlign: 'center' },
+  emptyHint: { color: Colors.textSecondary, fontSize: Type.footnote.fontSize, padding: Tokens.spacing.lg, textAlign: 'center' },
 
   photoTile: { width: 80, height: 80, borderRadius: Tokens.radius.sm, overflow: 'hidden', backgroundColor: Colors.surfaceAlt },
   photoTileImg: { width: '100%', height: '100%' },
@@ -924,5 +924,5 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surfaceAlt, padding: 10, borderRadius: Tokens.radius.md, marginBottom: 6,
   },
   punchRowTitle: { color: Colors.text, fontSize: Type.footnote.fontSize, fontWeight: '600' },
-  punchRowSub: { color: Colors.textSecondary, fontSize: Type.caption2.fontSize, marginTop: 2 },
+  punchRowSub: { color: Colors.textSecondary, fontSize: Type.caption2.fontSize, marginTop: Tokens.spacing.hairline },
 });

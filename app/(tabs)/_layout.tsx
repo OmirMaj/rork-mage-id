@@ -81,7 +81,7 @@ const tabIconStyles = StyleSheet.create({
     borderRadius: Tokens.radius.panel,
     top: -4,
   },
-  dot: { width: 5, height: 5, borderRadius: 2.5, marginTop: 2 },
+  dot: { width: 5, height: 5, borderRadius: 2.5, marginTop: Tokens.spacing.hairline },
 });
 
 export default function TabLayout() {
@@ -173,7 +173,7 @@ export default function TabLayout() {
           marginBottom: Platform.OS === 'ios' ? 0 : 4,
         },
         tabBarIconStyle: {
-          marginTop: 2,
+          marginTop: Tokens.spacing.hairline,
         },
       }}
     >

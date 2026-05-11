@@ -188,13 +188,13 @@ const s = StyleSheet.create({
     borderRadius: Tokens.radius.panel,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingLeft: 16,
+    paddingLeft: Tokens.spacing.md,
     overflow: 'hidden' as const,
   },
   swipeBgContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: Tokens.spacing.xxs,
     zIndex: 2,
   },
   swipeBgText: {

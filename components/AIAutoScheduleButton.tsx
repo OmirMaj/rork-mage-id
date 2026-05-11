@@ -121,10 +121,10 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10 },
   iconWrap: { width: 32, height: 32, borderRadius: Tokens.radius.md, backgroundColor: Colors.accent + '20', alignItems: 'center' as const, justifyContent: 'center' as const },
   title: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
-  subtitle: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, marginTop: 2, lineHeight: 16 },
+  subtitle: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, marginTop: Tokens.spacing.hairline, lineHeight: 16 },
   benefitsRow: { flexDirection: 'row' as const, gap: 6, flexWrap: 'wrap' as const },
-  benefitChip: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: Tokens.radius.xs, backgroundColor: Colors.primary + '12' },
+  benefitChip: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: Tokens.spacing.xxs, paddingHorizontal: Tokens.spacing.xs, paddingVertical: Tokens.spacing.xxs, borderRadius: Tokens.radius.xs, backgroundColor: Colors.primary + '12' },
   benefitText: { fontSize: Type.caption2.fontSize, color: Colors.primary, fontWeight: '600' as const },
-  actionBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 6, paddingVertical: 12, borderRadius: Tokens.radius.md, backgroundColor: Colors.accent },
+  actionBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 6, paddingVertical: Tokens.spacing.sm, borderRadius: Tokens.radius.md, backgroundColor: Colors.accent },
   actionBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: '#FFF' },
 });

@@ -164,7 +164,7 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap' as const,
     gap: 6,
   },
-  compact: { gap: 4 },
+  compact: { gap: Tokens.spacing.xxs },
   badge: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,

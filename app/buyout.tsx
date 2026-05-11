@@ -203,7 +203,7 @@ export default function BuyoutScreen() {
       {/* Native iOS header already accounts for the safe area (notch/
           dynamic island). Manual `insets.top + 8` was double-counting
           and producing a tall blank gap above the project chip row. */}
-      <View style={[styles.root, { paddingTop: 8 }]}>
+      <View style={[styles.root, { paddingTop: Tokens.spacing.xs }]}>
         <FeatureHeader
           eyebrow="Subcontractor Awards"
           title="Get your subs to bid"
@@ -402,7 +402,7 @@ export default function BuyoutScreen() {
                 <X size={22} color={Colors.text} />
               </TouchableOpacity>
             </View>
-            <ScrollView contentContainerStyle={{ padding: 20 }}>
+            <ScrollView contentContainerStyle={{ padding: Tokens.spacing.lg }}>
               <Text style={styles.fieldLabel}>Name *</Text>
               <TextInput style={styles.input} value={newPkgName} onChangeText={setNewPkgName} placeholder='e.g. "Plumbing rough-in"' placeholderTextColor={Colors.textMuted} autoFocus />
 
@@ -495,17 +495,17 @@ export default function BuyoutScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: Colors.background },
-  projectChipsRow: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 10, gap: 8, alignItems: 'center', flexDirection: 'row' as const },
-  projectChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.cardBorder, maxWidth: 220 },
+  projectChipsRow: { paddingHorizontal: Tokens.spacing.md, paddingTop: Tokens.spacing.sm, paddingBottom: 10, gap: Tokens.spacing.xs, alignItems: 'center', flexDirection: 'row' as const },
+  projectChip: { paddingHorizontal: 14, paddingVertical: Tokens.spacing.xs, borderRadius: 20, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.cardBorder, maxWidth: 220 },
   projectChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
   projectChipText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.text },
   projectChipTextActive: { color: '#FFF' },
-  emptyChipText: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, paddingHorizontal: 4 },
-  emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40, gap: 12 },
+  emptyChipText: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, paddingHorizontal: Tokens.spacing.xxs },
+  emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Tokens.spacing['3xl'], gap: Tokens.spacing.sm },
   emptyTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: Colors.text },
   emptyDesc: { fontSize: Type.bodyCompact.fontSize, color: Colors.textMuted, textAlign: 'center' },
 
-  kpiBand: { flexDirection: 'row', gap: 10, paddingHorizontal: 12, paddingTop: 6 },
+  kpiBand: { flexDirection: 'row', gap: 10, paddingHorizontal: Tokens.spacing.sm, paddingTop: 6 },
   kpiTile: { flex: 1, backgroundColor: Colors.surface, borderRadius: Tokens.radius.panel, padding: 14, borderWidth: 1, borderColor: Colors.cardBorder, gap: 6 },
   kpiTileTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 18 },
   kpiLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: Colors.textMuted, letterSpacing: 0.5, textTransform: 'uppercase' },
@@ -514,62 +514,62 @@ const styles = StyleSheet.create({
   kpiSub: { fontSize: Type.caption2.fontSize, color: Colors.textMuted },
   progressTrack: { height: 4, borderRadius: 2, backgroundColor: Colors.fillTertiary, overflow: 'hidden' },
   progressFill: { height: '100%', backgroundColor: Colors.primary, borderRadius: 2 },
-  kpiAlert: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: Colors.error, paddingHorizontal: 6, paddingVertical: 2, borderRadius: Tokens.radius.sm },
+  kpiAlert: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xxs, backgroundColor: Colors.error, paddingHorizontal: 6, paddingVertical: Tokens.spacing.hairline, borderRadius: Tokens.radius.sm },
   kpiAlertText: { fontSize: 10, fontWeight: '700' as const, color: '#FFF', textTransform: 'uppercase', letterSpacing: 0.5 },
-  kpiPaceRow: { flexDirection: 'row', gap: 6, marginTop: 2 },
-  pacePill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.sm },
+  kpiPaceRow: { flexDirection: 'row', gap: 6, marginTop: Tokens.spacing.hairline },
+  pacePill: { paddingHorizontal: Tokens.spacing.xs, paddingVertical: 3, borderRadius: Tokens.radius.sm },
   pacePillText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const },
 
-  section: { padding: 16, paddingBottom: 8 },
-  sectionHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 12 },
+  section: { padding: Tokens.spacing.md, paddingBottom: Tokens.spacing.xs },
+  sectionHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: Tokens.spacing.sm },
   sectionTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: Colors.text, letterSpacing: -0.3 },
   sectionSub: { fontSize: Type.caption1.fontSize, color: Colors.textMuted },
 
   emptyPackages: { backgroundColor: Colors.surface, borderRadius: Tokens.radius.lg, padding: 22, gap: 10, alignItems: 'center', borderWidth: 1, borderColor: Colors.cardBorder },
   emptyPackagesText: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, textAlign: 'center', lineHeight: 19 },
 
-  pkgCard: { backgroundColor: Colors.surface, borderRadius: Tokens.radius.lg, padding: 14, borderWidth: 1, borderColor: Colors.cardBorder, marginBottom: 10, gap: 12 },
+  pkgCard: { backgroundColor: Colors.surface, borderRadius: Tokens.radius.lg, padding: 14, borderWidth: 1, borderColor: Colors.cardBorder, marginBottom: 10, gap: Tokens.spacing.sm },
   pkgHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   statusDot: { width: 10, height: 10, borderRadius: 5, marginTop: 5 },
   pkgName: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text },
-  pkgMetaRow: { flexDirection: 'row', gap: 6, marginTop: 4, flexWrap: 'wrap' },
+  pkgMetaRow: { flexDirection: 'row', gap: 6, marginTop: Tokens.spacing.xxs, flexWrap: 'wrap' },
   pkgMeta: { fontSize: Type.caption1.fontSize, color: Colors.textMuted },
-  pkgBudgetRow: { flexDirection: 'row', gap: 12, paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: Colors.cardBorder },
+  pkgBudgetRow: { flexDirection: 'row', gap: Tokens.spacing.sm, paddingTop: Tokens.spacing.sm, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: Colors.cardBorder },
   pkgBudgetCell: { flex: 1 },
-  pkgBudgetLabel: { fontSize: 10, fontWeight: '700' as const, color: Colors.textMuted, letterSpacing: 0.5, textTransform: 'uppercase', marginBottom: 4 },
+  pkgBudgetLabel: { fontSize: 10, fontWeight: '700' as const, color: Colors.textMuted, letterSpacing: 0.5, textTransform: 'uppercase', marginBottom: Tokens.spacing.xxs },
   pkgBudgetValue: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.text },
   pkgBudgetValueMuted: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.primary },
 
-  fabRow: { position: 'absolute', left: 16, right: 16, flexDirection: 'row', gap: 8 },
-  fabPrimary: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: Colors.primary, paddingVertical: 14, borderRadius: Tokens.radius.lg, shadowColor: Colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 5 },
+  fabRow: { position: 'absolute', left: 16, right: 16, flexDirection: 'row', gap: Tokens.spacing.xs },
+  fabPrimary: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Tokens.spacing.xs, backgroundColor: Colors.primary, paddingVertical: 14, borderRadius: Tokens.radius.lg, shadowColor: Colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 5 },
   fabPrimaryText: { color: '#FFF', fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const },
 
   modalHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 18, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Colors.cardBorder },
   modalTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: Colors.text },
   fieldLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.textMuted, marginTop: 14, marginBottom: 6 },
-  fieldHint: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: -2, marginBottom: 8, lineHeight: 16 },
-  input: { backgroundColor: Colors.surface, paddingHorizontal: 14, paddingVertical: 12, borderRadius: Tokens.radius.card, borderWidth: 1, borderColor: Colors.cardBorder, fontSize: Type.subhead.fontSize, color: Colors.text },
+  fieldHint: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: -2, marginBottom: Tokens.spacing.xs, lineHeight: 16 },
+  input: { backgroundColor: Colors.surface, paddingHorizontal: 14, paddingVertical: Tokens.spacing.sm, borderRadius: Tokens.radius.card, borderWidth: 1, borderColor: Colors.cardBorder, fontSize: Type.subhead.fontSize, color: Colors.text },
   tip: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 18, fontStyle: 'italic', textAlign: 'center' },
-  csiRow: { flexDirection: 'row', gap: 6, paddingBottom: 4 },
-  csiChip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: Tokens.radius.md, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.cardBorder },
+  csiRow: { flexDirection: 'row', gap: 6, paddingBottom: Tokens.spacing.xxs },
+  csiChip: { paddingHorizontal: Tokens.spacing.sm, paddingVertical: Tokens.spacing.xs, borderRadius: Tokens.radius.md, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.cardBorder },
   csiChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
   csiChipText: { fontSize: Type.caption1.fontSize, fontWeight: '500' as const, color: Colors.text },
   csiChipTextActive: { color: '#FFF', fontWeight: '700' as const },
-  itemsList: { gap: 6, marginTop: 4, marginBottom: 4 },
-  itemRow: { flexDirection: 'row', gap: 12, alignItems: 'flex-start', backgroundColor: Colors.surface, padding: 12, borderRadius: Tokens.radius.md, borderWidth: 1, borderColor: Colors.cardBorder },
+  itemsList: { gap: 6, marginTop: Tokens.spacing.xxs, marginBottom: Tokens.spacing.xxs },
+  itemRow: { flexDirection: 'row', gap: Tokens.spacing.sm, alignItems: 'flex-start', backgroundColor: Colors.surface, padding: Tokens.spacing.sm, borderRadius: Tokens.radius.md, borderWidth: 1, borderColor: Colors.cardBorder },
   itemRowPicked: { backgroundColor: Colors.primary + '0F', borderColor: Colors.primary + '60' },
   itemCheck: { width: 22, height: 22, borderRadius: Tokens.radius.xs, borderWidth: 2, borderColor: Colors.cardBorder, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.background, marginTop: 1 },
   itemCheckActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
   itemCheckMark: { color: '#FFF', fontWeight: '800' as const, fontSize: Type.footnote.fontSize },
-  itemTopRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
+  itemTopRow: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs, flexWrap: 'wrap' },
   itemName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text, flex: 1 },
-  itemMeta: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2 },
-  allowanceBadge: { backgroundColor: Colors.warning, paddingHorizontal: 6, paddingVertical: 2, borderRadius: Tokens.radius.xs },
+  itemMeta: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: Tokens.spacing.hairline },
+  allowanceBadge: { backgroundColor: Colors.warning, paddingHorizontal: 6, paddingVertical: Tokens.spacing.hairline, borderRadius: Tokens.radius.xs },
   allowanceBadgeText: { fontSize: 9, fontWeight: '800' as const, color: '#FFF', letterSpacing: 0.5 },
-  pickedSummary: { padding: 12, backgroundColor: Colors.primary + '10', borderRadius: Tokens.radius.md, marginTop: 8, gap: 4 },
+  pickedSummary: { padding: Tokens.spacing.sm, backgroundColor: Colors.primary + '10', borderRadius: Tokens.radius.md, marginTop: Tokens.spacing.xs, gap: Tokens.spacing.xxs },
   pickedSummaryText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.primary },
   allowanceNote: { fontSize: Type.caption1.fontSize, color: Colors.warning, fontWeight: '600' as const },
-  modalFoot: { padding: 16, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: Colors.cardBorder },
-  saveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: Colors.primary, paddingVertical: 14, borderRadius: Tokens.radius.card },
+  modalFoot: { padding: Tokens.spacing.md, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: Colors.cardBorder },
+  saveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Tokens.spacing.xs, backgroundColor: Colors.primary, paddingVertical: 14, borderRadius: Tokens.radius.card },
   saveBtnText: { color: '#FFF', fontSize: Type.subhead.fontSize, fontWeight: '700' as const },
 });

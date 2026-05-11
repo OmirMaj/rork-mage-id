@@ -240,7 +240,7 @@ export default function CachedHireScreen() {
           ))}
         </ScrollView>
 
-        <Text style={[styles.filterSectionLabel, { marginTop: 8 }]}>TRADE</Text>
+        <Text style={[styles.filterSectionLabel, { marginTop: Tokens.spacing.xs }]}>TRADE</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow}>
           <TouchableOpacity
             style={[styles.chip, !selectedTrade && styles.chipActive]}
@@ -291,42 +291,42 @@ export default function CachedHireScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
-  header: { backgroundColor: Colors.surface, borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight, paddingHorizontal: 16, paddingBottom: 12 },
-  headerTop: { flexDirection: 'row', alignItems: 'center', marginBottom: 12, marginTop: 8, gap: 12 },
+  header: { backgroundColor: Colors.surface, borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight, paddingHorizontal: Tokens.spacing.md, paddingBottom: Tokens.spacing.sm },
+  headerTop: { flexDirection: 'row', alignItems: 'center', marginBottom: Tokens.spacing.sm, marginTop: Tokens.spacing.xs, gap: Tokens.spacing.sm },
   backBtn: { width: 36, height: 36, borderRadius: Tokens.radius.xl, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { flex: 1, fontSize: 24, fontWeight: '800' as const, color: Colors.text, letterSpacing: -0.5 },
-  countPill: { backgroundColor: Colors.accent + '15', paddingHorizontal: 10, paddingVertical: 4, borderRadius: Tokens.radius.card },
+  countPill: { backgroundColor: Colors.accent + '15', paddingHorizontal: 10, paddingVertical: Tokens.spacing.xxs, borderRadius: Tokens.radius.card },
   countPillText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.accent },
   filterSectionLabel: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: Colors.textMuted, letterSpacing: 0.5, marginBottom: 6 },
-  chipRow: { flexDirection: 'row', marginBottom: 4 },
+  chipRow: { flexDirection: 'row', marginBottom: Tokens.spacing.xxs },
   chip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: Tokens.radius.xl, backgroundColor: Colors.background, marginRight: 6 },
   chipActive: { backgroundColor: Colors.primary },
   chipText: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, fontWeight: '500' as const },
   chipTextActive: { color: '#FFF' },
-  list: { padding: 16, paddingBottom: 100 },
+  list: { padding: Tokens.spacing.md, paddingBottom: 100 },
   card: {
-    backgroundColor: Colors.surface, borderRadius: Tokens.radius.lg, padding: 16, marginBottom: 12,
+    backgroundColor: Colors.surface, borderRadius: Tokens.radius.lg, padding: Tokens.spacing.md, marginBottom: Tokens.spacing.sm,
     // Black outline matches every other card across the app.
     borderWidth: 1, borderColor: Colors.cardBorder,
   },
-  cardTopRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
-  tradeBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.xs },
+  cardTopRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: Tokens.spacing.xs },
+  tradeBadge: { paddingHorizontal: Tokens.spacing.xs, paddingVertical: 3, borderRadius: Tokens.radius.xs },
   tradeBadgeText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, textTransform: 'uppercase' as const, letterSpacing: 0.3 },
-  contractBadge: { backgroundColor: Colors.fillTertiary, paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.xs },
+  contractBadge: { backgroundColor: Colors.fillTertiary, paddingHorizontal: Tokens.spacing.xs, paddingVertical: 3, borderRadius: Tokens.radius.xs },
   contractBadgeText: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: Colors.textSecondary },
-  cardTitle: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.text, marginBottom: 2, lineHeight: 22 },
+  cardTitle: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.text, marginBottom: Tokens.spacing.hairline, lineHeight: 22 },
   cardCompany: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, marginBottom: 10 },
   cardMeta: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
-  metaItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  metaItem: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xxs },
   metaText: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary },
-  cardFooter: { flexDirection: 'row', alignItems: 'center', marginTop: 6, paddingTop: 8, borderTopWidth: 0.5, borderTopColor: Colors.borderLight },
-  distanceBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: Colors.infoLight, paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.xs },
+  cardFooter: { flexDirection: 'row', alignItems: 'center', marginTop: 6, paddingTop: Tokens.spacing.xs, borderTopWidth: 0.5, borderTopColor: Colors.borderLight },
+  distanceBadge: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xxs, backgroundColor: Colors.infoLight, paddingHorizontal: Tokens.spacing.xs, paddingVertical: 3, borderRadius: Tokens.radius.xs },
   distanceText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.info },
-  applyHint: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  applyHint: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xxs },
   applyHintText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.primary },
-  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: Tokens.spacing.sm },
   loadingText: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary },
-  emptyContainer: { alignItems: 'center', paddingTop: 60, gap: 8 },
+  emptyContainer: { alignItems: 'center', paddingTop: 60, gap: Tokens.spacing.xs },
   emptyTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: Colors.text },
-  emptySubtitle: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, textAlign: 'center' as const, paddingHorizontal: 32 },
+  emptySubtitle: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, textAlign: 'center' as const, paddingHorizontal: Tokens.spacing['2xl'] },
 });

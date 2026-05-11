@@ -393,8 +393,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingBottom: 12,
+    paddingHorizontal: Tokens.spacing.md,
+    paddingBottom: Tokens.spacing.sm,
     backgroundColor: Colors.surface,
     borderBottomWidth: 0.5,
     borderBottomColor: Colors.borderLight,
@@ -413,8 +413,8 @@ const styles = StyleSheet.create({
     color: Colors.text,
   },
   scrollContent: {
-    padding: 16,
-    paddingBottom: 40,
+    padding: Tokens.spacing.md,
+    paddingBottom: Tokens.spacing['3xl'],
   },
   // 2x2 grid via flexWrap. Each card claims ~48% so two fit per row with
   // an 8px gap between. On a wide web layout the row gap stays the same;
@@ -423,7 +423,7 @@ const styles = StyleSheet.create({
   plansGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: Tokens.spacing.xs,
     marginBottom: 28,
   },
   planCard: {
@@ -448,7 +448,7 @@ const styles = StyleSheet.create({
     position: 'absolute' as const,
     top: -10,
     backgroundColor: Colors.primary,
-    paddingHorizontal: 8,
+    paddingHorizontal: Tokens.spacing.xs,
     paddingVertical: 3,
     borderRadius: Tokens.radius.xs,
     zIndex: 1,
@@ -465,8 +465,8 @@ const styles = StyleSheet.create({
     borderRadius: Tokens.radius.card,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 4,
-    marginTop: 4,
+    marginBottom: Tokens.spacing.xxs,
+    marginTop: Tokens.spacing.xxs,
   },
   planName: {
     fontSize: Type.subhead.fontSize,
@@ -485,7 +485,7 @@ const styles = StyleSheet.create({
   },
   currentBadge: {
     paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingVertical: Tokens.spacing.xxs,
     borderRadius: Tokens.radius.sm,
   },
   currentBadgeText: {
@@ -509,13 +509,13 @@ const styles = StyleSheet.create({
     fontSize: Type.subheadline.fontSize,
     fontWeight: '700' as const,
     color: Colors.text,
-    marginBottom: 12,
+    marginBottom: Tokens.spacing.sm,
   },
   compareTable: {
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.panel,
     overflow: 'hidden',
-    marginBottom: 20,
+    marginBottom: Tokens.spacing.lg,
   },
   compareHeaderRow: {
     flexDirection: 'row',
@@ -530,7 +530,7 @@ const styles = StyleSheet.create({
   },
   compareCell: {
     width: 50,
-    paddingHorizontal: 4,
+    paddingHorizontal: Tokens.spacing.xxs,
   },
   compareLabelCell: {
     flex: 1,
@@ -553,7 +553,7 @@ const styles = StyleSheet.create({
   // columns fit on a phone next to the label column.
   aiCell: {
     width: 42,
-    paddingHorizontal: 2,
+    paddingHorizontal: Tokens.spacing.hairline,
     textAlign: 'center' as const,
   },
   aiValueText: {
@@ -569,7 +569,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    marginBottom: 12,
+    marginBottom: Tokens.spacing.sm,
   },
   trustText: {
     fontSize: Type.caption1.fontSize,
@@ -579,8 +579,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 12,
+    gap: Tokens.spacing.xs,
+    paddingVertical: Tokens.spacing.sm,
   },
   legalLink: {
     fontSize: Type.footnote.fontSize,
@@ -596,15 +596,15 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
     textAlign: 'center' as const,
     lineHeight: 16,
-    paddingHorizontal: 24,
-    marginTop: 4,
+    paddingHorizontal: Tokens.spacing.xl,
+    marginTop: Tokens.spacing.xxs,
   },
   loadingOverlay: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 12,
+    gap: Tokens.spacing.xs,
+    paddingVertical: Tokens.spacing.sm,
   },
   loadingText: {
     fontSize: Type.footnote.fontSize,
@@ -613,8 +613,8 @@ const styles = StyleSheet.create({
   fallbackNotice: {
     backgroundColor: Colors.fillSecondary,
     borderRadius: Tokens.radius.md,
-    padding: 12,
-    marginBottom: 12,
+    padding: Tokens.spacing.sm,
+    marginBottom: Tokens.spacing.sm,
     alignItems: 'center',
   },
   fallbackNoticeText: {

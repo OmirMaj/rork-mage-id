@@ -373,33 +373,33 @@ export default function PhotoAnnotatorScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: Colors.background },
-  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, backgroundColor: Colors.background },
-  emptyText: { fontSize: Type.subhead.fontSize, color: Colors.textMuted, marginBottom: 12 },
+  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Tokens.spacing.xl, backgroundColor: Colors.background },
+  emptyText: { fontSize: Type.subhead.fontSize, color: Colors.textMuted, marginBottom: Tokens.spacing.sm },
   emptyBack: { fontSize: Type.bodyCompact.fontSize, color: Colors.primary, fontWeight: '700' },
 
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1,
+    paddingHorizontal: Tokens.spacing.md, paddingVertical: Tokens.spacing.sm, borderBottomWidth: 1,
     borderBottomColor: Colors.border, backgroundColor: Colors.surface,
   },
-  back: { padding: 4 },
+  back: { padding: Tokens.spacing.xxs },
   title: { fontSize: Type.body.fontSize, fontWeight: '700', color: Colors.text },
   saveBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingHorizontal: 14, paddingVertical: 8,
+    paddingHorizontal: 14, paddingVertical: Tokens.spacing.xs,
     backgroundColor: Colors.primary, borderRadius: Tokens.radius.md,
   },
   saveText: { color: Colors.surface, fontWeight: '800', fontSize: Type.footnote.fontSize },
 
-  body: { padding: 16, gap: 14 },
+  body: { padding: Tokens.spacing.md, gap: 14 },
   canvas: {
     aspectRatio: 1, borderRadius: Tokens.radius.card, overflow: 'hidden',
     backgroundColor: '#000', borderWidth: 1, borderColor: Colors.border,
   },
 
-  textRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: -4 },
+  textRow: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs, marginTop: -4 },
   textInput: {
-    flex: 1, paddingHorizontal: 12, paddingVertical: 10,
+    flex: 1, paddingHorizontal: Tokens.spacing.sm, paddingVertical: 10,
     backgroundColor: Colors.surface, borderRadius: Tokens.radius.md,
     borderWidth: 1, borderColor: Colors.border, fontSize: Type.bodyCompact.fontSize, color: Colors.text,
   },
@@ -408,10 +408,10 @@ const styles = StyleSheet.create({
 
   sectionLabel: { fontSize: Type.caption2.fontSize, fontWeight: '800', letterSpacing: 0.6, color: Colors.textMuted, textTransform: 'uppercase', marginTop: 6 },
 
-  toolRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
+  toolRow: { flexDirection: 'row', gap: Tokens.spacing.xs, flexWrap: 'wrap' },
   toolBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingHorizontal: 12, paddingVertical: 9,
+    paddingHorizontal: Tokens.spacing.sm, paddingVertical: 9,
     borderRadius: Tokens.radius.md, borderWidth: 1, borderColor: Colors.border,
     backgroundColor: Colors.surface,
   },
@@ -419,14 +419,14 @@ const styles = StyleSheet.create({
   toolText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.text },
   toolTextActive: { color: Colors.surface },
 
-  colorRow: { flexDirection: 'row', gap: 12 },
+  colorRow: { flexDirection: 'row', gap: Tokens.spacing.sm },
   colorSwatch: {
     width: 36, height: 36, borderRadius: Tokens.radius.xl,
     borderWidth: 2, borderColor: 'transparent',
   },
   colorSwatchActive: { borderColor: Colors.text },
 
-  actionRow: { flexDirection: 'row', gap: 10, marginTop: 4 },
+  actionRow: { flexDirection: 'row', gap: 10, marginTop: Tokens.spacing.xxs },
   actionBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     paddingVertical: 10, borderRadius: Tokens.radius.md, borderWidth: 1, borderColor: Colors.border,
@@ -435,5 +435,5 @@ const styles = StyleSheet.create({
   actionDisabled: { opacity: 0.5 },
   actionText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.text },
   actionTextDisabled: { color: Colors.textMuted },
-  helper: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, textAlign: 'center', marginTop: 4 },
+  helper: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, textAlign: 'center', marginTop: Tokens.spacing.xxs },
 });

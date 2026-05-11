@@ -203,7 +203,7 @@ function CreateMenuImpl({ visible, onClose, onCreateProject }: CreateMenuProps) 
           )}
           {grouped.map(g => (
             <View key={g.key} style={styles.group}>
-              <Text style={[Type.eyebrow, { color: Colors.textMuted, paddingHorizontal: 16, paddingTop: 8, paddingBottom: 6 }]}>
+              <Text style={[Type.eyebrow, { color: Colors.textMuted, paddingHorizontal: Tokens.spacing.md, paddingTop: Tokens.spacing.xs, paddingBottom: 6 }]}>
                 {g.label}
               </Text>
               {g.items.map(opt => (
@@ -247,7 +247,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 18,
     borderTopRightRadius: 18,
     paddingHorizontal: 0,
-    paddingTop: 8,
+    paddingTop: Tokens.spacing.xs,
     maxHeight: '85%' as any,
   },
   handle: {
@@ -255,13 +255,13 @@ const styles = StyleSheet.create({
     width: 36, height: 5,
     borderRadius: 3,
     backgroundColor: Colors.cardBorder,
-    marginBottom: 12,
+    marginBottom: Tokens.spacing.sm,
   },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
+    paddingHorizontal: Tokens.spacing.md,
     marginBottom: 10,
   },
   closeBtn: {
@@ -272,10 +272,10 @@ const styles = StyleSheet.create({
   searchRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginHorizontal: 16,
-    marginBottom: 8,
-    paddingHorizontal: 12,
+    gap: Tokens.spacing.xs,
+    marginHorizontal: Tokens.spacing.md,
+    marginBottom: Tokens.spacing.xs,
+    paddingHorizontal: Tokens.spacing.sm,
     paddingVertical: 10,
     borderRadius: Tokens.radius.card,
     backgroundColor: Colors.fillTertiary,
@@ -285,13 +285,13 @@ const styles = StyleSheet.create({
     color: Colors.text,
     padding: 0,
   },
-  group: { marginBottom: 8 },
+  group: { marginBottom: Tokens.spacing.xs },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+    gap: Tokens.spacing.sm,
+    paddingVertical: Tokens.spacing.sm,
+    paddingHorizontal: Tokens.spacing.md,
   },
   iconSquare: {
     width: 36, height: 36, borderRadius: Tokens.radius.md,
@@ -299,7 +299,7 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   emptyResult: {
-    paddingVertical: 32,
-    paddingHorizontal: 24,
+    paddingVertical: Tokens.spacing['2xl'],
+    paddingHorizontal: Tokens.spacing.xl,
   },
 });

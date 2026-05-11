@@ -552,7 +552,7 @@ function PunchListScreenInner() {
                 </View>
 
                 <Text style={styles.fieldLabel}>Description *</Text>
-                <TextInput style={[styles.input, { minHeight: 80, paddingTop: 12, textAlignVertical: 'top' as const }]} value={description} onChangeText={setDescription} placeholder="What needs to be done..." placeholderTextColor={Colors.textMuted} multiline testID="punch-desc-input" />
+                <TextInput style={[styles.input, { minHeight: 80, paddingTop: Tokens.spacing.sm, textAlignVertical: 'top' as const }]} value={description} onChangeText={setDescription} placeholder="What needs to be done..." placeholderTextColor={Colors.textMuted} multiline testID="punch-desc-input" />
 
                 <View style={{ flexDirection: 'row', gap: 10 }}>
                   <View style={{ flex: 1 }}>
@@ -583,7 +583,7 @@ function PunchListScreenInner() {
                 )}
 
                 <Text style={styles.fieldLabel}>Priority</Text>
-                <View style={{ flexDirection: 'row', gap: 8 }}>
+                <View style={{ flexDirection: 'row', gap: Tokens.spacing.xs }}>
                   {(['low', 'medium', 'high'] as PunchItemPriority[]).map(p => {
                     const pc = PRIORITY_CONFIG[p];
                     return (
@@ -644,7 +644,7 @@ function PunchListScreenInner() {
               {scheduleTasks.map(t => (
                 <TouchableOpacity
                   key={t.id}
-                  style={[styles.subChip, { marginVertical: 4, alignSelf: 'stretch' as const }, linkedTaskId === t.id && styles.subChipActive]}
+                  style={[styles.subChip, { marginVertical: Tokens.spacing.xxs, alignSelf: 'stretch' as const }, linkedTaskId === t.id && styles.subChipActive]}
                   onPress={() => { setLinkedTaskId(t.id); setShowTaskPicker(false); }}
                 >
                   <Text style={[styles.subChipText, linkedTaskId === t.id && styles.subChipTextActive]} numberOfLines={1}>
@@ -653,7 +653,7 @@ function PunchListScreenInner() {
                 </TouchableOpacity>
               ))}
               {scheduleTasks.length === 0 ? (
-                <Text style={[styles.rejectDesc, { textAlign: 'center' as const, padding: 20 }]}>No tasks in the schedule yet.</Text>
+                <Text style={[styles.rejectDesc, { textAlign: 'center' as const, padding: Tokens.spacing.lg }]}>No tasks in the schedule yet.</Text>
               ) : null}
             </ScrollView>
           </View>
@@ -666,7 +666,7 @@ function PunchListScreenInner() {
             <Text style={styles.rejectTitle}>Reject Item</Text>
             <Text style={styles.rejectDesc}>Provide a reason for rejection:</Text>
             <TextInput
-              style={[styles.input, { minHeight: 80, paddingTop: 12, textAlignVertical: 'top' as const }]}
+              style={[styles.input, { minHeight: 80, paddingTop: Tokens.spacing.sm, textAlignVertical: 'top' as const }]}
               value={rejectionNote}
               onChangeText={setRejectionNote}
               placeholder="Reason for rejection..."
@@ -703,9 +703,9 @@ function PunchListScreenInner() {
             <Text style={{ fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginBottom: 14, lineHeight: 17 }}>
               Drop a curated checklist into this punch list. Edit / remove items that don&apos;t apply to this project — the template is a starting point, not a contract.
             </Text>
-            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 12 }}>
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: Tokens.spacing.sm }}>
               {templateGroups.map(group => (
-                <View key={group.trade} style={{ marginBottom: 16 }}>
+                <View key={group.trade} style={{ marginBottom: Tokens.spacing.md }}>
                   <Text style={{
                     fontSize: Type.caption2.fontSize, fontWeight: '800', color: Colors.textMuted,
                     textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 6,
@@ -719,7 +719,7 @@ function PunchListScreenInner() {
                       activeOpacity={0.85}
                       style={{
                         flexDirection: 'row', alignItems: 'center', gap: 10,
-                        padding: 12, borderRadius: Tokens.radius.md,
+                        padding: Tokens.spacing.sm, borderRadius: Tokens.radius.md,
                         backgroundColor: Colors.card,
                         borderWidth: 1, borderColor: Colors.border,
                         marginBottom: 6,
@@ -729,7 +729,7 @@ function PunchListScreenInner() {
                         <Text style={{ fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text }}>
                           {t.label}
                         </Text>
-                        <Text style={{ fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2 }}>
+                        <Text style={{ fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: Tokens.spacing.hairline }}>
                           {t.context} · {t.items.length} items
                         </Text>
                       </View>
@@ -751,12 +751,12 @@ function PunchListScreenInner() {
           <View style={[styles.modalCard, { maxHeight: '80%' as const }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Filters</Text>
-              <TouchableOpacity onPress={() => setShowFilterDrawer(false)} style={{ padding: 4 }}>
+              <TouchableOpacity onPress={() => setShowFilterDrawer(false)} style={{ padding: Tokens.spacing.xxs }}>
                 <X size={20} color={Colors.textMuted} />
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={{ maxHeight: 480 }} contentContainerStyle={{ paddingBottom: 8, gap: 16 }}>
+            <ScrollView style={{ maxHeight: 480 }} contentContainerStyle={{ paddingBottom: Tokens.spacing.xs, gap: Tokens.spacing.md }}>
               {/* Sub filter */}
               <View>
                 <Text style={styles.filterSectionLabel}>Assigned to</Text>
@@ -779,7 +779,7 @@ function PunchListScreenInner() {
                     </TouchableOpacity>
                   ))}
                   {subsInList.length === 0 && (
-                    <Text style={{ fontSize: Type.caption1.fontSize, color: Colors.textMuted, padding: 4 }}>
+                    <Text style={{ fontSize: Type.caption1.fontSize, color: Colors.textMuted, padding: Tokens.spacing.xxs }}>
                       No subs assigned yet on any item.
                     </Text>
                   )}
@@ -817,7 +817,7 @@ function PunchListScreenInner() {
               </View>
             </ScrollView>
 
-            <View style={{ flexDirection: 'row', gap: 8, paddingTop: 12, borderTopWidth: 0.5, borderTopColor: Colors.borderLight }}>
+            <View style={{ flexDirection: 'row', gap: Tokens.spacing.xs, paddingTop: Tokens.spacing.sm, borderTopWidth: 0.5, borderTopColor: Colors.borderLight }}>
               <TouchableOpacity style={[styles.filterDrawerBtn, { backgroundColor: Colors.fillTertiary }]} onPress={clearAllFilters}>
                 <Text style={[styles.filterDrawerBtnText, { color: Colors.text }]}>Clear all</Text>
               </TouchableOpacity>
@@ -837,35 +837,35 @@ function PunchListScreenInner() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   notFoundText: { fontSize: Type.subheadline.fontSize, color: Colors.textSecondary, textAlign: 'center' as const, marginTop: 60 },
-  progressSection: { marginHorizontal: 20, marginTop: 16, marginBottom: 16 },
-  progressHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  progressSection: { marginHorizontal: Tokens.spacing.lg, marginTop: Tokens.spacing.md, marginBottom: Tokens.spacing.md },
+  progressHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Tokens.spacing.xs },
   progressTitle: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.text },
   progressPercent: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: Colors.primary },
   progressTrack: { height: 8, backgroundColor: Colors.fillTertiary, borderRadius: 4, overflow: 'hidden' as const },
   progressFill: { height: 8, backgroundColor: Colors.primary, borderRadius: 4 },
-  progressSub: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 4 },
-  filterRow: { paddingHorizontal: 20, gap: 6, marginBottom: 16 },
-  filterChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: Colors.fillTertiary },
+  progressSub: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: Tokens.spacing.xxs },
+  filterRow: { paddingHorizontal: Tokens.spacing.lg, gap: 6, marginBottom: Tokens.spacing.md },
+  filterChip: { paddingHorizontal: 14, paddingVertical: Tokens.spacing.xs, borderRadius: 20, backgroundColor: Colors.fillTertiary },
   filterChipText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.textSecondary },
-  filterBar: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, paddingRight: 16 },
+  filterBar: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: Tokens.spacing.xs, paddingRight: Tokens.spacing.md },
   moreFiltersBtn: {
     width: 36, height: 36, borderRadius: 18,
     alignItems: 'center' as const, justifyContent: 'center' as const,
     backgroundColor: Colors.surface,
     borderWidth: 1, borderColor: Colors.borderLight,
     position: 'relative' as const,
-    marginRight: 4,
+    marginRight: Tokens.spacing.xxs,
   },
   moreFiltersBadge: {
     position: 'absolute' as const, top: -4, right: -4,
-    minWidth: 16, height: 16, borderRadius: 8, paddingHorizontal: 4,
+    minWidth: 16, height: 16, borderRadius: 8, paddingHorizontal: Tokens.spacing.xxs,
     backgroundColor: Colors.primary,
     alignItems: 'center' as const, justifyContent: 'center' as const,
   },
   moreFiltersBadgeText: { fontSize: 9, fontWeight: '800' as const, color: Colors.surface, lineHeight: 11 },
-  activeFiltersRow: { paddingHorizontal: 20, gap: 6, paddingBottom: 12 },
+  activeFiltersRow: { paddingHorizontal: Tokens.spacing.lg, gap: 6, paddingBottom: Tokens.spacing.sm },
   activeFilterPill: {
-    flexDirection: 'row' as const, alignItems: 'center' as const, gap: 4,
+    flexDirection: 'row' as const, alignItems: 'center' as const, gap: Tokens.spacing.xxs,
     paddingHorizontal: 10, paddingVertical: 6,
     borderRadius: 14,
     backgroundColor: Colors.primary + '14',
@@ -873,11 +873,11 @@ const styles = StyleSheet.create({
   activeFilterPillText: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: Colors.primary },
   filterSectionLabel: {
     fontSize: 11, fontWeight: '800' as const, color: Colors.textMuted,
-    letterSpacing: 0.4, textTransform: 'uppercase' as const, marginBottom: 8,
+    letterSpacing: 0.4, textTransform: 'uppercase' as const, marginBottom: Tokens.spacing.xs,
   },
   filterChipsWrap: { flexDirection: 'row' as const, flexWrap: 'wrap' as const, gap: 6 },
   filterDrawerChip: {
-    paddingHorizontal: 12, paddingVertical: 8,
+    paddingHorizontal: Tokens.spacing.sm, paddingVertical: Tokens.spacing.xs,
     borderRadius: 16,
     backgroundColor: Colors.fillTertiary,
   },
@@ -885,7 +885,7 @@ const styles = StyleSheet.create({
   filterDrawerChipText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.textSecondary },
   filterDrawerChipTextActive: { color: Colors.surface },
   filterDrawerInput: {
-    paddingHorizontal: 12, paddingVertical: 10,
+    paddingHorizontal: Tokens.spacing.sm, paddingVertical: 10,
     borderRadius: Tokens.radius.md,
     backgroundColor: Colors.fillSecondary,
     borderWidth: 0.5, borderColor: Colors.borderLight,
@@ -894,7 +894,7 @@ const styles = StyleSheet.create({
   },
   filterDrawerBtn: {
     flex: 1,
-    paddingVertical: 12,
+    paddingVertical: Tokens.spacing.sm,
     borderRadius: Tokens.radius.md,
     alignItems: 'center' as const, justifyContent: 'center' as const,
   },
@@ -905,77 +905,77 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
     borderTopLeftRadius: Tokens.radius.panel,
     borderTopRightRadius: Tokens.radius.panel,
-    padding: 20,
-    paddingBottom: 32,
+    padding: Tokens.spacing.lg,
+    paddingBottom: Tokens.spacing['2xl'],
   },
   modalHeader: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     justifyContent: 'space-between' as const,
-    marginBottom: 16,
+    marginBottom: Tokens.spacing.md,
   },
   modalTitle: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: Colors.text, letterSpacing: -0.3 },
-  punchCard: { marginHorizontal: 20, marginBottom: 10, backgroundColor: Colors.surface, borderRadius: Tokens.radius.lg, padding: 16, borderWidth: 1, borderColor: Colors.cardBorder, gap: 10 },
+  punchCard: { marginHorizontal: Tokens.spacing.lg, marginBottom: 10, backgroundColor: Colors.surface, borderRadius: Tokens.radius.lg, padding: Tokens.spacing.md, borderWidth: 1, borderColor: Colors.cardBorder, gap: 10 },
   punchCardTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   priorityDot: { width: 8, height: 8, borderRadius: 4, marginTop: 6 },
   punchDesc: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: Colors.text, lineHeight: 21 },
-  punchLocation: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, marginTop: 2 },
+  punchLocation: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, marginTop: Tokens.spacing.hairline },
   punchBadge: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
-    gap: 4,
-    paddingHorizontal: 10, paddingVertical: 4,
+    gap: Tokens.spacing.xxs,
+    paddingHorizontal: 10, paddingVertical: Tokens.spacing.xxs,
     borderRadius: Tokens.radius.sm,
   },
   punchBadgeTappable: {
-    paddingRight: 8,
+    paddingRight: Tokens.spacing.xs,
   },
   punchBadgeText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const },
   punchBadgeChevron: { fontSize: (Type.caption2.fontSize ?? 11) + 2, fontWeight: '900' as const, marginTop: -1, opacity: 0.85 },
-  punchMeta: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, paddingLeft: 18 },
+  punchMeta: { flexDirection: 'row', flexWrap: 'wrap', gap: Tokens.spacing.sm, paddingLeft: 18 },
   punchMetaText: { fontSize: Type.caption1.fontSize, color: Colors.textMuted },
   rejectionBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, backgroundColor: Colors.errorLight, borderRadius: Tokens.radius.sm, padding: 10, marginLeft: 18 },
   rejectionText: { flex: 1, fontSize: Type.caption1.fontSize, color: Colors.error, lineHeight: 17 },
-  punchActions: { flexDirection: 'row', gap: 8, paddingLeft: 18, flexWrap: 'wrap' },
-  punchActionBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 8, borderRadius: Tokens.radius.sm, backgroundColor: Colors.fillTertiary },
+  punchActions: { flexDirection: 'row', gap: Tokens.spacing.xs, paddingLeft: 18, flexWrap: 'wrap' },
+  punchActionBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: Tokens.spacing.sm, paddingVertical: Tokens.spacing.xs, borderRadius: Tokens.radius.sm, backgroundColor: Colors.fillTertiary },
   punchActionText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const },
   punchDeleteBtn: { width: 32, height: 32, borderRadius: Tokens.radius.sm, backgroundColor: Colors.errorLight, alignItems: 'center', justifyContent: 'center' },
-  emptyState: { alignItems: 'center', paddingVertical: 40, gap: 8 },
+  emptyState: { alignItems: 'center', paddingVertical: Tokens.spacing['3xl'], gap: Tokens.spacing.xs },
   emptyTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: Colors.text },
   emptyDesc: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary },
-  addItemBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginHorizontal: 20, marginTop: 8, paddingVertical: 14, borderRadius: Tokens.radius.lg, backgroundColor: Colors.primary + '12', borderWidth: 1, borderColor: Colors.primary + '20' },
+  addItemBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Tokens.spacing.xs, marginHorizontal: Tokens.spacing.lg, marginTop: Tokens.spacing.xs, paddingVertical: 14, borderRadius: Tokens.radius.lg, backgroundColor: Colors.primary + '12', borderWidth: 1, borderColor: Colors.primary + '20' },
   addItemBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: Colors.primary },
-  walkBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginHorizontal: 20, marginTop: 10, paddingVertical: 14, borderRadius: Tokens.radius.lg, backgroundColor: Colors.primary },
+  walkBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Tokens.spacing.xs, marginHorizontal: Tokens.spacing.lg, marginTop: 10, paddingVertical: 14, borderRadius: Tokens.radius.lg, backgroundColor: Colors.primary },
   walkBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.textOnPrimary },
-  closeProjectBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginHorizontal: 20, marginTop: 16, paddingVertical: 16, borderRadius: Tokens.radius.lg, backgroundColor: Colors.success },
+  closeProjectBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Tokens.spacing.xs, marginHorizontal: Tokens.spacing.lg, marginTop: Tokens.spacing.md, paddingVertical: Tokens.spacing.md, borderRadius: Tokens.radius.lg, backgroundColor: Colors.success },
   closeProjectBtnText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: '#fff' },
   modalOverlay: { flex: 1, backgroundColor: Colors.overlay, justifyContent: 'flex-end' },
-  formCard: { backgroundColor: Colors.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 22, gap: 8 },
-  formHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  formCard: { backgroundColor: Colors.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 22, gap: Tokens.spacing.xs },
+  formHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Tokens.spacing.xs },
   formTitle: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: Colors.text },
-  fieldLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.textSecondary, marginTop: 4 },
+  fieldLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.textSecondary, marginTop: Tokens.spacing.xxs },
   input: { minHeight: 44, borderRadius: Tokens.radius.card, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 14, fontSize: Type.subhead.fontSize, color: Colors.text },
-  subChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: Tokens.radius.md, backgroundColor: Colors.fillTertiary },
+  subChip: { paddingHorizontal: 14, paddingVertical: Tokens.spacing.xs, borderRadius: Tokens.radius.md, backgroundColor: Colors.fillTertiary },
   subChipActive: { backgroundColor: Colors.primary },
   subChipText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.textSecondary },
   subChipTextActive: { color: '#fff' },
   priorityBtn: { flex: 1, paddingVertical: 10, borderRadius: Tokens.radius.md, backgroundColor: Colors.fillTertiary, alignItems: 'center' },
   priorityBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.textSecondary },
-  formActions: { flexDirection: 'row', gap: 10, marginTop: 12 },
+  formActions: { flexDirection: 'row', gap: 10, marginTop: Tokens.spacing.sm },
   cancelBtn: { flex: 1, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
   cancelBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text },
   saveBtn: { flex: 2, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
   saveBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: '#fff' },
-  rejectOverlay: { flex: 1, backgroundColor: Colors.overlay, justifyContent: 'center', padding: 20 },
-  rejectCard: { backgroundColor: Colors.surface, borderRadius: Tokens.radius["2xl"], padding: 22, gap: 12, maxWidth: 400, width: '100%', alignSelf: 'center' as const },
+  rejectOverlay: { flex: 1, backgroundColor: Colors.overlay, justifyContent: 'center', padding: Tokens.spacing.lg },
+  rejectCard: { backgroundColor: Colors.surface, borderRadius: Tokens.radius["2xl"], padding: 22, gap: Tokens.spacing.sm, maxWidth: 400, width: '100%', alignSelf: 'center' as const },
   rejectTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: Colors.error },
   rejectDesc: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary },
-  pickerBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, minHeight: 44, borderRadius: Tokens.radius.card, backgroundColor: Colors.surfaceAlt },
+  pickerBtn: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs, paddingHorizontal: 14, minHeight: 44, borderRadius: Tokens.radius.card, backgroundColor: Colors.surfaceAlt },
   pickerBtnText: { flex: 1, fontSize: Type.bodyCompact.fontSize, color: Colors.text },
-  linkedTaskBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: Tokens.radius.sm, backgroundColor: Colors.primary + '12', alignSelf: 'flex-start', marginLeft: 18 },
+  linkedTaskBadge: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xxs, paddingHorizontal: 10, paddingVertical: Tokens.spacing.xxs, borderRadius: Tokens.radius.sm, backgroundColor: Colors.primary + '12', alignSelf: 'flex-start', marginLeft: 18 },
   linkedTaskBadgeText: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: Colors.primary, flex: 1 },
-  pickerOption: { paddingVertical: 14, paddingHorizontal: 16, borderRadius: Tokens.radius.card, backgroundColor: Colors.surfaceAlt, marginBottom: 8 },
+  pickerOption: { paddingVertical: 14, paddingHorizontal: Tokens.spacing.md, borderRadius: Tokens.radius.card, backgroundColor: Colors.surfaceAlt, marginBottom: Tokens.spacing.xs },
   pickerOptionActive: { backgroundColor: Colors.primary + '15', borderWidth: 1, borderColor: Colors.primary },
   pickerOptionText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
-  pickerOptionMeta: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2 },
+  pickerOptionMeta: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: Tokens.spacing.hairline },
 });

@@ -143,7 +143,7 @@ export default function PermitTemplatesScreen() {
           headerTitleStyle: { fontWeight: '700' as const, color: Colors.text },
         }}
       />
-      <ScrollView contentContainerStyle={{ paddingTop: 12, paddingBottom: insets.bottom + 88 }}>
+      <ScrollView contentContainerStyle={{ paddingTop: Tokens.spacing.sm, paddingBottom: insets.bottom + 88 }}>
         <View style={styles.headerRow}>
           <Text style={styles.headerTitle}>Templates</Text>
           <Text style={styles.headerCount}>{templates.length}</Text>
@@ -408,7 +408,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     justifyContent: 'space-between' as const,
-    paddingHorizontal: 16,
+    paddingHorizontal: Tokens.spacing.md,
     marginTop: 6,
   },
   headerTitle: {
@@ -423,20 +423,20 @@ const styles = StyleSheet.create({
     color: Colors.primary,
   },
   headerSub: {
-    paddingHorizontal: 16,
+    paddingHorizontal: Tokens.spacing.md,
     fontSize: Type.footnote.fontSize,
     color: Colors.textMuted,
-    marginBottom: 12,
+    marginBottom: Tokens.spacing.sm,
   },
 
   card: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
-    gap: 12,
+    gap: Tokens.spacing.sm,
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.lg,
     padding: 14,
-    marginHorizontal: 16,
+    marginHorizontal: Tokens.spacing.md,
     marginBottom: 10,
     borderWidth: 1,
     borderColor: Colors.borderLight,
@@ -457,12 +457,12 @@ const styles = StyleSheet.create({
   cardSub: {
     fontSize: Type.footnote.fontSize,
     color: Colors.textSecondary,
-    marginTop: 2,
+    marginTop: Tokens.spacing.hairline,
   },
   cardMeta: {
     fontSize: Type.caption2.fontSize,
     color: Colors.textMuted,
-    marginTop: 4,
+    marginTop: Tokens.spacing.xxs,
   },
   cardKebab: { padding: 6 },
 
@@ -472,8 +472,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     gap: 6,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: Tokens.spacing.md,
+    paddingVertical: Tokens.spacing.sm,
     borderRadius: Tokens.radius.full,
     backgroundColor: Colors.primary,
     shadowColor: '#000',
@@ -493,24 +493,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     justifyContent: 'space-between' as const,
-    paddingHorizontal: 16,
+    paddingHorizontal: Tokens.spacing.md,
     paddingVertical: 14,
     borderBottomWidth: 1,
     borderBottomColor: Colors.borderLight,
   },
-  modalClose: { padding: 4 },
+  modalClose: { padding: Tokens.spacing.xxs },
   modalTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '800' as const, color: Colors.text },
   modalSave: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
-    gap: 4,
-    paddingHorizontal: 12,
+    gap: Tokens.spacing.xxs,
+    paddingHorizontal: Tokens.spacing.sm,
     paddingVertical: 7,
     borderRadius: Tokens.radius.full,
     backgroundColor: Colors.primary,
   },
   modalSaveText: { fontSize: Type.footnote.fontSize, fontWeight: '800' as const, color: Colors.background },
-  modalBody: { padding: 16, gap: 6, paddingBottom: 60 },
+  modalBody: { padding: Tokens.spacing.md, gap: 6, paddingBottom: 60 },
 
   label: {
     fontSize: Type.caption2.fontSize,
@@ -527,8 +527,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between' as const,
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.md,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
+    paddingHorizontal: Tokens.spacing.sm,
+    paddingVertical: Tokens.spacing.sm,
     borderWidth: 1,
     borderColor: Colors.borderLight,
   },
@@ -546,7 +546,7 @@ const styles = StyleSheet.create({
     alignItems: 'center' as const,
     gap: 10,
     paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingVertical: Tokens.spacing.sm,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: Colors.borderLight,
   },
@@ -555,7 +555,7 @@ const styles = StyleSheet.create({
   input: {
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.md,
-    paddingHorizontal: 12,
+    paddingHorizontal: Tokens.spacing.sm,
     paddingVertical: Platform.OS === 'ios' ? 12 : 10,
     fontSize: Type.body.fontSize,
     color: Colors.text,
@@ -564,7 +564,7 @@ const styles = StyleSheet.create({
   },
   multilineInput: { minHeight: 80, textAlignVertical: 'top' as const, paddingTop: 10 },
   helperText: {
-    marginTop: 16,
+    marginTop: Tokens.spacing.md,
     fontSize: Type.caption2.fontSize,
     color: Colors.textMuted,
     fontStyle: 'italic' as const,

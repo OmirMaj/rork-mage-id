@@ -212,7 +212,7 @@ export default function SubScorecardsScreen() {
       <Stack.Screen
         options={{ title: 'Sub Scorecards', headerStyle: { backgroundColor: Colors.background }, headerTintColor: Colors.primary, headerTitleStyle: { fontWeight: '700' as const, color: Colors.text } }}
       />
-      <ScrollView contentContainerStyle={{ paddingTop: 12, paddingBottom: insets.bottom + 30 }} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={{ paddingTop: Tokens.spacing.sm, paddingBottom: insets.bottom + 30 }} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Sub performance</Text>
           <Text style={styles.headerSub}>Sorted by composite score across all your projects</Text>
@@ -284,37 +284,37 @@ export default function SubScorecardsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
-  header: { paddingHorizontal: 16, marginTop: 6, marginBottom: 12 },
+  header: { paddingHorizontal: Tokens.spacing.md, marginTop: 6, marginBottom: Tokens.spacing.sm },
   headerTitle: { fontSize: Type.title2.fontSize, fontWeight: '800' as const, color: Colors.text, letterSpacing: -0.4 },
-  headerSub: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, marginTop: 2 },
+  headerSub: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, marginTop: Tokens.spacing.hairline },
 
   card: {
     backgroundColor: Colors.surface, borderRadius: Tokens.radius.lg,
-    marginHorizontal: 16, marginBottom: 10, padding: 14,
+    marginHorizontal: Tokens.spacing.md, marginBottom: 10, padding: 14,
     borderWidth: 1, borderColor: Colors.borderLight,
-    gap: 12,
+    gap: Tokens.spacing.sm,
   },
   cardHead: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10 },
   rankBadge: {
-    flexDirection: 'row' as const, alignItems: 'center' as const, gap: 4,
-    paddingHorizontal: 8, paddingVertical: 5,
+    flexDirection: 'row' as const, alignItems: 'center' as const, gap: Tokens.spacing.xxs,
+    paddingHorizontal: Tokens.spacing.xs, paddingVertical: 5,
     borderRadius: Tokens.radius.sm,
   },
   rankBadgeText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '900' as const, letterSpacing: -0.3 },
   cardCompany: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text },
-  cardTrade: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2 },
+  cardTrade: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: Tokens.spacing.hairline },
 
-  metricRow: { flexDirection: 'row' as const, gap: 8 },
+  metricRow: { flexDirection: 'row' as const, gap: Tokens.spacing.xs },
   metricCell: {
     flex: 1, paddingVertical: 10, paddingHorizontal: 10,
     borderRadius: Tokens.radius.sm, backgroundColor: Colors.surfaceAlt,
-    alignItems: 'flex-start' as const, gap: 2,
+    alignItems: 'flex-start' as const, gap: Tokens.spacing.hairline,
   },
-  metricIconWrap: { marginBottom: 2 },
+  metricIconWrap: { marginBottom: Tokens.spacing.hairline },
   metricLabel: { fontSize: 10, fontWeight: '700' as const, color: Colors.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.4 },
   metricValue: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: Colors.text, letterSpacing: -0.3 },
   metricSub: { fontSize: 10, color: Colors.textMuted },
 
-  footer: { flexDirection: 'row' as const, gap: 8, alignItems: 'flex-start' as const, paddingHorizontal: 18, paddingVertical: 16, opacity: 0.75 },
+  footer: { flexDirection: 'row' as const, gap: Tokens.spacing.xs, alignItems: 'flex-start' as const, paddingHorizontal: 18, paddingVertical: Tokens.spacing.md, opacity: 0.75 },
   footerText: { flex: 1, fontSize: Type.caption2.fontSize, color: Colors.textMuted, lineHeight: 14 },
 });

@@ -193,7 +193,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 22,
-    paddingVertical: 12,
+    paddingVertical: Tokens.spacing.sm,
     borderBottomWidth: 0.5,
     borderBottomColor: Colors.borderLight,
   },
@@ -216,10 +216,10 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.fillTertiary,
     borderRadius: Tokens.radius.card,
     marginHorizontal: 22,
-    marginTop: 12,
-    marginBottom: 8,
-    paddingHorizontal: 12,
-    gap: 8,
+    marginTop: Tokens.spacing.sm,
+    marginBottom: Tokens.spacing.xs,
+    paddingHorizontal: Tokens.spacing.sm,
+    gap: Tokens.spacing.xs,
     height: 42,
   },
   searchInput: {
@@ -232,14 +232,14 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingHorizontal: 22,
-    paddingTop: 4,
-    paddingBottom: 12,
+    paddingTop: Tokens.spacing.xxs,
+    paddingBottom: Tokens.spacing.sm,
   },
   contactRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    paddingVertical: 12,
+    gap: Tokens.spacing.sm,
+    paddingVertical: Tokens.spacing.sm,
     borderBottomWidth: 0.5,
     borderBottomColor: Colors.borderLight,
   },
@@ -256,7 +256,7 @@ const styles = StyleSheet.create({
   },
   contactInfo: {
     flex: 1,
-    gap: 2,
+    gap: Tokens.spacing.hairline,
   },
   contactName: {
     fontSize: Type.subhead.fontSize,
@@ -270,12 +270,12 @@ const styles = StyleSheet.create({
   contactMeta: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginTop: 2,
+    gap: Tokens.spacing.xs,
+    marginTop: Tokens.spacing.hairline,
   },
   roleBadge: {
     paddingHorizontal: 7,
-    paddingVertical: 2,
+    paddingVertical: Tokens.spacing.hairline,
     borderRadius: 5,
   },
   roleBadgeText: {
@@ -295,8 +295,8 @@ const styles = StyleSheet.create({
   },
   emptyState: {
     alignItems: 'center',
-    paddingVertical: 40,
-    gap: 8,
+    paddingVertical: Tokens.spacing['3xl'],
+    gap: Tokens.spacing.xs,
   },
   emptyTitle: {
     fontSize: Type.callout.fontSize,

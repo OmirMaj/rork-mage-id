@@ -315,11 +315,11 @@ export default function PlansScreen() {
           they can budget how many pages to upload before they pick a
           file. Tapping the upgrade pill (when over cap) routes to the
           paywall. Always visible above the sheet list. */}
-      <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
+      <View style={{ paddingHorizontal: Tokens.spacing.md, paddingTop: Tokens.spacing.xs }}>
         <TakeoffQuotaBadge variant="inline" onUpgrade={() => router.push('/paywall' as never)} />
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
+      <ScrollView contentContainerStyle={{ padding: Tokens.spacing.md, paddingBottom: Tokens.spacing['3xl'] }}>
         {sheets.length === 0 ? (
           <View style={styles.emptyCard}>
             <FileImage size={28} color={Colors.textMuted} />
@@ -472,13 +472,13 @@ function PlansProjectPicker({ projects, onPick, onBack }: {
           <Text style={styles.headerTitle}>Pick a project</Text>
         </View>
       </View>
-      <ScrollView contentContainerStyle={{ padding: 16 }}>
+      <ScrollView contentContainerStyle={{ padding: Tokens.spacing.md }}>
         {projects.length === 0 ? (
           <View style={styles.emptyCard}>
             <ImageIcon size={28} color={Colors.textMuted} />
             <Text style={styles.emptyTitle}>No projects yet</Text>
             <Text style={styles.emptyText}>Plans attach to a project so every pin (punch items, photos, RFIs) ties back to a job. Create a project first, then come back here to import drawings.</Text>
-            <TouchableOpacity onPress={onBack} style={[styles.primaryBtn, { marginTop: 12 }]}>
+            <TouchableOpacity onPress={onBack} style={[styles.primaryBtn, { marginTop: Tokens.spacing.sm }]}>
               <Text style={styles.primaryBtnText}>Open Projects</Text>
             </TouchableOpacity>
           </View>
@@ -510,7 +510,7 @@ function PaywallView({ onUpgrade, onBack, insets }: { onUpgrade: () => void; onB
           <Text style={styles.headerTitle}>Pro feature</Text>
         </View>
       </View>
-      <View style={{ padding: 24 }}>
+      <View style={{ padding: Tokens.spacing.xl }}>
         <View style={styles.emptyCard}>
           <FileImage size={28} color={Colors.primary} />
           <Text style={styles.emptyTitle}>Plan markup is a Pro feature</Text>
@@ -545,14 +545,14 @@ const styles = StyleSheet.create({
 
   ghostBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: Colors.surfaceAlt, paddingHorizontal: 12, paddingVertical: 9, borderRadius: Tokens.radius.md,
+    backgroundColor: Colors.surfaceAlt, paddingHorizontal: Tokens.spacing.sm, paddingVertical: 9, borderRadius: Tokens.radius.md,
     borderColor: Colors.borderLight, borderWidth: 1,
   },
   ghostBtnText: { color: Colors.text, fontSize: Type.footnote.fontSize, fontWeight: '600' },
 
-  emptyBtnRow: { flexDirection: 'row', gap: 8, marginTop: 14 },
+  emptyBtnRow: { flexDirection: 'row', gap: Tokens.spacing.xs, marginTop: 14 },
   statusBar: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
+    flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs,
     paddingHorizontal: 14, paddingVertical: 9,
     backgroundColor: Colors.surfaceAlt, borderBottomColor: Colors.borderLight, borderBottomWidth: 1,
   },
@@ -561,14 +561,14 @@ const styles = StyleSheet.create({
   // Cloud picker wrapper — sits below the import action bar with a
   // light divider so it reads as a secondary action path.
   cloudPickerWrap: {
-    paddingHorizontal: 16, paddingVertical: 12,
+    paddingHorizontal: Tokens.spacing.md, paddingVertical: Tokens.spacing.sm,
     borderBottomWidth: 1, borderBottomColor: Colors.borderLight,
     backgroundColor: Colors.background,
   },
 
   sheetCard: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: Colors.surface, padding: 12, borderRadius: Tokens.radius.lg,
+    flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.sm,
+    backgroundColor: Colors.surface, padding: Tokens.spacing.sm, borderRadius: Tokens.radius.lg,
     borderColor: Colors.borderLight, borderWidth: 1, marginBottom: 10,
   },
   sheetThumbWrap: {
@@ -578,7 +578,7 @@ const styles = StyleSheet.create({
   sheetThumb: { width: '100%', height: '100%' },
   sheetNumber: { color: Colors.primary, fontSize: Type.caption2.fontSize, fontWeight: '700', letterSpacing: 0.4 },
   revPill: {
-    paddingHorizontal: 6, paddingVertical: 2,
+    paddingHorizontal: 6, paddingVertical: Tokens.spacing.hairline,
     borderRadius: 8,
     backgroundColor: Colors.primary + '14',
   },
@@ -587,64 +587,64 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3, textTransform: 'uppercase' as const,
   },
   supersededToggle: {
-    paddingVertical: 10, paddingHorizontal: 16,
+    paddingVertical: 10, paddingHorizontal: Tokens.spacing.md,
     alignItems: 'center' as const,
   },
   supersededToggleText: {
     fontSize: Type.caption1.fontSize, color: Colors.textSecondary,
     fontWeight: '600' as const,
   },
-  sheetName: { color: Colors.text, fontSize: Type.subhead.fontSize, fontWeight: '600', marginTop: 2 },
-  sheetMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 },
+  sheetName: { color: Colors.text, fontSize: Type.subhead.fontSize, fontWeight: '600', marginTop: Tokens.spacing.hairline },
+  sheetMetaRow: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs, marginTop: 6 },
   metaPill: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    backgroundColor: Colors.surfaceAlt, paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.sm,
+    flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xxs,
+    backgroundColor: Colors.surfaceAlt, paddingHorizontal: Tokens.spacing.xs, paddingVertical: 3, borderRadius: Tokens.radius.sm,
   },
   metaPillText: { color: Colors.text, fontSize: Type.caption2.fontSize, fontWeight: '600' },
   sheetDate: { color: Colors.textMuted, fontSize: Type.caption2.fontSize },
   iconBtn: { padding: 6, borderRadius: Tokens.radius.sm },
 
   emptyCard: {
-    backgroundColor: Colors.surface, padding: 24, borderRadius: Tokens.radius.lg, alignItems: 'center',
+    backgroundColor: Colors.surface, padding: Tokens.spacing.xl, borderRadius: Tokens.radius.lg, alignItems: 'center',
     borderColor: Colors.borderLight, borderWidth: 1, gap: 6,
   },
-  emptyTitle: { color: Colors.text, fontSize: Type.callout.fontSize, fontWeight: '700', marginTop: 8 },
+  emptyTitle: { color: Colors.text, fontSize: Type.callout.fontSize, fontWeight: '700', marginTop: Tokens.spacing.xs },
   emptyText: { color: Colors.textSecondary, fontSize: Type.footnote.fontSize, textAlign: 'center', lineHeight: 19 },
-  helperText: { color: Colors.textMuted, fontSize: Type.caption2.fontSize, textAlign: 'center', marginTop: 12, lineHeight: 16 },
+  helperText: { color: Colors.textMuted, fontSize: Type.caption2.fontSize, textAlign: 'center', marginTop: Tokens.spacing.sm, lineHeight: 16 },
 
   pickerRow: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
-    backgroundColor: Colors.surface, padding: 12, borderRadius: Tokens.radius.md,
-    borderColor: Colors.borderLight, borderWidth: 1, marginBottom: 8,
+    backgroundColor: Colors.surface, padding: Tokens.spacing.sm, borderRadius: Tokens.radius.md,
+    borderColor: Colors.borderLight, borderWidth: 1, marginBottom: Tokens.spacing.xs,
   },
   pickerRowTitle: { color: Colors.text, fontSize: Type.bodyCompact.fontSize, fontWeight: '600' },
-  pickerRowSub: { color: Colors.textSecondary, fontSize: Type.caption1.fontSize, marginTop: 2 },
+  pickerRowSub: { color: Colors.textSecondary, fontSize: Type.caption1.fontSize, marginTop: Tokens.spacing.hairline },
 
   modalBackdrop: {
     flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end',
   },
   modalCard: {
-    backgroundColor: Colors.surface, padding: 16, borderTopLeftRadius: 20, borderTopRightRadius: 20,
-    gap: 8,
-    ...Platform.select({ web: { maxWidth: 520, alignSelf: 'center', width: '100%', borderRadius: Tokens.radius.panel, marginBottom: 20 } as object, default: {} as object }),
+    backgroundColor: Colors.surface, padding: Tokens.spacing.md, borderTopLeftRadius: 20, borderTopRightRadius: 20,
+    gap: Tokens.spacing.xs,
+    ...Platform.select({ web: { maxWidth: 520, alignSelf: 'center', width: '100%', borderRadius: Tokens.radius.panel, marginBottom: Tokens.spacing.lg } as object, default: {} as object }),
   },
   modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
   modalTitle: { color: Colors.text, fontSize: Type.callout.fontSize, fontWeight: '700' },
-  previewImg: { width: '100%', height: 180, backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.md, marginBottom: 8 },
-  label: { color: Colors.textSecondary, fontSize: Type.caption1.fontSize, fontWeight: '600', marginTop: 4 },
+  previewImg: { width: '100%', height: 180, backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.md, marginBottom: Tokens.spacing.xs },
+  label: { color: Colors.textSecondary, fontSize: Type.caption1.fontSize, fontWeight: '600', marginTop: Tokens.spacing.xxs },
   input: {
-    backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.md, paddingHorizontal: 12, paddingVertical: 10,
+    backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.md, paddingHorizontal: Tokens.spacing.sm, paddingVertical: 10,
     color: Colors.text, fontSize: Type.bodyCompact.fontSize, borderColor: Colors.borderLight, borderWidth: 1,
   },
 
   compareBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    marginTop: 16, padding: 14,
+    flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.sm,
+    marginTop: Tokens.spacing.md, padding: 14,
     borderRadius: Tokens.radius.card,
     backgroundColor: Colors.primary + '0D',
     borderWidth: 1, borderColor: Colors.primary + '30',
   },
   compareBtnTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
-  compareBtnSub: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2 },
+  compareBtnSub: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: Tokens.spacing.hairline },
 });
 

@@ -213,7 +213,7 @@ export default function ExpeditorDirectoryScreen() {
           headerTitleStyle: { fontWeight: '700' as const, color: Colors.text },
         }}
       />
-      <ScrollView contentContainerStyle={{ paddingTop: 12, paddingBottom: insets.bottom + 30 }}>
+      <ScrollView contentContainerStyle={{ paddingTop: Tokens.spacing.sm, paddingBottom: insets.bottom + 30 }}>
         {/* Hero */}
         <View style={styles.hero}>
           <View style={styles.heroIconWrap}>
@@ -360,9 +360,9 @@ const styles = StyleSheet.create({
   hero: {
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.lg,
-    marginHorizontal: 16,
-    marginBottom: 12,
-    padding: 16,
+    marginHorizontal: Tokens.spacing.md,
+    marginBottom: Tokens.spacing.sm,
+    padding: Tokens.spacing.md,
     borderWidth: 1,
     borderColor: Colors.borderLight,
   },
@@ -373,7 +373,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary + '15',
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
-    marginBottom: 8,
+    marginBottom: Tokens.spacing.xs,
   },
   heroTitle: {
     fontSize: Type.title3.fontSize,
@@ -384,18 +384,18 @@ const styles = StyleSheet.create({
   heroBody: {
     fontSize: Type.footnote.fontSize,
     color: Colors.textSecondary,
-    marginTop: 4,
+    marginTop: Tokens.spacing.xxs,
     lineHeight: 18,
   },
 
   chipRow: {
     flexDirection: 'row' as const,
-    gap: 8,
-    paddingHorizontal: 16,
-    marginBottom: 8,
+    gap: Tokens.spacing.xs,
+    paddingHorizontal: Tokens.spacing.md,
+    marginBottom: Tokens.spacing.xs,
   },
   chip: {
-    paddingHorizontal: 12,
+    paddingHorizontal: Tokens.spacing.sm,
     paddingVertical: 7,
     borderRadius: Tokens.radius.full,
     borderWidth: 1,
@@ -409,7 +409,7 @@ const styles = StyleSheet.create({
   chipSmall: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
-    gap: 4,
+    gap: Tokens.spacing.xxs,
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: Tokens.radius.full,
@@ -424,8 +424,8 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.lg,
-    marginHorizontal: 16,
-    marginBottom: 12,
+    marginHorizontal: Tokens.spacing.md,
+    marginBottom: Tokens.spacing.sm,
     padding: 14,
     borderWidth: 1,
     borderColor: Colors.borderLight,
@@ -433,15 +433,15 @@ const styles = StyleSheet.create({
   cardHead: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
-    gap: 8,
-    marginBottom: 8,
+    gap: Tokens.spacing.xs,
+    marginBottom: Tokens.spacing.xs,
     flexWrap: 'wrap' as const,
   },
   roleBadge: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
-    gap: 4,
-    paddingHorizontal: 8,
+    gap: Tokens.spacing.xxs,
+    paddingHorizontal: Tokens.spacing.xs,
     paddingVertical: 3,
     borderRadius: Tokens.radius.sm,
   },
@@ -455,8 +455,8 @@ const styles = StyleSheet.create({
   verifiedPill: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
-    gap: 4,
-    paddingHorizontal: 8,
+    gap: Tokens.spacing.xxs,
+    paddingHorizontal: Tokens.spacing.xs,
     paddingVertical: 3,
     borderRadius: Tokens.radius.sm,
     backgroundColor: Colors.success + '15',
@@ -470,8 +470,8 @@ const styles = StyleSheet.create({
   ratingChip: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
-    gap: 4,
-    paddingHorizontal: 8,
+    gap: Tokens.spacing.xxs,
+    paddingHorizontal: Tokens.spacing.xs,
     paddingVertical: 3,
     borderRadius: Tokens.radius.sm,
     backgroundColor: Colors.warning + '12',
@@ -490,7 +490,7 @@ const styles = StyleSheet.create({
   cardOwner: {
     fontSize: Type.footnote.fontSize,
     color: Colors.textMuted,
-    marginTop: 2,
+    marginTop: Tokens.spacing.hairline,
   },
   cardSpec: {
     fontSize: Type.caption1.fontSize,
@@ -507,8 +507,8 @@ const styles = StyleSheet.create({
   metaPill: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
-    gap: 4,
-    paddingHorizontal: 8,
+    gap: Tokens.spacing.xxs,
+    paddingHorizontal: Tokens.spacing.xs,
     paddingVertical: 3,
     borderRadius: Tokens.radius.full,
     backgroundColor: Colors.background,
@@ -522,7 +522,7 @@ const styles = StyleSheet.create({
   },
   cardActions: {
     flexDirection: 'row' as const,
-    gap: 8,
+    gap: Tokens.spacing.xs,
     marginTop: 14,
   },
   actionBtn: {
@@ -538,15 +538,15 @@ const styles = StyleSheet.create({
   actionSecondary: { backgroundColor: Colors.surfaceAlt, borderWidth: 1, borderColor: Colors.borderLight },
   actionBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const },
 
-  subEmpty: { padding: 32, alignItems: 'center' as const },
+  subEmpty: { padding: Tokens.spacing['2xl'], alignItems: 'center' as const },
   subEmptyText: { fontSize: Type.body.fontSize, color: Colors.textMuted },
 
   footer: {
     flexDirection: 'row' as const,
-    gap: 8,
+    gap: Tokens.spacing.xs,
     alignItems: 'flex-start' as const,
     paddingHorizontal: 18,
-    paddingVertical: 16,
+    paddingVertical: Tokens.spacing.md,
     opacity: 0.7,
   },
   footerText: {

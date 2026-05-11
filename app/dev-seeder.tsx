@@ -559,7 +559,7 @@ export default function DevSeederScreen() {
         <View style={{ width: 36 }} />
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 40 }}>
+      <ScrollView contentContainerStyle={{ padding: Tokens.spacing.lg, paddingBottom: insets.bottom + 40 }}>
         <View style={styles.warningCard}>
           <AlertTriangle size={18} color={Colors.warning} />
           <Text style={styles.warningText}>
@@ -607,7 +607,7 @@ export default function DevSeederScreen() {
           </TouchableOpacity>
         </View>
 
-        <View style={[styles.card, { marginTop: 16, borderColor: Colors.error + '40' }]}>
+        <View style={[styles.card, { marginTop: Tokens.spacing.md, borderColor: Colors.error + '40' }]}>
           <View style={[styles.cardIcon, { backgroundColor: Colors.error + '15' }]}>
             <Trash2 size={28} color={Colors.error} />
           </View>
@@ -636,8 +636,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     justifyContent: 'space-between' as const,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: Tokens.spacing.md,
+    paddingVertical: Tokens.spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: Colors.borderLight,
   },
@@ -650,7 +650,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.warning + '12',
     borderRadius: Tokens.radius.card,
     padding: 14,
-    marginBottom: 20,
+    marginBottom: Tokens.spacing.lg,
     borderWidth: 1,
     borderColor: Colors.warning + '30',
   },
@@ -659,7 +659,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.panel,
     padding: 22,
-    gap: 12,
+    gap: Tokens.spacing.sm,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
   },
@@ -673,17 +673,17 @@ const styles = StyleSheet.create({
   cardTitle: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: Colors.text, letterSpacing: -0.4 },
   cardSub: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, lineHeight: 20 },
   cardSubFine: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, lineHeight: 17, marginTop: 6, fontStyle: 'italic' as const },
-  bulletList: { gap: 4, marginTop: 8, marginBottom: 8 },
+  bulletList: { gap: Tokens.spacing.xxs, marginTop: Tokens.spacing.xs, marginBottom: Tokens.spacing.xs },
   bullet: { fontSize: Type.caption1.fontSize, color: Colors.text, lineHeight: 17 },
   cta: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
-    gap: 8,
+    gap: Tokens.spacing.xs,
     backgroundColor: Colors.primary,
     paddingVertical: 14,
     borderRadius: Tokens.radius.card,
-    marginTop: 8,
+    marginTop: Tokens.spacing.xs,
   },
   ctaText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.surface },
 });

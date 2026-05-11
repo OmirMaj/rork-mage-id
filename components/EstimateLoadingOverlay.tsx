@@ -157,7 +157,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(11, 13, 16, 0.86)',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 24,
+    paddingHorizontal: Tokens.spacing.xl,
   },
   card: {
     width: '100%',
@@ -165,9 +165,9 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
     borderRadius: 22,
     paddingVertical: 28,
-    paddingHorizontal: 24,
+    paddingHorizontal: Tokens.spacing.xl,
     alignItems: 'center',
-    gap: 16,
+    gap: Tokens.spacing.md,
     ...(Platform.OS === 'web'
       ? { boxShadow: '0 18px 48px rgba(0,0,0,0.45)' as any }
       : { shadowColor: '#000', shadowOffset: { width: 0, height: 18 }, shadowOpacity: 0.45, shadowRadius: 28, elevation: 18 }),
@@ -201,8 +201,8 @@ const styles = StyleSheet.create({
     textAlign: 'center', lineHeight: 19, maxWidth: 300,
   },
   dotsRow: {
-    flexDirection: 'row', gap: 8,
-    marginTop: 4, marginBottom: 4,
+    flexDirection: 'row', gap: Tokens.spacing.xs,
+    marginTop: Tokens.spacing.xxs, marginBottom: Tokens.spacing.xxs,
   },
   dot: {
     width: 8, height: 8, borderRadius: 4,
@@ -210,11 +210,11 @@ const styles = StyleSheet.create({
   },
   factCard: {
     width: '100%',
-    paddingHorizontal: 16, paddingVertical: 14,
+    paddingHorizontal: Tokens.spacing.md, paddingVertical: 14,
     borderRadius: Tokens.radius.lg,
     backgroundColor: Colors.fillSecondary,
     borderWidth: 1, borderColor: Colors.borderLight,
-    gap: 8,
+    gap: Tokens.spacing.xs,
   },
   factLabel: {
     fontSize: 10, fontWeight: '800',

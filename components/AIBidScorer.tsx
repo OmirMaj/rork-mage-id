@@ -151,15 +151,15 @@ const setupStyles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 0.5,
+    paddingHorizontal: Tokens.spacing.lg, paddingVertical: Tokens.spacing.md, borderBottomWidth: 0.5,
     borderBottomColor: Colors.borderLight, backgroundColor: Colors.surface,
   },
   title: { fontSize: Type.body.fontSize, fontWeight: '700' as const, color: Colors.text },
-  content: { padding: 20, gap: 16, paddingBottom: 40 },
+  content: { padding: Tokens.spacing.lg, gap: Tokens.spacing.md, paddingBottom: Tokens.spacing['3xl'] },
   sectionTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Tokens.spacing.xs },
   chip: {
-    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
+    paddingHorizontal: 14, paddingVertical: Tokens.spacing.xs, borderRadius: 20,
     backgroundColor: Colors.fillSecondary, borderWidth: 1, borderColor: Colors.borderLight,
   },
   chipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
@@ -167,7 +167,7 @@ const setupStyles = StyleSheet.create({
   chipTextActive: { color: Colors.surface },
   saveBtn: {
     backgroundColor: Colors.primary, paddingVertical: 14, borderRadius: Tokens.radius.card,
-    alignItems: 'center', marginTop: 8,
+    alignItems: 'center', marginTop: Tokens.spacing.xs,
   },
   saveBtnText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.surface },
 });

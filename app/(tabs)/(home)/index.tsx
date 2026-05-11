@@ -839,7 +839,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   listContent: {
-    paddingBottom: 20,
+    paddingBottom: Tokens.spacing.lg,
   },
   emptyList: {
     flex: 1,
@@ -848,9 +848,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 8,
+    paddingHorizontal: Tokens.spacing.lg,
+    paddingTop: Tokens.spacing.md,
+    paddingBottom: Tokens.spacing.xs,
   },
   // Bumped from small uppercase ("MAGE ID" tracking 0.3, 13px) to a
   // proper brand wordmark — feels like the app is owned by the brand
@@ -889,9 +889,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     gap: 10,
-    paddingHorizontal: 20,
-    marginTop: 4,
-    marginBottom: 20,
+    paddingHorizontal: Tokens.spacing.lg,
+    marginTop: Tokens.spacing.xxs,
+    marginBottom: Tokens.spacing.lg,
   },
   largeTitle: {
     fontSize: Type.largeTitle.fontSize,
@@ -900,12 +900,12 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
   },
   statsSection: {
-    paddingHorizontal: 20,
+    paddingHorizontal: Tokens.spacing.lg,
     marginBottom: 28,
   },
   statsGrid: {
     flexDirection: 'row',
-    gap: 12,
+    gap: Tokens.spacing.sm,
   },
   // KPI card refresh — neutralized icon treatment (monochrome bg,
   // smaller chip in the corner) and a bigger, more confident number.
@@ -942,7 +942,7 @@ const styles = StyleSheet.create({
     fontWeight: '800' as const,
     color: Colors.text,
     letterSpacing: -0.6,
-    marginBottom: 4,
+    marginBottom: Tokens.spacing.xxs,
   },
   statLabel: {
     fontSize: Type.caption1.fontSize,
@@ -954,16 +954,16 @@ const styles = StyleSheet.create({
   // bordered card with internal row dividers. Mirrors a SaaS data-table
   // layout (Linear / Notion / the reference dashboard).
   denseListWrap: {
-    paddingHorizontal: 20,
-    marginTop: 8,
-    marginBottom: 24,
+    paddingHorizontal: Tokens.spacing.lg,
+    marginTop: Tokens.spacing.xs,
+    marginBottom: Tokens.spacing.xl,
   },
   denseListSectionHeader: {
     flexDirection: 'row',
     alignItems: 'baseline',
     gap: 10,
-    marginBottom: 12,
-    paddingHorizontal: 4,
+    marginBottom: Tokens.spacing.sm,
+    paddingHorizontal: Tokens.spacing.xxs,
   },
   denseListSectionTitle: {
     fontSize: Type.subheadline.fontSize,
@@ -988,13 +988,13 @@ const styles = StyleSheet.create({
     fontWeight: '600' as const,
     color: Colors.textSecondary,
     letterSpacing: 0.6,
-    paddingHorizontal: 20,
+    paddingHorizontal: Tokens.spacing.lg,
     marginBottom: 10,
   },
   aiBriefingWrap: {
-    marginHorizontal: 16,
-    marginTop: 4,
-    marginBottom: 4,
+    marginHorizontal: Tokens.spacing.md,
+    marginTop: Tokens.spacing.xxs,
+    marginBottom: Tokens.spacing.xxs,
   },
   aiBriefingToggle: {
     flexDirection: 'row' as const,
@@ -1010,7 +1010,7 @@ const styles = StyleSheet.create({
   aiBriefingToggleLeft: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
-    gap: 8,
+    gap: Tokens.spacing.xs,
   },
   aiBriefingToggleText: {
     fontSize: Type.footnote.fontSize,
@@ -1026,20 +1026,20 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.overlay,
     justifyContent: 'center',
-    padding: 24,
+    padding: Tokens.spacing.xl,
   },
   createModalCard: {
     backgroundColor: Colors.surface,
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
-    padding: 20,
+    padding: Tokens.spacing.lg,
     maxHeight: '85%',
   },
   createModalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: Tokens.spacing.md,
   },
   createModalTitle: {
     fontSize: Type.title2.fontSize,
@@ -1056,14 +1056,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   createModalScroll: {
-    marginBottom: 16,
+    marginBottom: Tokens.spacing.md,
   },
   fieldLabel: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
     color: Colors.textSecondary,
     marginBottom: 6,
-    marginTop: 12,
+    marginTop: Tokens.spacing.sm,
   },
   input: {
     minHeight: 48,
@@ -1081,8 +1081,8 @@ const styles = StyleSheet.create({
   typeGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 4,
+    gap: Tokens.spacing.xs,
+    marginTop: Tokens.spacing.xxs,
   },
   typeChip: {
     paddingHorizontal: 14,
@@ -1104,7 +1104,7 @@ const styles = StyleSheet.create({
   createBtn: {
     backgroundColor: Colors.primary,
     borderRadius: Tokens.radius.lg,
-    paddingVertical: 16,
+    paddingVertical: Tokens.spacing.md,
     alignItems: 'center',
     shadowColor: Colors.primary,
     shadowOffset: { width: 0, height: 4 },
@@ -1120,8 +1120,8 @@ const styles = StyleSheet.create({
   nextStepCard: {
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius["2xl"],
-    padding: 24,
-    gap: 16,
+    padding: Tokens.spacing.xl,
+    gap: Tokens.spacing.md,
     // Match the other home-screen cards.
     borderWidth: 1,
     borderColor: Colors.cardBorder,
@@ -1136,14 +1136,14 @@ const styles = StyleSheet.create({
     fontSize: Type.subhead.fontSize,
     color: Colors.textSecondary,
     textAlign: 'center',
-    marginBottom: 4,
+    marginBottom: Tokens.spacing.xxs,
   },
   nextStepOption: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.surfaceAlt,
     borderRadius: Tokens.radius.panel,
-    padding: 16,
+    padding: Tokens.spacing.md,
     gap: 14,
   },
   nextStepIconWrap: {
@@ -1155,7 +1155,7 @@ const styles = StyleSheet.create({
   },
   nextStepTextWrap: {
     flex: 1,
-    gap: 2,
+    gap: Tokens.spacing.hairline,
   },
   nextStepOptionTitle: {
     fontSize: Type.callout.fontSize,
@@ -1168,7 +1168,7 @@ const styles = StyleSheet.create({
   },
   laterBtn: {
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: Tokens.spacing.sm,
   },
   laterBtnText: {
     fontSize: Type.subhead.fontSize,
@@ -1178,20 +1178,20 @@ const styles = StyleSheet.create({
 
   // ── Status filter chips ────────────────────────────────────────
   filterChipsWrap: {
-    paddingHorizontal: 16,
-    marginTop: 8,
-    marginBottom: 4,
+    paddingHorizontal: Tokens.spacing.md,
+    marginTop: Tokens.spacing.xs,
+    marginBottom: Tokens.spacing.xxs,
   },
   filterChipsScroll: {
-    gap: 8,
-    paddingVertical: 4,
+    gap: Tokens.spacing.xs,
+    paddingVertical: Tokens.spacing.xxs,
   },
   filterChip: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
-    gap: 8,
+    gap: Tokens.spacing.xs,
     paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingVertical: Tokens.spacing.xs,
     borderRadius: 999,
     backgroundColor: Colors.fillTertiary,
     borderWidth: 1,
@@ -1222,17 +1222,17 @@ const styles = StyleSheet.create({
 
   // ── Today on site (top placement, promoted per super audit) ────
   todaySectionTop: {
-    paddingHorizontal: 12,
+    paddingHorizontal: Tokens.spacing.sm,
     marginTop: 0,
-    marginBottom: 12,
+    marginBottom: Tokens.spacing.sm,
   },
   todayHeaderTop: {
     fontSize: 11,
     fontWeight: '900' as const,
     color: Colors.textMuted,
     letterSpacing: 0.6,
-    marginBottom: 8,
-    marginLeft: 8,
+    marginBottom: Tokens.spacing.xs,
+    marginLeft: Tokens.spacing.xs,
   },
   todayCardTop: {
     backgroundColor: Colors.surface,
@@ -1244,9 +1244,9 @@ const styles = StyleSheet.create({
 
   // ── Today on site ──────────────────────────────────────────────
   todaySection: {
-    paddingHorizontal: 16,
-    marginTop: 8,
-    marginBottom: 4,
+    paddingHorizontal: Tokens.spacing.md,
+    marginTop: Tokens.spacing.xs,
+    marginBottom: Tokens.spacing.xxs,
   },
   todayCard: {
     backgroundColor: Colors.card,
@@ -1258,9 +1258,9 @@ const styles = StyleSheet.create({
   todayRow: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
-    gap: 12,
+    gap: Tokens.spacing.sm,
     paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingVertical: Tokens.spacing.sm,
   },
   todayRowDivider: {
     borderBottomWidth: 1,
@@ -1280,6 +1280,6 @@ const styles = StyleSheet.create({
   todayTasks: {
     fontSize: Type.caption1.fontSize,
     color: Colors.textMuted,
-    marginTop: 2,
+    marginTop: Tokens.spacing.hairline,
   },
 });

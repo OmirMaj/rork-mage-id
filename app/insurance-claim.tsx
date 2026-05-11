@@ -132,7 +132,7 @@ export default function InsuranceClaimScreen() {
           headerTitleStyle: { fontWeight: '700' as const, color: Colors.text },
         }}
       />
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 100 }}>
+      <ScrollView contentContainerStyle={{ padding: Tokens.spacing.md, paddingBottom: insets.bottom + 100 }}>
         <View style={styles.hero}>
           <View style={styles.heroIconWrap}>
             <ShieldCheck size={20} color={Colors.primary} />
@@ -356,10 +356,10 @@ const styles = StyleSheet.create({
   hero: {
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.lg,
-    padding: 16,
+    padding: Tokens.spacing.md,
     borderWidth: 1,
     borderColor: Colors.borderLight,
-    marginBottom: 16,
+    marginBottom: Tokens.spacing.md,
   },
   heroIconWrap: {
     width: 36,
@@ -368,7 +368,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary + '15',
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
-    marginBottom: 8,
+    marginBottom: Tokens.spacing.xs,
   },
   heroTitle: {
     fontSize: Type.title2.fontSize,
@@ -402,20 +402,20 @@ const styles = StyleSheet.create({
   helper: {
     fontSize: Type.caption1.fontSize,
     color: Colors.textMuted,
-    marginTop: 4,
+    marginTop: Tokens.spacing.xxs,
     lineHeight: 16,
   },
 
   typeRow: {
     flexDirection: 'row' as const,
     flexWrap: 'wrap' as const,
-    gap: 8,
+    gap: Tokens.spacing.xs,
   },
   typeBtn: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     gap: 6,
-    paddingHorizontal: 12,
+    paddingHorizontal: Tokens.spacing.sm,
     paddingVertical: 9,
     borderRadius: Tokens.radius.full,
     borderWidth: 1,
@@ -436,8 +436,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between' as const,
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.md,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
+    paddingHorizontal: Tokens.spacing.sm,
+    paddingVertical: Tokens.spacing.sm,
     borderWidth: 1,
     borderColor: Colors.borderLight,
   },
@@ -456,7 +456,7 @@ const styles = StyleSheet.create({
     alignItems: 'center' as const,
     justifyContent: 'space-between' as const,
     paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingVertical: Tokens.spacing.sm,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: Colors.borderLight,
   },
@@ -465,7 +465,7 @@ const styles = StyleSheet.create({
   input: {
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.md,
-    paddingHorizontal: 12,
+    paddingHorizontal: Tokens.spacing.sm,
     paddingVertical: Platform.OS === 'ios' ? 12 : 10,
     fontSize: Type.body.fontSize,
     color: Colors.text,
@@ -477,11 +477,11 @@ const styles = StyleSheet.create({
   previewCard: {
     backgroundColor: Colors.primary + '08',
     borderRadius: Tokens.radius.md,
-    padding: 12,
+    padding: Tokens.spacing.sm,
     borderWidth: 1,
     borderColor: Colors.primary + '30',
     marginTop: 22,
-    gap: 8,
+    gap: Tokens.spacing.xs,
   },
   previewTitle: {
     fontSize: Type.bodyCompact.fontSize,
@@ -491,7 +491,7 @@ const styles = StyleSheet.create({
   previewRow: {
     flexDirection: 'row' as const,
     alignItems: 'flex-start' as const,
-    gap: 8,
+    gap: Tokens.spacing.xs,
   },
   previewText: {
     flex: 1,
@@ -504,7 +504,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
-    gap: 8,
+    gap: Tokens.spacing.xs,
     paddingVertical: 14,
     marginTop: 22,
     borderRadius: Tokens.radius.md,

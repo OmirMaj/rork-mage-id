@@ -138,7 +138,7 @@ export default function OACActionsScreen() {
         }}
       />
       <ScrollView
-        contentContainerStyle={{ paddingTop: 12, paddingBottom: insets.bottom + 30 }}
+        contentContainerStyle={{ paddingTop: Tokens.spacing.sm, paddingBottom: insets.bottom + 30 }}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.headerRow}>
@@ -272,7 +272,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     justifyContent: 'space-between' as const,
-    paddingHorizontal: 16,
+    paddingHorizontal: Tokens.spacing.md,
     marginTop: 6,
   },
   headerTitle: {
@@ -287,20 +287,20 @@ const styles = StyleSheet.create({
     color: Colors.primary,
   },
   headerSub: {
-    paddingHorizontal: 16,
+    paddingHorizontal: Tokens.spacing.md,
     fontSize: Type.footnote.fontSize,
     color: Colors.textMuted,
-    marginBottom: 12,
+    marginBottom: Tokens.spacing.sm,
   },
 
   chipRow: {
     flexDirection: 'row' as const,
-    gap: 8,
-    paddingHorizontal: 16,
-    marginBottom: 12,
+    gap: Tokens.spacing.xs,
+    paddingHorizontal: Tokens.spacing.md,
+    marginBottom: Tokens.spacing.sm,
   },
   chip: {
-    paddingHorizontal: 12,
+    paddingHorizontal: Tokens.spacing.sm,
     paddingVertical: 7,
     borderRadius: Tokens.radius.full,
     borderWidth: 1,
@@ -318,7 +318,7 @@ const styles = StyleSheet.create({
   },
   chipTextActive: { color: Colors.background },
 
-  subEmpty: { paddingHorizontal: 24, paddingVertical: 18 },
+  subEmpty: { paddingHorizontal: Tokens.spacing.xl, paddingVertical: 18 },
   subEmptyText: {
     fontSize: Type.body.fontSize,
     color: Colors.textMuted,
@@ -328,7 +328,7 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.lg,
-    marginHorizontal: 16,
+    marginHorizontal: Tokens.spacing.md,
     marginBottom: 10,
     borderWidth: 1,
     borderColor: Colors.borderLight,
@@ -337,8 +337,8 @@ const styles = StyleSheet.create({
   cardBody: {
     flexDirection: 'row' as const,
     alignItems: 'flex-start' as const,
-    gap: 12,
-    padding: 12,
+    gap: Tokens.spacing.sm,
+    padding: Tokens.spacing.sm,
   },
   cardIconWrap: {
     width: 32,
@@ -358,20 +358,20 @@ const styles = StyleSheet.create({
     fontSize: Type.subhead.fontSize,
     fontWeight: '600' as const,
     color: Colors.text,
-    marginTop: 2,
+    marginTop: Tokens.spacing.hairline,
     lineHeight: 19,
   },
   metaRow: {
     flexDirection: 'row' as const,
     flexWrap: 'wrap' as const,
     gap: 6,
-    marginTop: 8,
+    marginTop: Tokens.spacing.xs,
   },
   metaPill: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
-    gap: 4,
-    paddingHorizontal: 8,
+    gap: Tokens.spacing.xxs,
+    paddingHorizontal: Tokens.spacing.xs,
     paddingVertical: 3,
     borderRadius: Tokens.radius.full,
     backgroundColor: Colors.background,
@@ -396,7 +396,7 @@ const styles = StyleSheet.create({
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
     gap: 6,
-    paddingVertical: 12,
+    paddingVertical: Tokens.spacing.sm,
   },
   actionBtnText: {
     fontSize: Type.bodyCompact.fontSize,
@@ -405,10 +405,10 @@ const styles = StyleSheet.create({
 
   footer: {
     flexDirection: 'row' as const,
-    gap: 8,
+    gap: Tokens.spacing.xs,
     alignItems: 'flex-start' as const,
     paddingHorizontal: 18,
-    paddingVertical: 16,
+    paddingVertical: Tokens.spacing.md,
     opacity: 0.7,
   },
   footerText: {

@@ -322,7 +322,7 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
         )}
 
         {/* Body — scroll area */}
-        <ScrollView style={styles.body} contentContainerStyle={{ paddingBottom: 24 }}>
+        <ScrollView style={styles.body} contentContainerStyle={{ paddingBottom: Tokens.spacing.xl }}>
           {busy && (
             <View style={styles.busyRow}>
               <ActivityIndicator size="small" color={Colors.primary} />
@@ -520,7 +520,7 @@ export default function AIAssistantPanel(props: AIAssistantPanelProps) {
                     Runs approximately{' '}
                     {Math.max(...genPreview.map(t => t.startDay + Math.max(0, t.durationDays - 1)))} days.
                   </Text>
-                  <View style={{ maxHeight: 220, marginTop: 8 }}>
+                  <View style={{ maxHeight: 220, marginTop: Tokens.spacing.xs }}>
                     <ScrollView>
                       {genPreview.slice(0, 50).map((t, i) => (
                         <Text key={t.id} style={styles.genPreviewRow} numberOfLines={1}>
@@ -795,7 +795,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
+    paddingHorizontal: Tokens.spacing.md,
     paddingVertical: 14,
     borderBottomWidth: 1,
     borderBottomColor: Colors.cardBorder,
@@ -811,10 +811,10 @@ const styles = StyleSheet.create({
   },
   headerTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
   headerSub: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, marginTop: 1 },
-  closeBtn: { padding: 4 },
+  closeBtn: { padding: Tokens.spacing.xxs },
 
   modeRow: {
-    paddingHorizontal: 12,
+    paddingHorizontal: Tokens.spacing.sm,
     paddingVertical: 10,
     gap: 6,
     borderBottomWidth: 1,
@@ -832,14 +832,14 @@ const styles = StyleSheet.create({
   modeChipActive: { backgroundColor: Colors.primary },
   modeChipText: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.primary },
 
-  body: { flex: 1, padding: 12 },
+  body: { flex: 1, padding: Tokens.spacing.sm },
 
-  busyRow: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12 },
+  busyRow: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs, padding: Tokens.spacing.sm },
   busyText: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, fontStyle: 'italic' },
 
   errorCard: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    padding: 10, marginBottom: 8,
+    flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs,
+    padding: 10, marginBottom: Tokens.spacing.xs,
     borderRadius: Tokens.radius.sm,
     backgroundColor: Colors.errorLight,
     borderWidth: 1,
@@ -847,7 +847,7 @@ const styles = StyleSheet.create({
   },
   errorText: { fontSize: Type.caption1.fontSize, color: Colors.error, flex: 1 },
 
-  statsRow: { flexDirection: 'row', gap: 10, marginBottom: 16 },
+  statsRow: { flexDirection: 'row', gap: 10, marginBottom: Tokens.spacing.md },
   statBox: {
     flex: 1,
     backgroundColor: Colors.fillSecondary,
@@ -856,14 +856,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   statNum: { fontSize: Type.title2.fontSize, fontWeight: '800', color: Colors.text },
-  statLabel: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, marginTop: 2, fontWeight: '600' },
+  statLabel: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, marginTop: Tokens.spacing.hairline, fontWeight: '600' },
 
-  sectionLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 },
-  quickGrid: { gap: 8 },
+  sectionLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: Tokens.spacing.xs },
+  quickGrid: { gap: Tokens.spacing.xs },
   quickBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: Tokens.spacing.sm,
     padding: 14,
     borderRadius: Tokens.radius.md,
     backgroundColor: Colors.surface,
@@ -882,21 +882,21 @@ const styles = StyleSheet.create({
     borderRadius: Tokens.radius.md,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
-    padding: 12,
+    padding: Tokens.spacing.sm,
     marginBottom: 10,
   },
-  cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
+  cardHeader: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs, marginBottom: Tokens.spacing.xxs },
   cardTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.text },
   cardBody: { fontSize: Type.caption1.fontSize, color: Colors.text, lineHeight: 18 },
   cardSuggestion: { fontSize: Type.caption1.fontSize, color: Colors.primary, marginTop: 6, fontWeight: '600' },
-  cardActions: { flexDirection: 'row', gap: 8, marginTop: 12 },
+  cardActions: { flexDirection: 'row', gap: Tokens.spacing.xs, marginTop: Tokens.spacing.sm },
 
   severityDot: { width: 8, height: 8, borderRadius: 4 },
   severityLabel: { fontSize: 9, fontWeight: '800' },
 
   saveBadge: {
     fontSize: Type.caption2.fontSize, fontWeight: '800', color: Colors.success,
-    paddingHorizontal: 6, paddingVertical: 2, borderRadius: Tokens.radius.xs,
+    paddingHorizontal: 6, paddingVertical: Tokens.spacing.hairline, borderRadius: Tokens.radius.xs,
     backgroundColor: Colors.success + '20',
   },
 
@@ -920,14 +920,14 @@ const styles = StyleSheet.create({
   chatTurn: { marginBottom: 14 },
   chatQ: {
     backgroundColor: Colors.primary,
-    paddingHorizontal: 12, paddingVertical: 8,
+    paddingHorizontal: Tokens.spacing.sm, paddingVertical: Tokens.spacing.xs,
     borderRadius: Tokens.radius.card, alignSelf: 'flex-end',
-    maxWidth: '90%', marginBottom: 4,
+    maxWidth: '90%', marginBottom: Tokens.spacing.xxs,
   },
   chatQText: { color: '#fff', fontSize: Type.caption1.fontSize },
   chatA: {
     backgroundColor: Colors.fillSecondary,
-    paddingHorizontal: 12, paddingVertical: 8,
+    paddingHorizontal: Tokens.spacing.sm, paddingVertical: Tokens.spacing.xs,
     borderRadius: Tokens.radius.card, alignSelf: 'flex-start',
     maxWidth: '95%',
   },
@@ -935,12 +935,12 @@ const styles = StyleSheet.create({
 
   patchRow: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
-    paddingVertical: 8,
+    paddingVertical: Tokens.spacing.xs,
     borderTopWidth: 1, borderTopColor: Colors.borderLight,
   },
   patchTitle: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: Colors.text },
   patchDetail: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, marginTop: 1 },
-  patchRationale: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontStyle: 'italic', marginTop: 2 },
+  patchRationale: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontStyle: 'italic', marginTop: Tokens.spacing.hairline },
 
   applyBtn: {
     width: 28, height: 28, borderRadius: Tokens.radius.lg,
@@ -948,20 +948,20 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   applyAllBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    paddingHorizontal: 8, paddingVertical: 4, borderRadius: Tokens.radius.card,
+    flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xxs,
+    paddingHorizontal: Tokens.spacing.xs, paddingVertical: Tokens.spacing.xxs, borderRadius: Tokens.radius.card,
     backgroundColor: Colors.primary,
   },
   applyAllBtnText: { color: '#fff', fontSize: 10, fontWeight: '700' },
 
   primaryBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-    paddingHorizontal: 12, paddingVertical: 10,
+    paddingHorizontal: Tokens.spacing.sm, paddingVertical: 10,
     borderRadius: Tokens.radius.sm, backgroundColor: Colors.primary,
   },
   primaryBtnText: { color: '#fff', fontSize: Type.caption1.fontSize, fontWeight: '700' },
   secondaryBtn: {
-    paddingHorizontal: 12, paddingVertical: 10,
+    paddingHorizontal: Tokens.spacing.sm, paddingVertical: 10,
     borderRadius: Tokens.radius.sm,
     borderWidth: 1, borderColor: Colors.cardBorder,
     backgroundColor: Colors.surface,
@@ -973,7 +973,7 @@ const styles = StyleSheet.create({
   inputBar: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    gap: 8,
+    gap: Tokens.spacing.xs,
     padding: 10,
     borderTopWidth: 1,
     borderTopColor: Colors.cardBorder,
@@ -984,7 +984,7 @@ const styles = StyleSheet.create({
     maxHeight: 80,
     minHeight: 36,
     paddingHorizontal: 10,
-    paddingVertical: 8,
+    paddingVertical: Tokens.spacing.xs,
     borderRadius: Tokens.radius.xl,
     backgroundColor: Colors.surface,
     borderWidth: 1,
@@ -1001,8 +1001,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: Tokens.spacing.sm,
+    paddingVertical: Tokens.spacing.xs,
     backgroundColor: Colors.primary + '12',
     borderBottomWidth: 1,
     borderBottomColor: Colors.primary + '30',
@@ -1018,7 +1018,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   cachedPill: {
-    paddingHorizontal: 8,
+    paddingHorizontal: Tokens.spacing.xs,
     paddingVertical: 3,
     borderRadius: Tokens.radius.md,
     backgroundColor: Colors.textSecondary + '22',
@@ -1034,8 +1034,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    padding: 8,
-    marginTop: 4,
+    padding: Tokens.spacing.xs,
+    marginTop: Tokens.spacing.xxs,
     marginBottom: 6,
     borderRadius: Tokens.radius.xs,
     backgroundColor: Colors.warning + '18',

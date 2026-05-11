@@ -437,10 +437,10 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
+    paddingHorizontal: Tokens.spacing.sm,
     paddingTop: 10,
-    paddingBottom: 8,
-    gap: 8,
+    paddingBottom: Tokens.spacing.xs,
+    gap: Tokens.spacing.xs,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: Colors.border,
     backgroundColor: Colors.background,
@@ -452,7 +452,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.fillTertiary,
     borderRadius: Tokens.radius.md,
     paddingHorizontal: 10,
-    gap: 8,
+    gap: Tokens.spacing.xs,
     height: 40,
   },
   input: {
@@ -466,18 +466,18 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
     backgroundColor: Colors.border,
   },
-  cancelBtn: { paddingHorizontal: 6, paddingVertical: 8 },
+  cancelBtn: { paddingHorizontal: 6, paddingVertical: Tokens.spacing.xs },
   cancelText: { fontSize: Type.subhead.fontSize, color: Colors.primary, fontWeight: '500' },
 
   body: { flex: 1 },
-  bodyContent: { paddingTop: 8, paddingBottom: 32 },
+  bodyContent: { paddingTop: Tokens.spacing.xs, paddingBottom: Tokens.spacing['2xl'] },
 
   sectionHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingTop: 12,
+    paddingHorizontal: Tokens.spacing.md,
+    paddingTop: Tokens.spacing.sm,
     paddingBottom: 6,
   },
   sectionHeader: {
@@ -493,14 +493,14 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
 
-  group: { marginBottom: 4 },
+  group: { marginBottom: Tokens.spacing.xxs },
 
   resultRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
+    paddingHorizontal: Tokens.spacing.md,
     paddingVertical: 10,
-    gap: 12,
+    gap: Tokens.spacing.sm,
   },
   resultIcon: {
     width: 34, height: 34, borderRadius: Tokens.radius.md,
@@ -509,15 +509,15 @@ const styles = StyleSheet.create({
   },
   resultBody: { flex: 1 },
   resultTitle: { fontSize: Type.subhead.fontSize, fontWeight: '600', color: Colors.text },
-  resultSubtitle: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, marginTop: 2 },
-  resultSnippet: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2 },
+  resultSubtitle: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, marginTop: Tokens.spacing.hairline },
+  resultSnippet: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: Tokens.spacing.hairline },
 
   recentRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
+    paddingHorizontal: Tokens.spacing.md,
     paddingVertical: 10,
-    gap: 12,
+    gap: Tokens.spacing.sm,
   },
   recentIcon: {
     width: 30, height: 30, borderRadius: Tokens.radius.sm,
@@ -529,7 +529,7 @@ const styles = StyleSheet.create({
   searchingRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
+    paddingHorizontal: Tokens.spacing.md,
     paddingVertical: 10,
     gap: 10,
   },
@@ -537,7 +537,7 @@ const styles = StyleSheet.create({
 
   emptyState: {
     alignItems: 'center',
-    paddingHorizontal: 32,
+    paddingHorizontal: Tokens.spacing['2xl'],
     paddingTop: 48,
     gap: 10,
   },
@@ -545,7 +545,7 @@ const styles = StyleSheet.create({
     width: 56, height: 56, borderRadius: Tokens.radius.panel,
     backgroundColor: Colors.fillTertiary,
     alignItems: 'center', justifyContent: 'center',
-    marginBottom: 4,
+    marginBottom: Tokens.spacing.xxs,
   },
   emptyTitle: { fontSize: Type.body.fontSize, fontWeight: '700', color: Colors.text, textAlign: 'center' },
   emptyBody: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, textAlign: 'center', lineHeight: 20 },

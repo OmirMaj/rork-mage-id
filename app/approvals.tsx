@@ -230,7 +230,7 @@ export default function ApprovalsScreen() {
   return (
     <View style={styles.container}>
       <Stack.Screen options={{ title: 'Approvals', headerStyle: { backgroundColor: Colors.background }, headerTintColor: Colors.primary, headerTitleStyle: { fontWeight: '700' as const, color: Colors.text } }} />
-      <ScrollView contentContainerStyle={{ paddingTop: 12, paddingBottom: insets.bottom + 30 }} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={{ paddingTop: Tokens.spacing.sm, paddingBottom: insets.bottom + 30 }} showsVerticalScrollIndicator={false}>
         <View style={styles.headerRow}>
           <Text style={styles.headerTitle}>Needs your decision</Text>
           <Text style={styles.headerCount}>{items.length}</Text>
@@ -316,24 +316,24 @@ export default function ApprovalsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
-  headerRow: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'space-between' as const, paddingHorizontal: 16, marginTop: 6 },
+  headerRow: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'space-between' as const, paddingHorizontal: Tokens.spacing.md, marginTop: 6 },
   headerTitle: { fontSize: Type.title2.fontSize, fontWeight: '800' as const, color: Colors.text, letterSpacing: -0.4 },
   headerCount: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: Colors.primary },
-  headerSub: { paddingHorizontal: 16, fontSize: Type.footnote.fontSize, color: Colors.textMuted, marginBottom: 12 },
+  headerSub: { paddingHorizontal: Tokens.spacing.md, fontSize: Type.footnote.fontSize, color: Colors.textMuted, marginBottom: Tokens.spacing.sm },
 
-  card: { backgroundColor: Colors.surface, borderRadius: Tokens.radius.lg, marginHorizontal: 16, marginBottom: 10, borderWidth: 1, borderColor: Colors.borderLight, overflow: 'hidden' as const },
-  cardBody: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 12, padding: 12 },
+  card: { backgroundColor: Colors.surface, borderRadius: Tokens.radius.lg, marginHorizontal: Tokens.spacing.md, marginBottom: 10, borderWidth: 1, borderColor: Colors.borderLight, overflow: 'hidden' as const },
+  cardBody: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: Tokens.spacing.sm, padding: Tokens.spacing.sm },
   cardIconWrap: { width: 32, height: 32, borderRadius: Tokens.radius.sm, alignItems: 'center' as const, justifyContent: 'center' as const },
   cardProject: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: Colors.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.4 },
-  cardTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text, marginTop: 2 },
-  cardSub: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, marginTop: 2 },
+  cardTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text, marginTop: Tokens.spacing.hairline },
+  cardSub: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, marginTop: Tokens.spacing.hairline },
 
   cardActions: { flexDirection: 'row' as const, borderTopWidth: 1, borderTopColor: Colors.borderLight },
-  actionBtn: { flex: 1, flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 6, paddingVertical: 12 },
+  actionBtn: { flex: 1, flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 6, paddingVertical: Tokens.spacing.sm },
   actionApprove: { borderRightWidth: 1, borderRightColor: Colors.borderLight },
   actionReject: {},
   actionBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const },
 
-  footer: { flexDirection: 'row' as const, gap: 8, alignItems: 'flex-start' as const, paddingHorizontal: 18, paddingVertical: 16, opacity: 0.7 },
+  footer: { flexDirection: 'row' as const, gap: Tokens.spacing.xs, alignItems: 'flex-start' as const, paddingHorizontal: 18, paddingVertical: Tokens.spacing.md, opacity: 0.7 },
   footerText: { flex: 1, fontSize: Type.caption2.fontSize, color: Colors.textMuted, lineHeight: 14 },
 });

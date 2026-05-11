@@ -329,7 +329,7 @@ export default function HandoverScreen() {
           <Text style={styles.loadingText}>Computing your status…</Text>
         </View>
       ) : (
-        <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 40 }}>
+        <ScrollView contentContainerStyle={{ padding: Tokens.spacing.md, paddingBottom: insets.bottom + 40 }}>
           {/* Progress hero */}
           <View style={[styles.heroCard, allDone && styles.heroCardDone]}>
             <View style={styles.heroHead}>
@@ -430,41 +430,41 @@ const styles = StyleSheet.create({
 
   header: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 10,
-    paddingHorizontal: 16, paddingTop: 14, paddingBottom: 14,
+    paddingHorizontal: Tokens.spacing.md, paddingTop: 14, paddingBottom: 14,
     borderBottomWidth: 1, borderBottomColor: Colors.border,
   },
   eyebrow: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.primary, letterSpacing: 1.4, textTransform: 'uppercase' },
-  title:   { fontSize: Type.title3.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.4, marginTop: 4 },
+  title:   { fontSize: Type.title3.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.4, marginTop: Tokens.spacing.xxs },
   emptyTitle: { fontSize: Type.callout.fontSize, fontWeight: '800', color: Colors.text },
-  emptyBack: { marginTop: 12, paddingHorizontal: 18, paddingVertical: 10, borderRadius: Tokens.radius.md, backgroundColor: Colors.primary },
+  emptyBack: { marginTop: Tokens.spacing.sm, paddingHorizontal: 18, paddingVertical: 10, borderRadius: Tokens.radius.md, backgroundColor: Colors.primary },
   emptyBackText: { color: '#FFF', fontWeight: '800', fontSize: Type.footnote.fontSize },
 
   heroCard: {
     backgroundColor: Colors.primary + '0D', borderWidth: 1, borderColor: Colors.primary + '30',
-    borderRadius: Tokens.radius.lg, padding: 16, marginBottom: 16,
+    borderRadius: Tokens.radius.lg, padding: Tokens.spacing.md, marginBottom: Tokens.spacing.md,
   },
   heroCardDone: {
     backgroundColor: 'rgba(30,142,74,0.08)', borderColor: 'rgba(30,142,74,0.35)',
   },
-  heroHead: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
+  heroHead: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs, marginBottom: 6 },
   heroTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800', color: Colors.primary, letterSpacing: -0.2 },
-  heroBody: { fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 18, marginBottom: 12 },
+  heroBody: { fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 18, marginBottom: Tokens.spacing.sm },
   progressTrack: { height: 6, backgroundColor: Colors.fillTertiary, borderRadius: 4, overflow: 'hidden' },
   progressFill: { height: '100%', borderRadius: 4 },
 
-  listLabel: { fontSize: Type.caption2.fontSize, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 8, marginLeft: 2 },
+  listLabel: { fontSize: Type.caption2.fontSize, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: Tokens.spacing.xs, marginLeft: Tokens.spacing.hairline },
 
   row: {
-    flexDirection: 'row', gap: 12, padding: 14,
+    flexDirection: 'row', gap: Tokens.spacing.sm, padding: 14,
     backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,
-    borderRadius: Tokens.radius.card, marginBottom: 8,
+    borderRadius: Tokens.radius.card, marginBottom: Tokens.spacing.xs,
   },
   rowDone: { opacity: 0.85 },
   rowIcon: { width: 36, height: 36, borderRadius: Tokens.radius.md, alignItems: 'center', justifyContent: 'center' },
-  rowHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  rowHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Tokens.spacing.xs },
   rowLabel: { flex: 1, fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text, letterSpacing: -0.2 },
-  rowDetail: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, lineHeight: 17, marginTop: 4 },
-  rowCta: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 8 },
+  rowDetail: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, lineHeight: 17, marginTop: Tokens.spacing.xxs },
+  rowCta: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: Tokens.spacing.xs },
   rowCtaText: { fontSize: Type.caption1.fontSize, fontWeight: '800', color: Colors.primary },
   rowCtaManual: { color: Colors.textMuted, fontWeight: '700' },
 

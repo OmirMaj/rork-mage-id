@@ -281,7 +281,7 @@ export default function PostRfpScreen() {
       </View>
 
       <ScrollView
-        contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 100 }}
+        contentContainerStyle={{ padding: Tokens.spacing.md, paddingBottom: insets.bottom + 100 }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
@@ -464,7 +464,7 @@ export default function PostRfpScreen() {
           <View style={styles.dateRow}>
             <Calendar size={14} color={Colors.textMuted} />
             <TextInput
-              style={[styles.input, { flex: 1, marginLeft: 8 }]}
+              style={[styles.input, { flex: 1, marginLeft: Tokens.spacing.xs }]}
               value={desiredStart}
               onChangeText={setDesiredStart}
               placeholder="e.g. Mid-July or 2026-08-15"
@@ -476,7 +476,7 @@ export default function PostRfpScreen() {
           <View style={styles.dateRow}>
             <Calendar size={14} color={Colors.textMuted} />
             <TextInput
-              style={[styles.input, { flex: 1, marginLeft: 8 }]}
+              style={[styles.input, { flex: 1, marginLeft: Tokens.spacing.xs }]}
               value={deadline}
               onChangeText={setDeadline}
               placeholder="Defaults to 14 days from today"
@@ -531,49 +531,49 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   header: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 10,
-    paddingHorizontal: 16, paddingTop: 14, paddingBottom: 16,
+    paddingHorizontal: Tokens.spacing.md, paddingTop: 14, paddingBottom: Tokens.spacing.md,
     borderBottomWidth: 1, borderBottomColor: Colors.border,
   },
   eyebrow: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.primary, letterSpacing: 1.4, textTransform: 'uppercase' },
-  title: { fontSize: Type.title2.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.4, marginTop: 4 },
+  title: { fontSize: Type.title2.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.4, marginTop: Tokens.spacing.xxs },
 
   card: {
     backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 14,
     borderWidth: 1, borderColor: Colors.border, marginBottom: 14,
   },
-  cardHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 8 },
+  cardHead: { flexDirection: 'row', alignItems: 'flex-start', gap: Tokens.spacing.xs, marginBottom: Tokens.spacing.xs },
   label:  { fontSize: Type.caption1.fontSize, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 6 },
   helper: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginBottom: 10, lineHeight: 17 },
-  charCount: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, alignSelf: 'flex-end', marginTop: 4 },
+  charCount: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, alignSelf: 'flex-end', marginTop: Tokens.spacing.xxs },
 
   input: {
     backgroundColor: Colors.background,
     borderWidth: 1, borderColor: Colors.border, borderRadius: Tokens.radius.md,
-    paddingHorizontal: 12, paddingVertical: 11,
+    paddingHorizontal: Tokens.spacing.sm, paddingVertical: 11,
     fontSize: Type.bodyCompact.fontSize, color: Colors.text,
   },
   inputMultiline: { minHeight: 100, paddingTop: 11 },
 
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   chip: {
-    paddingHorizontal: 12, paddingVertical: 8, borderRadius: 9,
+    paddingHorizontal: Tokens.spacing.sm, paddingVertical: Tokens.spacing.xs, borderRadius: 9,
     backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border,
   },
   chipActive: { backgroundColor: Colors.text, borderColor: Colors.text },
   chipText:  { fontSize: Type.footnote.fontSize, fontWeight: '600', color: Colors.text },
   chipTextActive: { color: '#FFF' },
 
-  addressRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  addressRow: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs },
   verifyBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: 14, paddingVertical: 11, borderRadius: Tokens.radius.md,
     backgroundColor: Colors.primary,
   },
   verifyBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: '#FFF' },
-  verifiedRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 },
+  verifiedRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: Tokens.spacing.xs },
   verifiedText: { fontSize: Type.caption1.fontSize, color: Colors.success, fontWeight: '600' },
 
-  attachmentGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 4 },
+  attachmentGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: Tokens.spacing.xxs },
   attachmentTile: {
     width: 88, height: 88, borderRadius: Tokens.radius.md, overflow: 'hidden',
     backgroundColor: Colors.background, position: 'relative',
@@ -586,18 +586,18 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   drawingTilePlaceholder: {
-    flex: 1, alignItems: 'center', justifyContent: 'center', gap: 4, padding: 6,
+    flex: 1, alignItems: 'center', justifyContent: 'center', gap: Tokens.spacing.xxs, padding: 6,
   },
   drawingTileName: { fontSize: 9, color: Colors.text, textAlign: 'center', lineHeight: 11 },
   addTile: {
     width: 88, height: 88, borderRadius: Tokens.radius.md,
     backgroundColor: Colors.primary + '0D',
     borderWidth: 1.5, borderColor: Colors.primary + '40', borderStyle: 'dashed',
-    alignItems: 'center', justifyContent: 'center', gap: 4,
+    alignItems: 'center', justifyContent: 'center', gap: Tokens.spacing.xxs,
   },
   addTileText: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.primary },
 
-  budgetRow:    { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  budgetRow:    { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs },
   budgetField:  { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: Colors.background, borderRadius: Tokens.radius.md, borderWidth: 1, borderColor: Colors.border, paddingHorizontal: 10 },
   budgetInput:  { flex: 1, paddingVertical: 11, fontSize: Type.bodyCompact.fontSize, color: Colors.text },
   budgetDash:   { fontSize: Type.callout.fontSize, color: Colors.textMuted },
@@ -613,7 +613,7 @@ const styles = StyleSheet.create({
   errorText: { flex: 1, fontSize: Type.footnote.fontSize, color: Colors.error, lineHeight: 18 },
 
   submitBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Tokens.spacing.xs,
     paddingVertical: 14, borderRadius: Tokens.radius.card,
     backgroundColor: Colors.primary,
     shadowColor: Colors.primary, shadowOffset: { width: 0, height: 4 },
@@ -622,5 +622,5 @@ const styles = StyleSheet.create({
   submitBtnDisabled: { opacity: 0.6 },
   submitBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '800', color: '#FFF', letterSpacing: 0.2 },
 
-  disclaimer: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, textAlign: 'center', marginTop: 14, fontStyle: 'italic', paddingHorizontal: 16, lineHeight: 16 },
+  disclaimer: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, textAlign: 'center', marginTop: 14, fontStyle: 'italic', paddingHorizontal: Tokens.spacing.md, lineHeight: 16 },
 });

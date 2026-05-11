@@ -12,6 +12,7 @@
 import React, { ReactNode, useEffect, useRef } from 'react';
 import { Animated, Easing, StyleSheet, View, ViewStyle } from 'react-native';
 import { Colors } from '@/constants/colors';
+import { Tokens } from '@/constants/designTokens';
 
 interface BlueprintRevealProps {
   children: ReactNode;
@@ -90,7 +91,7 @@ const styles = StyleSheet.create({
     width: '100%',
     overflow: 'hidden',
     alignItems: 'center',
-    marginBottom: 2,
+    marginBottom: Tokens.spacing.hairline,
   },
   tape: {
     height: 2,

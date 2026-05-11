@@ -118,7 +118,7 @@ export default function MyRfpsScreen() {
       </View>
 
       <ScrollView
-        contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 80 }}
+        contentContainerStyle={{ padding: Tokens.spacing.md, paddingBottom: insets.bottom + 80 }}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
@@ -247,27 +247,27 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   header: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 10,
-    paddingHorizontal: 16, paddingTop: 14, paddingBottom: 16,
+    paddingHorizontal: Tokens.spacing.md, paddingTop: 14, paddingBottom: Tokens.spacing.md,
     borderBottomWidth: 1, borderBottomColor: Colors.border,
   },
   eyebrow: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.primary, letterSpacing: 1.4, textTransform: 'uppercase' },
-  title:   { fontSize: Type.title2.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.4, marginTop: 4 },
+  title:   { fontSize: Type.title2.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.4, marginTop: Tokens.spacing.xxs },
   headerCta: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
-    paddingHorizontal: 12, paddingVertical: 8, borderRadius: 9,
+    paddingHorizontal: Tokens.spacing.sm, paddingVertical: Tokens.spacing.xs, borderRadius: 9,
     backgroundColor: Colors.primary,
   },
   headerCtaText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: '#FFF' },
 
   statsRow: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 16,
+    backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: Tokens.spacing.md,
     borderWidth: 1, borderColor: Colors.border,
     marginBottom: 14,
   },
   statItem: { flex: 1, alignItems: 'center' },
   statValue: { fontSize: Type.title2.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.5 },
-  statLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.6, marginTop: 4 },
+  statLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.6, marginTop: Tokens.spacing.xxs },
   statDivider: { width: 1, alignSelf: 'stretch', backgroundColor: Colors.border, marginVertical: 6 },
 
   loadingCard: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 18, justifyContent: 'center' },
@@ -276,38 +276,38 @@ const styles = StyleSheet.create({
   emptyCard: {
     backgroundColor: Colors.card, borderRadius: Tokens.radius.panel, padding: 28,
     borderWidth: 1, borderColor: Colors.border,
-    alignItems: 'center', gap: 8, marginTop: 22,
+    alignItems: 'center', gap: Tokens.spacing.xs, marginTop: 22,
   },
   emptyIconWrap: {
     width: 64, height: 64, borderRadius: Tokens.radius.xl,
     backgroundColor: Colors.primary + '15',
     alignItems: 'center', justifyContent: 'center', marginBottom: 6,
   },
-  emptyTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: Colors.text, marginTop: 4 },
+  emptyTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: Colors.text, marginTop: Tokens.spacing.xxs },
   emptyBody: { fontSize: Type.footnote.fontSize, color: Colors.text, textAlign: 'center', lineHeight: 19, maxWidth: 320 },
   emptyCta: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: 18, paddingVertical: 11, borderRadius: Tokens.radius.card,
-    backgroundColor: Colors.primary, marginTop: 12,
+    backgroundColor: Colors.primary, marginTop: Tokens.spacing.sm,
   },
   emptyCtaText: { color: '#FFF', fontSize: Type.bodyCompact.fontSize, fontWeight: '700' },
 
   rfpCard: {
     backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, overflow: 'hidden',
     borderWidth: 1, borderColor: Colors.border,
-    marginBottom: 12,
+    marginBottom: Tokens.spacing.sm,
   },
   rfpHero: { width: '100%', height: 140, backgroundColor: Colors.background },
   rfpHeroPlaceholder: { alignItems: 'center', justifyContent: 'center' },
   rfpBody: { padding: 14, gap: 6 },
-  rfpHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  rfpHead: { flexDirection: 'row', alignItems: 'flex-start', gap: Tokens.spacing.xs },
   rfpTitle: { flex: 1, fontSize: Type.subhead.fontSize, fontWeight: '700', color: Colors.text, lineHeight: 21 },
-  statusPill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 7, paddingVertical: 3, borderRadius: Tokens.radius.full },
+  statusPill: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xxs, paddingHorizontal: 7, paddingVertical: 3, borderRadius: Tokens.radius.full },
   statusPillText: { fontSize: 9, fontWeight: '800', letterSpacing: 0.6 },
   rfpMeta: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   rfpMetaText: { flex: 1, fontSize: Type.caption1.fontSize, color: Colors.textMuted, fontWeight: '600' },
   rfpBudget: { fontSize: Type.caption1.fontSize, color: Colors.text, fontWeight: '600' },
-  rfpFoot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 6, paddingTop: 8, borderTopWidth: 1, borderTopColor: Colors.border },
+  rfpFoot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 6, paddingTop: Tokens.spacing.xs, borderTopWidth: 1, borderTopColor: Colors.border },
   rfpResponseChip: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   rfpResponseChipText: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: Colors.text },
   unreadDot: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: Tokens.radius.full, backgroundColor: Colors.primary, minWidth: 18, alignItems: 'center' },

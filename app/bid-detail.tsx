@@ -318,14 +318,14 @@ export default function BidDetailScreen() {
               </View>
             </View>
             <View style={bidDesktopStyles.sideCol}>
-              {trackedBid && <View style={[styles.statusBadgeLarge, { backgroundColor: STATUS_COLORS[trackedBid.status]?.bg ?? Colors.infoLight, marginBottom: 12 }]}><Text style={[styles.statusBadgeLargeText, { color: STATUS_COLORS[trackedBid.status]?.text ?? Colors.infoDark }]}>{STATUS_LABELS[trackedBid.status]}</Text></View>}
+              {trackedBid && <View style={[styles.statusBadgeLarge, { backgroundColor: STATUS_COLORS[trackedBid.status]?.bg ?? Colors.infoLight, marginBottom: Tokens.spacing.sm }]}><Text style={[styles.statusBadgeLargeText, { color: STATUS_COLORS[trackedBid.status]?.text ?? Colors.infoDark }]}>{STATUS_LABELS[trackedBid.status]}</Text></View>}
               <View style={[styles.statsGrid, { padding: 0, flexDirection: 'column' as const }]}>
                 <View style={[styles.statCard, { width: '100%' as any }]}><DollarSign size={18} color={Colors.primary} /><Text style={styles.statLabel}>Estimated Value</Text><Text style={styles.statValue}>{formatCurrency(estimatedValue)}</Text></View>
                 <View style={[styles.statCard, { width: '100%' as any }]}><Clock size={18} color={countdown.urgent ? Colors.error : Colors.textSecondary} /><Text style={styles.statLabel}>Deadline</Text><Text style={[styles.statValue, countdown.urgent && { color: Colors.error }]}>{countdown.text}</Text><Text style={styles.statSub}>{formatDate(deadline)}</Text></View>
                 <View style={[styles.statCard, { width: '100%' as any }]}><Shield size={18} color={Colors.accent} /><Text style={styles.statLabel}>Bond Required</Text><Text style={styles.statValue}>{formatCurrency(bondRequired)}</Text></View>
               </View>
               {(contactEmail || contactPhone) ? (
-                <View style={[styles.contactCard, { marginTop: 12 }]}>
+                <View style={[styles.contactCard, { marginTop: Tokens.spacing.sm }]}>
                   {postedBy ? <Text style={styles.postedLabel}>Posted by: {postedBy}</Text> : null}
                   <View style={styles.contactActions}>
                     {contactEmail ? <TouchableOpacity style={styles.contactBtn} onPress={() => void Linking.openURL(buildMailtoUrl({
@@ -345,7 +345,7 @@ export default function BidDetailScreen() {
                   {sourceUrl ? <TouchableOpacity style={styles.sourceLink} onPress={() => void Linking.openURL(sourceUrl)}><Globe size={14} color={Colors.primary} /><Text style={styles.sourceLinkText}>{sourceName || 'View on Portal'}</Text><ExternalLink size={12} color={Colors.primary} /></TouchableOpacity> : null}
                 </View>
               ) : null}
-              <View style={[styles.contactActions, { marginTop: 12, flexDirection: 'column' as const, gap: 8 }]}>
+              <View style={[styles.contactActions, { marginTop: Tokens.spacing.sm, flexDirection: 'column' as const, gap: Tokens.spacing.xs }]}>
                 <TouchableOpacity style={[styles.actionBtn, trackedBid ? styles.actionBtnSaved : styles.actionBtnOutline, { width: '100%' as any, justifyContent: 'center' as const }]} onPress={handleToggleSave} activeOpacity={0.8}>
                   <Heart size={18} color={trackedBid ? '#FFF' : Colors.primary} fill={trackedBid ? '#FFF' : 'none'} />
                   <Text style={[styles.actionBtnText, trackedBid ? styles.actionBtnTextSaved : styles.actionBtnTextOutline]}>{trackedBid ? 'Saved' : 'Save Bid'}</Text>
@@ -689,71 +689,71 @@ export default function BidDetailScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   scroll: { flex: 1 },
-  scrollContent: { paddingBottom: 40 },
-  centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
+  scrollContent: { paddingBottom: Tokens.spacing['3xl'] },
+  centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: Tokens.spacing.sm },
   loadingText: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary },
   errorText: { fontSize: Type.callout.fontSize, color: Colors.textSecondary },
-  topCard: { backgroundColor: Colors.surface, padding: 20, borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight },
-  topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  topCard: { backgroundColor: Colors.surface, padding: Tokens.spacing.lg, borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight },
+  topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Tokens.spacing.sm },
   topBadges: { flexDirection: 'row', gap: 6, flex: 1 },
-  typeBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: Tokens.radius.xs },
+  typeBadge: { paddingHorizontal: 10, paddingVertical: Tokens.spacing.xxs, borderRadius: Tokens.radius.xs },
   typeBadgeText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, textTransform: 'uppercase' as const },
-  statusBadgeLarge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: Tokens.radius.sm },
+  statusBadgeLarge: { paddingHorizontal: 10, paddingVertical: Tokens.spacing.xxs, borderRadius: Tokens.radius.sm },
   statusBadgeLargeText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const },
   bidTitle: { fontSize: Type.title2.fontSize, fontWeight: '800' as const, color: Colors.text, lineHeight: 28, marginBottom: 6 },
-  agency: { fontSize: Type.subhead.fontSize, color: Colors.textSecondary, marginBottom: 8 },
-  locationRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  agency: { fontSize: Type.subhead.fontSize, color: Colors.textSecondary, marginBottom: Tokens.spacing.xs },
+  locationRow: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xxs },
   locationText: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary },
-  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', padding: 12, gap: 8 },
-  statCard: { width: '47%' as any, backgroundColor: Colors.surface, padding: 14, borderRadius: Tokens.radius.card, alignItems: 'center', gap: 4 },
+  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', padding: Tokens.spacing.sm, gap: Tokens.spacing.xs },
+  statCard: { width: '47%' as any, backgroundColor: Colors.surface, padding: 14, borderRadius: Tokens.radius.card, alignItems: 'center', gap: Tokens.spacing.xxs },
   statLabel: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, textTransform: 'uppercase' as const, fontWeight: '600' as const },
   statValue: { fontSize: Type.callout.fontSize, fontWeight: '800' as const, color: Colors.text, textAlign: 'center' as const },
   statSub: { fontSize: Type.caption2.fontSize, color: Colors.textMuted },
-  section: { backgroundColor: Colors.surface, padding: 20, marginTop: 8 },
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  sectionTitle: { fontSize: Type.body.fontSize, fontWeight: '700' as const, color: Colors.text, marginBottom: 8 },
-  sectionSubtitle: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, marginBottom: 12 },
+  section: { backgroundColor: Colors.surface, padding: Tokens.spacing.lg, marginTop: Tokens.spacing.xs },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs },
+  sectionTitle: { fontSize: Type.body.fontSize, fontWeight: '700' as const, color: Colors.text, marginBottom: Tokens.spacing.xs },
+  sectionSubtitle: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, marginBottom: Tokens.spacing.sm },
   description: { fontSize: Type.subhead.fontSize, color: Colors.text, lineHeight: 22 },
-  dateGrid: { gap: 12 },
+  dateGrid: { gap: Tokens.spacing.sm },
   dateItem: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   dateLabel: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, fontWeight: '500' as const },
   dateValue: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
   reqGrid: { gap: 10 },
-  reqItem: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  reqItem: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs },
   reqLabel: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, flex: 1 },
   reqValue: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
-  certGrid: { gap: 8 },
-  certCard: { backgroundColor: Colors.background, padding: 12, borderRadius: Tokens.radius.sm, borderLeftWidth: 3 },
-  certShort: { fontSize: Type.footnote.fontSize, fontWeight: '800' as const, marginBottom: 2 },
+  certGrid: { gap: Tokens.spacing.xs },
+  certCard: { backgroundColor: Colors.background, padding: Tokens.spacing.sm, borderRadius: Tokens.radius.sm, borderLeftWidth: 3 },
+  certShort: { fontSize: Type.footnote.fontSize, fontWeight: '800' as const, marginBottom: Tokens.spacing.hairline },
   certFull: { fontSize: Type.footnote.fontSize, color: Colors.text },
-  certSource: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 2 },
+  certSource: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: Tokens.spacing.hairline },
   countBadge: { backgroundColor: Colors.primary, borderRadius: Tokens.radius.md, width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
   countText: { color: '#FFF', fontSize: Type.caption1.fontSize, fontWeight: '700' as const },
-  noResults: { fontSize: Type.bodyCompact.fontSize, color: Colors.textMuted, textAlign: 'center' as const, paddingVertical: 20 },
-  companyRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight },
+  noResults: { fontSize: Type.bodyCompact.fontSize, color: Colors.textMuted, textAlign: 'center' as const, paddingVertical: Tokens.spacing.lg },
+  companyRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: Tokens.spacing.sm, borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight },
   companyInfo: { flex: 1 },
-  companyName: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: Colors.text, marginBottom: 2 },
+  companyName: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: Colors.text, marginBottom: Tokens.spacing.hairline },
   companyMeta: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary },
-  companyCerts: { flexDirection: 'row', gap: 4, marginTop: 4 },
+  companyCerts: { flexDirection: 'row', gap: Tokens.spacing.xxs, marginTop: Tokens.spacing.xxs },
   miniCertBadge: { backgroundColor: Colors.successLight, paddingHorizontal: 6, paddingVertical: 1, borderRadius: 3 },
   miniCertText: { fontSize: 9, fontWeight: '700' as const, color: Colors.successDark },
-  contactCard: { backgroundColor: Colors.background, padding: 16, borderRadius: Tokens.radius.card, gap: 8 },
+  contactCard: { backgroundColor: Colors.background, padding: Tokens.spacing.md, borderRadius: Tokens.radius.card, gap: Tokens.spacing.xs },
   postedLabel: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
   postedDate: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary },
-  contactActions: { flexDirection: 'row', gap: 10, marginTop: 4 },
-  contactBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: Colors.primary, paddingHorizontal: 16, paddingVertical: 10, borderRadius: Tokens.radius.md },
+  contactActions: { flexDirection: 'row', gap: 10, marginTop: Tokens.spacing.xxs },
+  contactBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: Colors.primary, paddingHorizontal: Tokens.spacing.md, paddingVertical: 10, borderRadius: Tokens.radius.md },
   contactBtnText: { color: '#FFF', fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const },
   sourceLink: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6, paddingTop: 10, borderTopWidth: 0.5, borderTopColor: Colors.borderLight },
   sourceLinkText: { fontSize: Type.footnote.fontSize, color: Colors.primary, fontWeight: '600' as const, flex: 1 },
   actionBar: {
     position: 'absolute' as const, bottom: 0, left: 0, right: 0,
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    paddingHorizontal: 16, paddingTop: 12, paddingBottom: 34,
+    flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs,
+    paddingHorizontal: Tokens.spacing.md, paddingTop: Tokens.spacing.sm, paddingBottom: 34,
     backgroundColor: Colors.surface,
     borderTopWidth: 0.5, borderTopColor: Colors.borderLight,
     shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 10,
   },
-  actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 12, borderRadius: Tokens.radius.card },
+  actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: Tokens.spacing.sm, borderRadius: Tokens.radius.card },
   actionBtnOutline: { backgroundColor: Colors.primary + '10', borderWidth: 1, borderColor: Colors.primary + '30' },
   actionBtnSaved: { backgroundColor: Colors.primary },
   actionBtnTrack: { flex: 1, backgroundColor: Colors.primary, justifyContent: 'center' as const },
@@ -763,9 +763,9 @@ const styles = StyleSheet.create({
   actionBtnTextSaved: { color: '#FFF' },
   actionBtnTextWhite: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: '#FFF' },
   pickerOverlay: { position: 'absolute' as const, top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' as const },
-  pickerCard: { backgroundColor: Colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 40 },
-  pickerTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: Colors.text, marginBottom: 16 },
-  pickerOption: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 12, borderRadius: Tokens.radius.md, marginBottom: 4 },
+  pickerCard: { backgroundColor: Colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: Tokens.spacing.lg, paddingBottom: Tokens.spacing['3xl'] },
+  pickerTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: Colors.text, marginBottom: Tokens.spacing.md },
+  pickerOption: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.sm, paddingVertical: 14, paddingHorizontal: Tokens.spacing.sm, borderRadius: Tokens.radius.md, marginBottom: Tokens.spacing.xxs },
   pickerDot: { width: 10, height: 10, borderRadius: 5 },
   pickerOptionText: { fontSize: Type.callout.fontSize, color: Colors.text, fontWeight: '500' as const },
 });
@@ -773,15 +773,15 @@ const styles = StyleSheet.create({
 const bidDesktopStyles = StyleSheet.create({
   twoCol: {
     flexDirection: 'row',
-    gap: 20,
-    padding: 20,
+    gap: Tokens.spacing.lg,
+    padding: Tokens.spacing.lg,
   },
   mainCol: {
     flex: 3,
-    gap: 8,
+    gap: Tokens.spacing.xs,
   },
   sideCol: {
     flex: 2,
-    gap: 8,
+    gap: Tokens.spacing.xs,
   },
 });

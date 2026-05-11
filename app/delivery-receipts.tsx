@@ -115,7 +115,7 @@ export default function DeliveryReceiptsScreen() {
       />
 
       <ScrollView
-        contentContainerStyle={{ paddingTop: 12, paddingBottom: insets.bottom + 88 }}
+        contentContainerStyle={{ paddingTop: Tokens.spacing.sm, paddingBottom: insets.bottom + 88 }}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
@@ -174,7 +174,7 @@ export default function DeliveryReceiptsScreen() {
 
         {/* List */}
         {loading ? (
-          <View style={{ paddingTop: 40 }}>
+          <View style={{ paddingTop: Tokens.spacing['3xl'] }}>
             <Text style={styles.subEmptyText}>Loading…</Text>
           </View>
         ) : filtered.length === 0 ? (
@@ -547,7 +547,7 @@ function DeliveryComposerModal({
               </TouchableOpacity>
             </View>
           ) : (
-            <View style={{ flexDirection: 'row' as const, gap: 8 }}>
+            <View style={{ flexDirection: 'row' as const, gap: Tokens.spacing.xs }}>
               <TouchableOpacity
                 onPress={() => pickPhoto('camera')}
                 style={styles.photoBtn}
@@ -749,7 +749,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     justifyContent: 'space-between' as const,
-    paddingHorizontal: 16,
+    paddingHorizontal: Tokens.spacing.md,
     marginTop: 6,
   },
   headerTitle: {
@@ -764,15 +764,15 @@ const styles = StyleSheet.create({
     color: Colors.primary,
   },
   headerSub: {
-    paddingHorizontal: 16,
+    paddingHorizontal: Tokens.spacing.md,
     fontSize: Type.footnote.fontSize,
     color: Colors.textMuted,
-    marginBottom: 12,
+    marginBottom: Tokens.spacing.sm,
   },
 
-  chipRow: { flexDirection: 'row' as const, gap: 8, paddingHorizontal: 16, marginBottom: 12 },
+  chipRow: { flexDirection: 'row' as const, gap: Tokens.spacing.xs, paddingHorizontal: Tokens.spacing.md, marginBottom: Tokens.spacing.sm },
   chip: {
-    paddingHorizontal: 12,
+    paddingHorizontal: Tokens.spacing.sm,
     paddingVertical: 7,
     borderRadius: Tokens.radius.full,
     borderWidth: 1,
@@ -787,13 +787,13 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.lg,
-    marginHorizontal: 16,
+    marginHorizontal: Tokens.spacing.md,
     marginBottom: 10,
     borderWidth: 1,
     borderColor: Colors.borderLight,
     overflow: 'hidden' as const,
   },
-  cardBody: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 12, padding: 12 },
+  cardBody: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: Tokens.spacing.sm, padding: Tokens.spacing.sm },
   cardIconWrap: {
     width: 32, height: 32,
     borderRadius: Tokens.radius.sm,
@@ -806,12 +806,12 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase' as const,
     letterSpacing: 0.4,
   },
-  cardTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text, marginTop: 2 },
-  cardSub: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, marginTop: 2 },
+  cardTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text, marginTop: Tokens.spacing.hairline },
+  cardSub: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, marginTop: Tokens.spacing.hairline },
   damageText: {
     fontSize: Type.caption2.fontSize,
     color: Colors.error,
-    marginTop: 4,
+    marginTop: Tokens.spacing.xxs,
     fontWeight: '600' as const,
   },
   thumb: { width: 48, height: 48, borderRadius: Tokens.radius.sm, backgroundColor: Colors.fillTertiary },
@@ -822,8 +822,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     gap: 6,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: Tokens.spacing.md,
+    paddingVertical: Tokens.spacing.sm,
     borderRadius: Tokens.radius.full,
     backgroundColor: Colors.primary,
     shadowColor: '#000',
@@ -844,24 +844,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     justifyContent: 'space-between' as const,
-    paddingHorizontal: 16,
+    paddingHorizontal: Tokens.spacing.md,
     paddingVertical: 14,
     borderBottomWidth: 1,
     borderBottomColor: Colors.borderLight,
   },
-  modalClose: { padding: 4 },
+  modalClose: { padding: Tokens.spacing.xxs },
   modalTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '800' as const, color: Colors.text },
   modalSave: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
-    gap: 4,
-    paddingHorizontal: 12,
+    gap: Tokens.spacing.xxs,
+    paddingHorizontal: Tokens.spacing.sm,
     paddingVertical: 7,
     borderRadius: Tokens.radius.full,
     backgroundColor: Colors.primary,
   },
   modalSaveText: { fontSize: Type.footnote.fontSize, fontWeight: '800' as const, color: Colors.background },
-  modalBody: { padding: 16, gap: 6, paddingBottom: 60 },
+  modalBody: { padding: Tokens.spacing.md, gap: 6, paddingBottom: 60 },
 
   label: {
     fontSize: Type.caption2.fontSize,
@@ -878,8 +878,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between' as const,
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.md,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
+    paddingHorizontal: Tokens.spacing.sm,
+    paddingVertical: Tokens.spacing.sm,
     borderWidth: 1,
     borderColor: Colors.borderLight,
   },
@@ -898,7 +898,7 @@ const styles = StyleSheet.create({
     alignItems: 'center' as const,
     justifyContent: 'space-between' as const,
     paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingVertical: Tokens.spacing.sm,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: Colors.borderLight,
   },
@@ -907,7 +907,7 @@ const styles = StyleSheet.create({
   input: {
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.md,
-    paddingHorizontal: 12,
+    paddingHorizontal: Tokens.spacing.sm,
     paddingVertical: Platform.OS === 'ios' ? 12 : 10,
     fontSize: Type.body.fontSize,
     color: Colors.text,
@@ -926,9 +926,9 @@ const styles = StyleSheet.create({
   addRowBtn: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    gap: Tokens.spacing.xxs,
+    paddingHorizontal: Tokens.spacing.xs,
+    paddingVertical: Tokens.spacing.xxs,
     borderRadius: Tokens.radius.full,
     backgroundColor: Colors.primary + '15',
   },
@@ -971,9 +971,9 @@ const styles = StyleSheet.create({
   damageToggle: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
-    gap: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
+    gap: Tokens.spacing.xs,
+    paddingHorizontal: Tokens.spacing.sm,
+    paddingVertical: Tokens.spacing.sm,
     borderRadius: Tokens.radius.md,
     borderWidth: 1,
     borderColor: Colors.borderLight,
@@ -991,7 +991,7 @@ const styles = StyleSheet.create({
   },
 
   helperText: {
-    marginTop: 16,
+    marginTop: Tokens.spacing.md,
     fontSize: Type.caption2.fontSize,
     color: Colors.textMuted,
     fontStyle: 'italic' as const,
@@ -1016,10 +1016,10 @@ const styles = StyleSheet.create({
     fontSize: Type.title3.fontSize,
     fontWeight: '800' as const,
     color: Colors.text,
-    marginTop: 4,
+    marginTop: Tokens.spacing.xxs,
   },
-  detailMeta: { fontSize: Type.body.fontSize, color: Colors.textSecondary, marginTop: 4 },
-  detailMetaSmall: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 4 },
+  detailMeta: { fontSize: Type.body.fontSize, color: Colors.textSecondary, marginTop: Tokens.spacing.xxs },
+  detailMetaSmall: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: Tokens.spacing.xxs },
 
   detailPhoto: {
     width: '100%',
@@ -1037,8 +1037,8 @@ const styles = StyleSheet.create({
   itemListRow: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
-    gap: 8,
-    paddingHorizontal: 12,
+    gap: Tokens.spacing.xs,
+    paddingHorizontal: Tokens.spacing.sm,
     paddingVertical: 10,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: Colors.borderLight,
@@ -1055,7 +1055,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center' as const,
     gap: 6,
     paddingVertical: 14,
-    marginTop: 24,
+    marginTop: Tokens.spacing.xl,
     borderRadius: Tokens.radius.md,
     borderWidth: 1,
     borderColor: Colors.error,

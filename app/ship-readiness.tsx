@@ -277,7 +277,7 @@ export default function ShipReadinessScreen() {
         }}
       />
       <ScrollView
-        contentContainerStyle={{ paddingTop: 12, paddingBottom: insets.bottom + 30 }}
+        contentContainerStyle={{ paddingTop: Tokens.spacing.sm, paddingBottom: insets.bottom + 30 }}
         showsVerticalScrollIndicator={false}
       >
         {/* Hero */}
@@ -368,9 +368,9 @@ const styles = StyleSheet.create({
   hero: {
     backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.lg,
-    marginHorizontal: 16,
-    marginBottom: 16,
-    padding: 16,
+    marginHorizontal: Tokens.spacing.md,
+    marginBottom: Tokens.spacing.md,
+    padding: Tokens.spacing.md,
     borderWidth: 1,
     borderColor: Colors.borderLight,
   },
@@ -392,12 +392,12 @@ const styles = StyleSheet.create({
   heroBody: {
     fontSize: Type.footnote.fontSize,
     color: Colors.textSecondary,
-    marginTop: 4,
+    marginTop: Tokens.spacing.xxs,
     lineHeight: 18,
   },
   heroStats: {
     flexDirection: 'row' as const,
-    gap: 16,
+    gap: Tokens.spacing.md,
     marginTop: 14,
   },
   heroStat: { flex: 1, alignItems: 'flex-start' as const },
@@ -412,28 +412,28 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
     textTransform: 'uppercase' as const,
     letterSpacing: 0.4,
-    marginTop: 2,
+    marginTop: Tokens.spacing.hairline,
   },
 
   group: { marginBottom: 22 },
   groupTitle: {
-    paddingHorizontal: 16,
+    paddingHorizontal: Tokens.spacing.md,
     fontSize: Type.subheadline.fontSize,
     fontWeight: '800' as const,
     color: Colors.text,
     letterSpacing: -0.2,
   },
   groupDesc: {
-    paddingHorizontal: 16,
+    paddingHorizontal: Tokens.spacing.md,
     fontSize: Type.footnote.fontSize,
     color: Colors.textMuted,
-    marginBottom: 8,
-    marginTop: 2,
+    marginBottom: Tokens.spacing.xs,
+    marginTop: Tokens.spacing.hairline,
     lineHeight: 17,
   },
   groupCard: {
     backgroundColor: Colors.surface,
-    marginHorizontal: 16,
+    marginHorizontal: Tokens.spacing.md,
     borderRadius: Tokens.radius.lg,
     borderWidth: 1,
     borderColor: Colors.borderLight,
@@ -445,7 +445,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start' as const,
     gap: 10,
     paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingVertical: Tokens.spacing.sm,
   },
   itemRowBorder: {
     borderBottomWidth: StyleSheet.hairlineWidth,
@@ -478,7 +478,7 @@ const styles = StyleSheet.create({
   },
 
   doneBadge: {
-    paddingHorizontal: 8,
+    paddingHorizontal: Tokens.spacing.xs,
     paddingVertical: 3,
     borderRadius: Tokens.radius.full,
     backgroundColor: Colors.success + '15',
@@ -494,10 +494,10 @@ const styles = StyleSheet.create({
 
   footer: {
     flexDirection: 'row' as const,
-    gap: 8,
+    gap: Tokens.spacing.xs,
     alignItems: 'flex-start' as const,
     paddingHorizontal: 18,
-    paddingVertical: 16,
+    paddingVertical: Tokens.spacing.md,
     opacity: 0.7,
   },
   footerText: {

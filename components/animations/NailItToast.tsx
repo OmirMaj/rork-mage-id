@@ -154,7 +154,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.cardBorder,
     borderRadius: Tokens.radius.lg,
-    paddingVertical: 12,
+    paddingVertical: Tokens.spacing.sm,
     paddingHorizontal: 14,
     minWidth: 240,
     maxWidth: 360,

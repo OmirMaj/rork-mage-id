@@ -116,14 +116,14 @@ export default function TrialFeatureScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#A6D7F2' },
 
-  frameWrap: { alignItems: 'center' as const, paddingHorizontal: 16 },
+  frameWrap: { alignItems: 'center' as const, paddingHorizontal: Tokens.spacing.md },
 
   phoneFrame: {
     width: 290,
     height: 580,
     borderRadius: 48,
     backgroundColor: '#0F0F12',
-    padding: 8,
+    padding: Tokens.spacing.xs,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 16 },
     shadowOpacity: 0.22,
@@ -144,37 +144,37 @@ const styles = StyleSheet.create({
     flex: 1,
     borderRadius: 40,
     backgroundColor: '#F0FAF4',
-    padding: 16,
+    padding: Tokens.spacing.md,
     overflow: 'hidden' as const,
   },
 
-  mockHeader: { flexDirection: 'row' as const, justifyContent: 'space-between' as const, alignItems: 'center' as const, paddingTop: 8, paddingHorizontal: 8 },
+  mockHeader: { flexDirection: 'row' as const, justifyContent: 'space-between' as const, alignItems: 'center' as const, paddingTop: Tokens.spacing.xs, paddingHorizontal: Tokens.spacing.xs },
   mockHeaderTime: { fontSize: 12, fontWeight: '700' as const, color: Colors.text },
   mockHeaderRight: { width: 60, height: 12, borderRadius: 6, backgroundColor: 'rgba(0,0,0,0.06)' },
 
-  mockTitleRow: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'space-between' as const, marginTop: 24 },
+  mockTitleRow: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'space-between' as const, marginTop: Tokens.spacing.xl },
   mockIconBtn: { width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(0,0,0,0.06)', alignItems: 'center' as const, justifyContent: 'center' as const },
   mockTitle: { fontSize: 14, fontWeight: '700' as const, color: Colors.text },
 
-  heroIllo: { alignItems: 'center' as const, justifyContent: 'center' as const, marginTop: 12, height: 130, position: 'relative' as const },
+  heroIllo: { alignItems: 'center' as const, justifyContent: 'center' as const, marginTop: Tokens.spacing.sm, height: 130, position: 'relative' as const },
   heroEmoji: { fontSize: 80 },
   heroBubbleLeft: { position: 'absolute' as const, left: 6, top: 22, backgroundColor: Colors.surface, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 4 },
   heroBubbleRight: { position: 'absolute' as const, right: 6, top: 56, backgroundColor: Colors.surface, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 4 },
   heroBubbleText: { fontSize: 11, fontWeight: '700' as const, color: Colors.text },
 
-  mockH1: { fontSize: 18, fontWeight: '900' as const, color: Colors.text, textAlign: 'center' as const, marginTop: 4, letterSpacing: -0.4 },
-  mockH2: { fontSize: 11, color: Colors.textMuted, textAlign: 'center' as const, marginTop: 4, lineHeight: 14 },
+  mockH1: { fontSize: 18, fontWeight: '900' as const, color: Colors.text, textAlign: 'center' as const, marginTop: Tokens.spacing.xxs, letterSpacing: -0.4 },
+  mockH2: { fontSize: 11, color: Colors.textMuted, textAlign: 'center' as const, marginTop: Tokens.spacing.xxs, lineHeight: 14 },
 
   mockField: { marginTop: 14, padding: 10, backgroundColor: Colors.surface, borderRadius: 12 },
   mockFieldLabel: { fontSize: 12, fontWeight: '800' as const, color: Colors.text, marginBottom: 6 },
-  mockFieldInput: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, padding: 10, borderRadius: 10, backgroundColor: Colors.background },
+  mockFieldInput: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: Tokens.spacing.xs, padding: 10, borderRadius: 10, backgroundColor: Colors.background },
   mockFieldPlaceholder: { fontSize: 11, color: Colors.textMuted },
 
-  mockFieldRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, paddingHorizontal: 10, paddingVertical: 12, marginTop: 8, backgroundColor: Colors.surface, borderRadius: 12 },
+  mockFieldRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: Tokens.spacing.xs, paddingHorizontal: 10, paddingVertical: Tokens.spacing.sm, marginTop: Tokens.spacing.xs, backgroundColor: Colors.surface, borderRadius: 12 },
   mockFieldRowLabel: { fontSize: 11, fontWeight: '700' as const, color: Colors.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.4 },
   mockFieldRowValue: { fontSize: 11, fontWeight: '700' as const, color: Colors.primary },
 
-  copyWrap: { paddingHorizontal: 24, paddingTop: 24, marginTop: 'auto' as const },
+  copyWrap: { paddingHorizontal: Tokens.spacing.xl, paddingTop: Tokens.spacing.xl, marginTop: 'auto' as const },
   title: { fontSize: 26, fontWeight: '900' as const, color: Colors.text, textAlign: 'center' as const, letterSpacing: -0.7 },
   subtitle: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, textAlign: 'center' as const, marginTop: 6, lineHeight: 22 },
 

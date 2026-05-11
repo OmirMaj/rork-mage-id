@@ -134,11 +134,11 @@ export function TakeoffQuotaBadge({ pendingPages, pendingFileName, variant = 'in
 const styles = StyleSheet.create({
   row: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
-    paddingVertical: 8, paddingHorizontal: 12,
+    paddingVertical: Tokens.spacing.xs, paddingHorizontal: Tokens.spacing.sm,
   },
   col: {
-    flexDirection: 'column', gap: 8,
-    paddingVertical: 8, paddingHorizontal: 12,
+    flexDirection: 'column', gap: Tokens.spacing.xs,
+    paddingVertical: Tokens.spacing.xs, paddingHorizontal: Tokens.spacing.sm,
   },
   card: {
     backgroundColor: Colors.surface,
@@ -158,7 +158,7 @@ const styles = StyleSheet.create({
   topRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   title: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
   upgradeTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: '#7C3AED' },
-  subtitle: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, marginTop: 2 },
+  subtitle: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, marginTop: Tokens.spacing.hairline },
   muted: { fontSize: Type.caption1.fontSize, color: Colors.textMuted },
   meter: {
     height: 6, borderRadius: 3,
@@ -175,7 +175,7 @@ const styles = StyleSheet.create({
   },
   exceedRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end' },
   upgradePill: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
+    flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xxs,
     paddingHorizontal: 10, paddingVertical: 6,
     borderRadius: Tokens.radius.sm,
     backgroundColor: '#7C3AED',

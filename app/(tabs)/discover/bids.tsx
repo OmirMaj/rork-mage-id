@@ -758,23 +758,23 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
 
   // ─── Header
-  header: { backgroundColor: Colors.surface, borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight, paddingHorizontal: 16, paddingBottom: 12 },
-  headerTop: { flexDirection: 'row', alignItems: 'center', marginBottom: 12, marginTop: 8, gap: 12 },
+  header: { backgroundColor: Colors.surface, borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight, paddingHorizontal: Tokens.spacing.md, paddingBottom: Tokens.spacing.sm },
+  headerTop: { flexDirection: 'row', alignItems: 'center', marginBottom: Tokens.spacing.sm, marginTop: Tokens.spacing.xs, gap: Tokens.spacing.sm },
   backBtn: { width: 36, height: 36, borderRadius: Tokens.radius.xl, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontSize: Type.title2.fontSize, fontWeight: '800' as const, color: Colors.text, letterSpacing: -0.5 },
   headerSubtitle: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 1, fontWeight: '500' as const },
   sortBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingHorizontal: 12, paddingVertical: 8,
+    paddingHorizontal: Tokens.spacing.sm, paddingVertical: Tokens.spacing.xs,
     backgroundColor: Colors.fillTertiary, borderRadius: Tokens.radius.md,
   },
   sortBtnText: { fontSize: Type.footnote.fontSize, color: Colors.text, fontWeight: '600' as const },
 
   // ─── Search
   searchWrap: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
+    flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs,
     backgroundColor: Colors.fillTertiary, borderRadius: Tokens.radius.card,
-    paddingHorizontal: 12, paddingVertical: Platform.OS === 'ios' ? 9 : 4,
+    paddingHorizontal: Tokens.spacing.sm, paddingVertical: Platform.OS === 'ios' ? 9 : 4,
     marginBottom: 10,
   },
   searchInput: {
@@ -783,10 +783,10 @@ const styles = StyleSheet.create({
   },
 
   // ─── Pill rows (top-level filters)
-  pillRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 },
+  pillRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: Tokens.spacing.xs },
   pill: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
-    paddingHorizontal: 12, paddingVertical: 7,
+    paddingHorizontal: Tokens.spacing.sm, paddingVertical: 7,
     borderRadius: Tokens.radius.full,
     backgroundColor: Colors.fillTertiary,
     borderWidth: 1, borderColor: 'transparent',
@@ -796,10 +796,10 @@ const styles = StyleSheet.create({
   pillTextActive: { color: '#FFF' },
 
   // ─── Sub-filter row (radius / city / state chips)
-  subFilterRow: { marginBottom: 4 },
-  subFilterRowInner: { paddingRight: 16, gap: 6 },
+  subFilterRow: { marginBottom: Tokens.spacing.xxs },
+  subFilterRowInner: { paddingRight: Tokens.spacing.md, gap: 6 },
   subChip: {
-    paddingHorizontal: 12, paddingVertical: 7,
+    paddingHorizontal: Tokens.spacing.sm, paddingVertical: 7,
     borderRadius: Tokens.radius.full,
     backgroundColor: Colors.fillTertiary,
   },
@@ -807,7 +807,7 @@ const styles = StyleSheet.create({
   subChipText: { fontSize: 12.5, color: Colors.textSecondary, fontWeight: '600' as const },
   subChipTextActive: { color: '#FFF' },
   cityChip: {
-    paddingHorizontal: 12, paddingVertical: 7,
+    paddingHorizontal: Tokens.spacing.sm, paddingVertical: 7,
     borderRadius: Tokens.radius.lg,
     backgroundColor: Colors.fillTertiary,
     minWidth: 110,
@@ -816,59 +816,59 @@ const styles = StyleSheet.create({
   cityChipMeta: { fontSize: 10.5, color: Colors.textMuted, marginTop: 1 },
 
   // ─── Cards
-  list: { padding: 16, paddingBottom: 100 },
+  list: { padding: Tokens.spacing.md, paddingBottom: 100 },
   bidCard: {
-    backgroundColor: Colors.surface, borderRadius: Tokens.radius.lg, padding: 16, marginBottom: 12,
+    backgroundColor: Colors.surface, borderRadius: Tokens.radius.lg, padding: Tokens.spacing.md, marginBottom: Tokens.spacing.sm,
     // Black outline matches every other card across the app.
     borderWidth: 1, borderColor: Colors.cardBorder,
   },
   bidHeader: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginBottom: 10 },
-  setAsideBadge: { backgroundColor: Colors.successLight, paddingHorizontal: 9, paddingVertical: 4, borderRadius: Tokens.radius.xs },
+  setAsideBadge: { backgroundColor: Colors.successLight, paddingHorizontal: 9, paddingVertical: Tokens.spacing.xxs, borderRadius: Tokens.radius.xs },
   setAsideText: { fontSize: Type.caption2.fontSize, fontWeight: '800' as const, color: '#1E5128', letterSpacing: 0.2 },
-  openBadge: { backgroundColor: Colors.infoLight, paddingHorizontal: 9, paddingVertical: 4, borderRadius: Tokens.radius.xs },
+  openBadge: { backgroundColor: Colors.infoLight, paddingHorizontal: 9, paddingVertical: Tokens.spacing.xxs, borderRadius: Tokens.radius.xs },
   openBadgeText: { fontSize: Type.caption2.fontSize, fontWeight: '800' as const, color: '#0D47A1', letterSpacing: 0.6 },
   constructionBadge: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    backgroundColor: '#FFF4E0', paddingHorizontal: 8, paddingVertical: 4, borderRadius: Tokens.radius.xs,
+    flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xxs,
+    backgroundColor: '#FFF4E0', paddingHorizontal: Tokens.spacing.xs, paddingVertical: Tokens.spacing.xxs, borderRadius: Tokens.radius.xs,
   },
   constructionText: { fontSize: 10.5, fontWeight: '800' as const, color: '#3D2A0F', letterSpacing: 0.2 },
   countdownBadge: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    paddingHorizontal: 9, paddingVertical: 4, borderRadius: Tokens.radius.xs,
+    flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xxs,
+    paddingHorizontal: 9, paddingVertical: Tokens.spacing.xxs, borderRadius: Tokens.radius.xs,
     marginLeft: 'auto' as const,
   },
   countdownText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const },
 
-  bidTitle: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.text, marginBottom: 4, lineHeight: 21, letterSpacing: -0.2 },
-  bidDepartment: { fontSize: 12.5, color: Colors.textSecondary, marginBottom: 8, fontWeight: '500' as const },
+  bidTitle: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.text, marginBottom: Tokens.spacing.xxs, lineHeight: 21, letterSpacing: -0.2 },
+  bidDepartment: { fontSize: 12.5, color: Colors.textSecondary, marginBottom: Tokens.spacing.xs, fontWeight: '500' as const },
 
-  bidMeta: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginTop: 6 },
-  metaItem: { flexDirection: 'row', alignItems: 'center', gap: 4, flex: 1, minWidth: 0 },
+  bidMeta: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: Tokens.spacing.xs, marginTop: 6 },
+  metaItem: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xxs, flex: 1, minWidth: 0 },
   metaText: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, fontWeight: '500' as const, flexShrink: 1 },
   distanceTag: {
     flexDirection: 'row', alignItems: 'center', gap: 3,
-    backgroundColor: Colors.infoLight, paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.xs,
+    backgroundColor: Colors.infoLight, paddingHorizontal: Tokens.spacing.xs, paddingVertical: 3, borderRadius: Tokens.radius.xs,
   },
   distanceTagText: { fontSize: 11.5, fontWeight: '700' as const, color: Colors.info },
   valueTag: {
-    backgroundColor: Colors.primary + '14', paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.xs,
+    backgroundColor: Colors.primary + '14', paddingHorizontal: Tokens.spacing.xs, paddingVertical: 3, borderRadius: Tokens.radius.xs,
   },
   valueTagText: { fontSize: 11.5, fontWeight: '800' as const, color: Colors.primary },
 
   bidFooter: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    marginTop: 12, paddingTop: 10,
+    marginTop: Tokens.spacing.sm, paddingTop: 10,
     borderTopWidth: 0.5, borderTopColor: Colors.borderLight,
-    gap: 8,
+    gap: Tokens.spacing.xs,
   },
-  footerLeft: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 },
+  footerLeft: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs, flex: 1, minWidth: 0 },
   naicsTag: { fontSize: 10.5, color: Colors.textMuted, fontWeight: '700' as const, letterSpacing: 0.4 },
   solTag: { fontSize: 10.5, color: Colors.textMuted, fontWeight: '500' as const, fontVariant: ['tabular-nums' as const], maxWidth: 120 },
   deadlineDate: { fontSize: 11.5, color: Colors.textMuted, fontWeight: '600' as const },
 
   // ─── States
-  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12, paddingHorizontal: 32 },
-  emptyContainer: { alignItems: 'center', paddingTop: 60, gap: 8, paddingHorizontal: 32 },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: Tokens.spacing.sm, paddingHorizontal: Tokens.spacing['2xl'] },
+  emptyContainer: { alignItems: 'center', paddingTop: 60, gap: Tokens.spacing.xs, paddingHorizontal: Tokens.spacing['2xl'] },
   emptyTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: Colors.text, marginTop: 6 },
   emptySubtitle: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, textAlign: 'center' as const, lineHeight: 20 },
   retryButton: { marginTop: 14, backgroundColor: Colors.primary, paddingHorizontal: 22, paddingVertical: 11, borderRadius: Tokens.radius.md },
@@ -877,18 +877,18 @@ const styles = StyleSheet.create({
   // ─── Modal (sort + set-aside)
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.42)', justifyContent: 'center', alignItems: 'center' },
   dropdownModal: {
-    width: '82%', backgroundColor: Colors.surface, borderRadius: Tokens.radius.panel, paddingVertical: 8, maxHeight: 460,
+    width: '82%', backgroundColor: Colors.surface, borderRadius: Tokens.radius.panel, paddingVertical: Tokens.spacing.xs, maxHeight: 460,
     shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.18, shadowRadius: 22, elevation: 12,
   },
   dropdownHeader: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingHorizontal: 20, paddingVertical: 14,
+    paddingHorizontal: Tokens.spacing.lg, paddingVertical: 14,
     borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight,
   },
   dropdownTitle: { fontSize: Type.body.fontSize, fontWeight: '700' as const, color: Colors.text },
   dropdownItem: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 20, paddingVertical: 14,
+    paddingHorizontal: Tokens.spacing.lg, paddingVertical: 14,
   },
   dropdownItemActive: { backgroundColor: Colors.primary + '0E' },
   dropdownItemText: { fontSize: Type.subhead.fontSize, color: Colors.text, fontWeight: '500' as const },

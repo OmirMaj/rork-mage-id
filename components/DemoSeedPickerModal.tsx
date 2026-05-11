@@ -184,18 +184,18 @@ const styles = StyleSheet.create({
     maxHeight: '90%' as const,
     backgroundColor: Colors.background,
     borderTopLeftRadius: 22, borderTopRightRadius: 22,
-    paddingHorizontal: 16, paddingTop: 10,
+    paddingHorizontal: Tokens.spacing.md, paddingTop: 10,
   },
   handle: {
     width: 40, height: 4, borderRadius: 2,
     backgroundColor: Colors.border,
-    alignSelf: 'center', marginBottom: 8,
+    alignSelf: 'center', marginBottom: Tokens.spacing.xs,
   },
   head: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 14,
   },
   title: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.2 },
-  subtitle: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 4, lineHeight: 17 },
+  subtitle: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: Tokens.spacing.xxs, lineHeight: 17 },
   closeBtn: {
     width: 32, height: 32, borderRadius: Tokens.radius.sm,
     alignItems: 'center', justifyContent: 'center',
@@ -205,17 +205,17 @@ const styles = StyleSheet.create({
 
   card: {
     backgroundColor: Colors.card,
-    borderRadius: Tokens.radius.panel, padding: 16,
+    borderRadius: Tokens.radius.panel, padding: Tokens.spacing.md,
     borderWidth: 1.5,
-    marginBottom: 12, gap: 12,
+    marginBottom: Tokens.spacing.sm, gap: Tokens.spacing.sm,
   },
-  cardHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  cardHead: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.sm },
   cardIcon: {
     width: 42, height: 42, borderRadius: Tokens.radius.card,
     alignItems: 'center', justifyContent: 'center',
   },
   cardName: { fontSize: Type.subhead.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.2 },
-  cardScope: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2, lineHeight: 16 },
+  cardScope: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: Tokens.spacing.hairline, lineHeight: 16 },
 
   cardStats: {
     flexDirection: 'row', alignItems: 'stretch',
@@ -227,23 +227,23 @@ const styles = StyleSheet.create({
   cardStat: { flex: 1, alignItems: 'center', paddingVertical: 10 },
   cardStatDiv: { width: 1, alignSelf: 'stretch', backgroundColor: Colors.border },
   cardStatLabel: { fontSize: 9, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.6, textTransform: 'uppercase' },
-  cardStatValue: { fontSize: Type.callout.fontSize, fontWeight: '800', color: Colors.text, marginTop: 4, letterSpacing: -0.2 },
+  cardStatValue: { fontSize: Type.callout.fontSize, fontWeight: '800', color: Colors.text, marginTop: Tokens.spacing.xxs, letterSpacing: -0.2 },
 
   cardPitch: { fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 18, fontStyle: 'italic' },
 
-  bulletList: { gap: 4 },
-  bulletRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  bulletList: { gap: Tokens.spacing.xxs },
+  bulletRow: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs },
   bulletDot: { width: 5, height: 5, borderRadius: 3 },
   bulletText: { flex: 1, fontSize: Type.caption1.fontSize, color: Colors.text, lineHeight: 16 },
 
   cta: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-    paddingVertical: 11, borderRadius: Tokens.radius.md, marginTop: 4,
+    paddingVertical: 11, borderRadius: Tokens.radius.md, marginTop: Tokens.spacing.xxs,
   },
   ctaText: { color: '#FFF', fontSize: Type.footnote.fontSize, fontWeight: '800', letterSpacing: 0.2 },
 
   disclaimer: {
     fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontStyle: 'italic',
-    textAlign: 'center', lineHeight: 16, paddingHorizontal: 12, paddingVertical: 12,
+    textAlign: 'center', lineHeight: 16, paddingHorizontal: Tokens.spacing.sm, paddingVertical: Tokens.spacing.sm,
   },
 });

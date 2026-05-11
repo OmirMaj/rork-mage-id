@@ -80,7 +80,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   headerBar: {
     flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'space-between' as const,
-    paddingHorizontal: 16, paddingVertical: 12,
+    paddingHorizontal: Tokens.spacing.md, paddingVertical: Tokens.spacing.sm,
     backgroundColor: Colors.surface,
     borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight,
   },
@@ -90,11 +90,11 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.fillTertiary,
   },
   headerTitle: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: Colors.text, letterSpacing: -0.3 },
-  center: { flex: 1, alignItems: 'center' as const, justifyContent: 'center' as const, paddingHorizontal: 32, gap: 8 },
-  notFoundTitle: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: Colors.text, marginTop: 8 },
+  center: { flex: 1, alignItems: 'center' as const, justifyContent: 'center' as const, paddingHorizontal: Tokens.spacing['2xl'], gap: Tokens.spacing.xs },
+  notFoundTitle: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: Colors.text, marginTop: Tokens.spacing.xs },
   notFoundBody: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, textAlign: 'center' as const, lineHeight: 20 },
   primaryBtn: {
-    paddingHorizontal: 18, paddingVertical: 12, marginTop: 16,
+    paddingHorizontal: 18, paddingVertical: Tokens.spacing.sm, marginTop: Tokens.spacing.md,
     borderRadius: Tokens.radius.lg,
     backgroundColor: Colors.primary,
   },

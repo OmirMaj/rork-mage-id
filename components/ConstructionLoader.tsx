@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, Easing, StyleSheet, Text, View, ViewStyle } from 'react-native';
 import { Colors } from '@/constants/colors';
+import { Tokens } from '@/constants/designTokens';
 
 /**
  * Stacking-bricks construction animation used across the app wherever a
@@ -38,9 +39,9 @@ interface ConstructionLoaderProps {
 }
 
 const SIZE_MAP: Record<LoaderSize, { brickW: number; brickH: number; gap: number; labelSize: number }> = {
-  sm: { brickW: 26, brickH: 7, gap: 2, labelSize: 11 },
+  sm: { brickW: 26, brickH: 7, gap: Tokens.spacing.hairline, labelSize: 11 },
   md: { brickW: 48, brickH: 12, gap: 3, labelSize: 13 },
-  lg: { brickW: 80, brickH: 20, gap: 4, labelSize: 15 },
+  lg: { brickW: 80, brickH: 20, gap: Tokens.spacing.xxs, labelSize: 15 },
 };
 
 // Timing constants tuned to feel "construction-paced": confident, deliberate,
@@ -220,7 +221,7 @@ const styles = StyleSheet.create({
   container: {
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 12,
+    gap: Tokens.spacing.sm,
   },
   stack: {
     alignItems: 'center',

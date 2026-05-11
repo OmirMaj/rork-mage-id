@@ -111,7 +111,7 @@ export default function ReportsScreen() {
         <TabBtn label="A/R Aging" icon={AlertTriangle} active={tab === 'aging'}  onPress={() => setTab('aging')} />
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 100 }}>
+      <ScrollView contentContainerStyle={{ padding: Tokens.spacing.md, paddingBottom: insets.bottom + 100 }}>
         {tab === 'wip'    && <WIPView    report={wip} />}
         {tab === 'profit' && <ProfitView profit={profit} />}
         {tab === 'aging'  && <AgingView  report={aging} />}
@@ -396,14 +396,14 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   header: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 10,
-    paddingHorizontal: 16, paddingTop: 14, paddingBottom: 12,
+    paddingHorizontal: Tokens.spacing.md, paddingTop: 14, paddingBottom: Tokens.spacing.sm,
     borderBottomWidth: 1, borderBottomColor: Colors.border,
   },
   eyebrow: { fontSize: 10, fontWeight: '800', color: Colors.primary, letterSpacing: 1.4, textTransform: 'uppercase' },
-  title:   { fontSize: Type.title2.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.4, marginTop: 2 },
+  title:   { fontSize: Type.title2.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.4, marginTop: Tokens.spacing.hairline },
 
   tabRow: {
-    flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingVertical: 12,
+    flexDirection: 'row', gap: Tokens.spacing.xs, paddingHorizontal: Tokens.spacing.md, paddingVertical: Tokens.spacing.sm,
     borderBottomWidth: 1, borderBottomColor: Colors.border,
     backgroundColor: Colors.background,
   },
@@ -417,32 +417,32 @@ const styles = StyleSheet.create({
   tabBtnTextActive: { color: Colors.primary },
 
   summaryCard: {
-    backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 16,
+    backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: Tokens.spacing.md,
     borderWidth: 1, borderColor: Colors.border, marginBottom: 14, gap: 10,
   },
   summaryHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   summaryEyebrow: { fontSize: 10, fontWeight: '800', color: Colors.primary, letterSpacing: 1.2, textTransform: 'uppercase' },
   summaryGrid:  { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  summaryStatItem: { width: '47%', paddingVertical: 4 },
-  summaryStatLabel: { fontSize: 10, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 4 },
+  summaryStatItem: { width: '47%', paddingVertical: Tokens.spacing.xxs },
+  summaryStatLabel: { fontSize: 10, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: Tokens.spacing.xxs },
   summaryStatValue: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.3 },
 
-  profitHero: { flexDirection: 'row', alignItems: 'baseline', gap: 12, marginTop: 4 },
+  profitHero: { flexDirection: 'row', alignItems: 'baseline', gap: Tokens.spacing.sm, marginTop: Tokens.spacing.xxs },
   profitHeroAmount: { fontSize: Type.title1.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.6 },
   profitHeroPct:    { fontSize: Type.callout.fontSize, fontWeight: '800' },
-  profitHeroSub:    { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2 },
+  profitHeroSub:    { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: Tokens.spacing.hairline },
 
-  bandRow: { flexDirection: 'row', gap: 8, marginBottom: 10 },
-  band:    { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  bandRow: { flexDirection: 'row', gap: Tokens.spacing.xs, marginBottom: 10 },
+  band:    { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xxs },
   bandDot: { width: 8, height: 8, borderRadius: 4 },
   bandText:{ fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontWeight: '600' },
 
-  agingHeroAmount: { fontSize: 26, fontWeight: '800', color: Colors.error, letterSpacing: -0.6, marginTop: 4 },
-  bucketRow: { flexDirection: 'row', gap: 6, marginTop: 8 },
-  bucket:    { flex: 1, padding: 8, borderRadius: Tokens.radius.sm, backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border },
+  agingHeroAmount: { fontSize: 26, fontWeight: '800', color: Colors.error, letterSpacing: -0.6, marginTop: Tokens.spacing.xxs },
+  bucketRow: { flexDirection: 'row', gap: 6, marginTop: Tokens.spacing.xs },
+  bucket:    { flex: 1, padding: Tokens.spacing.xs, borderRadius: Tokens.radius.sm, backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border },
   bucketLabel: { fontSize: 9, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.5, textTransform: 'uppercase' },
   bucketValue: { fontSize: Type.caption1.fontSize, fontWeight: '800', marginTop: 3, letterSpacing: -0.2 },
-  bucketPill:  { paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.full },
+  bucketPill:  { paddingHorizontal: Tokens.spacing.xs, paddingVertical: 3, borderRadius: Tokens.radius.full },
   bucketPillMuted: { backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border },
   bucketPillWarn:  { backgroundColor: Colors.warning + '15' },
   bucketPillBad:   { backgroundColor: Colors.error   + '15' },
@@ -452,38 +452,38 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.card, borderRadius: Tokens.radius.card, padding: 14,
     borderWidth: 1, borderColor: Colors.border, marginBottom: 10,
   },
-  rowHead: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
+  rowHead: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs, marginBottom: 10 },
   rowTitle: { flex: 1, fontSize: Type.bodyCompact.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.2 },
   marginPill: { paddingHorizontal: 9, paddingVertical: 3, borderRadius: Tokens.radius.full },
   marginPillText: { fontSize: Type.caption2.fontSize, fontWeight: '800', letterSpacing: 0.3 },
   healthDot: { width: 10, height: 10, borderRadius: 5 },
 
-  kvGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  kv: { width: '48%', flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 },
+  kvGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Tokens.spacing.xs },
+  kv: { width: '48%', flexDirection: 'row', justifyContent: 'space-between', paddingVertical: Tokens.spacing.xxs },
   kvKey: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontWeight: '600' },
   kvVal: { fontSize: Type.caption1.fontSize, color: Colors.text, fontWeight: '600' },
   kvValBold: { fontWeight: '800', fontSize: Type.footnote.fontSize },
 
   emptyCard: {
     backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 28,
-    alignItems: 'center', gap: 8, marginTop: 22,
+    alignItems: 'center', gap: Tokens.spacing.xs, marginTop: 22,
     borderWidth: 1, borderColor: Colors.border,
   },
-  emptyTitle: { fontSize: Type.callout.fontSize, fontWeight: '800', color: Colors.text, marginTop: 4 },
+  emptyTitle: { fontSize: Type.callout.fontSize, fontWeight: '800', color: Colors.text, marginTop: Tokens.spacing.xxs },
   emptyBody:  { fontSize: Type.footnote.fontSize, color: Colors.textMuted, textAlign: 'center', lineHeight: 19, maxWidth: 320 },
 
   actionBar: {
-    flexDirection: 'row', gap: 10, paddingHorizontal: 16, paddingTop: 12,
+    flexDirection: 'row', gap: 10, paddingHorizontal: Tokens.spacing.md, paddingTop: Tokens.spacing.sm,
     borderTopWidth: 1, borderTopColor: Colors.border, backgroundColor: Colors.surface,
   },
   actionBtnSecondary: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-    paddingVertical: 13, paddingHorizontal: 16, borderRadius: 11,
+    paddingVertical: 13, paddingHorizontal: Tokens.spacing.md, borderRadius: 11,
     backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,
   },
   actionBtnSecondaryText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.text },
   actionBtnPrimary: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Tokens.spacing.xs,
     paddingVertical: 14, borderRadius: 11, backgroundColor: Colors.primary,
     shadowColor: Colors.primary, shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.28, shadowRadius: 10, elevation: 4,
