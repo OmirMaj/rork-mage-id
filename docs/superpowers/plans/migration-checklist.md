@@ -1,0 +1,85 @@
+# MAGE ID — Phase 1.5 Migration Checklist
+
+Generated 2026-05-11 after Phase 1 foundation shipped on the `phase1-foundation` branch.
+
+**190 files** still reference legacy `Colors.primary` / `Colors.background` / `Colors.surface`. The list below is the migration backlog. Each file gets ticked when its `Colors.*` references are swapped for the themed equivalents using the canonical Colors → t mapping documented in `docs/superpowers/plans/2026-05-11-phase-1-design-polish.md` (Task 16 step 3).
+
+## Already migrated in Phase 1 PR 1-6
+
+- [x] `constants/colors.ts` (extended with `Theme`)
+- [x] `constants/typography.ts` (Fraunces + Mono tokens added)
+- [x] `contexts/ThemeContext.tsx` (created)
+- [x] `hooks/useThemedStyles.ts` (created)
+- [x] `app/_layout.tsx` (font load + ThemeProvider mount)
+- [x] `components/ui/Button.tsx` (created)
+- [x] `components/ui/Card.tsx` (created)
+- [x] `components/ui/Input.tsx` (created)
+- [x] `components/ui/Badge.tsx` (created)
+- [x] `components/ui/EyebrowLabel.tsx` (created)
+- [x] `components/IconButton.tsx` (legacy primitive themed)
+- [x] `components/StatusPill.tsx` (legacy primitive themed)
+- [x] `components/NavRow.tsx` (legacy primitive themed)
+- [x] `components/Skeleton.tsx` (themed + ListSkeleton added)
+- [x] `components/ProjectCard.tsx` (fully themed, uses new primitives)
+- [x] `app/(tabs)/(home)/index.tsx` (bg theme-aware; sub-components deferred)
+- [x] `app/project-detail.tsx` (bg theme-aware; tile grid deferred)
+- [x] `app/onboarding.tsx` (bg theme-aware; slides deferred)
+- [x] `app/paywall.tsx` (bg theme-aware + close icon themed)
+- [x] `app/(tabs)/settings/appearance.tsx` (created, fully themed)
+- [x] `app/(tabs)/settings/index.tsx` (Appearance nav row added)
+
+## High-priority remaining (Phase 1.5)
+
+These appear most often in user flow and should get migrated next:
+
+- [ ] `components/PageHeader.tsx`
+- [ ] `components/AICopilot.tsx`
+- [ ] `components/AIHomeBriefing.tsx`
+- [ ] `components/SmartInbox.tsx`
+- [ ] `components/OnboardingChecklist.tsx`
+- [ ] `components/DesktopSidebar.tsx`
+- [ ] `components/DesktopActionRail.tsx`
+- [ ] `components/EmptyState.tsx`
+- [ ] `components/Tutorial.tsx`
+- [ ] `components/ProjectRow.tsx`
+- [ ] `components/EntityActionSheet.tsx`
+- [ ] `components/FilterChipRow.tsx`
+- [ ] `app/(tabs)/_layout.tsx`
+- [ ] `app/(tabs)/discover/index.tsx`
+- [ ] `app/(tabs)/summary/index.tsx`
+- [ ] `app/(tabs)/schedule/index.tsx`
+- [ ] `app/(tabs)/settings/index.tsx` (full body — only Appearance row is done)
+
+## Backlog — remaining 170 files
+
+See `/tmp/unmigrated.txt` for the full grep output (regenerate with the command at the bottom of this doc).
+
+Migrate each file using this pattern:
+
+```ts
+import { useTheme } from '@/contexts/ThemeContext';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import type { ThemeColors } from '@/constants/colors';
+
+function MyComponent() {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+  // ... use colors.accent, colors.text, colors.surface, etc.
+}
+
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  container: { backgroundColor: t.bg },
+  // ...
+});
+```
+
+Canonical Colors → t mapping is in the parent plan doc Task 16 step 3.
+
+## Regenerate this list
+
+```bash
+cd "/Users/omirmajeed/Desktop/MAGE ID - CLAUDE" && \
+  grep -rl "Colors\.primary\|Colors\.background\|Colors\.surface" app/ components/ \
+  | grep -v node_modules \
+  | sort > /tmp/unmigrated.txt && wc -l /tmp/unmigrated.txt
+```
