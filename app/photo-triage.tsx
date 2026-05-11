@@ -34,7 +34,7 @@ import {
   Camera, ImagePlus, Sparkles, X, Trash2, ChevronLeft,
   AlertCircle, ClipboardList, MessageSquare, FileText, Image as ImageIcon, Sparkle,
 } from 'lucide-react-native';
-import EmptyState from '@/components/EmptyState';
+import EmptyState from '@/components/ui/EmptyState';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import {

@@ -23,7 +23,7 @@ import {
   ChevronLeft, FileText, Plus, Trash2, DollarSign, Calendar, Send,
   CheckCircle2, AlertTriangle, Edit3, FileSignature, ChevronRight,
 } from 'lucide-react-native';
-import EmptyState from '@/components/EmptyState';
+import EmptyState from '@/components/ui/EmptyState';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useAuth } from '@/contexts/AuthContext';

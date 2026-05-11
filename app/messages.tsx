@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { Send, ChevronDown, MessageCircle } from 'lucide-react-native';
-import EmptyState from '@/components/EmptyState';
+import EmptyState from '@/components/ui/EmptyState';
 import * as Haptics from 'expo-haptics';
 import { Colors } from '@/constants/colors';
 import { useHire } from '@/contexts/HireContext';

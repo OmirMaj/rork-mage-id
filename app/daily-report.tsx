@@ -13,7 +13,7 @@ import {
   Sparkles, Home as HomeIcon, RefreshCw, Copy, CheckCircle2,
   CalendarDays, ChevronLeft, Tractor, Wrench, ChartBar, BarChart3, ClipboardList,
 } from 'lucide-react-native';
-import EmptyState from '@/components/EmptyState';
+import EmptyState from '@/components/ui/EmptyState';
 import DatePickerModal from '@/components/DatePickerModal';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';

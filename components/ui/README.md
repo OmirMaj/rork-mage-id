@@ -12,7 +12,7 @@ A 2026-05 audit found:
 
 `components/ui/` is the fix. Build new screens on these primitives; migrate existing screens opportunistically when you're already in the file.
 
-## The four primitives
+## The eight primitives
 
 | Primitive | Purpose | Docs |
 |---|---|---|
@@ -20,13 +20,17 @@ A 2026-05 audit found:
 | `<Sheet>` | Modal-route chrome — back-chevron header + scroll body. | [Sheet.docs.md](./Sheet.docs.md) |
 | `<NavRow>` | Tap-to-navigate row with icon + title + chevron. | [NavRow.docs.md](./NavRow.docs.md) |
 | `<Pill>` | Small status chip with tone + icon. | [Pill.docs.md](./Pill.docs.md) |
+| `<Field>` | Form field — label + input + helper/error. | [Field.docs.md](./Field.docs.md) |
+| `<Section>` | Eyebrow + title + stacked children. | [Section.docs.md](./Section.docs.md) |
+| `<EmptyState>` | Centered empty / first-use state with icon + CTA. | [EmptyState.docs.md](./EmptyState.docs.md) |
+| `<TrustRow>` | Shield + reassurance footnote. | [TrustRow.docs.md](./TrustRow.docs.md) |
 
 ## Import
 
 One namespace, one import:
 
 ```tsx
-import { Card, Sheet, NavRow, Pill } from '@/components/ui';
+import { Card, Sheet, NavRow, Pill, Field, Section, EmptyState, TrustRow } from '@/components/ui';
 ```
 
 ## Principles
@@ -49,11 +53,13 @@ If a pattern is feature-specific (e.g. "a paywall plan card with pricing toggle"
 
 ## What's next
 
-The audit identified these as future primitive candidates, in priority order:
+The eight primitives above cover the patterns the audit flagged. Migration is the work remaining:
 
-1. **`<Field>`** — label + input + helper/error. Replaces 40+ ad-hoc form rows.
-2. **`<Section>`** — eyebrow + title + stacked children. Replaces the ad-hoc `<Text><View>` section patterns.
-3. **`<EmptyState>`** — icon + title + message + optional CTA. Replaces ~20 bespoke empty states.
-4. **`<TrustRow>`** — shield/lock icon + footnote. Replaces ~10 bespoke trust footers (paywall, legal, compliance).
+- **Form-heavy screens** → migrate ad-hoc `<Text label> + <TextInput>` stacks onto `<Field>`.
+- **Tab screens with section headers** → replace local `function Section()` definitions with `<Section>`.
+- **Empty states with custom JSX** → consolidate onto `<EmptyState>`.
+- **Modal routes** → migrate bespoke headers onto `<Sheet>`.
 
-Each one would land here with its `.docs.md` and a barrel export in `index.ts`.
+The audit's spacing-token codemod also remains — `padding: 16` → `Tokens.spacing.md` across the top 5 offender files (`project-detail.tsx`, `(tabs)/schedule/index.tsx`, `client-view.tsx`, `(tabs)/estimate/index.tsx`, `takeoff.tsx`). 7,000+ raw spacing values across the codebase.
+
+If a new pattern shows up 3+ times and meets the "leaf-level primitive" bar described above, it earns a spot here — with its `.docs.md` and a barrel export.

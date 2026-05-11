@@ -32,7 +32,7 @@ import {
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { usePermitTemplates, type PermitTemplate } from '@/hooks/usePermitTemplates';
-import EmptyState from '@/components/EmptyState';
+import EmptyState from '@/components/ui/EmptyState';
 import { formatMoney } from '@/utils/formatters';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';

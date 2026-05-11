@@ -24,7 +24,7 @@ import {
   FileSignature, ChevronRight, ChevronLeft, Trash2, X, Check,
   CheckCircle2, Clock, Calculator,
 } from 'lucide-react-native';
-import EmptyState from '@/components/EmptyState';
+import EmptyState from '@/components/ui/EmptyState';
 import * as Haptics from 'expo-haptics';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';

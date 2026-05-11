@@ -12,7 +12,7 @@ import {
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import ConstructionLoader from '@/components/ConstructionLoader';
-import EmptyState from '@/components/EmptyState';
+import EmptyState from '@/components/ui/EmptyState';
 import CashFlowGlance from '@/components/CashFlowGlance';
 import CashFlowAlerts from '@/components/CashFlowAlerts';
 import { generateForecast, type CashFlowWeek } from '@/utils/cashFlowEngine';

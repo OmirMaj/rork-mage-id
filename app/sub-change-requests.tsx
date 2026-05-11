@@ -31,7 +31,7 @@ import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useSubChangeRequests } from '@/hooks/useSubChangeRequests';
 import { formatMoney } from '@/utils/formatters';
-import EmptyState from '@/components/EmptyState';
+import EmptyState from '@/components/ui/EmptyState';
 import type { SubChangeRequest } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';

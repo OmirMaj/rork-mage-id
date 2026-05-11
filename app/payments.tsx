@@ -15,7 +15,7 @@ import { PROVIDER_INFO } from '@/mocks/payments';
 import type { Payment, PaymentStatus, PaymentProvider, Invoice, Project, Contact } from '@/types';
 import { formatMoney } from '@/utils/formatters';
 import { useProjects } from '@/contexts/ProjectContext';
-import EmptyState from '@/components/EmptyState';
+import EmptyState from '@/components/ui/EmptyState';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 

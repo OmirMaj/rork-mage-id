@@ -32,7 +32,7 @@ import {
 import { Colors } from '@/constants/colors';
 import { useBids } from '@/contexts/BidsContext';
 import { formatMoney, formatMoneyShort } from '@/utils/formatters';
-import EmptyState from '@/components/EmptyState';
+import EmptyState from '@/components/ui/EmptyState';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import type { PublicBid } from '@/types';

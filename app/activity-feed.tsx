@@ -14,7 +14,7 @@ import { useProjects } from '@/contexts/ProjectContext';
 import { useActivityFeed, type ActivityAction, type ActivityItem } from '@/hooks/useActivityFeed';
 import { useEntityNavigation } from '@/hooks/useEntityNavigation';
 import EntityActionSheet from '@/components/EntityActionSheet';
-import EmptyState from '@/components/EmptyState';
+import EmptyState from '@/components/ui/EmptyState';
 import type { EntityRef } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';

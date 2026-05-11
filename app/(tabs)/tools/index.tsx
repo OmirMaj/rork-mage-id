@@ -27,7 +27,7 @@ import { Colors } from '@/constants/colors';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { NavRow } from '@/components/ui';
-import EmptyState from '@/components/EmptyState';
+import EmptyState from '@/components/ui/EmptyState';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useSubChangeRequests } from '@/hooks/useSubChangeRequests';
 import { useDeliveryReceipts } from '@/hooks/useDeliveryReceipts';

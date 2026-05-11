@@ -35,7 +35,7 @@ import {
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { aggregateOpenActionItems, type OpenActionItem } from '@/utils/oacActionItems';
-import EmptyState from '@/components/EmptyState';
+import EmptyState from '@/components/ui/EmptyState';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import type { OACActionItem } from '@/types';

@@ -45,7 +45,7 @@ import { useProjects } from '@/contexts/ProjectContext';
 import { useDeliveryReceipts } from '@/hooks/useDeliveryReceipts';
 import { useAuth } from '@/contexts/AuthContext';
 import { generateUUID } from '@/utils/generateId';
-import EmptyState from '@/components/EmptyState';
+import EmptyState from '@/components/ui/EmptyState';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import type { DeliveryReceipt, DeliveryReceiptItem } from '@/types';

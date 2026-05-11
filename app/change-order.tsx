@@ -9,7 +9,7 @@ import * as Haptics from 'expo-haptics';
 import {
   Plus, Trash2, X, FileText, Send, Search, Percent, BookUser, User, PenTool,
 } from 'lucide-react-native';
-import EmptyState from '@/components/EmptyState';
+import EmptyState from '@/components/ui/EmptyState';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useTierAccess } from '@/hooks/useTierAccess';

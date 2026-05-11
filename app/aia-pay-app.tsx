@@ -10,7 +10,7 @@ import {
   ChevronLeft, Info, Printer, Check, Save,
   ShieldAlert, CheckCircle2, FileText,
 } from 'lucide-react-native';
-import EmptyState from '@/components/EmptyState';
+import EmptyState from '@/components/ui/EmptyState';
 import { Colors } from '@/constants/colors';
 import ConstructionLoader from '@/components/ConstructionLoader';
 import { FeatureHeader } from '@/components/FeatureHeader';

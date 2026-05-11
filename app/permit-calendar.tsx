@@ -32,7 +32,7 @@ import {
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useDrawPeriods } from '@/hooks/useDrawPeriods';
-import EmptyState from '@/components/EmptyState';
+import EmptyState from '@/components/ui/EmptyState';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import type { Permit, DrawPeriod } from '@/types';

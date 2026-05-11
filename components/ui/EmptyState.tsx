@@ -177,12 +177,12 @@ const styles = StyleSheet.create({
     position: 'absolute' as const,
     width: 96,
     height: 96,
-    borderRadius: 28,
+    borderRadius: Tokens.radius['2xl'],
   },
   iconContainer: {
     width: 76,
     height: 76,
-    borderRadius: 22,
+    borderRadius: Tokens.radius['2xl'],
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
   },
@@ -219,7 +219,7 @@ const styles = StyleSheet.create({
   stepBullet: {
     width: 22,
     height: 22,
-    borderRadius: 11,
+    borderRadius: Tokens.radius.full,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
     borderWidth: 1,
@@ -227,7 +227,7 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   stepBulletText: {
-    fontSize: 11,
+    fontSize: Type.caption2.fontSize,
     fontWeight: '800' as const,
   },
   stepText: {

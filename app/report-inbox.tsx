@@ -20,7 +20,7 @@ import { ChevronLeft, FileText, ClipboardList, Receipt, Repeat, ChevronRight, Al
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import FilterChipRow, { type FilterChip } from '@/components/FilterChipRow';
-import EmptyState from '@/components/EmptyState';
+import EmptyState from '@/components/ui/EmptyState';
 import { formatMoney } from '@/utils/formatters';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';

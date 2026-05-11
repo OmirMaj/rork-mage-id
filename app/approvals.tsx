@@ -29,7 +29,7 @@ import {
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import type { COAuditEntry } from '@/types';
-import EmptyState from '@/components/EmptyState';
+import EmptyState from '@/components/ui/EmptyState';
 import SwipeableRow from '@/components/SwipeableRow';
 import { CheckCircle2 as CheckIcon, XCircle as XIconLib } from 'lucide-react-native';
 import { formatMoney } from '@/utils/formatters';

@@ -12,7 +12,7 @@ import {
   TrendingUp, TrendingDown, DollarSign, Clock, Target, BarChart3,
   Sparkles,
 } from 'lucide-react-native';
-import EmptyState from '@/components/EmptyState';
+import EmptyState from '@/components/ui/EmptyState';
 import Svg, { Path, Line } from 'react-native-svg';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';

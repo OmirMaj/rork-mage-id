@@ -41,7 +41,7 @@ import {
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useOwnerSuppliedItems } from '@/hooks/useOwnerSuppliedItems';
-import EmptyState from '@/components/EmptyState';
+import EmptyState from '@/components/ui/EmptyState';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import type { OwnerSuppliedItem, OwnerSuppliedMode, OwnerSuppliedStatus } from '@/types';

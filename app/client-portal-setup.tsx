@@ -12,7 +12,7 @@ import {
   MessageSquare, BarChart3, Users, ChevronLeft, Plus, Link, Clock, Lock,
   Mail, RefreshCw, Sparkles, Check, X, HandCoins, Sunrise, Briefcase,
 } from 'lucide-react-native';
-import EmptyState from '@/components/EmptyState';
+import EmptyState from '@/components/ui/EmptyState';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import type { ClientPortalSettings, ClientPortalInvite } from '@/types';

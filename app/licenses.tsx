@@ -22,7 +22,7 @@ import { Colors } from '@/constants/colors';
 import {
   useContractorLicenses, type ContractorLicense, type LicenseType,
 } from '@/hooks/useContractorLicenses';
-import EmptyState from '@/components/EmptyState';
+import EmptyState from '@/components/ui/EmptyState';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 

@@ -28,7 +28,7 @@ import InlineVoiceFill from '@/components/InlineVoiceFill';
 import { parseProjectFromTranscript } from '@/utils/voiceFormParsers';
 import { useNotificationFeed } from '@/hooks/useNotificationFeed';
 import UniversalMicButton from '@/components/UniversalMicButton';
-import EmptyState from '@/components/EmptyState';
+import EmptyState from '@/components/ui/EmptyState';
 import { useAuth } from '@/contexts/AuthContext';
 import Tutorial, { hasSeenTutorial } from '@/components/Tutorial';
 import { OnboardingChecklist } from '@/components/OnboardingChecklist';

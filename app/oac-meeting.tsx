@@ -24,7 +24,7 @@ import {
   ChevronLeft, Plus, Sparkles, RefreshCw, Send, CheckCircle2, Circle,
   Mic, X, Users, Calendar, AlertTriangle, Clock, Upload,
 } from 'lucide-react-native';
-import EmptyState from '@/components/EmptyState';
+import EmptyState from '@/components/ui/EmptyState';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import { Colors } from '@/constants/colors';

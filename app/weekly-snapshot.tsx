@@ -18,7 +18,7 @@ import * as Haptics from 'expo-haptics';
 import {
   ChevronLeft, Cloud, Users, ClipboardList, FileText, Receipt, Camera, Repeat, AlertTriangle, CheckCircle2, TrendingDown, TrendingUp,
 } from 'lucide-react-native';
-import EmptyState from '@/components/EmptyState';
+import EmptyState from '@/components/ui/EmptyState';
 import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import FilterChipRow, { type FilterChip } from '@/components/FilterChipRow';
