@@ -78,6 +78,34 @@ export const Type = {
     textTransform: 'uppercase' as const,
     lineHeight: 14,
   } as TextStyle,
+
+  // ─── Serif (Fraunces) — display use only. Loaded fonts: Fraunces_500Medium.
+  //     fontFamily MUST be 'Fraunces_500Medium' to match the @expo-google-fonts package.
+  serifLargeTitle: { fontFamily: 'Fraunces_500Medium', fontSize: 36, lineHeight: 40, letterSpacing: -0.9 } as TextStyle,
+  serifTitle:      { fontFamily: 'Fraunces_500Medium', fontSize: 28, lineHeight: 32, letterSpacing: -0.56 } as TextStyle,
+  serifHeadline:   { fontFamily: 'Fraunces_500Medium', fontSize: 22, lineHeight: 26, letterSpacing: -0.22 } as TextStyle,
+
+  // ─── Mono (JetBrains Mono) — micro labels, eyebrows, status.
+  monoEyebrow: {
+    fontFamily: 'JetBrainsMono_500Medium',
+    fontSize: 11,
+    lineHeight: 14,
+    letterSpacing: 1.54, // 0.14em at 11px
+    textTransform: 'uppercase' as const,
+  } as TextStyle,
+  monoLabel: {
+    fontFamily: 'JetBrainsMono_500Medium',
+    fontSize: 10,
+    lineHeight: 12,
+    letterSpacing: 1.8, // 0.18em at 10px
+    textTransform: 'uppercase' as const,
+  } as TextStyle,
+  monoCaption: {
+    fontFamily: 'JetBrainsMono_400Regular',
+    fontSize: 12,
+    lineHeight: 16,
+    letterSpacing: 0.72, // 0.06em at 12px
+  } as TextStyle,
 } as const;
 
 export type TypeKey = keyof typeof Type;
