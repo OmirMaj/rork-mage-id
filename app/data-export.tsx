@@ -18,6 +18,7 @@ import {
   buildExportPayload, exportUserData, shareExportedFile, summarizeExport,
   type DataExportOptions, type DataExportSummary,
 } from '@/utils/dataExport';
+import { exportCSV, toCSV, dateStampedName } from '@/utils/csvExport';
 
 type Scope = 'all' | 'project';
 
@@ -150,6 +151,83 @@ export default function DataExportScreen() {
             Bundle every project, invoice, RFI, photo, and daily report into a portable file you own.
             Hand it to your accountant, your lawyer, or a competing tool — no lock-in.
           </Text>
+        </View>
+
+        {/* Quick CSV export — bypasses the JSON/archive flow below for the
+            common case of "I need an invoices CSV for my accountant".
+            Direct response to Buildertrend's #1 G2 complaint about data
+            lock-in. One tap, instant share-sheet. */}
+        <Text style={styles.sectionLabel}>QUICK CSV</Text>
+        <View style={styles.quickCsvRow}>
+          <TouchableOpacity
+            style={styles.quickCsvBtn}
+            onPress={async () => {
+              const csv = toCSV(invoices, [
+                { key: 'number', label: 'Invoice #' },
+                { key: 'projectId', label: 'Project ID' },
+                { key: 'issueDate', label: 'Issued' },
+                { key: 'dueDate', label: 'Due' },
+                { key: 'status', label: 'Status' },
+                { key: 'totalDue', label: 'Total Due' },
+                { key: 'amountPaid', label: 'Paid' },
+              ]);
+              await exportCSV(dateStampedName('invoices'), csv);
+              if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            }}
+            activeOpacity={0.85}
+            testID="quick-csv-invoices"
+          >
+            <FileSpreadsheet size={16} color={Colors.primary} />
+            <Text style={styles.quickCsvLabel}>Invoices CSV</Text>
+            <Text style={styles.quickCsvCount}>{invoices.length}</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.quickCsvBtn}
+            onPress={async () => {
+              const csv = toCSV(contacts, [
+                { key: 'firstName', label: 'First Name' },
+                { key: 'lastName', label: 'Last Name' },
+                { key: 'companyName', label: 'Company' },
+                { key: 'role', label: 'Role' },
+                { key: 'email', label: 'Email' },
+                { key: 'phone', label: 'Phone' },
+                { key: 'address', label: 'Address' },
+              ]);
+              await exportCSV(dateStampedName('contacts'), csv);
+              if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            }}
+            activeOpacity={0.85}
+            testID="quick-csv-contacts"
+          >
+            <FileSpreadsheet size={16} color={Colors.primary} />
+            <Text style={styles.quickCsvLabel}>Contacts CSV</Text>
+            <Text style={styles.quickCsvCount}>{contacts.length}</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.quickCsvBtn}
+            onPress={async () => {
+              const csv = toCSV(subcontractors, [
+                { key: 'companyName', label: 'Company' },
+                { key: 'contactName', label: 'Contact' },
+                { key: 'trade', label: 'Trade' },
+                { key: 'email', label: 'Email' },
+                { key: 'phone', label: 'Phone' },
+                { key: 'licenseNumber', label: 'License #' },
+                { key: 'licenseExpiry', label: 'License Exp' },
+                { key: 'coiExpiry', label: 'COI Exp' },
+              ]);
+              await exportCSV(dateStampedName('subs'), csv);
+              if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            }}
+            activeOpacity={0.85}
+            testID="quick-csv-subs"
+          >
+            <FileSpreadsheet size={16} color={Colors.primary} />
+            <Text style={styles.quickCsvLabel}>Subs CSV</Text>
+            <Text style={styles.quickCsvCount}>{subcontractors.length}</Text>
+          </TouchableOpacity>
         </View>
 
         <Text style={styles.sectionLabel}>SCOPE</Text>
@@ -388,6 +466,28 @@ const styles = StyleSheet.create({
   sectionLabel: {
     fontSize: Type.caption2.fontSize, fontWeight: '600', color: Colors.textSecondary,
     letterSpacing: 0.8, marginBottom: 8, marginTop: 20,
+  },
+
+  // Quick CSV grid — three pills with entity icon + label + count.
+  // Three across on phone; auto-wraps on narrow widths.
+  quickCsvRow: {
+    flexDirection: 'row' as const, gap: 8, flexWrap: 'wrap' as const,
+  },
+  quickCsvBtn: {
+    flex: 1, minWidth: 100,
+    flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8,
+    paddingVertical: 12, paddingHorizontal: 12,
+    backgroundColor: Colors.surface, borderRadius: Tokens.radius.lg,
+    borderWidth: 1, borderColor: Colors.cardBorder,
+  },
+  quickCsvLabel: {
+    flex: 1,
+    fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const,
+    color: Colors.text,
+  },
+  quickCsvCount: {
+    fontSize: Type.caption1.fontSize, fontWeight: '600' as const,
+    color: Colors.textSecondary,
   },
 
   segment: {

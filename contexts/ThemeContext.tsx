@@ -21,7 +21,7 @@
 // so future screens can use theme-aware tokens.
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { Appearance, type ColorSchemeName, Platform } from 'react-native';
+import { Appearance, type ColorSchemeName, Platform, StatusBar } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import createContextHook from '@nkzw/create-context-hook';
 
@@ -87,6 +87,18 @@ export const [ThemeProvider, useTheme] = createContextHook<ThemeContextValue>(()
     if (Platform.OS !== 'web') return;
     if (typeof document === 'undefined') return;
     document.documentElement.style.colorScheme = resolved;
+  }, [resolved]);
+
+  // Native: flip the StatusBar bar style so iOS clock + battery + Wi-Fi
+  // indicators stay readable against the background. Android also gets
+  // its translucent status bar updated. Done imperatively (not via a
+  // <StatusBar> JSX) so it works regardless of which screen is mounted.
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    StatusBar.setBarStyle(resolved === 'dark' ? 'light-content' : 'dark-content', true);
+    if (Platform.OS === 'android') {
+      StatusBar.setBackgroundColor(resolved === 'dark' ? '#0B0D10' : '#F2F2F7', true);
+    }
   }, [resolved]);
 
   return { preference, resolved, setPreference };

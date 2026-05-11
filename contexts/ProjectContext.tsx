@@ -1141,6 +1141,17 @@ export const [ProjectProvider, useProjects] = createContextHook(() => {
       a.trackEvent({ name: 'project_created_typed', props: { type: project.type, via } });
       a.setUserProperties({ project_count: updated.length, is_activated: true });
     }).catch(() => {});
+    // Webhook fanout: notify any user-configured Zapier/Make/n8n hooks.
+    // Fire-and-forget; never blocks the UI. Doubles as a Slack ping if
+    // the user has the Slack incoming-webhook helper wired too.
+    void import('@/utils/webhooks').then(w =>
+      w.dispatchWebhook('project_created', {
+        project_id: project.id,
+        project_name: project.name,
+        project_type: project.type,
+        via,
+      }),
+    ).catch(() => {});
   }, [projects, saveProjectsMutation, syncProjectToSupabase, geocodeIfNeeded]);
 
   const updateProject = useCallback((id: string, updates: Partial<Project>) => {

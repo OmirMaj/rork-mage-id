@@ -11,6 +11,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { isOwner } from '@/utils/owner';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { useTheme, type ThemePreference } from '@/contexts/ThemeContext';
+import { useThemedColors } from '@/hooks/useThemedColors';
 import { getAIUsageStats } from '@/utils/aiRateLimiter';
 import { useTakeoffPagesQuota } from '@/hooks/useUsageStatus';
 import { THEME_PRESETS } from '@/types';
@@ -375,8 +376,9 @@ export default function SettingsScreen() {
 
   const sigPadWidth = Math.min(SCREEN_WIDTH - 80, 340);
 
+  const themed = useThemedColors();
   return (
-    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView style={[styles.container, { backgroundColor: themed.background }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView
         contentContainerStyle={{ paddingTop: insets.top, paddingBottom: insets.bottom + 100 }}
         showsVerticalScrollIndicator={false}

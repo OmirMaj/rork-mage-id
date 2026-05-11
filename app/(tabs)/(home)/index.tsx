@@ -51,6 +51,7 @@ import PageHeader from '@/components/PageHeader';
 import DashboardHero from '@/components/DashboardHero';
 import DailyHeroPhoto from '@/components/DailyHeroPhoto';
 import ProjectRow from '@/components/ProjectRow';
+import { useThemedColors } from '@/hooks/useThemedColors';
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
@@ -94,6 +95,10 @@ export default function HomeScreen() {
     })();
     return () => { cancelled = true; };
   }, []);
+
+  // Theme-aware background. Must be called at the top of the component
+  // (above any conditional early returns) to satisfy rules-of-hooks.
+  const themed = useThemedColors();
 
   // Onboarding milestones — drives the 5-step "Get up and running" panel.
   // Re-reads when the project / invoice count changes so the user sees
@@ -374,7 +379,7 @@ export default function HomeScreen() {
 
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: themed.background }]}>
       <FlatList
         // At tablet+ widths the project list is rendered as a single bordered
         // table inside ListFooterComponent (denseProjectList). FlatList still

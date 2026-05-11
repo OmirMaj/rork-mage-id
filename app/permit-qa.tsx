@@ -31,6 +31,7 @@ import { mageAI } from '@/utils/mageAI';
 import { getMetroContext, CROSS_JURISDICTION_PRINCIPLES, type MetroKey } from '@/utils/permitCorpus';
 import { findRelevantSections, renderSectionsForPrompt } from '@/utils/codeLibrary';
 import { trackEvent } from '@/utils/analytics';
+import { useThemedColors } from '@/hooks/useThemedColors';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -212,8 +213,12 @@ export default function PermitQAScreen() {
     }
   }, [messages, metro, sending]);
 
+  // Dark-mode top-level surface. Full per-component theming is
+  // incremental — for now, the container background + scroll-area
+  // adapt, and the cream empty-state hero stays brand-consistent.
+  const themed = useThemedColors();
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: themed.background }]}>
       <Stack.Screen
         options={{
           title: 'Permit Q&A',

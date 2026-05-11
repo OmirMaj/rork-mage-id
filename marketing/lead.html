@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Tell us about your project — MAGE ID</title>
+  <link rel="canonical" href="https://mageid.app/lead.html" />
+  <meta name="description" content="Tell us about your project. We'll match you with a vetted contractor in your area. Free, no obligation." />
+  <meta name="theme-color" content="#0B0D10" />
+
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="Get matched with a contractor — MAGE ID" />
+  <meta property="og:description" content="Post your project. Get bids from vetted contractors in your area. Free, no obligation." />
+  <meta property="og:url" content="https://mageid.app/lead.html" />
+  <meta property="og:site_name" content="MAGE ID" />
+  <meta property="og:image" content="https://mageid.app/assets/og-image.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:image" content="https://mageid.app/assets/og-image.png" />
+  <link rel="stylesheet" href="/styles.css?v=2026-05-11" />
+
+  <style>
+    .lead-wrap { max-width: 600px; margin: 32px auto 0; padding: 0 20px 80px; }
+    .lead-card {
+      background: var(--steel);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 18px;
+      padding: 32px;
+    }
+    .lead-row { margin-bottom: 18px; }
+    .lead-row label {
+      display: block;
+      font-family: var(--ff-mono);
+      font-size: 0.72rem;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--amber);
+      margin-bottom: 8px;
+      font-weight: 600;
+    }
+    .lead-row input, .lead-row select, .lead-row textarea {
+      width: 100%;
+      padding: 12px 14px;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: var(--ink);
+      color: var(--cream);
+      font-size: 16px;
+      font-family: var(--ff-sans);
+    }
+    .lead-row textarea { min-height: 120px; resize: vertical; line-height: 1.5; }
+    .lead-row input:focus, .lead-row select:focus, .lead-row textarea:focus {
+      outline: 2px solid var(--amber); outline-offset: 1px;
+    }
+    .lead-row .hint {
+      display: block;
+      font-size: 12px;
+      color: var(--fog);
+      margin-top: 4px;
+    }
+    .lead-submit {
+      width: 100%;
+      padding: 14px;
+      border: 0;
+      border-radius: 999px;
+      background: var(--amber);
+      color: var(--ink);
+      font-family: var(--ff-sans);
+      font-weight: 700;
+      font-size: 16px;
+      cursor: pointer;
+      transition: transform 120ms ease;
+    }
+    .lead-submit:hover { transform: translateY(-1px); }
+    .lead-submit:disabled { opacity: 0.5; cursor: wait; }
+    .lead-success {
+      background: rgba(52, 199, 89, 0.10);
+      border: 1px solid rgba(52, 199, 89, 0.30);
+      padding: 24px;
+      border-radius: 14px;
+      text-align: center;
+      color: var(--cream);
+    }
+    .lead-error {
+      margin-top: 12px;
+      color: #FF8B7B;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <header class="nav">
+    <div class="nav-inner">
+      <a href="/" class="brand">
+        <img class="brand-mark" src="/assets/logo-mark-light.png" alt="" width="32" height="32" />
+        <span>MAGE&nbsp;ID</span>
+      </a>
+      <nav class="links">
+        <a href="/">Home</a>
+        <a href="/playbook.html">How it works</a>
+        <a href="/features/">Features</a>
+        <a href="/pricing.html">Pricing</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="sub-hero wrap">
+      <span class="eyebrow">For homeowners</span>
+      <h1>Tell us about your <em>project.</em></h1>
+      <p>
+        We'll match you with a vetted contractor in your area. Free, no obligation. Most homeowners hear
+        back within 24 hours.
+      </p>
+    </section>
+
+    <section class="lead-wrap">
+      <div id="form-container" class="lead-card">
+        <form id="lead-form">
+          <div class="lead-row">
+            <label for="name">Your name</label>
+            <input id="name" name="name" required minlength="2" maxlength="120" />
+          </div>
+          <div class="lead-row">
+            <label for="email">Email</label>
+            <input id="email" name="email" type="email" required />
+          </div>
+          <div class="lead-row">
+            <label for="phone">Phone (optional)</label>
+            <input id="phone" name="phone" type="tel" />
+          </div>
+          <div class="lead-row">
+            <label for="zip">ZIP code</label>
+            <input id="zip" name="zip_code" pattern="[0-9]{5}" maxlength="5" />
+            <span class="hint">Helps us find contractors near you.</span>
+          </div>
+          <div class="lead-row">
+            <label for="budget">Budget</label>
+            <select id="budget" name="budget_band">
+              <option value="unknown">Not sure yet</option>
+              <option value="under_50k">Under $50K</option>
+              <option value="50k_100k">$50K – $100K</option>
+              <option value="100k_250k">$100K – $250K</option>
+              <option value="250k_plus">$250K+</option>
+            </select>
+          </div>
+          <div class="lead-row">
+            <label for="project">What's the project?</label>
+            <textarea id="project" name="project_summary" required minlength="10" maxlength="4000" placeholder="Kitchen remodel, basement finish, new build, etc. The more detail, the better the bids."></textarea>
+          </div>
+          <div class="lead-row">
+            <label for="contact">Preferred way to be contacted</label>
+            <select id="contact" name="preferred_contact">
+              <option value="either">Either email or phone</option>
+              <option value="email">Email only</option>
+              <option value="phone">Phone only</option>
+            </select>
+          </div>
+
+          <button type="submit" class="lead-submit" id="submit-btn">Find me a contractor</button>
+          <div id="error" class="lead-error" style="display:none"></div>
+        </form>
+      </div>
+
+      <div id="success-container" style="display:none">
+        <div class="lead-success">
+          <h2 style="font-family: var(--ff-serif); font-weight: 500; font-size: 26px; margin: 0 0 12px;">
+            Got it.
+          </h2>
+          <p style="margin: 0 0 4px;">We'll match you with a vetted contractor in your area.</p>
+          <p style="margin: 0; color: var(--fog); font-size: 14px;">
+            Most homeowners hear back within 24 hours.
+          </p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer wrap">
+    <p>© MAGE ID. <a href="/privacy.html">Privacy</a> · <a href="/support.html">Support</a></p>
+  </footer>
+
+  <script>
+    // Lead capture form handler.
+    // Posts to the Supabase edge function /lead-capture. The function
+    // resolves the slug from the URL query (?gc=slug-name) or falls
+    // back to the marketing-wide queue if no slug is present.
+    (function () {
+      const SUPABASE_URL = 'https://nteoqhcswappxxjlpvap.supabase.co';
+      const FUNCTION_URL = SUPABASE_URL + '/functions/v1/lead-capture';
+
+      const form = document.getElementById('lead-form');
+      const errorEl = document.getElementById('error');
+      const formContainer = document.getElementById('form-container');
+      const successContainer = document.getElementById('success-container');
+      const submitBtn = document.getElementById('submit-btn');
+
+      const urlParams = new URLSearchParams(window.location.search);
+      const gcSlug = urlParams.get('gc') || urlParams.get('contractor') || 'mage-marketplace';
+      const utmSource = urlParams.get('utm_source') || null;
+      const utmMedium = urlParams.get('utm_medium') || null;
+      const utmCampaign = urlParams.get('utm_campaign') || null;
+
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        errorEl.style.display = 'none';
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Submitting…';
+
+        const data = Object.fromEntries(new FormData(form).entries());
+        const payload = {
+          slug: gcSlug,
+          name: data.name,
+          email: data.email,
+          phone: data.phone || undefined,
+          zip_code: data.zip_code || undefined,
+          budget_band: data.budget_band || undefined,
+          project_summary: data.project_summary,
+          preferred_contact: data.preferred_contact || undefined,
+          referrer: document.referrer || undefined,
+          utm_source: utmSource,
+          utm_medium: utmMedium,
+          utm_campaign: utmCampaign,
+        };
+
+        try {
+          const res = await fetch(FUNCTION_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+          const result = await res.json();
+          if (res.ok && result.ok) {
+            formContainer.style.display = 'none';
+            successContainer.style.display = 'block';
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          } else {
+            errorEl.textContent = result.error === 'slug_not_found'
+              ? "We couldn't find that contractor. Try the main marketplace at mageid.app."
+              : 'Something went wrong. Please try again or email support@mageid.app.';
+            errorEl.style.display = 'block';
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Find me a contractor';
+          }
+        } catch (err) {
+          errorEl.textContent = 'Network error. Please try again.';
+          errorEl.style.display = 'block';
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Find me a contractor';
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

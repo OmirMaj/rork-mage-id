@@ -30,6 +30,8 @@ import { Colors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import type { COAuditEntry } from '@/types';
 import EmptyState from '@/components/EmptyState';
+import SwipeableRow from '@/components/SwipeableRow';
+import { CheckCircle2 as CheckIcon, XCircle as XIconLib } from 'lucide-react-native';
 import { formatMoney } from '@/utils/formatters';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -238,8 +240,23 @@ export default function ApprovalsScreen() {
         {items.map(it => {
           const Icon = it.kind === 'change_order' ? FileText : it.kind === 'rfi' ? MessageSquare : Gavel;
           const tint = it.kind === 'change_order' ? Colors.error : it.kind === 'rfi' ? Colors.info : Colors.warning;
+          // Swipe actions: approve (left, success-tinted) + reject
+          // (right primary, danger). Only wired for change orders;
+          // RFIs route to the detail screen for response capture.
+          const swipeRight = it.kind === 'change_order'
+            ? { label: 'Reject', tone: 'danger' as const, Icon: XIconLib, onPress: () => handleRejectCO(it) }
+            : undefined;
+          const swipeLeft = it.kind === 'change_order'
+            ? { label: 'Approve', tone: 'success' as const, Icon: CheckIcon, onPress: () => handleApproveCO(it) }
+            : undefined;
           return (
-            <View key={`${it.kind}-${it.id}`} style={styles.card}>
+            <SwipeableRow
+              key={`${it.kind}-${it.id}`}
+              rightPrimary={swipeRight}
+              leftPrimary={swipeLeft}
+              testID={`approvals-swipe-${it.id}`}
+            >
+            <View style={styles.card}>
               <TouchableOpacity onPress={() => openDetail(it)} style={styles.cardBody} activeOpacity={0.85}>
                 <View style={[styles.cardIconWrap, { backgroundColor: tint + '15' }]}>
                   <Icon size={16} color={tint} />
@@ -282,6 +299,7 @@ export default function ApprovalsScreen() {
                 </View>
               )}
             </View>
+            </SwipeableRow>
           );
         })}
 

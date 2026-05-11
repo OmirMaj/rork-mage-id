@@ -34,16 +34,19 @@ import { Platform } from 'react-native';
  * @param columns  Optional ordered list of column keys + labels.
  *                  Without this, columns derive from `Object.keys(rows[0])`.
  */
-export function toCSV<T extends Record<string, unknown>>(
-  rows: T[],
+export function toCSV<T>(
+  rows: readonly T[],
   columns?: { key: keyof T; label: string }[],
 ): string {
   if (rows.length === 0) return '';
 
-  const cols = columns ?? (Object.keys(rows[0]) as (keyof T)[]).map(k => ({ key: k, label: String(k) }));
+  // If no explicit columns are given, derive from the first row's
+  // enumerable keys. Cast is safe because we only use the keys for
+  // indexing — the runtime value lookup is what produces the string.
+  const cols = columns ?? (Object.keys(rows[0] as object) as (keyof T)[]).map(k => ({ key: k, label: String(k) }));
   const headerLine = cols.map(c => csvField(c.label)).join(',');
   const dataLines = rows.map(row =>
-    cols.map(c => csvField(formatValue(row[c.key]))).join(','),
+    cols.map(c => csvField(formatValue((row as Record<string, unknown>)[c.key as string]))).join(','),
   );
   return [headerLine, ...dataLines].join('\n');
 }

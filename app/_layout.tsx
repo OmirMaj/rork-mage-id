@@ -327,6 +327,7 @@ function RootLayoutNav() {
       <Stack.Screen name="whats-new" options={{ title: "What's new" }} />
       <Stack.Screen name="safety" options={{ title: 'Safety' }} />
       <Stack.Screen name="qc-checklists" options={{ title: 'QC Checklists' }} />
+      <Stack.Screen name="webhooks-settings" options={{ title: 'Webhooks' }} />
       <Stack.Screen name="sub-scorecards" options={{ title: 'Sub Scorecards' }} />
       <Stack.Screen name="account-security" options={{ title: 'Account Security' }} />
       <Stack.Screen name="welcome" options={{ headerShown: false }} />
