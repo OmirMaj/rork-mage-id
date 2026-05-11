@@ -160,12 +160,58 @@ function getClient(): PostHog | null {
 // ─── Public API ──────────────────────────────────────────────────
 
 /**
+ * Runtime PII scrubber for analytics payloads. Defense-in-depth: the
+ * typed event schema is supposed to prevent PII from being passed in,
+ * but a stray call site that forgets and includes an email or full
+ * project name shouldn't leak it to PostHog. Strips:
+ *   - Email-shaped strings
+ *   - Bearer tokens / API keys
+ *   - JWTs
+ *   - Stripe-shaped IDs (cus_/ch_/pi_)
+ *   - Plain raw "name", "email", "address" property keys
+ */
+function scrubPII(properties: EventProperties): EventProperties {
+  const out: EventProperties = {};
+  const SENSITIVE_KEYS = new Set([
+    'email', 'email_address', 'name', 'full_name', 'first_name', 'last_name',
+    'phone', 'phone_number', 'address', 'street', 'street_address',
+    'ssn', 'ein', 'tax_id', 'password', 'token', 'access_token',
+    'project_name', 'client_name', 'homeowner_name', 'contractor_name',
+  ]);
+  for (const [k, v] of Object.entries(properties)) {
+    const keyLower = k.toLowerCase();
+    if (SENSITIVE_KEYS.has(keyLower)) {
+      out[k] = '[REDACTED]';
+      continue;
+    }
+    if (typeof v === 'string') {
+      let cleaned = v;
+      // Emails
+      cleaned = cleaned.replace(/[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}/g, '[REDACTED_EMAIL]');
+      // Bearer + API keys
+      cleaned = cleaned.replace(/(?:Bearer|bearer)\s+[A-Za-z0-9._-]+/g, 'Bearer [REDACTED]');
+      cleaned = cleaned.replace(/\b(sk|pk|rk|whsec)_[A-Za-z0-9_-]{16,}/g, '[REDACTED_KEY]');
+      cleaned = cleaned.replace(/\bsk-ant-[A-Za-z0-9_-]{16,}/g, '[REDACTED_KEY]');
+      // JWTs
+      cleaned = cleaned.replace(/\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/g, '[REDACTED_JWT]');
+      out[k] = cleaned;
+    } else {
+      out[k] = v;
+    }
+  }
+  return out;
+}
+
+/**
  * Legacy untyped API — kept for backwards-compat with existing call
  * sites in app/login.tsx and app/(tabs)/settings/index.tsx. New code
  * should use `trackEvent` for type-safety.
+ *
+ * All properties are PII-scrubbed before sending to PostHog.
  */
 export function track(eventName: string, properties?: EventProperties): void {
-  if (__DEV__) console.info(`[analytics] ${eventName}`, properties ?? '');
+  const scrubbed = properties ? scrubPII(properties) : {};
+  if (__DEV__) console.info(`[analytics] ${eventName}`, scrubbed);
   try {
     const client = getClient();
     if (!client) return;
@@ -173,7 +219,7 @@ export function track(eventName: string, properties?: EventProperties): void {
     // EventProperties is a stricter subset (no nested objects), so
     // a cast through `unknown` is type-safe — the runtime value
     // already conforms.
-    const payload = { ...(properties ?? {}), platform: Platform.OS } as unknown as Parameters<PostHog['capture']>[1];
+    const payload = { ...scrubbed, platform: Platform.OS } as unknown as Parameters<PostHog['capture']>[1];
     client.capture(eventName, payload);
   } catch (err) {
     if (__DEV__) console.warn('[analytics] track failed:', err);

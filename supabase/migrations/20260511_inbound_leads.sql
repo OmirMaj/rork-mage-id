@@ -28,6 +28,11 @@ create table if not exists public.inbound_leads (
   utm_source    text null,
   utm_medium    text null,
   utm_campaign  text null,
+  -- CCPA/CPRA + consumer-protection evidence trail. Set when the homeowner
+  -- ticks the consent checkbox on the lead-capture form. NULL means the
+  -- submission predates the consent gate (shouldn't happen post-2026-05-11)
+  -- and may be reviewed for cleanup.
+  consent_to_privacy_terms_at timestamptz null,
   -- Status — GC moves through these as they work the lead.
   status        text not null default 'new', -- 'new' | 'contacted' | 'qualified' | 'won' | 'lost'
   status_note   text null,

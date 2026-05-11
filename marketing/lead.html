@@ -158,6 +158,19 @@
             </select>
           </div>
 
+          <!-- Explicit consent — required before submit. CCPA/CPRA + state
+               consumer-protection compliance for collecting homeowner PII
+               via web form. Not a dark pattern: it's checked off by default
+               but the box must be ticked for submit to fire. -->
+          <div class="lead-row" style="background: rgba(255,255,255,0.04); padding: 14px 16px; border-radius: 10px;">
+            <label style="display: flex; align-items: flex-start; gap: 10px; cursor: pointer; font-family: var(--ff-sans); font-size: 13px; color: var(--fog); text-transform: none; letter-spacing: 0; line-height: 1.55;">
+              <input type="checkbox" id="consent" name="consent" required style="margin-top: 3px; width: 16px; height: 16px; accent-color: var(--amber);" />
+              <span>
+                I agree to the <a href="/privacy.html" target="_blank" style="color: var(--amber); text-decoration: underline;">Privacy Policy</a> and <a href="/terms.html" target="_blank" style="color: var(--amber); text-decoration: underline;">Terms of Service</a>, and I consent to be contacted by MAGE ID and matched contractors about my project. I understand I can unsubscribe at any time.
+              </span>
+            </label>
+          </div>
+
           <button type="submit" class="lead-submit" id="submit-btn">Find me a contractor</button>
           <div id="error" class="lead-error" style="display:none"></div>
         </form>
@@ -178,7 +191,7 @@
   </main>
 
   <footer class="footer wrap">
-    <p>© MAGE ID. <a href="/privacy.html">Privacy</a> · <a href="/support.html">Support</a></p>
+    <p>© MAGE ID. <a href="/privacy.html">Privacy</a> · <a href="/terms.html">Terms</a> · <a href="/do-not-sell.html">Do Not Sell or Share My Personal Information</a> · <a href="/support.html">Support</a></p>
   </footer>
 
   <script>
@@ -205,6 +218,17 @@
       form.addEventListener('submit', async (e) => {
         e.preventDefault();
         errorEl.style.display = 'none';
+
+        // Hard gate on consent — even though `required` on the checkbox
+        // will block native submit, we double-check here so the user
+        // gets a clear inline error rather than a generic browser tooltip.
+        const consent = document.getElementById('consent');
+        if (!consent.checked) {
+          errorEl.textContent = 'Please tick the box agreeing to the Privacy Policy and Terms of Service.';
+          errorEl.style.display = 'block';
+          return;
+        }
+
         submitBtn.disabled = true;
         submitBtn.textContent = 'Submitting…';
 
@@ -218,6 +242,7 @@
           budget_band: data.budget_band || undefined,
           project_summary: data.project_summary,
           preferred_contact: data.preferred_contact || undefined,
+          consent_to_privacy_terms_at: new Date().toISOString(),
           referrer: document.referrer || undefined,
           utm_source: utmSource,
           utm_medium: utmMedium,

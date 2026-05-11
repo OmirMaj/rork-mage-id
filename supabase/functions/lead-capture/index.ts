@@ -39,6 +39,10 @@ interface LeadSubmission {
   utm_medium?: string;
   utm_campaign?: string;
   referrer?: string;
+  /** ISO timestamp at which the homeowner ticked the consent checkbox
+   *  (Privacy Policy + Terms). Required for CCPA/CPRA + state
+   *  consumer-protection evidence; reject submissions without it. */
+  consent_to_privacy_terms_at?: string;
 }
 
 function valid(s: LeadSubmission): string | null {
@@ -47,6 +51,12 @@ function valid(s: LeadSubmission): string | null {
   if (!s.email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(s.email)) return 'invalid_email';
   if (!s.project_summary || s.project_summary.length < 10 || s.project_summary.length > 4000) return 'invalid_project_summary';
   if (s.phone && (typeof s.phone !== 'string' || s.phone.length > 30)) return 'invalid_phone';
+  // Require explicit consent timestamp. Marketing form sends an ISO
+  // datetime; reject submissions that bypass the consent checkbox
+  // (defense-in-depth on top of the client-side `required` attribute).
+  if (!s.consent_to_privacy_terms_at || !/^\d{4}-\d{2}-\d{2}T/.test(s.consent_to_privacy_terms_at)) {
+    return 'consent_required';
+  }
   return null;
 }
 
@@ -101,6 +111,7 @@ Deno.serve(async (req: Request) => {
       utm_source: body.utm_source ?? null,
       utm_medium: body.utm_medium ?? null,
       utm_campaign: body.utm_campaign ?? null,
+      consent_to_privacy_terms_at: body.consent_to_privacy_terms_at,
       status: 'new',
     })
     .select('id')

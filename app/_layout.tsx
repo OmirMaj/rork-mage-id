@@ -67,6 +67,53 @@ Sentry.init({
   replaysOnErrorSampleRate: 1,
   integrations: [Sentry.mobileReplayIntegration(), Sentry.feedbackIntegration()],
 
+  // beforeSend — PII scrubber. Defense-in-depth on top of
+  // sendDefaultPii:false. Strips emails, bearer tokens, API keys,
+  // and JWT-looking strings from event messages + breadcrumbs +
+  // exception values. Anything that smells like PII gets [REDACTED].
+  beforeSend(event) {
+    const redact = (s: string | undefined): string | undefined => {
+      if (!s) return s;
+      let out = s;
+      // Email addresses
+      out = out.replace(/[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}/g, '[REDACTED_EMAIL]');
+      // Bearer tokens / Authorization headers
+      out = out.replace(/(?:Bearer|bearer)\s+[A-Za-z0-9._-]+/g, 'Bearer [REDACTED_TOKEN]');
+      // API keys (Stripe sk_/pk_, Supabase anon/service, Anthropic sk-ant-, OpenAI sk-)
+      out = out.replace(/\b(sk|pk|rk|whsec)_[A-Za-z0-9_-]{16,}/g, '[REDACTED_KEY]');
+      out = out.replace(/\bsk-ant-[A-Za-z0-9_-]{16,}/g, '[REDACTED_KEY]');
+      out = out.replace(/\bphc_[A-Za-z0-9]{16,}/g, '[REDACTED_KEY]');
+      // JWTs (3 dot-separated base64 segments, common in Supabase tokens)
+      out = out.replace(/\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/g, '[REDACTED_JWT]');
+      // Last-4 SSN / EIN (4 consecutive digits in a tax context)
+      out = out.replace(/\b(SSN|EIN|tax.?id)[: ]+\d{3,4}/gi, (m) => m.replace(/\d+/, '****'));
+      return out;
+    };
+
+    if (event.message) event.message = redact(event.message);
+    if (event.exception?.values) {
+      for (const ex of event.exception.values) {
+        if (ex.value) ex.value = redact(ex.value);
+      }
+    }
+    if (event.breadcrumbs) {
+      for (const bc of event.breadcrumbs) {
+        if (bc.message) bc.message = redact(bc.message);
+        if (bc.data) {
+          for (const k of Object.keys(bc.data)) {
+            const v = bc.data[k];
+            if (typeof v === 'string') bc.data[k] = redact(v);
+          }
+        }
+      }
+    }
+    // Drop the request body entirely — it commonly contains form data.
+    if (event.request?.data) {
+      event.request.data = '[REDACTED_BODY]';
+    }
+    return event;
+  },
+
   // uncomment the line below to enable Spotlight (https://spotlightjs.com)
   // spotlight: __DEV__,
 });

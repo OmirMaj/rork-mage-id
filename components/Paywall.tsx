@@ -9,6 +9,7 @@ import {
   Platform,
   ActivityIndicator,
   Alert,
+  Linking,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
@@ -359,6 +360,34 @@ export default function Paywall({ visible, onClose, feature, requiredTier }: Pay
               Secure payment via {Platform.OS === 'ios' ? 'App Store' : Platform.OS === 'android' ? 'Google Play' : 'your platform'}. Cancel anytime.
             </Text>
           </View>
+
+          {/* Subscription auto-renewal disclosure — required by Apple
+              App Store Review Guideline 3.1.2(a) and Google Play
+              billing policy. Must clearly state:
+                - Length of subscription
+                - Price
+                - That it auto-renews until cancelled
+                - How to manage / cancel
+                - Links to Terms + Privacy
+              Apple rejects builds where any of these is missing
+              or ambiguous. Don't remove this block. */}
+          <View style={styles.legalBlock}>
+            <Text style={styles.legalText}>
+              {period === 'monthly'
+                ? `Your ${tierLabel} subscription renews ${pricing.monthlyPrice} per month and auto-renews until cancelled. `
+                : `Your ${tierLabel} subscription renews ${pricing.annualPrice} per year and auto-renews until cancelled. `}
+              Manage or cancel anytime in {Platform.OS === 'ios' ? 'Settings → Apple ID → Subscriptions' : Platform.OS === 'android' ? 'Google Play → Subscriptions' : 'your account settings'} at least 24 hours before the next renewal date. Payment is charged to your {Platform.OS === 'ios' ? 'Apple' : Platform.OS === 'android' ? 'Google Play' : 'platform'} account at confirmation of purchase.
+            </Text>
+            <View style={styles.legalLinkRow}>
+              <TouchableOpacity onPress={() => Linking.openURL('https://mageid.app/terms.html')}>
+                <Text style={styles.legalLink}>Terms of Service</Text>
+              </TouchableOpacity>
+              <Text style={styles.legalSep}>·</Text>
+              <TouchableOpacity onPress={() => Linking.openURL('https://mageid.app/privacy.html')}>
+                <Text style={styles.legalLink}>Privacy Policy</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         </ScrollView>
       </View>
     </Modal>
@@ -474,5 +503,36 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   trustText: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, textAlign: 'center' },
+
+  // Subscription auto-renewal legal disclosure (Apple 3.1.2(a) +
+  // Google Play subscription policy). Render under the trust row,
+  // visible WITHOUT scrolling on the paywall.
+  legalBlock: {
+    marginTop: 18,
+    paddingHorizontal: 8,
+    gap: 8,
+    alignItems: 'center' as const,
+  },
+  legalText: {
+    fontSize: Type.caption2.fontSize,
+    color: Colors.textMuted,
+    textAlign: 'center' as const,
+    lineHeight: 15,
+  },
+  legalLinkRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 6,
+  },
+  legalLink: {
+    fontSize: Type.caption2.fontSize,
+    color: Colors.accent,
+    fontWeight: '600' as const,
+    textDecorationLine: 'underline' as const,
+  },
+  legalSep: {
+    fontSize: Type.caption2.fontSize,
+    color: Colors.textMuted,
+  },
   webExplain: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, textAlign: 'center' as const, lineHeight: 20, marginHorizontal: 16, marginBottom: 18 },
 });

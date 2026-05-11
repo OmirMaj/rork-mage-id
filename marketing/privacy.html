@@ -5,12 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Privacy Policy — MAGE ID</title>
   <link rel="canonical" href="https://mageid.app/privacy.html" />
-  <meta name="description" content="MAGE ID privacy policy. How we collect, use, and protect your data." />
+  <meta name="description" content="MAGE ID privacy policy. How we collect, use, share, and protect your data. Includes CCPA, GDPR, and AI training disclosures." />
   <meta name="theme-color" content="#0B0D10" />
 
   <meta property="og:type" content="website" />
   <meta property="og:title" content="Privacy Policy — MAGE ID" />
-  <meta property="og:description" content="How we collect, use, and protect your data." />
+  <meta property="og:description" content="How we collect, use, share, and protect your data." />
   <meta property="og:url" content="https://mageid.app/privacy.html" />
   <meta property="og:site_name" content="MAGE ID" />
   <meta property="og:image" content="https://mageid.app/assets/og-image.png" />
@@ -22,17 +22,27 @@
   <link rel="icon" type="image/png" sizes="16x16" href="/assets/favicon-16.png" />
   <link rel="apple-touch-icon" sizes="180x180" href="/assets/favicon-180.png" />
   <link rel="icon" type="image/png" sizes="512x512" href="/assets/favicon-512.png" />
-  <link rel="stylesheet" href="/styles.css?v=2026-05-04" />
+  <link rel="stylesheet" href="/styles.css?v=2026-05-11" />
   <style>
     .legal { max-width: 760px; margin: 0 auto; padding: 140px 24px 100px; }
     .legal h1 { font-family: "Fraunces", Georgia, serif; font-weight: 500; font-size: clamp(2rem, 4.5vw, 3rem); line-height: 1.05; letter-spacing: -0.03em; margin: 0 0 10px; color: #fff; }
     .legal .updated { color: #9AA3AD; font-size: 13px; margin: 0 0 36px; font-family: "JetBrains Mono", monospace; letter-spacing: 0.06em; }
     .legal h2 { font-family: "Fraunces", Georgia, serif; font-weight: 600; font-size: 1.35rem; margin: 36px 0 10px; color: #fff; letter-spacing: -0.015em; }
+    .legal h3 { font-family: "Fraunces", Georgia, serif; font-weight: 600; font-size: 1.05rem; margin: 22px 0 8px; color: #fff; }
     .legal p, .legal li { font-size: 15.5px; line-height: 1.7; color: #9AA3AD; }
     .legal strong { color: #fff; font-weight: 600; }
     .legal ul { padding-left: 20px; }
     .legal a { color: #FF6A1A; text-decoration: none; border-bottom: 1px solid transparent; transition: border-color 0.2s; }
     .legal a:hover { border-bottom-color: #FF6A1A; }
+    .legal table { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 14px; }
+    .legal table th { text-align: left; padding: 10px 12px; color: #fff; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.12); font-family: "JetBrains Mono", monospace; font-size: 0.72rem; letter-spacing: 0.18em; text-transform: uppercase; }
+    .legal table td { padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,0.06); vertical-align: top; }
+    .legal table td:first-child { color: #fff; font-weight: 500; width: 30%; }
+    .legal .toc { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); padding: 18px 22px; border-radius: 12px; margin-bottom: 36px; }
+    .legal .toc ol { margin: 0; padding-left: 22px; }
+    .legal .toc li { padding: 3px 0; }
+    .legal .toc a { color: #fff; opacity: 0.85; }
+    .legal .notice { background: rgba(255, 106, 26, 0.06); border: 1px solid rgba(255, 106, 26, 0.18); padding: 14px 18px; border-radius: 10px; margin: 18px 0; font-size: 14px; }
   </style>
 </head>
 <body>
@@ -44,6 +54,7 @@
       </a>
       <nav class="links" aria-label="Primary">
         <a href="/">Home</a>
+        <a href="/terms.html">Terms</a>
         <a href="/support.html">Support</a>
       </nav>
     </div>
@@ -51,54 +62,209 @@
 
   <main class="legal">
     <h1>Privacy Policy</h1>
-    <p class="updated">Last updated: April 21, 2026</p>
+    <p class="updated">Last updated: May 11, 2026</p>
 
-    <p>MAGE ID ("we," "us," or "our") operates the MAGE ID mobile and web applications (the "Service"). This page informs you of our policies regarding the collection, use, and disclosure of personal data when you use our Service.</p>
+    <p>MAGE ID ("we," "us," or "our") operates the MAGE ID mobile and web applications (the "Service"). This Privacy Policy describes how we collect, use, share, and protect personal information when you use our Service, and the rights you have over your information.</p>
 
-    <h2>Information We Collect</h2>
+    <div class="toc">
+      <ol>
+        <li><a href="#info-we-collect">Information we collect</a></li>
+        <li><a href="#how-we-use">How we use information</a></li>
+        <li><a href="#how-we-share">How we share information (sub-processors)</a></li>
+        <li><a href="#ai">AI features and training</a></li>
+        <li><a href="#storage">Data storage, residency, and security</a></li>
+        <li><a href="#retention">Retention and deletion</a></li>
+        <li><a href="#your-rights">Your rights</a></li>
+        <li><a href="#ccpa">California residents (CCPA / CPRA)</a></li>
+        <li><a href="#gdpr">EU / UK residents (GDPR / UK GDPR)</a></li>
+        <li><a href="#do-not-sell">Do Not Sell or Share My Personal Information</a></li>
+        <li><a href="#cookies">Cookies and tracking</a></li>
+        <li><a href="#children">Children's privacy</a></li>
+        <li><a href="#changes">Changes to this policy</a></li>
+        <li><a href="#contact">Contact</a></li>
+      </ol>
+    </div>
+
+    <h2 id="info-we-collect">1. Information we collect</h2>
+
+    <h3>Information you provide</h3>
     <ul>
-      <li><strong>Account Information:</strong> Name, email address, and password (encrypted) when you sign up.</li>
-      <li><strong>Project Data:</strong> Project details, schedules, estimates, invoices, daily reports, and related construction management content you create inside the app.</li>
-      <li><strong>Device Information:</strong> Operating system, device type, and app version for diagnostic purposes.</li>
-      <li><strong>Usage Data:</strong> Anonymous analytics about feature usage to improve the product.</li>
+      <li><strong>Account information:</strong> name, email address, and password (encrypted with bcrypt) when you sign up. Apple Sign-In and Google Sign-In provide name + email from your existing account.</li>
+      <li><strong>Profile information:</strong> business name, license number, insurance details (COI), trade specialties, address, phone number, and optionally public profile content (photos, descriptions, ratings).</li>
+      <li><strong>Project content:</strong> project descriptions, drawings, schedules, estimates, invoices, change orders, daily field reports, RFIs, submittals, photos, voice transcripts, and related construction management content you create in the app.</li>
+      <li><strong>Contacts:</strong> people you add to your contact directory (subcontractors, vendors, clients) — names, email addresses, phone numbers, addresses.</li>
+      <li><strong>Tax / financial:</strong> for 1099-NEC export, you may store the last 4 digits of a subcontractor's EIN or SSN. We do not collect or store full Social Security Numbers.</li>
+      <li><strong>Payment information:</strong> handled by Stripe and RevenueCat — we do not store full credit card numbers. We receive only the last 4 digits, card brand, and expiration month for receipt display.</li>
+      <li><strong>Communications:</strong> messages you send through the app, support requests, voice input you provide for transcription.</li>
+      <li><strong>Lead submissions:</strong> if you submit a homeowner project through our marketing site form (mageid.app/lead.html), we collect your name, email, phone (optional), ZIP code, budget range, and project description.</li>
     </ul>
 
-    <h2>How We Use Your Information</h2>
+    <h3>Information collected automatically</h3>
     <ul>
-      <li>To provide and maintain the Service.</li>
-      <li>To authenticate your account and secure your data.</li>
-      <li>To send transactional emails (account confirmation, password reset, invoices, notifications you opt into).</li>
-      <li>To improve the Service through anonymized analytics.</li>
-      <li>To respond to your support requests.</li>
+      <li><strong>Device information:</strong> operating system, device model, app version, screen size, language, time zone.</li>
+      <li><strong>Usage data:</strong> pseudonymous event-level analytics about which features you use, how often, and basic performance metrics. Tied to a randomly-generated user identifier, not to your name or email.</li>
+      <li><strong>Diagnostic data:</strong> error reports and crash logs (scrubbed of personal content before submission).</li>
+      <li><strong>Location data (with your permission):</strong> when you take a photo or use distance-based features, we capture GPS coordinates at the moment of capture. Location is not tracked in the background.</li>
+      <li><strong>Camera, microphone, and photo library access (with your permission):</strong> only used when you actively invoke a feature that requires them (e.g., taking a jobsite photo, voice-capturing a daily report).</li>
     </ul>
 
-    <h2>Data Storage and Security</h2>
-    <p>Your data is stored on secure, encrypted servers provided by Supabase (PostgreSQL database, hosted on AWS). We use industry-standard encryption in transit (TLS) and at rest. Passwords are hashed using bcrypt and never stored in plain text.</p>
-
-    <h2>Third-Party Services</h2>
-    <p>We use a limited set of third-party services to operate MAGE ID:</p>
+    <h2 id="how-we-use">2. How we use information</h2>
     <ul>
-      <li><strong>Supabase</strong> — authentication and database hosting</li>
-      <li><strong>Resend</strong> — transactional email delivery</li>
-      <li><strong>Stripe</strong> — payment processing (when you send or receive invoices)</li>
-      <li><strong>Anthropic / Claude</strong> — AI features (schedule risk analysis, estimate generation, briefings). AI prompts are not used to train the models.</li>
+      <li>Provide, maintain, and improve the Service.</li>
+      <li>Authenticate you, secure your account, and prevent fraud.</li>
+      <li>Process subscriptions and payments via Stripe and RevenueCat.</li>
+      <li>Send transactional messages (account confirmation, password reset, receipts, notifications you opt into).</li>
+      <li>Send marketing communications only to addresses that have opted in; you can unsubscribe at any time via the link in every marketing email.</li>
+      <li>Generate AI-powered features (permit Q&amp;A, code check, takeoff, estimating, photo analysis) by sending the relevant prompt or file to a third-party AI provider. See the <a href="#ai">AI features</a> section.</li>
+      <li>Surface relevant public bid opportunities and homeowner-posted projects.</li>
+      <li>Diagnose and fix bugs, monitor performance, prevent abuse.</li>
+      <li>Comply with legal obligations (tax records, lawful requests, court orders).</li>
     </ul>
-    <p>We do not sell or rent your personal information to any third party.</p>
 
-    <h2>Your Rights</h2>
-    <p>You can request to access, correct, export, or delete your data at any time by emailing <a href="mailto:help@mageid.app">help@mageid.app</a>. We will respond within 30 days.</p>
+    <h2 id="how-we-share">3. How we share information (sub-processors)</h2>
+    <p>We share information only with the service providers required to operate the Service. Each sub-processor is contractually bound to process data only on our instructions and is listed below with its purpose and primary processing location.</p>
 
-    <h2>Data Retention</h2>
-    <p>We retain your data for as long as your account is active. When you delete your account, all associated project data is permanently removed within 30 days.</p>
+    <table>
+      <thead>
+        <tr><th>Sub-processor</th><th>Purpose</th><th>Location</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Supabase</td><td>Database, authentication, file storage</td><td>United States (AWS us-east)</td></tr>
+        <tr><td>Stripe</td><td>Payment processing for invoices, subscriptions, and marketplace transactions</td><td>United States</td></tr>
+        <tr><td>RevenueCat</td><td>In-app subscription billing</td><td>United States</td></tr>
+        <tr><td>Apple App Store</td><td>iOS app distribution and IAP</td><td>United States</td></tr>
+        <tr><td>Google Play</td><td>Android app distribution</td><td>United States</td></tr>
+        <tr><td>Anthropic (Claude)</td><td>AI features — permit Q&amp;A, estimate review, content extraction</td><td>United States</td></tr>
+        <tr><td>Google (Gemini)</td><td>AI features — additional model coverage</td><td>United States</td></tr>
+        <tr><td>OpenAI</td><td>AI features — additional model coverage</td><td>United States</td></tr>
+        <tr><td>Resend</td><td>Transactional and marketing email delivery</td><td>United States</td></tr>
+        <tr><td>PostHog</td><td>Product analytics (event-level usage, pseudonymous)</td><td>United States</td></tr>
+        <tr><td>Sentry</td><td>Error and crash reporting</td><td>United States</td></tr>
+        <tr><td>Google Maps Geocoding API</td><td>Address → coordinates conversion (fallback geocoder)</td><td>United States</td></tr>
+        <tr><td>OpenStreetMap Nominatim</td><td>Address → coordinates conversion (primary geocoder)</td><td>European Union (volunteer-hosted)</td></tr>
+        <tr><td>Apple Sign In / Google Sign In</td><td>Federated authentication (only if you choose them)</td><td>United States</td></tr>
+        <tr><td>QuickBooks Online (Intuit)</td><td>Optional accounting sync, only if you connect it</td><td>United States</td></tr>
+        <tr><td>Slack (incoming webhooks)</td><td>Optional notification piping, only if you configure it</td><td>United States</td></tr>
+        <tr><td>Google Drive / Dropbox / OneDrive / Box</td><td>Optional cloud-file picking, only if you connect them</td><td>Provider-dependent</td></tr>
+      </tbody>
+    </table>
 
-    <h2>Children's Privacy</h2>
-    <p>MAGE ID is not intended for use by individuals under 18 years of age. We do not knowingly collect information from children.</p>
+    <p><strong>We do not sell your personal information.</strong> We do not share your personal information for cross-context behavioral advertising. The only "sharing" that occurs is with the operational sub-processors listed above, and only as needed to deliver the Service.</p>
 
-    <h2>Changes to This Policy</h2>
-    <p>We may update this Privacy Policy from time to time. We will notify you of material changes by email or via the app.</p>
+    <h2 id="ai">4. AI features and training</h2>
+    <p>MAGE ID includes AI-powered features (permit Q&amp;A, code check, AI takeoff, AI estimate review, photo analysis, drawing analysis, weekly snapshot). When you invoke an AI feature, the relevant prompt — and, where applicable, a specific file or photo — is sent to a third-party AI provider (Anthropic, Google, and/or OpenAI) for processing. The provider returns a response, which we display to you and store in your project.</p>
 
-    <h2>Contact</h2>
-    <p>Questions about this policy? Email <a href="mailto:help@mageid.app">help@mageid.app</a>.</p>
+    <p><strong>Important:</strong></p>
+    <ul>
+      <li><strong>We do not use your project data, photos, messages, or AI inputs/outputs to train our own machine-learning models.</strong></li>
+      <li>Our third-party AI providers process AI requests under enterprise / API terms that prohibit using inputs and outputs to train their general models (Anthropic API, Google Gemini API, and OpenAI API terms all include this commitment for API use).</li>
+      <li>We do not send personally identifying information (names, email, contact details) to AI providers unless that information is intentionally part of the prompt (e.g., you ask the agent "draft an email to John" and include the name).</li>
+      <li>AI outputs are not guaranteed to be accurate. The Permit Q&amp;A agent in particular is a research aid, not legal advice. Verify code and permit requirements with the appropriate authority before acting.</li>
+    </ul>
+
+    <h2 id="storage">5. Data storage, residency, and security</h2>
+    <p>Your data is stored in encrypted PostgreSQL databases hosted by Supabase on Amazon Web Services in the United States (us-east region). We use industry-standard encryption in transit (TLS 1.2+) and at rest (AES-256). Passwords are hashed with bcrypt. Database access is restricted via Row Level Security policies that limit users to their own rows. Edge functions run in isolated, ephemeral environments.</p>
+
+    <div class="notice">
+      <strong>Data residency note for non-US users:</strong> when you use MAGE ID, your data is transferred to and stored in the United States. We rely on Standard Contractual Clauses (SCCs) with our sub-processors where required for international transfers.
+    </div>
+
+    <h2 id="retention">6. Retention and deletion</h2>
+    <p>We retain your account and project data for as long as your account is active. You can delete your account at any time from inside the app (Settings → Account → Delete account). When you delete your account, all associated project data is permanently removed within 30 days from our primary database. Encrypted backups are purged within 90 days.</p>
+
+    <p>We may retain limited information after deletion to comply with legal obligations, resolve disputes, prevent fraud, or enforce our agreements (for example: tax-related transaction records required for 7 years under US tax law).</p>
+
+    <h2 id="your-rights">7. Your rights</h2>
+    <p>Regardless of where you live, you have the right to:</p>
+    <ul>
+      <li><strong>Access</strong> — request a copy of the personal information we hold about you.</li>
+      <li><strong>Correct</strong> — ask us to fix inaccurate information.</li>
+      <li><strong>Delete</strong> — request deletion of your account and personal data.</li>
+      <li><strong>Export</strong> — receive your data in a portable, machine-readable format (Settings → Data Export inside the app).</li>
+      <li><strong>Object or restrict</strong> — limit certain types of processing.</li>
+      <li><strong>Withdraw consent</strong> — where processing is based on consent, you can withdraw at any time.</li>
+    </ul>
+
+    <p>To exercise any of these rights, use the in-app tools (Settings → Data Export, Settings → Account → Delete) or email <a href="mailto:privacy@mageid.app">privacy@mageid.app</a>. We respond within 30 days (45 days under CCPA, extendable by 45 with notice).</p>
+
+    <h2 id="ccpa">8. California residents (CCPA / CPRA)</h2>
+    <p>If you are a California resident, the California Consumer Privacy Act (CCPA), as amended by the California Privacy Rights Act (CPRA), grants you additional rights.</p>
+
+    <h3>Categories of personal information we collect</h3>
+    <p>Over the past 12 months we have collected the following statutory categories:</p>
+    <ul>
+      <li><strong>Identifiers</strong> — name, email, phone, IP address, device ID, customer ID.</li>
+      <li><strong>Customer records</strong> — billing address, payment-method last 4 digits.</li>
+      <li><strong>Commercial information</strong> — products / subscriptions purchased.</li>
+      <li><strong>Internet activity</strong> — feature usage, app event logs, referrer URLs.</li>
+      <li><strong>Geolocation</strong> — coarse + precise location at the moment of a photo or location-based feature use.</li>
+      <li><strong>Professional information</strong> — license numbers, COI details, trade specialties, employer information.</li>
+      <li><strong>Audio / visual</strong> — photos and voice transcripts you create with the app.</li>
+      <li><strong>Inferences</strong> — feature-usage inferences for product personalization.</li>
+      <li><strong>Sensitive personal information</strong> — last 4 digits of EIN/SSN (for 1099-NEC export); precise geolocation if you grant the permission.</li>
+    </ul>
+
+    <h3>Sources, purposes, and disclosures</h3>
+    <p>Sources: directly from you, automatically through your use of the Service, and from authentication providers (Apple, Google) when you sign in with them. Purposes: see Section 2. Disclosures: see Section 3. We have <strong>not sold</strong> personal information in the past 12 months and have <strong>not shared</strong> it for cross-context behavioral advertising.</p>
+
+    <h3>Your California rights</h3>
+    <ul>
+      <li><strong>Right to know</strong> — request the categories and specific pieces of PI we have collected, used, disclosed, and the sources, purposes, and recipients.</li>
+      <li><strong>Right to delete</strong> — request deletion of your personal information, subject to exemptions (legal compliance, fraud prevention, etc.).</li>
+      <li><strong>Right to correct</strong> — request correction of inaccurate personal information.</li>
+      <li><strong>Right to opt out of sale or sharing</strong> — we do not sell or share PI, but you can confirm this at <a href="/do-not-sell.html">Do Not Sell or Share My Personal Information</a>.</li>
+      <li><strong>Right to limit use of sensitive personal information</strong> — you may direct us to limit our use of sensitive PI to that necessary to provide the Service. Email <a href="mailto:privacy@mageid.app">privacy@mageid.app</a>.</li>
+      <li><strong>Right to non-discrimination</strong> — we will not discriminate against you for exercising any of these rights.</li>
+    </ul>
+
+    <p>To exercise California rights, email <a href="mailto:privacy@mageid.app">privacy@mageid.app</a> with the subject "California Privacy Request." You may also designate an authorized agent to make a request on your behalf; we will require written authorization.</p>
+
+    <h2 id="gdpr">9. EU / UK residents (GDPR / UK GDPR)</h2>
+    <p>If you are in the European Economic Area, the United Kingdom, or Switzerland, the GDPR (or UK GDPR / FADP) grants you the following rights:</p>
+    <ul>
+      <li>Right of access, rectification, erasure, restriction, portability, and objection.</li>
+      <li>Right to withdraw consent at any time where processing is based on consent.</li>
+      <li>Right to lodge a complaint with your supervisory authority (in the UK: Information Commissioner's Office; in the EU: the data protection authority of your member state).</li>
+    </ul>
+
+    <h3>Legal bases for processing</h3>
+    <table>
+      <thead><tr><th>Processing activity</th><th>Legal basis</th></tr></thead>
+      <tbody>
+        <tr><td>Providing the Service (account, projects, invoices)</td><td>Performance of a contract (Art. 6(1)(b))</td></tr>
+        <tr><td>Transactional emails</td><td>Performance of a contract (Art. 6(1)(b))</td></tr>
+        <tr><td>Marketing emails</td><td>Consent (Art. 6(1)(a)) — opt-in required</td></tr>
+        <tr><td>Product analytics (PostHog)</td><td>Legitimate interest (Art. 6(1)(f)) — measuring and improving the Service; pseudonymous</td></tr>
+        <tr><td>Error reporting (Sentry)</td><td>Legitimate interest (Art. 6(1)(f)) — operating reliably</td></tr>
+        <tr><td>Fraud prevention</td><td>Legitimate interest (Art. 6(1)(f))</td></tr>
+        <tr><td>Tax records, legal compliance</td><td>Legal obligation (Art. 6(1)(c))</td></tr>
+      </tbody>
+    </table>
+
+    <p><strong>International transfers:</strong> personal data is transferred to the United States, where our sub-processors operate. We rely on Standard Contractual Clauses (EU SCCs 2021 version, with UK Addendum where applicable) as the transfer mechanism. Copies of executed SCCs are available on request to <a href="mailto:privacy@mageid.app">privacy@mageid.app</a>.</p>
+
+    <h2 id="do-not-sell">10. Do Not Sell or Share My Personal Information</h2>
+    <p>MAGE ID does <strong>not</strong> sell personal information. MAGE ID does <strong>not</strong> share personal information for cross-context behavioral advertising. See our dedicated page: <a href="/do-not-sell.html">Do Not Sell or Share My Personal Information</a>.</p>
+
+    <h2 id="cookies">11. Cookies and tracking</h2>
+    <p>Our marketing website (mageid.app) uses only essential cookies necessary for the site to function. We do not use third-party advertising or behavioral-tracking cookies on mageid.app.</p>
+
+    <p>The web version of the app (app.mageid.app) uses local storage and session storage to keep you signed in and to persist your in-app preferences (theme, saved filters). The app also uses PostHog for product analytics with a pseudonymous user identifier. Users may opt out of analytics by emailing <a href="mailto:privacy@mageid.app">privacy@mageid.app</a>.</p>
+
+    <h2 id="children">12. Children's privacy</h2>
+    <p>MAGE ID is not intended for use by individuals under 18 years of age. We do not knowingly collect personal information from children under 13. If you believe we have inadvertently collected information from a child under 13, please email <a href="mailto:privacy@mageid.app">privacy@mageid.app</a> and we will delete it promptly.</p>
+
+    <h2 id="changes">13. Changes to this policy</h2>
+    <p>We may update this Privacy Policy from time to time. We will notify you of material changes by email and by updating the "Last updated" date at the top. Your continued use of the Service after a change constitutes acceptance.</p>
+
+    <h2 id="contact">14. Contact</h2>
+    <p>Privacy questions and requests: <a href="mailto:privacy@mageid.app">privacy@mageid.app</a>.<br />
+    General support: <a href="mailto:help@mageid.app">help@mageid.app</a>.<br />
+    Postal address: MAGE ID, [physical mailing address — update this before publishing], United States.</p>
   </main>
+
+  <footer class="footer wrap">
+    <p>© MAGE ID. <a href="/privacy.html">Privacy</a> · <a href="/terms.html">Terms</a> · <a href="/do-not-sell.html">Do Not Sell or Share My Personal Information</a> · <a href="/support.html">Support</a></p>
+  </footer>
 </body>
 </html>
