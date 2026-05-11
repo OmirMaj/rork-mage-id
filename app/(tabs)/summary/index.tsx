@@ -311,7 +311,7 @@ export default function SummaryScreen() {
             jump over. */}
         <TouchableOpacity
           style={styles.toolsCta}
-          onPress={() => router.push('/(tabs)/tools' as never)}
+          onPress={() => router.push('/(tabs)/discover/tools' as never)}
           activeOpacity={0.85}
           testID="summary-open-tools"
         >

@@ -1,22 +1,23 @@
-// Tools tab — every cross-project workflow that used to clutter Summary.
+// app/(tabs)/discover/tools.tsx — every cross-project workflow.
 //
-// Summary is now ONLY a summary (portfolio KPIs + cash flow + reports CTA).
-// The tools card that grew to 16 rows lives here, broken into themed
-// sections with per-row semantic color so the screen has a pulse instead
-// of being a wall of grey icons.
+// Previously lived at app/(tabs)/tools/ as its own bottom tab. The tab
+// was hidden (href: null) for a while and now removed entirely — Tools
+// lives inside the Discover tab as a pushed sub-route. Surface area
+// unchanged: same 7 sections, same 24 NavRows, same project-aware
+// counts and badges.
 //
 // Section order is intent-based, not alphabetical:
 //   1. AI Hub        — the marquee features (Construction AI, Permit Q&A)
 //   2. Decisions     — what's waiting on the GC to approve
 //   3. Field & supply— what crews + suppliers + owners are doing
 //   4. Money         — cash, draws, taxes, sales pipeline
-//   5. Permits       — code, calendars, templates, expeditors, insurance
-//   6. Reports       — daily field-report inbox
+//   5. Safety & QC   — OSHA defensibility + preventive trade checks
+//   6. Permits       — code, calendars, templates, expeditors, insurance
+//   7. Reports       — daily field-report inbox
 
 import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { View, StyleSheet } from 'react-native';
+import { Stack, useRouter } from 'expo-router';
 import {
   Sparkles, Gavel, ShieldCheck, ListChecks, MessageSquare,
   Truck, Package, Banknote, Wallet, FileDown, UserPlus,
@@ -24,9 +25,8 @@ import {
   Wrench, HardHat, ClipboardCheck,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
-import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
-import { NavRow, Card, Section, EmptyState } from '@/components/ui';
+import { Sheet, NavRow, Card, Section, EmptyState } from '@/components/ui';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useSubChangeRequests } from '@/hooks/useSubChangeRequests';
 import { useDeliveryReceipts } from '@/hooks/useDeliveryReceipts';
@@ -35,8 +35,7 @@ import { useOwnerSuppliedItems } from '@/hooks/useOwnerSuppliedItems';
 import { useContractorLicenses } from '@/hooks/useContractorLicenses';
 import { aggregateOpenActionItems } from '@/utils/oacActionItems';
 
-export default function ToolsScreen() {
-  const insets = useSafeAreaInsets();
+export default function DiscoverToolsScreen() {
   const router = useRouter();
   const { projects, changeOrders, rfis, oacMeetings, cois, permits } = useProjects();
   const { pendingCount: pendingSubChangeRequests } = useSubChangeRequests();
@@ -116,16 +115,14 @@ export default function ToolsScreen() {
   }, [cois, permits, licenses]);
 
   return (
-    <View style={styles.container}>
-      <ScrollView
-        contentContainerStyle={{ paddingTop: insets.top + 16, paddingBottom: insets.bottom + 40 }}
-        showsVerticalScrollIndicator={false}
+    <>
+      <Stack.Screen options={{ headerShown: false }} />
+      <Sheet
+        title="Tools"
+        subtitle="Every cross-project workflow"
+        onClose={() => router.back()}
+        bodyPadding="none"
       >
-        <Text style={styles.heading}>Tools</Text>
-        <Text style={styles.subheading}>
-          Every cross-project workflow in one place
-        </Text>
-
         {/* AI Hub — the marquee features. Lives at the top so users
             tapping into Tools see what's new first. Construction AI is
             the home for the DOB code check + Permit Q&A; both share the
@@ -419,8 +416,8 @@ export default function ToolsScreen() {
             />
           </View>
         )}
-      </ScrollView>
-    </View>
+      </Sheet>
+    </>
   );
 }
 
@@ -431,21 +428,8 @@ function Divider() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
-  heading: {
-    ...Type.display,
-    color: Colors.ink,
-    paddingHorizontal: Tokens.spacing.lg,
-    marginBottom: Tokens.spacing.xxs,
-  },
-  subheading: {
-    ...Type.subhead,
-    color: Colors.textSecondary,
-    paddingHorizontal: Tokens.spacing.lg,
-    marginBottom: Tokens.spacing.md,
-  },
-  // Outer wrap around each <Section> — provides the top gap + horizontal
-  // gutter. Section primitive doesn't own outer spacing on purpose.
+  // Outer wrap around each <Section> — top gap + horizontal gutter.
+  // Section primitive doesn't own outer spacing on purpose.
   sectionWrap: {
     marginTop: Tokens.spacing.sm,
     paddingHorizontal: Tokens.spacing.md,

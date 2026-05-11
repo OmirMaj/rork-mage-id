@@ -116,7 +116,7 @@ export const COMMANDS: CommandItem[] = [
     title: 'Open Tools',
     keywords: ['approvals', 'cash flow', 'compliance'],
     category: 'open',
-    action: (r) => r.push('/(tabs)/tools' as never),
+    action: (r) => r.push('/(tabs)/discover/tools' as never),
   },
   {
     id: 'open.cash_flow',

@@ -114,7 +114,6 @@ export default function TabLayout() {
             <Tabs.Screen name="construction-ai" options={{ title: 'AI Hub' }} />
             <Tabs.Screen name="settings" options={{ title: 'Settings' }} />
             <Tabs.Screen name="mage-id-bids" options={{ title: 'MAGE ID Bids' }} />
-            <Tabs.Screen name="tools" options={{ href: null }} />
             <Tabs.Screen name="estimate" options={{ href: null }} />
             <Tabs.Screen name="materials" options={{ href: null }} />
             <Tabs.Screen name="schedule" options={{ href: null }} />
@@ -142,11 +141,10 @@ export default function TabLayout() {
         // analytics tab enum here.
         focus: (e) => {
           const routeName = (e.target ?? '').split('-')[0];
-          const tabMap: Record<string, 'summary' | 'home' | 'discover' | 'tools' | 'settings' | 'ai_hub'> = {
+          const tabMap: Record<string, 'summary' | 'home' | 'discover' | 'settings' | 'ai_hub'> = {
             'summary': 'summary',
             '(home)': 'home',
             'discover': 'discover',
-            'tools': 'tools',
             'settings': 'settings',
             'construction-ai': 'ai_hub',
           };
@@ -215,7 +213,6 @@ export default function TabLayout() {
           ),
         }}
       />
-      <Tabs.Screen name="tools" options={{ href: null }} />
       <Tabs.Screen name="estimate" options={{ href: null }} />
       <Tabs.Screen name="materials" options={{ href: null }} />
       <Tabs.Screen name="schedule" options={{ href: null }} />

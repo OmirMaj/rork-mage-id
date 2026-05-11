@@ -41,7 +41,7 @@ const NAV_ITEMS: NavItem[] = [
   // ── PROJECT — top-level work surfaces
   { key: 'summary',           label: 'Summary',          icon: LayoutDashboard, route: '/(tabs)/summary',                  section: 'PROJECT' },
   { key: 'home',              label: 'Projects',         icon: Home,            route: '/(tabs)/(home)',                   section: 'PROJECT' },
-  { key: 'tools',             label: 'Tools',            icon: Wrench,          route: '/(tabs)/tools',                    section: 'PROJECT' },
+  { key: 'tools',             label: 'Tools',            icon: Wrench,          route: '/(tabs)/discover/tools',           section: 'PROJECT' },
   { key: 'estimate',          label: 'Estimate',         icon: BarChart3,       route: '/(tabs)/discover/estimate',        section: 'PROJECT' },
   { key: 'schedule',          label: 'Schedule',         icon: CalendarDays,    route: '/(tabs)/discover/schedule',        section: 'PROJECT', requires: 'schedule_gantt_pdf' },
   { key: 'plans',             label: 'Plans',            icon: ImageIcon,       route: '/plans',                            section: 'PROJECT' },

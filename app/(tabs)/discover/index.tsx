@@ -169,7 +169,7 @@ export default function DiscoverScreen() {
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
     if (tab === 'overview') return;
     const routes: Record<string, string> = {
-      tools: '/(tabs)/tools',
+      tools: '/(tabs)/discover/tools',
       bids: '/(tabs)/discover/bids',
       companies: '/(tabs)/discover/companies',
       hire: '/(tabs)/discover/hire',
@@ -282,7 +282,7 @@ export default function DiscoverScreen() {
           iconBg={'#D97706' + '15'}
           title="Tools"
           subtitle="Every cross-project workflow in one place"
-          onPress={() => navigateTo('/(tabs)/tools')}
+          onPress={() => navigateTo('/(tabs)/discover/tools')}
         />
 
         <View style={styles.sectionHeaderRow}>
