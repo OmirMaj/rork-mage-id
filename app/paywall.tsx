@@ -10,6 +10,7 @@ import {
   CheckCircle, XCircle, Crown, Zap, Building2, Rocket, X, Shield,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -74,6 +75,7 @@ function FeatureCheck({ available }: { available: boolean }) {
 }
 
 export default function PaywallScreen() {
+  const { colors: themeColors } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const {
@@ -165,11 +167,11 @@ export default function PaywallScreen() {
   }, []);
 
   return (
-    <View style={[styles.container, { paddingBottom: insets.bottom }]}>
+    <View style={[styles.container, { backgroundColor: themeColors.bg, paddingBottom: insets.bottom }]}>
       <Stack.Screen options={{ headerShown: false }} />
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.closeBtn} testID="paywall-close" accessibilityRole="button" accessibilityLabel="Close">
-          <X size={22} color={Colors.text} />
+          <X size={22} color={themeColors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Choose Your Plan</Text>
         <View style={{ width: 36 }} />
