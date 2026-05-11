@@ -4,26 +4,34 @@ import {
   Building2, Hammer, Plus, PenLine, Store, Trees, Home,
   LayoutGrid, Paintbrush, Droplets, Zap, Boxes, ChevronRight, MapPin,
 } from 'lucide-react-native';
-import { Colors } from '@/constants/colors';
 import { formatMoney } from '@/utils/formatters';
 import type { Project, ProjectType } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { useTheme } from '@/contexts/ThemeContext';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { Badge, type BadgeTone } from '@/components/ui/Badge';
+import { EyebrowLabel } from '@/components/ui/EyebrowLabel';
+import type { ThemeColors } from '@/constants/colors';
 
 const ICON_MAP: Record<string, React.ComponentType<{ size: number; color: string; strokeWidth?: number }>> = {
   Building2, Hammer, Plus, PenLine, Store, Trees, Home, LayoutGrid, Paintbrush, Droplets, Zap, Boxes,
 };
 
-const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
-  draft:       { label: 'Draft',       color: Colors.warning },
-  estimated:   { label: 'Estimated',   color: Colors.success },
-  in_progress: { label: 'In Progress', color: Colors.info },
-  // 'completed' = punch / closeout phase. Brand-orange reads as
-  // "delivered, finalize me." Pre-fix this was textSecondary (grey)
-  // which made finished projects look dead in the list. 'closed' is
-  // the truly archived state — keep that muted.
-  completed:   { label: 'Completed',   color: Colors.primary },
-  closed:      { label: 'Closed',      color: Colors.textSecondary },
+const STATUS_LABEL: Record<string, string> = {
+  draft: 'Draft',
+  estimated: 'Estimated',
+  in_progress: 'In Progress',
+  completed: 'Completed',
+  closed: 'Closed',
+};
+
+const STATUS_BADGE_TONE: Record<string, BadgeTone> = {
+  draft: 'warn',
+  estimated: 'success',
+  in_progress: 'info',
+  completed: 'warn',
+  closed: 'neutral',
 };
 
 const TYPE_ICON_MAP: Record<ProjectType, string> = {
@@ -43,18 +51,21 @@ interface ProjectCardProps {
 }
 
 function ProjectCard({ project, onPress, onLongPress }: ProjectCardProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+
   const scaleAnim = useRef(new Animated.Value(1)).current;
   // Mount-time fade + slide so cards feel like they're being laid down
   // instead of just appearing. Subtle (140ms, 8px) — premium without
   // being theatrical.
   const enterAnim = useRef(new Animated.Value(0)).current;
   // Animated burn-bar on the bottom edge of the card. Drives a width
-  // interpolation so the bar "fills up" on first render, similar to
-  // the cash-flow ConcretePour but inline.
+  // interpolation so the bar "fills up" on first render.
   const burnAnim = useRef(new Animated.Value(0)).current;
 
   const IconComponent = getTypeIcon(project.type);
-  const status = STATUS_CONFIG[project.status] ?? STATUS_CONFIG.draft;
+  const statusLabel = STATUS_LABEL[project.status] ?? 'Draft';
+  const statusTone: BadgeTone = STATUS_BADGE_TONE[project.status] ?? 'neutral';
 
   const linkedEstimate = project.linkedEstimate;
   const legacyEstimate = project.estimate;
@@ -63,8 +74,7 @@ function ProjectCard({ project, onPress, onLongPress }: ProjectCardProps) {
     ? linkedEstimate.grandTotal
     : legacyEstimate?.grandTotal ?? 0;
 
-  // Budget burn — invoiced ÷ estimate. We tap project.invoicedTotal
-  // when present, otherwise leave the bar hidden. Capped at 1.0.
+  // Budget burn — invoiced ÷ estimate.
   const invoicedTotal = (project as { invoicedTotal?: number }).invoicedTotal ?? 0;
   const burnRatio = hasEstimate && estimateTotal > 0
     ? Math.min(1, invoicedTotal / estimateTotal)
@@ -129,50 +139,54 @@ function ProjectCard({ project, onPress, onLongPress }: ProjectCardProps) {
         <View style={styles.card}>
           <View style={styles.topRow}>
             <View style={styles.iconWrap}>
-              <IconComponent size={20} color={Colors.primary} strokeWidth={1.8} />
+              <IconComponent size={20} color={colors.accent} strokeWidth={1.8} />
             </View>
             <View style={styles.titleBlock}>
-              <Text style={styles.name} numberOfLines={1}>{project.name}</Text>
+              <EyebrowLabel tone="amber">Project</EyebrowLabel>
+              <Text style={[Type.serifHeadline, { color: colors.text, marginTop: 2 }]} numberOfLines={1}>
+                {project.name}
+              </Text>
               {project.location ? (
                 <View style={styles.locationRow}>
-                  <MapPin size={11} color={Colors.textMuted} />
-                  <Text style={styles.locationText} numberOfLines={1}>{project.location}</Text>
+                  <MapPin size={11} color={colors.textMuted} />
+                  <Text style={[Type.monoCaption, { color: colors.textMuted }]} numberOfLines={1}>
+                    {project.location}
+                  </Text>
                 </View>
               ) : null}
             </View>
-            <View style={[styles.statusDot, { backgroundColor: status.color + '20' }]}>
-              <View style={[styles.statusDotInner, { backgroundColor: status.color }]} />
-              <Text style={[styles.statusLabel, { color: status.color }]}>{status.label}</Text>
-            </View>
+            <Badge tone={statusTone} dot>{statusLabel}</Badge>
           </View>
 
           <View style={styles.separator} />
 
           <View style={styles.bottomRow}>
             <View style={styles.metaItem}>
-              <Text style={styles.metaLabel}>Area</Text>
-              <Text style={styles.metaValue}>{project.squareFootage > 0 ? `${project.squareFootage.toLocaleString()} sf` : '—'}</Text>
+              <Text style={[Type.caption2, { color: colors.textMuted }]}>Area</Text>
+              <Text style={[styles.metaValue, { color: colors.text }]}>
+                {project.squareFootage > 0 ? `${project.squareFootage.toLocaleString()} sf` : '—'}
+              </Text>
             </View>
             <View style={styles.metaDivider} />
             <View style={styles.metaItem}>
-              <Text style={styles.metaLabel}>Quality</Text>
-              <Text style={styles.metaValue}>{project.quality.charAt(0).toUpperCase() + project.quality.slice(1)}</Text>
+              <Text style={[Type.caption2, { color: colors.textMuted }]}>Quality</Text>
+              <Text style={[styles.metaValue, { color: colors.text }]}>
+                {project.quality.charAt(0).toUpperCase() + project.quality.slice(1)}
+              </Text>
             </View>
             <View style={styles.metaDivider} />
             <View style={styles.metaItem}>
-              <Text style={styles.metaLabel}>Estimate</Text>
-              <Text style={[styles.metaValue, hasEstimate && styles.estimateHighlight]}>
+              <Text style={[Type.caption2, { color: colors.textMuted }]}>Estimate</Text>
+              <Text style={[styles.metaValue, hasEstimate && { color: colors.accentLabel }]}>
                 {hasEstimate ? formatMoney(estimateTotal) : '—'}
               </Text>
             </View>
-            <ChevronRight size={16} color={Colors.textMuted} strokeWidth={1.8} style={styles.chevron} />
+            <ChevronRight size={16} color={colors.textMuted} strokeWidth={1.8} style={styles.chevron} />
           </View>
 
           {/* Burn bar — slim track at the bottom edge of the card showing
-              what % of the estimate has been billed. Hidden until there's
-              an estimate AND any billing activity, so empty projects don't
-              get a useless gray sliver. Color shifts to amber at 90%+ to
-              signal you're nearing scope. */}
+              what % of the estimate has been billed. Color shifts to
+              danger at 90%+ to signal you're nearing scope. */}
           {showBurnBar && (
             <View style={styles.burnTrack}>
               <Animated.View
@@ -180,7 +194,7 @@ function ProjectCard({ project, onPress, onLongPress }: ProjectCardProps) {
                   styles.burnFill,
                   {
                     width: burnWidth,
-                    backgroundColor: burnIsHigh ? Colors.warning : Colors.primary,
+                    backgroundColor: burnIsHigh ? colors.danger : colors.accent,
                   },
                 ]}
               />
@@ -194,126 +208,85 @@ function ProjectCard({ project, onPress, onLongPress }: ProjectCardProps) {
 
 export default React.memo(ProjectCard);
 
-const styles = StyleSheet.create({
-  wrapper: {
-    marginHorizontal: 16,
-    marginBottom: 10,
-  },
-  card: {
-    backgroundColor: Colors.surface,
-    borderRadius: Tokens.radius.panel,
-    // Match Colors.cardBorder (solid black) used everywhere else —
-    // home tab statCards, summary tab cards, cash-flow cards. Pre-fix
-    // this card used a faint 8%-opacity ink border which read as a
-    // floating tile on white bg; now it's a crisp defined container.
-    borderWidth: 1,
-    borderColor: Colors.cardBorder,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.10,
-    shadowRadius: 12,
-    elevation: 5,
-    overflow: 'hidden' as const,
-  },
-  topRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    gap: 12,
-  },
-  iconWrap: {
-    width: 42,
-    height: 42,
-    borderRadius: Tokens.radius.card,
-    backgroundColor: Colors.primary + '12',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  titleBlock: {
-    flex: 1,
-    gap: 3,
-  },
-  name: {
-    // Bumped from 16/600 → 17/800 with tighter tracking. Project name
-    // is the primary identifier on each card; it should feel anchored
-    // and confident, not whispered.
-    fontSize: Type.body.fontSize,
-    fontWeight: '800' as const,
-    color: Colors.text,
-    letterSpacing: -0.3,
-  },
-  locationRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-  },
-  locationText: {
-    fontSize: Type.caption1.fontSize,
-    color: Colors.textMuted,
-  },
-  statusDot: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 20,
-  },
-  statusDotInner: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  statusLabel: {
-    fontSize: Type.caption2.fontSize,
-    fontWeight: '600' as const,
-  },
-  separator: {
-    height: 0.5,
-    backgroundColor: Colors.borderLight,
-    marginHorizontal: 16,
-  },
-  bottomRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    gap: 4,
-  },
-  metaItem: {
-    flex: 1,
-    gap: 2,
-  },
-  metaLabel: {
-    fontSize: Type.caption2.fontSize,
-    color: Colors.textMuted,
-    fontWeight: '400' as const,
-  },
-  metaValue: {
-    fontSize: Type.subhead.fontSize,
-    fontWeight: '700' as const,
-    color: Colors.text,
-    letterSpacing: -0.2,
-  },
-  estimateHighlight: {
-    color: Colors.primary,
-    fontWeight: '800' as const,
-  },
-  metaDivider: {
-    width: 0.5,
-    height: 28,
-    backgroundColor: Colors.borderLight,
-    marginHorizontal: 8,
-  },
-  chevron: {
-    marginLeft: 4,
-  },
-  burnTrack: {
-    height: 3,
-    backgroundColor: Colors.fillTertiary,
-    width: '100%' as const,
-  },
-  burnFill: {
-    height: 3,
-  },
-});
+const makeStyles = (t: ThemeColors) =>
+  StyleSheet.create({
+    wrapper: {
+      marginHorizontal: 16,
+      marginBottom: 10,
+    },
+    card: {
+      backgroundColor: t.surface,
+      borderRadius: Tokens.radius.panel,
+      borderWidth: 1,
+      borderColor: t.line,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 3 },
+      shadowOpacity: 0.06,
+      shadowRadius: 12,
+      elevation: 5,
+      overflow: 'hidden' as const,
+      ...Tokens.continuousCorners,
+    },
+    topRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      padding: 16,
+      gap: 12,
+    },
+    iconWrap: {
+      width: 42,
+      height: 42,
+      borderRadius: Tokens.radius.card,
+      backgroundColor: t.accentSoft,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    titleBlock: {
+      flex: 1,
+      gap: 2,
+    },
+    locationRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 3,
+      marginTop: 2,
+    },
+    separator: {
+      height: 0.5,
+      backgroundColor: t.line,
+      marginHorizontal: 16,
+    },
+    bottomRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 16,
+      paddingVertical: 14,
+      gap: 4,
+    },
+    metaItem: {
+      flex: 1,
+      gap: 2,
+    },
+    metaValue: {
+      fontSize: Type.subhead.fontSize,
+      fontWeight: '700' as const,
+      letterSpacing: -0.2,
+    },
+    metaDivider: {
+      width: 0.5,
+      height: 28,
+      backgroundColor: t.line,
+      marginHorizontal: 8,
+    },
+    chevron: {
+      marginLeft: 4,
+    },
+    burnTrack: {
+      height: 3,
+      backgroundColor: t.line,
+      width: '100%' as const,
+    },
+    burnFill: {
+      height: 3,
+    },
+  });
