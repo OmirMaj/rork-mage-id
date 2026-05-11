@@ -29,7 +29,7 @@ import { Stack, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import * as Haptics from 'expo-haptics';
 import {
-  ChevronLeft, CheckCircle2, Clock, AlertTriangle, Wallet, Lock,
+  CheckCircle2, Clock, AlertTriangle, Wallet, Lock,
   ExternalLink, RefreshCw, Sparkles,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
@@ -39,6 +39,7 @@ import {
   startStripeConnectOnboarding, fetchStripeConnectStatus, type ConnectStatus,
 } from '@/utils/stripeConnect';
 import { nailIt } from '@/components/animations/NailItToast';
+import { Sheet } from '@/components/ui';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -155,23 +156,20 @@ export default function PaymentsSetupScreen() {
   }, []);
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <>
       <Stack.Screen options={{ headerShown: false }} />
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn} testID="payments-setup-back" accessibilityRole="button" accessibilityLabel="Back">
-          <ChevronLeft size={22} color={Colors.text} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Payments</Text>
-        <TouchableOpacity onPress={() => refresh()} style={styles.headerBtn} disabled={refreshing} testID="payments-setup-refresh">
-          {refreshing ? (
-            <ActivityIndicator size="small" color={Colors.primary} />
-          ) : (
-            <RefreshCw size={18} color={Colors.primary} />
-          )}
-        </TouchableOpacity>
-      </View>
-
-      <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}>
+      <Sheet
+        title="Payments"
+        onClose={() => router.back()}
+        rightAction={{
+          label: refreshing ? 'Refreshing…' : 'Refresh',
+          onPress: () => refresh(),
+          disabled: refreshing,
+          variant: 'primary',
+          testID: 'payments-setup-refresh',
+        }}
+        bodyPadding="none"
+      >
         {loading ? (
           <View style={styles.loadingWrap}>
             <ActivityIndicator color={Colors.primary} />
@@ -196,8 +194,8 @@ export default function PaymentsSetupScreen() {
             Stripe processing (2.9% + 30¢) is deducted from each successful payment.
           </Text>
         </View>
-      </ScrollView>
-    </View>
+      </Sheet>
+    </>
   );
 }
 
@@ -331,18 +329,6 @@ function Benefit({ text }: { text: string }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
-  header: {
-    flexDirection: 'row' as const,
-    alignItems: 'center' as const,
-    justifyContent: 'space-between' as const,
-    paddingHorizontal: Tokens.spacing.md,
-    paddingVertical: Tokens.spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
-  },
-  headerBtn: { width: 36, height: 36, alignItems: 'center' as const, justifyContent: 'center' as const },
-  headerTitle: { fontSize: Type.body.fontSize, fontWeight: '700' as const, color: Colors.text },
   loadingWrap: { paddingTop: 80, alignItems: 'center' as const },
   card: {
     margin: Tokens.spacing.md,
