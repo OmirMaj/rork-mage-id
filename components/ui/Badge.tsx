@@ -49,7 +49,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     ...Tokens.continuousCorners,
   },
-  dot: { width: 5, height: 5, borderRadius: 999 },
+  dot: { width: 5, height: 5, borderRadius: Tokens.radius.full },
 });
 
 export default Badge;

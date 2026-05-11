@@ -87,10 +87,10 @@ const makeStyles = (t: ThemeColors) =>
     radio: {
       width: 22,
       height: 22,
-      borderRadius: 999,
+      borderRadius: Tokens.radius.full,
       borderWidth: 2,
       alignItems: 'center',
       justifyContent: 'center',
     },
-    radioDot: { width: 10, height: 10, borderRadius: 999 },
+    radioDot: { width: 10, height: 10, borderRadius: Tokens.radius.full },
   });

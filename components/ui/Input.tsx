@@ -76,7 +76,7 @@ const makeStyles = (t: ThemeColors) =>
       borderRadius: Tokens.radius.md,
       paddingHorizontal: Tokens.spacing.md,
       paddingVertical: 12,
-      fontSize: 17,
+      fontSize: Type.body.fontSize,
       ...Tokens.continuousCorners,
     },
   });

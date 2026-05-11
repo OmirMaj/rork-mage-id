@@ -5,6 +5,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
@@ -34,7 +35,7 @@ export function EyebrowLabel({ children, tone = 'amber', showDot = true }: Props
 const makeStyles = (_t: ThemeColors) =>
   StyleSheet.create({
     row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    dot: { width: 5, height: 5, borderRadius: 999 },
+    dot: { width: 5, height: 5, borderRadius: Tokens.radius.full },
   });
 
 export default EyebrowLabel;
