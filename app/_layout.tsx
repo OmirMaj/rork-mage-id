@@ -15,6 +15,7 @@ import { CompaniesProvider } from "@/contexts/CompaniesContext";
 import { HireProvider } from "@/contexts/HireContext";
 import { NotificationProvider } from "@/contexts/NotificationContext";
 import { SearchProvider, useSearch } from "@/contexts/SearchContext";
+import { ThemeProvider } from "@/contexts/ThemeContext";
 import UniversalSearch from "@/components/UniversalSearch";
 import { NailItToastHost } from "@/components/animations/NailItToast";
 import { ConfettiHost } from "@/components/animations/Confetti";
@@ -909,6 +910,7 @@ export default Sentry.wrap(function RootLayout() {
       <QueryClientProvider client={queryClient}>
         <GestureHandlerRootView style={{ flex: 1 }}>
           <ThemeLoader>
+            <ThemeProvider>
             <AuthProvider>
               <SubscriptionProvider>
                 <ProjectProvider>
@@ -932,6 +934,7 @@ export default Sentry.wrap(function RootLayout() {
                 </ProjectProvider>
               </SubscriptionProvider>
             </AuthProvider>
+            </ThemeProvider>
           </ThemeLoader>
         </GestureHandlerRootView>
       </QueryClientProvider>
