@@ -904,7 +904,7 @@ export default function ProjectDetailScreen() {
               <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10 }}>
                 <Lightbulb size={18} color={Colors.warning} />
                 <View style={{ flex: 1 }}>
-                  <Text style={[detailStyles.infoTitle, { marginBottom: 4 }]}>Unlock More Savings</Text>
+                  <Text style={[detailStyles.infoTitle, { marginBottom: Tokens.spacing.xxs }]}>Unlock More Savings</Text>
                   <Text style={detailStyles.infoDesc}>
                     {savingsBreakdown.totalItems - savingsBreakdown.itemsAtBulk} material(s) aren't yet at bulk thresholds. Increasing quantities on those items could unlock additional discounts.
                   </Text>
@@ -1343,7 +1343,7 @@ export default function ProjectDetailScreen() {
             </View>
             <ScrollView
               style={{ flex: 1 }}
-              contentContainerStyle={{ paddingBottom: insets.bottom + 40, paddingTop: 4 }}
+              contentContainerStyle={{ paddingBottom: insets.bottom + 40, paddingTop: Tokens.spacing.xxs }}
               showsVerticalScrollIndicator={false}
             >
 
@@ -1432,7 +1432,7 @@ export default function ProjectDetailScreen() {
                   </View>
                 </View>
                 {!project.schedule && (
-                  <View style={{ marginTop: 8 }}>
+                  <View style={{ marginTop: Tokens.spacing.xs }}>
                     <AIAutoScheduleButton
                       project={project}
                       estimate={linkedEstimate}
@@ -2340,7 +2340,7 @@ export default function ProjectDetailScreen() {
                 <Text style={[styles.coAddBtnText, { color: Colors.accent }]}>Manage Punch List</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.coAddBtn, { marginTop: 8 }]}
+                style={[styles.coAddBtn, { marginTop: Tokens.spacing.xs }]}
                 onPress={() => navigateFromTile({ pathname: '/warranties' as any, params: { projectId: id } })}
                 activeOpacity={0.7}
                 testID="open-warranties-btn"
@@ -2349,7 +2349,7 @@ export default function ProjectDetailScreen() {
                 <Text style={[styles.coAddBtnText, { color: Colors.primary }]}>Warranties</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.coAddBtn, { marginTop: 8 }]}
+                style={[styles.coAddBtn, { marginTop: Tokens.spacing.xs }]}
                 onPress={() => navigateFromTile({ pathname: '/retention' as any, params: { projectId: id } })}
                 activeOpacity={0.7}
                 testID="open-retention-btn"
@@ -2455,7 +2455,7 @@ export default function ProjectDetailScreen() {
                   </TouchableOpacity>
                 );
               })}
-              <View style={{ flexDirection: 'row', gap: 8 }}>
+              <View style={{ flexDirection: 'row', gap: Tokens.spacing.xs }}>
                 <TouchableOpacity
                   style={[styles.coAddBtn, { flex: 1 }]}
                   onPress={() => navigateFromTile({ pathname: '/rfi' as any, params: { projectId: id } })}
@@ -2570,14 +2570,14 @@ export default function ProjectDetailScreen() {
 
             {expanded.budget && (
               <View style={styles.coCard}>
-                <View style={{ flexDirection: 'row', gap: 10, marginBottom: 8 }}>
-                  <View style={{ flex: 1, backgroundColor: Colors.successLight, borderRadius: Tokens.radius.md, padding: 12, alignItems: 'center' as const }}>
+                <View style={{ flexDirection: 'row', gap: 10, marginBottom: Tokens.spacing.xs }}>
+                  <View style={{ flex: 1, backgroundColor: Colors.successLight, borderRadius: Tokens.radius.md, padding: Tokens.spacing.sm, alignItems: 'center' as const }}>
                     <Text style={{ fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: Colors.success }}>Budget</Text>
                     <Text style={{ fontSize: Type.callout.fontSize, fontWeight: '800' as const, color: Colors.success }}>
                       {formatMoney(project.linkedEstimate?.grandTotal ?? project.estimate?.grandTotal ?? 0)}
                     </Text>
                   </View>
-                  <View style={{ flex: 1, backgroundColor: Colors.infoLight, borderRadius: Tokens.radius.md, padding: 12, alignItems: 'center' as const }}>
+                  <View style={{ flex: 1, backgroundColor: Colors.infoLight, borderRadius: Tokens.radius.md, padding: Tokens.spacing.sm, alignItems: 'center' as const }}>
                     <Text style={{ fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: Colors.info }}>Spent</Text>
                     <Text style={{ fontSize: Type.callout.fontSize, fontWeight: '800' as const, color: Colors.info }}>
                       {formatMoney(allInvoices.filter(inv => inv.projectId === id).reduce((s, inv) => s + (inv.amountPaid ?? 0), 0))}
@@ -2594,7 +2594,7 @@ export default function ProjectDetailScreen() {
                   <Text style={[styles.coAddBtnText, { color: Colors.success }]}>Full Budget Dashboard</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.coAddBtn, { marginTop: 8 }]}
+                  style={[styles.coAddBtn, { marginTop: Tokens.spacing.xs }]}
                   onPress={() => navigateFromTile({ pathname: '/job-costing' as any, params: { projectId: id } })}
                   activeOpacity={0.7}
                   testID="open-job-costing"
@@ -2933,7 +2933,7 @@ export default function ProjectDetailScreen() {
         )}
 
         {project && (
-          <View style={{ paddingHorizontal: 20, marginBottom: 12 }}>
+          <View style={{ paddingHorizontal: Tokens.spacing.lg, marginBottom: Tokens.spacing.sm }}>
             <AIProjectReport
               project={project}
               invoices={allInvoices}
@@ -3115,7 +3115,7 @@ export default function ProjectDetailScreen() {
 
                 <Text style={styles.inviteFieldLabel}>Description</Text>
                 <TextInput
-                  style={[styles.inviteInput, { minHeight: 80, paddingTop: 12, textAlignVertical: 'top' as const }]}
+                  style={[styles.inviteInput, { minHeight: 80, paddingTop: Tokens.spacing.sm, textAlignVertical: 'top' as const }]}
                   value={editDescription}
                   onChangeText={setEditDescription}
                   placeholder="Brief description..."
@@ -3408,29 +3408,29 @@ function PhotoMarkupOverlay({ markup }: { markup: PhotoMarkup[] }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   center: { alignItems: 'center', justifyContent: 'center' },
-  notFoundText: { fontSize: Type.subheadline.fontSize, color: Colors.textSecondary, marginBottom: 16 },
-  backBtn: { backgroundColor: Colors.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: Tokens.radius.md },
+  notFoundText: { fontSize: Type.subheadline.fontSize, color: Colors.textSecondary, marginBottom: Tokens.spacing.md },
+  backBtn: { backgroundColor: Colors.primary, paddingHorizontal: Tokens.spacing.xl, paddingVertical: Tokens.spacing.sm, borderRadius: Tokens.radius.md },
   backBtnText: { color: Colors.textOnPrimary, fontSize: Type.subhead.fontSize, fontWeight: '600' as const },
-  heroCard: { backgroundColor: Colors.primary, marginHorizontal: 20, marginTop: 16, borderRadius: 20, padding: 22, shadowColor: Colors.primaryDark, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.25, shadowRadius: 16, elevation: 8 },
-  heroHeader: { marginBottom: 16 },
+  heroCard: { backgroundColor: Colors.primary, marginHorizontal: Tokens.spacing.lg, marginTop: Tokens.spacing.md, borderRadius: 20, padding: 22, shadowColor: Colors.primaryDark, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.25, shadowRadius: 16, elevation: 8 },
+  heroHeader: { marginBottom: Tokens.spacing.md },
   heroTitleBlock: {},
   // Project name in Fraunces — the project detail is where users live.
   // Brand voice greets them every time they tap into a project, matching
   // the Home dashboard greeting + the marketing-site display treatment.
   heroName: { ...Type.displaySm, color: Colors.textOnPrimary, fontSize: 26, lineHeight: 30 },
-  heroMeta: { flexDirection: 'row', alignItems: 'center', marginTop: 6, gap: 4 },
+  heroMeta: { flexDirection: 'row', alignItems: 'center', marginTop: 6, gap: Tokens.spacing.xxs },
   heroMetaText: { fontSize: Type.bodyCompact.fontSize, color: 'rgba(255,255,255,0.75)' },
   heroDesc: { fontSize: Type.footnote.fontSize, color: 'rgba(255,255,255,0.6)', marginTop: 6, lineHeight: 18 },
   heroStats: {},
-  heroStatMain: { backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: Tokens.radius.lg, padding: 16, alignItems: 'center', marginBottom: 12 },
-  heroTapHint: { fontSize: 10, color: 'rgba(255,255,255,0.45)', fontWeight: '500' as const, marginTop: 4, letterSpacing: 0.3 },
-  heroStatLabel: { fontSize: Type.footnote.fontSize, color: 'rgba(255,255,255,0.7)', fontWeight: '500' as const, marginBottom: 4 },
+  heroStatMain: { backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: Tokens.radius.lg, padding: Tokens.spacing.md, alignItems: 'center', marginBottom: Tokens.spacing.sm },
+  heroTapHint: { fontSize: 10, color: 'rgba(255,255,255,0.45)', fontWeight: '500' as const, marginTop: Tokens.spacing.xxs, letterSpacing: 0.3 },
+  heroStatLabel: { fontSize: Type.footnote.fontSize, color: 'rgba(255,255,255,0.7)', fontWeight: '500' as const, marginBottom: Tokens.spacing.xxs },
   heroStatValue: { fontSize: 32, fontWeight: '800' as const, color: Colors.textOnPrimary, letterSpacing: -1 },
-  heroStatsRow: { flexDirection: 'row', gap: 8 },
+  heroStatsRow: { flexDirection: 'row', gap: Tokens.spacing.xs },
   heroStatSmall: { flex: 1, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: Tokens.radius.md, padding: 10, alignItems: 'center' },
-  smallStatLabel: { fontSize: Type.caption2.fontSize, color: 'rgba(255,255,255,0.6)', fontWeight: '500' as const, marginBottom: 2 },
+  smallStatLabel: { fontSize: Type.caption2.fontSize, color: 'rgba(255,255,255,0.6)', fontWeight: '500' as const, marginBottom: Tokens.spacing.hairline },
   smallStatValue: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.textOnPrimary },
-  section: { marginHorizontal: 20, marginTop: 18 },
+  section: { marginHorizontal: Tokens.spacing.lg, marginTop: 18 },
   // Section headers across project-detail. Bumped border weight 1 → 1.5px
   // and ink-tinted color so each section reads as its own card with a
   // clear edge. Title size 16 → 17 with -0.3 tracking and 800 weight to
@@ -3440,10 +3440,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: Colors.card,
     borderRadius: Tokens.radius.lg,
-    padding: 16,
+    padding: Tokens.spacing.md,
     borderWidth: 1.5,
     borderColor: Colors.text + '12',
-    gap: 12,
+    gap: Tokens.spacing.sm,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
@@ -3457,138 +3457,138 @@ const styles = StyleSheet.create({
     color: Colors.text,
     letterSpacing: -0.3,
   },
-  tableContainer: { backgroundColor: Colors.card, borderRadius: Tokens.radius.card, marginTop: 8, borderWidth: 1, borderColor: Colors.cardBorder, overflow: 'hidden' },
+  tableContainer: { backgroundColor: Colors.card, borderRadius: Tokens.radius.card, marginTop: Tokens.spacing.xs, borderWidth: 1, borderColor: Colors.cardBorder, overflow: 'hidden' },
   tableHeader: { flexDirection: 'row', backgroundColor: Colors.surfaceAlt, paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.borderLight },
   tableHeaderText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.5 },
   tableRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.borderLight },
   tableRowAlt: { backgroundColor: Colors.surfaceAlt },
   tableCellName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '500' as const, color: Colors.text },
-  tableCellSub: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 2 },
+  tableCellSub: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: Tokens.spacing.hairline },
   tableCell: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary },
   tableCellBold: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
   bulkBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 3 },
   bulkBadgeText: { fontSize: 10, fontWeight: '600' as const, color: Colors.success },
-  savingsBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 2 },
+  savingsBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: Tokens.spacing.hairline },
   savingsText: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: Colors.success },
-  linkedSummaryRow: { flexDirection: 'row', paddingHorizontal: 14, paddingVertical: 12, gap: 8, backgroundColor: Colors.primary + '06', borderTopWidth: 1, borderTopColor: Colors.primary + '15' },
-  linkedSummaryItem: { flex: 1, alignItems: 'center', gap: 2 },
+  linkedSummaryRow: { flexDirection: 'row', paddingHorizontal: 14, paddingVertical: Tokens.spacing.sm, gap: Tokens.spacing.xs, backgroundColor: Colors.primary + '06', borderTopWidth: 1, borderTopColor: Colors.primary + '15' },
+  linkedSummaryItem: { flex: 1, alignItems: 'center', gap: Tokens.spacing.hairline },
   linkedSummaryLabel: { fontSize: Type.caption2.fontSize, fontWeight: '500' as const, color: Colors.textSecondary },
   linkedSummaryValue: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text },
-  summaryCard: { backgroundColor: Colors.card, borderRadius: Tokens.radius.card, padding: 18, marginTop: 8, borderWidth: 1, borderColor: Colors.cardBorder },
-  scheduleCard: { backgroundColor: Colors.card, borderRadius: Tokens.radius.card, padding: 16, marginTop: 8, borderWidth: 1, borderColor: Colors.cardBorder },
-  scheduleTopRow: { flexDirection: 'row', gap: 8, marginBottom: 14 },
-  scheduleMetric: { flex: 1, backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.card, padding: 12 },
-  scheduleMetricLabel: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: Colors.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.5, marginBottom: 4 },
+  summaryCard: { backgroundColor: Colors.card, borderRadius: Tokens.radius.card, padding: 18, marginTop: Tokens.spacing.xs, borderWidth: 1, borderColor: Colors.cardBorder },
+  scheduleCard: { backgroundColor: Colors.card, borderRadius: Tokens.radius.card, padding: Tokens.spacing.md, marginTop: Tokens.spacing.xs, borderWidth: 1, borderColor: Colors.cardBorder },
+  scheduleTopRow: { flexDirection: 'row', gap: Tokens.spacing.xs, marginBottom: 14 },
+  scheduleMetric: { flex: 1, backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.card, padding: Tokens.spacing.sm },
+  scheduleMetricLabel: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: Colors.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.5, marginBottom: Tokens.spacing.xxs },
   scheduleMetricValue: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text },
   scheduleSectionTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text, marginBottom: 10 },
   scheduleTaskRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, borderTopWidth: 1, borderTopColor: Colors.borderLight },
   scheduleStatusDot: { width: 8, height: 8, borderRadius: 4 },
   scheduleTaskTextWrap: { flex: 1 },
-  scheduleTaskName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text, marginBottom: 2 },
+  scheduleTaskName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text, marginBottom: Tokens.spacing.hairline },
   scheduleTaskMeta: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary },
   scheduleTaskProgress: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.info },
-  crossLinkBtn: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, paddingHorizontal: 14, marginTop: 10, backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.card, borderWidth: 1, borderColor: Colors.cardBorder },
+  crossLinkBtn: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: Tokens.spacing.sm, paddingHorizontal: 14, marginTop: 10, backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.card, borderWidth: 1, borderColor: Colors.cardBorder },
   crossLinkText: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.text },
   summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6 },
   summaryLabel: { fontSize: Type.subhead.fontSize, color: Colors.textSecondary },
   summaryValue: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: Colors.text },
-  summaryDivider: { height: 1, backgroundColor: Colors.borderLight, marginVertical: 8 },
+  summaryDivider: { height: 1, backgroundColor: Colors.borderLight, marginVertical: Tokens.spacing.xs },
   savingsHighlight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   grandTotalDivider: { height: 2, backgroundColor: Colors.primary, marginVertical: 10, borderRadius: 1 },
   grandTotalLabel: { fontSize: Type.subheadline.fontSize, fontWeight: '800' as const, color: Colors.text },
   grandTotalValue: { fontSize: Type.title2.fontSize, fontWeight: '800' as const, color: Colors.primary },
-  notesContainer: { backgroundColor: Colors.card, borderRadius: Tokens.radius.card, padding: 16, marginTop: 8, borderWidth: 1, borderColor: Colors.cardBorder, gap: 12 },
+  notesContainer: { backgroundColor: Colors.card, borderRadius: Tokens.radius.card, padding: Tokens.spacing.md, marginTop: Tokens.spacing.xs, borderWidth: 1, borderColor: Colors.cardBorder, gap: Tokens.spacing.sm },
   noteRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
   noteBullet: { width: 6, height: 6, borderRadius: 3, backgroundColor: Colors.accent, marginTop: 7 },
   noteText: { flex: 1, fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, lineHeight: 20 },
-  noEstimate: { alignItems: 'center', paddingVertical: 40, paddingHorizontal: 40, marginTop: 20 },
-  noEstimateTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: Colors.text, marginTop: 12 },
-  noEstimateText: { fontSize: Type.subhead.fontSize, color: Colors.textSecondary, textAlign: 'center' as const, marginTop: 8, lineHeight: 22 },
-  collabCard: { backgroundColor: Colors.card, borderRadius: Tokens.radius.card, marginTop: 8, borderWidth: 1, borderColor: Colors.cardBorder, padding: 14, gap: 10 },
-  collabMember: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 6 },
+  noEstimate: { alignItems: 'center', paddingVertical: Tokens.spacing['3xl'], paddingHorizontal: Tokens.spacing['3xl'], marginTop: Tokens.spacing.lg },
+  noEstimateTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: Colors.text, marginTop: Tokens.spacing.sm },
+  noEstimateText: { fontSize: Type.subhead.fontSize, color: Colors.textSecondary, textAlign: 'center' as const, marginTop: Tokens.spacing.xs, lineHeight: 22 },
+  collabCard: { backgroundColor: Colors.card, borderRadius: Tokens.radius.card, marginTop: Tokens.spacing.xs, borderWidth: 1, borderColor: Colors.cardBorder, padding: 14, gap: 10 },
+  collabMember: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.sm, paddingVertical: 6 },
   collabAvatar: { width: 36, height: 36, borderRadius: Tokens.radius.xl, alignItems: 'center', justifyContent: 'center' },
-  collabInfo: { flex: 1, gap: 2 },
+  collabInfo: { flex: 1, gap: Tokens.spacing.hairline },
   collabName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
   collabEmail: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary },
-  collabActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  collabRoleBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: Tokens.radius.sm },
+  collabActions: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs },
+  collabRoleBadge: { paddingHorizontal: 10, paddingVertical: Tokens.spacing.xxs, borderRadius: Tokens.radius.sm },
   collabRoleText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const },
   collabRemoveBtn: { width: 28, height: 28, borderRadius: Tokens.radius.lg, backgroundColor: Colors.errorLight, alignItems: 'center', justifyContent: 'center' },
-  inviteBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12, borderRadius: Tokens.radius.card, backgroundColor: Colors.primary + '10', borderWidth: 1, borderColor: Colors.primary + '20', marginTop: 4 },
+  inviteBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Tokens.spacing.xs, paddingVertical: Tokens.spacing.sm, borderRadius: Tokens.radius.card, backgroundColor: Colors.primary + '10', borderWidth: 1, borderColor: Colors.primary + '20', marginTop: Tokens.spacing.xxs },
   inviteBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.primary },
-  shareSection: { marginHorizontal: 20, marginTop: 18, backgroundColor: Colors.card, borderRadius: Tokens.radius.panel, padding: 18, borderWidth: 1, borderColor: Colors.cardBorder, gap: 12 },
+  shareSection: { marginHorizontal: Tokens.spacing.lg, marginTop: 18, backgroundColor: Colors.card, borderRadius: Tokens.radius.panel, padding: 18, borderWidth: 1, borderColor: Colors.cardBorder, gap: Tokens.spacing.sm },
   shareSectionTitle: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.text },
   shareBrandingNote: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: -6 },
   signatureNote: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: -4 },
   signatureNoteText: { fontSize: Type.caption1.fontSize, color: Colors.primary, fontWeight: '500' as const },
-  shareBtnPrimary: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: Colors.primary, borderRadius: Tokens.radius.lg, paddingVertical: 14, shadowColor: Colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 12, elevation: 3 },
+  shareBtnPrimary: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Tokens.spacing.xs, backgroundColor: Colors.primary, borderRadius: Tokens.radius.lg, paddingVertical: 14, shadowColor: Colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 12, elevation: 3 },
   shareBtnPrimaryText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.textOnPrimary },
-  editButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.primary + '10', borderRadius: Tokens.radius.card, paddingVertical: 16, gap: 8, marginHorizontal: 20, marginTop: 24, borderWidth: 1, borderColor: Colors.primary + '20' },
+  editButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.primary + '10', borderRadius: Tokens.radius.card, paddingVertical: Tokens.spacing.md, gap: Tokens.spacing.xs, marginHorizontal: Tokens.spacing.lg, marginTop: Tokens.spacing.xl, borderWidth: 1, borderColor: Colors.primary + '20' },
   editButtonText: { fontSize: Type.callout.fontSize, fontWeight: '600' as const, color: Colors.primary },
-  editTypeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
+  editTypeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Tokens.spacing.xs, marginTop: Tokens.spacing.xxs },
   editTypeChip: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: Tokens.radius.card, backgroundColor: Colors.fillTertiary },
   editTypeChipActive: { backgroundColor: Colors.primary },
   editTypeChipLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.textSecondary },
   editTypeChipLabelActive: { color: Colors.textOnPrimary },
-  deleteButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.errorLight, borderRadius: Tokens.radius.card, paddingVertical: 16, gap: 8, marginHorizontal: 20, marginTop: 14, borderWidth: 1, borderColor: Colors.error + '30' },
+  deleteButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.errorLight, borderRadius: Tokens.radius.card, paddingVertical: Tokens.spacing.md, gap: Tokens.spacing.xs, marginHorizontal: Tokens.spacing.lg, marginTop: 14, borderWidth: 1, borderColor: Colors.error + '30' },
   deleteButtonText: { fontSize: Type.callout.fontSize, fontWeight: '600' as const, color: Colors.error },
-  shareModalOverlay: { flex: 1, backgroundColor: Colors.overlay, justifyContent: 'center', padding: 20 },
+  shareModalOverlay: { flex: 1, backgroundColor: Colors.overlay, justifyContent: 'center', padding: Tokens.spacing.lg },
   shareModalCard: { backgroundColor: Colors.surface, borderRadius: Tokens.radius["2xl"], padding: 22, gap: 14, maxWidth: 400, width: '100%', alignSelf: 'center' as const },
   shareModalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   shareModalTitle: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: Colors.text },
   shareModalDesc: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, lineHeight: 20 },
-  shareOption: { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.panel, padding: 16, borderWidth: 1, borderColor: Colors.cardBorder },
+  shareOption: { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.panel, padding: Tokens.spacing.md, borderWidth: 1, borderColor: Colors.cardBorder },
   shareOptionIcon: { width: 44, height: 44, borderRadius: Tokens.radius.card, alignItems: 'center', justifyContent: 'center' },
-  shareOptionInfo: { flex: 1, gap: 2 },
+  shareOptionInfo: { flex: 1, gap: Tokens.spacing.hairline },
   shareOptionTitle: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: Colors.text },
   shareOptionDesc: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary },
   inviteModalOverlay: { flex: 1, backgroundColor: Colors.overlay, justifyContent: 'flex-end' },
   inviteModalCard: { backgroundColor: Colors.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 22, gap: 10 },
-  inviteModalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+  inviteModalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Tokens.spacing.xxs },
   inviteModalTitle: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: Colors.text },
   inviteDesc: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, lineHeight: 20 },
-  inviteFieldLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.textSecondary, marginTop: 4 },
+  inviteFieldLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.textSecondary, marginTop: Tokens.spacing.xxs },
   inviteInput: { minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 14, fontSize: Type.subhead.fontSize, color: Colors.text },
-  inviteRoleRow: { flexDirection: 'row', gap: 10, marginTop: 4 },
-  inviteRoleBtn: { flex: 1, alignItems: 'center', gap: 4, paddingVertical: 14, borderRadius: Tokens.radius.lg, backgroundColor: Colors.fillTertiary },
+  inviteRoleRow: { flexDirection: 'row', gap: 10, marginTop: Tokens.spacing.xxs },
+  inviteRoleBtn: { flex: 1, alignItems: 'center', gap: Tokens.spacing.xxs, paddingVertical: 14, borderRadius: Tokens.radius.lg, backgroundColor: Colors.fillTertiary },
   inviteRoleBtnActive: { backgroundColor: Colors.primary },
   inviteRoleBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
   inviteRoleBtnTextActive: { color: Colors.textOnPrimary },
   inviteRoleDesc: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary },
-  inviteActionRow: { flexDirection: 'row', gap: 10, marginTop: 8 },
+  inviteActionRow: { flexDirection: 'row', gap: 10, marginTop: Tokens.spacing.xs },
   inviteCancelBtn: { flex: 1, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
   inviteCancelBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
-  inviteSendBtn: { flex: 1, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 },
+  inviteSendBtn: { flex: 1, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: Tokens.spacing.xs },
   inviteSendBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.textOnPrimary },
-  coCard: { backgroundColor: Colors.card, borderRadius: Tokens.radius.card, marginTop: 8, borderWidth: 1, borderColor: Colors.cardBorder, padding: 14, gap: 4 },
-  coEmptyText: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, fontStyle: 'italic' as const, paddingVertical: 8 },
+  coCard: { backgroundColor: Colors.card, borderRadius: Tokens.radius.card, marginTop: Tokens.spacing.xs, borderWidth: 1, borderColor: Colors.cardBorder, padding: 14, gap: Tokens.spacing.xxs },
+  coEmptyText: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, fontStyle: 'italic' as const, paddingVertical: Tokens.spacing.xs },
   coRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.borderLight, gap: 10 },
-  coInfo: { flex: 1, gap: 2 },
+  coInfo: { flex: 1, gap: Tokens.spacing.hairline },
   coNumber: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
   coDesc: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary },
-  coRight: { alignItems: 'flex-end', gap: 4 },
+  coRight: { alignItems: 'flex-end', gap: Tokens.spacing.xxs },
   coAmount: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const },
   invAmount: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
-  coBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.xs },
+  coBadge: { paddingHorizontal: Tokens.spacing.xs, paddingVertical: 3, borderRadius: Tokens.radius.xs },
   coBadgeText: { fontSize: 10, fontWeight: '700' as const, textTransform: 'uppercase' as const, letterSpacing: 0.3 },
-  coApproveRow: { flexDirection: 'row', gap: 8, paddingTop: 8 },
+  coApproveRow: { flexDirection: 'row', gap: Tokens.spacing.xs, paddingTop: Tokens.spacing.xs },
   coApproveBtn: { flex: 1, paddingVertical: 10, borderRadius: Tokens.radius.md, backgroundColor: Colors.successLight, alignItems: 'center', borderWidth: 1, borderColor: Colors.success + '30' },
   coApproveBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.success },
-  coRejectBtn: { paddingVertical: 10, paddingHorizontal: 16, borderRadius: Tokens.radius.md, backgroundColor: Colors.errorLight, alignItems: 'center', borderWidth: 1, borderColor: Colors.error + '30' },
+  coRejectBtn: { paddingVertical: 10, paddingHorizontal: Tokens.spacing.md, borderRadius: Tokens.radius.md, backgroundColor: Colors.errorLight, alignItems: 'center', borderWidth: 1, borderColor: Colors.error + '30' },
   coRejectBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.error },
-  coAddBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: Tokens.radius.md, backgroundColor: Colors.primary + '10', borderWidth: 1, borderColor: Colors.primary + '20', marginTop: 8 },
+  coAddBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: Tokens.spacing.sm, borderRadius: Tokens.radius.md, backgroundColor: Colors.primary + '10', borderWidth: 1, borderColor: Colors.primary + '20', marginTop: Tokens.spacing.xs },
   coAddBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.primary },
-  invBtnRow: { flexDirection: 'row', gap: 8 },
-  punchProgress: { marginBottom: 8 },
-  punchProgressHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+  invBtnRow: { flexDirection: 'row', gap: Tokens.spacing.xs },
+  punchProgress: { marginBottom: Tokens.spacing.xs },
+  punchProgressHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Tokens.spacing.xxs },
   punchProgressLabel: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.textSecondary },
   punchProgressPercent: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800' as const, color: Colors.primary },
   punchProgressTrack: { height: 6, backgroundColor: Colors.fillTertiary, borderRadius: 3, overflow: 'hidden' as const },
   punchProgressFill: { height: 6, backgroundColor: Colors.primary, borderRadius: 3 },
   punchDot: { width: 8, height: 8, borderRadius: 4, marginTop: 6 },
-  punchMoreText: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, fontStyle: 'italic' as const, paddingVertical: 4 },
-  dfrWeekBucket: { marginBottom: 8 },
-  dfrWeekHeader: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, paddingHorizontal: 4, paddingVertical: 6 },
+  punchMoreText: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, fontStyle: 'italic' as const, paddingVertical: Tokens.spacing.xxs },
+  dfrWeekBucket: { marginBottom: Tokens.spacing.xs },
+  dfrWeekHeader: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: Tokens.spacing.xs, paddingHorizontal: Tokens.spacing.xxs, paddingVertical: 6 },
   dfrWeekLabel: { flex: 1, fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: Colors.textSecondary, letterSpacing: 0.6, textTransform: 'uppercase' as const },
   dfrWeekBadge: { backgroundColor: Colors.fillSecondary, borderRadius: Tokens.radius.sm, paddingHorizontal: 7, paddingVertical: 1, minWidth: 20, alignItems: 'center' as const },
   dfrWeekBadgeText: { fontSize: 10, fontWeight: '700' as const, color: Colors.textSecondary },
@@ -3598,7 +3598,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row' as const,
     backgroundColor: Colors.fillTertiary,
     borderRadius: Tokens.radius.sm,
-    padding: 2,
+    padding: Tokens.spacing.hairline,
     marginBottom: 10,
     alignSelf: 'flex-start' as const,
   },
@@ -3619,94 +3619,94 @@ const styles = StyleSheet.create({
     color: Colors.text,
     fontWeight: '700' as const,
   },
-  photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
-  photoThumb: { width: 72, height: 72, borderRadius: Tokens.radius.md, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center', gap: 4, overflow: 'hidden' as const, position: 'relative' as const },
+  photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Tokens.spacing.xs, marginTop: Tokens.spacing.xs },
+  photoThumb: { width: 72, height: 72, borderRadius: Tokens.radius.md, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center', gap: Tokens.spacing.xxs, overflow: 'hidden' as const, position: 'relative' as const },
   photoThumbImage: { width: '100%', height: '100%' },
   photoThumbDate: { fontSize: 9, color: Colors.surface, fontWeight: '700' as const },
-  photoThumbDateOverlay: { position: 'absolute' as const, bottom: 4, left: 4, right: 4, backgroundColor: 'rgba(0,0,0,0.55)', paddingVertical: 1, paddingHorizontal: 4, borderRadius: 5, alignItems: 'center' as const },
+  photoThumbDateOverlay: { position: 'absolute' as const, bottom: 4, left: 4, right: 4, backgroundColor: 'rgba(0,0,0,0.55)', paddingVertical: 1, paddingHorizontal: Tokens.spacing.xxs, borderRadius: 5, alignItems: 'center' as const },
   photoThumbMarkupBadge: {
     position: 'absolute' as const, top: 4, right: 4,
     width: 18, height: 18, borderRadius: 9,
     backgroundColor: Colors.accent, alignItems: 'center' as const, justifyContent: 'center' as const,
   },
-  lightboxOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.92)', alignItems: 'center' as const, justifyContent: 'center' as const, padding: 16 },
+  lightboxOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.92)', alignItems: 'center' as const, justifyContent: 'center' as const, padding: Tokens.spacing.md },
   lightboxImageWrap: { width: '100%', height: '80%', alignItems: 'center' as const, justifyContent: 'center' as const, position: 'relative' as const },
   lightboxImage: { width: '100%', height: '100%' },
-  lightboxClose: { position: 'absolute' as const, top: 50, right: 20, padding: 12, backgroundColor: 'rgba(255,255,255,0.18)', borderRadius: Tokens.radius["2xl"] },
+  lightboxClose: { position: 'absolute' as const, top: 50, right: 20, padding: Tokens.spacing.sm, backgroundColor: 'rgba(255,255,255,0.18)', borderRadius: Tokens.radius["2xl"] },
   lightboxMarkupBtn: {
     position: 'absolute' as const, bottom: 60, alignSelf: 'center' as const,
-    flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8,
-    paddingHorizontal: 18, paddingVertical: 12, borderRadius: Tokens.radius.full,
+    flexDirection: 'row' as const, alignItems: 'center' as const, gap: Tokens.spacing.xs,
+    paddingHorizontal: 18, paddingVertical: Tokens.spacing.sm, borderRadius: Tokens.radius.full,
     backgroundColor: 'rgba(255,106,26,0.95)',
   },
   lightboxMarkupBtnText: { color: Colors.surface, fontWeight: '800' as const, fontSize: Type.footnote.fontSize },
-  portalInfo: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 8 },
-  portalTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text, marginBottom: 2 },
+  portalInfo: { flexDirection: 'row', alignItems: 'flex-start', gap: Tokens.spacing.sm, marginBottom: Tokens.spacing.xs },
+  portalTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text, marginBottom: Tokens.spacing.hairline },
   portalDesc: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, lineHeight: 18 },
-  portalBadge: { alignSelf: 'flex-start' as const, backgroundColor: Colors.purple + '15', paddingHorizontal: 10, paddingVertical: 4, borderRadius: Tokens.radius.sm, marginBottom: 8 },
+  portalBadge: { alignSelf: 'flex-start' as const, backgroundColor: Colors.purple + '15', paddingHorizontal: 10, paddingVertical: Tokens.spacing.xxs, borderRadius: Tokens.radius.sm, marginBottom: Tokens.spacing.xs },
   portalBadgeText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: Colors.purple },
-  portalLinkRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  portalLinkBox: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.md, paddingHorizontal: 12, paddingVertical: 10 },
+  portalLinkRow: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs },
+  portalLinkBox: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.md, paddingHorizontal: Tokens.spacing.sm, paddingVertical: 10 },
   portalLinkText: { flex: 1, fontSize: Type.footnote.fontSize, color: Colors.info },
   portalCopyBtn: { width: 40, height: 40, borderRadius: Tokens.radius.md, backgroundColor: Colors.primary + '12', alignItems: 'center', justifyContent: 'center' },
-  portalEnableBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12, borderRadius: Tokens.radius.md, backgroundColor: Colors.purple + '12', borderWidth: 1, borderColor: Colors.purple + '20' },
+  portalEnableBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Tokens.spacing.xs, paddingVertical: Tokens.spacing.sm, borderRadius: Tokens.radius.md, backgroundColor: Colors.purple + '12', borderWidth: 1, borderColor: Colors.purple + '20' },
   portalEnableBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.purple },
   portalInviteCount: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 5, marginBottom: 10 },
   portalInviteCountText: { fontSize: Type.caption1.fontSize, color: Colors.textMuted },
-  commEmpty: { alignItems: 'center' as const, paddingVertical: 20, gap: 8 },
+  commEmpty: { alignItems: 'center' as const, paddingVertical: Tokens.spacing.lg, gap: Tokens.spacing.xs },
   commEmptyText: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, textAlign: 'center' as const, lineHeight: 18 },
   commEventRow: { flexDirection: 'row' as const, alignItems: 'flex-start' as const, gap: 10, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.borderLight },
   commEventDot: { width: 8, height: 8, borderRadius: 4, marginTop: 5 },
-  commEventContent: { flex: 1, gap: 2 },
+  commEventContent: { flex: 1, gap: Tokens.spacing.hairline },
   commEventSummary: { fontSize: Type.footnote.fontSize, fontWeight: '500' as const, color: Colors.text, lineHeight: 18 },
   commEventTime: { fontSize: Type.caption2.fontSize, color: Colors.textMuted },
-  commAddNoteBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 6, paddingVertical: 10, borderRadius: Tokens.radius.md, backgroundColor: Colors.infoLight, marginTop: 8 },
+  commAddNoteBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 6, paddingVertical: 10, borderRadius: Tokens.radius.md, backgroundColor: Colors.infoLight, marginTop: Tokens.spacing.xs },
   commAddNoteBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.info },
-  quickActions: { flexDirection: 'row' as const, paddingHorizontal: 20, marginTop: 12, gap: 10, flexWrap: 'wrap' as const },
-  quickActionBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, backgroundColor: Colors.surface, borderRadius: Tokens.radius.card, paddingHorizontal: 14, paddingVertical: 12, borderWidth: 1, borderColor: Colors.cardBorder, flexGrow: 1, flexShrink: 1, flexBasis: '47%' as const, minHeight: 56 },
+  quickActions: { flexDirection: 'row' as const, paddingHorizontal: Tokens.spacing.lg, marginTop: Tokens.spacing.sm, gap: 10, flexWrap: 'wrap' as const },
+  quickActionBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, backgroundColor: Colors.surface, borderRadius: Tokens.radius.card, paddingHorizontal: 14, paddingVertical: Tokens.spacing.sm, borderWidth: 1, borderColor: Colors.cardBorder, flexGrow: 1, flexShrink: 1, flexBasis: '47%' as const, minHeight: 56 },
   quickActionBtnFull: { flexBasis: '100%' as const },
   quickActionIcon: { width: 32, height: 32, borderRadius: Tokens.radius.sm, alignItems: 'center' as const, justifyContent: 'center' as const },
   quickActionLabel: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text, flexShrink: 1 },
-  sectionGrid: { paddingHorizontal: 20, marginTop: 18, gap: 8 },
+  sectionGrid: { paddingHorizontal: Tokens.spacing.lg, marginTop: 18, gap: Tokens.spacing.xs },
   // Tight, predictable spacing: collapsed groups stack snugly. The body
   // has no marginBottom — separation between groups comes ONLY from
   // sectionGroups.gap, so collapsing a group never leaves phantom space.
-  sectionGroups: { paddingHorizontal: 20, marginTop: 14, gap: 6 },
+  sectionGroups: { paddingHorizontal: Tokens.spacing.lg, marginTop: 14, gap: 6 },
   tileGroup: { gap: 6 },
-  tileGroupHeader: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, paddingHorizontal: 4, paddingVertical: 6, minHeight: 40 },
+  tileGroupHeader: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, paddingHorizontal: Tokens.spacing.xxs, paddingVertical: 6, minHeight: 40 },
   tileGroupHeaderIcon: { width: 28, height: 28, borderRadius: Tokens.radius.sm, alignItems: 'center' as const, justifyContent: 'center' as const },
   tileGroupHeaderLabel: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.textSecondary, letterSpacing: 0.6, textTransform: 'uppercase' as const },
   tileGroupBadge: { backgroundColor: Colors.fillSecondary, borderRadius: 9, paddingHorizontal: 7, paddingVertical: 1, minWidth: 22, alignItems: 'center' as const },
   tileGroupBadgeText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: Colors.textSecondary },
-  tileGroupBody: { gap: 8 },
-  sectionTile: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 12, backgroundColor: Colors.card, borderRadius: Tokens.radius.card, paddingHorizontal: 14, paddingVertical: 12, borderWidth: 1, borderColor: Colors.cardBorder, minHeight: 56 },
+  tileGroupBody: { gap: Tokens.spacing.xs },
+  sectionTile: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: Tokens.spacing.sm, backgroundColor: Colors.card, borderRadius: Tokens.radius.card, paddingHorizontal: 14, paddingVertical: Tokens.spacing.sm, borderWidth: 1, borderColor: Colors.cardBorder, minHeight: 56 },
   sectionTileIcon: { width: 36, height: 36, borderRadius: Tokens.radius.md, alignItems: 'center' as const, justifyContent: 'center' as const },
   sectionTileLabel: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: Colors.text },
-  sectionTileStatus: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, marginTop: 2, letterSpacing: 0.1 },
-  sectionTileBadge: { backgroundColor: Colors.fillTertiary, borderRadius: Tokens.radius.md, paddingHorizontal: 8, paddingVertical: 2, minWidth: 24, alignItems: 'center' as const },
+  sectionTileStatus: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, marginTop: Tokens.spacing.hairline, letterSpacing: 0.1 },
+  sectionTileBadge: { backgroundColor: Colors.fillTertiary, borderRadius: Tokens.radius.md, paddingHorizontal: Tokens.spacing.xs, paddingVertical: Tokens.spacing.hairline, minWidth: 24, alignItems: 'center' as const },
   sectionTileBadgeText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: Colors.textSecondary },
-  sectionModalHeader: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'space-between' as const, paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight },
-  sectionModalBack: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 2, paddingVertical: 6, paddingHorizontal: 4, minWidth: 72 },
+  sectionModalHeader: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'space-between' as const, paddingHorizontal: Tokens.spacing.md, paddingBottom: Tokens.spacing.sm, borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight },
+  sectionModalBack: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: Tokens.spacing.hairline, paddingVertical: 6, paddingHorizontal: Tokens.spacing.xxs, minWidth: 72 },
   sectionModalBackText: { fontSize: Type.callout.fontSize, fontWeight: '500' as const, color: Colors.primary },
   sectionModalTitle: { flex: 1, textAlign: 'center' as const, fontSize: Type.body.fontSize, fontWeight: '700' as const, color: Colors.text },
 });
 
 const detailStyles = StyleSheet.create({
   modalContainer: { flex: 1, backgroundColor: Colors.background },
-  modalHandle: { width: 36, height: 5, borderRadius: 3, backgroundColor: Colors.border, alignSelf: 'center', marginBottom: 8 },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingBottom: 14, borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight, backgroundColor: Colors.background },
+  modalHandle: { width: 36, height: 5, borderRadius: 3, backgroundColor: Colors.border, alignSelf: 'center', marginBottom: Tokens.spacing.xs },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: Tokens.spacing.lg, paddingBottom: 14, borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight, backgroundColor: Colors.background },
   modalTitle: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: Colors.text, letterSpacing: -0.3 },
   modalCloseBtn: { width: 32, height: 32, borderRadius: Tokens.radius.panel, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
-  heroSection: { alignItems: 'center', paddingVertical: 28, paddingHorizontal: 20, gap: 6 },
-  heroIconWrap: { width: 56, height: 56, borderRadius: 28, backgroundColor: Colors.primary + '12', alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
+  heroSection: { alignItems: 'center', paddingVertical: 28, paddingHorizontal: Tokens.spacing.lg, gap: 6 },
+  heroIconWrap: { width: 56, height: 56, borderRadius: 28, backgroundColor: Colors.primary + '12', alignItems: 'center', justifyContent: 'center', marginBottom: Tokens.spacing.xs },
   heroAmount: { fontSize: 38, fontWeight: '800' as const, color: Colors.text, letterSpacing: -1.5 },
   heroSubtitle: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, fontWeight: '500' as const },
   heroChips: { flexDirection: 'row', gap: 10, marginTop: 14 },
-  heroChip: { backgroundColor: Colors.fillTertiary, borderRadius: Tokens.radius.card, paddingHorizontal: 14, paddingVertical: 8, alignItems: 'center', gap: 2 },
+  heroChip: { backgroundColor: Colors.fillTertiary, borderRadius: Tokens.radius.card, paddingHorizontal: 14, paddingVertical: Tokens.spacing.xs, alignItems: 'center', gap: Tokens.spacing.hairline },
   heroChipLabel: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.text },
   heroChipSub: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontWeight: '500' as const },
-  sectionLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.8, paddingHorizontal: 20, marginBottom: 8, marginTop: 4 },
-  barChartWrap: { marginHorizontal: 20, backgroundColor: Colors.surface, borderRadius: Tokens.radius.panel, padding: 16, gap: 16, marginBottom: 20, borderWidth: 1, borderColor: Colors.cardBorder },
+  sectionLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.8, paddingHorizontal: Tokens.spacing.lg, marginBottom: Tokens.spacing.xs, marginTop: Tokens.spacing.xxs },
+  barChartWrap: { marginHorizontal: Tokens.spacing.lg, backgroundColor: Colors.surface, borderRadius: Tokens.radius.panel, padding: Tokens.spacing.md, gap: Tokens.spacing.md, marginBottom: Tokens.spacing.lg, borderWidth: 1, borderColor: Colors.cardBorder },
   barRow: { gap: 6 },
   barLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   barLabel: { flex: 1, fontSize: Type.bodyCompact.fontSize, fontWeight: '500' as const, color: Colors.text },
@@ -3714,37 +3714,37 @@ const detailStyles = StyleSheet.create({
   barTrack: { height: 8, borderRadius: 4, backgroundColor: Colors.fillTertiary, overflow: 'hidden' as const },
   barFill: { height: 8, borderRadius: 4 },
   barValue: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.text },
-  additionalCard: { marginHorizontal: 20, backgroundColor: Colors.surface, borderRadius: Tokens.radius.panel, padding: 16, marginBottom: 20, borderWidth: 1, borderColor: Colors.cardBorder },
+  additionalCard: { marginHorizontal: Tokens.spacing.lg, backgroundColor: Colors.surface, borderRadius: Tokens.radius.panel, padding: Tokens.spacing.md, marginBottom: Tokens.spacing.lg, borderWidth: 1, borderColor: Colors.cardBorder },
   additionalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6 },
-  additionalLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  additionalLeft: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs },
   additionalDot: { width: 8, height: 8, borderRadius: 4 },
   additionalLabel: { fontSize: Type.subhead.fontSize, color: Colors.text, fontWeight: '500' as const },
-  additionalRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  additionalRight: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs },
   additionalValue: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: Colors.text },
-  additionalPct: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.textMuted, backgroundColor: Colors.fillTertiary, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, overflow: 'hidden' as const },
-  additionalDivider: { height: 1, backgroundColor: Colors.borderLight, marginVertical: 4 },
-  fullBreakdownCard: { marginHorizontal: 20, backgroundColor: Colors.surface, borderRadius: Tokens.radius.panel, padding: 18, gap: 8, marginBottom: 20, borderWidth: 1, borderColor: Colors.cardBorder },
+  additionalPct: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.textMuted, backgroundColor: Colors.fillTertiary, paddingHorizontal: 6, paddingVertical: Tokens.spacing.hairline, borderRadius: 4, overflow: 'hidden' as const },
+  additionalDivider: { height: 1, backgroundColor: Colors.borderLight, marginVertical: Tokens.spacing.xxs },
+  fullBreakdownCard: { marginHorizontal: Tokens.spacing.lg, backgroundColor: Colors.surface, borderRadius: Tokens.radius.panel, padding: 18, gap: Tokens.spacing.xs, marginBottom: Tokens.spacing.lg, borderWidth: 1, borderColor: Colors.cardBorder },
   breakdownRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   breakdownLabel: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary },
   breakdownValue: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
   breakdownLabelBold: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text },
   breakdownValueBold: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text },
   breakdownDivider: { height: 1, backgroundColor: Colors.borderLight },
-  breakdownDividerThick: { height: 2, backgroundColor: Colors.primary + '30', borderRadius: 1, marginVertical: 4 },
+  breakdownDividerThick: { height: 2, backgroundColor: Colors.primary + '30', borderRadius: 1, marginVertical: Tokens.spacing.xxs },
   grandLabel: { fontSize: Type.subheadline.fontSize, fontWeight: '800' as const, color: Colors.text },
   grandValue: { fontSize: Type.title2.fontSize, fontWeight: '800' as const, color: Colors.primary },
-  infoCard: { marginHorizontal: 20, backgroundColor: Colors.surface, borderRadius: Tokens.radius.panel, padding: 16, gap: 16, marginBottom: 20, borderWidth: 1, borderColor: Colors.cardBorder },
-  infoRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  infoCard: { marginHorizontal: Tokens.spacing.lg, backgroundColor: Colors.surface, borderRadius: Tokens.radius.panel, padding: Tokens.spacing.md, gap: Tokens.spacing.md, marginBottom: Tokens.spacing.lg, borderWidth: 1, borderColor: Colors.cardBorder },
+  infoRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Tokens.spacing.sm },
   infoStep: { width: 28, height: 28, borderRadius: Tokens.radius.lg, alignItems: 'center', justifyContent: 'center' },
   infoStepNum: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const },
   infoTextWrap: { flex: 1 },
   infoTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
-  infoDesc: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, lineHeight: 19, marginTop: 2 },
-  topSaversCard: { marginHorizontal: 20, backgroundColor: Colors.surface, borderRadius: Tokens.radius.panel, padding: 14, marginBottom: 20, borderWidth: 1, borderColor: Colors.cardBorder },
+  infoDesc: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, lineHeight: 19, marginTop: Tokens.spacing.hairline },
+  topSaversCard: { marginHorizontal: Tokens.spacing.lg, backgroundColor: Colors.surface, borderRadius: Tokens.radius.panel, padding: 14, marginBottom: Tokens.spacing.lg, borderWidth: 1, borderColor: Colors.cardBorder },
   saverRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10 },
   saverRank: { width: 26, height: 26, borderRadius: 13, backgroundColor: Colors.successLight, alignItems: 'center', justifyContent: 'center' },
   saverRankText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: Colors.success },
-  saverInfo: { flex: 1, gap: 2 },
+  saverInfo: { flex: 1, gap: Tokens.spacing.hairline },
   saverName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '500' as const, color: Colors.text },
   saverMeta: { fontSize: Type.caption1.fontSize, color: Colors.textMuted },
   saverSavings: { alignItems: 'flex-end', gap: 1 },

@@ -26,8 +26,7 @@ import {
 import { Colors } from '@/constants/colors';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
-import { NavRow } from '@/components/ui';
-import EmptyState from '@/components/ui/EmptyState';
+import { NavRow, Card, Section, EmptyState } from '@/components/ui';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useSubChangeRequests } from '@/hooks/useSubChangeRequests';
 import { useDeliveryReceipts } from '@/hooks/useDeliveryReceipts';
@@ -131,267 +130,281 @@ export default function ToolsScreen() {
             tapping into Tools see what's new first. Construction AI is
             the home for the DOB code check + Permit Q&A; both share the
             violet tone so the AI category reads as one. */}
-        <Section title="AI Hub">
-          <NavRow
-            Icon={Sparkles}
-            title="Construction AI"
-            subtitle="DOB / building code check — describe a scope, see codes, permits & violations"
-            tone="violet"
-            onPress={() => router.push('/(tabs)/construction-ai' as never)}
-            testID="tools-construction-ai"
-          />
-          <Divider />
-          <NavRow
-            Icon={Gavel}
-            title="Permit Q&A agent"
-            subtitle="172 sections · 8 metros · ask the code in plain English"
-            badge="NEW"
-            tone="amber"
-            onPress={() => router.push('/permit-qa' as never)}
-            testID="tools-permit-qa"
-          />
+        <Section eyebrow="AI HUB" style={styles.sectionWrap}>
+          <Card variant="flat" padding="none">
+            <NavRow
+              Icon={Sparkles}
+              title="Construction AI"
+              subtitle="DOB / building code check — describe a scope, see codes, permits & violations"
+              tone="violet"
+              onPress={() => router.push('/(tabs)/construction-ai' as never)}
+              testID="tools-construction-ai"
+            />
+            <Divider />
+            <NavRow
+              Icon={Gavel}
+              title="Permit Q&A agent"
+              subtitle="172 sections · 8 metros · ask the code in plain English"
+              badge="NEW"
+              tone="amber"
+              onPress={() => router.push('/permit-qa' as never)}
+              testID="tools-permit-qa"
+            />
+          </Card>
         </Section>
 
         {/* Decisions — what's waiting for the GC to act on. Approvals
             first because it sits at the top of the decision-loop closer
             chain. */}
         {hasProjects && (
-          <Section title="Decisions">
-            <NavRow
-              Icon={ShieldCheck}
-              title="Approvals"
-              subtitle={pendingApprovalCount > 0
-                ? `${pendingApprovalCount} change order${pendingApprovalCount === 1 ? '' : 's'} / RFI${pendingApprovalCount === 1 ? '' : 's'} need a decision`
-                : 'Change orders, RFIs, bid awards across all projects'}
-              tone="success"
-              badge={pendingApprovalCount > 0 ? String(pendingApprovalCount) : undefined}
-              onPress={() => router.push('/approvals' as never)}
-              testID="tools-approvals"
-            />
-            <Divider />
-            <NavRow
-              Icon={ListChecks}
-              title="OAC actions"
-              subtitle={openOACActionCount > 0
-                ? `${openOACActionCount} open action item${openOACActionCount === 1 ? '' : 's'} from owner-architect meetings`
-                : 'Owner-architect meeting follow-ups'}
-              tone="info"
-              badge={openOACActionCount > 0 ? String(openOACActionCount) : undefined}
-              onPress={() => router.push('/oac-actions' as never)}
-              testID="tools-oac-actions"
-            />
-            <Divider />
-            <NavRow
-              Icon={MessageSquare}
-              title="Sub change requests"
-              subtitle={pendingSubChangeRequests > 0
-                ? `${pendingSubChangeRequests} request${pendingSubChangeRequests === 1 ? '' : 's'} from subs awaiting your review`
-                : 'Field-discovered scope from subcontractors'}
-              tone="warning"
-              badge={pendingSubChangeRequests > 0 ? String(pendingSubChangeRequests) : undefined}
-              onPress={() => router.push('/sub-change-requests' as never)}
-              testID="tools-sub-change-requests"
-            />
+          <Section eyebrow="DECISIONS" style={styles.sectionWrap}>
+            <Card variant="flat" padding="none">
+              <NavRow
+                Icon={ShieldCheck}
+                title="Approvals"
+                subtitle={pendingApprovalCount > 0
+                  ? `${pendingApprovalCount} change order${pendingApprovalCount === 1 ? '' : 's'} / RFI${pendingApprovalCount === 1 ? '' : 's'} need a decision`
+                  : 'Change orders, RFIs, bid awards across all projects'}
+                tone="success"
+                badge={pendingApprovalCount > 0 ? String(pendingApprovalCount) : undefined}
+                onPress={() => router.push('/approvals' as never)}
+                testID="tools-approvals"
+              />
+              <Divider />
+              <NavRow
+                Icon={ListChecks}
+                title="OAC actions"
+                subtitle={openOACActionCount > 0
+                  ? `${openOACActionCount} open action item${openOACActionCount === 1 ? '' : 's'} from owner-architect meetings`
+                  : 'Owner-architect meeting follow-ups'}
+                tone="info"
+                badge={openOACActionCount > 0 ? String(openOACActionCount) : undefined}
+                onPress={() => router.push('/oac-actions' as never)}
+                testID="tools-oac-actions"
+              />
+              <Divider />
+              <NavRow
+                Icon={MessageSquare}
+                title="Sub change requests"
+                subtitle={pendingSubChangeRequests > 0
+                  ? `${pendingSubChangeRequests} request${pendingSubChangeRequests === 1 ? '' : 's'} from subs awaiting your review`
+                  : 'Field-discovered scope from subcontractors'}
+                tone="warning"
+                badge={pendingSubChangeRequests > 0 ? String(pendingSubChangeRequests) : undefined}
+                onPress={() => router.push('/sub-change-requests' as never)}
+                testID="tools-sub-change-requests"
+              />
+            </Card>
           </Section>
         )}
 
         {/* Field & supply — what crews + suppliers + owners are doing. */}
         {hasProjects && (
-          <Section title="Field & supply chain">
-            <NavRow
-              Icon={Truck}
-              title="Deliveries"
-              subtitle={recentDamagedDeliveries > 0
-                ? `${recentDamagedDeliveries} delivery${recentDamagedDeliveries === 1 ? '' : ' deliveries'} flagged for damage in last 14 days`
-                : `${deliveryReceipts.length} delivery receipt${deliveryReceipts.length === 1 ? '' : 's'} on file`}
-              tone="teal"
-              onPress={() => router.push('/delivery-receipts' as never)}
-              testID="tools-deliveries"
-            />
-            <Divider />
-            <NavRow
-              Icon={Package}
-              title="OFCI / OFOI"
-              subtitle={atRiskOfciCount > 0
-                ? `${atRiskOfciCount} owner-supplied item${atRiskOfciCount === 1 ? '' : 's'} at risk this week`
-                : 'Track appliances, fixtures, and specialty items the homeowner sources'}
-              tone="rose"
-              badge={atRiskOfciCount > 0 ? String(atRiskOfciCount) : undefined}
-              onPress={() => router.push('/owner-supplied' as never)}
-              testID="tools-owner-supplied"
-            />
+          <Section eyebrow="FIELD & SUPPLY CHAIN" style={styles.sectionWrap}>
+            <Card variant="flat" padding="none">
+              <NavRow
+                Icon={Truck}
+                title="Deliveries"
+                subtitle={recentDamagedDeliveries > 0
+                  ? `${recentDamagedDeliveries} delivery${recentDamagedDeliveries === 1 ? '' : ' deliveries'} flagged for damage in last 14 days`
+                  : `${deliveryReceipts.length} delivery receipt${deliveryReceipts.length === 1 ? '' : 's'} on file`}
+                tone="teal"
+                onPress={() => router.push('/delivery-receipts' as never)}
+                testID="tools-deliveries"
+              />
+              <Divider />
+              <NavRow
+                Icon={Package}
+                title="OFCI / OFOI"
+                subtitle={atRiskOfciCount > 0
+                  ? `${atRiskOfciCount} owner-supplied item${atRiskOfciCount === 1 ? '' : 's'} at risk this week`
+                  : 'Track appliances, fixtures, and specialty items the homeowner sources'}
+                tone="rose"
+                badge={atRiskOfciCount > 0 ? String(atRiskOfciCount) : undefined}
+                onPress={() => router.push('/owner-supplied' as never)}
+                testID="tools-owner-supplied"
+              />
+            </Card>
           </Section>
         )}
 
         {/* Money — every cash-related workflow. Tones lean green/emerald
             so the category reads as "$" at a glance. */}
-        <Section title="Money">
-          {hasProjects && (
-            <>
-              <NavRow
-                Icon={Banknote}
-                title="Draw periods"
-                subtitle={activeDrawCount > 0
-                  ? `${activeDrawCount} draw${activeDrawCount === 1 ? '' : 's'} active or awaiting funding`
-                  : 'Lender-facing rollup — invoices, lien waivers, AIA pay app'}
-                tone="emerald"
-                onPress={() => router.push('/draw-periods' as never)}
-                testID="tools-draw-periods"
-              />
-              <Divider />
-              <NavRow
-                Icon={Wallet}
-                title="Cash flow"
-                subtitle="Multi-week forecast across all projects"
-                tone="primary"
-                onPress={() => router.push('/cash-flow' as never)}
-                testID="tools-cash-flow"
-              />
-              <Divider />
-            </>
-          )}
-          <NavRow
-            Icon={UserPlus}
-            title="Pipeline"
-            subtitle="Inquiries → qualified → proposal → won"
-            tone="accent"
-            onPress={() => router.push('/leads' as never)}
-            testID="tools-pipeline"
-          />
-          <Divider />
-          <NavRow
-            Icon={Gavel}
-            title="Buyout"
-            subtitle="Sub package builder + bid award flow"
-            tone="info"
-            onPress={() => router.push('/buyout' as never)}
-            testID="tools-buyout"
-          />
-          <Divider />
-          <NavRow
-            Icon={Trophy}
-            title="Bid analytics"
-            subtitle="Win rate, avg amounts, project-size breakdowns"
-            tone="violet"
-            onPress={() => router.push('/bid-analytics' as never)}
-            testID="tools-bid-analytics"
-          />
-          <Divider />
-          <NavRow
-            Icon={FileDown}
-            title="1099-NEC export"
-            subtitle="Year-end CSV for your CPA — flags subs paid ≥ $600"
-            tone="emerald"
-            onPress={() => router.push('/tax-1099-export' as never)}
-            testID="tools-tax-1099"
-          />
+        <Section eyebrow="MONEY" style={styles.sectionWrap}>
+          <Card variant="flat" padding="none">
+            {hasProjects && (
+              <>
+                <NavRow
+                  Icon={Banknote}
+                  title="Draw periods"
+                  subtitle={activeDrawCount > 0
+                    ? `${activeDrawCount} draw${activeDrawCount === 1 ? '' : 's'} active or awaiting funding`
+                    : 'Lender-facing rollup — invoices, lien waivers, AIA pay app'}
+                  tone="emerald"
+                  onPress={() => router.push('/draw-periods' as never)}
+                  testID="tools-draw-periods"
+                />
+                <Divider />
+                <NavRow
+                  Icon={Wallet}
+                  title="Cash flow"
+                  subtitle="Multi-week forecast across all projects"
+                  tone="primary"
+                  onPress={() => router.push('/cash-flow' as never)}
+                  testID="tools-cash-flow"
+                />
+                <Divider />
+              </>
+            )}
+            <NavRow
+              Icon={UserPlus}
+              title="Pipeline"
+              subtitle="Inquiries → qualified → proposal → won"
+              tone="accent"
+              onPress={() => router.push('/leads' as never)}
+              testID="tools-pipeline"
+            />
+            <Divider />
+            <NavRow
+              Icon={Gavel}
+              title="Buyout"
+              subtitle="Sub package builder + bid award flow"
+              tone="info"
+              onPress={() => router.push('/buyout' as never)}
+              testID="tools-buyout"
+            />
+            <Divider />
+            <NavRow
+              Icon={Trophy}
+              title="Bid analytics"
+              subtitle="Win rate, avg amounts, project-size breakdowns"
+              tone="violet"
+              onPress={() => router.push('/bid-analytics' as never)}
+              testID="tools-bid-analytics"
+            />
+            <Divider />
+            <NavRow
+              Icon={FileDown}
+              title="1099-NEC export"
+              subtitle="Year-end CSV for your CPA — flags subs paid ≥ $600"
+              tone="emerald"
+              onPress={() => router.push('/tax-1099-export' as never)}
+              testID="tools-tax-1099"
+            />
+          </Card>
         </Section>
 
         {/* Safety & QC — OSHA defensibility + preventive trade
             checks. Sits above Permits because these are the daily
             workflows; permits are upstream of execution. */}
-        <Section title="Safety & QC">
-          <NavRow
-            Icon={HardHat}
-            title="Safety"
-            subtitle="Toolbox talks · incident log · OSHA 300A summary"
-            tone="warning"
-            onPress={() => router.push('/safety' as never)}
-            testID="tools-safety"
-          />
-          <Divider />
-          <NavRow
-            Icon={ClipboardCheck}
-            title="QC Checklists"
-            subtitle="Pre-pour, pre-rock, rough electrical & more — templated"
-            tone="amber"
-            onPress={() => router.push('/qc-checklists' as never)}
-            testID="tools-qc"
-          />
+        <Section eyebrow="SAFETY & QC" style={styles.sectionWrap}>
+          <Card variant="flat" padding="none">
+            <NavRow
+              Icon={HardHat}
+              title="Safety"
+              subtitle="Toolbox talks · incident log · OSHA 300A summary"
+              tone="warning"
+              onPress={() => router.push('/safety' as never)}
+              testID="tools-safety"
+            />
+            <Divider />
+            <NavRow
+              Icon={ClipboardCheck}
+              title="QC Checklists"
+              subtitle="Pre-pour, pre-rock, rough electrical & more — templated"
+              tone="amber"
+              onPress={() => router.push('/qc-checklists' as never)}
+              testID="tools-qc"
+            />
+          </Card>
         </Section>
 
         {/* Permits & compliance — the regulatory side. Amber dominates
             (code/permits) with red for compliance risk and indigo for
             insurance, rose for the people directory. */}
-        <Section title="Permits & compliance">
-          {hasProjects && (
-            <>
-              <NavRow
-                Icon={FileWarning}
-                title="Compliance hub"
-                subtitle={complianceAlertCount > 0
-                  ? `${complianceAlertCount} alert${complianceAlertCount === 1 ? '' : 's'} — COI / permit / license expiry`
-                  : 'Insurance, permits, licenses — all current'}
-                tone={complianceAlertCount > 0 ? 'error' : 'success'}
-                badge={complianceAlertCount > 0 ? String(complianceAlertCount) : undefined}
-                onPress={() => router.push('/compliance-hub' as never)}
-                testID="tools-compliance-hub"
-              />
-              <Divider />
-              <NavRow
-                Icon={Calendar}
-                title="Permit calendar"
-                subtitle="Every regulatory deadline across every project"
-                tone="amber"
-                onPress={() => router.push('/permit-calendar' as never)}
-                testID="tools-permit-calendar"
-              />
-              <Divider />
-            </>
-          )}
-          <NavRow
-            Icon={Building}
-            title="Permit leads"
-            subtitle="Public bids and permit filings near you"
-            tone="sky"
-            onPress={() => router.push('/permit-leads' as never)}
-            testID="tools-permit-leads"
-          />
-          {hasProjects && (
-            <>
-              <Divider />
-              <NavRow
-                Icon={Bookmark}
-                title="Permit templates"
-                subtitle="Reusable filing patterns — file in 30 min instead of 6 hours"
-                tone="amber"
-                onPress={() => router.push('/permit-templates' as never)}
-                testID="tools-permit-templates"
-              />
-              <Divider />
-              <NavRow
-                Icon={ShieldCheck}
-                title="Insurance claim package"
-                subtitle="Bundle photos + DFRs + punch items for an adjuster in one click"
-                tone="indigo"
-                onPress={() => router.push('/insurance-claim' as never)}
-                testID="tools-insurance-claim"
-              />
-            </>
-          )}
-          <Divider />
-          <NavRow
-            Icon={Users}
-            title="Expeditors / PEs / RAs"
-            subtitle="Verified directory with one-tap quote requests"
-            tone="rose"
-            onPress={() => router.push('/expeditor-directory' as never)}
-            testID="tools-expeditor-directory"
-          />
+        <Section eyebrow="PERMITS & COMPLIANCE" style={styles.sectionWrap}>
+          <Card variant="flat" padding="none">
+            {hasProjects && (
+              <>
+                <NavRow
+                  Icon={FileWarning}
+                  title="Compliance hub"
+                  subtitle={complianceAlertCount > 0
+                    ? `${complianceAlertCount} alert${complianceAlertCount === 1 ? '' : 's'} — COI / permit / license expiry`
+                    : 'Insurance, permits, licenses — all current'}
+                  tone={complianceAlertCount > 0 ? 'error' : 'success'}
+                  badge={complianceAlertCount > 0 ? String(complianceAlertCount) : undefined}
+                  onPress={() => router.push('/compliance-hub' as never)}
+                  testID="tools-compliance-hub"
+                />
+                <Divider />
+                <NavRow
+                  Icon={Calendar}
+                  title="Permit calendar"
+                  subtitle="Every regulatory deadline across every project"
+                  tone="amber"
+                  onPress={() => router.push('/permit-calendar' as never)}
+                  testID="tools-permit-calendar"
+                />
+                <Divider />
+              </>
+            )}
+            <NavRow
+              Icon={Building}
+              title="Permit leads"
+              subtitle="Public bids and permit filings near you"
+              tone="sky"
+              onPress={() => router.push('/permit-leads' as never)}
+              testID="tools-permit-leads"
+            />
+            {hasProjects && (
+              <>
+                <Divider />
+                <NavRow
+                  Icon={Bookmark}
+                  title="Permit templates"
+                  subtitle="Reusable filing patterns — file in 30 min instead of 6 hours"
+                  tone="amber"
+                  onPress={() => router.push('/permit-templates' as never)}
+                  testID="tools-permit-templates"
+                />
+                <Divider />
+                <NavRow
+                  Icon={ShieldCheck}
+                  title="Insurance claim package"
+                  subtitle="Bundle photos + DFRs + punch items for an adjuster in one click"
+                  tone="indigo"
+                  onPress={() => router.push('/insurance-claim' as never)}
+                  testID="tools-insurance-claim"
+                />
+              </>
+            )}
+            <Divider />
+            <NavRow
+              Icon={Users}
+              title="Expeditors / PEs / RAs"
+              subtitle="Verified directory with one-tap quote requests"
+              tone="rose"
+              onPress={() => router.push('/expeditor-directory' as never)}
+              testID="tools-expeditor-directory"
+            />
+          </Card>
         </Section>
 
         {/* Reporting — the daily field-report inbox. Future home for
             other "what came in today" digests too. */}
         {hasProjects && (
-          <Section title="Reporting">
-            <NavRow
-              Icon={Inbox}
-              title="Reports inbox"
-              subtitle="Daily field reports waiting for review"
-              tone="info"
-              onPress={() => router.push('/report-inbox' as never)}
-              testID="tools-reports-inbox"
-            />
+          <Section eyebrow="REPORTING" style={styles.sectionWrap}>
+            <Card variant="flat" padding="none">
+              <NavRow
+                Icon={Inbox}
+                title="Reports inbox"
+                subtitle="Daily field reports waiting for review"
+                tone="info"
+                onPress={() => router.push('/report-inbox' as never)}
+                testID="tools-reports-inbox"
+              />
+            </Card>
           </Section>
         )}
 
@@ -411,15 +424,8 @@ export default function ToolsScreen() {
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>{title}</Text>
-      <View style={styles.sectionCard}>{children}</View>
-    </View>
-  );
-}
-
+// Divider — thin hairline between NavRows inside a Card. iOS-Settings
+// style: indented from the left so it doesn't run under the icon column.
 function Divider() {
   return <View style={styles.divider} />;
 }
@@ -429,42 +435,28 @@ const styles = StyleSheet.create({
   heading: {
     ...Type.display,
     color: Colors.ink,
-    paddingHorizontal: 20,
-    marginBottom: 4,
+    paddingHorizontal: Tokens.spacing.lg,
+    marginBottom: Tokens.spacing.xxs,
   },
   subheading: {
     ...Type.subhead,
     color: Colors.textSecondary,
-    paddingHorizontal: 20,
-    marginBottom: 18,
+    paddingHorizontal: Tokens.spacing.lg,
+    marginBottom: Tokens.spacing.md,
   },
-  section: {
-    marginTop: 14,
-    paddingHorizontal: 16,
-  },
-  sectionTitle: {
-    ...Type.caption1,
-    color: Colors.textSecondary,
-    textTransform: 'uppercase' as const,
-    letterSpacing: 0.6,
-    fontWeight: '600' as const,
-    paddingHorizontal: 4,
-    paddingBottom: 8,
-  },
-  sectionCard: {
-    backgroundColor: Colors.surface,
-    borderRadius: Tokens.radius.lg,
-    borderWidth: 1,
-    borderColor: Colors.cardBorder,
-    overflow: 'hidden' as const,
+  // Outer wrap around each <Section> — provides the top gap + horizontal
+  // gutter. Section primitive doesn't own outer spacing on purpose.
+  sectionWrap: {
+    marginTop: Tokens.spacing.sm,
+    paddingHorizontal: Tokens.spacing.md,
   },
   divider: {
     height: 1,
     backgroundColor: Colors.borderLight,
-    marginHorizontal: 16,
+    marginLeft: Tokens.spacing['4xl'], // align with NavRow text (after icon column)
   },
   emptyWrap: {
-    marginTop: 16,
-    paddingHorizontal: 16,
+    marginTop: Tokens.spacing.md,
+    paddingHorizontal: Tokens.spacing.md,
   },
 });

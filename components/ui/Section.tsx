@@ -35,10 +35,15 @@ export interface SectionRightAction {
 }
 
 export interface SectionProps {
-  /** Required title. Rendered in Type.title3. */
-  title: string;
-  /** Small uppercase tag above the title. Use for categorical labels
-   *  ("AI HUB", "MONEY"). Skip for screen-section headers. */
+  /** Title rendered in Type.title3. Optional — pass eyebrow alone for
+   *  Settings-style categorical headers ("AI HUB", "MONEY") where no
+   *  secondary heading is needed. Pass title alone for screens with
+   *  conventional h2 sections. Pass both when the section needs both
+   *  category and topic. */
+  title?: string;
+  /** Small uppercase tag, rendered as Type.eyebrow. Use for categorical
+   *  labels. Required when `title` is omitted — every Section needs
+   *  some header content. */
   eyebrow?: string;
   /** Subtitle below the title. Use sparingly — most sections don't need it. */
   subtitle?: string;
@@ -83,6 +88,11 @@ function SectionImpl({
   const gap = resolveSpacing(spacing);
   const headGap = resolveHeaderGap(headerGap);
 
+  if (!title && !eyebrow) {
+    // Section always needs *some* header — fail loud in dev, silent in prod.
+    if (__DEV__) console.warn('<Section> requires either `title` or `eyebrow`.');
+  }
+
   return (
     <View style={[styles.container, style]} testID={testID}>
       <View style={styles.header}>
@@ -90,18 +100,20 @@ function SectionImpl({
           {eyebrow ? (
             <Text
               style={[Type.eyebrow, { color: Colors.textSecondary }]}
-              accessibilityRole="text"
+              accessibilityRole={title ? 'text' : 'header'}
             >
               {eyebrow}
             </Text>
           ) : null}
-          <Text
-            style={[Type.title3, { color: Colors.text }]}
-            accessibilityRole="header"
-            numberOfLines={1}
-          >
-            {title}
-          </Text>
+          {title ? (
+            <Text
+              style={[Type.title3, { color: Colors.text }]}
+              accessibilityRole="header"
+              numberOfLines={1}
+            >
+              {title}
+            </Text>
+          ) : null}
           {subtitle ? (
             <Text
               style={[Type.footnote, { color: Colors.textSecondary, marginTop: 2 }]}

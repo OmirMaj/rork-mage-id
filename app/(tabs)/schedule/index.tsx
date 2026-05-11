@@ -1334,9 +1334,9 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                   )}
                 </View>
 
-                <View style={{ marginTop: 12 }}>
+                <View style={{ marginTop: Tokens.spacing.sm }}>
                   <Text style={styles.fieldLabel}>Assign Subcontractor</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingVertical: 4 }}>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingVertical: Tokens.spacing.xxs }}>
                     <TouchableOpacity
                       style={[styles.phaseChip, !taskDraft.assignedSubId && styles.phaseChipActive]}
                       onPress={() => setTaskDraft(p => ({ ...p, assignedSubId: '', assignedSubName: '' }))}
@@ -1359,7 +1359,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                       );
                     })}
                     {contacts.filter(c => c.role === 'Sub').length === 0 ? (
-                      <Text style={{ fontSize: Type.caption1.fontSize, color: Colors.textMuted, alignSelf: 'center' as const, paddingHorizontal: 8 }}>
+                      <Text style={{ fontSize: Type.caption1.fontSize, color: Colors.textMuted, alignSelf: 'center' as const, paddingHorizontal: Tokens.spacing.xs }}>
                         No subs in contacts. Add one from the Contacts tab.
                       </Text>
                     ) : null}
@@ -1858,7 +1858,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                 keyboardType={Platform.OS === 'ios' ? 'numbers-and-punctuation' : 'default'}
                 autoFocus
               />
-              <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+              <View style={{ flexDirection: 'row', gap: Tokens.spacing.xs, marginTop: Tokens.spacing.sm }}>
                 <TouchableOpacity
                   style={[styles.addTaskBtn, { flex: 1, backgroundColor: Colors.surfaceAlt }]}
                   onPress={() => setIsProjectStartDatePickerOpen(false)}
@@ -1897,7 +1897,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                   placeholderTextColor={Colors.textMuted}
                   autoFocus
                 />
-                <View style={{ marginTop: 4 }}>
+                <View style={{ marginTop: Tokens.spacing.xxs }}>
                   <Text style={styles.quickAddFieldLabel}>Start date</Text>
                   {(() => {
                     const wdpw = activeSchedule?.workingDaysPerWeek ?? 5;
@@ -2009,7 +2009,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                 return (
                   <ScrollView showsVerticalScrollIndicator={false}>
                     <View style={styles.modalHeader}>
-                      <Text style={[styles.modalTitle, { flex: 1, marginRight: 12 }]}>{task.title}</Text>
+                      <Text style={[styles.modalTitle, { flex: 1, marginRight: Tokens.spacing.sm }]}>{task.title}</Text>
                       <TouchableOpacity onPress={() => setTaskDetailModal(null)} accessibilityRole="button" accessibilityLabel="Close">
                         <X size={20} color={Colors.textMuted} />
                       </TouchableOpacity>
@@ -2531,7 +2531,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
               keyboardType={Platform.OS === 'ios' ? 'numbers-and-punctuation' : 'default'}
               autoFocus
             />
-            <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+            <View style={{ flexDirection: 'row', gap: Tokens.spacing.xs, marginTop: Tokens.spacing.sm }}>
               <TouchableOpacity
                 style={[styles.addTaskBtn, { flex: 1, backgroundColor: Colors.surfaceAlt }]}
                 onPress={() => setIsProjectStartDatePickerOpen(false)}
@@ -2595,7 +2595,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
                 </View>
               </ScrollView>
 
-              <View style={{ marginTop: 4 }}>
+              <View style={{ marginTop: Tokens.spacing.xxs }}>
                 <Text style={styles.quickAddFieldLabel}>Start date (optional)</Text>
                 {(() => {
                   // Quick-pick suggestions so the user doesn't have to type a
@@ -2763,7 +2763,7 @@ Include a Project Start milestone (duration 0) and Project Complete milestone (d
               return (
                 <ScrollView showsVerticalScrollIndicator={false}>
                   <View style={styles.modalHeader}>
-                    <Text style={[styles.modalTitle, { flex: 1, marginRight: 12 }]}>{task.title}</Text>
+                    <Text style={[styles.modalTitle, { flex: 1, marginRight: Tokens.spacing.sm }]}>{task.title}</Text>
                     <TouchableOpacity onPress={() => setTaskDetailModal(null)} accessibilityRole="button" accessibilityLabel="Close">
                       <X size={20} color={Colors.textMuted} />
                     </TouchableOpacity>
@@ -3052,27 +3052,27 @@ function guessPhase(category: string): string {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
-  header: { paddingHorizontal: 20, paddingBottom: 4 },
+  header: { paddingHorizontal: Tokens.spacing.lg, paddingBottom: Tokens.spacing.xxs },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   title: { fontSize: 32, fontWeight: '800' as const, color: Colors.text, letterSpacing: -0.8 },
-  subtitle: { marginTop: 4, fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary },
+  subtitle: { marginTop: Tokens.spacing.xxs, fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary },
 
-  healthBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, marginTop: 4 },
+  healthBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: Tokens.spacing.sm, paddingVertical: 6, borderRadius: 20, marginTop: Tokens.spacing.xxs },
   healthDot: { width: 8, height: 8, borderRadius: 4 },
   healthScore: { fontSize: Type.subheadline.fontSize, fontWeight: '800' as const },
 
-  projectPickerRow: { paddingHorizontal: 16, marginTop: 14, marginBottom: 10 },
-  projectPickerBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: Colors.surface, borderRadius: Tokens.radius.lg, paddingHorizontal: 14, minHeight: 46, borderWidth: 1, borderColor: Colors.cardBorder },
+  projectPickerRow: { paddingHorizontal: Tokens.spacing.md, marginTop: 14, marginBottom: 10 },
+  projectPickerBtn: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs, backgroundColor: Colors.surface, borderRadius: Tokens.radius.lg, paddingHorizontal: 14, minHeight: 46, borderWidth: 1, borderColor: Colors.cardBorder },
   projectPickerText: { flex: 1, fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
 
   // Project chips — replaces the picker-button-then-modal flow.
-  projectChipsRow: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 10, gap: 8, alignItems: 'center', flexDirection: 'row' as const },
+  projectChipsRow: { paddingHorizontal: Tokens.spacing.md, paddingTop: Tokens.spacing.sm, paddingBottom: 10, gap: Tokens.spacing.xs, alignItems: 'center', flexDirection: 'row' as const },
   projectChip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 7,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: Tokens.spacing.sm,
+    paddingVertical: Tokens.spacing.xs,
     borderRadius: 20,
     backgroundColor: Colors.surface,
     borderWidth: 1,
@@ -3090,23 +3090,23 @@ const styles = StyleSheet.create({
     color: Colors.text,
   },
   projectChipTextActive: { color: '#FFF' },
-  projectChipsEmpty: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, paddingHorizontal: 4 },
+  projectChipsEmpty: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, paddingHorizontal: Tokens.spacing.xxs },
 
-  emptyPrompt: { alignItems: 'center', paddingVertical: 60, paddingHorizontal: 40, gap: 10 },
+  emptyPrompt: { alignItems: 'center', paddingVertical: 60, paddingHorizontal: Tokens.spacing['3xl'], gap: 10 },
   emptyTitle: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: Colors.text },
   emptyDesc: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, textAlign: 'center' as const },
 
-  emptySchedule: { marginHorizontal: 16, backgroundColor: Colors.surface, borderRadius: 20, padding: 24, gap: 14, alignItems: 'center', borderWidth: 1, borderColor: Colors.cardBorder },
-  emptyAction: { flexDirection: 'row', alignItems: 'center', gap: 14, width: '100%', backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.lg, padding: 16, borderWidth: 1, borderColor: Colors.borderLight },
+  emptySchedule: { marginHorizontal: Tokens.spacing.md, backgroundColor: Colors.surface, borderRadius: 20, padding: Tokens.spacing.xl, gap: 14, alignItems: 'center', borderWidth: 1, borderColor: Colors.cardBorder },
+  emptyAction: { flexDirection: 'row', alignItems: 'center', gap: 14, width: '100%', backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.lg, padding: Tokens.spacing.md, borderWidth: 1, borderColor: Colors.borderLight },
   emptyActionTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text },
-  emptyActionDesc: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, marginTop: 2 },
-  emptyManualBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', backgroundColor: Colors.primary, borderRadius: Tokens.radius.lg, paddingVertical: 14, marginTop: 4 },
+  emptyActionDesc: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, marginTop: Tokens.spacing.hairline },
+  emptyManualBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Tokens.spacing.xs, width: '100%', backgroundColor: Colors.primary, borderRadius: Tokens.radius.lg, paddingVertical: 14, marginTop: Tokens.spacing.xxs },
   emptyManualBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: '#FFF' },
 
-  weatherBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16, marginBottom: 8, backgroundColor: '#FF950010', borderRadius: Tokens.radius.card, padding: 12, borderWidth: 1, borderColor: '#FF950030' },
+  weatherBanner: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs, marginHorizontal: Tokens.spacing.md, marginBottom: Tokens.spacing.xs, backgroundColor: '#FF950010', borderRadius: Tokens.radius.card, padding: Tokens.spacing.sm, borderWidth: 1, borderColor: '#FF950030' },
   weatherBannerText: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.warning },
 
-  topBar: { marginHorizontal: 16, backgroundColor: Colors.surface, borderRadius: Tokens.radius.panel, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: Colors.cardBorder },
+  topBar: { marginHorizontal: Tokens.spacing.md, backgroundColor: Colors.surface, borderRadius: Tokens.radius.panel, padding: 14, marginBottom: Tokens.spacing.sm, borderWidth: 1, borderColor: Colors.cardBorder },
   topBarStats: { flexDirection: 'row', justifyContent: 'space-around', marginBottom: 10 },
   topBarStat: { alignItems: 'center' },
   topBarStatValue: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: Colors.text },
@@ -3126,7 +3126,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderColor: Colors.cardBorder,
   },
-  viewTabBar: { flexDirection: 'row', paddingHorizontal: 12, gap: 2, paddingVertical: 4 },
+  viewTabBar: { flexDirection: 'row', paddingHorizontal: Tokens.spacing.sm, gap: Tokens.spacing.hairline, paddingVertical: Tokens.spacing.xxs },
   viewTab: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -3145,37 +3145,37 @@ const styles = StyleSheet.create({
   fieldModeBtn: { width: 36, height: 36, borderRadius: Tokens.radius.xl, backgroundColor: '#FF950015', alignItems: 'center', justifyContent: 'center' },
   fieldModeBtnActive: { backgroundColor: Colors.warning },
 
-  filterBar: { marginBottom: 10, paddingLeft: 16 },
-  filterChipRow: { flexDirection: 'row', gap: 6, paddingRight: 16 },
+  filterBar: { marginBottom: 10, paddingLeft: Tokens.spacing.md },
+  filterChipRow: { flexDirection: 'row', gap: 6, paddingRight: Tokens.spacing.md },
   filterChip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: Tokens.radius.xl, backgroundColor: Colors.fillTertiary },
   filterChipActive: { backgroundColor: Colors.primary },
   filterChipText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.textSecondary },
   filterChipTextActive: { color: '#FFF' },
 
   phaseSection: { marginBottom: 6 },
-  phaseHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 10 },
+  phaseHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: Tokens.spacing.md, paddingVertical: 10 },
   phaseHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   phaseColorDot: { width: 8, height: 8, borderRadius: 4 },
   phaseHeaderName: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text },
-  phaseHeaderRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  phaseHeaderRight: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs },
   phaseProgressMini: { width: 40, height: 4, borderRadius: 2, backgroundColor: Colors.fillSecondary, overflow: 'hidden' as const },
   phaseProgressMiniFill: { height: '100%', borderRadius: 2 },
   phaseHeaderMeta: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontWeight: '500' as const },
-  phaseTaskList: { paddingHorizontal: 16, gap: 8, paddingBottom: 8 },
+  phaseTaskList: { paddingHorizontal: Tokens.spacing.md, gap: Tokens.spacing.xs, paddingBottom: Tokens.spacing.xs },
 
-  taskCard: { backgroundColor: Colors.surface, borderRadius: Tokens.radius.panel, padding: 14, borderWidth: 1, borderColor: Colors.cardBorder, gap: 8 },
+  taskCard: { backgroundColor: Colors.surface, borderRadius: Tokens.radius.panel, padding: 14, borderWidth: 1, borderColor: Colors.cardBorder, gap: Tokens.spacing.xs },
   taskTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   taskBadgeRow: { flexDirection: 'row', alignItems: 'center', gap: 5, flex: 1, flexWrap: 'wrap' as const },
   varianceText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const },
-  statusChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 99 },
+  statusChip: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xxs, paddingHorizontal: Tokens.spacing.xs, paddingVertical: Tokens.spacing.xxs, borderRadius: 99 },
   statusDot: { width: 6, height: 6, borderRadius: 3 },
   statusChipText: { fontSize: 10, fontWeight: '700' as const },
   tagChip: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 99 },
   tagChipText: { fontSize: 10, fontWeight: '700' as const },
   taskName: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.text },
-  taskMeta: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' as const },
+  taskMeta: { flexDirection: 'row', gap: Tokens.spacing.xs, flexWrap: 'wrap' as const },
   taskMetaText: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, fontWeight: '500' as const },
-  progressRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  progressRow: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs },
   progressTrack: { flex: 1, height: 6, borderRadius: 3, backgroundColor: Colors.fillSecondary, overflow: 'hidden' as const },
   progressFill: { height: '100%', borderRadius: 3 },
   progressText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: Colors.text, minWidth: 30, textAlign: 'right' as const },
@@ -3190,47 +3190,47 @@ const styles = StyleSheet.create({
   fab: { width: 56, height: 56, borderRadius: 28, backgroundColor: Colors.primary, alignItems: 'center' as const, justifyContent: 'center' as const, shadowColor: Colors.primary, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.3, shadowRadius: 12, elevation: 8 },
   fabSecondary: { width: 44, height: 44, borderRadius: 22, backgroundColor: Colors.surface, alignItems: 'center' as const, justifyContent: 'center' as const, borderWidth: 1, borderColor: Colors.cardBorder, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 6, elevation: 4 },
 
-  fieldModeContainer: { paddingHorizontal: 16, gap: 12 },
-  fieldModeHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  fieldModeContainer: { paddingHorizontal: Tokens.spacing.md, gap: Tokens.spacing.sm },
+  fieldModeHeader: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs },
   fieldModeTitle: { flex: 1, fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: Colors.text },
-  fieldModeClose: { padding: 4 },
+  fieldModeClose: { padding: Tokens.spacing.xxs },
   fieldModeSubtitle: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, marginTop: -4 },
-  fieldModeEmpty: { alignItems: 'center', paddingVertical: 40, gap: 10 },
+  fieldModeEmpty: { alignItems: 'center', paddingVertical: Tokens.spacing['3xl'], gap: 10 },
   fieldModeEmptyText: { fontSize: Type.subhead.fontSize, color: Colors.textSecondary },
-  fieldCard: { backgroundColor: Colors.surface, borderRadius: Tokens.radius.panel, padding: 16, gap: 10, borderWidth: 1, borderColor: Colors.cardBorder },
+  fieldCard: { backgroundColor: Colors.surface, borderRadius: Tokens.radius.panel, padding: Tokens.spacing.md, gap: 10, borderWidth: 1, borderColor: Colors.cardBorder },
   fieldCardTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: Colors.text },
   fieldProgressRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   fieldProgressTrack: { flex: 1, height: 10, borderRadius: 5, backgroundColor: Colors.fillSecondary, overflow: 'hidden' as const },
   fieldProgressFill: { height: '100%', borderRadius: 5, backgroundColor: Colors.primary },
   fieldProgressText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
-  fieldBtnRow: { flexDirection: 'row', gap: 8 },
-  fieldBtn: { flex: 1, paddingVertical: 12, borderRadius: Tokens.radius.md, backgroundColor: Colors.fillTertiary, alignItems: 'center' },
+  fieldBtnRow: { flexDirection: 'row', gap: Tokens.spacing.xs },
+  fieldBtn: { flex: 1, paddingVertical: Tokens.spacing.sm, borderRadius: Tokens.radius.md, backgroundColor: Colors.fillTertiary, alignItems: 'center' },
   fieldBtnActive: { backgroundColor: Colors.primary },
   fieldBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
   fieldBtnTextActive: { color: '#FFF' },
-  fieldNotes: { minHeight: 44, borderRadius: Tokens.radius.md, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 12, fontSize: Type.bodyCompact.fontSize, color: Colors.text },
+  fieldNotes: { minHeight: 44, borderRadius: Tokens.radius.md, backgroundColor: Colors.surfaceAlt, paddingHorizontal: Tokens.spacing.sm, fontSize: Type.bodyCompact.fontSize, color: Colors.text },
 
-  resourceContainer: { paddingHorizontal: 16, gap: 12 },
+  resourceContainer: { paddingHorizontal: Tokens.spacing.md, gap: Tokens.spacing.sm },
   resourceTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: Colors.text },
   resourceCard: { backgroundColor: Colors.surface, borderRadius: Tokens.radius.panel, padding: 14, gap: 10, borderWidth: 1, borderColor: Colors.cardBorder },
   resourceCardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   resourceCrewInfo: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   resourceCrewName: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text },
   resourceCrewMeta: { fontSize: Type.caption1.fontSize, color: Colors.textMuted },
-  resourceProgressRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  resourceProgressRow: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs },
   resourceProgressTrack: { flex: 1, height: 5, borderRadius: 3, backgroundColor: Colors.fillSecondary, overflow: 'hidden' as const },
   resourceProgressFill: { height: '100%', borderRadius: 3, backgroundColor: Colors.primary },
   resourceProgressText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: Colors.text },
-  resourceTaskRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6, borderTopWidth: 0.5, borderTopColor: Colors.borderLight },
+  resourceTaskRow: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs, paddingVertical: 6, borderTopWidth: 0.5, borderTopColor: Colors.borderLight },
   resourceTaskDot: { width: 6, height: 6, borderRadius: 3 },
   resourceTaskName: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '500' as const, color: Colors.text },
   resourceTaskDate: { fontSize: Type.caption2.fontSize, color: Colors.textMuted },
 
-  summaryContainer: { paddingHorizontal: 16, gap: 14 },
-  summaryHeader: { gap: 2 },
+  summaryContainer: { paddingHorizontal: Tokens.spacing.md, gap: 14 },
+  summaryHeader: { gap: Tokens.spacing.hairline },
   summaryProjectName: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: Colors.text },
   summaryDateRange: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary },
-  healthRing: { alignItems: 'center', paddingVertical: 12 },
+  healthRing: { alignItems: 'center', paddingVertical: Tokens.spacing.sm },
   healthRingOuter: { width: 100, height: 100, borderRadius: 50, borderWidth: 6, alignItems: 'center', justifyContent: 'center' },
   healthRingScore: { fontSize: 30, fontWeight: '800' as const },
   healthRingLabel: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontWeight: '600' as const },
@@ -3239,71 +3239,71 @@ const styles = StyleSheet.create({
   summaryStatValue: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: Colors.text },
   summaryStatLabel: { fontSize: Type.caption2.fontSize, color: Colors.textMuted },
   summarySectionTitle: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.text, marginTop: 6 },
-  summaryPhaseRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 },
+  summaryPhaseRow: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs, paddingVertical: Tokens.spacing.xxs },
   summaryPhaseDot: { width: 8, height: 8, borderRadius: 4 },
   summaryPhaseName: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.text, width: 80 },
   summaryPhaseProgressTrack: { flex: 1, height: 6, borderRadius: 3, backgroundColor: Colors.fillSecondary, overflow: 'hidden' as const },
   summaryPhaseProgressFill: { height: '100%', borderRadius: 3 },
   summaryPhasePercent: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: Colors.text, minWidth: 32, textAlign: 'right' as const },
-  summaryMilestoneRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 },
+  summaryMilestoneRow: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs, paddingVertical: Tokens.spacing.xxs },
   summaryMilestoneName: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.text },
-  summaryMilestoneChip: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.xs },
+  summaryMilestoneChip: { paddingHorizontal: Tokens.spacing.xs, paddingVertical: 3, borderRadius: Tokens.radius.xs },
   summaryMilestoneChipText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const },
-  summaryCriticalRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 3 },
+  summaryCriticalRow: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs, paddingVertical: 3 },
   summaryCriticalDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: Colors.error },
   summaryCriticalName: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '500' as const, color: Colors.text },
   summaryCriticalDur: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: Colors.error },
-  summaryRiskRow: { flexDirection: 'row', gap: 8, paddingVertical: 4, alignItems: 'flex-start' },
+  summaryRiskRow: { flexDirection: 'row', gap: Tokens.spacing.xs, paddingVertical: Tokens.spacing.xxs, alignItems: 'flex-start' },
   summaryRiskTitle: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.text },
-  summaryRiskDetail: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, marginTop: 2 },
+  summaryRiskDetail: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, marginTop: Tokens.spacing.hairline },
 
-  ganttWrapper: { paddingHorizontal: 16 },
+  ganttWrapper: { paddingHorizontal: Tokens.spacing.md },
   ganttControls: { flexDirection: 'row', gap: 6, marginBottom: 10, flexWrap: 'wrap' as const },
-  ganttOrientBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 4, paddingHorizontal: 10, paddingVertical: 7, borderRadius: Tokens.radius.sm, backgroundColor: Colors.fillTertiary },
+  ganttOrientBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: Tokens.spacing.xxs, paddingHorizontal: 10, paddingVertical: 7, borderRadius: Tokens.radius.sm, backgroundColor: Colors.fillTertiary },
   ganttOrientBtnActive: { backgroundColor: Colors.primary },
   ganttOrientBtnText: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: Colors.textSecondary },
   ganttOrientBtnTextActive: { color: '#FFF' },
-  baselineToggle: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: Tokens.radius.sm, backgroundColor: Colors.fillTertiary },
+  baselineToggle: { paddingHorizontal: Tokens.spacing.sm, paddingVertical: 7, borderRadius: Tokens.radius.sm, backgroundColor: Colors.fillTertiary },
   baselineToggleActive: { backgroundColor: Colors.primary },
   baselineToggleText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.textSecondary },
   baselineToggleTextActive: { color: '#FFF' },
-  saveBaselineBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 7, borderRadius: Tokens.radius.sm, backgroundColor: Colors.fillTertiary },
-  scenarioBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: Colors.primary + '15', borderRadius: Tokens.radius.md, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 8, borderWidth: 1, borderColor: Colors.primary + '30' },
+  saveBaselineBtn: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xxs, paddingHorizontal: Tokens.spacing.sm, paddingVertical: 7, borderRadius: Tokens.radius.sm, backgroundColor: Colors.fillTertiary },
+  scenarioBanner: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs, backgroundColor: Colors.primary + '15', borderRadius: Tokens.radius.md, paddingHorizontal: Tokens.spacing.sm, paddingVertical: Tokens.spacing.xs, marginBottom: Tokens.spacing.xs, borderWidth: 1, borderColor: Colors.primary + '30' },
   scenarioBannerText: { flex: 1, fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.primary },
   saveBaselineBtnText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.primary },
 
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', padding: 20 },
-  modalCard: { backgroundColor: Colors.surface, borderRadius: Tokens.radius["2xl"], padding: 20, gap: 8 },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', padding: Tokens.spacing.lg },
+  modalCard: { backgroundColor: Colors.surface, borderRadius: Tokens.radius["2xl"], padding: Tokens.spacing.lg, gap: Tokens.spacing.xs },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Tokens.spacing.xs },
   modalTitle: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: Colors.text },
-  pickerOption: { backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.card, padding: 14, gap: 2, marginTop: 6 },
+  pickerOption: { backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.card, padding: 14, gap: Tokens.spacing.hairline, marginTop: 6 },
   pickerOptionSelected: { borderWidth: 2, borderColor: Colors.primary },
   pickerOptionTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
   pickerOptionMeta: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary },
 
   bottomSheetOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
-  bottomSheet: { backgroundColor: Colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, gap: 8 },
-  bottomSheetHandle: { width: 36, height: 4, borderRadius: 2, backgroundColor: Colors.fillTertiary, alignSelf: 'center', marginBottom: 8 },
+  bottomSheet: { backgroundColor: Colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: Tokens.spacing.lg, gap: Tokens.spacing.xs },
+  bottomSheetHandle: { width: 36, height: 4, borderRadius: 2, backgroundColor: Colors.fillTertiary, alignSelf: 'center', marginBottom: Tokens.spacing.xs },
   doneBtn: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: Tokens.radius.sm, backgroundColor: Colors.primary },
   doneBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: '#FFF' },
 
   quickAddInput: { minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 14, fontSize: Type.callout.fontSize, fontWeight: '600' as const, color: Colors.text },
   quickAddFieldRow: { flexDirection: 'row' as const, gap: 10, marginTop: 10 },
-  quickAddFieldLabel: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: Colors.textMuted, marginBottom: 4, letterSpacing: 0.3 },
-  quickAddSmallInput: { minHeight: 44, borderRadius: Tokens.radius.card, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 12, fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
-  quickAddHint: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 6, marginBottom: 4, lineHeight: 14 },
-  quickAddDateScroller: { marginBottom: 8, marginTop: 2 },
-  quickAddDateChipRow: { flexDirection: 'row' as const, gap: 8, paddingVertical: 2 },
+  quickAddFieldLabel: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: Colors.textMuted, marginBottom: Tokens.spacing.xxs, letterSpacing: 0.3 },
+  quickAddSmallInput: { minHeight: 44, borderRadius: Tokens.radius.card, backgroundColor: Colors.surfaceAlt, paddingHorizontal: Tokens.spacing.sm, fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
+  quickAddHint: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 6, marginBottom: Tokens.spacing.xxs, lineHeight: 14 },
+  quickAddDateScroller: { marginBottom: Tokens.spacing.xs, marginTop: Tokens.spacing.hairline },
+  quickAddDateChipRow: { flexDirection: 'row' as const, gap: Tokens.spacing.xs, paddingVertical: Tokens.spacing.hairline },
   quickAddDateChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: Tokens.spacing.sm,
+    paddingVertical: Tokens.spacing.xs,
     borderRadius: Tokens.radius.md,
     backgroundColor: Colors.surfaceAlt,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
     minWidth: 96,
     alignItems: 'flex-start' as const,
-    gap: 2,
+    gap: Tokens.spacing.hairline,
   },
   quickAddDateChipActive: {
     backgroundColor: Colors.primary + '15',
@@ -3328,25 +3328,25 @@ const styles = StyleSheet.create({
   quickAddDateChipValueActive: {
     color: Colors.primary,
   },
-  projectStartBar: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, paddingHorizontal: 16, paddingVertical: 8, backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.md, marginHorizontal: 16, marginBottom: 8 },
+  projectStartBar: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: Tokens.spacing.xs, paddingHorizontal: Tokens.spacing.md, paddingVertical: Tokens.spacing.xs, backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.md, marginHorizontal: Tokens.spacing.md, marginBottom: Tokens.spacing.xs },
   projectStartLabel: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: Colors.textMuted, letterSpacing: 0.4, textTransform: 'uppercase' as const },
   projectStartValue: { flex: 1, fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
-  projectStartEdit: { paddingVertical: 4, paddingHorizontal: 10, borderRadius: Tokens.radius.sm, backgroundColor: Colors.primary + '15' },
+  projectStartEdit: { paddingVertical: Tokens.spacing.xxs, paddingHorizontal: 10, borderRadius: Tokens.radius.sm, backgroundColor: Colors.primary + '15' },
   projectStartEditText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: Colors.primary },
-  phaseScroller: { marginBottom: 4 },
+  phaseScroller: { marginBottom: Tokens.spacing.xxs },
   phaseChipRow: { flexDirection: 'row', gap: 6 },
-  phaseChip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: Tokens.radius.xl, backgroundColor: Colors.fillTertiary },
+  phaseChip: { paddingHorizontal: Tokens.spacing.sm, paddingVertical: 7, borderRadius: Tokens.radius.xl, backgroundColor: Colors.fillTertiary },
   phaseChipActive: { backgroundColor: Colors.primary },
   phaseChipText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.textSecondary },
   phaseChipTextActive: { color: '#FFF' },
-  quickAddRow: { flexDirection: 'row', gap: 12 },
-  quickAddField: { flex: 1, gap: 4 },
+  quickAddRow: { flexDirection: 'row', gap: Tokens.spacing.sm },
+  quickAddField: { flex: 1, gap: Tokens.spacing.xxs },
   quickAddLabel: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.textMuted },
-  stepperRow: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.card, paddingHorizontal: 10, minHeight: 44, justifyContent: 'center' },
+  stepperRow: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs, backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.card, paddingHorizontal: 10, minHeight: 44, justifyContent: 'center' },
   stepperBtn: { width: 30, height: 30, borderRadius: Tokens.radius.sm, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
   stepperValue: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.text, minWidth: 30, textAlign: 'center' as const },
-  quickAddToggleRow: { flexDirection: 'row', gap: 8 },
-  quickAddToggle: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 8, borderRadius: Tokens.radius.md, backgroundColor: Colors.fillTertiary },
+  quickAddToggleRow: { flexDirection: 'row', gap: Tokens.spacing.xs },
+  quickAddToggle: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: Tokens.spacing.sm, paddingVertical: Tokens.spacing.xs, borderRadius: Tokens.radius.md, backgroundColor: Colors.fillTertiary },
   quickAddToggleActive: { backgroundColor: Colors.warning },
   quickAddToggleText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.textSecondary },
   quickAddToggleTextActive: { color: '#FFF' },
@@ -3354,59 +3354,59 @@ const styles = StyleSheet.create({
   addTaskBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: '#FFF' },
   quickAddCountText: { textAlign: 'center' as const, fontSize: Type.caption1.fontSize, color: Colors.textMuted, fontWeight: '500' as const },
 
-  fieldLabel: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.textMuted, marginTop: 4 },
+  fieldLabel: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.textMuted, marginTop: Tokens.spacing.xxs },
   input: { minHeight: 46, borderRadius: Tokens.radius.card, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 14, fontSize: Type.bodyCompact.fontSize, color: Colors.text },
   dualRow: { flexDirection: 'row', gap: 10 },
-  toggleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.card, paddingHorizontal: 14, paddingVertical: 10, marginTop: 4 },
-  toggleInfo: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  toggleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.card, paddingHorizontal: 14, paddingVertical: 10, marginTop: Tokens.spacing.xxs },
+  toggleInfo: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs },
   toggleLabel: { fontSize: Type.bodyCompact.fontSize, fontWeight: '500' as const, color: Colors.text },
-  depPickerBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.card, paddingHorizontal: 14, minHeight: 44, borderWidth: 1, borderColor: Colors.cardBorder },
+  depPickerBtn: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs, backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.card, paddingHorizontal: 14, minHeight: 44, borderWidth: 1, borderColor: Colors.cardBorder },
   depPickerBtnText: { flex: 1, fontSize: Type.footnote.fontSize, color: Colors.textSecondary },
-  editActionRow: { flexDirection: 'row', gap: 10, marginTop: 8 },
+  editActionRow: { flexDirection: 'row', gap: 10, marginTop: Tokens.spacing.xs },
   editCancelBtn: { flex: 1, minHeight: 46, borderRadius: Tokens.radius.card, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
   editCancelBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
   editSaveBtn: { flex: 1, minHeight: 46, borderRadius: Tokens.radius.card, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
   editSaveBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: '#FFF' },
 
-  depOption: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 10, borderRadius: Tokens.radius.card, marginBottom: 4, backgroundColor: Colors.surfaceAlt },
+  depOption: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 10, borderRadius: Tokens.radius.card, marginBottom: Tokens.spacing.xxs, backgroundColor: Colors.surfaceAlt },
   depOptionSelected: { backgroundColor: Colors.infoLight, borderWidth: 1, borderColor: '#007AFF30' },
   depCheckbox: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center' },
   depCheckboxSelected: { backgroundColor: Colors.info, borderColor: Colors.info },
   depOptionTitle: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.text },
   depOptionMeta: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary },
-  depDoneBtn: { marginTop: 8, minHeight: 44, borderRadius: Tokens.radius.card, backgroundColor: Colors.info, alignItems: 'center', justifyContent: 'center' },
+  depDoneBtn: { marginTop: Tokens.spacing.xs, minHeight: 44, borderRadius: Tokens.radius.card, backgroundColor: Colors.info, alignItems: 'center', justifyContent: 'center' },
   depDoneBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: '#FFF' },
 
   // Status chips (modal)
-  statusChipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 },
+  statusChipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: Tokens.spacing.sm },
   modalStatusChip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: Tokens.radius.sm, borderWidth: 1.5 },
   modalStatusChipText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const },
 
   // Progress buttons (modal)
-  modalProgressRow: { flexDirection: 'row', gap: 6, marginBottom: 12 },
-  modalProgressBtn: { flex: 1, paddingVertical: 8, borderRadius: Tokens.radius.sm, borderWidth: 1, borderColor: Colors.border, alignItems: 'center' },
+  modalProgressRow: { flexDirection: 'row', gap: 6, marginBottom: Tokens.spacing.sm },
+  modalProgressBtn: { flex: 1, paddingVertical: Tokens.spacing.xs, borderRadius: Tokens.radius.sm, borderWidth: 1, borderColor: Colors.border, alignItems: 'center' },
   modalProgressBtnActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
   modalProgressBtnText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.textMuted },
   modalProgressBtnTextActive: { color: '#FFF' },
 
   // Dep detail
-  depDetailList: { marginTop: 6, marginBottom: 8, gap: 8 },
+  depDetailList: { marginTop: 6, marginBottom: Tokens.spacing.xs, gap: Tokens.spacing.xs },
   depDetailRow: { backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.md, padding: 10 },
   depDetailName: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.text, marginBottom: 6 },
-  depTypeRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  depTypeBtn: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: Tokens.radius.xs, borderWidth: 1, borderColor: Colors.border },
+  depTypeRow: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xxs },
+  depTypeBtn: { paddingHorizontal: Tokens.spacing.xs, paddingVertical: Tokens.spacing.xxs, borderRadius: Tokens.radius.xs, borderWidth: 1, borderColor: Colors.border },
   depTypeBtnActive: { backgroundColor: Colors.info, borderColor: Colors.info },
   depTypeBtnText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: Colors.textMuted },
   depTypeBtnTextActive: { color: '#FFF' },
-  lagInput: { flex: 1, backgroundColor: Colors.card, borderRadius: Tokens.radius.xs, borderWidth: 1, borderColor: Colors.border, paddingHorizontal: 8, paddingVertical: 4, fontSize: Type.caption1.fontSize, color: Colors.text, textAlign: 'center' as const, maxWidth: 56 },
+  lagInput: { flex: 1, backgroundColor: Colors.card, borderRadius: Tokens.radius.xs, borderWidth: 1, borderColor: Colors.border, paddingHorizontal: Tokens.spacing.xs, paddingVertical: Tokens.spacing.xxs, fontSize: Type.caption1.fontSize, color: Colors.text, textAlign: 'center' as const, maxWidth: 56 },
 
   // Cascade note
-  cascadeNote: { backgroundColor: '#007AFF10', borderRadius: Tokens.radius.sm, padding: 8, marginBottom: 8, flexDirection: 'row', alignItems: 'center' },
+  cascadeNote: { backgroundColor: '#007AFF10', borderRadius: Tokens.radius.sm, padding: Tokens.spacing.xs, marginBottom: Tokens.spacing.xs, flexDirection: 'row', alignItems: 'center' },
   cascadeNoteText: { fontSize: Type.caption2.fontSize, color: Colors.info, fontStyle: 'italic' as const },
 
-  detailBadges: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 },
-  detailGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 },
-  detailGridItem: { width: '46%' as any, backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.md, padding: 10, gap: 2 },
+  detailBadges: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: Tokens.spacing.sm },
+  detailGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Tokens.spacing.xs, marginBottom: 14 },
+  detailGridItem: { width: '46%' as any, backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.md, padding: 10, gap: Tokens.spacing.hairline },
   detailGridLabel: { fontSize: 10, fontWeight: '600' as const, color: Colors.textMuted, textTransform: 'uppercase' as const },
   detailGridValue: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
   detailProgressRow: { flexDirection: 'row', gap: 6, marginBottom: 14 },
@@ -3414,60 +3414,60 @@ const styles = StyleSheet.create({
   detailProgressBtnActive: { backgroundColor: Colors.primary },
   detailProgressBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.textSecondary },
   detailProgressBtnTextActive: { color: '#FFF' },
-  detailDepSection: { marginBottom: 12, gap: 6 },
+  detailDepSection: { marginBottom: Tokens.spacing.sm, gap: 6 },
   detailDepTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.info },
-  detailDepRow: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.md, padding: 10 },
+  detailDepRow: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs, backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.md, padding: 10 },
   detailDepDot: { width: 6, height: 6, borderRadius: 3 },
   detailDepName: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.text },
   detailDepMeta: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontWeight: '600' as const },
-  detailNotes: { fontSize: Type.footnote.fontSize, lineHeight: 19, color: Colors.textSecondary, marginBottom: 12 },
+  detailNotes: { fontSize: Type.footnote.fontSize, lineHeight: 19, color: Colors.textSecondary, marginBottom: Tokens.spacing.sm },
 
-  delayImpactSection: { backgroundColor: '#FF3B3008', borderRadius: Tokens.radius.lg, padding: 14, gap: 8, marginBottom: 12, borderWidth: 1, borderColor: '#FF3B3020' },
+  delayImpactSection: { backgroundColor: '#FF3B3008', borderRadius: Tokens.radius.lg, padding: 14, gap: Tokens.spacing.xs, marginBottom: Tokens.spacing.sm, borderWidth: 1, borderColor: '#FF3B3020' },
   delayImpactHeader: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6 },
   delayImpactTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.error },
   delayImpactBody: { fontSize: Type.footnote.fontSize, color: Colors.text, fontWeight: '500' as const },
-  delayImpactDownstream: { gap: 3, marginTop: 2 },
+  delayImpactDownstream: { gap: 3, marginTop: Tokens.spacing.hairline },
   delayImpactLabel: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.textSecondary },
-  delayImpactItem: { fontSize: Type.caption1.fontSize, color: Colors.text, paddingLeft: 8 },
-  delayImpactCost: { gap: 3, marginTop: 4, borderTopWidth: 1, borderTopColor: '#FF3B3015', paddingTop: 6 },
+  delayImpactItem: { fontSize: Type.caption1.fontSize, color: Colors.text, paddingLeft: Tokens.spacing.xs },
+  delayImpactCost: { gap: 3, marginTop: Tokens.spacing.xxs, borderTopWidth: 1, borderTopColor: '#FF3B3015', paddingTop: 6 },
   delayImpactTotal: { fontSize: Type.footnote.fontSize, fontWeight: '800' as const, color: Colors.error },
 
-  weatherImpactSection: { backgroundColor: '#007AFF08', borderRadius: Tokens.radius.lg, padding: 14, gap: 8, marginBottom: 12, borderWidth: 1, borderColor: '#007AFF20' },
+  weatherImpactSection: { backgroundColor: '#007AFF08', borderRadius: Tokens.radius.lg, padding: 14, gap: Tokens.spacing.xs, marginBottom: Tokens.spacing.sm, borderWidth: 1, borderColor: '#007AFF20' },
   weatherImpactHeader: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6 },
   weatherImpactTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.info },
-  weatherImpactForecastRow: { flexDirection: 'row' as const, justifyContent: 'space-around' as const, gap: 4 },
+  weatherImpactForecastRow: { flexDirection: 'row' as const, justifyContent: 'space-around' as const, gap: Tokens.spacing.xxs },
   weatherImpactDay: { alignItems: 'center' as const, gap: 1, flex: 1 },
-  weatherImpactDayBad: { backgroundColor: '#FF3B3010', borderRadius: Tokens.radius.sm, padding: 2 },
+  weatherImpactDayBad: { backgroundColor: '#FF3B3010', borderRadius: Tokens.radius.sm, padding: Tokens.spacing.hairline },
   weatherImpactDayName: { fontSize: 10, fontWeight: '600' as const, color: Colors.textMuted },
   weatherImpactDayIcon: { fontSize: Type.bodyCompact.fontSize },
   weatherImpactDayTemp: { fontSize: 10, fontWeight: '700' as const, color: Colors.text },
   weatherImpactWarning: { fontSize: Type.caption1.fontSize, color: Colors.warning, fontWeight: '600' as const },
 
-  detailPhotosSection: { marginBottom: 12, gap: 8 },
+  detailPhotosSection: { marginBottom: Tokens.spacing.sm, gap: Tokens.spacing.xs },
   detailPhotosHeader: { flexDirection: 'row' as const, justifyContent: 'space-between' as const, alignItems: 'center' as const },
   detailPhotosTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.text },
-  addPhotoBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: Tokens.radius.sm, backgroundColor: Colors.primary + '12' },
+  addPhotoBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: Tokens.spacing.xxs, paddingHorizontal: 10, paddingVertical: 6, borderRadius: Tokens.radius.sm, backgroundColor: Colors.primary + '12' },
   addPhotoBtnText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: Colors.primary },
-  detailPhotosRow: { flexDirection: 'row' as const, gap: 8 },
+  detailPhotosRow: { flexDirection: 'row' as const, gap: Tokens.spacing.xs },
   detailPhotoThumb: { width: 80, borderRadius: Tokens.radius.md, backgroundColor: Colors.fillTertiary, overflow: 'hidden' as const },
   detailPhotoImg: { width: 80, height: 80, borderTopLeftRadius: 10, borderTopRightRadius: 10 },
   detailPhotoTime: { fontSize: 9, color: Colors.textMuted, fontWeight: '600' as const, textAlign: 'center' as const, paddingVertical: 3 },
-  detailPhotoNote: { fontSize: 9, color: Colors.textSecondary, textAlign: 'center' as const, paddingBottom: 3, paddingHorizontal: 4 },
+  detailPhotoNote: { fontSize: 9, color: Colors.textSecondary, textAlign: 'center' as const, paddingBottom: 3, paddingHorizontal: Tokens.spacing.xxs },
   noPhotosText: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, fontStyle: 'italic' as const },
   detailActions: { flexDirection: 'row', gap: 10 },
   detailEditBtn: { flex: 1, minHeight: 46, borderRadius: Tokens.radius.card, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
   detailEditBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: '#FFF' },
   detailDeleteBtn: { width: 46, height: 46, borderRadius: Tokens.radius.card, backgroundColor: '#FF3B3010', alignItems: 'center', justifyContent: 'center' },
 
-  aiHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 4 },
+  aiHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: Tokens.spacing.xxs },
   aiTitle: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: Colors.text },
-  aiSubtitle: { fontSize: Type.footnote.fontSize, lineHeight: 19, color: Colors.textSecondary, marginBottom: 4 },
+  aiSubtitle: { fontSize: Type.footnote.fontSize, lineHeight: 19, color: Colors.textSecondary, marginBottom: Tokens.spacing.xxs },
   aiInput: { minHeight: 100, borderRadius: Tokens.radius.lg, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 14, paddingTop: 14, fontSize: Type.bodyCompact.fontSize, color: Colors.text },
-  aiGenerateBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 50, borderRadius: Tokens.radius.lg, backgroundColor: Colors.warning },
+  aiGenerateBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Tokens.spacing.xs, minHeight: 50, borderRadius: Tokens.radius.lg, backgroundColor: Colors.warning },
   aiGenerateBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: '#FFF' },
 
-  templateCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.lg, padding: 16, marginBottom: 8, borderWidth: 1, borderColor: Colors.borderLight },
-  templateInfo: { flex: 1, gap: 2 },
+  templateCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.lg, padding: Tokens.spacing.md, marginBottom: Tokens.spacing.xs, borderWidth: 1, borderColor: Colors.borderLight },
+  templateInfo: { flex: 1, gap: Tokens.spacing.hairline },
   templateName: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text },
   templateMeta: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary },
 });
@@ -3476,9 +3476,9 @@ const desktopStyles = StyleSheet.create({
   desktopHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
+    gap: Tokens.spacing.sm,
+    paddingHorizontal: Tokens.spacing.lg,
+    paddingVertical: Tokens.spacing.sm,
     backgroundColor: Colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: Colors.borderLight,
@@ -3487,8 +3487,8 @@ const desktopStyles = StyleSheet.create({
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     gap: 5,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: Tokens.spacing.sm,
+    paddingVertical: Tokens.spacing.xs,
     borderRadius: Tokens.radius.md,
     backgroundColor: Colors.primary,
   },
@@ -3515,8 +3515,8 @@ const desktopStyles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: Tokens.spacing.md,
+    paddingVertical: Tokens.spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: Colors.borderLight,
   },
@@ -3530,15 +3530,15 @@ const desktopStyles = StyleSheet.create({
     fontWeight: '600' as const,
     color: Colors.textMuted,
     backgroundColor: Colors.fillTertiary,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
+    paddingHorizontal: Tokens.spacing.xs,
+    paddingVertical: Tokens.spacing.hairline,
     borderRadius: Tokens.radius.md,
   },
   taskListRow: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 10,
-    paddingHorizontal: 12,
+    paddingHorizontal: Tokens.spacing.sm,
     borderBottomWidth: 0.5,
     borderBottomColor: Colors.borderLight,
   },
@@ -3553,7 +3553,7 @@ const desktopStyles = StyleSheet.create({
   },
   taskListRowContent: {
     flex: 1,
-    gap: 2,
+    gap: Tokens.spacing.hairline,
   },
   taskListRowTitle: {
     fontSize: Type.footnote.fontSize,
@@ -3581,12 +3581,12 @@ const desktopStyles = StyleSheet.create({
   statusBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 8,
+    paddingHorizontal: Tokens.spacing.lg,
+    paddingVertical: Tokens.spacing.xs,
     backgroundColor: Colors.surface,
     borderTopWidth: 1,
     borderTopColor: Colors.borderLight,
-    gap: 8,
+    gap: Tokens.spacing.xs,
   },
   statusBarItem: {
     fontSize: Type.caption1.fontSize,
