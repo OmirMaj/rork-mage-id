@@ -821,8 +821,8 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   nextInspectionUrgent: {
-    borderColor: '#C62828' + '40',
-    shadowColor: '#C62828',
+    borderColor: Colors.errorDark + '40',
+    shadowColor: Colors.errorDark,
     shadowOpacity: 0.12,
   },
   nextInspectionTop: {
@@ -880,7 +880,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 12,
     borderWidth: 1,
-    borderColor: '#C62828' + '30',
+    borderColor: Colors.errorDark + '30',
     gap: 8,
   },
   blockersHeader: {
@@ -896,7 +896,7 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase' as const,
   },
   blockerRow: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.sm,
     paddingHorizontal: 10,
     paddingVertical: 8,

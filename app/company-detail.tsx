@@ -172,7 +172,7 @@ export default function CompanyDetailScreen() {
               <Mail size={16} color="#FFF" />
               <Text style={styles.contactBtnText}>Email</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.contactBtn, { backgroundColor: '#2E7D32' }]} onPress={() => void Linking.openURL(`tel:${company.phone}`)}>
+            <TouchableOpacity style={[styles.contactBtn, { backgroundColor: Colors.successDark }]} onPress={() => void Linking.openURL(`tel:${company.phone}`)}>
               <Phone size={16} color="#FFF" />
               <Text style={styles.contactBtnText}>Call</Text>
             </TouchableOpacity>

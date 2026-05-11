@@ -1397,6 +1397,6 @@ const styles = StyleSheet.create({
   emailCancelBtn: { flex: 1, minHeight: 48, borderRadius: 999, backgroundColor: Colors.fillTertiary, alignItems: 'center' as const, justifyContent: 'center' as const },
   emailCancelBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
   emailSendBtn: { flex: 1.4, minHeight: 48, flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 6, borderRadius: 999, backgroundColor: Colors.primary },
-  emailSendBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: '#FFFFFF' },
+  emailSendBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.surface },
   emailFootnote: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 8, textAlign: 'center' as const },
 });

@@ -1,4 +1,5 @@
 import type { Permit } from '@/types';
+import { Colors } from '@/constants/colors';
 
 export const MOCK_PERMITS: Permit[] = [
   {
@@ -80,14 +81,14 @@ export const MOCK_PERMITS: Permit[] = [
 ];
 
 export const PERMIT_TYPE_INFO: Record<string, { label: string; color: string }> = {
-  building: { label: 'Building', color: '#1565C0' },
+  building: { label: 'Building', color: Colors.infoDark },
   electrical: { label: 'Electrical', color: '#F9A825' },
   plumbing: { label: 'Plumbing', color: '#00838F' },
   mechanical: { label: 'Mechanical', color: '#6A1B9A' },
   demolition: { label: 'Demolition', color: '#D84315' },
   grading: { label: 'Grading', color: '#4E342E' },
-  fire: { label: 'Fire', color: '#C62828' },
-  occupancy: { label: 'Occupancy', color: '#2E7D32' },
+  fire: { label: 'Fire', color: Colors.errorDark },
+  occupancy: { label: 'Occupancy', color: Colors.successDark },
   // IBC Chapter 17 special inspection — distinct color so it stands out
   // in the permit list. Subcategory (concrete / masonry / etc.) is shown
   // as a chip on the card when present.
@@ -113,12 +114,12 @@ export const SPECIAL_INSPECTION_LABELS: Record<string, string> = {
 };
 
 export const PERMIT_STATUS_INFO: Record<string, { label: string; color: string; bgColor: string }> = {
-  applied: { label: 'Applied', color: '#1565C0', bgColor: '#E3F2FD' },
-  under_review: { label: 'Under Review', color: '#E65100', bgColor: '#FFF3E0' },
-  approved: { label: 'Approved', color: '#2E7D32', bgColor: '#E8F5E9' },
-  denied: { label: 'Denied', color: '#C62828', bgColor: '#FFEBEE' },
+  applied: { label: 'Applied', color: Colors.infoDark, bgColor: '#E3F2FD' },
+  under_review: { label: 'Under Review', color: Colors.warningDark, bgColor: '#FFF3E0' },
+  approved: { label: 'Approved', color: Colors.successDark, bgColor: '#E8F5E9' },
+  denied: { label: 'Denied', color: Colors.errorDark, bgColor: '#FFEBEE' },
   expired: { label: 'Expired', color: '#546E7A', bgColor: '#ECEFF1' },
   inspection_scheduled: { label: 'Inspection Scheduled', color: '#6A1B9A', bgColor: '#F3E5F5' },
-  inspection_passed: { label: 'Passed', color: '#2E7D32', bgColor: '#E8F5E9' },
-  inspection_failed: { label: 'Failed', color: '#C62828', bgColor: '#FFEBEE' },
+  inspection_passed: { label: 'Passed', color: Colors.successDark, bgColor: '#E8F5E9' },
+  inspection_failed: { label: 'Failed', color: Colors.errorDark, bgColor: '#FFEBEE' },
 };

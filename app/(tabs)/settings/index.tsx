@@ -621,7 +621,7 @@ export default function SettingsScreen() {
           </View>
           <View style={styles.rowSeparator} />
           <View style={styles.row}>
-            <View style={[styles.iconWrap, { backgroundColor: '#5856D6' }]}>
+            <View style={[styles.iconWrap, { backgroundColor: Colors.purple }]}>
               <TypeIcon size={14} color="#fff" />
             </View>
             <Text style={styles.rowLabel}>Tagline</Text>
@@ -745,7 +745,7 @@ export default function SettingsScreen() {
             </View>
           ) : (
             <TouchableOpacity style={styles.logoUploadRow} onPress={handlePickLogo} activeOpacity={0.7} testID="upload-logo">
-              <View style={[styles.iconWrap, { backgroundColor: '#5856D6' }]}>
+              <View style={[styles.iconWrap, { backgroundColor: Colors.purple }]}>
                 <ImageIcon size={14} color="#fff" />
               </View>
               <Text style={styles.rowLabel}>Upload Logo</Text>
@@ -827,7 +827,7 @@ export default function SettingsScreen() {
             activeOpacity={0.6}
             testID="pdf-naming-toggle"
           >
-            <View style={[styles.iconWrap, { backgroundColor: '#5856D6' }]}>
+            <View style={[styles.iconWrap, { backgroundColor: Colors.purple }]}>
               <Hash size={14} color="#fff" />
             </View>
             <Text style={styles.rowLabel}>Auto-Name PDFs</Text>
@@ -1069,7 +1069,7 @@ export default function SettingsScreen() {
             onPress={() => router.push('/notifications-settings' as any)}
             activeOpacity={0.6}
           >
-            <View style={[styles.iconWrap, { backgroundColor: '#FF6A1A' }]}>
+            <View style={[styles.iconWrap, { backgroundColor: Colors.accent }]}>
               <Bell size={14} color="#fff" />
             </View>
             <View style={{ flex: 1 }}>

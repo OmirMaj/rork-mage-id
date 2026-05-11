@@ -733,7 +733,7 @@ const styles = StyleSheet.create({
   permitQaTitle: {
     fontSize: Type.headline.fontSize,
     fontWeight: '800' as const,
-    color: '#FFFFFF',
+    color: Colors.surface,
     letterSpacing: -0.2,
   },
   permitQaBadge: {
@@ -743,7 +743,7 @@ const styles = StyleSheet.create({
   },
   permitQaBadgeText: {
     fontSize: 10, fontWeight: '800' as const,
-    color: '#FFFFFF', letterSpacing: 0.6,
+    color: Colors.surface, letterSpacing: 0.6,
   },
   permitQaSubtitle: {
     fontSize: Type.caption1.fontSize,

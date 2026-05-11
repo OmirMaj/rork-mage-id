@@ -411,11 +411,11 @@ const styles = StyleSheet.create({
   vertex: {
     width: 26, height: 26, borderRadius: 13,
     backgroundColor: Colors.primary,
-    borderWidth: 2.5, borderColor: '#FFFFFF',
+    borderWidth: 2.5, borderColor: Colors.surface,
     alignItems: 'center' as const, justifyContent: 'center' as const,
     shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.3, shadowRadius: 2,
   },
-  vertexNumber: { color: '#FFFFFF', fontSize: 11, fontWeight: '900' as const },
+  vertexNumber: { color: Colors.surface, fontSize: 11, fontWeight: '900' as const },
 
   bottomCard: {
     position: 'absolute' as const, left: 0, right: 0, bottom: 0,

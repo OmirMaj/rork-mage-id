@@ -1093,7 +1093,7 @@ const styles = StyleSheet.create({
   editBalanceBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.surface },
   forecastSelector: { flexDirection: 'row', flexWrap: 'wrap' as const, gap: 6 },
   forecastChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: Tokens.radius.sm, backgroundColor: 'rgba(255,255,255,0.15)' },
-  forecastChipActive: { backgroundColor: '#FFFFFF' },
+  forecastChipActive: { backgroundColor: Colors.surface },
   forecastChipText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: 'rgba(255,255,255,0.8)' },
   forecastChipTextActive: { color: Colors.primary },
   customWeeksChip: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: Tokens.radius.sm, backgroundColor: 'rgba(255,255,255,0.15)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)' },

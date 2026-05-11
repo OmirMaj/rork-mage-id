@@ -18,6 +18,8 @@
 // to a foreground + background. UI components import { statusPillTone }
 // and apply { color, backgroundColor } to a <View>+<Text> pair.
 
+import { Colors } from '@/constants/colors';
+
 export type StatusTone = 'neutral' | 'info' | 'pending' | 'success' | 'danger';
 
 export interface StatusPillStyle {
@@ -31,7 +33,7 @@ export const STATUS_TONES: Record<StatusTone, StatusPillStyle> = {
   neutral: { color: '#6B7177', backgroundColor: 'rgba(107,113,119,0.12)' },
   info:    { color: '#0B6BCB', backgroundColor: 'rgba(11,107,203,0.12)' },
   pending: { color: '#C26A00', backgroundColor: 'rgba(245,166,35,0.16)' },
-  success: { color: '#1E8E4A', backgroundColor: 'rgba(30,142,74,0.12)' },
+  success: { color: Colors.successDark, backgroundColor: 'rgba(30,142,74,0.12)' },
   danger:  { color: '#E5484D', backgroundColor: 'rgba(229,72,77,0.12)' },
 };
 

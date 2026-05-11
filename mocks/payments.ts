@@ -1,4 +1,5 @@
 import type { Payment } from '@/types';
+import { Colors } from '@/constants/colors';
 
 export const MOCK_PAYMENTS: Payment[] = [
   {
@@ -97,5 +98,5 @@ export const PROVIDER_INFO: Record<string, { label: string; color: string; bgCol
   zelle: { label: 'Zelle', color: '#6D1ED4', bgColor: '#6D1ED414', feePercent: 'Free' },
   check: { label: 'Check', color: '#546E7A', bgColor: '#546E7A14', feePercent: 'Free' },
   ach: { label: 'ACH', color: '#00695C', bgColor: '#00695C14', feePercent: '0.8%' },
-  cash: { label: 'Cash', color: '#2E7D32', bgColor: '#2E7D3214', feePercent: 'Free' },
+  cash: { label: 'Cash', color: Colors.successDark, bgColor: '#2E7D3214', feePercent: 'Free' },
 };

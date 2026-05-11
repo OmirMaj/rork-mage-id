@@ -494,7 +494,7 @@ const styles = StyleSheet.create({
   // Decorative grid + glow give the "industrial concrete × tech" feel
   // without an image asset.
   topSection: {
-    backgroundColor: '#0B0D10',
+    backgroundColor: Colors.ink,
     paddingHorizontal: 28,
     paddingBottom: 40,
     alignItems: 'flex-start' as const,
@@ -561,7 +561,7 @@ const styles = StyleSheet.create({
   brandWordmark: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '800' as const,
-    color: '#F4EFE6',
+    color: Colors.cream,
     letterSpacing: 2,
   },
   heroEyebrow: {
@@ -575,7 +575,7 @@ const styles = StyleSheet.create({
   heroLine: {
     fontSize: 36,
     fontWeight: '700' as const,
-    color: '#F4EFE6',
+    color: Colors.cream,
     letterSpacing: -1,
     lineHeight: 42,
     fontStyle: Platform.OS === 'ios' ? 'normal' : 'normal',
@@ -658,7 +658,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#0B0D10',
+    backgroundColor: Colors.ink,
     borderRadius: Tokens.radius.lg,
     paddingVertical: 16,
     gap: 8,
@@ -771,9 +771,9 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 14,
     borderRadius: Tokens.radius.card,
-    backgroundColor: '#1E8E4A' + '12',
+    backgroundColor: Colors.successDark + '12',
     borderWidth: 1,
-    borderColor: '#1E8E4A' + '40',
+    borderColor: Colors.successDark + '40',
   },
   magicLinkSuccessText: {
     fontSize: Type.footnote.fontSize,
@@ -833,7 +833,7 @@ const styles = StyleSheet.create({
   signupLink: {
     fontSize: Type.subhead.fontSize,
     fontWeight: '700' as const,
-    color: '#0B0D10',
+    color: Colors.ink,
   },
   forgotButton: {
     flexDirection: 'row' as const,

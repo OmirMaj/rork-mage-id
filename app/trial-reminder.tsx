@@ -186,7 +186,7 @@ const styles = StyleSheet.create({
   illoWrap: { alignItems: 'center' as const, justifyContent: 'center' as const, marginTop: 24, height: 160 },
   illoCalendar: { width: 120, height: 130, borderRadius: 18, backgroundColor: '#3FA1F0', position: 'relative' as const, alignItems: 'center' as const, paddingTop: 22, shadowColor: '#000', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.18, shadowRadius: 18, elevation: 8 },
   illoCalendarTop: { position: 'absolute' as const, left: 0, right: 0, top: 0, height: 22, borderTopLeftRadius: 18, borderTopRightRadius: 18, backgroundColor: '#FFC857' },
-  illoCalendarBody: { width: 95, height: 90, borderRadius: 8, backgroundColor: '#FFFFFF', alignItems: 'center' as const, justifyContent: 'center' as const, marginTop: 4 },
+  illoCalendarBody: { width: 95, height: 90, borderRadius: 8, backgroundColor: Colors.surface, alignItems: 'center' as const, justifyContent: 'center' as const, marginTop: 4 },
   illoEmoji: { fontSize: 38 },
   illoRing: { position: 'absolute' as const, top: -6, left: 14, width: 12, height: 12, borderRadius: 6, backgroundColor: '#9CA3AF' },
 
@@ -194,7 +194,7 @@ const styles = StyleSheet.create({
   previewCard: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, backgroundColor: Colors.surface, borderRadius: 16, padding: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 },
   previewCardBack: { position: 'absolute' as const, left: 6, right: 6, top: 8, height: 60, backgroundColor: Colors.fillTertiary, zIndex: -1 },
   previewIcon: { width: 32, height: 32, borderRadius: 8, backgroundColor: Colors.primary, alignItems: 'center' as const, justifyContent: 'center' as const },
-  previewIconLetter: { fontSize: 16, fontWeight: '900' as const, color: '#FFFFFF' },
+  previewIconLetter: { fontSize: 16, fontWeight: '900' as const, color: Colors.surface },
   previewHead: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'space-between' as const },
   previewTitle: { fontSize: 13, fontWeight: '800' as const, color: Colors.text },
   previewTime: { fontSize: 11, color: Colors.textMuted },

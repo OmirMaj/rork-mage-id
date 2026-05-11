@@ -1,4 +1,5 @@
 import type { ProjectDocument } from '@/types';
+import { Colors } from '@/constants/colors';
 
 export const MOCK_DOCUMENTS: ProjectDocument[] = [
   {
@@ -86,9 +87,9 @@ export const MOCK_DOCUMENTS: ProjectDocument[] = [
 ];
 
 export const DOCUMENT_TYPE_INFO: Record<string, { label: string; color: string; bgColor: string }> = {
-  lien_waiver: { label: 'Lien Waiver', color: '#E65100', bgColor: '#FFF3E0' },
-  coi: { label: 'COI', color: '#1565C0', bgColor: '#E3F2FD' },
-  contract: { label: 'Contract', color: '#2E7D32', bgColor: '#E8F5E9' },
+  lien_waiver: { label: 'Lien Waiver', color: Colors.warningDark, bgColor: '#FFF3E0' },
+  coi: { label: 'COI', color: Colors.infoDark, bgColor: '#E3F2FD' },
+  contract: { label: 'Contract', color: Colors.successDark, bgColor: '#E8F5E9' },
   proposal: { label: 'Proposal', color: '#6A1B9A', bgColor: '#F3E5F5' },
   aia_billing: { label: 'AIA Billing', color: '#AD1457', bgColor: '#FCE4EC' },
   permit: { label: 'Permit', color: '#00695C', bgColor: '#E0F2F1' },

@@ -721,7 +721,7 @@ const styles = StyleSheet.create({
   },
   digestIcon: {
     width: 36, height: 36, borderRadius: Tokens.radius.md,
-    backgroundColor: '#FF6A1A',
+    backgroundColor: Colors.accent,
     alignItems: 'center', justifyContent: 'center',
   },
   digestTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },

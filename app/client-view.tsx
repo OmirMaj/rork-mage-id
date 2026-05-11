@@ -1667,8 +1667,8 @@ const styles = StyleSheet.create({
 
   decisionsCard: { marginHorizontal: 16, marginTop: 4, marginBottom: 12, padding: 14, borderRadius: Tokens.radius.lg, backgroundColor: '#FFF3E0', borderWidth: 1, borderColor: '#FFC10733' },
   decisionsHeader: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, marginBottom: 10 },
-  decisionsBadge: { width: 30, height: 30, borderRadius: 15, backgroundColor: '#FF9500', alignItems: 'center' as const, justifyContent: 'center' as const },
-  decisionsBadgeText: { color: '#FFFFFF', fontWeight: '900' as const, fontSize: Type.subheadline.fontSize },
+  decisionsBadge: { width: 30, height: 30, borderRadius: 15, backgroundColor: Colors.accent, alignItems: 'center' as const, justifyContent: 'center' as const },
+  decisionsBadgeText: { color: Colors.surface, fontWeight: '900' as const, fontSize: Type.subheadline.fontSize },
   decisionsTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '900' as const, color: Colors.text, letterSpacing: -0.3 },
   decisionRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, paddingVertical: 8, borderTopWidth: 1, borderTopColor: '#FFC10722' },
   decisionRowText: { flex: 1, fontSize: Type.bodyCompact.fontSize, color: Colors.text },

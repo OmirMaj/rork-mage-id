@@ -14,7 +14,7 @@
 // citation-grade. The UI doesn't change; the corpus injection is a
 // system-prompt swap.
 
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
   KeyboardAvoidingView, Platform, ActivityIndicator,
@@ -30,6 +30,7 @@ import { Colors } from '@/constants/colors';
 import { mageAI } from '@/utils/mageAI';
 import { getMetroContext, CROSS_JURISDICTION_PRINCIPLES, type MetroKey } from '@/utils/permitCorpus';
 import { findRelevantSections, renderSectionsForPrompt } from '@/utils/codeLibrary';
+import { trackEvent } from '@/utils/analytics';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -110,6 +111,13 @@ export default function PermitQAScreen() {
 
   const currentMetroLabel = METROS.find(m => m.key === metro)?.label ?? metro;
 
+  // Analytics: fire once on mount. Source isn't known here (could be
+  // ai_hub, home_hero, tools, or deeplink) so we leave it undefined;
+  // the calling screen's tab_viewed event captures the prior step.
+  useEffect(() => {
+    trackEvent({ name: 'permit_qa_opened', props: {} });
+  }, []);
+
   const sendMessage = useCallback(async (text: string) => {
     const trimmed = text.trim();
     if (!trimmed || sending) return;
@@ -142,6 +150,16 @@ export default function PermitQAScreen() {
       'Reply as the AGENT to the most recent CONTRACTOR question. 2-4 short paragraphs. Use the metro context AND any relevant code text quoted above.',
     ].join('\n');
 
+    // Analytics: question asked. Detect starter-chip questions by
+    // checking the source text against the starter list (they're the
+    // most common paths and worth knowing about).
+    const isStarter = STARTER_QUESTIONS.includes(text);
+    trackEvent({
+      name: 'permit_qa_asked',
+      props: { metro, chars: trimmed.length, from_starter: isStarter },
+    });
+
+    const t0 = Date.now();
     try {
       // Cache by metro + question text so identical questions don't
       // burn paid API calls every time. 24h TTL — code corpus is
@@ -156,6 +174,15 @@ export default function PermitQAScreen() {
         maxTokens: 1200,
         cacheKey,
         cacheHours: 24,
+      });
+
+      // Analytics: track latency + cache-hit rate. If most queries
+      // hit cache, we're saving real money; if none do, the corpus
+      // is fragmented and we should revisit the cache key.
+      const elapsedMs = Date.now() - t0;
+      trackEvent({
+        name: 'permit_qa_answered',
+        props: { metro, ms: elapsedMs, from_cache: elapsedMs < 200 },
       });
 
       const assistantMsg: Message = {

@@ -276,7 +276,7 @@ const styles = StyleSheet.create({
   tileImageInner: { borderRadius: 18 },
   tileScrim: { position: 'absolute' as const, left: 0, right: 0, bottom: 0, height: '60%', borderBottomLeftRadius: 18, borderBottomRightRadius: 18 },
   tileMeta: { padding: 10 },
-  tileCity: { color: '#FFFFFF', fontSize: Type.subhead.fontSize, fontWeight: '800' as const, letterSpacing: -0.2 },
+  tileCity: { color: Colors.surface, fontSize: Type.subhead.fontSize, fontWeight: '800' as const, letterSpacing: -0.2 },
   tileSub: { color: 'rgba(255,255,255,0.85)', fontSize: Type.caption2.fontSize, fontWeight: '600' as const, marginTop: 1 },
 
   cloudBlur: {
@@ -287,7 +287,7 @@ const styles = StyleSheet.create({
     height: 110,
     borderRadius: 110,
     backgroundColor: 'rgba(255,255,255,0.55)',
-    shadowColor: '#FFFFFF',
+    shadowColor: Colors.surface,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.9,
     shadowRadius: 26,
@@ -301,7 +301,7 @@ const styles = StyleSheet.create({
   brandLogo: {
     fontSize: 56,
     fontWeight: '900' as const,
-    color: '#FFFFFF',
+    color: Colors.surface,
     letterSpacing: -2,
     textShadowColor: 'rgba(0,0,0,0.15)',
     textShadowOffset: { width: 0, height: 2 },
@@ -311,7 +311,7 @@ const styles = StyleSheet.create({
     width: 110,
     height: 3,
     borderRadius: 2,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: Colors.surface,
     opacity: 0.85,
     marginTop: 4,
     marginBottom: 12,
@@ -319,7 +319,7 @@ const styles = StyleSheet.create({
   tagline: {
     fontSize: Type.title3.fontSize,
     fontWeight: '500' as const,
-    color: '#FFFFFF',
+    color: Colors.surface,
     textAlign: 'center' as const,
     letterSpacing: -0.2,
     opacity: 0.95,
@@ -336,7 +336,7 @@ const styles = StyleSheet.create({
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
     gap: 10,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: Colors.surface,
     borderRadius: 999,
     paddingHorizontal: 22,
     shadowColor: '#000',
@@ -356,7 +356,7 @@ const styles = StyleSheet.create({
   emailLinkText: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
-    color: '#FFFFFF',
+    color: Colors.surface,
     opacity: 0.9,
     textDecorationLine: 'underline' as const,
   },

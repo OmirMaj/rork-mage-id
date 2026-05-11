@@ -87,7 +87,7 @@ const styles = StyleSheet.create({
     borderWidth: 4,
     borderColor: 'rgba(34,197,94,0.18)',
   },
-  pillText: { fontSize: 28, fontWeight: '800' as const, color: '#FFFFFF', letterSpacing: -0.6 },
+  pillText: { fontSize: 28, fontWeight: '800' as const, color: Colors.surface, letterSpacing: -0.6 },
 
   footer: { paddingTop: 12 },
   continueBtn: { minHeight: 56, borderRadius: 999, backgroundColor: Colors.primary, alignItems: 'center' as const, justifyContent: 'center' as const },

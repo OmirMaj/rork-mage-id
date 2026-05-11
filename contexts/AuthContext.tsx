@@ -305,10 +305,19 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
         setSession(newSession);
         setUser(mapSupabaseUser(newSession.user));
         setIsAuthenticated(true);
+        // Analytics: identify the user. Passes opaque Supabase user.id
+        // only — never email or name. PostHog uses this to attribute
+        // subsequent events to the right person.
+        import('@/utils/analytics').then(a => a.identify(newSession.user.id, {
+          signup_date: newSession.user.created_at,
+        })).catch(() => {});
       } else {
         setSession(null);
         setUser(null);
         setIsAuthenticated(false);
+        // Analytics: clear identity on sign-out so anonymous sessions
+        // don't get attributed to the previous user.
+        import('@/utils/analytics').then(a => a.reset()).catch(() => {});
       }
     });
 

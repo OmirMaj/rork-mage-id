@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Modal,
   View,
@@ -17,6 +17,7 @@ import { Colors } from '@/constants/colors';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { trackEvent } from '@/utils/analytics';
 
 // App Store / Play Store deep links — used by the web paywall to bounce
 // users to mobile. App Store ID 6762229238 is from eas.json submit.production.
@@ -78,6 +79,19 @@ const ENTERPRISE_BENEFITS: string[] = [
 export default function Paywall({ visible, onClose, feature, requiredTier }: PaywallProps) {
   const insets = useSafeAreaInsets();
   const [period, setPeriod] = useState<BillingPeriod>('annual');
+
+  // Analytics: fire paywall_viewed when modal becomes visible. This
+  // is the top of the monetization funnel — every view here is a
+  // chance to convert. Tracking feature + required_tier lets us see
+  // which gates produce conversion (Pro paywall vs Business paywall,
+  // permit_qa gate vs cash_flow gate, etc.).
+  useEffect(() => {
+    if (!visible) return;
+    trackEvent({
+      name: 'paywall_viewed',
+      props: { feature, tier_blocked: requiredTier },
+    });
+  }, [visible, feature, requiredTier]);
   const {
     purchasePro,
     purchaseBusiness,
@@ -193,7 +207,7 @@ export default function Paywall({ visible, onClose, feature, requiredTier }: Pay
             </View>
 
             <TouchableOpacity
-              style={[styles.upgradeBtn, { backgroundColor: '#0B0D10' }]}
+              style={[styles.upgradeBtn, { backgroundColor: Colors.ink }]}
               activeOpacity={0.85}
               onPress={() => {
                 if (typeof window !== 'undefined') window.open(IOS_APP_URL, '_blank');
@@ -205,7 +219,7 @@ export default function Paywall({ visible, onClose, feature, requiredTier }: Pay
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.upgradeBtn, { backgroundColor: '#0B0D10', marginTop: 10 }]}
+              style={[styles.upgradeBtn, { backgroundColor: Colors.ink, marginTop: 10 }]}
               activeOpacity={0.85}
               onPress={() => {
                 if (typeof window !== 'undefined') window.open(ANDROID_APP_URL, '_blank');

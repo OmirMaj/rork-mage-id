@@ -584,7 +584,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 8,
     borderRadius: 999, backgroundColor: '#0F1115',
   },
-  heroActionDarkText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: '#FFFFFF' },
+  heroActionDarkText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.surface },
 
   statRow: { flexDirection: 'row' as const, gap: 8, flexWrap: 'wrap' as const },
   statRowWide: {},
@@ -630,10 +630,10 @@ const styles = StyleSheet.create({
   // featureTitle uses Fraunces serif for the marquee feature card — it
   // sits over a photo background so the serif reads naturally and
   // distinguishes itself from the surrounding sans-serif UI.
-  featureTitle: { ...Type.displaySm, color: '#FFFFFF', fontSize: 26, lineHeight: 30 },
+  featureTitle: { ...Type.displaySm, color: Colors.surface, fontSize: 26, lineHeight: 30 },
   featureMeta: { fontSize: Type.footnote.fontSize, color: 'rgba(255,255,255,0.85)' },
   featureCta: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 4, marginTop: 8, alignSelf: 'flex-start' as const, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.18)' },
-  featureCtaText: { fontSize: 11, fontWeight: '700' as const, color: '#FFFFFF' },
+  featureCtaText: { fontSize: 11, fontWeight: '700' as const, color: Colors.surface },
 
   featureCardEmpty: { padding: 20, borderRadius: 20, backgroundColor: Colors.surfaceAlt, alignItems: 'center' as const, gap: 4, borderWidth: 1, borderColor: Colors.borderLight, borderStyle: 'dashed' as const },
   featureEmptyTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: Colors.text, marginTop: 4 },
@@ -700,7 +700,7 @@ const styles = StyleSheet.create({
   dangerActionDotText: {
     fontSize: Type.caption2.fontSize,
     fontWeight: '900' as const,
-    color: '#FFFFFF',
+    color: Colors.surface,
   },
   dangerActionLabel: {
     fontSize: Type.bodyCompact.fontSize,

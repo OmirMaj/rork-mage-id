@@ -686,7 +686,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.30, shadowRadius: 10, elevation: 6,
     zIndex: 999,
     borderWidth: 1.5,
-    borderColor: '#FFFFFF',
+    borderColor: Colors.surface,
   },
   inlineBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,

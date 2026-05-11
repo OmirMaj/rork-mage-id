@@ -2416,7 +2416,7 @@ const hsStyles = StyleSheet.create({
     backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border,
     alignItems: 'center',
   },
-  publishBtnPublished: { backgroundColor: 'rgba(30,142,74,0.10)', borderColor: '#1E8E4A' },
+  publishBtnPublished: { backgroundColor: 'rgba(30,142,74,0.10)', borderColor: Colors.successDark },
   publishBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.text },
   publishBtnTextPublished: { color: Colors.successDark },
 });
