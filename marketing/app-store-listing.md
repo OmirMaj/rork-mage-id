@@ -65,9 +65,9 @@ Pro $29/mo, Business $79/mo, Enterprise $150/mo. Flat pricing, no per-user fees.
 Voice-first daily reports captured between trades. Photo + GPS-stamped field documentation. Offline-first so the app keeps working at the back of an unfinished basement with no signal. Built for hands-on owners running 3-30 projects a year — not enterprise PM teams with project engineers.
 
 ═══ HOW WE COMPARE ═══
-— Procore: $375+/mo, built for ENR-400. We're 1/30th the price for the same workflow.
-— Buildertrend: $299–$900/mo. We're $29/mo with AI permits + AI takeoff built in.
-— CoConstruct, BuildBook, Houzz Pro: similar tier, none have AI permits.
+— Enterprise PM platforms: $375+/mo, built for ENR-400 commercial GCs. We're 1/30th the price for the residential workflow.
+— Residential PM market leaders: $299–$900/mo with per-seat fees on top. We're $29/mo flat with AI permits + AI takeoff built in.
+— Other residential-tier apps: similar pricing tier, none ship an embedded AI permit agent.
 
 ═══ WHO IT'S FOR ═══
 Residential general contractors. Custom home builders. Design-build firms. Small-commercial GCs. Remodelers. ADU specialists. Anyone running 3-30 projects/year with annual volume between $500K and $30M.
@@ -88,8 +88,8 @@ indexes the title + subtitle, so don't repeat them here.*
 
 **Alternates ranked by search volume estimate:**
 1. `construction,contractor,builder,permit,AIA,estimate,invoice,bid,GC,scheduling` (78 chars — leaves room for trending terms)
-2. `procore,buildertrend,coconstruct,construction,contractor,permit,estimate,AIA` (75 chars — competitive head terms)
-3. `construction,contractor,subcontractor,permit,DOB,AIA,RFI,punchlist,estimate` (75 chars)
+2. `construction,contractor,subcontractor,permit,DOB,AIA,RFI,punchlist,estimate` (75 chars)
+3. `residential,remodel,homebuilder,permit,AIA,estimate,takeoff,scheduling,RFI` (75 chars — residential-niche)
 
 Pick one. Run for 60 days, swap based on what App Store Connect's
 Search Ads keyword report shows.

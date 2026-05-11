@@ -357,7 +357,7 @@ export default function Paywall({ visible, onClose, feature, requiredTier }: Pay
           <View style={styles.trustRow}>
             <Shield size={13} color={Colors.textSecondary} />
             <Text style={styles.trustText}>
-              Secure payment via {Platform.OS === 'ios' ? 'App Store' : Platform.OS === 'android' ? 'Google Play' : 'your platform'}. Cancel anytime.
+              Secure payment via {Platform.OS === 'ios' ? 'App Store' : Platform.OS === 'android' ? 'Google Play' : 'your platform'}.
             </Text>
           </View>
 

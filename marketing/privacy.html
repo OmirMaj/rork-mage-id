@@ -64,7 +64,9 @@
     <h1>Privacy Policy</h1>
     <p class="updated">Last updated: May 11, 2026</p>
 
-    <p>MAGE ID ("we," "us," or "our") operates the MAGE ID mobile and web applications (the "Service"). This Privacy Policy describes how we collect, use, share, and protect personal information when you use our Service, and the rights you have over your information.</p>
+    <p>Your project data is yours. We don't sell it, we don't train AI models on it, and we don't share it with brokers or advertisers. This policy explains everything else — what we collect, why, how we protect it, and exactly what rights you have to see it, change it, or delete it. We've written it in plain language. If something isn't clear, email <a href="mailto:privacy@mageid.app">privacy@mageid.app</a>.</p>
+
+    <p>MAGE ID ("we," "us," or "our") operates the MAGE ID mobile and web applications (the "Service"). This policy applies to all use of the Service, our marketing site at mageid.app, and any related features.</p>
 
     <div class="toc">
       <ol>
@@ -163,7 +165,15 @@
     </ul>
 
     <h2 id="storage">5. Data storage, residency, and security</h2>
-    <p>Your data is stored in encrypted PostgreSQL databases hosted by Supabase on Amazon Web Services in the United States (us-east region). We use industry-standard encryption in transit (TLS 1.2+) and at rest (AES-256). Passwords are hashed with bcrypt. Database access is restricted via Row Level Security policies that limit users to their own rows. Edge functions run in isolated, ephemeral environments.</p>
+    <p>Your project data lives in a PostgreSQL database hosted by Supabase on AWS us-east-1. Here is exactly how it's protected:</p>
+    <ul>
+      <li><strong>In transit:</strong> TLS 1.2+ on every connection. No plaintext API endpoints exist.</li>
+      <li><strong>At rest:</strong> AES-256 on the database volume and on every backup.</li>
+      <li><strong>Passwords:</strong> bcrypt with a per-user salt. Nobody at MAGE ID — including us — can read your password.</li>
+      <li><strong>Row-level access:</strong> Postgres Row Level Security policies block every query that tries to read a row owned by another user. This is enforced at the database, not in app code, so a bug in our backend cannot leak someone else's project to you.</li>
+      <li><strong>Edge functions:</strong> stateless, ephemeral, isolated per invocation. They cannot read or write outside the request scope.</li>
+      <li><strong>Backups:</strong> encrypted, daily, retained 7 days. We do not ship backups outside AWS.</li>
+    </ul>
 
     <div class="notice">
       <strong>Data residency note for non-US users:</strong> when you use MAGE ID, your data is transferred to and stored in the United States. We rely on Standard Contractual Clauses (SCCs) with our sub-processors where required for international transfers.
