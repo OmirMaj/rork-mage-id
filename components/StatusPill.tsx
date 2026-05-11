@@ -12,9 +12,10 @@
 
 import React, { memo } from 'react';
 import { View, Text, StyleSheet, type ViewStyle } from 'react-native';
-import { Colors } from '@/constants/colors';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { useTheme } from '@/contexts/ThemeContext';
+import type { ThemeColors } from '@/constants/colors';
 
 export type StatusTone = 'neutral' | 'primary' | 'success' | 'warning' | 'error' | 'info' | 'accent';
 
@@ -31,15 +32,24 @@ export interface StatusPillProps {
   testID?: string;
 }
 
-const TONE_COLORS: Record<StatusTone, string> = {
-  neutral: Colors.textSecondary,
-  primary: Colors.primary,
-  success: Colors.success,
-  warning: Colors.warning,
-  error: Colors.error,
-  info: Colors.info,
-  accent: Colors.accent,
-};
+function toneColor(t: ThemeColors, tone: StatusTone): string {
+  switch (tone) {
+    case 'primary':
+    case 'accent':
+      return t.accent;
+    case 'success':
+      return t.success;
+    case 'warning':
+      return t.accent;
+    case 'error':
+      return t.danger;
+    case 'info':
+      return t.info;
+    case 'neutral':
+    default:
+      return t.textSecondary;
+  }
+}
 
 function StatusPillImpl({
   label,
@@ -49,7 +59,8 @@ function StatusPillImpl({
   style,
   testID,
 }: StatusPillProps) {
-  const color = TONE_COLORS[tone];
+  const { colors } = useTheme();
+  const color = toneColor(colors, tone);
   const isCompact = size === 'compact';
   return (
     <View

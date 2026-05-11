@@ -32,8 +32,8 @@ import {
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import type { LucideIcon } from 'lucide-react-native';
-import { Colors } from '@/constants/colors';
 import { continuousCorners, TouchTarget, Tokens } from '@/constants/designTokens';
+import { useTheme } from '@/contexts/ThemeContext';
 
 export type IconButtonSize = 'sm' | 'md' | 'lg';
 export type IconButtonVariant = 'plain' | 'tinted' | 'filled' | 'destructive';
@@ -105,19 +105,20 @@ function IconButtonImpl({
   testID,
   style,
 }: IconButtonProps) {
+  const { colors } = useTheme();
   const diameter = SIZE_TO_DIAMETER[size];
   const iconSize = SIZE_TO_ICON[size];
 
   const resolvedIconColor = iconColor ?? (
-    variant === 'destructive' ? Colors.error
+    variant === 'destructive' ? colors.danger
     : variant === 'filled' ? '#FFFFFF'
-    : Colors.text
+    : colors.text
   );
   const resolvedBg = backgroundColor ?? (
     variant === 'plain' ? 'transparent'
-    : variant === 'tinted' ? Colors.fillSecondary
-    : variant === 'destructive' ? Colors.error + '14'
-    : Colors.primary
+    : variant === 'tinted' ? colors.surfaceAlt
+    : variant === 'destructive' ? colors.danger + '14'
+    : colors.accent
   );
 
   const handlePress = () => {
@@ -146,7 +147,7 @@ function IconButtonImpl({
         },
         bordered && {
           borderWidth: 1,
-          borderColor: variant === 'destructive' ? Colors.error + '40' : Colors.border,
+          borderColor: variant === 'destructive' ? colors.danger + '40' : colors.line,
         },
         state.pressed && !disabled && styles.pressed,
         disabled && styles.disabled,
