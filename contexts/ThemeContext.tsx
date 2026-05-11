@@ -1,29 +1,35 @@
 // ThemeContext — dark mode foundation for MAGE ID.
 //
-// Scope of this v1 (be honest with future-you):
-//   ✓ User can pick 'light' | 'dark' | 'system' in Settings
+// What works today:
+//   ✓ User picks 'light' | 'dark' | 'system' in Settings
 //   ✓ StatusBar style adapts (iOS + Android)
 //   ✓ System UI navigation bar adapts on Android
 //   ✓ `useTheme()` hook returns the active mode for any component
-//      that wants to branch on it
 //   ✓ Preference persists in AsyncStorage
+//   ✓ Colors module is theme-aware via getters (constants/colors.ts).
+//     Inline JSX styles that read Colors.text / Colors.surface get the
+//     correct theme value on every render.
+//   ✓ themeKey bumps on every theme change, forcing a top-level
+//     re-mount. New screen mounts after the bump pick up the new
+//     theme via Colors getters.
 //
-// Out of scope (genuinely needs follow-up work, weeks not hours):
-//   ✗ Every Colors.surface / Colors.text reference auto-swaps to a
-//     dark variant. The 149 screens use Colors.* as static module-
-//     level constants; a true theme migration would either route
-//     every consumer through a hook (large refactor) or make Colors
-//     mutable in a way that triggers re-renders.
+// Known limitation:
+//   ✗ StyleSheet.create() captures Colors.* values at module-load
+//     time. Files that put `color: Colors.text` inside StyleSheet.
+//     create() keep their original (light) color even after a theme
+//     change, because the file is only imported once per session.
+//     The fix per file: read Colors at render time (inline JSX style)
+//     or via useThemedColors() hook + recomputed styles.
 //
-// What this means for the user today: toggling dark mode flips the
-// status bar + nav bar instantly. The actual screen surfaces stay
-// light until each surface is migrated. We're shipping the foundation
-// so future screens can use theme-aware tokens.
+//     Recently-touched files are progressively migrating to inline
+//     overrides for the most-visible content (names, headings,
+//     surfaces). Full migration is gradual.
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { Appearance, type ColorSchemeName, Platform, StatusBar } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import createContextHook from '@nkzw/create-context-hook';
+import { setColorTheme } from '@/constants/colors';
 
 export type ThemePreference = 'light' | 'dark' | 'system';
 export type ResolvedTheme = 'light' | 'dark';
@@ -37,6 +43,14 @@ interface ThemeContextValue {
   resolved: ResolvedTheme;
   /** Update + persist the user's preference. */
   setPreference: (p: ThemePreference) => Promise<void>;
+  /**
+   * Increments each time `resolved` changes. Use as a `key` on a
+   * wrapper around the screen tree to force a top-level re-mount on
+   * theme change. Critical because StyleSheet.create captures static
+   * Colors values at module-load time — only a fresh mount re-reads
+   * inline color overrides.
+   */
+  themeKey: number;
 }
 
 function resolveTheme(pref: ThemePreference, system: ColorSchemeName): ResolvedTheme {
@@ -47,6 +61,7 @@ function resolveTheme(pref: ThemePreference, system: ColorSchemeName): ResolvedT
 export const [ThemeProvider, useTheme] = createContextHook<ThemeContextValue>(() => {
   const [preference, setPreferenceState] = useState<ThemePreference>('system');
   const [systemScheme, setSystemScheme] = useState<ColorSchemeName>(() => Appearance.getColorScheme());
+  const [themeKey, setThemeKey] = useState(0);
 
   // Load persisted preference on mount.
   useEffect(() => {
@@ -101,7 +116,17 @@ export const [ThemeProvider, useTheme] = createContextHook<ThemeContextValue>(()
     }
   }, [resolved]);
 
-  return { preference, resolved, setPreference };
+  // Wire the global Colors module to the current theme + bump themeKey
+  // so consumers wrapping their tree in `key={themeKey}` get a clean
+  // re-mount on theme change. Important because StyleSheet.create
+  // captures Colors values at module load — only a fresh mount picks
+  // up inline color overrides.
+  useEffect(() => {
+    setColorTheme(resolved);
+    setThemeKey(k => k + 1);
+  }, [resolved]);
+
+  return { preference, resolved, setPreference, themeKey };
 });
 
 /** Convenience hook for components that only need the resolved mode. */

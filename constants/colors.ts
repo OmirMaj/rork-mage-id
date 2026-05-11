@@ -1,3 +1,19 @@
+// Colors — single source of truth.
+//
+// Theme-aware: every surface + text token below is a *getter* that
+// reads from `_currentTheme`. ThemeContext flips `_currentTheme` via
+// `setColorTheme()` whenever the user toggles light/dark/system.
+//
+// Important caveat: StyleSheet.create() captures values at module
+// load time. Files that put `Colors.text` inside StyleSheet.create
+// won't observe theme changes after their first render (the captured
+// value is frozen). The fix is either:
+//   1. Read Colors at render time via inline JSX styles, or
+//   2. Use `useThemedColors()` hook + recompute styles per render.
+// New screens should prefer pattern #2; legacy screens that haven't
+// migrated still benefit from this module's getter pattern when their
+// files are first imported AFTER a theme change (lazy-loaded routes).
+
 function hexToHsl(hex: string): { h: number; s: number; l: number } {
   const r = parseInt(hex.slice(1, 3), 16) / 255;
   const g = parseInt(hex.slice(3, 5), 16) / 255;
@@ -47,18 +63,57 @@ function derivePrimaryDark(hex: string): string {
   return hslToHex(h, s, Math.max(l - 0.12, 0.1));
 }
 
+// ─────────────────────────────────────────────────────────────────────
+// Theme state
+// ─────────────────────────────────────────────────────────────────────
+
 let _customPrimary: string | null = null;
 let _customAccent: string | null = null;
+let _currentTheme: 'light' | 'dark' = 'light';
 
+/** Set the user's primary/accent overrides. Called from settings. */
 export function setCustomColors(primary: string | null, accent: string | null) {
   _customPrimary = primary;
   _customAccent = accent;
 }
 
+/** Set the current theme. Called by ThemeContext whenever the resolved
+ *  theme (light/dark) changes. Affects all theme-aware getters below.
+ *  Does NOT force re-renders on its own — pair with a React key bump
+ *  at the root to force any inline-style consumers to re-evaluate. */
+export function setColorTheme(theme: 'light' | 'dark') {
+  _currentTheme = theme;
+}
+
+/** Read the current theme. Used by getters + by consumers that need to
+ *  branch on theme outside a React tree. */
+export function getColorTheme(): 'light' | 'dark' {
+  return _currentTheme;
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Theme-aware Colors object
+// ─────────────────────────────────────────────────────────────────────
+//
+// Surface + text tokens are getters that branch on `_currentTheme`.
+// Brand tokens (primary, accent), neutrals (ink/steel/cream — they're
+// brand reference colors), and semantic states (success/warning/error)
+// stay constant across themes.
+
 export const Colors = {
-  get primary() { return _customPrimary || '#1A6B3C'; },
-  get primaryLight() { return _customPrimary ? derivePrimaryLight(_customPrimary) : '#2A9055'; },
-  get primaryDark() { return _customPrimary ? derivePrimaryDark(_customPrimary) : '#0F4526'; },
+  // ── Brand: primary + accent (user-customizable, theme-stable) ──
+  get primary() {
+    const base = _customPrimary || '#1A6B3C';
+    // In dark mode, lift the green so it reads against ink surfaces.
+    // Mirrors the dark palette in hooks/useThemedColors.ts.
+    return _currentTheme === 'dark' ? '#22C55E' : base;
+  },
+  get primaryLight() {
+    return _customPrimary ? derivePrimaryLight(_customPrimary) : '#2A9055';
+  },
+  get primaryDark() {
+    return _customPrimary ? derivePrimaryDark(_customPrimary) : '#0F4526';
+  },
   // Brand amber — matches /marketing/landing.css `--amber: #FF6A1A`
   // and app/onboarding.tsx BRAND.orange. Was iOS-system #FF9500 which
   // collapsed the brand voice once users left onboarding. Now the
@@ -70,11 +125,9 @@ export const Colors = {
   accentSoft: 'rgba(255, 106, 26, 0.16)',
   accentGlow: 'rgba(255, 106, 26, 0.35)',
 
-  // Brand neutrals — ported from /marketing/landing.css. Used on
-  // hero / empty states / Permit Q&A so the app carries the same
-  // "industrial concrete × tech premium" voice as the marketing site
-  // and onboarding splash. Plain `surface: #FFFFFF` reads as default
-  // iOS; `cream` reads as MAGE ID.
+  // ── Brand neutrals — fixed reference colors ──
+  // Ported from /marketing/landing.css. Used on hero / empty states /
+  // Permit Q&A so the app carries the same voice as marketing.
   ink: '#0B0D10',
   steel: '#14181D',
   concrete: '#2A2F36',
@@ -82,56 +135,106 @@ export const Colors = {
   bone: '#E8E1D4',
   off: '#FBF8F2',
 
-  background: '#F2F2F7',
-  surface: '#FFFFFF',
-  surfaceAlt: '#F2F2F7',
-  surfaceElevated: '#FFFFFF',
-  card: '#FFFFFF',
-  // Card outline. Soft system-gray (Apple's default separator color) so
-  // cards group content without competing for attention. Reserve solid
-  // black for primary CTAs only — that way buttons users should press
-  // are the only hard-black thing on screen and actually pop.
-  cardBorder: 'rgba(60,60,67,0.18)',
+  // ── Surfaces — theme-aware ──
+  get background() {
+    return _currentTheme === 'dark' ? '#0B0D10' : '#F2F2F7';
+  },
+  get surface() {
+    return _currentTheme === 'dark' ? '#14181D' : '#FFFFFF';
+  },
+  get surfaceAlt() {
+    return _currentTheme === 'dark' ? '#1A1F26' : '#F2F2F7';
+  },
+  get surfaceElevated() {
+    return _currentTheme === 'dark' ? '#1F252D' : '#FFFFFF';
+  },
+  get card() {
+    return _currentTheme === 'dark' ? '#14181D' : '#FFFFFF';
+  },
+  // Card outline. Soft system-gray (Apple's default separator color) in
+  // light, faint cream in dark.
+  get cardBorder() {
+    return _currentTheme === 'dark'
+      ? 'rgba(255,255,255,0.08)'
+      : 'rgba(60,60,67,0.18)';
+  },
 
-  text: '#000000',
-  textSecondary: 'rgba(60,60,67,0.6)',
-  textMuted: 'rgba(60,60,67,0.36)',
+  // ── Text — theme-aware ──
+  // This is the one the user calls out: "names don't change color."
+  // In dark mode, text inverts to cream so names/labels stay readable
+  // against the dark ink/steel surfaces.
+  get text() {
+    return _currentTheme === 'dark' ? '#F4EFE6' : '#000000';
+  },
+  get textSecondary() {
+    return _currentTheme === 'dark'
+      ? 'rgba(244,239,230,0.7)'
+      : 'rgba(60,60,67,0.6)';
+  },
+  get textMuted() {
+    return _currentTheme === 'dark'
+      ? 'rgba(244,239,230,0.42)'
+      : 'rgba(60,60,67,0.36)';
+  },
   textOnPrimary: '#FFFFFF',
   textOnAccent: '#FFFFFF',
 
-  border: 'rgba(60,60,67,0.18)',
-  borderLight: 'rgba(60,60,67,0.08)',
+  // ── Borders — theme-aware ──
+  get border() {
+    return _currentTheme === 'dark'
+      ? 'rgba(255,255,255,0.12)'
+      : 'rgba(60,60,67,0.18)';
+  },
+  get borderLight() {
+    return _currentTheme === 'dark'
+      ? 'rgba(255,255,255,0.06)'
+      : 'rgba(60,60,67,0.08)';
+  },
 
+  // ── Semantic colors — fixed across themes (status meaning is universal) ──
   success: '#34C759',
   successLight: '#E8FAF0',
   // Material-design dark variants — used as foreground text on a *Light
-  // tinted card (e.g. dark-green text on a pale-green chip). Audit found
-  // 26 inline `#2E7D32`s, 16 `#1E8E4A`s — both consolidate here.
+  // tinted card (e.g. dark-green text on a pale-green chip).
   successDark: '#2E7D32',
   warning: '#FF9500',
   warningLight: '#FFF3E0',
-  warningDark: '#E65100',   // 19 inline uses
+  warningDark: '#E65100',
   error: '#FF3B30',
   errorLight: '#FFF0EF',
-  errorDark: '#C62828',     // 19 inline uses
+  errorDark: '#C62828',
   info: '#007AFF',
   infoLight: '#EBF3FF',
-  infoDark: '#1565C0',      // 8 inline uses
+  infoDark: '#1565C0',
 
   // Apple iOS system purple. Used in a few places (system "Books," some
-  // status indicators). 18 inline uses — surfacing as a token.
+  // status indicators).
   purple: '#5856D6',
   purpleLight: '#EBEAFA',
 
   // Apple iOS system orange (slightly cooler than warning). Used on
   // chips that aren't strictly "warning" semantically.
-  orange: '#FF6A1A',        // 11 inline uses
+  orange: '#FF6A1A',
 
-  shadow: 'rgba(0,0,0,0.05)',
-  overlay: 'rgba(0,0,0,0.45)',
+  // ── Shadows + overlays — theme-aware ──
+  get shadow() {
+    return _currentTheme === 'dark' ? 'rgba(0,0,0,0.40)' : 'rgba(0,0,0,0.05)';
+  },
+  get overlay() {
+    return _currentTheme === 'dark' ? 'rgba(0,0,0,0.65)' : 'rgba(0,0,0,0.45)';
+  },
 
-  fillTertiary: 'rgba(120,120,128,0.12)',
-  fillSecondary: 'rgba(120,120,128,0.08)',
+  // ── Fills — theme-aware ──
+  get fillTertiary() {
+    return _currentTheme === 'dark'
+      ? 'rgba(244,239,230,0.06)'
+      : 'rgba(120,120,128,0.12)';
+  },
+  get fillSecondary() {
+    return _currentTheme === 'dark'
+      ? 'rgba(244,239,230,0.10)'
+      : 'rgba(120,120,128,0.08)';
+  },
 };
 
 export default {
