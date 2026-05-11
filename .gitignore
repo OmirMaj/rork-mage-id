@@ -22,6 +22,8 @@ android/
 .claude/
 .vscode/
 .idea/
+.superpowers/
+.obsidian/
 
 # Supabase CLI temp files
 supabase/.temp/
