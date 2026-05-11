@@ -6,19 +6,16 @@
 // productivity apps use this everywhere; it's the cheap-vs-premium
 // tell on a list screen.
 //
-// Three primitives:
+// Primitives:
 //   <Skeleton width height radius style />  — single block
-//   <SkeletonRow />                          — opinionated row pattern
-//                                              (avatar + 2 lines of text)
+//   <SkeletonRow />                          — avatar + 2 lines of text
 //   <SkeletonCard />                         — full project-card-shaped block
-//
-// Animation: a single shared opacity loop (0.4 → 1.0 → 0.4 over 1100ms)
-// so 20 skeletons on screen don't run 20 separate timers. Driver is JS
-// (opacity on Views) — switch to native if you batch-mount more than ~80.
-import React, { useEffect, useRef, useMemo } from 'react';
+//   <ListSkeleton count={n} />               — n SkeletonCards in a row
+
+import React, { useEffect, useRef } from 'react';
 import { Animated, Easing, StyleSheet, View, ViewStyle } from 'react-native';
-import { Colors } from '@/constants/colors';
 import { Tokens } from '@/constants/designTokens';
+import { useTheme } from '@/contexts/ThemeContext';
 
 interface SkeletonProps {
   width?: number | `${number}%`;
@@ -29,6 +26,7 @@ interface SkeletonProps {
 
 export function Skeleton({ width = '100%', height = 14, radius = 6, style }: SkeletonProps) {
   const opacity = useSharedShimmer();
+  const { colors } = useTheme();
   return (
     <Animated.View
       style={[
@@ -36,7 +34,7 @@ export function Skeleton({ width = '100%', height = 14, radius = 6, style }: Ske
           width: width as number | `${number}%`,
           height,
           borderRadius: radius,
-          backgroundColor: Colors.fillTertiary,
+          backgroundColor: colors.line,
           opacity,
         },
         style,
@@ -48,12 +46,13 @@ export function Skeleton({ width = '100%', height = 14, radius = 6, style }: Ske
 /** Avatar + two-line skeleton row, sized to look like a list item. */
 export function SkeletonRow({ style }: { style?: ViewStyle }) {
   const opacity = useSharedShimmer();
+  const { colors } = useTheme();
   return (
     <View style={[rowStyles.wrapper, style]}>
-      <Animated.View style={[rowStyles.avatar, { opacity }]} />
+      <Animated.View style={[rowStyles.avatar, { opacity, backgroundColor: colors.line }]} />
       <View style={rowStyles.lines}>
-        <Animated.View style={[rowStyles.lineLong, { opacity }]} />
-        <Animated.View style={[rowStyles.lineShort, { opacity }]} />
+        <Animated.View style={[rowStyles.lineLong, { opacity, backgroundColor: colors.line }]} />
+        <Animated.View style={[rowStyles.lineShort, { opacity, backgroundColor: colors.line }]} />
       </View>
     </View>
   );
@@ -62,29 +61,39 @@ export function SkeletonRow({ style }: { style?: ViewStyle }) {
 /** Full-card skeleton matching the ProjectCard footprint. */
 export function SkeletonCard({ style }: { style?: ViewStyle }) {
   const opacity = useSharedShimmer();
+  const { colors } = useTheme();
   return (
-    <View style={[cardStyles.card, style]}>
+    <View style={[cardStyles.card, { backgroundColor: colors.surface, borderColor: colors.line }, style]}>
       <View style={cardStyles.row}>
-        <Animated.View style={[cardStyles.icon, { opacity }]} />
+        <Animated.View style={[cardStyles.icon, { opacity, backgroundColor: colors.line }]} />
         <View style={cardStyles.title}>
-          <Animated.View style={[cardStyles.lineLong, { opacity }]} />
-          <Animated.View style={[cardStyles.lineShort, { opacity }]} />
+          <Animated.View style={[cardStyles.lineLong, { opacity, backgroundColor: colors.line }]} />
+          <Animated.View style={[cardStyles.lineShort, { opacity, backgroundColor: colors.line }]} />
         </View>
-        <Animated.View style={[cardStyles.pill, { opacity }]} />
+        <Animated.View style={[cardStyles.pill, { opacity, backgroundColor: colors.line }]} />
       </View>
-      <View style={cardStyles.divider} />
+      <View style={[cardStyles.divider, { backgroundColor: colors.line }]} />
       <View style={cardStyles.metaRow}>
-        <Animated.View style={[cardStyles.metaBlock, { opacity }]} />
-        <Animated.View style={[cardStyles.metaBlock, { opacity }]} />
-        <Animated.View style={[cardStyles.metaBlock, { opacity }]} />
+        <Animated.View style={[cardStyles.metaBlock, { opacity, backgroundColor: colors.line }]} />
+        <Animated.View style={[cardStyles.metaBlock, { opacity, backgroundColor: colors.line }]} />
+        <Animated.View style={[cardStyles.metaBlock, { opacity, backgroundColor: colors.line }]} />
       </View>
     </View>
   );
 }
 
+/** Convenience: render `count` SkeletonCards. */
+export function ListSkeleton({ count = 3 }: { count?: number }) {
+  return (
+    <>
+      {Array.from({ length: count }).map((_, i) => (
+        <SkeletonCard key={i} />
+      ))}
+    </>
+  );
+}
+
 // Internal — every skeleton on screen reads from the same opacity ref.
-// Returns an Animated.Value, not a hook return. We construct it once
-// per component and start the shared loop on first mount.
 function useSharedShimmer() {
   const opacity = useRef(new Animated.Value(0.4)).current;
   useEffect(() => {
@@ -121,22 +130,19 @@ const rowStyles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: Tokens.radius.card,
-    backgroundColor: Colors.fillTertiary,
   },
   lines: { flex: 1, gap: 6 },
-  lineLong: { height: 12, backgroundColor: Colors.fillTertiary, borderRadius: Tokens.radius.xs, width: '70%' as const },
-  lineShort: { height: 10, backgroundColor: Colors.fillTertiary, borderRadius: 5, width: '40%' as const },
+  lineLong: { height: 12, borderRadius: Tokens.radius.xs, width: '70%' as const },
+  lineShort: { height: 10, borderRadius: 5, width: '40%' as const },
 });
 
 const cardStyles = StyleSheet.create({
   card: {
     marginHorizontal: 16,
     marginBottom: 10,
-    backgroundColor: Colors.surface,
     borderRadius: Tokens.radius.panel,
     overflow: 'hidden' as const,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
   },
   row: {
     flexDirection: 'row' as const,
@@ -148,13 +154,12 @@ const cardStyles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: Tokens.radius.card,
-    backgroundColor: Colors.fillTertiary,
   },
   title: { flex: 1, gap: 6 },
-  lineLong: { height: 14, backgroundColor: Colors.fillTertiary, borderRadius: 7, width: '70%' as const },
-  lineShort: { height: 10, backgroundColor: Colors.fillTertiary, borderRadius: 5, width: '40%' as const },
-  pill: { width: 80, height: 22, borderRadius: 11, backgroundColor: Colors.fillTertiary },
-  divider: { height: 0.5, backgroundColor: Colors.borderLight, marginHorizontal: 16 },
+  lineLong: { height: 14, borderRadius: 7, width: '70%' as const },
+  lineShort: { height: 10, borderRadius: 5, width: '40%' as const },
+  pill: { width: 80, height: 22, borderRadius: 11 },
+  divider: { height: 0.5, marginHorizontal: 16 },
   metaRow: {
     flexDirection: 'row' as const,
     paddingHorizontal: 16,
@@ -165,7 +170,6 @@ const cardStyles = StyleSheet.create({
     flex: 1,
     height: 30,
     borderRadius: Tokens.radius.sm,
-    backgroundColor: Colors.fillTertiary,
   },
 });
 
