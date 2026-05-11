@@ -4,12 +4,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import {
-  MapPin, Ruler, Percent, ShieldCheck, Info, Trash2, ChevronRight, Building2, User, Phone, Mail, FileText, Award, Type as TypeIcon, Camera, PenTool, X, Image as ImageIcon, Store, Package, Truck, ScanFace, Bell, Crown, Star, Zap, Check, Sparkles, Hash, Database, HelpCircle, MessageCircle, BookOpen, LogOut, UserCircle, Eye, EyeOff, FolderDown, Wallet, Rocket } from 'lucide-react-native';
+  MapPin, Ruler, Percent, ShieldCheck, Info, Trash2, ChevronRight, Building2, User, Phone, Mail, FileText, Award, Type as TypeIcon, Camera, PenTool, X, Image as ImageIcon, Store, Package, Truck, ScanFace, Bell, Crown, Star, Zap, Check, Sparkles, Hash, Database, HelpCircle, MessageCircle, BookOpen, LogOut, UserCircle, Eye, EyeOff, FolderDown, Wallet, Rocket, Moon, Sun, Laptop } from 'lucide-react-native';
 import { Colors, setCustomColors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { isOwner } from '@/utils/owner';
 import { useSubscription } from '@/contexts/SubscriptionContext';
+import { useTheme, type ThemePreference } from '@/contexts/ThemeContext';
 import { getAIUsageStats } from '@/utils/aiRateLimiter';
 import { useTakeoffPagesQuota } from '@/hooks/useUsageStatus';
 import { THEME_PRESETS } from '@/types';
@@ -361,6 +362,17 @@ export default function SettingsScreen() {
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
   }, [settings.units, updateSettings]);
 
+  // Theme preference — cycles light → dark → system on tap. Persisted
+  // via ThemeContext (AsyncStorage). v1 only flips StatusBar + system
+  // nav bar; full per-screen surface migration is a follow-up.
+  const { preference: themePref, resolved: themeResolved, setPreference: setThemePref } = useTheme();
+  const handleCycleTheme = useCallback(() => {
+    const order: ThemePreference[] = ['system', 'light', 'dark'];
+    const next = order[(order.indexOf(themePref) + 1) % order.length];
+    void setThemePref(next);
+    if (Platform.OS !== 'web') void Haptics.selectionAsync();
+  }, [themePref, setThemePref]);
+
   const sigPadWidth = Math.min(SCREEN_WIDTH - 80, 340);
 
   return (
@@ -516,6 +528,29 @@ export default function SettingsScreen() {
               </TouchableOpacity>
             )}
           </View>
+        </View>
+
+        {/* Appearance — dark mode preference. Cycles system → light →
+            dark on each tap. The label shows which is currently active.
+            v1 caveat: this flips StatusBar + nav bar but per-screen
+            surface theming is still light. Documented in ThemeContext. */}
+        <Text style={styles.sectionHeader}>APPEARANCE</Text>
+        <View style={styles.group}>
+          <TouchableOpacity style={styles.row} onPress={handleCycleTheme} activeOpacity={0.6}>
+            <View style={[styles.iconWrap, { backgroundColor: Colors.ink }]}>
+              {themePref === 'dark' ? <Moon size={14} color={Colors.cream} /> :
+               themePref === 'light' ? <Sun size={14} color={Colors.cream} /> :
+               <Laptop size={14} color={Colors.cream} />}
+            </View>
+            <Text style={styles.rowLabel}>Theme</Text>
+            <View style={styles.rowRight}>
+              <Text style={styles.rowValue}>
+                {themePref === 'system' ? `System (${themeResolved})` :
+                 themePref === 'dark' ? 'Dark' : 'Light'}
+              </Text>
+              <ChevronRight size={16} color={Colors.textMuted} />
+            </View>
+          </TouchableOpacity>
         </View>
 
         <Text style={styles.sectionHeader}>LOCATION & UNITS</Text>

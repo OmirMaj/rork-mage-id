@@ -19,7 +19,10 @@ import {
   HelpCircle, ClipboardCheck, Receipt, Repeat, FileText, CheckSquare, Shield,
   UserRound, Wrench, Clock, HardHat, Briefcase, Layers, MessageSquare, Mail,
   MapPin, PenTool, ClipboardList, Bell,
+  Plus, Sparkles, Settings as SettingsIcon, Gavel, Compass,
 } from 'lucide-react-native';
+import { useRouter } from 'expo-router';
+import { filterCommandsGrouped, categoryLabel, type CommandItem } from '@/utils/commandPalette';
 import { Colors } from '@/constants/colors';
 import { useSearch } from '@/contexts/SearchContext';
 import { useUniversalSearch, type SearchResult } from '@/hooks/useUniversalSearch';
@@ -109,12 +112,28 @@ export default function UniversalSearch() {
   const { isOpen, closeSearch } = useSearch();
   const insets = useSafeAreaInsets();
   const { navigateTo } = useEntityNavigation();
+  const router = useRouter();
 
   const [query, setQuery] = useState('');
   const [recent, setRecent] = useState<string[]>([]);
   const inputRef = useRef<TextInput | null>(null);
 
   const { grouped, isSearching } = useUniversalSearch(query);
+
+  // Command palette: filter quick-action commands by the same query.
+  // Memoize so we don't re-run the substring match on every keystroke.
+  const commandGroups = useMemo(() => filterCommandsGrouped(query), [query]);
+  const hasCommandMatches = useMemo(
+    () => Array.from(commandGroups.values()).some(list => list.length > 0),
+    [commandGroups],
+  );
+
+  const handleCommandPress = useCallback((cmd: CommandItem) => {
+    closeSearch();
+    // pageSheet dismiss on iOS needs a delay before router.push (same
+    // pattern as handleResultPress).
+    setTimeout(() => cmd.action(router), Platform.OS === 'ios' ? 350 : 0);
+  }, [closeSearch, router]);
 
   // Load recents on first mount + every time the modal opens.
   useEffect(() => {
@@ -202,7 +221,10 @@ export default function UniversalSearch() {
   }, [isOpen, closeSearch]);
 
   const showEmptyPrompt = query.trim().length === 0;
-  const showNoResults = !showEmptyPrompt && !isSearching && totalCount === 0;
+  // Don't show "no matches" if commands matched even when entities didn't —
+  // the user got something useful (e.g. they typed "permit" and saw the
+  // "Ask Permit Q&A" command even though no permit entity matched).
+  const showNoResults = !showEmptyPrompt && !isSearching && totalCount === 0 && !hasCommandMatches;
 
   return (
     <Modal
@@ -313,6 +335,52 @@ export default function UniversalSearch() {
               </Text>
             </View>
           ) : null}
+
+          {/* Commands — quick actions that match the query, rendered
+              above entity results. Each renders with a category-tinted
+              icon so users can distinguish "create" from "open" from
+              "AI". Hidden when the query is empty (the recents list
+              fills that role). */}
+          {!showEmptyPrompt && hasCommandMatches && (
+            <View>
+              {Array.from(commandGroups.entries()).map(([cat, cmds]) => {
+                const Icon = cat === 'create' ? Plus
+                  : cat === 'ai' ? Sparkles
+                  : cat === 'marketplace' ? Compass
+                  : cat === 'settings' ? SettingsIcon
+                  : Gavel;
+                return (
+                  <View key={cat} style={styles.group}>
+                    <View style={styles.sectionHeaderRow}>
+                      <Text style={styles.sectionHeader}>
+                        {categoryLabel(cat)} · {cmds.length}
+                      </Text>
+                    </View>
+                    {cmds.map(c => (
+                      <TouchableOpacity
+                        key={c.id}
+                        style={styles.resultRow}
+                        onPress={() => handleCommandPress(c)}
+                        activeOpacity={0.7}
+                        testID={`command-palette-${c.id}`}
+                      >
+                        <View style={styles.resultIcon}>
+                          <Icon size={18} color={Colors.accent} />
+                        </View>
+                        <View style={styles.resultBody}>
+                          <Text style={styles.resultTitle} numberOfLines={1}>{c.title}</Text>
+                          {c.subtitle ? (
+                            <Text style={styles.resultSubtitle} numberOfLines={1}>{c.subtitle}</Text>
+                          ) : null}
+                        </View>
+                        <ChevronRight size={16} color={Colors.textMuted} />
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                );
+              })}
+            </View>
+          )}
 
           {/* Grouped results */}
           {!showEmptyPrompt

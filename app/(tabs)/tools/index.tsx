@@ -21,7 +21,7 @@ import {
   Sparkles, Gavel, ShieldCheck, ListChecks, MessageSquare,
   Truck, Package, Banknote, Wallet, FileDown, UserPlus,
   FileWarning, Calendar, Building, Bookmark, Trophy, Users, Inbox,
-  Wrench,
+  Wrench, HardHat, ClipboardCheck,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { Type } from '@/constants/typography';
@@ -284,6 +284,29 @@ export default function ToolsScreen() {
             tone="emerald"
             onPress={() => router.push('/tax-1099-export' as never)}
             testID="tools-tax-1099"
+          />
+        </Section>
+
+        {/* Safety & QC — OSHA defensibility + preventive trade
+            checks. Sits above Permits because these are the daily
+            workflows; permits are upstream of execution. */}
+        <Section title="Safety & QC">
+          <NavRow
+            Icon={HardHat}
+            title="Safety"
+            subtitle="Toolbox talks · incident log · OSHA 300A summary"
+            tone="warning"
+            onPress={() => router.push('/safety' as never)}
+            testID="tools-safety"
+          />
+          <Divider />
+          <NavRow
+            Icon={ClipboardCheck}
+            title="QC Checklists"
+            subtitle="Pre-pour, pre-rock, rough electrical & more — templated"
+            tone="amber"
+            onPress={() => router.push('/qc-checklists' as never)}
+            testID="tools-qc"
           />
         </Section>
 

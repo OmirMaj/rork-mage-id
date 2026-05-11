@@ -96,6 +96,11 @@ export default function Root({ children }: PropsWithChildren) {
 // Override the Expo body scroll lock so direct-link landing on any
 // route (e.g., /permit-qa or /project-detail?id=…) can actually scroll
 // past the fold. Without this, web users hit a wall.
+//
+// Plus a print stylesheet so users can `Cmd+P` a daily report or
+// invoice from web and get a clean printout. The MAGE chrome (header,
+// sidebar, tab bar, floating buttons) gets stripped; content goes
+// edge-to-edge; type sizes scale up for paper readability.
 const bodyScrollOverride = `
   html, body {
     height: auto;
@@ -108,5 +113,58 @@ const bodyScrollOverride = `
   #root {
     flex: 1;
     min-height: 100vh;
+  }
+
+  /* ─── Print stylesheet ─────────────────────────────────────────
+     Activates when the user hits Cmd+P / File → Print. Hides
+     navigation chrome and floating UI; expands content to full
+     width; switches to serif for body type which prints better. */
+  @media print {
+    /* Browser fills white behind the page */
+    html, body, #root { background: #ffffff !important; }
+
+    /* Hide nav chrome — anything tagged data-print="hide" disappears.
+       Sidebars, tab bars, FABs, modals get this attribute (or fall
+       under one of the role/aria selectors below). */
+    [data-print="hide"],
+    nav[aria-label],
+    [role="navigation"],
+    [role="tablist"],
+    [role="dialog"][aria-hidden="true"] {
+      display: none !important;
+    }
+
+    /* Strip card shadows / borders that don't print cleanly */
+    * {
+      box-shadow: none !important;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    /* Expand main content area */
+    main, #root > div {
+      max-width: 100% !important;
+      padding: 0 !important;
+      margin: 0 !important;
+    }
+
+    /* Anchor links print with the URL after */
+    a[href]:after {
+      content: " (" attr(href) ")";
+      font-size: 80%;
+      color: #666;
+    }
+    /* …but not internal hash links */
+    a[href^="#"]:after,
+    a[href^="javascript:"]:after { content: ""; }
+
+    /* Avoid page breaks inside tables / images */
+    table, img, figure { page-break-inside: avoid; }
+
+    /* Headings keep with their content */
+    h1, h2, h3 { page-break-after: avoid; }
+
+    /* Page margin */
+    @page { margin: 0.6in; }
   }
 `;

@@ -8,6 +8,7 @@ import { AppState, Platform, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import ConstructionLoader from "@/components/ConstructionLoader";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { ThemeProvider } from "@/contexts/ThemeContext";
 import { ProjectProvider, useProjects } from "@/contexts/ProjectContext";
 import { SubscriptionProvider, useSubscription } from "@/contexts/SubscriptionContext";
 import { BidsProvider } from "@/contexts/BidsContext";
@@ -323,6 +324,9 @@ function RootLayoutNav() {
       <Stack.Screen name="buyout" options={{ title: 'Buyout' }} />
       <Stack.Screen name="buyout-package" options={{ title: 'Bid Package' }} />
       <Stack.Screen name="approvals" options={{ title: 'Approvals' }} />
+      <Stack.Screen name="whats-new" options={{ title: "What's new" }} />
+      <Stack.Screen name="safety" options={{ title: 'Safety' }} />
+      <Stack.Screen name="qc-checklists" options={{ title: 'QC Checklists' }} />
       <Stack.Screen name="sub-scorecards" options={{ title: 'Sub Scorecards' }} />
       <Stack.Screen name="account-security" options={{ title: 'Account Security' }} />
       <Stack.Screen name="welcome" options={{ headerShown: false }} />
@@ -937,6 +941,7 @@ export default Sentry.wrap(function RootLayout() {
       <QueryClientProvider client={queryClient}>
         <GestureHandlerRootView style={{ flex: 1 }}>
           <ThemeLoader>
+            <ThemeProvider>
             <AuthProvider>
               <SubscriptionProvider>
                 <ProjectProvider>
@@ -960,6 +965,7 @@ export default Sentry.wrap(function RootLayout() {
                 </ProjectProvider>
               </SubscriptionProvider>
             </AuthProvider>
+            </ThemeProvider>
           </ThemeLoader>
         </GestureHandlerRootView>
       </QueryClientProvider>
