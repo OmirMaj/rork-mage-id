@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import {
-  MapPin, Ruler, Percent, ShieldCheck, Info, Trash2, ChevronRight, Building2, User, Phone, Mail, FileText, Award, Type as TypeIcon, Camera, PenTool, X, Image as ImageIcon, Store, Package, Truck, ScanFace, Bell, Crown, Star, Zap, Check, Sparkles, Hash, Database, HelpCircle, MessageCircle, BookOpen, LogOut, UserCircle, Eye, EyeOff, FolderDown, Wallet } from 'lucide-react-native';
+  MapPin, Ruler, Percent, ShieldCheck, Info, Trash2, ChevronRight, Building2, User, Phone, Mail, FileText, Award, Type as TypeIcon, Camera, PenTool, X, Image as ImageIcon, Store, Package, Truck, ScanFace, Bell, Crown, Star, Zap, Check, Sparkles, Hash, Database, HelpCircle, MessageCircle, BookOpen, LogOut, UserCircle, Eye, EyeOff, FolderDown, Wallet, Palette } from 'lucide-react-native';
 import { Colors, setCustomColors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -552,6 +552,21 @@ export default function SettingsScreen() {
                 thumbColor={Colors.surface}
                 ios_backgroundColor={Colors.fillTertiary}
               />
+            </View>
+          </TouchableOpacity>
+          <View style={styles.rowSeparator} />
+          <TouchableOpacity
+            style={styles.row}
+            onPress={() => router.push('/(tabs)/settings/appearance' as never)}
+            activeOpacity={0.6}
+            testID="settings-appearance"
+          >
+            <View style={[styles.iconWrap, { backgroundColor: '#FF6A1A' }]}>
+              <Palette size={14} color="#fff" />
+            </View>
+            <Text style={styles.rowLabel}>Appearance</Text>
+            <View style={styles.rowRight}>
+              <ChevronRight size={18} color={Colors.textMuted} />
             </View>
           </TouchableOpacity>
         </View>
