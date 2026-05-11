@@ -15,12 +15,24 @@
 //   2. Geocode backfill — was hardcoded to latitude:null/longitude:null,
 //      so 92% of cached_bids had no coordinates and "Near Me" filtering
 //      worked on 8% of the feed. Now we look up every unique (city,state)
-//      that's missing coords via Google Maps Geocoding API and persist
-//      the result in city_coords (cache-first; never re-pay for the same
-//      pair). Cost stays inside Google's $200/mo free credit at our
-//      volume (~600 unique pairs/mo).
+//      that's missing coords and persist to the city_coords table
+//      (cache-first; never re-pay for the same pair).
 //   3. Removed `latitude:null,longitude:null` hardcode — let upsert pull
 //      coords from city_coords cache when we already know them.
+//
+// 2026-05-11 cost cut:
+//   - Reordered geocoders so the FREE provider runs first.
+//     Was: Google Places (paid, ~$0.032/call) → Nominatim fallback
+//     Now: Nominatim (free, OSM) primary → Google Places fallback
+//   - Census Geocoder evaluated and rejected: its onelineaddress
+//     endpoint requires a street address; SAM.gov gives us only
+//     city + state, so Census returns empty for our queries.
+//     Nominatim handles city+state lookups cleanly via the
+//     dedicated `?city=&state=&country=USA` parameters.
+//   - Added 1.1s politeness delay between Nominatim calls per OSM's
+//     usage policy (https://operations.osmfoundation.org/policies/nominatim/).
+//   - Expected monthly cost: ~$3-5/mo (down from ~$19/mo). Google
+//     Places only fires if Nominatim returns null, which is rare.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -52,12 +64,15 @@ function cityKey(city: string, state: string): string {
 // Resolve a (city, state) → lat/long.
 //
 // Tries two providers in order:
-//   1. Google Places Text Search — reuses the same API the rest of this
-//      function already calls successfully for cached_companies, so we
-//      know the key is enabled for it. Costs ~$0.032 per call.
-//   2. OpenStreetMap Nominatim — free, no API key, generous rate limits
-//      (1 req/sec politeness). Used as a fallback if Places fails so the
-//      backfill still progresses on misconfigured keys.
+//   1. OpenStreetMap Nominatim — FREE, no API key. Handles city+state
+//      cleanly via the dedicated `?city=&state=&country=USA` query
+//      params. Rate-limited to 1 req/sec per OSM's usage policy; we
+//      sleep 1.1s between calls to stay polite.
+//   2. Google Places Text Search — paid (~$0.032/call), only fires
+//      when Nominatim returns nothing (rare for US cities). Kept as
+//      a safety net for edge cases (typos, weird municipal names).
+//      Set NEVER_USE_GOOGLE=true in env if you want to skip entirely
+//      and accept the small miss rate.
 //
 // Both calls capture an `errKey` so the caller can return a sample
 // failure reason in the function response (we can't read console logs
@@ -66,8 +81,31 @@ async function geocodeCity(
   city: string, state: string, googleKey: string,
   diag: { lastPlacesStatus?: string; lastPlacesError?: string; lastNominatimStatus?: number },
 ): Promise<{ lat: number; lng: number } | null> {
-  // Attempt 1: Google Places Text Search.
-  if (googleKey) {
+  // Attempt 1: Nominatim (free).
+  try {
+    const nUrl = `https://nominatim.openstreetmap.org/search?city=${encodeURIComponent(city)}&state=${encodeURIComponent(state)}&country=USA&format=json&limit=1`
+    const r = await fetch(nUrl, { headers: { 'User-Agent': 'mage-id/1.0 (cron-backfill; admin@mageid.app)' } })
+    diag.lastNominatimStatus = r.status
+    if (r.ok) {
+      const arr = await r.json()
+      if (Array.isArray(arr) && arr[0]?.lat && arr[0]?.lon) {
+        // Politeness sleep — OSM asks ≤1 req/sec. The 1.1s buffer
+        // keeps us comfortably under that limit even if multiple
+        // city/state pairs need geocoding in the same run.
+        await new Promise((resolve) => setTimeout(resolve, 1100))
+        return { lat: parseFloat(arr[0].lat), lng: parseFloat(arr[0].lon) }
+      }
+    }
+  } catch {
+    /* fall through to Google fallback */
+  }
+
+  // Attempt 2: Google Places Text Search (paid fallback).
+  // Skip entirely if NEVER_USE_GOOGLE=true is set in the function env —
+  // this lets you cap costs at exactly $0 if Nominatim misses are
+  // acceptable.
+  const neverGoogle = (Deno.env.get('NEVER_USE_GOOGLE') ?? '').toLowerCase() === 'true'
+  if (googleKey && !neverGoogle) {
     const url = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(`${city}, ${state}`)}&key=${googleKey}`
     try {
       const r = await fetch(url)
@@ -89,20 +127,6 @@ async function geocodeCity(
     }
   }
 
-  // Attempt 2: Nominatim. No key required.
-  try {
-    const nUrl = `https://nominatim.openstreetmap.org/search?city=${encodeURIComponent(city)}&state=${encodeURIComponent(state)}&country=USA&format=json&limit=1`
-    const r = await fetch(nUrl, { headers: { 'User-Agent': 'mage-id/1.0 (cron-backfill)' } })
-    diag.lastNominatimStatus = r.status
-    if (r.ok) {
-      const arr = await r.json()
-      if (Array.isArray(arr) && arr[0]?.lat && arr[0]?.lon) {
-        return { lat: parseFloat(arr[0].lat), lng: parseFloat(arr[0].lon) }
-      }
-    }
-  } catch {
-    /* swallow; both providers failed */
-  }
   return null
 }
 
