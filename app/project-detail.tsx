@@ -20,6 +20,7 @@ import {
 import { PROJECT_TYPES, type ProjectType, type ProjectCollaborator, type EntityRef, type ProjectPhoto, type PhotoMarkup } from '@/types';
 import Svg, { Path as SvgPath, Circle as SvgCircle, Line as SvgLine, Polygon as SvgPolygon, Text as SvgTextEl } from 'react-native-svg';
 import { Colors } from '@/constants/colors';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { useEntityNavigation } from '@/hooks/useEntityNavigation';
@@ -78,6 +79,7 @@ export default function ProjectDetailScreen() {
   const insets = useSafeAreaInsets();
   const layout = useResponsiveLayout();
   const router = useRouter();
+  const { colors: themeColors } = useTheme();
   const { navigateTo } = useEntityNavigation();
   const { id } = useLocalSearchParams<{ id: string }>();
   const ctx = useProjects() as any;
@@ -913,7 +915,7 @@ export default function ProjectDetailScreen() {
 
   if (!project) {
     return (
-      <View style={[styles.container, styles.center]}>
+      <View style={[styles.container, styles.center, { backgroundColor: themeColors.bg }]}>
         <Stack.Screen options={{ title: 'Not Found' }} />
         <Text style={styles.notFoundText}>Project not found</Text>
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
@@ -936,7 +938,7 @@ export default function ProjectDetailScreen() {
   const heroLabel = linkedEstimate ? `${linkedItems.length} items` : estimate ? `${Array.isArray(estimate.materials) ? estimate.materials.length : 0} materials` : '';
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
       <Stack.Screen options={stackScreenOptions} />
       <ScrollView
         contentContainerStyle={[{ paddingBottom: insets.bottom + 40 }, layout.isDesktop && { maxWidth: 1200, alignSelf: 'center' as const, width: '100%' as any }]}
