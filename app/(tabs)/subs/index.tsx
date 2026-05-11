@@ -14,6 +14,7 @@ import {
 import * as DocumentPicker from 'expo-document-picker';
 import { supabase } from '@/lib/supabase';
 import { Colors } from '@/constants/colors';
+import { useThemedColors, type ThemedPalette } from '@/hooks/useThemedColors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import AISubEvaluator from '@/components/AISubEvaluator';
@@ -65,6 +66,8 @@ function LicenseVerificationCard({
   sub: Subcontractor;
   onMarkVerified: (field: 'license' | 'coi') => void;
 }) {
+  const c = useThemedColors();
+  const vStyles = useMemo(() => makeVStyles(c), [c]);
   const verifiedAge = (iso: string | undefined): { label: string; color: string } => {
     if (!iso) return { label: 'Not verified', color: Colors.textMuted };
     const ms = Date.now() - new Date(iso).getTime();
@@ -145,30 +148,34 @@ function LicenseVerificationCard({
   );
 }
 
-const vStyles = StyleSheet.create({
-  wrap: {
-    marginTop: 10, padding: 10, borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.fillTertiary,
-    borderWidth: 1, borderColor: Colors.border,
-    gap: 10,
-  },
-  row: { flexDirection: 'column', gap: Tokens.spacing.xs },
-  rowLeft: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs },
-  dot: { width: 8, height: 8, borderRadius: 4 },
-  label: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: Colors.text },
-  subLabel: { fontSize: 11, color: Colors.textMuted, marginTop: 1 },
-  actionsRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
-  actionBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xxs,
-    paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999,
-    backgroundColor: Colors.card,
-    borderWidth: 1, borderColor: Colors.border,
-  },
-  actionBtnText: { fontSize: 11, fontWeight: '700', color: Colors.primary },
-});
+function makeVStyles(c: ThemedPalette) {
+  return StyleSheet.create({
+    wrap: {
+      marginTop: 10, padding: 10, borderRadius: Tokens.radius.md,
+      backgroundColor: c.fillTertiary,
+      borderWidth: 1, borderColor: c.border,
+      gap: 10,
+    },
+    row: { flexDirection: 'column', gap: Tokens.spacing.xs },
+    rowLeft: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs },
+    dot: { width: 8, height: 8, borderRadius: 4 },
+    label: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: c.text },
+    subLabel: { fontSize: 11, color: c.textMuted, marginTop: 1 },
+    actionsRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' as const },
+    actionBtn: {
+      flexDirection: 'row' as const, alignItems: 'center' as const, gap: Tokens.spacing.xxs,
+      paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999,
+      backgroundColor: c.card,
+      borderWidth: 1, borderColor: c.border,
+    },
+    actionBtnText: { fontSize: 11, fontWeight: '700' as const, color: c.primary },
+  });
+}
 
 export default function SubsScreen() {
   const insets = useSafeAreaInsets();
+  const c = useThemedColors();
+  const styles = useMemo(() => makeStyles(c), [c]);
   const router = useRouter();
   const { subcontractors, addSubcontractor, updateSubcontractor, deleteSubcontractor, projects, prequalPackets } = useProjects();
   const { tier } = useSubscription();
@@ -782,89 +789,91 @@ export default function SubsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: Tokens.spacing.lg, paddingTop: Tokens.spacing.xxs, marginBottom: Tokens.spacing.md },
-  largeTitle: { fontSize: Type.largeTitle.fontSize, fontWeight: '700' as const, color: Colors.text, letterSpacing: -0.5 },
-  addBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center', shadowColor: Colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
-  prequalBanner: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    marginHorizontal: Tokens.spacing.md, marginBottom: Tokens.spacing.sm,
-    paddingHorizontal: 14, paddingVertical: Tokens.spacing.sm, borderRadius: Tokens.radius.lg,
-    backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.cardBorder,
-  },
-  prequalIcon: {
-    width: 34, height: 34, borderRadius: Tokens.radius.md, alignItems: 'center', justifyContent: 'center',
-    backgroundColor: `${Colors.primary}15`,
-  },
-  prequalTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
-  prequalSub: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, marginTop: 1 },
-  statsRow: { flexDirection: 'row', paddingHorizontal: Tokens.spacing.md, gap: Tokens.spacing.xs, marginBottom: Tokens.spacing.md },
-  statCard: { flex: 1, backgroundColor: Colors.surface, borderRadius: Tokens.radius.card, padding: 14, borderLeftWidth: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 1 },
-  statNum: { fontSize: 24, fontWeight: '800' as const },
-  statLabel: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: Colors.textMuted, marginTop: Tokens.spacing.hairline },
-  searchWrap: { paddingHorizontal: Tokens.spacing.md, marginBottom: Tokens.spacing.sm },
-  searchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.fillTertiary, borderRadius: Tokens.radius.card, paddingHorizontal: Tokens.spacing.sm, gap: Tokens.spacing.xs, height: 40 },
-  searchInput: { flex: 1, fontSize: Type.subhead.fontSize, color: Colors.text },
-  clearBtn: { width: 18, height: 18, borderRadius: 9, backgroundColor: Colors.textMuted, alignItems: 'center', justifyContent: 'center' },
-  filterRow: { paddingHorizontal: Tokens.spacing.md, gap: 6, marginBottom: Tokens.spacing.md },
-  filterChip: { paddingHorizontal: 14, paddingVertical: Tokens.spacing.xs, borderRadius: 20, backgroundColor: Colors.fillTertiary },
-  filterChipActive: { backgroundColor: Colors.primary },
-  filterChipText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.textSecondary },
-  filterChipTextActive: { color: '#fff' },
-  subCard: { marginHorizontal: Tokens.spacing.md, marginBottom: Tokens.spacing.xs, backgroundColor: Colors.surface, borderRadius: Tokens.radius.lg, padding: Tokens.spacing.md, borderWidth: 1, borderColor: Colors.cardBorder, gap: 10 },
-  subCardTop: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.sm },
-  tradeIcon: { width: 40, height: 40, borderRadius: Tokens.radius.card, alignItems: 'center', justifyContent: 'center' },
-  subCardInfo: { flex: 1, gap: Tokens.spacing.hairline },
-  subName: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.text },
-  subContact: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary },
-  statusBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: Tokens.radius.sm },
-  statusDot: { width: 6, height: 6, borderRadius: 3 },
-  statusText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const },
-  subCardMeta: { flexDirection: 'row', gap: Tokens.spacing.md, paddingLeft: 52 },
-  metaItem: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xxs },
-  metaText: { fontSize: Type.caption1.fontSize, color: Colors.textMuted },
-  emptyState: { alignItems: 'center', paddingVertical: 60, paddingHorizontal: Tokens.spacing['3xl'], gap: 10 },
-  emptyTitle: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: Colors.text },
-  emptyDesc: { fontSize: Type.subhead.fontSize, color: Colors.textSecondary, textAlign: 'center' as const, lineHeight: 22 },
-  emptyBtn: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs, backgroundColor: Colors.primary, paddingHorizontal: Tokens.spacing.lg, paddingVertical: Tokens.spacing.sm, borderRadius: Tokens.radius.card, marginTop: Tokens.spacing.xs },
-  emptyBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: '#fff' },
-  modalOverlay: { flex: 1, backgroundColor: Colors.overlay, justifyContent: 'flex-end' },
-  formCard: { backgroundColor: Colors.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 22, gap: Tokens.spacing.xs, maxHeight: '90%' },
-  formHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Tokens.spacing.xs },
-  formTitle: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: Colors.text },
-  fieldLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.textSecondary, marginTop: Tokens.spacing.xxs },
-  input: { minHeight: 44, borderRadius: Tokens.radius.card, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 14, fontSize: Type.subhead.fontSize, color: Colors.text },
-  tradeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: Tokens.spacing.xxs },
-  tradeChip: { paddingHorizontal: Tokens.spacing.sm, paddingVertical: Tokens.spacing.xs, borderRadius: Tokens.radius.md, backgroundColor: Colors.fillTertiary },
-  tradeChipActive: { backgroundColor: Colors.primary },
-  tradeChipText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.textSecondary },
-  tradeChipTextActive: { color: '#fff' },
-  sectionDivider: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: Colors.textMuted, letterSpacing: 0.5, marginTop: Tokens.spacing.sm, marginBottom: Tokens.spacing.xxs },
-  switchRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 44, paddingHorizontal: 14, backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.card },
-  switchLabel: { fontSize: Type.subhead.fontSize, color: Colors.text },
-  formActions: { flexDirection: 'row', gap: 10, marginTop: Tokens.spacing.sm },
-  cancelBtn: { flex: 1, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: Colors.fillTertiary, alignItems: 'center', justifyContent: 'center' },
-  cancelBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text },
-  saveBtn: { flex: 2, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
-  saveBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: '#fff' },
-  detailCard: { backgroundColor: Colors.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 22, maxHeight: '85%' },
-  detailStatusBar: { flexDirection: 'row', alignItems: 'center', gap: Tokens.spacing.xs, padding: Tokens.spacing.sm, borderRadius: Tokens.radius.card, borderLeftWidth: 3, marginBottom: Tokens.spacing.md },
-  detailStatusText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const },
-  detailSection: { marginBottom: Tokens.spacing.lg, gap: Tokens.spacing.xs },
-  detailSectionTitle: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: Colors.textMuted, letterSpacing: 0.5 },
-  detailRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  detailRowText: { fontSize: Type.subhead.fontSize, color: Colors.text },
-  bidRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: Tokens.spacing.xs, borderBottomWidth: 1, borderBottomColor: Colors.borderLight },
-  bidProject: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
-  bidDate: { fontSize: Type.caption1.fontSize, color: Colors.textMuted },
-  bidAmount: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
-  bidOutcome: { paddingHorizontal: Tokens.spacing.xs, paddingVertical: 3, borderRadius: Tokens.radius.xs },
-  bidOutcomeText: { fontSize: 10, fontWeight: '700' as const },
-  detailNotes: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, lineHeight: 20 },
-  detailActions: { flexDirection: 'row', gap: 10, marginTop: Tokens.spacing.md },
-  editDetailBtn: { flex: 1, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
-  editDetailBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: '#fff' },
-  deleteDetailBtn: { flexDirection: 'row', minHeight: 48, paddingHorizontal: Tokens.spacing.lg, borderRadius: Tokens.radius.lg, backgroundColor: Colors.errorLight, alignItems: 'center', justifyContent: 'center', gap: 6 },
-  deleteDetailBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.error },
-});
+function makeStyles(c: ThemedPalette) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: c.background },
+    headerRow: { flexDirection: 'row' as const, justifyContent: 'space-between' as const, alignItems: 'center' as const, paddingHorizontal: Tokens.spacing.lg, paddingTop: Tokens.spacing.xxs, marginBottom: Tokens.spacing.md },
+    largeTitle: { fontSize: Type.largeTitle.fontSize, fontWeight: '700' as const, color: c.text, letterSpacing: -0.5 },
+    addBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: c.primary, alignItems: 'center' as const, justifyContent: 'center' as const, shadowColor: c.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
+    prequalBanner: {
+      flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10,
+      marginHorizontal: Tokens.spacing.md, marginBottom: Tokens.spacing.sm,
+      paddingHorizontal: 14, paddingVertical: Tokens.spacing.sm, borderRadius: Tokens.radius.lg,
+      backgroundColor: c.surface, borderWidth: 1, borderColor: c.cardBorder,
+    },
+    prequalIcon: {
+      width: 34, height: 34, borderRadius: Tokens.radius.md, alignItems: 'center' as const, justifyContent: 'center' as const,
+      backgroundColor: `${c.primary}15`,
+    },
+    prequalTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: c.text },
+    prequalSub: { fontSize: Type.caption2.fontSize, color: c.textSecondary, marginTop: 1 },
+    statsRow: { flexDirection: 'row' as const, paddingHorizontal: Tokens.spacing.md, gap: Tokens.spacing.xs, marginBottom: Tokens.spacing.md },
+    statCard: { flex: 1, backgroundColor: c.surface, borderRadius: Tokens.radius.card, padding: 14, borderLeftWidth: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 1 },
+    statNum: { fontSize: 24, fontWeight: '800' as const },
+    statLabel: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: c.textMuted, marginTop: Tokens.spacing.hairline },
+    searchWrap: { paddingHorizontal: Tokens.spacing.md, marginBottom: Tokens.spacing.sm },
+    searchBar: { flexDirection: 'row' as const, alignItems: 'center' as const, backgroundColor: c.fillTertiary, borderRadius: Tokens.radius.card, paddingHorizontal: Tokens.spacing.sm, gap: Tokens.spacing.xs, height: 40 },
+    searchInput: { flex: 1, fontSize: Type.subhead.fontSize, color: c.text },
+    clearBtn: { width: 18, height: 18, borderRadius: 9, backgroundColor: c.textMuted, alignItems: 'center' as const, justifyContent: 'center' as const },
+    filterRow: { paddingHorizontal: Tokens.spacing.md, gap: 6, marginBottom: Tokens.spacing.md },
+    filterChip: { paddingHorizontal: 14, paddingVertical: Tokens.spacing.xs, borderRadius: 20, backgroundColor: c.fillTertiary },
+    filterChipActive: { backgroundColor: c.primary },
+    filterChipText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: c.textSecondary },
+    filterChipTextActive: { color: '#fff' },
+    subCard: { marginHorizontal: Tokens.spacing.md, marginBottom: Tokens.spacing.xs, backgroundColor: c.surface, borderRadius: Tokens.radius.lg, padding: Tokens.spacing.md, borderWidth: 1, borderColor: c.cardBorder, gap: 10 },
+    subCardTop: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: Tokens.spacing.sm },
+    tradeIcon: { width: 40, height: 40, borderRadius: Tokens.radius.card, alignItems: 'center' as const, justifyContent: 'center' as const },
+    subCardInfo: { flex: 1, gap: Tokens.spacing.hairline },
+    subName: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: c.text },
+    subContact: { fontSize: Type.footnote.fontSize, color: c.textSecondary },
+    statusBadge: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: Tokens.radius.sm },
+    statusDot: { width: 6, height: 6, borderRadius: 3 },
+    statusText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const },
+    subCardMeta: { flexDirection: 'row' as const, gap: Tokens.spacing.md, paddingLeft: 52 },
+    metaItem: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: Tokens.spacing.xxs },
+    metaText: { fontSize: Type.caption1.fontSize, color: c.textMuted },
+    emptyState: { alignItems: 'center' as const, paddingVertical: 60, paddingHorizontal: Tokens.spacing['3xl'], gap: 10 },
+    emptyTitle: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: c.text },
+    emptyDesc: { fontSize: Type.subhead.fontSize, color: c.textSecondary, textAlign: 'center' as const, lineHeight: 22 },
+    emptyBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: Tokens.spacing.xs, backgroundColor: c.primary, paddingHorizontal: Tokens.spacing.lg, paddingVertical: Tokens.spacing.sm, borderRadius: Tokens.radius.card, marginTop: Tokens.spacing.xs },
+    emptyBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: '#fff' },
+    modalOverlay: { flex: 1, backgroundColor: c.overlay, justifyContent: 'flex-end' as const },
+    formCard: { backgroundColor: c.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 22, gap: Tokens.spacing.xs, maxHeight: '90%' as const },
+    formHeader: { flexDirection: 'row' as const, justifyContent: 'space-between' as const, alignItems: 'center' as const, marginBottom: Tokens.spacing.xs },
+    formTitle: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: c.text },
+    fieldLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: c.textSecondary, marginTop: Tokens.spacing.xxs },
+    input: { minHeight: 44, borderRadius: Tokens.radius.card, backgroundColor: c.surfaceAlt, paddingHorizontal: 14, fontSize: Type.subhead.fontSize, color: c.text },
+    tradeGrid: { flexDirection: 'row' as const, flexWrap: 'wrap' as const, gap: 6, marginTop: Tokens.spacing.xxs },
+    tradeChip: { paddingHorizontal: Tokens.spacing.sm, paddingVertical: Tokens.spacing.xs, borderRadius: Tokens.radius.md, backgroundColor: c.fillTertiary },
+    tradeChipActive: { backgroundColor: c.primary },
+    tradeChipText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: c.textSecondary },
+    tradeChipTextActive: { color: '#fff' },
+    sectionDivider: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: c.textMuted, letterSpacing: 0.5, marginTop: Tokens.spacing.sm, marginBottom: Tokens.spacing.xxs },
+    switchRow: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'space-between' as const, minHeight: 44, paddingHorizontal: 14, backgroundColor: c.surfaceAlt, borderRadius: Tokens.radius.card },
+    switchLabel: { fontSize: Type.subhead.fontSize, color: c.text },
+    formActions: { flexDirection: 'row' as const, gap: 10, marginTop: Tokens.spacing.sm },
+    cancelBtn: { flex: 1, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: c.fillTertiary, alignItems: 'center' as const, justifyContent: 'center' as const },
+    cancelBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: c.text },
+    saveBtn: { flex: 2, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: c.primary, alignItems: 'center' as const, justifyContent: 'center' as const },
+    saveBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: '#fff' },
+    detailCard: { backgroundColor: c.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 22, maxHeight: '85%' as const },
+    detailStatusBar: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: Tokens.spacing.xs, padding: Tokens.spacing.sm, borderRadius: Tokens.radius.card, borderLeftWidth: 3, marginBottom: Tokens.spacing.md },
+    detailStatusText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const },
+    detailSection: { marginBottom: Tokens.spacing.lg, gap: Tokens.spacing.xs },
+    detailSectionTitle: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: c.textMuted, letterSpacing: 0.5 },
+    detailRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10 },
+    detailRowText: { fontSize: Type.subhead.fontSize, color: c.text },
+    bidRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, paddingVertical: Tokens.spacing.xs, borderBottomWidth: 1, borderBottomColor: c.borderLight },
+    bidProject: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: c.text },
+    bidDate: { fontSize: Type.caption1.fontSize, color: c.textMuted },
+    bidAmount: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: c.text },
+    bidOutcome: { paddingHorizontal: Tokens.spacing.xs, paddingVertical: 3, borderRadius: Tokens.radius.xs },
+    bidOutcomeText: { fontSize: 10, fontWeight: '700' as const },
+    detailNotes: { fontSize: Type.bodyCompact.fontSize, color: c.textSecondary, lineHeight: 20 },
+    detailActions: { flexDirection: 'row' as const, gap: 10, marginTop: Tokens.spacing.md },
+    editDetailBtn: { flex: 1, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: c.primary, alignItems: 'center' as const, justifyContent: 'center' as const },
+    editDetailBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: '#fff' },
+    deleteDetailBtn: { flexDirection: 'row' as const, minHeight: 48, paddingHorizontal: Tokens.spacing.lg, borderRadius: Tokens.radius.lg, backgroundColor: Colors.errorLight, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 6 },
+    deleteDetailBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.error },
+  });
+}
