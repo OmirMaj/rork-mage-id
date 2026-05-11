@@ -41,6 +41,8 @@ import { useUsageStatus } from '@/hooks/useUsageStatus';
 import type { PlanSheet } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import CloudFilePicker from '@/components/CloudFilePicker';
+import type { CloudFileRef } from '@/utils/cloudStorage';
 
 export default function PlansScreen() {
   const insets = useSafeAreaInsets();
@@ -208,6 +210,33 @@ export default function PlansScreen() {
     }
   }, [projectId, addPlanSheet, router, refreshQuota]);
 
+  // Cloud import — wires the unified CloudFilePicker into Plans.
+  // For v1, the cloud file's webUrl is opened (Drive/Dropbox/OneDrive
+  // preview) and an Alert offers two paths:
+  //   - "Open in browser" — user downloads + uses Import PDF below
+  //   - "Coming soon" — full cloud→render pipeline (v2: fetch file
+  //                     bytes via the provider API + feed to
+  //                     uploadAndRenderPdf without local download)
+  // This ships the connector + verifies the OAuth credentials work
+  // without taking on the multi-day v2 ingestion plumbing.
+  const handleCloudPick = useCallback(async (ref: CloudFileRef) => {
+    Alert.alert(
+      'Picked from ' + (ref.source === 'gdrive' ? 'Google Drive' : ref.source === 'dropbox' ? 'Dropbox' : ref.source === 'onedrive' ? 'OneDrive' : 'Box'),
+      `${ref.name}\n\n${ref.mimeType ?? 'Unknown type'}${ref.size ? ` · ${(ref.size / 1024 / 1024).toFixed(1)} MB` : ''}\n\nFull cloud → import pipeline is coming. For now you can open the file in your browser, save locally, then use Import PDF below.`,
+      [
+        ref.webUrl ? {
+          text: 'Open in browser',
+          onPress: () => {
+            if (typeof window !== 'undefined') {
+              window.open(ref.webUrl, '_blank', 'noopener,noreferrer');
+            }
+          },
+        } : { text: 'OK' },
+        { text: 'OK', style: 'cancel' as const },
+      ].filter(Boolean) as { text: string; onPress?: () => void; style?: 'cancel' }[],
+    );
+  }, []);
+
   const confirmImport = useCallback(() => {
     if (!newSheet || !newSheet.name.trim() || !projectId) {
       Alert.alert('Name required', 'Give the sheet a name before saving.');
@@ -270,6 +299,17 @@ export default function PlansScreen() {
           <Text style={styles.statusBarText}>{pdfStatus}</Text>
         </View>
       ) : null}
+
+      {/* Cloud picker — Google Drive / Dropbox / OneDrive / Box.
+          Only renders providers whose env-var credentials are
+          configured. v1: picks a file, shows ref info + opens in
+          browser. v2: ingests via the existing PDF render pipeline. */}
+      <View style={styles.cloudPickerWrap}>
+        <CloudFilePicker
+          onPick={handleCloudPick}
+          label="Or pick from cloud storage"
+        />
+      </View>
 
       {/* Takeoff quota badge — shows the user's current month usage so
           they can budget how many pages to upload before they pick a
@@ -517,6 +557,14 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surfaceAlt, borderBottomColor: Colors.borderLight, borderBottomWidth: 1,
   },
   statusBarText: { color: Colors.text, fontSize: Type.caption1.fontSize, fontWeight: '600' },
+
+  // Cloud picker wrapper — sits below the import action bar with a
+  // light divider so it reads as a secondary action path.
+  cloudPickerWrap: {
+    paddingHorizontal: 16, paddingVertical: 12,
+    borderBottomWidth: 1, borderBottomColor: Colors.borderLight,
+    backgroundColor: Colors.background,
+  },
 
   sheetCard: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
