@@ -81,6 +81,18 @@ export default function Paywall({ visible, onClose, feature, requiredTier }: Pay
   const insets = useSafeAreaInsets();
   const [period, setPeriod] = useState<BillingPeriod>('annual');
 
+  // Wrap every dismissal path through this — paywall_dismissed is half
+  // the funnel signal (the other half is paywall_viewed). Distinguishes
+  // bounces from intent: a high view-to-dismiss ratio means the value
+  // prop isn't landing; a high view-to-started ratio means the price is.
+  const handleDismiss = useCallback(() => {
+    trackEvent({
+      name: 'paywall_dismissed',
+      props: { feature },
+    });
+    onClose();
+  }, [feature, onClose]);
+
   // Analytics: fire paywall_viewed when modal becomes visible. This
   // is the top of the monetization funnel — every view here is a
   // chance to convert. Tracking feature + required_tier lets us see
@@ -144,6 +156,16 @@ export default function Paywall({ visible, onClose, feature, requiredTier }: Pay
   }, [requiredTier, proPackage, proAnnualPackage, businessPackage, businessAnnualPackage, enterprisePackage, enterpriseAnnualPackage, fallback]);
 
   const handleUpgrade = useCallback(async () => {
+    // Funnel: fire intent event the moment the user taps Upgrade.
+    // Paired with subscription_purchase_completed / _failed in
+    // SubscriptionContext, this lets us compute three rates:
+    //   - intent rate   = started / viewed
+    //   - complete rate = completed / started
+    //   - failure rate  = failed / started
+    trackEvent({
+      name: 'subscription_purchase_started',
+      props: { tier: requiredTier, period },
+    });
     try {
       if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       if (requiredTier === 'enterprise') {
@@ -174,12 +196,12 @@ export default function Paywall({ visible, onClose, feature, requiredTier }: Pay
   //   • Confusing users about which payment surface unlocks what
   if (Platform.OS === 'web') {
     return (
-      <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={handleDismiss}>
         <View style={[styles.container, { paddingBottom: insets.bottom }]}>
           <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
             <View style={{ width: 36 }} />
             <Text style={styles.headerTitle}>Continue on Mobile</Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn} testID="paywall-modal-close-web" accessibilityRole="button" accessibilityLabel="Close"><X size={22} color={Colors.text} /></TouchableOpacity>
+            <TouchableOpacity onPress={handleDismiss} style={styles.closeBtn} testID="paywall-modal-close-web" accessibilityRole="button" accessibilityLabel="Close"><X size={22} color={Colors.text} /></TouchableOpacity>
           </View>
 
           <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
@@ -231,7 +253,7 @@ export default function Paywall({ visible, onClose, feature, requiredTier }: Pay
               <Text style={styles.upgradeBtnText}>Open in Google Play</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity onPress={onClose} style={styles.notNowBtn} testID="paywall-not-now-web">
+            <TouchableOpacity onPress={handleDismiss} style={styles.notNowBtn} testID="paywall-not-now-web">
               <Text style={styles.notNowText}>Maybe later</Text>
             </TouchableOpacity>
 
@@ -249,12 +271,12 @@ export default function Paywall({ visible, onClose, feature, requiredTier }: Pay
   }
 
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={handleDismiss}>
       <View style={[styles.container, { paddingBottom: insets.bottom }]}>
         <View style={[styles.header, { paddingTop: Platform.OS === 'ios' ? 16 : insets.top + 8 }]}>
           <View style={{ width: 36 }} />
           <Text style={styles.headerTitle}>Upgrade Required</Text>
-          <TouchableOpacity onPress={onClose} style={styles.closeBtn} testID="paywall-modal-close" accessibilityRole="button" accessibilityLabel="Close"><X size={22} color={Colors.text} /></TouchableOpacity>
+          <TouchableOpacity onPress={handleDismiss} style={styles.closeBtn} testID="paywall-modal-close" accessibilityRole="button" accessibilityLabel="Close"><X size={22} color={Colors.text} /></TouchableOpacity>
         </View>
 
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
@@ -350,7 +372,7 @@ export default function Paywall({ visible, onClose, feature, requiredTier }: Pay
             )}
           </TouchableOpacity>
 
-          <TouchableOpacity onPress={onClose} style={styles.notNowBtn} testID="paywall-not-now">
+          <TouchableOpacity onPress={handleDismiss} style={styles.notNowBtn} testID="paywall-not-now">
             <Text style={styles.notNowText}>Not now</Text>
           </TouchableOpacity>
 

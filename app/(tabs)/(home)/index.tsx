@@ -789,6 +789,51 @@ export default function HomeScreen() {
       <EntityActionSheet
         entityRef={actionSheetRef}
         onClose={() => setActionSheetRef(null)}
+        onAction={(id, ref) => {
+          if (id !== 'duplicate' || ref.kind !== 'project') return;
+          const source = projects.find(p => p.id === ref.id);
+          if (!source) return;
+          // Scope-only clone: keep the inputs that took effort to set
+          // up (name, type, sf, quality, location, contract model,
+          // linked estimate). Drop the execution artifacts — they
+          // belong to the original job, not the template. Resetting
+          // status='draft' and createdAt=now lets the new project flow
+          // through the normal new-project setup (geocode, demo
+          // checklist, etc.).
+          const now = new Date().toISOString();
+          const clone: Project = {
+            ...source,
+            id: generateUUID(),
+            name: `${source.name} (copy)`,
+            status: 'draft',
+            createdAt: now,
+            updatedAt: now,
+            // Reset closeout / warranty state — those refer to the
+            // source project's lifecycle.
+            closedAt: undefined,
+            substantialCompletionDate: undefined,
+            warrantyWalkCompletedAt: undefined,
+            // Re-geocode after the user accepts the clone (in case
+            // they change the address) by clearing the cached coords.
+            locationLatitude: undefined,
+            locationLongitude: undefined,
+            locationGeocodedAt: undefined,
+            // Reset photo count — execution artifacts (photos, DFRs,
+            // invoices, etc.) live in their own contexts and are
+            // looked up by project_id, so we don't copy them here.
+            photoCount: 0,
+            // Strip collaborators — the GC may want to invite
+            // different people for this job. Cheaper to re-add than
+            // to remove every accidentally-copied collaborator.
+            collaborators: undefined,
+            // Strip public portfolio settings — opt in per project.
+            publicProfile: undefined,
+          };
+          addProject(clone);
+          if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          // Navigate to the new draft so the user can adjust right away.
+          router.push({ pathname: '/project-detail', params: { id: clone.id } } as never);
+        }}
       />
 
       {/* Always-rendered FAB — internally hides itself if there are no

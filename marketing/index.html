@@ -36,6 +36,24 @@
   <link rel="stylesheet" href="/landing.css" />
 
   <!-- ──────────────────────────────────────────────────────────────
+       PostHog — funnel analytics for the marketing site.
+       Same project key as the mobile app (utils/analytics.ts), so we
+       get a unified funnel: marketing pageview → CTA click → app
+       install → onboarding → paywall_viewed → purchase.
+       Loaded async; never blocks render.
+       ────────────────────────────────────────────────────────────── -->
+  <script>
+    !function(t,e){var o,n,p,r;e.__SV||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}(p=t.createElement("script")).type="text/javascript",p.crossOrigin="anonymous",p.async=!0,p.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r);var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],u.toString=function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e},u.people.toString=function(){return u.toString(1)+".people (stub)"},o="init capture register register_once register_for_session unregister unregister_for_session getFeatureFlag getFeatureFlagPayload isFeatureEnabled reloadFeatureFlags updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures on onFeatureFlags onSessionId getSurveys getActiveMatchingSurveys renderSurvey canRenderSurvey getNextSurveyStep identify setPersonProperties group resetGroups setPersonPropertiesForFlags resetPersonPropertiesForFlags setGroupPropertiesForFlags resetGroupPropertiesForFlags reset get_distinct_id getGroups get_session_id get_session_replay_url alias set_config startSessionRecording stopSessionRecording sessionRecordingStarted captureException loadToolbar get_property getSessionProperty createPersonProfile opt_in_capturing opt_out_capturing has_opted_in_capturing has_opted_out_capturing clear_opt_in_out_capturing debug".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
+    posthog.init('phc_t7H39GTePH8rLhBb567TNYHV6WHbVpmK7Yj6q4iGR7hZ', {
+      api_host: 'https://us.i.posthog.com',
+      capture_pageview: true,
+      capture_pageleave: true,
+      autocapture: false, // we send named events ourselves — no DOM mass-capture
+      persistence: 'localStorage+cookie',
+    });
+  </script>
+
+  <!-- ──────────────────────────────────────────────────────────────
        Structured data: SoftwareApplication + Organization
        Helps Google understand we're a software product (not an article
        or service business). The Offer entries match pricing.html.
@@ -174,10 +192,26 @@
       <div class="hero-content">
         <p class="eyebrow reveal"><span>●</span> Now in private beta · iOS · Android · Web</p>
 
-        <h1 class="hero-title">
+        <!-- A/B hero — 3 variants. Default visible is "control"
+             (Build it. Bill it. Track every dollar.) for non-JS visitors
+             and SEO. JS in <script id="ab-hero"> below swaps to variants
+             A or B based on a sticky-cookie randomized assignment.
+             Variant fired as `hero_variant_viewed` to PostHog so we can
+             measure conversion (lead form submit, CTA click) per arm. -->
+        <h1 class="hero-title" data-ab-variant="control">
           <span class="reveal-word">Build&nbsp;it.</span>
           <span class="reveal-word"><em>Bill it.</em></span>
           <span class="reveal-word">Track every dollar.</span>
+        </h1>
+        <h1 class="hero-title" data-ab-variant="A" style="display:none">
+          <span class="reveal-word">Run your construction</span>
+          <span class="reveal-word"><em>business</em></span>
+          <span class="reveal-word">from your truck.</span>
+        </h1>
+        <h1 class="hero-title" data-ab-variant="B" style="display:none">
+          <span class="reveal-word">Stop juggling 12 apps.</span>
+          <span class="reveal-word"><em>Your whole job</em></span>
+          <span class="reveal-word">in one.</span>
         </h1>
 
         <p class="sr-only">
@@ -769,6 +803,62 @@
       <p class="foot-copy">© <span id="year">2026</span> MAGE ID · Built in the U.S.</p>
     </div>
   </footer>
+
+  <!-- ──────────────────────────────────────────────────────────────
+       A/B hero test — sticky variant assignment via localStorage.
+       Three arms: control (Build it. Bill it.), A (Run your business
+       from your truck), B (Stop juggling 12 apps).
+       Runs BEFORE motion.js so the picked variant is what GSAP
+       reveals. Fires hero_variant_viewed to PostHog on each render
+       so we can compute conversion per arm (lead form submit + CTA
+       click are tracked separately, also via posthog.capture()).
+       To kill the test: set localStorage `mage_ab_kill = 1` in
+       devtools; control will always render. To force a variant
+       for QA: localStorage.setItem('mage_ab_hero','A').
+       ────────────────────────────────────────────────────────────── -->
+  <script id="ab-hero">
+    (function() {
+      try {
+        var ARMS = ['control', 'A', 'B'];
+        var KEY = 'mage_ab_hero';
+        var KILL = 'mage_ab_kill';
+        if (localStorage.getItem(KILL) === '1') return;
+        var picked = localStorage.getItem(KEY);
+        if (!picked || ARMS.indexOf(picked) === -1) {
+          picked = ARMS[Math.floor(Math.random() * ARMS.length)];
+          localStorage.setItem(KEY, picked);
+        }
+        // Reveal the picked variant, hide the others.
+        var heroes = document.querySelectorAll('[data-ab-variant]');
+        for (var i = 0; i < heroes.length; i++) {
+          heroes[i].style.display = heroes[i].dataset.abVariant === picked ? '' : 'none';
+        }
+        // Tell PostHog which arm this visitor sees + set as user
+        // property so all subsequent events are tagged with the arm.
+        if (window.posthog) {
+          posthog.register({ hero_variant: picked });
+          posthog.capture('hero_variant_viewed', { variant: picked });
+        }
+      } catch (e) { /* swallow — control stays visible */ }
+    })();
+  </script>
+
+  <!-- Track CTA clicks per A/B arm. Captures every primary + ghost
+       button in the hero (Get early access, See how it works) so we
+       can measure click-through per variant. -->
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      var ctas = document.querySelectorAll('.hero .btn, .hero .cta-row a, a[href="#cta"]');
+      for (var i = 0; i < ctas.length; i++) {
+        ctas[i].addEventListener('click', function(e) {
+          if (!window.posthog) return;
+          var label = (e.currentTarget.textContent || '').trim().slice(0, 40);
+          var href = e.currentTarget.getAttribute('href') || '';
+          posthog.capture('hero_cta_clicked', { label: label, href: href });
+        });
+      }
+    });
+  </script>
 
   <!-- Motion -->
   <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
