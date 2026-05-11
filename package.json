@@ -7,6 +7,9 @@
     "start-web": "expo start --web --tunnel",
     "start-web-dev": "DEBUG=expo* expo start --web --tunnel",
     "lint": "expo lint",
+    "typecheck": "tsc --noEmit",
+    "test:tokens": "bun run scripts/validate-design-tokens.ts",
+    "ship-check": "bun run typecheck && bun run lint && bun run test:tokens",
     "android": "expo run:android",
     "ios": "expo run:ios"
   },

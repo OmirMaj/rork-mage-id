@@ -119,11 +119,13 @@ const styles = StyleSheet.create({
     gap: 10,
     minWidth: 0,
   },
+  // PageHeader title — used across 50+ feature screens. Pre-fix this
+  // was Apple HIG Title1 in SF Pro. Switched to Fraunces display so
+  // every feature surface carries the brand voice (matches Summary /
+  // Tools / Discover / AI Hub heading treatment).
   title: {
-    fontSize: Type.title1.fontSize,
-    fontWeight: '800' as const,
-    color: Colors.text,
-    letterSpacing: -0.5,
+    ...Type.displaySm,
+    color: Colors.ink,
     flexShrink: 1,
   },
   subtitle: {

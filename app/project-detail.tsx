@@ -3414,7 +3414,10 @@ const styles = StyleSheet.create({
   heroCard: { backgroundColor: Colors.primary, marginHorizontal: 20, marginTop: 16, borderRadius: 20, padding: 22, shadowColor: Colors.primaryDark, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.25, shadowRadius: 16, elevation: 8 },
   heroHeader: { marginBottom: 16 },
   heroTitleBlock: {},
-  heroName: { fontSize: Type.title2.fontSize, fontWeight: '800' as const, color: Colors.textOnPrimary, letterSpacing: -0.3 },
+  // Project name in Fraunces — the project detail is where users live.
+  // Brand voice greets them every time they tap into a project, matching
+  // the Home dashboard greeting + the marketing-site display treatment.
+  heroName: { ...Type.displaySm, color: Colors.textOnPrimary, fontSize: 26, lineHeight: 30 },
   heroMeta: { flexDirection: 'row', alignItems: 'center', marginTop: 6, gap: 4 },
   heroMetaText: { fontSize: Type.bodyCompact.fontSize, color: 'rgba(255,255,255,0.75)' },
   heroDesc: { fontSize: Type.footnote.fontSize, color: 'rgba(255,255,255,0.6)', marginTop: 6, lineHeight: 18 },

@@ -1776,10 +1776,8 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   largeTitle: {
-    fontSize: Type.largeTitle.fontSize,
-    fontWeight: '700' as const,
-    color: Colors.text,
-    letterSpacing: -0.5,
+    ...Type.display,
+    color: Colors.ink,
     paddingHorizontal: 20,
     paddingTop: 4,
     marginBottom: 28,

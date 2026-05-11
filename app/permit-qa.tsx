@@ -143,10 +143,19 @@ export default function PermitQAScreen() {
     ].join('\n');
 
     try {
+      // Cache by metro + question text so identical questions don't
+      // burn paid API calls every time. 24h TTL — code corpus is
+      // static for that window. Conversation context (prior turns)
+      // is intentionally excluded from the cache key because the
+      // SAME standalone question should hit cache regardless of
+      // chat history.
+      const cacheKey = `permit-qa:${metro}:${trimmed.toLowerCase().slice(0, 240)}`;
       const result = await mageAI({
         prompt: fullPrompt,
         tier: 'fast',
         maxTokens: 1200,
+        cacheKey,
+        cacheHours: 24,
       });
 
       const assistantMsg: Message = {

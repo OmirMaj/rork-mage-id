@@ -1,0 +1,17 @@
+# app.mageid.app — robots.txt
+# The Expo web build subdomain. We allow indexing but prefer search
+# traffic land on mageid.app (the marketing site) where SEO content
+# lives. /permit-qa and /tools/ll97-calculator are intentionally
+# allowed because they're real product surfaces worth surfacing.
+
+User-agent: *
+Allow: /
+
+# Block sign-in / payment / data-export routes from being indexed —
+# these are user-state surfaces, not landing pages.
+Disallow: /sign-in
+Disallow: /paywall
+Disallow: /onboarding-paywall
+Disallow: /data-export
+
+Sitemap: https://mageid.app/sitemap.xml

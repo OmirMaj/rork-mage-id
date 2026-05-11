@@ -34,7 +34,21 @@ module.exports = defineConfig([
       // `if (__DEV__) console.log(...)` for dev-only diagnostics.
       "no-console": ["warn", { allow: ["warn", "error", "info"] }],
 
+      // Discourage new `as any` and `as never` type escape hatches.
+      // Audit found 407 occurrences — TypeScript strict mode was being
+      // bypassed silently. New code that needs an escape hatch must add
+      // an `// eslint-disable-next-line` with a justifying comment so it
+      // shows up in PR review.
+      "@typescript-eslint/consistent-type-assertions": ["warn", {
+        assertionStyle: "as",
+        objectLiteralTypeAssertions: "allow-as-parameter",
+      }],
+
       "no-restricted-syntax": ["warn",
+        {
+          selector: "TSAsExpression > TSAnyKeyword",
+          message: "Avoid `as any`. Use a proper type, an `as unknown as X` two-step, or a typed escape hatch. If unavoidable, add `// eslint-disable-next-line` with a comment.",
+        },
         {
           selector: "Property[key.name='fontSize'][value.type='Literal']",
           message: "Use Type.* from constants/typography.ts instead of an inline fontSize literal. Premium apps ship 6-8 sizes total.",
