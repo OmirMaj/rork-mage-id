@@ -124,3 +124,67 @@ export default {
     tabIconSelected: Colors.primary,
   },
 };
+
+// ─────────────────────────────────────────────────────────────────────
+// Theme — Phase 1. Two variants (light default, dark opt-in).
+//
+// Consumers do NOT read from here directly. They call useTheme() from
+// contexts/ThemeContext.tsx which returns the resolved palette. Reading
+// from Theme.light.* or Theme.dark.* directly bypasses the theme system
+// and breaks the dark-mode toggle — don't do it.
+// ─────────────────────────────────────────────────────────────────────
+
+export type ThemeColors = {
+  bg: string;
+  surface: string;
+  surfaceAlt: string;
+  text: string;
+  textSecondary: string;
+  textMuted: string;
+  line: string;
+  accent: string;
+  accentHot: string;
+  accentSoft: string;
+  accentLabel: string;
+  success: string;
+  successSoft: string;
+  danger: string;
+  info: string;
+};
+
+export const Theme: { light: ThemeColors; dark: ThemeColors } = {
+  light: {
+    bg: '#FBF8F2',
+    surface: '#FFFFFF',
+    surfaceAlt: '#F4EFE6',
+    text: '#2B3038',
+    textSecondary: 'rgba(43,48,56,0.6)',
+    textMuted: 'rgba(43,48,56,0.4)',
+    line: 'rgba(43,48,56,0.12)',
+    accent: '#FF6A1A',
+    accentHot: '#FF8533',
+    accentSoft: 'rgba(255,106,26,0.12)',
+    accentLabel: '#C44A0F',
+    success: '#2E7D44',
+    successSoft: 'rgba(46,125,68,0.12)',
+    danger: '#C84038',
+    info: '#1565C0',
+  },
+  dark: {
+    bg: '#0B0D10',
+    surface: '#14181D',
+    surfaceAlt: '#1A1F26',
+    text: '#F4EFE6',
+    textSecondary: '#9AA3AD',
+    textMuted: 'rgba(154,163,173,0.6)',
+    line: 'rgba(255,255,255,0.06)',
+    accent: '#FF6A1A',
+    accentHot: '#FF8533',
+    accentSoft: 'rgba(255,106,26,0.16)',
+    accentLabel: '#FF6A1A',
+    success: '#4ED37A',
+    successSoft: 'rgba(78,211,122,0.12)',
+    danger: '#FF5A51',
+    info: '#4EA7FF',
+  },
+};
