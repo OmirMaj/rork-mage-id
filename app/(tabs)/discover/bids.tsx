@@ -253,6 +253,15 @@ export default function CachedBidsScreen() {
   const router = useRouter();
   const { location } = useUserLocation();
 
+  // Analytics: fires once per mount. Used to decide in 30 days whether
+  // the GovCon (SAM.gov) feed earns its $3-5/mo infra cost or whether
+  // to deprecate. If usage is consistently 0, the scraper goes away.
+  useEffect(() => {
+    void import('@/utils/analytics').then(a =>
+      a.track('discover_public_bids_opened'),
+    ).catch(() => {});
+  }, []);
+
   // Filter state
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [constructionOnly, setConstructionOnly] = useState<boolean>(true);
