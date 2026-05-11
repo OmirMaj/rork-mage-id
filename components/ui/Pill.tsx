@@ -69,41 +69,47 @@ export interface PillProps {
   testID?: string;
 }
 
-// Foreground (text + icon) color for each tone.
-const TONE_FG: Record<PillTone, string> = {
-  neutral: Colors.textSecondary,
-  primary: Colors.primary,
-  success: Colors.successDark,
-  warning: Colors.warningDark,
-  error:   Colors.errorDark,
-  info:    Colors.infoDark,
-  accent:  Colors.accent,
-  violet:  '#7C3AED',
-  teal:    '#0D9488',
-  rose:    '#E11D48',
-  amber:   '#D97706',
-  indigo:  '#4F46E5',
-  emerald: '#059669',
-  sky:     '#0284C7',
-};
+// Tone-color resolvers as functions — Colors.* reads happen at render
+// time, so the `neutral` / `primary` / status tones swap correctly on
+// theme change. Extended hues (violet/teal/rose/amber/indigo/emerald/
+// sky) are brand-anchored fixed values that work across both themes.
+function toneFg(tone: PillTone): string {
+  switch (tone) {
+    case 'neutral': return Colors.textSecondary;
+    case 'primary': return Colors.primary;
+    case 'success': return Colors.successDark;
+    case 'warning': return Colors.warningDark;
+    case 'error':   return Colors.errorDark;
+    case 'info':    return Colors.infoDark;
+    case 'accent':  return Colors.accent;
+    case 'violet':  return '#7C3AED';
+    case 'teal':    return '#0D9488';
+    case 'rose':    return '#E11D48';
+    case 'amber':   return '#D97706';
+    case 'indigo':  return '#4F46E5';
+    case 'emerald': return '#059669';
+    case 'sky':     return '#0284C7';
+  }
+}
 
-// Background tint for variant="tinted". Pale tinted version of the FG.
-const TONE_TINT: Record<PillTone, string> = {
-  neutral: Colors.fillSecondary,
-  primary: 'rgba(26, 107, 60, 0.12)',
-  success: Colors.successLight,
-  warning: Colors.warningLight,
-  error:   Colors.errorLight,
-  info:    Colors.infoLight,
-  accent:  Colors.accentSoft,
-  violet:  'rgba(124, 58, 237, 0.12)',
-  teal:    'rgba(13, 148, 136, 0.12)',
-  rose:    'rgba(225, 29, 72, 0.12)',
-  amber:   'rgba(217, 119, 6, 0.12)',
-  indigo:  'rgba(79, 70, 229, 0.12)',
-  emerald: 'rgba(5, 150, 105, 0.12)',
-  sky:     'rgba(2, 132, 199, 0.12)',
-};
+function toneTint(tone: PillTone): string {
+  switch (tone) {
+    case 'neutral': return Colors.fillSecondary;
+    case 'primary': return 'rgba(26, 107, 60, 0.12)';
+    case 'success': return Colors.successLight;
+    case 'warning': return Colors.warningLight;
+    case 'error':   return Colors.errorLight;
+    case 'info':    return Colors.infoLight;
+    case 'accent':  return Colors.accentSoft;
+    case 'violet':  return 'rgba(124, 58, 237, 0.12)';
+    case 'teal':    return 'rgba(13, 148, 136, 0.12)';
+    case 'rose':    return 'rgba(225, 29, 72, 0.12)';
+    case 'amber':   return 'rgba(217, 119, 6, 0.12)';
+    case 'indigo':  return 'rgba(79, 70, 229, 0.12)';
+    case 'emerald': return 'rgba(5, 150, 105, 0.12)';
+    case 'sky':     return 'rgba(2, 132, 199, 0.12)';
+  }
+}
 
 function PillImpl({
   label,
@@ -114,8 +120,8 @@ function PillImpl({
   style,
   testID,
 }: PillProps) {
-  const fg = TONE_FG[tone];
-  const tint = TONE_TINT[tone];
+  const fg = toneFg(tone);
+  const tint = toneTint(tone);
 
   const sizing = SIZE_STYLES[size];
 

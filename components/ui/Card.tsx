@@ -48,25 +48,33 @@ export type CardTone =
   | 'info'
   | 'accent';
 
-const TINTED_BG: Record<CardTone, string> = {
-  neutral: Colors.fillSecondary,
-  primary: 'rgba(26, 107, 60, 0.08)',
-  success: Colors.successLight,
-  warning: Colors.warningLight,
-  error:   Colors.errorLight,
-  info:    Colors.infoLight,
-  accent:  Colors.accentSoft,
-};
+// Tinted maps as functions, not constants — so neutral can read
+// theme-aware Colors.fillSecondary / Colors.borderLight at render time.
+// Status tints (success/warning/error/info) use Material-light fixed
+// values that read OK on both surfaces.
+function tintedBg(tone: CardTone): string {
+  switch (tone) {
+    case 'neutral': return Colors.fillSecondary;
+    case 'primary': return 'rgba(26, 107, 60, 0.08)';
+    case 'success': return Colors.successLight;
+    case 'warning': return Colors.warningLight;
+    case 'error':   return Colors.errorLight;
+    case 'info':    return Colors.infoLight;
+    case 'accent':  return Colors.accentSoft;
+  }
+}
 
-const TINTED_BORDER: Record<CardTone, string> = {
-  neutral: Colors.borderLight,
-  primary: 'rgba(26, 107, 60, 0.20)',
-  success: 'rgba(52, 199, 89, 0.24)',
-  warning: 'rgba(255, 149, 0, 0.24)',
-  error:   'rgba(255, 59, 48, 0.24)',
-  info:    'rgba(0, 122, 255, 0.24)',
-  accent:  'rgba(255, 106, 26, 0.24)',
-};
+function tintedBorder(tone: CardTone): string {
+  switch (tone) {
+    case 'neutral': return Colors.borderLight;
+    case 'primary': return 'rgba(26, 107, 60, 0.20)';
+    case 'success': return 'rgba(52, 199, 89, 0.24)';
+    case 'warning': return 'rgba(255, 149, 0, 0.24)';
+    case 'error':   return 'rgba(255, 59, 48, 0.24)';
+    case 'info':    return 'rgba(0, 122, 255, 0.24)';
+    case 'accent':  return 'rgba(255, 106, 26, 0.24)';
+  }
+}
 
 export interface CardProps {
   /** Visual variant. Defaults to "default". */
@@ -151,9 +159,9 @@ function CardImpl({
       break;
     case 'tinted':
       variantStyle = {
-        backgroundColor: TINTED_BG[tone],
+        backgroundColor: tintedBg(tone),
         borderWidth: 1,
-        borderColor: TINTED_BORDER[tone],
+        borderColor: tintedBorder(tone),
       };
       break;
     case 'default':

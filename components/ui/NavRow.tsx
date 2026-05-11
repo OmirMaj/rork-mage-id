@@ -108,6 +108,14 @@ function NavRowImpl({
 }: NavRowProps) {
   const tint = TONE_COLORS[tone];
 
+  // Inline surface + border overrides — these read Colors getters at
+  // render time, so theme changes propagate immediately. Layout +
+  // sizing stays in StyleSheet (no need to recompute per render).
+  const variantOverride =
+    variant === 'card'
+      ? { backgroundColor: Colors.surface, borderColor: Colors.cardBorder }
+      : { backgroundColor: Colors.surface };
+
   return (
     <TouchableOpacity
       onPress={onPress}
@@ -115,6 +123,7 @@ function NavRowImpl({
       disabled={disabled}
       style={[
         variant === 'card' ? styles.card : styles.list,
+        variantOverride,
         disabled && styles.disabled,
         style,
       ]}

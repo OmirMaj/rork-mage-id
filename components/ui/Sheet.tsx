@@ -116,9 +116,18 @@ function SheetImpl({
         : Colors.accent;
 
   return (
-    <View style={[styles.container, style]} testID={testID}>
+    <View style={[styles.container, { backgroundColor: Colors.background }, style]} testID={testID}>
       {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top }]}>
+      <View
+        style={[
+          styles.header,
+          {
+            backgroundColor: Colors.surface,
+            borderBottomColor: Colors.border,
+            paddingTop: insets.top,
+          },
+        ]}
+      >
         <View style={styles.headerRow}>
           <Pressable
             onPress={onClose}
