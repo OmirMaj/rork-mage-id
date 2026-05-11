@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import {
-  ChevronLeft, ChevronRight, Activity, Plus, RefreshCcw, CheckCircle2,
+  ChevronRight, Activity, Plus, RefreshCcw, CheckCircle2,
   XCircle, DollarSign, Upload,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
@@ -14,7 +14,7 @@ import { useProjects } from '@/contexts/ProjectContext';
 import { useActivityFeed, type ActivityAction, type ActivityItem } from '@/hooks/useActivityFeed';
 import { useEntityNavigation } from '@/hooks/useEntityNavigation';
 import EntityActionSheet from '@/components/EntityActionSheet';
-import EmptyState from '@/components/ui/EmptyState';
+import { Sheet, EmptyState } from '@/components/ui';
 import type { EntityRef } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -43,50 +43,42 @@ export default function ActivityFeedScreen() {
   const headerTitle = project?.name ? `Activity · ${project.name}` : 'Activity';
 
   return (
-    <View style={styles.container}>
+    <>
       <Stack.Screen options={{ headerShown: false }} />
+      <Sheet
+        title={headerTitle}
+        subtitle={`${items.length} event${items.length === 1 ? '' : 's'}`}
+        onClose={() => router.back()}
+        scrollable={false}
+        bodyPadding="none"
+        testID="activity-feed-sheet"
+      >
+        {items.length === 0 ? (
+          <EmptyState
+            icon={<Activity size={32} color={Colors.primary} />}
+            title="No activity yet"
+            message="Every change order, RFI, daily report, invoice, and photo lands here the moment it's created — your project's heartbeat in one timeline."
+            actionLabel="Back to projects"
+            onAction={() => router.replace('/(tabs)/(home)' as never)}
+          />
+        ) : (
+          <FlatList
+            data={items}
+            keyExtractor={item => item.id}
+            contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 40 }]}
+            renderItem={({ item }) => (
+              <ActivityRow item={item} onPress={handleRowPress} onLongPress={handleRowLongPress} />
+            )}
+            ItemSeparatorComponent={() => <View style={styles.separator} />}
+          />
+        )}
 
-      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
-        <TouchableOpacity
-          onPress={() => router.back()}
-          style={styles.headerBtn}
-          accessibilityLabel="Go back"
-          testID="activity-back-btn"
-        >
-          <ChevronLeft size={24} color={Colors.text} />
-        </TouchableOpacity>
-        <View style={styles.headerTitleWrap}>
-          <Text style={styles.headerTitle} numberOfLines={1}>{headerTitle}</Text>
-          <Text style={styles.headerSubtitle}>{items.length} event{items.length === 1 ? '' : 's'}</Text>
-        </View>
-        <View style={styles.headerBtn} />
-      </View>
-
-      {items.length === 0 ? (
-        <EmptyState
-          icon={<Activity size={32} color={Colors.primary} />}
-          title="No activity yet"
-          message="Every change order, RFI, daily report, invoice, and photo lands here the moment it's created — your project's heartbeat in one timeline."
-          actionLabel="Back to projects"
-          onAction={() => router.replace('/(tabs)/(home)' as never)}
+        <EntityActionSheet
+          entityRef={actionSheetRef}
+          onClose={() => setActionSheetRef(null)}
         />
-      ) : (
-        <FlatList
-          data={items}
-          keyExtractor={item => item.id}
-          contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 40 }]}
-          renderItem={({ item }) => (
-            <ActivityRow item={item} onPress={handleRowPress} onLongPress={handleRowLongPress} />
-          )}
-          ItemSeparatorComponent={() => <View style={styles.separator} />}
-        />
-      )}
-
-      <EntityActionSheet
-        entityRef={actionSheetRef}
-        onClose={() => setActionSheetRef(null)}
-      />
-    </View>
+      </Sheet>
+    </>
   );
 }
 
@@ -181,21 +173,6 @@ function formatWhen(iso: string): string {
 // ---------------------------------------------------------------------------
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: Tokens.spacing.sm,
-    paddingBottom: Tokens.spacing.sm,
-    backgroundColor: Colors.background,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Colors.border,
-  },
-  headerBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-  headerTitleWrap: { flex: 1, alignItems: 'center' },
-  headerTitle: { fontSize: Type.body.fontSize, fontWeight: '700', color: Colors.text },
-  headerSubtitle: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: Tokens.spacing.hairline },
-
   listContent: { paddingVertical: Tokens.spacing.xxs },
   row: {
     flexDirection: 'row',

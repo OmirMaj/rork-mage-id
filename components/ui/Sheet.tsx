@@ -62,6 +62,9 @@ export interface SheetRightAction {
 export interface SheetProps {
   /** Title shown centered in the header. */
   title: string;
+  /** Optional subtitle below the title — shown smaller, secondary color.
+   *  Common pattern: a count or context tag ("12 events", "3 of 5"). */
+  subtitle?: string;
   /** Back-chevron handler. Usually `() => router.back()`. */
   onClose: () => void;
   /** Optional right-side action. */
@@ -91,6 +94,7 @@ function resolveBodyPadding(p: SheetProps['bodyPadding']): number {
 
 function SheetImpl({
   title,
+  subtitle,
   onClose,
   rightAction,
   scrollable = true,
@@ -130,13 +134,23 @@ function SheetImpl({
             <ChevronLeft size={26} color={Colors.text} strokeWidth={2.2} />
           </Pressable>
 
-          <Text
-            style={[Type.title3, styles.title, { color: Colors.text }]}
-            numberOfLines={1}
-            accessibilityRole="header"
-          >
-            {title}
-          </Text>
+          <View style={styles.titleStack}>
+            <Text
+              style={[Type.title3, styles.title, { color: Colors.text }]}
+              numberOfLines={1}
+              accessibilityRole="header"
+            >
+              {title}
+            </Text>
+            {subtitle ? (
+              <Text
+                style={[Type.caption1, styles.subtitle, { color: Colors.textSecondary }]}
+                numberOfLines={1}
+              >
+                {subtitle}
+              </Text>
+            ) : null}
+          </View>
 
           <View style={styles.rightSlot}>
             {rightAction ? (
@@ -226,9 +240,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'flex-start',
   },
-  title: {
+  titleStack: {
     flex: 1,
+    alignItems: 'center',
+  },
+  title: {
     textAlign: 'center',
+  },
+  subtitle: {
+    textAlign: 'center',
+    marginTop: 1,
   },
   rightSlot: {
     width: SIDE_SLOT_WIDTH,

@@ -10,13 +10,14 @@
 // "open this project's drive" action).
 
 import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ChevronLeft, AlertTriangle } from 'lucide-react-native';
+import { AlertTriangle } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { Sheet } from '@/components/ui';
 import { useProjects } from '@/contexts/ProjectContext';
 import { ProjectFilesBrowser } from '@/components/ProjectFilesBrowser';
 
@@ -47,56 +48,41 @@ export default function ProjectFilesScreen() {
             This project link may be expired or you may not have access. Open the
             Projects tab to pick another one.
           </Text>
-          <TouchableOpacity
+          <Text
             style={styles.primaryBtn}
             onPress={() => router.replace('/(tabs)/(home)' as never)}
           >
-            <Text style={styles.primaryBtnText}>Open Projects</Text>
-          </TouchableOpacity>
+            Open Projects
+          </Text>
         </View>
       </View>
     );
   }
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <>
       <Stack.Screen options={{ headerShown: false }} />
-      <View style={styles.headerBar}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.headerBack}>
-          <ChevronLeft size={22} color={Colors.text} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Files</Text>
-        <View style={{ width: 32 }} />
-      </View>
-
-      <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 32 }}>
+      <Sheet title="Files" onClose={() => router.back()} bodyPadding="none">
         <ProjectFilesBrowser projectId={projectId} projectName={project.name} />
-      </ScrollView>
-    </View>
+      </Sheet>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
-  headerBar: {
-    flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'space-between' as const,
-    paddingHorizontal: Tokens.spacing.md, paddingVertical: Tokens.spacing.sm,
-    backgroundColor: Colors.surface,
-    borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight,
-  },
-  headerBack: {
-    width: 32, height: 32, borderRadius: 16,
-    alignItems: 'center' as const, justifyContent: 'center' as const,
-    backgroundColor: Colors.fillTertiary,
-  },
-  headerTitle: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: Colors.text, letterSpacing: -0.3 },
   center: { flex: 1, alignItems: 'center' as const, justifyContent: 'center' as const, paddingHorizontal: Tokens.spacing['2xl'], gap: Tokens.spacing.xs },
   notFoundTitle: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: Colors.text, marginTop: Tokens.spacing.xs },
   notFoundBody: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, textAlign: 'center' as const, lineHeight: 20 },
   primaryBtn: {
-    paddingHorizontal: 18, paddingVertical: Tokens.spacing.sm, marginTop: Tokens.spacing.md,
+    paddingHorizontal: Tokens.spacing.lg,
+    paddingVertical: Tokens.spacing.sm,
+    marginTop: Tokens.spacing.md,
     borderRadius: Tokens.radius.lg,
     backgroundColor: Colors.primary,
+    color: Colors.surface,
+    fontSize: Type.body.fontSize,
+    fontWeight: '700' as const,
+    overflow: 'hidden' as const,
   },
-  primaryBtnText: { fontSize: Type.body.fontSize, fontWeight: '700' as const, color: Colors.surface },
 });
