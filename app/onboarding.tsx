@@ -308,6 +308,14 @@ export default function OnboardingScreen() {
             a live client portal — replaced a dozen tools with one app you carry on the jobsite.
           </Animated.Text>
 
+          {/* Trust line — sets pricing expectations upfront so users
+              tapping "Get started" know the deal. Three short bullets,
+              one mono-spaced row, separated by middots. Tucked above
+              the CTA so it lands in the user's eye line before the tap. */}
+          <Animated.Text style={[styles.trustLine, { opacity: bodyOpacity }]}>
+            Free to try  ·  $29/mo  ·  Cancel anytime
+          </Animated.Text>
+
           <Animated.View style={{ opacity: ctaOpacity, transform: [{ scale: ctaScale }] }}>
             <Pressable
               onPress={handleStarted}
@@ -382,6 +390,17 @@ export default function OnboardingScreen() {
               <Text style={styles.ctaPrimaryText}>Sounds good</Text>
               <ArrowRight size={18} color={BRAND.ink} strokeWidth={2.4} />
             </Pressable>
+          </Animated.View>
+
+          {/* Sign-in link — consistent with splash. Returning users
+              who accidentally tap "Get started" can recover without
+              going back. */}
+          <Animated.View style={{ opacity: ctaOpacity, marginTop: 14 }}>
+            <TouchableOpacity onPress={handleSignIn} hitSlop={8}>
+              <Text style={styles.signInText}>
+                Already have an account?  <Text style={styles.signInLink}>Sign in</Text>
+              </Text>
+            </TouchableOpacity>
           </Animated.View>
         </Animated.View>
       )}
@@ -540,8 +559,20 @@ const styles = StyleSheet.create({
     fontSize: Type.subhead.fontSize,
     lineHeight: 22,
     color: BRAND.fog,
-    marginBottom: Tokens.spacing['2xl'],
+    marginBottom: Tokens.spacing.lg,
     maxWidth: 520,
+  },
+
+  // Trust line — small, mono-ish, sits between the lede and the CTA.
+  // Sets pricing expectations upfront. Cream at 80% so it reads without
+  // competing with the headline.
+  trustLine: {
+    fontSize: Type.caption1.fontSize,
+    fontWeight: '600' as const,
+    color: 'rgba(244,239,230,0.78)',
+    letterSpacing: 0.4,
+    marginBottom: Tokens.spacing.xl,
+    textTransform: 'uppercase' as const,
   },
 
   ctaPrimary: {
