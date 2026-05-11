@@ -42,6 +42,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { ArrowRight, Check, Ruler, DollarSign, Mic } from 'lucide-react-native';
 import { useProjects } from '@/contexts/ProjectContext';
+import { useTheme } from '@/contexts/ThemeContext';
 import { Type } from '@/constants/typography';
 import {
   saveOnboardingProfile,
@@ -101,6 +102,7 @@ export default function OnboardingScreen() {
   const router = useRouter();
   const projectCtx = useProjects();
   const { completeOnboarding } = projectCtx;
+  const { colors: themeColors } = useTheme();
 
   const [step, setStep] = useState<Step>('splash');
 
@@ -223,7 +225,7 @@ export default function OnboardingScreen() {
   }, [finishToHome]);
 
   return (
-    <View style={styles.root}>
+    <View style={[styles.root, { backgroundColor: themeColors.bg }]}>
       {/* Background — soft mesh gradient. Two stacked LinearGradients give
           us a "light through glass" effect: deep green below, a warm
           orange glow up top-right that shifts the mood without going
