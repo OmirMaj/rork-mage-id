@@ -19,6 +19,9 @@ import * as Haptics from 'expo-haptics';
 import { HardHat, Mail, Lock, Eye, EyeOff, ArrowRight, ScanFace, KeyRound, Chrome } from 'lucide-react-native';
 import Svg, { Path } from 'react-native-svg';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { track, AnalyticsEvents } from '@/utils/analytics';
 import { Type } from '@/constants/typography';
@@ -27,6 +30,8 @@ import { Tokens } from '@/constants/designTokens';
 let _LocalAuthentication: typeof import('expo-local-authentication') | null = null;
 
 export default function LoginScreen() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { login, loginWithBiometrics, resetPassword, hasStoredCredentials, signInWithGoogle, signInWithApple, sendMagicLink } = useAuth();
@@ -268,10 +273,10 @@ export default function LoginScreen() {
                 testID="login-apple"
               >
                 {isAppleLoading ? (
-                  <ActivityIndicator color={Colors.surface} size="small" />
+                  <ActivityIndicator color={themeColors.surface} size="small" />
                 ) : (
                   <>
-                    <Svg width={20} height={20} viewBox="0 0 24 24" fill={Colors.surface}>
+                    <Svg width={20} height={20} viewBox="0 0 24 24" fill={themeColors.surface}>
                       <Path d="M17.05 20.28c-.98.95-2.05.88-3.08.4-1.09-.5-2.08-.48-3.24 0-1.44.62-2.2.44-3.06-.4C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z" />
                     </Svg>
                     <Text style={styles.appleAuthButtonText}>Continue with Apple</Text>
@@ -287,7 +292,7 @@ export default function LoginScreen() {
               testID="login-google"
             >
               {isGoogleLoading ? (
-                <ActivityIndicator color={Colors.text} size="small" />
+                <ActivityIndicator color={themeColors.text} size="small" />
               ) : (
                 <>
                   <Svg width={20} height={20} viewBox="0 0 48 48">
@@ -307,18 +312,18 @@ export default function LoginScreen() {
               delivers a one-tap login. No password, no SMS cost. */}
           <View style={styles.magicLinkStack}>
             <View style={styles.inputWrapper}>
-              <Mail size={18} color={Colors.textSecondary} strokeWidth={1.8} />
+              <Mail size={18} color={themeColors.textSecondary} strokeWidth={1.8} />
               <TextInput
                 style={styles.input}
                 placeholder="you@company.com"
-                placeholderTextColor={Colors.textMuted}
+                placeholderTextColor={themeColors.textMuted}
                 value={email}
                 onChangeText={(v) => { setEmail(v); setMagicLinkSent(false); }}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
                 returnKeyType={showPasswordMode ? 'next' : 'go'}
-                selectionColor={Colors.primary}
+                selectionColor={themeColors.accent}
                 onSubmitEditing={() => showPasswordMode ? passwordRef.current?.focus() : handleMagicLink()}
                 testID="login-email"
               />
@@ -338,10 +343,10 @@ export default function LoginScreen() {
                 testID="login-magic-link"
               >
                 {isMagicLinkLoading ? (
-                  <ActivityIndicator color={Colors.primary} size="small" />
+                  <ActivityIndicator color={themeColors.accent} size="small" />
                 ) : (
                   <>
-                    <KeyRound size={18} color={Colors.primary} strokeWidth={2} />
+                    <KeyRound size={18} color={themeColors.accent} strokeWidth={2} />
                     <Text style={styles.magicLinkButtonText}>Email me a sign-in link</Text>
                   </>
                 )}
@@ -359,10 +364,10 @@ export default function LoginScreen() {
               testID="login-biometric"
             >
               {isBiometricLoading ? (
-                <ActivityIndicator color={Colors.primary} size="small" />
+                <ActivityIndicator color={themeColors.accent} size="small" />
               ) : (
                 <>
-                  <ScanFace size={20} color={Colors.primary} strokeWidth={1.8} />
+                  <ScanFace size={20} color={themeColors.accent} strokeWidth={1.8} />
                   <Text style={styles.biometricText}>
                     Sign in with Face ID / Touch ID
                   </Text>
@@ -387,17 +392,17 @@ export default function LoginScreen() {
               <View style={[styles.inputGroup, { marginTop: 12 }]}>
                 <Text style={styles.inputLabel}>Password</Text>
                 <View style={styles.inputWrapper}>
-                  <Lock size={18} color={Colors.textSecondary} strokeWidth={1.8} />
+                  <Lock size={18} color={themeColors.textSecondary} strokeWidth={1.8} />
                   <TextInput
                     ref={passwordRef}
                     style={styles.input}
                     placeholder="Enter password"
-                    placeholderTextColor={Colors.textMuted}
+                    placeholderTextColor={themeColors.textMuted}
                     value={password}
                     onChangeText={setPassword}
                     secureTextEntry={!showPassword}
                     returnKeyType="go"
-                    selectionColor={Colors.primary}
+                    selectionColor={themeColors.accent}
                     onSubmitEditing={handleLogin}
                     testID="login-password"
                   />
@@ -406,9 +411,9 @@ export default function LoginScreen() {
                     hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                   >
                     {showPassword ? (
-                      <EyeOff size={18} color={Colors.textSecondary} strokeWidth={1.8} />
+                      <EyeOff size={18} color={themeColors.textSecondary} strokeWidth={1.8} />
                     ) : (
-                      <Eye size={18} color={Colors.textSecondary} strokeWidth={1.8} />
+                      <Eye size={18} color={themeColors.textSecondary} strokeWidth={1.8} />
                     )}
                   </TouchableOpacity>
                 </View>
@@ -418,8 +423,8 @@ export default function LoginScreen() {
                 <Switch
                   value={rememberMe}
                   onValueChange={setRememberMe}
-                  trackColor={{ false: Colors.borderLight, true: Colors.primary + '60' }}
-                  thumbColor={rememberMe ? Colors.primary : Colors.textMuted}
+                  trackColor={{ false: themeColors.line, true: themeColors.accent + '60' }}
+                  thumbColor={rememberMe ? themeColors.accent : themeColors.textMuted}
                   testID="login-remember"
                 />
               </View>
@@ -432,11 +437,11 @@ export default function LoginScreen() {
                   testID="login-submit"
                 >
                   {isSubmitting ? (
-                    <ActivityIndicator color={Colors.surface} size="small" />
+                    <ActivityIndicator color={themeColors.surface} size="small" />
                   ) : (
                     <>
                       <Text style={styles.loginButtonText}>Sign In</Text>
-                      <ArrowRight size={18} color={Colors.surface} strokeWidth={2.5} />
+                      <ArrowRight size={18} color={themeColors.surface} strokeWidth={2.5} />
                     </>
                   )}
                 </TouchableOpacity>
@@ -465,7 +470,7 @@ export default function LoginScreen() {
             }}
             testID="login-forgot"
           >
-            <KeyRound size={14} color={Colors.primary} strokeWidth={1.8} />
+            <KeyRound size={14} color={themeColors.accent} strokeWidth={1.8} />
             <Text style={styles.forgotText}>Forgot Password?</Text>
           </TouchableOpacity>
 
@@ -484,10 +489,10 @@ export default function LoginScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: t.bg,
   },
   // Premium dark hero — matches the marketing site at https://mageid.app
   // Palette: --ink #0B0D10 + --amber #FF6A1A + --cream #F4EFE6.
@@ -611,7 +616,7 @@ const styles = StyleSheet.create({
   },
   errorBannerText: {
     fontSize: Type.bodyCompact.fontSize,
-    color: Colors.error,
+    color: t.danger,
     fontWeight: '500' as const,
     textAlign: 'center',
   },
@@ -621,25 +626,25 @@ const styles = StyleSheet.create({
   inputLabel: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '600' as const,
-    color: Colors.text,
+    color: t.text,
     marginBottom: 8,
     marginLeft: 2,
   },
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.lg,
     paddingHorizontal: 14,
     paddingVertical: 14,
     gap: 10,
     borderWidth: 1,
-    borderColor: Colors.borderLight,
+    borderColor: t.line,
   },
   input: {
     flex: 1,
     fontSize: Type.callout.fontSize,
-    color: Colors.text,
+    color: t.text,
     fontWeight: '400' as const,
   },
   rememberRow: {
@@ -651,7 +656,7 @@ const styles = StyleSheet.create({
   },
   rememberLabel: {
     fontSize: Type.bodyCompact.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     fontWeight: '500' as const,
   },
   loginButton: {
@@ -675,7 +680,7 @@ const styles = StyleSheet.create({
   loginButtonText: {
     fontSize: Type.body.fontSize,
     fontWeight: '700' as const,
-    color: Colors.surface,
+    color: t.surface,
   },
   biometricButton: {
     flexDirection: 'row',
@@ -685,14 +690,14 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: Tokens.radius.lg,
     borderWidth: 1.5,
-    borderColor: Colors.primary,
-    backgroundColor: Colors.surface,
+    borderColor: t.accent,
+    backgroundColor: t.surface,
     marginTop: 12,
   },
   biometricText: {
     fontSize: Type.subhead.fontSize,
     fontWeight: '600' as const,
-    color: Colors.primary,
+    color: t.accent,
   },
   dividerRow: {
     flexDirection: 'row',
@@ -704,11 +709,11 @@ const styles = StyleSheet.create({
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: Colors.borderLight,
+    backgroundColor: t.line,
   },
   dividerText: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.textMuted,
+    color: t.textMuted,
     fontWeight: '500' as const,
   },
   socialRow: {
@@ -736,16 +741,16 @@ const styles = StyleSheet.create({
   appleAuthButtonText: {
     fontSize: Type.callout.fontSize,
     fontWeight: '700' as const,
-    color: Colors.surface,
+    color: t.surface,
   },
   googleAuthButton: {
-    backgroundColor: Colors.surface,
-    borderColor: Colors.borderLight,
+    backgroundColor: t.surface,
+    borderColor: t.line,
   },
   googleAuthButtonText: {
     fontSize: Type.callout.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: t.text,
   },
   magicLinkStack: {
     gap: 10,
@@ -758,14 +763,14 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingVertical: 14,
     borderRadius: Tokens.radius.lg,
-    backgroundColor: Colors.primary + '0F',
+    backgroundColor: t.accent + '0F',
     borderWidth: 1,
-    borderColor: Colors.primary + '40',
+    borderColor: t.accent + '40',
   },
   magicLinkButtonText: {
     fontSize: Type.subhead.fontSize,
     fontWeight: '700' as const,
-    color: Colors.primary,
+    color: t.accent,
   },
   magicLinkSuccess: {
     paddingVertical: 14,
@@ -790,7 +795,7 @@ const styles = StyleSheet.create({
   passwordModeToggleText: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     textDecorationLine: 'underline',
   },
   socialButton: {
@@ -802,13 +807,13 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: Tokens.radius.lg,
     borderWidth: 1.5,
-    borderColor: Colors.borderLight,
-    backgroundColor: Colors.surface,
+    borderColor: t.line,
+    backgroundColor: t.surface,
   },
   socialButtonText: {
     fontSize: Type.subhead.fontSize,
     fontWeight: '600' as const,
-    color: Colors.text,
+    color: t.text,
   },
   appleSocialButton: {
     backgroundColor: '#000000',
@@ -817,7 +822,7 @@ const styles = StyleSheet.create({
   appleSocialButtonText: {
     fontSize: Type.subhead.fontSize,
     fontWeight: '600' as const,
-    color: Colors.surface,
+    color: t.surface,
   },
   signupRow: {
     flexDirection: 'row',
@@ -828,7 +833,7 @@ const styles = StyleSheet.create({
   },
   signupPrompt: {
     fontSize: Type.subhead.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
   },
   signupLink: {
     fontSize: Type.subhead.fontSize,

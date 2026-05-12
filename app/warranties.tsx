@@ -11,6 +11,9 @@ import {
   ChevronRight, FileText,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import type { Warranty, WarrantyCategory } from '@/types';
 import { Type } from '@/constants/typography';
@@ -49,14 +52,16 @@ function formatDate(iso: string): string {
 }
 
 const STATUS_META: Record<Warranty['status'], { label: string; color: string; bg: string; Icon: any }> = {
-  active: { label: 'Active', color: Colors.success, bg: Colors.successLight, Icon: CheckCircle2 },
+  active: { label: 'Active', color: "#2E7D44", bg: Colors.successLight, Icon: CheckCircle2 },
   expiring_soon: { label: 'Expiring Soon', color: Colors.warning, bg: Colors.warningLight, Icon: AlertTriangle },
-  expired: { label: 'Expired', color: Colors.error, bg: Colors.errorLight, Icon: Clock },
-  claimed: { label: 'Claimed', color: Colors.info, bg: Colors.infoLight, Icon: Shield },
-  void: { label: 'Void', color: Colors.textMuted, bg: Colors.fillTertiary, Icon: X },
+  expired: { label: 'Expired', color: "#C84038", bg: Colors.errorLight, Icon: Clock },
+  claimed: { label: 'Claimed', color: "#1565C0", bg: Colors.infoLight, Icon: Shield },
+  void: { label: 'Void', color: "#9AA3AD", bg: '#1A1F26', Icon: X },
 };
 
 export default function WarrantiesScreen() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { projectId } = useLocalSearchParams<{ projectId?: string }>();
@@ -157,16 +162,16 @@ export default function WarrantiesScreen() {
     <View style={styles.container}>
       <Stack.Screen options={{
         title: title_label,
-        headerStyle: { backgroundColor: Colors.background },
-        headerTintColor: Colors.primary,
-        headerTitleStyle: { fontWeight: '700' as const, color: Colors.text },
+        headerStyle: { backgroundColor: themeColors.bg },
+        headerTintColor: "#FF6A1A",
+        headerTitleStyle: { fontWeight: '700' as const, color: themeColors.text },
       }} />
       <ScrollView
         contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.hero}>
-          <Shield size={24} color={Colors.primary} />
+          <Shield size={24} color={"#FF6A1A"} />
           <Text style={styles.heroTitle}>Warranty Tracker</Text>
           <Text style={styles.heroSub}>Track active, expiring, and claimed warranties across projects.</Text>
         </View>
@@ -181,14 +186,14 @@ export default function WarrantiesScreen() {
             <Text style={styles.metricLabel}>Expiring</Text>
           </View>
           <View style={[styles.metricCard, { backgroundColor: Colors.errorLight }]}>
-            <Text style={[styles.metricValue, { color: Colors.error }]}>{list.filter(w => w.status === 'expired').length}</Text>
+            <Text style={[styles.metricValue, { color: "#C84038" }]}>{list.filter(w => w.status === 'expired').length}</Text>
             <Text style={styles.metricLabel}>Expired</Text>
           </View>
         </View>
 
         {list.length === 0 ? (
           <View style={styles.emptyState}>
-            <Shield size={36} color={Colors.textMuted} />
+            <Shield size={36} color={"#9AA3AD"} />
             <Text style={styles.emptyTitle}>No warranties yet</Text>
             <Text style={styles.emptyDesc}>Track equipment, roofing, HVAC, and finish warranties to protect your clients and your liability.</Text>
           </View>
@@ -211,12 +216,12 @@ export default function WarrantiesScreen() {
                 <Text style={styles.cardProvider}>Provider: {w.provider}</Text>
                 <View style={styles.cardFooter}>
                   <Text style={styles.dateText}>{formatDate(w.startDate)} → {formatDate(w.endDate)}</Text>
-                  <Text style={[styles.daysText, { color: daysLeft < 0 ? Colors.error : daysLeft <= 30 ? Colors.warning : Colors.textSecondary }]}>
+                  <Text style={[styles.daysText, { color: daysLeft < 0 ? "#C84038" : daysLeft <= 30 ? Colors.warning : "#9AA3AD" }]}>
                     {daysLeft < 0 ? `${Math.abs(daysLeft)}d ago` : `${daysLeft}d left`}
                   </Text>
                 </View>
                 <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDelete(w)} accessibilityRole="button" accessibilityLabel="Delete">
-                  <Trash2 size={14} color={Colors.error} />
+                  <Trash2 size={14} color={"#C84038"} />
                 </TouchableOpacity>
               </TouchableOpacity>
             );
@@ -224,7 +229,7 @@ export default function WarrantiesScreen() {
         )}
 
         <TouchableOpacity style={styles.addBtn} onPress={openNew} activeOpacity={0.85}>
-          <Plus size={18} color={Colors.primary} />
+          <Plus size={18} color={"#FF6A1A"} />
           <Text style={styles.addBtnText}>Add Warranty</Text>
         </TouchableOpacity>
       </ScrollView>
@@ -237,7 +242,7 @@ export default function WarrantiesScreen() {
                 <View style={styles.modalHeader}>
                   <Text style={styles.modalTitle}>{editingId ? 'Edit Warranty' : 'New Warranty'}</Text>
                   <TouchableOpacity onPress={() => setShowForm(false)} accessibilityRole="button" accessibilityLabel="Close">
-                    <X size={20} color={Colors.textMuted} />
+                    <X size={20} color={"#9AA3AD"} />
                   </TouchableOpacity>
                 </View>
 
@@ -259,7 +264,7 @@ export default function WarrantiesScreen() {
                 )}
 
                 <Text style={styles.fieldLabel}>Title</Text>
-                <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder="e.g. Roof - 10-Year Manufacturer" placeholderTextColor={Colors.textMuted} />
+                <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder="e.g. Roof - 10-Year Manufacturer" placeholderTextColor={"#9AA3AD"} />
 
                 <Text style={styles.fieldLabel}>Category</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingVertical: 4 }}>
@@ -275,24 +280,24 @@ export default function WarrantiesScreen() {
                 </ScrollView>
 
                 <Text style={styles.fieldLabel}>Provider / Manufacturer</Text>
-                <TextInput style={styles.input} value={provider} onChangeText={setProvider} placeholder="e.g. GAF, Carrier, Kohler" placeholderTextColor={Colors.textMuted} />
+                <TextInput style={styles.input} value={provider} onChangeText={setProvider} placeholder="e.g. GAF, Carrier, Kohler" placeholderTextColor={"#9AA3AD"} />
 
                 <View style={{ flexDirection: 'row', gap: 10 }}>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.fieldLabel}>Start Date</Text>
-                    <TextInput style={styles.input} value={startDate} onChangeText={setStartDate} placeholder="YYYY-MM-DD" placeholderTextColor={Colors.textMuted} />
+                    <TextInput style={styles.input} value={startDate} onChangeText={setStartDate} placeholder="YYYY-MM-DD" placeholderTextColor={"#9AA3AD"} />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.fieldLabel}>Duration (months)</Text>
-                    <TextInput style={styles.input} value={durationMonths} onChangeText={setDurationMonths} keyboardType="number-pad" placeholder="12" placeholderTextColor={Colors.textMuted} />
+                    <TextInput style={styles.input} value={durationMonths} onChangeText={setDurationMonths} keyboardType="number-pad" placeholder="12" placeholderTextColor={"#9AA3AD"} />
                   </View>
                 </View>
 
                 <Text style={styles.fieldLabel}>Coverage Details</Text>
-                <TextInput style={[styles.input, { minHeight: 80, paddingTop: 12, textAlignVertical: 'top' as const }]} value={coverage} onChangeText={setCoverage} placeholder="What's covered (parts, labor, etc.)" placeholderTextColor={Colors.textMuted} multiline />
+                <TextInput style={[styles.input, { minHeight: 80, paddingTop: 12, textAlignVertical: 'top' as const }]} value={coverage} onChangeText={setCoverage} placeholder="What's covered (parts, labor, etc.)" placeholderTextColor={"#9AA3AD"} multiline />
 
                 <Text style={styles.fieldLabel}>Notes</Text>
-                <TextInput style={[styles.input, { minHeight: 60, paddingTop: 12, textAlignVertical: 'top' as const }]} value={description} onChangeText={setDescription} placeholder="Optional notes" placeholderTextColor={Colors.textMuted} multiline />
+                <TextInput style={[styles.input, { minHeight: 60, paddingTop: 12, textAlignVertical: 'top' as const }]} value={description} onChangeText={setDescription} placeholder="Optional notes" placeholderTextColor={"#9AA3AD"} multiline />
 
                 <View style={styles.formActions}>
                   <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowForm(false)}>
@@ -311,45 +316,45 @@ export default function WarrantiesScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
-  hero: { marginHorizontal: 20, marginTop: 16, marginBottom: 12, padding: 16, backgroundColor: Colors.primary + '10', borderRadius: Tokens.radius.panel, borderWidth: 1, borderColor: Colors.primary + '25', gap: 4 },
-  heroTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: Colors.text, marginTop: 4 },
-  heroSub: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, lineHeight: 18 },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: t.bg },
+  hero: { marginHorizontal: 20, marginTop: 16, marginBottom: 12, padding: 16, backgroundColor: t.accent + '10', borderRadius: Tokens.radius.panel, borderWidth: 1, borderColor: t.accent + '25', gap: 4 },
+  heroTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: t.text, marginTop: 4 },
+  heroSub: { fontSize: Type.footnote.fontSize, color: t.textSecondary, lineHeight: 18 },
   metricsRow: { flexDirection: 'row', gap: 10, paddingHorizontal: 20, marginBottom: 16 },
   metricCard: { flex: 1, padding: 14, borderRadius: Tokens.radius.lg, backgroundColor: Colors.successLight, alignItems: 'center' as const, gap: 2 },
-  metricValue: { fontSize: Type.title2.fontSize, fontWeight: '800' as const, color: Colors.success },
-  metricLabel: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, fontWeight: '600' as const },
+  metricValue: { fontSize: Type.title2.fontSize, fontWeight: '800' as const, color: t.success },
+  metricLabel: { fontSize: Type.caption1.fontSize, color: t.textSecondary, fontWeight: '600' as const },
   emptyState: { alignItems: 'center', paddingVertical: 40, paddingHorizontal: 40, gap: 10 },
-  emptyTitle: { fontSize: Type.body.fontSize, fontWeight: '700' as const, color: Colors.text },
-  emptyDesc: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, textAlign: 'center' as const, lineHeight: 18 },
-  card: { marginHorizontal: 20, marginBottom: 10, padding: 16, borderRadius: Tokens.radius.lg, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.cardBorder, gap: 4, position: 'relative' as const },
+  emptyTitle: { fontSize: Type.body.fontSize, fontWeight: '700' as const, color: t.text },
+  emptyDesc: { fontSize: Type.footnote.fontSize, color: t.textSecondary, textAlign: 'center' as const, lineHeight: 18 },
+  card: { marginHorizontal: 20, marginBottom: 10, padding: 16, borderRadius: Tokens.radius.lg, backgroundColor: t.surface, borderWidth: 1, borderColor: t.line, gap: 4, position: 'relative' as const },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' as const, marginBottom: 4 },
   statusPill: { flexDirection: 'row', alignItems: 'center' as const, gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.sm },
   statusText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const },
-  categoryText: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontWeight: '600' as const, textTransform: 'uppercase' as const, letterSpacing: 0.3 },
-  cardTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text },
-  cardProject: { fontSize: Type.caption1.fontSize, color: Colors.primary, fontWeight: '600' as const },
-  cardProvider: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary },
-  cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' as const, marginTop: 6, paddingTop: 6, borderTopWidth: 0.5, borderTopColor: Colors.borderLight },
-  dateText: { fontSize: Type.caption1.fontSize, color: Colors.textMuted },
+  categoryText: { fontSize: Type.caption2.fontSize, color: t.textMuted, fontWeight: '600' as const, textTransform: 'uppercase' as const, letterSpacing: 0.3 },
+  cardTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: t.text },
+  cardProject: { fontSize: Type.caption1.fontSize, color: t.accent, fontWeight: '600' as const },
+  cardProvider: { fontSize: Type.footnote.fontSize, color: t.textSecondary },
+  cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' as const, marginTop: 6, paddingTop: 6, borderTopWidth: 0.5, borderTopColor: t.line },
+  dateText: { fontSize: Type.caption1.fontSize, color: t.textMuted },
   daysText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const },
   deleteBtn: { position: 'absolute' as const, top: 10, right: 10, width: 26, height: 26, borderRadius: Tokens.radius.xs, backgroundColor: Colors.errorLight, alignItems: 'center' as const, justifyContent: 'center' as const },
-  addBtn: { flexDirection: 'row', alignItems: 'center' as const, justifyContent: 'center' as const, gap: 8, marginHorizontal: 20, marginTop: 12, paddingVertical: 14, borderRadius: Tokens.radius.lg, backgroundColor: Colors.primary + '12', borderWidth: 1, borderColor: Colors.primary + '25' },
-  addBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: Colors.primary },
+  addBtn: { flexDirection: 'row', alignItems: 'center' as const, justifyContent: 'center' as const, gap: 8, marginHorizontal: 20, marginTop: 12, paddingVertical: 14, borderRadius: Tokens.radius.lg, backgroundColor: t.accent + '12', borderWidth: 1, borderColor: t.accent + '25' },
+  addBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: t.accent },
   modalOverlay: { flex: 1, backgroundColor: Colors.overlay, justifyContent: 'flex-end' as const },
-  modalCard: { backgroundColor: Colors.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 22, gap: 4, maxHeight: '90%' },
+  modalCard: { backgroundColor: t.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 22, gap: 4, maxHeight: '90%' },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' as const, marginBottom: 8 },
-  modalTitle: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: Colors.text },
-  fieldLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.textSecondary, marginTop: 10, marginBottom: 4 },
-  input: { minHeight: 44, borderRadius: Tokens.radius.card, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 14, fontSize: Type.subhead.fontSize, color: Colors.text },
-  chip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: Tokens.radius.md, backgroundColor: Colors.fillTertiary },
-  chipActive: { backgroundColor: Colors.primary },
-  chipText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.textSecondary },
+  modalTitle: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: t.text },
+  fieldLabel: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: t.textSecondary, marginTop: 10, marginBottom: 4 },
+  input: { minHeight: 44, borderRadius: Tokens.radius.card, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 14, fontSize: Type.subhead.fontSize, color: t.text },
+  chip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: Tokens.radius.md, backgroundColor: t.surfaceAlt },
+  chipActive: { backgroundColor: t.accent },
+  chipText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: t.textSecondary },
   chipTextActive: { color: '#FFF' },
   formActions: { flexDirection: 'row', gap: 10, marginTop: 16 },
-  cancelBtn: { flex: 1, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: Colors.fillTertiary, alignItems: 'center' as const, justifyContent: 'center' as const },
-  cancelBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text },
-  saveBtn: { flex: 2, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: Colors.primary, alignItems: 'center' as const, justifyContent: 'center' as const },
+  cancelBtn: { flex: 1, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: t.surfaceAlt, alignItems: 'center' as const, justifyContent: 'center' as const },
+  cancelBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: t.text },
+  saveBtn: { flex: 2, minHeight: 48, borderRadius: Tokens.radius.lg, backgroundColor: t.accent, alignItems: 'center' as const, justifyContent: 'center' as const },
   saveBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: '#FFF' },
 });

@@ -11,6 +11,9 @@ import {
   Clock, Check, XCircle, Send, RefreshCw,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { PROVIDER_INFO } from '@/mocks/payments';
 import type { Payment, PaymentStatus, PaymentProvider, Invoice, Project, Contact } from '@/types';
 import { formatMoney } from '@/utils/formatters';
@@ -140,6 +143,8 @@ const STATUS_CONFIG: Record<PaymentStatus, { label: string; color: string; bgCol
 };
 
 function PaymentCard({ payment, onPress }: { payment: Payment; onPress: () => void }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const statusInfo = STATUS_CONFIG[payment.status];
   const providerInfo = PROVIDER_INFO[payment.provider] ?? PROVIDER_INFO.check;
@@ -196,6 +201,8 @@ function PaymentCard({ payment, onPress }: { payment: Payment; onPress: () => vo
 }
 
 export default function PaymentsScreen() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const { projects, invoices, contacts } = useProjects();
   const [selectedTab, setSelectedTab] = useState<'all' | 'pending' | 'completed'>('all');
@@ -271,7 +278,7 @@ export default function PaymentsScreen() {
 
   return (
     <View style={styles.container}>
-      <Stack.Screen options={{ title: 'Payments', headerStyle: { backgroundColor: Colors.background }, headerTintColor: Colors.primary, headerTitleStyle: { fontWeight: '700' as const, color: Colors.text } }} />
+      <Stack.Screen options={{ title: 'Payments', headerStyle: { backgroundColor: themeColors.bg }, headerTintColor: themeColors.accent, headerTitleStyle: { fontWeight: '700' as const, color: themeColors.text } }} />
       <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 30 }} showsVerticalScrollIndicator={false}>
         <View style={styles.heroCards}>
           <View style={[styles.heroCard, { flex: 1.2 }]}>
@@ -327,7 +334,7 @@ export default function PaymentsScreen() {
           {filtered.length === 0 ? (
             <View style={{ minHeight: 360 }}>
               <EmptyState
-                icon={<CreditCard size={32} color={Colors.primary} />}
+                icon={<CreditCard size={32} color={themeColors.accent} />}
                 title="No payments yet"
                 message="Payments show up here the moment a client pays an invoice or you log a check. To collect your first one:"
                 steps={[
@@ -350,8 +357,8 @@ export default function PaymentsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: t.bg },
   heroCards: {
     flexDirection: 'row',
     paddingHorizontal: 16,
@@ -361,7 +368,7 @@ const styles = StyleSheet.create({
   },
   heroCard: {
     flex: 1,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.panel,
     padding: 16,
     gap: 8,
@@ -372,8 +379,8 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   heroIconWrap: { width: 36, height: 36, borderRadius: Tokens.radius.md, alignItems: 'center', justifyContent: 'center' },
-  heroValue: { fontSize: Type.title2.fontSize, fontWeight: '800' as const, color: Colors.text, letterSpacing: -0.5 },
-  heroLabel: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, fontWeight: '500' as const },
+  heroValue: { fontSize: Type.title2.fontSize, fontWeight: '800' as const, color: t.text, letterSpacing: -0.5 },
+  heroLabel: { fontSize: Type.caption1.fontSize, color: t.textSecondary, fontWeight: '500' as const },
   feeRow: {
     flexDirection: 'row',
     paddingHorizontal: 16,
@@ -382,20 +389,20 @@ const styles = StyleSheet.create({
   },
   feeItem: {
     flex: 1,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.card,
     padding: 12,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
   },
-  feeItemLabel: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary },
-  feeItemValue: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text },
+  feeItemLabel: { fontSize: Type.footnote.fontSize, color: t.textSecondary },
+  feeItemValue: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: t.text },
   sendButton: {
     marginHorizontal: 16,
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
     borderRadius: Tokens.radius.lg,
     paddingVertical: 14,
     flexDirection: 'row',
@@ -403,7 +410,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     marginBottom: 20,
-    shadowColor: Colors.primary,
+    shadowColor: t.accent,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 12,
@@ -413,7 +420,7 @@ const styles = StyleSheet.create({
   tabRow: {
     flexDirection: 'row',
     marginHorizontal: 16,
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.surfaceAlt,
     borderRadius: Tokens.radius.card,
     padding: 3,
     marginBottom: 16,
@@ -424,14 +431,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: Tokens.radius.md,
   },
-  tabActive: { backgroundColor: Colors.surface },
-  tabText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.textMuted },
-  tabTextActive: { color: Colors.text },
+  tabActive: { backgroundColor: t.surface },
+  tabText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: t.textMuted },
+  tabTextActive: { color: t.text },
   listSection: { paddingHorizontal: 16 },
   payCard: {
     marginBottom: 10,
     borderRadius: Tokens.radius.lg,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.04,
@@ -449,11 +456,11 @@ const styles = StyleSheet.create({
   },
   providerBadgeLetter: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const },
   payCardInfo: { flex: 1, gap: 2 },
-  payCardClient: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: Colors.text },
-  payCardProject: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary },
-  payCardAmount: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: Colors.text },
-  payCardFee: { fontSize: Type.caption2.fontSize, color: Colors.textMuted },
-  payCardDesc: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary },
+  payCardClient: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: t.text },
+  payCardProject: { fontSize: Type.caption1.fontSize, color: t.textSecondary },
+  payCardAmount: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: t.text },
+  payCardFee: { fontSize: Type.caption2.fontSize, color: t.textMuted },
+  payCardDesc: { fontSize: Type.footnote.fontSize, color: t.textSecondary },
   payCardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   payStatusBadge: {
     flexDirection: 'row',
@@ -467,7 +474,7 @@ const styles = StyleSheet.create({
   payCardMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   providerTag: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.xs },
   providerTagText: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const },
-  payCardDate: { fontSize: Type.caption1.fontSize, color: Colors.textMuted },
+  payCardDate: { fontSize: Type.caption1.fontSize, color: t.textMuted },
   emptyState: { alignItems: 'center', paddingVertical: 60, gap: 8 },
-  emptyTitle: { fontSize: Type.body.fontSize, fontWeight: '600' as const, color: Colors.text },
+  emptyTitle: { fontSize: Type.body.fontSize, fontWeight: '600' as const, color: t.text },
 });

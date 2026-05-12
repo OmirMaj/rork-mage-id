@@ -17,6 +17,9 @@ import {
   AlertTriangle, FileText,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCompanies } from '@/contexts/CompaniesContext';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
@@ -32,6 +35,8 @@ interface RfpRow {
 }
 
 export default function SubmitBidResponseScreen() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user } = useAuth();
@@ -127,7 +132,7 @@ export default function SubmitBidResponseScreen() {
     return (
       <View style={[styles.container, { paddingTop: insets.top, alignItems: 'center', justifyContent: 'center' }]}>
         <Stack.Screen options={{ headerShown: false }} />
-        <ActivityIndicator size="small" color={Colors.primary} />
+        <ActivityIndicator size="small" color={themeColors.accent} />
       </View>
     );
   }
@@ -138,7 +143,7 @@ export default function SubmitBidResponseScreen() {
 
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
-          <ChevronLeft size={26} color={Colors.primary} />
+          <ChevronLeft size={26} color={themeColors.accent} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.eyebrow}>Submit your bid</Text>
@@ -163,7 +168,7 @@ export default function SubmitBidResponseScreen() {
             onPress={() => setViewSiteFirst(v => !v)}
             activeOpacity={0.85}
           >
-            <Eye size={16} color={viewSiteFirst ? Colors.primary : Colors.textMuted} />
+            <Eye size={16} color={viewSiteFirst ? themeColors.accent : themeColors.textMuted} />
             <Text style={[styles.toggleText, viewSiteFirst && styles.toggleTextActive]}>
               {viewSiteFirst ? 'Requesting a site visit before quoting' : 'Request site visit before quoting'}
             </Text>
@@ -175,13 +180,13 @@ export default function SubmitBidResponseScreen() {
           <View style={styles.card}>
             <Text style={styles.cardLabel}>Estimate amount *</Text>
             <View style={styles.amountField}>
-              <DollarSign size={16} color={Colors.textMuted} />
+              <DollarSign size={16} color={themeColors.textMuted} />
               <TextInput
                 style={styles.amountInput}
                 value={estimateAmount}
                 onChangeText={setEstimateAmount}
                 placeholder="0"
-                placeholderTextColor={Colors.textMuted}
+                placeholderTextColor={themeColors.textMuted}
                 keyboardType="numeric"
               />
             </View>
@@ -193,7 +198,7 @@ export default function SubmitBidResponseScreen() {
               value={estimateSummary}
               onChangeText={setEstimateSummary}
               placeholder="Materials + labor + permits, 6-week timeline"
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={themeColors.textMuted}
               maxLength={140}
             />
           </View>
@@ -209,7 +214,7 @@ export default function SubmitBidResponseScreen() {
             value={message}
             onChangeText={setMessage}
             placeholder="Hey — I'm a residential GC in your area with 12 years on remodels. I'd handle..."
-            placeholderTextColor={Colors.textMuted}
+            placeholderTextColor={themeColors.textMuted}
             multiline
             numberOfLines={6}
             textAlignVertical="top"
@@ -221,7 +226,7 @@ export default function SubmitBidResponseScreen() {
         <View style={styles.card}>
           <Text style={styles.cardLabel}>Submitting as</Text>
           <View style={styles.identityRow}>
-            <FileText size={14} color={Colors.primary} />
+            <FileText size={14} color={themeColors.accent} />
             <Text style={styles.identityText}>
               {company?.companyName ?? user?.name ?? user?.email ?? 'Anonymous'}
               {company?.city && company?.state ? ` · ${company.city}, ${company.state}` : ''}
@@ -236,7 +241,7 @@ export default function SubmitBidResponseScreen() {
 
         {error && (
           <View style={styles.errorCard}>
-            <AlertTriangle size={16} color={Colors.error} />
+            <AlertTriangle size={16} color={themeColors.danger} />
             <Text style={styles.errorText}>{error}</Text>
           </View>
         )}
@@ -268,70 +273,70 @@ export default function SubmitBidResponseScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: t.bg },
   header: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 10,
     paddingHorizontal: 16, paddingTop: 14, paddingBottom: 16,
-    borderBottomWidth: 1, borderBottomColor: Colors.border,
+    borderBottomWidth: 1, borderBottomColor: t.line,
   },
-  eyebrow: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.primary, letterSpacing: 1.4, textTransform: 'uppercase' },
-  title:   { fontSize: Type.title3.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.4, marginTop: 4 },
+  eyebrow: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: t.accent, letterSpacing: 1.4, textTransform: 'uppercase' },
+  title:   { fontSize: Type.title3.fontSize, fontWeight: '800', color: t.text, letterSpacing: -0.4, marginTop: 4 },
 
   card: {
     backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 14,
-    borderWidth: 1, borderColor: Colors.border, marginBottom: 12,
+    borderWidth: 1, borderColor: t.line, marginBottom: 12,
   },
-  cardLabel: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 6 },
-  helper: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginBottom: 10, lineHeight: 17 },
-  charCount: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, alignSelf: 'flex-end', marginTop: 4 },
+  cardLabel: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: t.textMuted, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 6 },
+  helper: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginBottom: 10, lineHeight: 17 },
+  charCount: { fontSize: Type.caption2.fontSize, color: t.textMuted, alignSelf: 'flex-end', marginTop: 4 },
 
   toggleRow: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
-    backgroundColor: Colors.background, borderRadius: Tokens.radius.md,
-    padding: 14, borderWidth: 1.5, borderColor: Colors.border,
+    backgroundColor: t.bg, borderRadius: Tokens.radius.md,
+    padding: 14, borderWidth: 1.5, borderColor: t.line,
   },
-  toggleRowActive: { borderColor: Colors.primary, backgroundColor: Colors.primary + '08' },
-  toggleText: { flex: 1, fontSize: Type.footnote.fontSize, color: Colors.text, fontWeight: '600' },
-  toggleTextActive: { color: Colors.primary },
-  toggleDot: { width: 14, height: 14, borderRadius: 7, backgroundColor: Colors.background, borderWidth: 1.5, borderColor: Colors.border },
-  toggleDotActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  toggleRowActive: { borderColor: t.accent, backgroundColor: t.accent + '08' },
+  toggleText: { flex: 1, fontSize: Type.footnote.fontSize, color: t.text, fontWeight: '600' },
+  toggleTextActive: { color: t.accent },
+  toggleDot: { width: 14, height: 14, borderRadius: 7, backgroundColor: t.bg, borderWidth: 1.5, borderColor: t.line },
+  toggleDotActive: { backgroundColor: t.accent, borderColor: t.accent },
 
   amountField: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: Colors.background, borderRadius: Tokens.radius.md, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: t.bg, borderRadius: Tokens.radius.md, borderWidth: 1, borderColor: t.line,
     paddingHorizontal: 14, paddingVertical: 10,
   },
-  amountInput: { flex: 1, fontSize: Type.title2.fontSize, fontWeight: '800', color: Colors.text },
+  amountInput: { flex: 1, fontSize: Type.title2.fontSize, fontWeight: '800', color: t.text },
 
   input: {
-    backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border, borderRadius: Tokens.radius.md,
-    paddingHorizontal: 12, paddingVertical: 11, fontSize: Type.bodyCompact.fontSize, color: Colors.text,
+    backgroundColor: t.bg, borderWidth: 1, borderColor: t.line, borderRadius: Tokens.radius.md,
+    paddingHorizontal: 12, paddingVertical: 11, fontSize: Type.bodyCompact.fontSize, color: t.text,
   },
   inputMultiline: { minHeight: 120, paddingTop: 11 },
 
   identityRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  identityText: { flex: 1, fontSize: Type.footnote.fontSize, color: Colors.text, fontWeight: '600' },
-  identityHelper: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 8, fontStyle: 'italic', lineHeight: 16 },
+  identityText: { flex: 1, fontSize: Type.footnote.fontSize, color: t.text, fontWeight: '600' },
+  identityHelper: { fontSize: Type.caption2.fontSize, color: t.textMuted, marginTop: 8, fontStyle: 'italic', lineHeight: 16 },
 
   errorCard: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 10,
     padding: 14, borderRadius: Tokens.radius.card,
-    backgroundColor: Colors.error + '0D',
-    borderWidth: 1, borderColor: Colors.error + '30',
+    backgroundColor: t.danger + '0D',
+    borderWidth: 1, borderColor: t.danger + '30',
     marginBottom: 12,
   },
-  errorText: { flex: 1, fontSize: Type.footnote.fontSize, color: Colors.error, lineHeight: 18 },
+  errorText: { flex: 1, fontSize: Type.footnote.fontSize, color: t.danger, lineHeight: 18 },
 
   submitBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     paddingVertical: 14, borderRadius: Tokens.radius.card,
-    backgroundColor: Colors.primary,
-    shadowColor: Colors.primary, shadowOffset: { width: 0, height: 4 },
+    backgroundColor: t.accent,
+    shadowColor: t.accent, shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3, shadowRadius: 8, elevation: 4,
   },
   submitBtnDisabled: { opacity: 0.6 },
   submitBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '800', color: '#FFF', letterSpacing: 0.2 },
 
-  disclaimer: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, textAlign: 'center', marginTop: 14, fontStyle: 'italic', paddingHorizontal: 16, lineHeight: 16 },
+  disclaimer: { fontSize: Type.caption2.fontSize, color: t.textMuted, textAlign: 'center', marginTop: 14, fontStyle: 'italic', paddingHorizontal: 16, lineHeight: 16 },
 });

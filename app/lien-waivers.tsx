@@ -19,6 +19,9 @@ import {
   Clock, XCircle, Trash2, ShieldCheck, AlertTriangle,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import { FeatureHeader } from '@/components/FeatureHeader';
 import {
@@ -32,6 +35,8 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
 export default function LienWaiversScreen() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { projectId, prefillFromInvoice, prefillAmount, prefillThroughDate } = useLocalSearchParams<{
@@ -222,7 +227,7 @@ export default function LienWaiversScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
-          <ChevronLeft size={26} color={Colors.primary} />
+          <ChevronLeft size={26} color={themeColors.accent} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.eyebrow}>{project.name}</Text>
@@ -250,12 +255,12 @@ export default function LienWaiversScreen() {
 
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 80 }}>
         {loading && (
-          <View style={styles.loading}><ActivityIndicator size="small" color={Colors.primary} /></View>
+          <View style={styles.loading}><ActivityIndicator size="small" color={themeColors.accent} /></View>
         )}
 
         {!loading && waivers.length === 0 && (
           <View style={styles.emptyCard}>
-            <ShieldCheck size={28} color={Colors.primary} />
+            <ShieldCheck size={28} color={themeColors.accent} />
             <Text style={styles.emptyTitle}>No waivers yet</Text>
             <Text style={styles.emptyBody}>
               Generate a lien waiver after every sub payment. Banks ask for them on every draw.
@@ -309,6 +314,8 @@ function WaiverCard({ waiver, exporting, onExport, onMarkSigned, onMarkReceived,
   onMarkVoid: () => void;
   onDelete: () => void;
 }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const meta = WAIVER_LABELS[waiver.waiverType];
   // Use the shared statusPillStyle so SIGNED/RECEIVED/VOIDED/REQUESTED
   // match the same color scheme used on contract + closeout binder.
@@ -353,7 +360,7 @@ function WaiverCard({ waiver, exporting, onExport, onMarkSigned, onMarkReceived,
 
       {waiver.subSignature && (
         <View style={styles.sigPreview}>
-          <FileSignature size={12} color={Colors.success} />
+          <FileSignature size={12} color={themeColors.success} />
           <Text style={styles.sigPreviewText}>
             Signed by <Text style={{ fontWeight: '800' }}>{waiver.subSignature.name}</Text> on {new Date(waiver.subSignature.signedAt).toLocaleDateString()}
           </Text>
@@ -362,9 +369,9 @@ function WaiverCard({ waiver, exporting, onExport, onMarkSigned, onMarkReceived,
 
       <View style={styles.waiverActions}>
         <TouchableOpacity style={styles.actionSecondary} onPress={onExport} disabled={exporting}>
-          {exporting ? <ActivityIndicator size="small" color={Colors.text} /> : (
+          {exporting ? <ActivityIndicator size="small" color={themeColors.text} /> : (
             <>
-              <FileDown size={13} color={Colors.text} />
+              <FileDown size={13} color={themeColors.text} />
               <Text style={styles.actionSecondaryText}>PDF</Text>
             </>
           )}
@@ -387,7 +394,7 @@ function WaiverCard({ waiver, exporting, onExport, onMarkSigned, onMarkReceived,
             <Text style={styles.actionGhostText}>Void</Text>
           </TouchableOpacity>
         )}
-        <TouchableOpacity style={styles.actionGhost} onPress={onDelete} accessibilityRole="button" accessibilityLabel="Delete"><Trash2 size={13} color={Colors.error} /></TouchableOpacity>
+        <TouchableOpacity style={styles.actionGhost} onPress={onDelete} accessibilityRole="button" accessibilityLabel="Delete"><Trash2 size={13} color={themeColors.danger} /></TouchableOpacity>
       </View>
     </View>
   );
@@ -400,6 +407,8 @@ function NewWaiverModal({ visible, onClose, onCreate, seed }: {
   /** Optional prefill from a "Create lien waiver" CTA on a paid invoice. */
   seed?: { subName?: string; subEmail?: string; paidAmount?: number; throughDate?: string } | null;
 }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const [type, setType] = useState<LienWaiverType>('unconditional_partial');
   const [subName, setSubName] = useState('');
   const [subEmail, setSubEmail] = useState('');
@@ -468,7 +477,7 @@ function NewWaiverModal({ visible, onClose, onCreate, seed }: {
             value={subName}
             onChangeText={setSubName}
             placeholder="Hallway Homes LLC"
-            placeholderTextColor={Colors.textMuted}
+            placeholderTextColor={themeColors.textMuted}
             autoCapitalize="words"
           />
 
@@ -478,7 +487,7 @@ function NewWaiverModal({ visible, onClose, onCreate, seed }: {
             value={subEmail}
             onChangeText={setSubEmail}
             placeholder="optional — for signing requests later"
-            placeholderTextColor={Colors.textMuted}
+            placeholderTextColor={themeColors.textMuted}
             keyboardType="email-address"
             autoCapitalize="none"
           />
@@ -491,7 +500,7 @@ function NewWaiverModal({ visible, onClose, onCreate, seed }: {
                 value={throughDate}
                 onChangeText={setThroughDate}
                 placeholder="YYYY-MM-DD"
-                placeholderTextColor={Colors.textMuted}
+                placeholderTextColor={themeColors.textMuted}
               />
             </View>
             <View style={{ flex: 1 }}>
@@ -501,7 +510,7 @@ function NewWaiverModal({ visible, onClose, onCreate, seed }: {
                 value={amount}
                 onChangeText={setAmount}
                 placeholder="0"
-                placeholderTextColor={Colors.textMuted}
+                placeholderTextColor={themeColors.textMuted}
                 keyboardType="numeric"
               />
             </View>
@@ -526,25 +535,25 @@ function NewWaiverModal({ visible, onClose, onCreate, seed }: {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: t.bg },
   center: { alignItems: 'center', justifyContent: 'center' },
 
   header: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 10,
     paddingHorizontal: 16, paddingTop: 14, paddingBottom: 14,
-    borderBottomWidth: 1, borderBottomColor: Colors.border,
+    borderBottomWidth: 1, borderBottomColor: t.line,
   },
-  eyebrow: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.primary, letterSpacing: 1.4, textTransform: 'uppercase' },
-  title:   { fontSize: Type.title3.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.4, marginTop: 4 },
-  addBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 9, backgroundColor: Colors.primary },
+  eyebrow: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: t.accent, letterSpacing: 1.4, textTransform: 'uppercase' },
+  title:   { fontSize: Type.title3.fontSize, fontWeight: '800', color: t.text, letterSpacing: -0.4, marginTop: 4 },
+  addBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 9, backgroundColor: t.accent },
   addBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: '#FFF' },
 
   loading: { padding: 30, alignItems: 'center' },
-  emptyCard: { backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 28, alignItems: 'center', gap: 10, marginTop: 22, borderWidth: 1, borderColor: Colors.border },
-  emptyTitle: { fontSize: Type.callout.fontSize, fontWeight: '800', color: Colors.text, marginTop: 4 },
-  emptyBody:  { fontSize: Type.footnote.fontSize, color: Colors.textMuted, textAlign: 'center', lineHeight: 19, maxWidth: 320 },
-  bigCta: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 18, paddingVertical: 11, borderRadius: 11, backgroundColor: Colors.primary, marginTop: 8 },
+  emptyCard: { backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 28, alignItems: 'center', gap: 10, marginTop: 22, borderWidth: 1, borderColor: t.line },
+  emptyTitle: { fontSize: Type.callout.fontSize, fontWeight: '800', color: t.text, marginTop: 4 },
+  emptyBody:  { fontSize: Type.footnote.fontSize, color: t.textMuted, textAlign: 'center', lineHeight: 19, maxWidth: 320 },
+  bigCta: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 18, paddingVertical: 11, borderRadius: 11, backgroundColor: t.accent, marginTop: 8 },
   bigCtaText: { color: '#FFF', fontSize: Type.bodyCompact.fontSize, fontWeight: '800' },
 
   disclaimer: {
@@ -553,56 +562,56 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.warning + '0D',
     borderWidth: 1, borderColor: Colors.warning + '30',
   },
-  disclaimerText: { flex: 1, fontSize: Type.caption2.fontSize, color: Colors.text, lineHeight: 16 },
+  disclaimerText: { flex: 1, fontSize: Type.caption2.fontSize, color: t.text, lineHeight: 16 },
 
   waiverCard: {
     backgroundColor: Colors.card, borderRadius: Tokens.radius.card, padding: 14,
-    borderWidth: 1, borderColor: Colors.border,
+    borderWidth: 1, borderColor: t.line,
     marginBottom: 10, gap: 10,
   },
   waiverHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  waiverType: { fontSize: 9, fontWeight: '800', color: Colors.primary, letterSpacing: 0.8 },
-  waiverSubName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800', color: Colors.text, marginTop: 3 },
+  waiverType: { fontSize: 9, fontWeight: '800', color: t.accent, letterSpacing: 0.8 },
+  waiverSubName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800', color: t.text, marginTop: 3 },
   statusPill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.full },
   statusPillText: { fontSize: 9, fontWeight: '800', letterSpacing: 0.5 },
 
   waiverGrid: { flexDirection: 'row', gap: 12 },
-  waiverField: { flex: 1, padding: 8, borderRadius: Tokens.radius.sm, backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border },
-  waiverFieldLabel: { fontSize: 9, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.6 },
-  waiverFieldValue: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text, marginTop: 2 },
+  waiverField: { flex: 1, padding: 8, borderRadius: Tokens.radius.sm, backgroundColor: t.bg, borderWidth: 1, borderColor: t.line },
+  waiverFieldLabel: { fontSize: 9, fontWeight: '800', color: t.textMuted, letterSpacing: 0.6 },
+  waiverFieldValue: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: t.text, marginTop: 2 },
 
-  sigPreview: { flexDirection: 'row', alignItems: 'center', gap: 6, padding: 8, borderRadius: Tokens.radius.sm, backgroundColor: Colors.success + '0D', borderWidth: 1, borderColor: Colors.success + '30' },
-  sigPreviewText: { flex: 1, fontSize: Type.caption2.fontSize, color: Colors.text },
+  sigPreview: { flexDirection: 'row', alignItems: 'center', gap: 6, padding: 8, borderRadius: Tokens.radius.sm, backgroundColor: t.success + '0D', borderWidth: 1, borderColor: t.success + '30' },
+  sigPreviewText: { flex: 1, fontSize: Type.caption2.fontSize, color: t.text },
 
   waiverActions: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
-  actionPrimary: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 9, backgroundColor: Colors.primary },
+  actionPrimary: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 9, backgroundColor: t.accent },
   actionPrimaryText: { fontSize: Type.caption1.fontSize, fontWeight: '800', color: '#FFF' },
-  actionSecondary: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 9, backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border },
-  actionSecondaryText: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: Colors.text },
+  actionSecondary: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 9, backgroundColor: t.bg, borderWidth: 1, borderColor: t.line },
+  actionSecondaryText: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: t.text },
   actionGhost: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 9 },
   actionGhostText: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: Colors.warning },
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(11, 13, 16, 0.75)', justifyContent: 'flex-end' },
-  modalCard: { backgroundColor: Colors.surface, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 20, gap: 8 },
-  modalTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: Colors.text },
-  modalBody: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, lineHeight: 18 },
-  modalLabel: { fontSize: Type.caption2.fontSize, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.6, textTransform: 'uppercase', marginTop: 8 },
+  modalCard: { backgroundColor: t.surface, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 20, gap: 8 },
+  modalTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: t.text },
+  modalBody: { fontSize: Type.footnote.fontSize, color: t.textMuted, lineHeight: 18 },
+  modalLabel: { fontSize: Type.caption2.fontSize, fontWeight: '800', color: t.textMuted, letterSpacing: 0.6, textTransform: 'uppercase', marginTop: 8 },
   modalInput: {
-    backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border, borderRadius: Tokens.radius.md,
-    paddingHorizontal: 12, paddingVertical: 11, fontSize: Type.bodyCompact.fontSize, color: Colors.text,
+    backgroundColor: t.bg, borderWidth: 1, borderColor: t.line, borderRadius: Tokens.radius.md,
+    paddingHorizontal: 12, paddingVertical: 11, fontSize: Type.bodyCompact.fontSize, color: t.text,
   },
   modalRow: { flexDirection: 'row', gap: 10, marginTop: -4 },
   typeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  typeChip: { paddingHorizontal: 10, paddingVertical: 7, borderRadius: 9, backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border },
-  typeChipActive: { backgroundColor: Colors.primary + '15', borderColor: Colors.primary },
-  typeChipText: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.text },
-  typeChipTextActive: { color: Colors.primary },
-  typeHint: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, lineHeight: 16, marginTop: 4, fontStyle: 'italic' },
+  typeChip: { paddingHorizontal: 10, paddingVertical: 7, borderRadius: 9, backgroundColor: t.bg, borderWidth: 1, borderColor: t.line },
+  typeChipActive: { backgroundColor: t.accent + '15', borderColor: t.accent },
+  typeChipText: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: t.text },
+  typeChipTextActive: { color: t.accent },
+  typeHint: { fontSize: Type.caption2.fontSize, color: t.textMuted, lineHeight: 16, marginTop: 4, fontStyle: 'italic' },
 
   modalActions: { flexDirection: 'row', gap: 10, marginTop: 12 },
-  modalCancel: { flex: 1, paddingVertical: 12, borderRadius: 11, backgroundColor: Colors.background, alignItems: 'center', borderWidth: 1, borderColor: Colors.border },
-  modalCancelText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
-  modalConfirm: { flex: 1.4, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 11, backgroundColor: Colors.primary },
+  modalCancel: { flex: 1, paddingVertical: 12, borderRadius: 11, backgroundColor: t.bg, alignItems: 'center', borderWidth: 1, borderColor: t.line },
+  modalCancelText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: t.text },
+  modalConfirm: { flex: 1.4, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 11, backgroundColor: t.accent },
   modalConfirmDisabled: { opacity: 0.45 },
   modalConfirmText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800', color: '#FFF' },
 });

@@ -20,6 +20,9 @@ import {
   Crosshair, ShieldCheck, AlertTriangle,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { useUserLocation, getDistanceMiles } from '@/utils/location';
 import { formatMoney } from '@/utils/formatters';
@@ -51,6 +54,8 @@ interface RfpWithDistance extends RfpRow {
 const RADIUS_OPTIONS = [10, 25, 50, 100, 250] as const;
 
 export default function NearbyRfpsScreen() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { location, refresh: requestLocation, loading: locLoading } = useUserLocation();
@@ -106,7 +111,7 @@ export default function NearbyRfpsScreen() {
 
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
-          <ChevronLeft size={26} color={Colors.primary} />
+          <ChevronLeft size={26} color={themeColors.accent} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.eyebrow}>Homeowner RFPs</Text>
@@ -117,7 +122,7 @@ export default function NearbyRfpsScreen() {
       {/* Location + radius controls */}
       <View style={styles.controls}>
         <TouchableOpacity style={styles.locBtn} onPress={() => { void requestLocation(); }}>
-          <Crosshair size={14} color={location ? Colors.success : Colors.primary} />
+          <Crosshair size={14} color={location ? themeColors.success : themeColors.accent} />
           <Text style={styles.locBtnText}>
             {location ? 'Location set' : locLoading ? 'Getting location…' : 'Use my location'}
           </Text>
@@ -141,18 +146,18 @@ export default function NearbyRfpsScreen() {
         contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 80 }}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={isRefetching} onRefresh={() => { void refetch(); }} tintColor={Colors.primary} />
+          <RefreshControl refreshing={isRefetching} onRefresh={() => { void refetch(); }} tintColor={themeColors.accent} />
         }
       >
         {isLoading && filtered.length === 0 && (
           <View style={styles.loading}>
-            <ActivityIndicator size="small" color={Colors.primary} />
+            <ActivityIndicator size="small" color={themeColors.accent} />
           </View>
         )}
 
         {!isLoading && filtered.length === 0 && (
           <View style={styles.emptyCard}>
-            <Inbox size={28} color={Colors.textMuted} />
+            <Inbox size={28} color={themeColors.textMuted} />
             <Text style={styles.emptyTitle}>No projects within {radius} miles yet</Text>
             <Text style={styles.emptyBody}>
               {!location ? 'Allow location access to see projects near you, or expand your radius.' : 'Try expanding the radius — new projects show up here as homeowners post them.'}
@@ -180,7 +185,7 @@ export default function NearbyRfpsScreen() {
                   <Text style={styles.rfpTitle} numberOfLines={2}>{r.title}</Text>
                   {r.address_verified ? (
                     <View style={styles.verifyDot}>
-                      <ShieldCheck size={10} color={Colors.success} />
+                      <ShieldCheck size={10} color={themeColors.success} />
                     </View>
                   ) : (
                     <View style={[styles.verifyDot, { backgroundColor: Colors.warning + '20' }]}>
@@ -195,7 +200,7 @@ export default function NearbyRfpsScreen() {
 
                 <View style={styles.rfpMetaRow}>
                   <View style={styles.rfpMetaItem}>
-                    <MapPin size={11} color={Colors.textMuted} />
+                    <MapPin size={11} color={themeColors.textMuted} />
                     <Text style={styles.rfpMetaText}>
                       {[r.city, r.state].filter(Boolean).join(', ') || 'Location pending'} · {distanceText}
                     </Text>
@@ -205,19 +210,19 @@ export default function NearbyRfpsScreen() {
                 <View style={styles.rfpFoot}>
                   {(r.budget_min || r.budget_max) ? (
                     <View style={styles.rfpFootChip}>
-                      <DollarSign size={11} color={Colors.primary} />
+                      <DollarSign size={11} color={themeColors.accent} />
                       <Text style={styles.rfpFootChipText}>
                         {r.budget_min ? formatMoney(r.budget_min) : '?'} – {r.budget_max ? formatMoney(r.budget_max) : '?'}
                       </Text>
                     </View>
                   ) : <View />}
-                  <View style={[styles.rfpFootChip, daysLeft < 3 ? { backgroundColor: Colors.error + '15' } : null]}>
-                    <Clock size={11} color={daysLeft < 3 ? Colors.error : Colors.textMuted} />
-                    <Text style={[styles.rfpFootChipText, daysLeft < 3 ? { color: Colors.error } : null]}>
+                  <View style={[styles.rfpFootChip, daysLeft < 3 ? { backgroundColor: themeColors.danger + '15' } : null]}>
+                    <Clock size={11} color={daysLeft < 3 ? themeColors.danger : themeColors.textMuted} />
+                    <Text style={[styles.rfpFootChipText, daysLeft < 3 ? { color: themeColors.danger } : null]}>
                       {daysLeft <= 0 ? 'Closing today' : `${daysLeft}d left`}
                     </Text>
                   </View>
-                  <ChevronRight size={14} color={Colors.textMuted} />
+                  <ChevronRight size={14} color={themeColors.textMuted} />
                 </View>
               </View>
             </TouchableOpacity>
@@ -228,66 +233,66 @@ export default function NearbyRfpsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: t.bg },
   header: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 10,
     paddingHorizontal: 16, paddingTop: 14, paddingBottom: 12,
-    borderBottomWidth: 1, borderBottomColor: Colors.border,
+    borderBottomWidth: 1, borderBottomColor: t.line,
   },
-  eyebrow: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.primary, letterSpacing: 1.4, textTransform: 'uppercase' },
-  title:   { fontSize: Type.title2.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.4, marginTop: 4 },
+  eyebrow: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: t.accent, letterSpacing: 1.4, textTransform: 'uppercase' },
+  title:   { fontSize: Type.title2.fontSize, fontWeight: '800', color: t.text, letterSpacing: -0.4, marginTop: 4 },
 
   controls: {
     paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8,
-    borderBottomWidth: 1, borderBottomColor: Colors.border,
-    backgroundColor: Colors.background,
+    borderBottomWidth: 1, borderBottomColor: t.line,
+    backgroundColor: t.bg,
     gap: 8,
   },
   locBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     paddingHorizontal: 12, paddingVertical: 8, borderRadius: 9,
-    backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: Colors.card, borderWidth: 1, borderColor: t.line,
     alignSelf: 'flex-start',
   },
-  locBtnText: { fontSize: Type.caption1.fontSize, color: Colors.text, fontWeight: '600' },
+  locBtnText: { fontSize: Type.caption1.fontSize, color: t.text, fontWeight: '600' },
   radiusRow: { flexDirection: 'row', gap: 6 },
   radiusChip: {
     paddingHorizontal: 10, paddingVertical: 6, borderRadius: Tokens.radius.sm,
-    backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: Colors.card, borderWidth: 1, borderColor: t.line,
   },
-  radiusChipActive: { backgroundColor: Colors.text, borderColor: Colors.text },
-  radiusChipText:  { fontSize: Type.caption1.fontSize, fontWeight: '700', color: Colors.text },
+  radiusChipActive: { backgroundColor: t.text, borderColor: t.text },
+  radiusChipText:  { fontSize: Type.caption1.fontSize, fontWeight: '700', color: t.text },
   radiusChipTextActive: { color: '#FFF' },
 
   loading: { padding: 30, alignItems: 'center' },
   emptyCard: {
     backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 28,
     alignItems: 'center', gap: 8, marginTop: 22,
-    borderWidth: 1, borderColor: Colors.border,
+    borderWidth: 1, borderColor: t.line,
   },
-  emptyTitle: { fontSize: Type.callout.fontSize, fontWeight: '800', color: Colors.text, marginTop: 4 },
-  emptyBody: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, textAlign: 'center', lineHeight: 19, maxWidth: 320 },
+  emptyTitle: { fontSize: Type.callout.fontSize, fontWeight: '800', color: t.text, marginTop: 4 },
+  emptyBody: { fontSize: Type.footnote.fontSize, color: t.textMuted, textAlign: 'center', lineHeight: 19, maxWidth: 320 },
 
   rfpCard: {
     backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, overflow: 'hidden',
-    borderWidth: 1, borderColor: Colors.border,
+    borderWidth: 1, borderColor: t.line,
     marginBottom: 12,
   },
-  rfpHero: { width: '100%', height: 130, backgroundColor: Colors.background },
+  rfpHero: { width: '100%', height: 130, backgroundColor: t.bg },
   rfpBody: { padding: 14, gap: 6 },
   rfpHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-  rfpTitle: { flex: 1, fontSize: Type.subhead.fontSize, fontWeight: '700', color: Colors.text, lineHeight: 21 },
-  verifyDot: { width: 22, height: 22, borderRadius: 11, backgroundColor: Colors.success + '15', alignItems: 'center', justifyContent: 'center' },
-  rfpScope: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, lineHeight: 17 },
+  rfpTitle: { flex: 1, fontSize: Type.subhead.fontSize, fontWeight: '700', color: t.text, lineHeight: 21 },
+  verifyDot: { width: 22, height: 22, borderRadius: 11, backgroundColor: t.success + '15', alignItems: 'center', justifyContent: 'center' },
+  rfpScope: { fontSize: Type.caption1.fontSize, color: t.textMuted, lineHeight: 17 },
   rfpMetaRow: { flexDirection: 'row', alignItems: 'center' },
   rfpMetaItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  rfpMetaText: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontWeight: '600' },
-  rfpFoot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 6, paddingTop: 8, borderTopWidth: 1, borderTopColor: Colors.border, gap: 8 },
+  rfpMetaText: { fontSize: Type.caption2.fontSize, color: t.textMuted, fontWeight: '600' },
+  rfpFoot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 6, paddingTop: 8, borderTopWidth: 1, borderTopColor: t.line, gap: 8 },
   rfpFootChip: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     paddingHorizontal: 8, paddingVertical: 4, borderRadius: Tokens.radius.full,
-    backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: t.bg, borderWidth: 1, borderColor: t.line,
   },
-  rfpFootChipText: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.text },
+  rfpFootChipText: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: t.text },
 });

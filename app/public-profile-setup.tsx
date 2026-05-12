@@ -10,6 +10,9 @@ import {
   ChevronLeft, Globe, Copy, Send, Sparkles, Eye, Quote,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import type { PublicProfileSettings } from '@/types';
 import {
@@ -22,6 +25,8 @@ import { Tokens } from '@/constants/designTokens';
 const PUBLIC_BASE = 'https://mageid.app/builders';
 
 export default function PublicProfileSetupScreen() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -96,7 +101,7 @@ export default function PublicProfileSetupScreen() {
           title: 'Public Profile',
           headerLeft: () => (
             <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }} accessibilityRole="button" accessibilityLabel="Back">
-              <ChevronLeft size={24} color={Colors.primary} />
+              <ChevronLeft size={24} color={themeColors.accent} />
             </TouchableOpacity>
           ),
         }}
@@ -108,13 +113,13 @@ export default function PublicProfileSetupScreen() {
         {/* Hero */}
         <View style={styles.hero}>
           <View style={styles.heroIcon}>
-            <Globe size={20} color={Colors.primary} />
+            <Globe size={20} color={themeColors.accent} />
           </View>
           <Text style={styles.heroEyebrow}>Free portfolio page</Text>
           <Text style={styles.heroTitle}>{project.name}</Text>
           <Text style={styles.heroBody}>
             Showcase this project on a public page at{' '}
-            <Text style={{ color: Colors.primary, fontWeight: '700' }}>
+            <Text style={{ color: themeColors.accent, fontWeight: '700' }}>
               mageid.app/builders/…/{profile.slug || slugify(project.name)}
             </Text>{' '}
             — perfect to link from your website, Google Business profile, or send to prospective clients.
@@ -126,7 +131,7 @@ export default function PublicProfileSetupScreen() {
           <View style={styles.togglesCard}>
             <View style={styles.toggleRow}>
               <View style={styles.toggleLeft}>
-                <Sparkles size={18} color={Colors.primary} />
+                <Sparkles size={18} color={themeColors.accent} />
                 <View style={styles.toggleLabels}>
                   <Text style={styles.toggleLabel}>Publish project page</Text>
                   <Text style={styles.toggleDesc}>Anyone with the link can view it; you can unpublish anytime.</Text>
@@ -135,7 +140,7 @@ export default function PublicProfileSetupScreen() {
               <Switch
                 value={profile.enabled}
                 onValueChange={val => persist({ enabled: val, publishedAt: val ? new Date().toISOString() : profile.publishedAt })}
-                trackColor={{ false: Colors.border, true: Colors.primary }}
+                trackColor={{ false: themeColors.line, true: themeColors.accent }}
                 thumbColor="#FFF"
               />
             </View>
@@ -148,12 +153,12 @@ export default function PublicProfileSetupScreen() {
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Share link</Text>
               <View style={styles.linkBox}>
-                <Globe size={14} color={Colors.textMuted} />
+                <Globe size={14} color={themeColors.textMuted} />
                 <Text style={styles.linkText} numberOfLines={1}>{publicUrl}</Text>
               </View>
               <View style={styles.shareRow}>
                 <TouchableOpacity style={styles.shareBtn} onPress={handleCopy}>
-                  <Copy size={16} color={Colors.text} />
+                  <Copy size={16} color={themeColors.text} />
                   <Text style={styles.shareBtnText}>Copy</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={[styles.shareBtn, styles.shareBtnPrimary]} onPress={handleShare}>
@@ -164,7 +169,7 @@ export default function PublicProfileSetupScreen() {
                   style={styles.shareBtn}
                   onPress={() => publicUrl && Platform.OS === 'web' && (window as unknown as { open: (url: string, target: string) => void }).open(publicUrl, '_blank')}
                 >
-                  <Eye size={16} color={Colors.text} />
+                  <Eye size={16} color={themeColors.text} />
                   <Text style={styles.shareBtnText}>Preview</Text>
                 </TouchableOpacity>
               </View>
@@ -179,7 +184,7 @@ export default function PublicProfileSetupScreen() {
                 value={profile.publicHeadline ?? ''}
                 onChangeText={v => persist({ publicHeadline: v })}
                 placeholder="e.g. Brownstone gut renovation, Park Slope"
-                placeholderTextColor={Colors.textMuted}
+                placeholderTextColor={themeColors.textMuted}
               />
               <Text style={[styles.label, { marginTop: 12 }]}>Story (optional)</Text>
               <TextInput
@@ -187,7 +192,7 @@ export default function PublicProfileSetupScreen() {
                 value={profile.publicBody ?? ''}
                 onChangeText={v => persist({ publicBody: v })}
                 placeholder="A few sentences about scope, design challenges, or what made this project special."
-                placeholderTextColor={Colors.textMuted}
+                placeholderTextColor={themeColors.textMuted}
                 multiline
               />
             </View>
@@ -201,7 +206,7 @@ export default function PublicProfileSetupScreen() {
                 value={profile.slug ?? ''}
                 onChangeText={v => persist({ slug: slugify(v) })}
                 placeholder={slugify(project.name)}
-                placeholderTextColor={Colors.textMuted}
+                placeholderTextColor={themeColors.textMuted}
                 autoCapitalize="none"
               />
             </View>
@@ -211,13 +216,13 @@ export default function PublicProfileSetupScreen() {
               <Text style={styles.sectionTitle}>Client testimonial (optional)</Text>
               <Text style={styles.sectionSubtitle}>Shows up as a pull-quote on the public page if you fill both.</Text>
               <View style={styles.quoteRow}>
-                <Quote size={14} color={Colors.primary} />
+                <Quote size={14} color={themeColors.accent} />
                 <TextInput
                   style={[styles.input, styles.inputMulti, { flex: 1 }]}
                   value={profile.testimonialQuote ?? ''}
                   onChangeText={v => persist({ testimonialQuote: v })}
                   placeholder='"They were on time, clean, and called the shots before we even knew to ask."'
-                  placeholderTextColor={Colors.textMuted}
+                  placeholderTextColor={themeColors.textMuted}
                   multiline
                 />
               </View>
@@ -226,7 +231,7 @@ export default function PublicProfileSetupScreen() {
                 value={profile.testimonialAuthor ?? ''}
                 onChangeText={v => persist({ testimonialAuthor: v })}
                 placeholder="— Sarah Patel, Owner"
-                placeholderTextColor={Colors.textMuted}
+                placeholderTextColor={themeColors.textMuted}
               />
             </View>
 
@@ -243,7 +248,7 @@ export default function PublicProfileSetupScreen() {
                   <View key={stat.key} style={styles.statRow}>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.statLabel}>{stat.label}</Text>
-                      <Text style={[styles.statValue, isHidden && { color: Colors.textMuted, textDecorationLine: 'line-through' }]}>{stat.value}</Text>
+                      <Text style={[styles.statValue, isHidden && { color: themeColors.textMuted, textDecorationLine: 'line-through' }]}>{stat.value}</Text>
                     </View>
                     <Switch
                       value={!isHidden}
@@ -252,7 +257,7 @@ export default function PublicProfileSetupScreen() {
                         if (val) set.delete(stat.key); else set.add(stat.key);
                         persist({ hideStats: Array.from(set) });
                       }}
-                      trackColor={{ false: Colors.border, true: Colors.primary }}
+                      trackColor={{ false: themeColors.line, true: themeColors.accent }}
                       thumbColor="#FFF"
                     />
                   </View>
@@ -278,46 +283,46 @@ export default function PublicProfileSetupScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: t.bg },
   center: { alignItems: 'center', justifyContent: 'center' },
-  muted: { color: Colors.textMuted, fontSize: Type.footnote.fontSize, lineHeight: 18, fontStyle: 'italic' },
+  muted: { color: t.textMuted, fontSize: Type.footnote.fontSize, lineHeight: 18, fontStyle: 'italic' },
 
   hero: {
     margin: 16, padding: 18, borderRadius: Tokens.radius.panel,
-    backgroundColor: Colors.primary + '0D',
-    borderWidth: 1, borderColor: Colors.primary + '20',
+    backgroundColor: t.accent + '0D',
+    borderWidth: 1, borderColor: t.accent + '20',
   },
   heroIcon: {
     width: 38, height: 38, borderRadius: 11,
-    backgroundColor: Colors.primary + '15',
+    backgroundColor: t.accent + '15',
     alignItems: 'center', justifyContent: 'center',
     marginBottom: 12,
   },
-  heroEyebrow: { fontSize: Type.caption2.fontSize, fontWeight: '700', letterSpacing: 1.5, color: Colors.primary, textTransform: 'uppercase', marginBottom: 4 },
-  heroTitle: { fontSize: Type.title2.fontSize, fontWeight: '800', color: Colors.text, marginBottom: 8 },
-  heroBody: { fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 19 },
+  heroEyebrow: { fontSize: Type.caption2.fontSize, fontWeight: '700', letterSpacing: 1.5, color: t.accent, textTransform: 'uppercase', marginBottom: 4 },
+  heroTitle: { fontSize: Type.title2.fontSize, fontWeight: '800', color: t.text, marginBottom: 8 },
+  heroBody: { fontSize: Type.footnote.fontSize, color: t.text, lineHeight: 19 },
 
   section: { marginHorizontal: 16, marginBottom: 22 },
-  sectionTitle: { fontSize: Type.callout.fontSize, fontWeight: '700', color: Colors.text, marginBottom: 4 },
-  sectionSubtitle: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, marginBottom: 10, lineHeight: 18 },
+  sectionTitle: { fontSize: Type.callout.fontSize, fontWeight: '700', color: t.text, marginBottom: 4 },
+  sectionSubtitle: { fontSize: Type.footnote.fontSize, color: t.textMuted, marginBottom: 10, lineHeight: 18 },
 
   togglesCard: {
     backgroundColor: Colors.card, borderRadius: Tokens.radius.card,
-    borderWidth: 1, borderColor: Colors.border, overflow: 'hidden',
+    borderWidth: 1, borderColor: t.line, overflow: 'hidden',
   },
   toggleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 13 },
   toggleLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
   toggleLabels: { flex: 1 },
-  toggleLabel: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600', color: Colors.text },
-  toggleDesc: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 1 },
+  toggleLabel: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600', color: t.text },
+  toggleDesc: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 1 },
 
-  label: { fontSize: Type.caption1.fontSize, fontWeight: '600', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 6 },
+  label: { fontSize: Type.caption1.fontSize, fontWeight: '600', color: t.textMuted, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 6 },
   input: {
     backgroundColor: Colors.card, borderRadius: Tokens.radius.md,
-    borderWidth: 1, borderColor: Colors.border,
+    borderWidth: 1, borderColor: t.line,
     paddingHorizontal: 12, paddingVertical: 12,
-    fontSize: Type.bodyCompact.fontSize, color: Colors.text,
+    fontSize: Type.bodyCompact.fontSize, color: t.text,
   },
   inputMulti: { minHeight: 90, textAlignVertical: 'top' as const },
 
@@ -325,21 +330,21 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 8,
     backgroundColor: Colors.card, borderRadius: Tokens.radius.md,
     paddingHorizontal: 12, paddingVertical: 12,
-    borderWidth: 1, borderColor: Colors.border, marginBottom: 10,
+    borderWidth: 1, borderColor: t.line, marginBottom: 10,
   },
-  linkText: { flex: 1, fontSize: Type.caption1.fontSize, color: Colors.text },
+  linkText: { flex: 1, fontSize: Type.caption1.fontSize, color: t.text },
   shareRow: { flexDirection: 'row', gap: 8 },
   shareBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     paddingVertical: 12, borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: Colors.card, borderWidth: 1, borderColor: t.line,
   },
-  shareBtnPrimary: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  shareBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
+  shareBtnPrimary: { backgroundColor: t.accent, borderColor: t.accent },
+  shareBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: t.text },
 
   quoteRow: { flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
 
   statRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8 },
-  statLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 2 },
-  statValue: { fontSize: Type.callout.fontSize, fontWeight: '700', color: Colors.text },
+  statLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: t.textMuted, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 2 },
+  statValue: { fontSize: Type.callout.fontSize, fontWeight: '700', color: t.text },
 });

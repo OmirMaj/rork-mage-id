@@ -18,6 +18,9 @@ import { useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { ChevronLeft, FileText, ClipboardList, Receipt, Repeat, ChevronRight, AlertTriangle, ArrowDownRight } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import FilterChipRow, { type FilterChip } from '@/components/FilterChipRow';
 import EmptyState from '@/components/EmptyState';
@@ -45,6 +48,8 @@ interface InboxRow {
 }
 
 export default function ReportInboxScreen() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { projects, dailyReports, rfis, submittals, invoices, changeOrders } = useProjects();
@@ -70,8 +75,8 @@ export default function ReportInboxScreen() {
         primary: new Date(dr.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
         secondary: `${dr.weather?.conditions || 'No weather'} · ${dr.manpower.reduce((s: number, m: { headcount: number }) => s + m.headcount, 0)} workers`,
         badgeText: dr.status === 'sent' ? 'Sent' : 'Saved',
-        badgeColor: dr.status === 'sent' ? Colors.success : Colors.primary,
-        badgeBg: dr.status === 'sent' ? Colors.successLight : Colors.primary + '15',
+        badgeColor: dr.status === 'sent' ? themeColors.success : themeColors.accent,
+        badgeBg: dr.status === 'sent' ? Colors.successLight : themeColors.accent + '15',
         timestamp: Number.isFinite(ts) ? ts : 0,
         overdue: false,
         href: '/daily-report',
@@ -94,12 +99,12 @@ export default function ReportInboxScreen() {
         badgeText: r.status.charAt(0).toUpperCase() + r.status.slice(1),
         badgeColor:
           r.status === 'open' ? Colors.warning :
-          r.status === 'answered' ? Colors.info :
-          r.status === 'closed' ? Colors.success : Colors.textSecondary,
+          r.status === 'answered' ? themeColors.info :
+          r.status === 'closed' ? themeColors.success : themeColors.textSecondary,
         badgeBg:
           r.status === 'open' ? Colors.warningLight :
           r.status === 'answered' ? Colors.infoLight :
-          r.status === 'closed' ? Colors.successLight : Colors.fillTertiary,
+          r.status === 'closed' ? Colors.successLight : themeColors.surfaceAlt,
         timestamp: new Date(r.dateSubmitted ?? r.createdAt).getTime(),
         overdue,
         href: '/rfi',
@@ -119,9 +124,9 @@ export default function ReportInboxScreen() {
         secondary: `${s.specSection || 'No spec'} · ${s.reviewCycles.length} cycle${s.reviewCycles.length === 1 ? '' : 's'}`,
         badgeText: s.currentStatus.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
         badgeColor:
-          s.currentStatus === 'approved' ? Colors.success :
-          s.currentStatus === 'rejected' || s.currentStatus === 'revise_resubmit' ? Colors.error :
-          s.currentStatus === 'in_review' ? Colors.info :
+          s.currentStatus === 'approved' ? themeColors.success :
+          s.currentStatus === 'rejected' || s.currentStatus === 'revise_resubmit' ? themeColors.danger :
+          s.currentStatus === 'in_review' ? themeColors.info :
           Colors.warning,
         badgeBg:
           s.currentStatus === 'approved' ? Colors.successLight :
@@ -149,7 +154,7 @@ export default function ReportInboxScreen() {
         primary: `${inv.type === 'progress' ? 'Progress Bill' : 'Invoice'} #${inv.number}`,
         secondary: `${formatMoney(inv.totalDue)} · Due ${new Date(inv.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`,
         badgeText: status.charAt(0).toUpperCase() + status.slice(1),
-        badgeColor: status === 'paid' ? Colors.success : status === 'overdue' ? Colors.error : Colors.warning,
+        badgeColor: status === 'paid' ? themeColors.success : status === 'overdue' ? themeColors.danger : Colors.warning,
         badgeBg: status === 'paid' ? Colors.successLight : status === 'overdue' ? Colors.errorLight : Colors.warningLight,
         timestamp: new Date(inv.issueDate ?? inv.createdAt).getTime(),
         overdue: !!overdue,
@@ -170,9 +175,9 @@ export default function ReportInboxScreen() {
         secondary: `${formatMoney(co.changeAmount)} · ${(co.scheduleImpactDays ?? 0) > 0 ? `+${co.scheduleImpactDays}d` : 'no schedule impact'}`,
         badgeText: co.status.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
         badgeColor:
-          co.status === 'approved' ? Colors.success :
-          co.status === 'rejected' || co.status === 'void' ? Colors.error :
-          co.status === 'under_review' ? Colors.info :
+          co.status === 'approved' ? themeColors.success :
+          co.status === 'rejected' || co.status === 'void' ? themeColors.danger :
+          co.status === 'under_review' ? themeColors.info :
           Colors.warning,
         badgeBg:
           co.status === 'approved' ? Colors.successLight :
@@ -225,8 +230,8 @@ export default function ReportInboxScreen() {
   const statusChips: FilterChip<StatusFilter>[] = [
     { value: 'all', label: 'Any status' },
     { value: 'open', label: 'Open / Unpaid', color: Colors.warning },
-    { value: 'overdue', label: 'Overdue', color: Colors.error },
-    { value: 'closed', label: 'Closed / Paid', color: Colors.success },
+    { value: 'overdue', label: 'Overdue', color: themeColors.danger },
+    { value: 'closed', label: 'Closed / Paid', color: themeColors.success },
   ];
 
   const projectChips: FilterChip<string>[] = [
@@ -261,14 +266,14 @@ export default function ReportInboxScreen() {
         <View style={styles.rowRight}>
           {item.overdue && (
             <View style={styles.overduePill}>
-              <AlertTriangle size={10} color={Colors.error} />
+              <AlertTriangle size={10} color={themeColors.danger} />
               <Text style={styles.overduePillText}>OVERDUE</Text>
             </View>
           )}
           <View style={[styles.badge, { backgroundColor: item.badgeBg }]}>
             <Text style={[styles.badgeText, { color: item.badgeColor }]}>{item.badgeText}</Text>
           </View>
-          <ChevronRight size={14} color={Colors.textMuted} />
+          <ChevronRight size={14} color={themeColors.textMuted} />
         </View>
       </TouchableOpacity>
     );
@@ -280,7 +285,7 @@ export default function ReportInboxScreen() {
         title: 'Report Inbox',
         headerLeft: () => (
           <TouchableOpacity onPress={() => router.back()} style={styles.headerBack}>
-            <ChevronLeft size={22} color={Colors.primary} />
+            <ChevronLeft size={22} color={themeColors.accent} />
             <Text style={styles.headerBackText}>Back</Text>
           </TouchableOpacity>
         ),
@@ -299,7 +304,7 @@ export default function ReportInboxScreen() {
 
       {filtered.length === 0 ? (
         <EmptyState
-          icon={<ArrowDownRight size={32} color={Colors.primary} />}
+          icon={<ArrowDownRight size={32} color={themeColors.accent} />}
           title="Nothing in this slice"
           message="Report Inbox shows DFRs, RFIs, submittals, invoices, and change orders across every project. To populate it:"
           steps={[
@@ -323,24 +328,24 @@ export default function ReportInboxScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: t.bg },
   headerBack: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingVertical: 6, paddingLeft: 4, minWidth: 72 },
-  headerBackText: { fontSize: Type.callout.fontSize, fontWeight: '500', color: Colors.primary },
-  filtersBar: { backgroundColor: Colors.surface, borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight, paddingBottom: 4 },
+  headerBackText: { fontSize: Type.callout.fontSize, fontWeight: '500', color: t.accent },
+  filtersBar: { backgroundColor: t.surface, borderBottomWidth: 0.5, borderBottomColor: t.line, paddingBottom: 4 },
   listContent: { padding: 12, gap: 8 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: Colors.card, borderRadius: Tokens.radius.card, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderColor: Colors.cardBorder },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: Colors.card, borderRadius: Tokens.radius.card, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderColor: t.line },
   rowIcon: { width: 32, height: 32, borderRadius: Tokens.radius.sm, alignItems: 'center', justifyContent: 'center' },
   rowMain: { flex: 1 },
-  rowPrimary: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
-  rowProject: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontWeight: '600', marginTop: 1 },
-  rowSecondary: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, marginTop: 1 },
+  rowPrimary: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: t.text },
+  rowProject: { fontSize: Type.caption2.fontSize, color: t.textMuted, fontWeight: '600', marginTop: 1 },
+  rowSecondary: { fontSize: Type.caption1.fontSize, color: t.textSecondary, marginTop: 1 },
   rowRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   badge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.sm },
   badgeText: { fontSize: Type.caption2.fontSize, fontWeight: '700' },
   overduePill: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: Colors.errorLight, paddingHorizontal: 6, paddingVertical: 2, borderRadius: Tokens.radius.xs },
-  overduePillText: { fontSize: 9, fontWeight: '800', color: Colors.error, letterSpacing: 0.5 },
+  overduePillText: { fontSize: 9, fontWeight: '800', color: t.danger, letterSpacing: 0.5 },
   emptyWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 30, gap: 8 },
-  emptyTitle: { fontSize: Type.body.fontSize, fontWeight: '700', color: Colors.text },
-  emptySub: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, textAlign: 'center', maxWidth: 280 },
+  emptyTitle: { fontSize: Type.body.fontSize, fontWeight: '700', color: t.text },
+  emptySub: { fontSize: Type.footnote.fontSize, color: t.textSecondary, textAlign: 'center', maxWidth: 280 },
 });

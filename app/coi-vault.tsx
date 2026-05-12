@@ -25,6 +25,9 @@ import {
   Sparkles, Upload, Trash2, AlertTriangle, CheckCircle2, Clock,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import { FeatureHeader } from '@/components/FeatureHeader';
@@ -36,6 +39,8 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
 export default function COIVaultScreen() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const router = useRouter();
   const { canAccess } = useTierAccess();
   if (!canAccess('rfis_submittals')) {
@@ -52,6 +57,8 @@ export default function COIVaultScreen() {
 }
 
 function COIVaultInner() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { subId: initialSubId } = useLocalSearchParams<{ subId?: string }>();
@@ -175,7 +182,7 @@ function COIVaultInner() {
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.detailHeader}>
           <TouchableOpacity onPress={() => setActiveSubId(null)} hitSlop={10} style={styles.headerBack}>
-            <ChevronLeft size={22} color={Colors.primary} />
+            <ChevronLeft size={22} color={"#FF6A1A"} />
             <Text style={styles.headerBackText}>All subs</Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -199,7 +206,7 @@ function COIVaultInner() {
 
           {subCOIs.length === 0 ? (
             <View style={styles.emptyState}>
-              <Shield size={36} color={Colors.textMuted} />
+              <Shield size={36} color={"#9AA3AD"} />
               <Text style={styles.emptyTitle}>No COIs yet</Text>
               <Text style={styles.emptyBody}>
                 Upload the sub's Certificate of Insurance — MAGE ID will read the dates,
@@ -235,7 +242,7 @@ function COIVaultInner() {
           pills so the GC can scan and decide where to spend the next 5min. */}
       {(complianceSummary.expired > 0 || complianceSummary.expiringSoon > 0 || complianceSummary.missing > 0) && (
         <View style={styles.complianceBanner}>
-          <AlertTriangle size={16} color={complianceSummary.expired > 0 ? Colors.error : Colors.warning} strokeWidth={2.4} />
+          <AlertTriangle size={16} color={complianceSummary.expired > 0 ? "#C84038" : Colors.warning} strokeWidth={2.4} />
           <View style={{ flex: 1 }}>
             <Text style={styles.complianceBannerTitle}>
               {complianceSummary.expired > 0 ? 'Action required' : 'Heads up'}
@@ -243,7 +250,7 @@ function COIVaultInner() {
             <View style={styles.complianceBannerPillRow}>
               {complianceSummary.expired > 0 && (
                 <View style={[styles.compliancePill, { backgroundColor: Colors.errorLight }]}>
-                  <Text style={[styles.compliancePillText, { color: Colors.error }]}>
+                  <Text style={[styles.compliancePillText, { color: "#C84038" }]}>
                     {complianceSummary.expired} expired
                   </Text>
                 </View>
@@ -256,8 +263,8 @@ function COIVaultInner() {
                 </View>
               )}
               {complianceSummary.missing > 0 && (
-                <View style={[styles.compliancePill, { backgroundColor: Colors.fillTertiary }]}>
-                  <Text style={[styles.compliancePillText, { color: Colors.textSecondary }]}>
+                <View style={[styles.compliancePill, { backgroundColor: themeColors.surfaceAlt }]}>
+                  <Text style={[styles.compliancePillText, { color: "#9AA3AD" }]}>
                     {complianceSummary.missing} no COI on file
                   </Text>
                 </View>
@@ -276,7 +283,7 @@ function COIVaultInner() {
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 30 }}>
         {subcontractors.length === 0 ? (
           <View style={styles.emptyState}>
-            <Shield size={36} color={Colors.textMuted} />
+            <Shield size={36} color={"#9AA3AD"} />
             <Text style={styles.emptyTitle}>No subs yet</Text>
             <Text style={styles.emptyBody}>
               Add subs from the Subcontractors screen first, then come back here to upload their COIs.
@@ -326,6 +333,8 @@ function COICard({
   onDelete: () => void;
   onUpdate: (patch: Partial<CertificateOfInsurance>) => void;
 }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const v = coi.validation;
   const { Icon, color, label } = statusToVisuals(v?.overallStatus ?? 'warn');
   return (
@@ -338,7 +347,7 @@ function COICard({
           <Text style={styles.coiTitle}>Certificate uploaded {new Date(coi.uploadedAt).toLocaleDateString()}</Text>
           <Text style={styles.coiMeta}>{label}{v?.confidence != null ? ` · AI confidence ${v.confidence}%` : ''}</Text>
         </View>
-        <TouchableOpacity onPress={onDelete} hitSlop={6} style={styles.deleteBtn} accessibilityRole="button" accessibilityLabel="Delete"><Trash2 size={14} color={Colors.error} /></TouchableOpacity>
+        <TouchableOpacity onPress={onDelete} hitSlop={6} style={styles.deleteBtn} accessibilityRole="button" accessibilityLabel="Delete"><Trash2 size={14} color={"#C84038"} /></TouchableOpacity>
       </View>
 
       {coi.fileUri ? (
@@ -350,9 +359,9 @@ function COICard({
         <View style={styles.findingsCard}>
           <Text style={styles.findingsLabel}>Findings</Text>
           {v.issues.map((iss, i) => {
-            const sevColor = iss.severity === 'critical' ? Colors.error
+            const sevColor = iss.severity === 'critical' ? "#C84038"
                             : iss.severity === 'warning' ? Colors.warning
-                            : Colors.textSecondary;
+                            : "#9AA3AD";
             return (
               <View key={i} style={styles.findingRow}>
                 <View style={[styles.findingDot, { backgroundColor: sevColor }]} />
@@ -362,8 +371,8 @@ function COICard({
           })}
         </View>
       ) : v?.overallStatus === 'pass' ? (
-        <View style={[styles.findingsCard, { borderColor: Colors.success + '30' }]}>
-          <Text style={[styles.findingsLabel, { color: Colors.success }]}>All required checks passed</Text>
+        <View style={[styles.findingsCard, { borderColor: "#2E7D44" + '30' }]}>
+          <Text style={[styles.findingsLabel, { color: "#2E7D44" }]}>All required checks passed</Text>
           <Text style={styles.findingText}>Additional insured + waiver of subrogation present, coverage in date.</Text>
         </View>
       ) : null}
@@ -392,7 +401,7 @@ function COICard({
         value={coi.notes ?? ''}
         onChangeText={t => onUpdate({ notes: t })}
         placeholder="Anything specific about this COI..."
-        placeholderTextColor={Colors.textMuted}
+        placeholderTextColor={"#9AA3AD"}
         multiline
       />
     </View>
@@ -407,11 +416,11 @@ function statusToVisuals(s: 'pass' | 'warn' | 'fail' | 'none'): {
   label: string;
 } {
   switch (s) {
-    case 'pass': return { Icon: ShieldCheck, color: Colors.success,        label: 'Valid' };
+    case 'pass': return { Icon: ShieldCheck, color: "#2E7D44",        label: 'Valid' };
     case 'warn': return { Icon: ShieldAlert, color: Colors.warning,        label: 'Review needed' };
-    case 'fail': return { Icon: ShieldX,     color: Colors.error,          label: 'Action required' };
+    case 'fail': return { Icon: ShieldX,     color: "#C84038",          label: 'Action required' };
     case 'none':
-    default:     return { Icon: Shield,      color: Colors.textMuted,      label: 'No COI' };
+    default:     return { Icon: Shield,      color: "#9AA3AD",      label: 'No COI' };
   }
 }
 
@@ -427,7 +436,7 @@ function humanizeCoverage(t: string): string {
   }
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   complianceBanner: {
     flexDirection: 'row' as const,
     alignItems: 'flex-start' as const,
@@ -437,14 +446,14 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 14,
     borderRadius: Tokens.radius.panel,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
   },
   complianceBannerTitle: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: t.text,
     marginBottom: 6,
   },
   complianceBannerPillRow: {
@@ -462,38 +471,38 @@ const styles = StyleSheet.create({
     fontWeight: '700' as const,
     letterSpacing: 0.1,
   },
-  container: { flex: 1, backgroundColor: Colors.background },
+  container: { flex: 1, backgroundColor: t.bg },
   emptyState: { alignItems: 'center', paddingTop: 60, gap: 10 },
-  emptyTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '800' as const, color: Colors.text },
-  emptyBody: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, textAlign: 'center', lineHeight: 19, paddingHorizontal: 32 },
+  emptyTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '800' as const, color: t.text },
+  emptyBody: { fontSize: Type.footnote.fontSize, color: t.textSecondary, textAlign: 'center', lineHeight: 19, paddingHorizontal: 32 },
 
   listHeader: {
     paddingHorizontal: 16,
     paddingTop: 12, paddingBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: t.line,
   },
   eyebrow: {
-    fontSize: 10, fontWeight: '800' as const, color: Colors.textMuted,
+    fontSize: 10, fontWeight: '800' as const, color: t.textMuted,
     letterSpacing: 0.7, textTransform: 'uppercase' as const,
   },
-  title: { fontSize: Type.title2.fontSize, fontWeight: '800' as const, color: Colors.text, marginTop: 2, letterSpacing: -0.4 },
-  subtitle: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2 },
+  title: { fontSize: Type.title2.fontSize, fontWeight: '800' as const, color: t.text, marginTop: 2, letterSpacing: -0.4 },
+  subtitle: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 2 },
 
   subRow: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     gap: 12,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.card, padding: 12, marginBottom: 8,
-    borderWidth: 1, borderColor: Colors.cardBorder,
+    borderWidth: 1, borderColor: t.line,
   },
   subStatusIcon: {
     width: 40, height: 40, borderRadius: Tokens.radius.card,
     alignItems: 'center', justifyContent: 'center',
   },
-  subName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
-  subMeta: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 2 },
+  subName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: t.text },
+  subMeta: { fontSize: Type.caption2.fontSize, color: t.textMuted, marginTop: 2 },
   statusPill: {
     paddingHorizontal: 10, paddingVertical: 4, borderRadius: Tokens.radius.full,
   },
@@ -503,75 +512,75 @@ const styles = StyleSheet.create({
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     paddingHorizontal: 16, paddingVertical: 12,
-    borderBottomWidth: 1, borderBottomColor: Colors.borderLight,
+    borderBottomWidth: 1, borderBottomColor: t.line,
     gap: 12,
   },
   headerBack: { flexDirection: 'row', alignItems: 'center', gap: 4, flex: 1 },
-  headerBackText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.primary },
+  headerBackText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: t.accent },
   uploadBtn: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     gap: 6,
     paddingHorizontal: 12, paddingVertical: 8,
-    backgroundColor: Colors.primary, borderRadius: Tokens.radius.md,
+    backgroundColor: t.accent, borderRadius: Tokens.radius.md,
   },
   uploadBtnText: { color: '#fff', fontWeight: '800' as const, fontSize: Type.caption1.fontSize },
   btnDisabled: { opacity: 0.5 },
   titleBlock: { marginBottom: 16 },
 
   coiCard: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.lg,
     padding: 14,
     marginBottom: 12,
-    borderWidth: 1, borderColor: Colors.cardBorder,
+    borderWidth: 1, borderColor: t.line,
   },
   coiHeader: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10 },
   coiStatusIcon: { width: 32, height: 32, borderRadius: Tokens.radius.md, alignItems: 'center' as const, justifyContent: 'center' as const },
-  coiTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.text },
-  coiMeta: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 2 },
+  coiTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: t.text },
+  coiMeta: { fontSize: Type.caption2.fontSize, color: t.textMuted, marginTop: 2 },
   deleteBtn: { padding: 6 },
   coiImage: {
     width: '100%' as const,
     height: 200,
-    backgroundColor: Colors.background,
+    backgroundColor: t.bg,
     borderRadius: Tokens.radius.md, marginTop: 10,
   },
 
   findingsCard: {
-    backgroundColor: Colors.background,
+    backgroundColor: t.bg,
     borderRadius: Tokens.radius.md, padding: 12,
     marginTop: 10,
-    borderWidth: 1, borderColor: Colors.borderLight,
+    borderWidth: 1, borderColor: t.line,
   },
   findingsLabel: {
-    fontSize: 10, fontWeight: '800' as const, color: Colors.textMuted,
+    fontSize: 10, fontWeight: '800' as const, color: t.textMuted,
     letterSpacing: 0.7, textTransform: 'uppercase' as const,
     marginBottom: 6,
   },
   findingRow: { flexDirection: 'row' as const, gap: 8, paddingVertical: 4, alignItems: 'flex-start' as const },
   findingDot: { width: 6, height: 6, borderRadius: 3, marginTop: 6 },
-  findingText: { flex: 1, fontSize: Type.caption1.fontSize, color: Colors.text, lineHeight: 16 },
+  findingText: { flex: 1, fontSize: Type.caption1.fontSize, color: t.text, lineHeight: 16 },
 
   coveragesCard: {
-    backgroundColor: Colors.background,
+    backgroundColor: t.bg,
     borderRadius: Tokens.radius.md, padding: 12, marginTop: 8,
-    borderWidth: 1, borderColor: Colors.borderLight,
+    borderWidth: 1, borderColor: t.line,
   },
   coverageRow: { paddingVertical: 4 },
-  coverageType: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: Colors.text },
-  coverageMeta: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 2 },
+  coverageType: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: t.text },
+  coverageMeta: { fontSize: Type.caption2.fontSize, color: t.textMuted, marginTop: 2 },
 
   notesLabel: {
-    fontSize: 10, fontWeight: '800' as const, color: Colors.textMuted,
+    fontSize: 10, fontWeight: '800' as const, color: t.textMuted,
     letterSpacing: 0.7, textTransform: 'uppercase' as const,
     marginTop: 12, marginBottom: 5,
   },
   notesInput: {
-    backgroundColor: Colors.background,
-    borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: t.bg,
+    borderWidth: 1, borderColor: t.line,
     borderRadius: Tokens.radius.md, paddingHorizontal: 12, paddingVertical: 10,
-    fontSize: Type.caption1.fontSize, color: Colors.text,
+    fontSize: Type.caption1.fontSize, color: t.text,
     minHeight: 50,
   },
 });

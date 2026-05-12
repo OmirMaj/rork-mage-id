@@ -24,6 +24,9 @@ import {
   DollarSign, HardHat, FileText, Plus, Trash2, BadgeCheck,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import { reviewPrequalPacket } from '@/utils/prequalEngine';
 import { generateUUID } from '@/utils/generateId';
@@ -37,6 +40,8 @@ import type {
 // ─────────────────────────────────────────────────────────────
 
 export default function PrequalFormScreen() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const router = useRouter();
   const params = useLocalSearchParams<{ token?: string }>();
   const token = typeof params.token === 'string' ? params.token : '';
@@ -63,6 +68,8 @@ function PrequalFormInner({ packet, subCompanyName, onSave, onExit }: {
   onSave: (p: PrequalPacket) => void;
   onExit: () => void;
 }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const [financials, setFinancials] = useState<PrequalFinancials>(packet.financials);
   const [safety, setSafety] = useState<PrequalSafetyRecord>(packet.safety);
@@ -156,14 +163,14 @@ function PrequalFormInner({ packet, subCompanyName, onSave, onExit }: {
       <Stack.Screen options={{ headerShown: false }} />
 
       <View style={styles.header}>
-        <TouchableOpacity onPress={onExit} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back"><ChevronLeft size={22} color={Colors.text} /></TouchableOpacity>
+        <TouchableOpacity onPress={onExit} style={styles.headerBtn} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back"><ChevronLeft size={22} color={themeColors.text} /></TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerEyebrow}>Prequalification · MAGE</Text>
           <Text style={styles.headerTitle}>{subCompanyName}</Text>
         </View>
         {dirty && (
           <View style={styles.savingChip}>
-            <Save size={12} color={Colors.textSecondary} />
+            <Save size={12} color={themeColors.textSecondary} />
             <Text style={styles.savingChipText}>Saving…</Text>
           </View>
         )}
@@ -176,7 +183,7 @@ function PrequalFormInner({ packet, subCompanyName, onSave, onExit }: {
         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 160 + insets.bottom }} keyboardShouldPersistTaps="handled">
           {/* Intro */}
           <View style={styles.introCard}>
-            <ShieldCheck size={18} color={Colors.primary} />
+            <ShieldCheck size={18} color={themeColors.accent} />
             <View style={{ flex: 1 }}>
               <Text style={styles.introTitle}>About this form</Text>
               <Text style={styles.introBody}>
@@ -189,7 +196,7 @@ function PrequalFormInner({ packet, subCompanyName, onSave, onExit }: {
 
           {/* Live checklist */}
           <View style={[styles.checklistCard, {
-            borderLeftColor: preview.overall === 'pass' ? Colors.success : preview.overall === 'fail' ? Colors.error : Colors.warning,
+            borderLeftColor: preview.overall === 'pass' ? themeColors.success : preview.overall === 'fail' ? themeColors.danger : Colors.warning,
             backgroundColor: preview.overall === 'pass' ? Colors.successLight : preview.overall === 'fail' ? Colors.errorLight : Colors.warningLight,
           }]}>
             <Text style={styles.checklistTitle}>
@@ -204,7 +211,7 @@ function PrequalFormInner({ packet, subCompanyName, onSave, onExit }: {
           </View>
 
           {/* ── Financials ──────────────────────────────── */}
-          <SectionHeader icon={<DollarSign size={14} color={Colors.primary} />} title="Company & Financials" />
+          <SectionHeader icon={<DollarSign size={14} color={themeColors.accent} />} title="Company & Financials" />
 
           <Field label="Years in business"
             value={financials.yearsInBusiness?.toString() ?? ''}
@@ -242,7 +249,7 @@ function PrequalFormInner({ packet, subCompanyName, onSave, onExit }: {
             placeholder="Bank name & contact" />
 
           {/* ── Insurance ──────────────────────────────── */}
-          <SectionHeader icon={<ShieldCheck size={14} color={Colors.primary} />} title="Insurance" />
+          <SectionHeader icon={<ShieldCheck size={14} color={themeColors.accent} />} title="Insurance" />
 
           <Row>
             <View style={{ flex: 1 }}>
@@ -300,7 +307,7 @@ function PrequalFormInner({ packet, subCompanyName, onSave, onExit }: {
             onValueChange={(v) => patchIns({ waiverOfSubrogation: v })} />
 
           {/* ── Safety ──────────────────────────────── */}
-          <SectionHeader icon={<HardHat size={14} color={Colors.primary} />} title="Safety Record" />
+          <SectionHeader icon={<HardHat size={14} color={themeColors.accent} />} title="Safety Record" />
 
           <Text style={styles.helperText}>
             3-year EMR (Experience Modification Rate). Lower is better — 1.0 is industry average.
@@ -329,7 +336,7 @@ function PrequalFormInner({ packet, subCompanyName, onSave, onExit }: {
             onValueChange={(v) => patchSafety({ hadRecordableIncident: v })} />
 
           {/* ── Licenses ──────────────────────────────── */}
-          <SectionHeader icon={<BadgeCheck size={14} color={Colors.primary} />} title="Licenses" />
+          <SectionHeader icon={<BadgeCheck size={14} color={themeColors.accent} />} title="Licenses" />
 
           {licenses.length === 0 && (
             <Text style={styles.helperText}>
@@ -365,19 +372,19 @@ function PrequalFormInner({ packet, subCompanyName, onSave, onExit }: {
                 </View>
               </Row>
               <TouchableOpacity onPress={() => removeLicense(lic.id)} style={styles.removeBtn} hitSlop={8}>
-                <Trash2 size={13} color={Colors.error} />
+                <Trash2 size={13} color={themeColors.danger} />
                 <Text style={styles.removeBtnText}>Remove license</Text>
               </TouchableOpacity>
             </View>
           ))}
 
           <TouchableOpacity onPress={addLicense} style={styles.addLicenseBtn}>
-            <Plus size={14} color={Colors.primary} />
+            <Plus size={14} color={themeColors.accent} />
             <Text style={styles.addLicenseText}>Add license</Text>
           </TouchableOpacity>
 
           {/* ── W-9 ──────────────────────────────── */}
-          <SectionHeader icon={<FileText size={14} color={Colors.primary} />} title="Tax / W-9" />
+          <SectionHeader icon={<FileText size={14} color={themeColors.accent} />} title="Tax / W-9" />
           <ToggleRow label="W-9 on file with this GC"
             value={w9OnFile}
             onValueChange={toggleW9} />
@@ -392,7 +399,7 @@ function PrequalFormInner({ packet, subCompanyName, onSave, onExit }: {
       <View style={[styles.submitBar, { paddingBottom: 12 + insets.bottom }]}>
         {isSubmitted ? (
           <View style={styles.submittedChip}>
-            <CheckCircle2 size={16} color={Colors.success} />
+            <CheckCircle2 size={16} color={themeColors.success} />
             <Text style={styles.submittedText}>
               {packet.status === 'approved' ? 'Approved — you\'re all set' : 'Submitted — awaiting review'}
             </Text>
@@ -403,7 +410,7 @@ function PrequalFormInner({ packet, subCompanyName, onSave, onExit }: {
             onPress={handleSubmit}
             activeOpacity={0.8}
           >
-            <Send size={16} color={Colors.textOnPrimary} />
+            <Send size={16} color={'#FFFFFF'} />
             <Text style={styles.submitBtnText}>
               {preview.overall === 'pass' ? 'Submit for review' : 'Submit anyway'}
             </Text>
@@ -425,6 +432,8 @@ function PrequalFormInner({ packet, subCompanyName, onSave, onExit }: {
 // Primitives
 
 function ErrorState({ title, body, onBack }: { title: string; body: string; onBack: () => void }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   return (
     <View style={[styles.root, { paddingTop: insets.top, justifyContent: 'center', alignItems: 'center', padding: 24 }]}>
@@ -440,6 +449,8 @@ function ErrorState({ title, body, onBack }: { title: string; body: string; onBa
 }
 
 function SectionHeader({ icon, title }: { icon: React.ReactNode; title: string }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.sectionHeader}>
       {icon}
@@ -456,6 +467,8 @@ function Field(props: {
   keyboardType?: 'default' | 'number-pad' | 'decimal-pad' | 'email-address';
   autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
 }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.field}>
       <Text style={styles.fieldLabel}>{props.label}</Text>
@@ -464,7 +477,7 @@ function Field(props: {
         value={props.value}
         onChangeText={props.onChangeText}
         placeholder={props.placeholder}
-        placeholderTextColor={Colors.textMuted}
+        placeholderTextColor={themeColors.textMuted}
         keyboardType={props.keyboardType ?? 'default'}
         autoCapitalize={props.autoCapitalize ?? 'sentences'}
       />
@@ -473,18 +486,22 @@ function Field(props: {
 }
 
 function Row({ children }: { children: React.ReactNode }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   return <View style={styles.row}>{children}</View>;
 }
 
 function ToggleRow({ label, value, onValueChange }: {
   label: string; value: boolean; onValueChange: (v: boolean) => void;
 }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.toggleRow}>
       <Text style={styles.toggleLabel}>{label}</Text>
       <Switch value={value} onValueChange={onValueChange}
-        trackColor={{ true: Colors.primary, false: Colors.fillTertiary }}
-        thumbColor={Platform.OS === 'android' ? (value ? Colors.textOnPrimary : '#fff') : undefined} />
+        trackColor={{ true: themeColors.accent, false: themeColors.surfaceAlt }}
+        thumbColor={Platform.OS === 'android' ? (value ? '#FFFFFF' : '#fff') : undefined} />
     </View>
   );
 }
@@ -500,89 +517,89 @@ function toNum(v: string): number | undefined {
 // ─────────────────────────────────────────────────────────────
 // Styles
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  root: { flex: 1, backgroundColor: t.bg },
 
   header: {
     flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8,
-    gap: 8, borderBottomWidth: 1, borderBottomColor: Colors.borderLight,
+    gap: 8, borderBottomWidth: 1, borderBottomColor: t.line,
   },
   headerBtn: {
     width: 36, height: 36, borderRadius: Tokens.radius.xl, alignItems: 'center', justifyContent: 'center',
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.surfaceAlt,
   },
-  headerEyebrow: { fontSize: 10, color: Colors.primary, fontWeight: '800', letterSpacing: 2, textTransform: 'uppercase' },
-  headerTitle: { fontSize: Type.body.fontSize, fontWeight: '700', color: Colors.text },
+  headerEyebrow: { fontSize: 10, color: t.accent, fontWeight: '800', letterSpacing: 2, textTransform: 'uppercase' },
+  headerTitle: { fontSize: Type.body.fontSize, fontWeight: '700', color: t.text },
 
   savingChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: Tokens.radius.sm, backgroundColor: Colors.fillSecondary },
-  savingChipText: { fontSize: 10, color: Colors.textSecondary, fontWeight: '600' },
+  savingChipText: { fontSize: 10, color: t.textSecondary, fontWeight: '600' },
 
   introCard: {
     flexDirection: 'row', gap: 10, padding: 14, borderRadius: Tokens.radius.card, backgroundColor: Colors.card,
-    borderLeftWidth: 3, borderLeftColor: Colors.primary, marginBottom: 12,
+    borderLeftWidth: 3, borderLeftColor: t.accent, marginBottom: 12,
   },
-  introTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.text, marginBottom: 2 },
-  introBody: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, lineHeight: 17 },
+  introTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: t.text, marginBottom: 2 },
+  introBody: { fontSize: Type.caption1.fontSize, color: t.textSecondary, lineHeight: 17 },
 
   checklistCard: {
     padding: 12, borderRadius: Tokens.radius.md, borderLeftWidth: 3, marginBottom: 18,
   },
-  checklistTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.text },
-  checklistSub: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, marginTop: 4, lineHeight: 15 },
+  checklistTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: t.text },
+  checklistSub: { fontSize: Type.caption2.fontSize, color: t.textSecondary, marginTop: 4, lineHeight: 15 },
 
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 22, marginBottom: 10 },
-  sectionHeaderText: { fontSize: Type.caption2.fontSize, color: Colors.primary, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 1.1 },
+  sectionHeaderText: { fontSize: Type.caption2.fontSize, color: t.accent, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 1.1 },
 
   field: { marginBottom: 12 },
-  fieldLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 },
+  fieldLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: t.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 },
   input: {
     backgroundColor: Colors.fillSecondary, borderRadius: Tokens.radius.md, paddingHorizontal: 12,
-    paddingVertical: Platform.OS === 'ios' ? 12 : 10, fontSize: Type.bodyCompact.fontSize, color: Colors.text,
+    paddingVertical: Platform.OS === 'ios' ? 12 : 10, fontSize: Type.bodyCompact.fontSize, color: t.text,
   },
   row: { flexDirection: 'row', gap: 10 },
-  helperText: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginBottom: 10, lineHeight: 15 },
+  helperText: { fontSize: Type.caption2.fontSize, color: t.textMuted, marginBottom: 10, lineHeight: 15 },
 
   toggleRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingVertical: 10, borderTopWidth: 1, borderTopColor: Colors.borderLight,
+    paddingVertical: 10, borderTopWidth: 1, borderTopColor: t.line,
   },
-  toggleLabel: { flex: 1, fontSize: Type.footnote.fontSize, color: Colors.text, paddingRight: 10 },
+  toggleLabel: { flex: 1, fontSize: Type.footnote.fontSize, color: t.text, paddingRight: 10 },
 
   licenseCard: {
     padding: 12, borderRadius: Tokens.radius.md, backgroundColor: Colors.card, marginBottom: 10,
-    borderWidth: 1, borderColor: Colors.borderLight,
+    borderWidth: 1, borderColor: t.line,
   },
   removeBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4, alignSelf: 'flex-end' },
-  removeBtnText: { fontSize: Type.caption2.fontSize, color: Colors.error, fontWeight: '600' },
+  removeBtnText: { fontSize: Type.caption2.fontSize, color: t.danger, fontWeight: '600' },
 
   addLicenseBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     paddingVertical: 12, borderRadius: Tokens.radius.md, borderWidth: 1, borderStyle: 'dashed',
-    borderColor: Colors.primary, marginTop: 4,
+    borderColor: t.accent, marginTop: 4,
   },
-  addLicenseText: { color: Colors.primary, fontSize: Type.footnote.fontSize, fontWeight: '700' },
+  addLicenseText: { color: t.accent, fontSize: Type.footnote.fontSize, fontWeight: '700' },
 
   submitBar: {
     position: 'absolute', left: 0, right: 0, bottom: 0,
     paddingHorizontal: 16, paddingTop: 12,
-    backgroundColor: Colors.card, borderTopWidth: 1, borderTopColor: Colors.borderLight,
+    backgroundColor: Colors.card, borderTopWidth: 1, borderTopColor: t.line,
   },
   submitBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    paddingVertical: 14, borderRadius: Tokens.radius.card, backgroundColor: Colors.primary,
+    paddingVertical: 14, borderRadius: Tokens.radius.card, backgroundColor: t.accent,
   },
-  submitBtnDisabled: { backgroundColor: Colors.textMuted },
-  submitBtnText: { color: Colors.textOnPrimary, fontSize: Type.bodyCompact.fontSize, fontWeight: '800' },
-  submitHelper: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, textAlign: 'center', marginTop: 6, lineHeight: 15 },
+  submitBtnDisabled: { backgroundColor: t.textMuted },
+  submitBtnText: { color: '#FFFFFF', fontSize: Type.bodyCompact.fontSize, fontWeight: '800' },
+  submitHelper: { fontSize: Type.caption2.fontSize, color: t.textMuted, textAlign: 'center', marginTop: 6, lineHeight: 15 },
 
   submittedChip: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     paddingVertical: 14, borderRadius: Tokens.radius.card, backgroundColor: Colors.successLight,
   },
-  submittedText: { color: Colors.success, fontSize: Type.footnote.fontSize, fontWeight: '700' },
+  submittedText: { color: t.success, fontSize: Type.footnote.fontSize, fontWeight: '700' },
 
-  errorTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700', color: Colors.text, marginTop: 12 },
-  errorBody: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, textAlign: 'center', marginTop: 6, lineHeight: 18 },
-  errorBtn: { marginTop: 20, paddingHorizontal: 24, paddingVertical: 10, borderRadius: Tokens.radius.md, backgroundColor: Colors.primary },
-  errorBtnText: { color: Colors.textOnPrimary, fontWeight: '700' },
+  errorTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700', color: t.text, marginTop: 12 },
+  errorBody: { fontSize: Type.footnote.fontSize, color: t.textSecondary, textAlign: 'center', marginTop: 6, lineHeight: 18 },
+  errorBtn: { marginTop: 20, paddingHorizontal: 24, paddingVertical: 10, borderRadius: Tokens.radius.md, backgroundColor: t.accent },
+  errorBtnText: { color: '#FFFFFF', fontWeight: '700' },
 });

@@ -26,6 +26,9 @@ import {
   BookOpen,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -110,6 +113,8 @@ const FEATURES: Feature[] = [
 ];
 
 export default function OnboardingPaywallScreen() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const {
@@ -257,14 +262,14 @@ export default function OnboardingPaywallScreen() {
       <View style={styles.header}>
         <View style={styles.brandRow}>
           <View style={styles.brandBadge}>
-            <HardHat size={14} color={Colors.primary} strokeWidth={2.4} />
+            <HardHat size={14} color={themeColors.accent} strokeWidth={2.4} />
           </View>
           <Text style={styles.brandName}>MAGE ID</Text>
         </View>
         <TouchableOpacity
           style={styles.closeBtn}
           onPress={handleClose}
-          testID="onboarding-paywall-close" accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={Colors.textSecondary} /></TouchableOpacity>
+          testID="onboarding-paywall-close" accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.textSecondary} /></TouchableOpacity>
       </View>
 
       <ScrollView
@@ -277,7 +282,7 @@ export default function OnboardingPaywallScreen() {
         <View style={styles.featureBlock}>
           <View style={styles.railWrap} pointerEvents="none">
             <LinearGradient
-              colors={[Colors.primary, Colors.primary + '55']}
+              colors={[themeColors.accent, themeColors.accent + '55']}
               start={{ x: 0, y: 0 }}
               end={{ x: 0, y: 1 }}
               style={styles.rail}
@@ -296,11 +301,11 @@ export default function OnboardingPaywallScreen() {
                         // reads as a gradient with "stops" rather than a
                         // flat color block.
                         backgroundColor:
-                          i % 2 === 0 ? Colors.primary : Colors.primary + 'DD',
+                          i % 2 === 0 ? themeColors.accent : themeColors.accent + 'DD',
                       },
                     ]}
                   >
-                    <Icon size={16} color={Colors.textOnPrimary} strokeWidth={2.2} />
+                    <Icon size={16} color={'#FFFFFF'} strokeWidth={2.2} />
                   </View>
                 </View>
                 <View style={styles.featureCopy}>
@@ -412,7 +417,7 @@ export default function OnboardingPaywallScreen() {
           testID="onboarding-paywall-cta"
         >
           {isPurchasing ? (
-            <ActivityIndicator color={Colors.textOnPrimary} size="small" />
+            <ActivityIndicator color={'#FFFFFF'} size="small" />
           ) : (
             <Text style={styles.ctaLabel}>{ctaLabel}</Text>
           )}
@@ -461,6 +466,8 @@ function PlanCard({
   onPress,
   testID,
 }: PlanCardProps) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   return (
     <TouchableOpacity
       style={[styles.planCard, active && styles.planCardActive]}
@@ -486,10 +493,10 @@ function PlanCard({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
   },
   header: {
     flexDirection: 'row',
@@ -507,21 +514,21 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 7,
-    backgroundColor: Colors.primary + '18',
+    backgroundColor: t.accent + '18',
     alignItems: 'center',
     justifyContent: 'center',
   },
   brandName: {
     fontSize: Type.callout.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: t.text,
     letterSpacing: 0.2,
   },
   closeBtn: {
     width: 32,
     height: 32,
     borderRadius: Tokens.radius.panel,
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.surfaceAlt,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -533,7 +540,7 @@ const styles = StyleSheet.create({
     fontSize: 30,
     lineHeight: 36,
     fontWeight: '800' as const,
-    color: Colors.text,
+    color: t.text,
     letterSpacing: -0.8,
     marginBottom: 28,
   },
@@ -580,13 +587,13 @@ const styles = StyleSheet.create({
   featureTitle: {
     fontSize: Type.callout.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: t.text,
     marginBottom: 3,
     letterSpacing: -0.2,
   },
   featureDesc: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     lineHeight: 18,
   },
   periodToggle: {
@@ -606,7 +613,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   periodOptionActive: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.06,
@@ -616,13 +623,13 @@ const styles = StyleSheet.create({
   periodLabel: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '600' as const,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
   },
   periodLabelActive: {
-    color: Colors.text,
+    color: t.text,
   },
   saveBadge: {
-    backgroundColor: Colors.success + '25',
+    backgroundColor: t.success + '25',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 5,
@@ -630,7 +637,7 @@ const styles = StyleSheet.create({
   saveBadgeText: {
     fontSize: 9,
     fontWeight: '800' as const,
-    color: Colors.success,
+    color: t.success,
     letterSpacing: 0.4,
   },
   planRow: {
@@ -642,21 +649,21 @@ const styles = StyleSheet.create({
     flex: 1,
     borderRadius: Tokens.radius.lg,
     borderWidth: 1.5,
-    borderColor: Colors.border,
-    backgroundColor: Colors.surface,
+    borderColor: t.line,
+    backgroundColor: t.surface,
     padding: 14,
     position: 'relative',
     minHeight: 140,
   },
   planCardActive: {
-    borderColor: Colors.primary,
-    backgroundColor: Colors.primary + '08',
+    borderColor: t.accent,
+    backgroundColor: t.accent + '08',
   },
   popularBadge: {
     position: 'absolute',
     top: -9,
     right: 10,
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 5,
@@ -664,20 +671,20 @@ const styles = StyleSheet.create({
   popularBadgeText: {
     fontSize: 9,
     fontWeight: '800' as const,
-    color: Colors.textOnPrimary,
+    color: '#FFFFFF',
     letterSpacing: 0.6,
   },
   planLabel: {
     fontSize: Type.callout.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: t.text,
   },
   planLabelActive: {
-    color: Colors.primary,
+    color: t.accent,
   },
   planTagline: {
     fontSize: Type.caption2.fontSize,
-    color: Colors.textMuted,
+    color: t.textMuted,
     marginTop: 2,
     marginBottom: 14,
   },
@@ -689,25 +696,25 @@ const styles = StyleSheet.create({
   planPriceTop: {
     fontSize: 24,
     fontWeight: '800' as const,
-    color: Colors.text,
+    color: t.text,
     letterSpacing: -0.6,
   },
   planPriceTopActive: {
-    color: Colors.primary,
+    color: t.accent,
   },
   planPriceUnit: {
     fontSize: Type.caption1.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     fontWeight: '600' as const,
   },
   planPriceBottom: {
     fontSize: Type.caption2.fontSize,
-    color: Colors.textMuted,
+    color: t.textMuted,
     marginTop: 2,
   },
   priceFootnote: {
     fontSize: Type.caption1.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     textAlign: 'center',
     marginTop: 10,
     marginBottom: 14,
@@ -725,12 +732,12 @@ const styles = StyleSheet.create({
   ctaLabel: {
     fontSize: Type.callout.fontSize,
     fontWeight: '700' as const,
-    color: Colors.surface,
+    color: t.surface,
     letterSpacing: 0.1,
   },
   reassurance: {
     fontSize: Type.caption2.fontSize,
-    color: Colors.textMuted,
+    color: t.textMuted,
     textAlign: 'center',
     marginTop: 10,
   },
@@ -743,11 +750,11 @@ const styles = StyleSheet.create({
   },
   legalLink: {
     fontSize: Type.caption1.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     fontWeight: '500' as const,
   },
   legalDot: {
     fontSize: Type.caption1.fontSize,
-    color: Colors.textMuted,
+    color: t.textMuted,
   },
 });

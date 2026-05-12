@@ -12,6 +12,9 @@ import {
 } from 'lucide-react-native';
 import Svg, { Rect } from 'react-native-svg';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import AIEquipmentAdvice from '@/components/AIEquipmentAdvice';
@@ -20,13 +23,15 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
 const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
-  available: { label: 'Available', color: Colors.success },
-  in_use: { label: 'In Use', color: Colors.info },
+  available: { label: 'Available', color: "#2E7D44" },
+  in_use: { label: 'In Use', color: "#1565C0" },
   maintenance: { label: 'Maintenance', color: Colors.warning },
-  retired: { label: 'Retired', color: Colors.textMuted },
+  retired: { label: 'Retired', color: "#9AA3AD" },
 };
 
 export default function EquipmentDetailScreen() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { equipmentId } = useLocalSearchParams<{ equipmentId: string }>();
@@ -130,9 +135,9 @@ export default function EquipmentDetailScreen() {
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <Stack.Screen options={{
         title: equip.name,
-        headerStyle: { backgroundColor: Colors.background },
-        headerTintColor: Colors.primary,
-        headerTitleStyle: { fontWeight: '700' as const, color: Colors.text },
+        headerStyle: { backgroundColor: themeColors.bg },
+        headerTintColor: "#FF6A1A",
+        headerTitleStyle: { fontWeight: '700' as const, color: themeColors.text },
       }} />
       <ScrollView
         style={styles.container}
@@ -141,7 +146,7 @@ export default function EquipmentDetailScreen() {
       >
         <View style={styles.headerCard}>
           <View style={styles.equipIconWrap}>
-            <Truck size={28} color={Colors.primary} />
+            <Truck size={28} color={"#FF6A1A"} />
           </View>
           <View style={[styles.statusBadge, { backgroundColor: statusConfig.color + '20' }]}>
             <Text style={[styles.statusBadgeText, { color: statusConfig.color }]}>{statusConfig.label}</Text>
@@ -150,30 +155,30 @@ export default function EquipmentDetailScreen() {
         </View>
 
         <Text style={styles.fieldLabel}>Name *</Text>
-        <TextInput style={styles.input} value={editName} onChangeText={setEditName} placeholder="Equipment name" placeholderTextColor={Colors.textMuted} />
+        <TextInput style={styles.input} value={editName} onChangeText={setEditName} placeholder="Equipment name" placeholderTextColor={"#9AA3AD"} />
 
         <View style={styles.rowFields}>
           <View style={{ flex: 1 }}>
             <Text style={styles.fieldLabel}>Make</Text>
-            <TextInput style={styles.input} value={editMake} onChangeText={setEditMake} placeholder="Make" placeholderTextColor={Colors.textMuted} />
+            <TextInput style={styles.input} value={editMake} onChangeText={setEditMake} placeholder="Make" placeholderTextColor={"#9AA3AD"} />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.fieldLabel}>Model</Text>
-            <TextInput style={styles.input} value={editModel} onChangeText={setEditModel} placeholder="Model" placeholderTextColor={Colors.textMuted} />
+            <TextInput style={styles.input} value={editModel} onChangeText={setEditModel} placeholder="Model" placeholderTextColor={"#9AA3AD"} />
           </View>
         </View>
 
         <Text style={styles.fieldLabel}>Serial Number</Text>
-        <TextInput style={styles.input} value={editSerialNumber} onChangeText={setEditSerialNumber} placeholder="Optional" placeholderTextColor={Colors.textMuted} />
+        <TextInput style={styles.input} value={editSerialNumber} onChangeText={setEditSerialNumber} placeholder="Optional" placeholderTextColor={"#9AA3AD"} />
 
         <Text style={styles.fieldLabel}>Daily Rate ($)</Text>
-        <TextInput style={styles.input} value={editDailyRate} onChangeText={setEditDailyRate} placeholder="350" placeholderTextColor={Colors.textMuted} keyboardType="numeric" />
+        <TextInput style={styles.input} value={editDailyRate} onChangeText={setEditDailyRate} placeholder="350" placeholderTextColor={"#9AA3AD"} keyboardType="numeric" />
 
         <Text style={styles.fieldLabel}>Status</Text>
         <TouchableOpacity style={styles.pickerBtn} onPress={() => setShowStatusPicker(!showStatusPicker)}>
           <View style={[styles.statusDot, { backgroundColor: (STATUS_CONFIG[editStatus] ?? STATUS_CONFIG.available).color }]} />
           <Text style={styles.pickerBtnText}>{(STATUS_CONFIG[editStatus] ?? STATUS_CONFIG.available).label}</Text>
-          <ChevronDown size={16} color={Colors.textMuted} />
+          <ChevronDown size={16} color={"#9AA3AD"} />
         </TouchableOpacity>
         {showStatusPicker && (
           <View style={styles.optionsRow}>
@@ -194,7 +199,7 @@ export default function EquipmentDetailScreen() {
           <Text style={styles.pickerBtnText}>
             {editProjectId ? (projects.find(p => p.id === editProjectId)?.name ?? 'Unknown') : 'None'}
           </Text>
-          <ChevronDown size={16} color={Colors.textMuted} />
+          <ChevronDown size={16} color={"#9AA3AD"} />
         </TouchableOpacity>
         {showProjectPicker && (
           <View style={styles.projectList}>
@@ -203,7 +208,7 @@ export default function EquipmentDetailScreen() {
             </TouchableOpacity>
             {projects.map(p => (
               <TouchableOpacity key={p.id} style={styles.projectItem} onPress={() => { setEditProjectId(p.id); setShowProjectPicker(false); }}>
-                <Text style={[styles.projectItemText, editProjectId === p.id && { color: Colors.primary, fontWeight: '600' as const }]}>{p.name}</Text>
+                <Text style={[styles.projectItemText, editProjectId === p.id && { color: "#FF6A1A", fontWeight: '600' as const }]}>{p.name}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -215,7 +220,7 @@ export default function EquipmentDetailScreen() {
           value={editNotes}
           onChangeText={setEditNotes}
           placeholder="Notes..."
-          placeholderTextColor={Colors.textMuted}
+          placeholderTextColor={"#9AA3AD"}
           multiline
           textAlignVertical="top"
         />
@@ -227,9 +232,9 @@ export default function EquipmentDetailScreen() {
           equip.maintenanceSchedule.map((item) => (
             <View key={item.id} style={[styles.maintCard, item.isOverdue && styles.maintCardOverdue]}>
               <View style={styles.maintHeader}>
-                <Wrench size={14} color={item.isOverdue ? Colors.error : Colors.textSecondary} />
+                <Wrench size={14} color={item.isOverdue ? "#C84038" : "#9AA3AD"} />
                 <Text style={styles.maintDesc}>{item.description}</Text>
-                {item.isOverdue && <AlertTriangle size={14} color={Colors.error} />}
+                {item.isOverdue && <AlertTriangle size={14} color={"#C84038"} />}
               </View>
               <Text style={styles.maintDetail}>
                 Every {item.intervalDays} days | Next: {new Date(item.nextDue).toLocaleDateString()}
@@ -254,7 +259,7 @@ export default function EquipmentDetailScreen() {
                     width={14}
                     height={barHeight}
                     rx={4}
-                    fill={Colors.primary}
+                    fill={"#FF6A1A"}
                     opacity={0.8}
                   />
                 );
@@ -264,7 +269,7 @@ export default function EquipmentDetailScreen() {
         )}
 
         <TouchableOpacity style={styles.logBtn} onPress={() => setShowLogModal(true)} activeOpacity={0.7}>
-          <Clock size={16} color={Colors.primary} />
+          <Clock size={16} color={"#FF6A1A"} />
           <Text style={styles.logBtnText}>Log Today's Use</Text>
         </TouchableOpacity>
 
@@ -281,7 +286,7 @@ export default function EquipmentDetailScreen() {
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.deleteBtn} onPress={handleDelete} activeOpacity={0.7}>
-          <Trash2 size={16} color={Colors.error} />
+          <Trash2 size={16} color={"#C84038"} />
           <Text style={styles.deleteBtnText}>Delete Equipment</Text>
         </TouchableOpacity>
       </ScrollView>
@@ -292,13 +297,13 @@ export default function EquipmentDetailScreen() {
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Log Usage</Text>
               <TouchableOpacity onPress={() => setShowLogModal(false)} accessibilityRole="button" accessibilityLabel="Close">
-                <X size={20} color={Colors.textMuted} />
+                <X size={20} color={"#9AA3AD"} />
               </TouchableOpacity>
             </View>
             <Text style={styles.fieldLabel}>Hours Used</Text>
-            <TextInput style={styles.input} value={logHours} onChangeText={setLogHours} keyboardType="numeric" placeholder="8" placeholderTextColor={Colors.textMuted} />
+            <TextInput style={styles.input} value={logHours} onChangeText={setLogHours} keyboardType="numeric" placeholder="8" placeholderTextColor={"#9AA3AD"} />
             <Text style={styles.fieldLabel}>Operator Name</Text>
-            <TextInput style={styles.input} value={logOperator} onChangeText={setLogOperator} placeholder="Optional" placeholderTextColor={Colors.textMuted} />
+            <TextInput style={styles.input} value={logOperator} onChangeText={setLogOperator} placeholder="Optional" placeholderTextColor={"#9AA3AD"} />
             <TouchableOpacity style={styles.saveBtn} onPress={handleLogUse} activeOpacity={0.85}>
               <Text style={styles.saveBtnText}>Log Usage</Text>
             </TouchableOpacity>
@@ -309,10 +314,10 @@ export default function EquipmentDetailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: t.bg,
   },
   center: {
     justifyContent: 'center',
@@ -320,10 +325,10 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: Type.callout.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
   },
   headerCard: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.panel,
     padding: 20,
     alignItems: 'center',
@@ -334,7 +339,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: Tokens.radius.panel,
-    backgroundColor: Colors.primary + '12',
+    backgroundColor: t.accent + '12',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -350,24 +355,24 @@ const styles = StyleSheet.create({
   rateText: {
     fontSize: Type.subheadline.fontSize,
     fontWeight: '700' as const,
-    color: Colors.primary,
+    color: t.accent,
   },
   fieldLabel: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     marginBottom: 6,
     marginTop: 12,
   },
   input: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.card,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: Type.subhead.fontSize,
-    color: Colors.text,
+    color: t.text,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
   },
   rowFields: {
     flexDirection: 'row',
@@ -377,17 +382,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.card,
     paddingHorizontal: 14,
     paddingVertical: 12,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
   },
   pickerBtnText: {
     flex: 1,
     fontSize: Type.subhead.fontSize,
-    color: Colors.text,
+    color: t.text,
   },
   statusDot: {
     width: 10,
@@ -404,15 +409,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: Tokens.radius.sm,
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.surfaceAlt,
   },
   optionChipText: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
   },
   projectList: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.card,
     marginTop: 6,
     overflow: 'hidden',
@@ -422,26 +427,26 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderBottomWidth: 0.5,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: t.line,
   },
   projectItemText: {
     fontSize: Type.bodyCompact.fontSize,
-    color: Colors.text,
+    color: t.text,
   },
   sectionTitle: {
     fontSize: Type.subheadline.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: t.text,
     marginTop: 24,
     marginBottom: 12,
   },
   noDataText: {
     fontSize: Type.bodyCompact.fontSize,
-    color: Colors.textMuted,
+    color: t.textMuted,
     fontStyle: 'italic',
   },
   maintCard: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.card,
     padding: 14,
     marginBottom: 8,
@@ -449,7 +454,7 @@ const styles = StyleSheet.create({
   },
   maintCardOverdue: {
     borderLeftWidth: 3,
-    borderLeftColor: Colors.error,
+    borderLeftColor: t.danger,
   },
   maintHeader: {
     flexDirection: 'row',
@@ -460,15 +465,15 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '600' as const,
-    color: Colors.text,
+    color: t.text,
   },
   maintDetail: {
     fontSize: Type.caption1.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     paddingLeft: 22,
   },
   chartCard: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.card,
     padding: 12,
     marginBottom: 12,
@@ -481,24 +486,24 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingVertical: 14,
     borderRadius: Tokens.radius.card,
-    backgroundColor: Colors.primary + '12',
+    backgroundColor: t.accent + '12',
     marginTop: 8,
   },
   logBtnText: {
     fontSize: Type.subhead.fontSize,
     fontWeight: '600' as const,
-    color: Colors.primary,
+    color: t.accent,
   },
   saveBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
     borderRadius: Tokens.radius.lg,
     paddingVertical: 16,
     marginTop: 24,
-    shadowColor: Colors.primary,
+    shadowColor: t.accent,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
     shadowRadius: 12,
@@ -520,7 +525,7 @@ const styles = StyleSheet.create({
   deleteBtnText: {
     fontSize: Type.subhead.fontSize,
     fontWeight: '600' as const,
-    color: Colors.error,
+    color: t.danger,
   },
   modalOverlay: {
     flex: 1,
@@ -530,7 +535,7 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   modalCard: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: 20,
     padding: 24,
     width: '100%',
@@ -546,6 +551,6 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: Type.title3.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: t.text,
   },
 });

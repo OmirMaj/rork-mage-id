@@ -24,6 +24,9 @@ import {
   Camera, ImagePlus, Sparkles, X, Trash2, ChevronRight, Save, AlertCircle,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import { type PunchItem, type PunchItemPriority, type SubTrade } from '@/types';
 import { analyzePhotosForPunch, type AiPunchItem } from '@/utils/photoAnalyzer';
@@ -93,12 +96,14 @@ interface ReviewableItem extends AiPunchItem {
 }
 
 const PRIORITY_COLORS: Record<PunchItemPriority, string> = {
-  high: Colors.error,
+  high: "#C84038",
   medium: Colors.warning,
-  low: Colors.textMuted,
+  low: "#9AA3AD",
 };
 
 export default function AiPunchScreen() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
@@ -370,7 +375,7 @@ export default function AiPunchScreen() {
         <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 130 }}>
           {/* Hero / project context */}
           <View style={styles.hero}>
-            <Sparkles size={20} color={Colors.primary} />
+            <Sparkles size={20} color={"#FF6A1A"} />
             <View style={{ flex: 1 }}>
               <Text style={styles.heroTitle}>AI Punch from Photos</Text>
               <Text style={styles.heroSub}>
@@ -387,11 +392,11 @@ export default function AiPunchScreen() {
               <View style={styles.section}>
                 <View style={styles.sourceRow}>
                   <TouchableOpacity style={styles.sourceBtn} onPress={handleTakePhoto} activeOpacity={0.85}>
-                    <Camera size={16} color={Colors.primary} />
+                    <Camera size={16} color={"#FF6A1A"} />
                     <Text style={styles.sourceBtnText}>Camera</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.sourceBtn} onPress={handlePickFromCameraRoll} activeOpacity={0.85}>
-                    <ImagePlus size={16} color={Colors.primary} />
+                    <ImagePlus size={16} color={"#FF6A1A"} />
                     <Text style={styles.sourceBtnText}>Photo library</Text>
                   </TouchableOpacity>
                 </View>
@@ -462,7 +467,7 @@ export default function AiPunchScreen() {
           {!!error && (
             <View style={styles.section}>
               <View style={styles.errorBanner}>
-                <AlertCircle size={14} color={Colors.error} />
+                <AlertCircle size={14} color={"#C84038"} />
                 <Text style={styles.errorText}>{error}</Text>
               </View>
             </View>
@@ -497,7 +502,7 @@ export default function AiPunchScreen() {
                     )}
                     <View style={styles.reviewBody}>
                       <View style={styles.reviewMetaRow}>
-                        <View style={[styles.confidenceDot, { backgroundColor: item.confidence >= 80 ? Colors.success : Colors.warning }]} />
+                        <View style={[styles.confidenceDot, { backgroundColor: item.confidence >= 80 ? "#2E7D44" : Colors.warning }]} />
                         <Text style={styles.reviewMeta}>AI confidence {item.confidence}%</Text>
                       </View>
                       <TextInput
@@ -505,7 +510,7 @@ export default function AiPunchScreen() {
                         value={item.editedDescription}
                         onChangeText={t => updateReviewItem(item.id, { editedDescription: t })}
                         placeholder="Description"
-                        placeholderTextColor={Colors.textMuted}
+                        placeholderTextColor={"#9AA3AD"}
                         multiline
                         editable={!item.saved}
                       />
@@ -515,7 +520,7 @@ export default function AiPunchScreen() {
                           value={item.editedLocation}
                           onChangeText={t => updateReviewItem(item.id, { editedLocation: t })}
                           placeholder="Location"
-                          placeholderTextColor={Colors.textMuted}
+                          placeholderTextColor={"#9AA3AD"}
                           editable={!item.saved}
                         />
                       </View>
@@ -529,7 +534,7 @@ export default function AiPunchScreen() {
                         {!item.saved ? (
                           <>
                             <TouchableOpacity style={styles.discardBtn} onPress={() => updateReviewItem(item.id, { discarded: true })}>
-                              <Trash2 size={14} color={Colors.error} />
+                              <Trash2 size={14} color={"#C84038"} />
                               <Text style={styles.discardBtnText}>Discard</Text>
                             </TouchableOpacity>
                             <TouchableOpacity style={styles.saveOneBtn} onPress={() => handleSaveOne(item)} activeOpacity={0.85}>
@@ -606,22 +611,22 @@ export default function AiPunchScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  root: { flex: 1, backgroundColor: t.bg },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  emptyText: { color: Colors.textMuted },
+  emptyText: { color: t.textMuted },
 
-  hero: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, padding: 16, marginHorizontal: 16, marginTop: 8, backgroundColor: Colors.primary + '0F', borderRadius: Tokens.radius.lg, borderWidth: 1, borderColor: Colors.primary + '30' },
-  heroTitle: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.text },
-  heroSub: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, marginTop: 4, lineHeight: 18 },
+  hero: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, padding: 16, marginHorizontal: 16, marginTop: 8, backgroundColor: t.accent + '0F', borderRadius: Tokens.radius.lg, borderWidth: 1, borderColor: t.accent + '30' },
+  heroTitle: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: t.text },
+  heroSub: { fontSize: Type.footnote.fontSize, color: t.textMuted, marginTop: 4, lineHeight: 18 },
 
   section: { padding: 16, paddingBottom: 8 },
-  sectionTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text, marginBottom: 8 },
-  sectionSub: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 4 },
+  sectionTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: t.text, marginBottom: 8 },
+  sectionSub: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 4 },
 
   sourceRow: { flexDirection: 'row', gap: 10 },
-  sourceBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, backgroundColor: Colors.primary + '12', borderRadius: Tokens.radius.card, borderWidth: 1, borderColor: Colors.primary + '30' },
-  sourceBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.primary },
+  sourceBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, backgroundColor: t.accent + '12', borderRadius: Tokens.radius.card, borderWidth: 1, borderColor: t.accent + '30' },
+  sourceBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: t.accent },
 
   thumbGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   thumbWrap: { width: '23%', aspectRatio: 1, borderRadius: Tokens.radius.md, overflow: 'hidden', position: 'relative' },
@@ -629,44 +634,44 @@ const styles = StyleSheet.create({
   thumbRemove: { position: 'absolute', top: 4, right: 4, width: 22, height: 22, borderRadius: 11, backgroundColor: 'rgba(0,0,0,0.65)', alignItems: 'center', justifyContent: 'center' },
 
   galleryHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 },
-  galleryToggle: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.primary },
+  galleryToggle: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: t.accent },
   galleryRow: { gap: 6, paddingVertical: 4 },
   galleryThumb: { width: 84, height: 84, borderRadius: Tokens.radius.md, overflow: 'hidden', borderWidth: 2, borderColor: 'transparent' },
-  galleryThumbPicked: { borderColor: Colors.primary },
+  galleryThumbPicked: { borderColor: t.accent },
   galleryImg: { width: '100%', height: '100%' },
-  galleryCheck: { position: 'absolute', top: 4, right: 4, width: 22, height: 22, borderRadius: 11, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
+  galleryCheck: { position: 'absolute', top: 4, right: 4, width: 22, height: 22, borderRadius: 11, backgroundColor: t.accent, alignItems: 'center', justifyContent: 'center' },
   galleryCheckMark: { color: '#FFF', fontWeight: '800' as const, fontSize: Type.caption1.fontSize },
 
-  errorBanner: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, padding: 12, backgroundColor: Colors.error + '12', borderRadius: Tokens.radius.card, borderWidth: 1, borderColor: Colors.error + '40' },
-  errorText: { flex: 1, fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 18 },
+  errorBanner: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, padding: 12, backgroundColor: t.danger + '12', borderRadius: Tokens.radius.card, borderWidth: 1, borderColor: t.danger + '40' },
+  errorText: { flex: 1, fontSize: Type.footnote.fontSize, color: t.text, lineHeight: 18 },
   // Round-4 #3: notice (warning) is amber rather than red so a
   // partial-success doesn't read as a failure.
   noticeBanner: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, padding: 12, backgroundColor: Colors.warning + '12', borderRadius: Tokens.radius.card, borderWidth: 1, borderColor: Colors.warning + '40' },
-  noticeText: { flex: 1, fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 18 },
+  noticeText: { flex: 1, fontSize: Type.footnote.fontSize, color: t.text, lineHeight: 18 },
 
   reviewHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
-  reviewCard: { flexDirection: 'row', gap: 12, backgroundColor: Colors.surface, borderRadius: Tokens.radius.lg, padding: 12, borderWidth: 1, borderColor: Colors.cardBorder, marginBottom: 10 },
-  reviewCardSaved: { backgroundColor: Colors.success + '0A', borderColor: Colors.success + '40' },
+  reviewCard: { flexDirection: 'row', gap: 12, backgroundColor: t.surface, borderRadius: Tokens.radius.lg, padding: 12, borderWidth: 1, borderColor: t.line, marginBottom: 10 },
+  reviewCardSaved: { backgroundColor: t.success + '0A', borderColor: t.success + '40' },
   reviewPhoto: { width: 80, height: 80, borderRadius: Tokens.radius.md },
   reviewBody: { flex: 1, gap: 6 },
   reviewMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   confidenceDot: { width: 8, height: 8, borderRadius: 4 },
-  reviewMeta: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontWeight: '600' as const, textTransform: 'uppercase', letterSpacing: 0.5 },
-  reviewInput: { backgroundColor: Colors.background, borderRadius: Tokens.radius.sm, padding: 8, fontSize: Type.bodyCompact.fontSize, color: Colors.text, minHeight: 40, borderWidth: 1, borderColor: Colors.cardBorder },
-  reviewInputSmall: { backgroundColor: Colors.background, borderRadius: Tokens.radius.sm, paddingHorizontal: 8, paddingVertical: 6, fontSize: Type.footnote.fontSize, color: Colors.text, borderWidth: 1, borderColor: Colors.cardBorder },
+  reviewMeta: { fontSize: Type.caption2.fontSize, color: t.textMuted, fontWeight: '600' as const, textTransform: 'uppercase', letterSpacing: 0.5 },
+  reviewInput: { backgroundColor: t.bg, borderRadius: Tokens.radius.sm, padding: 8, fontSize: Type.bodyCompact.fontSize, color: t.text, minHeight: 40, borderWidth: 1, borderColor: t.line },
+  reviewInputSmall: { backgroundColor: t.bg, borderRadius: Tokens.radius.sm, paddingHorizontal: 8, paddingVertical: 6, fontSize: Type.footnote.fontSize, color: t.text, borderWidth: 1, borderColor: t.line },
   reviewRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   priorityPill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.xs },
   priorityText: { fontSize: 10, fontWeight: '800' as const, letterSpacing: 0.5 },
-  tradeText: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, fontWeight: '600' as const },
+  tradeText: { fontSize: Type.caption1.fontSize, color: t.textMuted, fontWeight: '600' as const },
   reviewActions: { flexDirection: 'row', gap: 6, marginTop: 4 },
   discardBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: Tokens.radius.sm },
-  discardBtnText: { fontSize: Type.caption1.fontSize, color: Colors.error, fontWeight: '600' as const },
-  saveOneBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: 8, backgroundColor: Colors.primary, borderRadius: Tokens.radius.sm },
+  discardBtnText: { fontSize: Type.caption1.fontSize, color: t.danger, fontWeight: '600' as const },
+  saveOneBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: 8, backgroundColor: t.accent, borderRadius: Tokens.radius.sm },
   saveOneBtnText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: '#FFF' },
-  savedFlag: { flex: 1, fontSize: Type.caption1.fontSize, color: Colors.success, fontWeight: '600' as const, textAlign: 'right' },
+  savedFlag: { flex: 1, fontSize: Type.caption1.fontSize, color: t.success, fontWeight: '600' as const, textAlign: 'right' },
 
   fab: { position: 'absolute', left: 16, right: 16 },
-  fabPrimary: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: Colors.primary, paddingVertical: 14, borderRadius: Tokens.radius.lg, shadowColor: Colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 5 },
+  fabPrimary: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: t.accent, paddingVertical: 14, borderRadius: Tokens.radius.lg, shadowColor: t.accent, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 5 },
   fabPrimaryDisabled: { opacity: 0.5 },
   fabPrimaryText: { color: '#FFF', fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const },
 });

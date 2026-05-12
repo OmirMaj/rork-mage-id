@@ -10,6 +10,9 @@ import {
   PenTool, ShoppingCart, Hammer, HelpCircle, Trophy, Package,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useNotificationFeed, type NotificationFeedItem } from '@/hooks/useNotificationFeed';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -20,7 +23,7 @@ import { Tokens } from '@/constants/designTokens';
 // not a button.
 const EVENT_META: Record<string, { icon: React.ReactNode; tint: string; label: string }> = {
   // Client → GC
-  portal_message:        { icon: <MessageSquare size={16} color={Colors.info} />, tint: '#E7F0FA', label: 'Client message' },
+  portal_message:        { icon: <MessageSquare size={16} color={"#1565C0"} />, tint: '#E7F0FA', label: 'Client message' },
   budget_proposal:       { icon: <HandCoins   size={16} color={Colors.orange} />, tint: '#FFF1E6', label: 'Budget proposal' },
   co_approval:           { icon: <CheckCircle2 size={16} color={Colors.successDark} />, tint: Colors.successLight, label: 'Change order' },
   contract_signed:       { icon: <PenTool     size={16} color={Colors.successDark} />, tint: Colors.successLight, label: 'Contract signed' },
@@ -252,6 +255,8 @@ function deepLinkFor(item: NotificationFeedItem): string | null {
 }
 
 export default function NotificationsInboxScreen() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const feed = useNotificationFeed();
@@ -284,7 +289,7 @@ export default function NotificationsInboxScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
-          <ChevronLeft size={26} color={Colors.primary} />
+          <ChevronLeft size={26} color={"#FF6A1A"} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.title}>Notifications</Text>
@@ -294,7 +299,7 @@ export default function NotificationsInboxScreen() {
         </View>
         {feed.items.length > 0 && (
           <TouchableOpacity style={styles.headerAction} onPress={feed.markAllRead}>
-            <CheckCheck size={16} color={Colors.text} />
+            <CheckCheck size={16} color={themeColors.text} />
             <Text style={styles.headerActionText}>Mark all read</Text>
           </TouchableOpacity>
         )}
@@ -302,7 +307,7 @@ export default function NotificationsInboxScreen() {
           style={styles.headerIconBtn}
           onPress={() => router.push('/notifications-settings' as never)}
           hitSlop={6} accessibilityRole="button" accessibilityLabel="Settings">
-          <Settings size={18} color={Colors.textMuted} />
+          <Settings size={18} color={"#9AA3AD"} />
         </TouchableOpacity>
       </View>
 
@@ -312,7 +317,7 @@ export default function NotificationsInboxScreen() {
         contentContainerStyle={{ paddingBottom: insets.bottom + 32, paddingHorizontal: 16, paddingTop: 8 }}
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Bell size={40} color={Colors.textMuted} />
+            <Bell size={40} color={"#9AA3AD"} />
             <Text style={styles.emptyTitle}>You&apos;re all caught up</Text>
             <Text style={styles.emptyBody}>
               When clients send messages, propose budgets, approve change orders, or subs submit invoices, you&apos;ll see the history here.
@@ -322,13 +327,13 @@ export default function NotificationsInboxScreen() {
         ListFooterComponent={
           feed.items.length > 0 ? (
             <TouchableOpacity style={styles.clearAll} onPress={handleClearAll}>
-              <Trash2 size={14} color={Colors.error} />
+              <Trash2 size={14} color={"#C84038"} />
               <Text style={styles.clearAllText}>Clear all</Text>
             </TouchableOpacity>
           ) : null
         }
         renderItem={({ item }) => {
-          const meta = EVENT_META[item.eventType] ?? { icon: <Bell size={16} color={Colors.text} />, tint: Colors.background, label: item.eventType };
+          const meta = EVENT_META[item.eventType] ?? { icon: <Bell size={16} color={themeColors.text} />, tint: themeColors.bg, label: item.eventType };
           const summary = summarize(item);
           const isUnread = !item.readAt;
           return (
@@ -355,7 +360,7 @@ export default function NotificationsInboxScreen() {
                 style={styles.dismissBtn}
                 onPress={(e) => { e.stopPropagation(); feed.dismiss(item.id); }}
                 hitSlop={6} accessibilityRole="button" accessibilityLabel="Close">
-                <X size={14} color={Colors.textMuted} />
+                <X size={14} color={"#9AA3AD"} />
               </TouchableOpacity>
             </TouchableOpacity>
           );
@@ -365,26 +370,26 @@ export default function NotificationsInboxScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: t.bg },
   header: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     paddingHorizontal: 16, paddingVertical: 12,
-    borderBottomWidth: 1, borderBottomColor: Colors.border,
+    borderBottomWidth: 1, borderBottomColor: t.line,
   },
-  title: { fontSize: Type.title2.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.4 },
-  subtitle: { fontSize: Type.caption1.fontSize, color: Colors.primary, fontWeight: '700', marginTop: 2 },
+  title: { fontSize: Type.title2.fontSize, fontWeight: '800', color: t.text, letterSpacing: -0.4 },
+  subtitle: { fontSize: Type.caption1.fontSize, color: t.accent, fontWeight: '700', marginTop: 2 },
   headerAction: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
     paddingHorizontal: 10, paddingVertical: 6,
     backgroundColor: Colors.card, borderRadius: Tokens.radius.md,
-    borderWidth: 1, borderColor: Colors.border,
+    borderWidth: 1, borderColor: t.line,
   },
-  headerActionText: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: Colors.text },
+  headerActionText: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: t.text },
   headerIconBtn: {
     width: 32, height: 32, borderRadius: 9,
     backgroundColor: Colors.card,
-    borderWidth: 1, borderColor: Colors.border,
+    borderWidth: 1, borderColor: t.line,
     alignItems: 'center', justifyContent: 'center',
   },
 
@@ -392,9 +397,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row', gap: 12,
     paddingHorizontal: 14, paddingVertical: 14, marginVertical: 4,
     backgroundColor: Colors.card, borderRadius: Tokens.radius.lg,
-    borderWidth: 1, borderColor: Colors.border,
+    borderWidth: 1, borderColor: t.line,
   },
-  rowUnread: { borderColor: Colors.primary + '40', backgroundColor: '#FFF7EE' },
+  rowUnread: { borderColor: t.accent + '40', backgroundColor: '#FFF7EE' },
   iconWrap: {
     width: 38, height: 38, borderRadius: 11,
     alignItems: 'center', justifyContent: 'center', position: 'relative',
@@ -402,14 +407,14 @@ const styles = StyleSheet.create({
   unreadDot: {
     position: 'absolute', top: 0, right: 0,
     width: 9, height: 9, borderRadius: 5,
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
     borderWidth: 2, borderColor: Colors.card,
   },
   rowHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
-  rowEyebrow: { fontSize: 10, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.6 },
-  rowTime: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontWeight: '600' },
-  rowTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
-  rowBody: { fontSize: Type.footnote.fontSize, color: Colors.text, marginTop: 3, lineHeight: 18 },
+  rowEyebrow: { fontSize: 10, fontWeight: '700', color: t.textMuted, textTransform: 'uppercase', letterSpacing: 0.6 },
+  rowTime: { fontSize: Type.caption2.fontSize, color: t.textMuted, fontWeight: '600' },
+  rowTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: t.text },
+  rowBody: { fontSize: Type.footnote.fontSize, color: t.text, marginTop: 3, lineHeight: 18 },
   dismissBtn: {
     width: 28, height: 28, borderRadius: Tokens.radius.sm,
     alignItems: 'center', justifyContent: 'center',
@@ -420,12 +425,12 @@ const styles = StyleSheet.create({
     alignItems: 'center', padding: 40, marginTop: 40,
     gap: 10,
   },
-  emptyTitle: { fontSize: Type.callout.fontSize, fontWeight: '700', color: Colors.text, marginTop: 4 },
-  emptyBody: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, textAlign: 'center', lineHeight: 19, maxWidth: 280 },
+  emptyTitle: { fontSize: Type.callout.fontSize, fontWeight: '700', color: t.text, marginTop: 4 },
+  emptyBody: { fontSize: Type.footnote.fontSize, color: t.textMuted, textAlign: 'center', lineHeight: 19, maxWidth: 280 },
 
   clearAll: {
     flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6,
     paddingVertical: 16, marginTop: 6,
   },
-  clearAllText: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: Colors.error },
+  clearAllText: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: t.danger },
 });

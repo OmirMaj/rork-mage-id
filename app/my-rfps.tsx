@@ -14,6 +14,9 @@ import {
   CheckCircle2, Clock, Trophy,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { formatMoney } from '@/utils/formatters';
@@ -38,6 +41,8 @@ interface MyRfpRow {
 }
 
 export default function MyRfpsScreen() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user } = useAuth();
@@ -105,7 +110,7 @@ export default function MyRfpsScreen() {
 
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
-          <ChevronLeft size={26} color={Colors.primary} />
+          <ChevronLeft size={26} color={themeColors.accent} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.eyebrow}>Your projects</Text>
@@ -124,7 +129,7 @@ export default function MyRfpsScreen() {
           <RefreshControl
             refreshing={isRefetching}
             onRefresh={() => { void refetch(); }}
-            tintColor={Colors.primary}
+            tintColor={themeColors.accent}
           />
         }
       >
@@ -135,15 +140,15 @@ export default function MyRfpsScreen() {
             <View style={styles.statDivider} />
             <Stat label="Open" value={String(totals.open)} />
             <View style={styles.statDivider} />
-            <Stat label="Awarded" value={String(totals.awarded)} accent={totals.awarded > 0 ? Colors.success : undefined} />
+            <Stat label="Awarded" value={String(totals.awarded)} accent={totals.awarded > 0 ? themeColors.success : undefined} />
             <View style={styles.statDivider} />
-            <Stat label="New bids" value={String(totals.inbox)} accent={totals.inbox > 0 ? Colors.primary : undefined} />
+            <Stat label="New bids" value={String(totals.inbox)} accent={totals.inbox > 0 ? themeColors.accent : undefined} />
           </View>
         )}
 
         {isLoading && rfps.length === 0 && (
           <View style={styles.loadingCard}>
-            <ActivityIndicator size="small" color={Colors.primary} />
+            <ActivityIndicator size="small" color={themeColors.accent} />
             <Text style={styles.loadingText}>Loading your projects…</Text>
           </View>
         )}
@@ -151,7 +156,7 @@ export default function MyRfpsScreen() {
         {!isLoading && rfps.length === 0 && (
           <View style={styles.emptyCard}>
             <View style={styles.emptyIconWrap}>
-              <Sparkles size={28} color={Colors.primary} />
+              <Sparkles size={28} color={themeColors.accent} />
             </View>
             <Text style={styles.emptyTitle}>Post your first project</Text>
             <Text style={styles.emptyBody}>
@@ -180,27 +185,27 @@ export default function MyRfpsScreen() {
                 <Image source={{ uri: heroPhoto }} style={styles.rfpHero} resizeMode="cover" />
               ) : (
                 <View style={[styles.rfpHero, styles.rfpHeroPlaceholder]}>
-                  <Inbox size={24} color={Colors.textMuted} />
+                  <Inbox size={24} color={themeColors.textMuted} />
                 </View>
               )}
               <View style={styles.rfpBody}>
                 <View style={styles.rfpHead}>
                   <Text style={styles.rfpTitle} numberOfLines={2}>{r.title}</Text>
                   {isAwarded && (
-                    <View style={[styles.statusPill, { backgroundColor: Colors.success + '20' }]}>
-                      <Trophy size={10} color={Colors.success} />
-                      <Text style={[styles.statusPillText, { color: Colors.success }]}>AWARDED</Text>
+                    <View style={[styles.statusPill, { backgroundColor: themeColors.success + '20' }]}>
+                      <Trophy size={10} color={themeColors.success} />
+                      <Text style={[styles.statusPillText, { color: themeColors.success }]}>AWARDED</Text>
                     </View>
                   )}
                   {isOpen && (
-                    <View style={[styles.statusPill, { backgroundColor: Colors.primary + '20' }]}>
-                      <Clock size={10} color={Colors.primary} />
-                      <Text style={[styles.statusPillText, { color: Colors.primary }]}>OPEN</Text>
+                    <View style={[styles.statusPill, { backgroundColor: themeColors.accent + '20' }]}>
+                      <Clock size={10} color={themeColors.accent} />
+                      <Text style={[styles.statusPillText, { color: themeColors.accent }]}>OPEN</Text>
                     </View>
                   )}
                 </View>
                 <View style={styles.rfpMeta}>
-                  <MapPin size={11} color={Colors.textMuted} />
+                  <MapPin size={11} color={themeColors.textMuted} />
                   <Text style={styles.rfpMetaText} numberOfLines={1}>
                     {[r.city, r.state].filter(Boolean).join(', ') || 'Address pending'}
                   </Text>
@@ -223,7 +228,7 @@ export default function MyRfpsScreen() {
                       </View>
                     )}
                   </View>
-                  <ChevronRight size={14} color={Colors.textMuted} />
+                  <ChevronRight size={14} color={themeColors.textMuted} />
                 </View>
               </View>
             </TouchableOpacity>
@@ -235,6 +240,8 @@ export default function MyRfpsScreen() {
 }
 
 function Stat({ label, value, accent }: { label: string; value: string; accent?: string }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.statItem}>
       <Text style={[styles.statValue, accent ? { color: accent } : null]}>{value}</Text>
@@ -243,73 +250,73 @@ function Stat({ label, value, accent }: { label: string; value: string; accent?:
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: t.bg },
   header: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 10,
     paddingHorizontal: 16, paddingTop: 14, paddingBottom: 16,
-    borderBottomWidth: 1, borderBottomColor: Colors.border,
+    borderBottomWidth: 1, borderBottomColor: t.line,
   },
-  eyebrow: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.primary, letterSpacing: 1.4, textTransform: 'uppercase' },
-  title:   { fontSize: Type.title2.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.4, marginTop: 4 },
+  eyebrow: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: t.accent, letterSpacing: 1.4, textTransform: 'uppercase' },
+  title:   { fontSize: Type.title2.fontSize, fontWeight: '800', color: t.text, letterSpacing: -0.4, marginTop: 4 },
   headerCta: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
     paddingHorizontal: 12, paddingVertical: 8, borderRadius: 9,
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
   },
   headerCtaText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: '#FFF' },
 
   statsRow: {
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 16,
-    borderWidth: 1, borderColor: Colors.border,
+    borderWidth: 1, borderColor: t.line,
     marginBottom: 14,
   },
   statItem: { flex: 1, alignItems: 'center' },
-  statValue: { fontSize: Type.title2.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.5 },
-  statLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.6, marginTop: 4 },
-  statDivider: { width: 1, alignSelf: 'stretch', backgroundColor: Colors.border, marginVertical: 6 },
+  statValue: { fontSize: Type.title2.fontSize, fontWeight: '800', color: t.text, letterSpacing: -0.5 },
+  statLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: t.textMuted, textTransform: 'uppercase', letterSpacing: 0.6, marginTop: 4 },
+  statDivider: { width: 1, alignSelf: 'stretch', backgroundColor: t.line, marginVertical: 6 },
 
   loadingCard: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 18, justifyContent: 'center' },
-  loadingText: { fontSize: Type.footnote.fontSize, color: Colors.textMuted },
+  loadingText: { fontSize: Type.footnote.fontSize, color: t.textMuted },
 
   emptyCard: {
     backgroundColor: Colors.card, borderRadius: Tokens.radius.panel, padding: 28,
-    borderWidth: 1, borderColor: Colors.border,
+    borderWidth: 1, borderColor: t.line,
     alignItems: 'center', gap: 8, marginTop: 22,
   },
   emptyIconWrap: {
     width: 64, height: 64, borderRadius: Tokens.radius.xl,
-    backgroundColor: Colors.primary + '15',
+    backgroundColor: t.accent + '15',
     alignItems: 'center', justifyContent: 'center', marginBottom: 6,
   },
-  emptyTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: Colors.text, marginTop: 4 },
-  emptyBody: { fontSize: Type.footnote.fontSize, color: Colors.text, textAlign: 'center', lineHeight: 19, maxWidth: 320 },
+  emptyTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: t.text, marginTop: 4 },
+  emptyBody: { fontSize: Type.footnote.fontSize, color: t.text, textAlign: 'center', lineHeight: 19, maxWidth: 320 },
   emptyCta: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: 18, paddingVertical: 11, borderRadius: Tokens.radius.card,
-    backgroundColor: Colors.primary, marginTop: 12,
+    backgroundColor: t.accent, marginTop: 12,
   },
   emptyCtaText: { color: '#FFF', fontSize: Type.bodyCompact.fontSize, fontWeight: '700' },
 
   rfpCard: {
     backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, overflow: 'hidden',
-    borderWidth: 1, borderColor: Colors.border,
+    borderWidth: 1, borderColor: t.line,
     marginBottom: 12,
   },
-  rfpHero: { width: '100%', height: 140, backgroundColor: Colors.background },
+  rfpHero: { width: '100%', height: 140, backgroundColor: t.bg },
   rfpHeroPlaceholder: { alignItems: 'center', justifyContent: 'center' },
   rfpBody: { padding: 14, gap: 6 },
   rfpHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-  rfpTitle: { flex: 1, fontSize: Type.subhead.fontSize, fontWeight: '700', color: Colors.text, lineHeight: 21 },
+  rfpTitle: { flex: 1, fontSize: Type.subhead.fontSize, fontWeight: '700', color: t.text, lineHeight: 21 },
   statusPill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 7, paddingVertical: 3, borderRadius: Tokens.radius.full },
   statusPillText: { fontSize: 9, fontWeight: '800', letterSpacing: 0.6 },
   rfpMeta: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  rfpMetaText: { flex: 1, fontSize: Type.caption1.fontSize, color: Colors.textMuted, fontWeight: '600' },
-  rfpBudget: { fontSize: Type.caption1.fontSize, color: Colors.text, fontWeight: '600' },
-  rfpFoot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 6, paddingTop: 8, borderTopWidth: 1, borderTopColor: Colors.border },
+  rfpMetaText: { flex: 1, fontSize: Type.caption1.fontSize, color: t.textMuted, fontWeight: '600' },
+  rfpBudget: { fontSize: Type.caption1.fontSize, color: t.text, fontWeight: '600' },
+  rfpFoot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 6, paddingTop: 8, borderTopWidth: 1, borderTopColor: t.line },
   rfpResponseChip: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  rfpResponseChipText: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: Colors.text },
-  unreadDot: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: Tokens.radius.full, backgroundColor: Colors.primary, minWidth: 18, alignItems: 'center' },
+  rfpResponseChipText: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: t.text },
+  unreadDot: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: Tokens.radius.full, backgroundColor: t.accent, minWidth: 18, alignItems: 'center' },
   unreadDotText: { fontSize: 10, fontWeight: '800', color: '#FFF' },
 });

@@ -18,12 +18,17 @@ import * as Haptics from 'expo-haptics';
 import { HardHat, Mail, Lock, Eye, EyeOff, User, ArrowRight, ChevronLeft } from 'lucide-react-native';
 import Svg, { Path } from 'react-native-svg';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import ConfirmEmailModal from '@/components/ConfirmEmailModal';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
 export default function SignupScreen() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { signup, signInWithGoogle, signInWithApple } = useAuth();
@@ -155,11 +160,11 @@ export default function SignupScreen() {
           style={styles.backButton}
           onPress={() => router.back()}
           activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Back">
-          <ChevronLeft size={24} color={Colors.surface} strokeWidth={2} />
+          <ChevronLeft size={24} color={themeColors.surface} strokeWidth={2} />
         </TouchableOpacity>
         <View style={styles.logoRow}>
           <View style={styles.logoCircle}>
-            <HardHat size={28} color={Colors.surface} strokeWidth={1.8} />
+            <HardHat size={28} color={themeColors.surface} strokeWidth={1.8} />
           </View>
           <View>
             <Text style={styles.brandName}>MAGE ID</Text>
@@ -198,10 +203,10 @@ export default function SignupScreen() {
                 testID="signup-apple-top"
               >
                 {isAppleLoading ? (
-                  <ActivityIndicator color={Colors.surface} size="small" />
+                  <ActivityIndicator color={themeColors.surface} size="small" />
                 ) : (
                   <>
-                    <Svg width={20} height={20} viewBox="0 0 24 24" fill={Colors.surface}>
+                    <Svg width={20} height={20} viewBox="0 0 24 24" fill={themeColors.surface}>
                       <Path d="M17.05 20.28c-.98.95-2.05.88-3.08.4-1.09-.5-2.08-.48-3.24 0-1.44.62-2.2.44-3.06-.4C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z" />
                     </Svg>
                     <Text style={styles.appleAuthButtonText}>Sign up with Apple</Text>
@@ -217,7 +222,7 @@ export default function SignupScreen() {
               testID="signup-google-top"
             >
               {isGoogleLoading ? (
-                <ActivityIndicator color={Colors.text} size="small" />
+                <ActivityIndicator color={themeColors.text} size="small" />
               ) : (
                 <>
                   <Svg width={20} height={20} viewBox="0 0 48 48">
@@ -242,11 +247,11 @@ export default function SignupScreen() {
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Full Name</Text>
               <View style={styles.inputWrapper}>
-                <User size={18} color={Colors.textSecondary} strokeWidth={1.8} />
+                <User size={18} color={themeColors.textSecondary} strokeWidth={1.8} />
                 <TextInput
                   style={styles.input}
                   placeholder="John Doe"
-                  placeholderTextColor={Colors.textMuted}
+                  placeholderTextColor={themeColors.textMuted}
                   value={name}
                   onChangeText={setName}
                   autoCapitalize="words"
@@ -260,12 +265,12 @@ export default function SignupScreen() {
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Email</Text>
               <View style={styles.inputWrapper}>
-                <Mail size={18} color={Colors.textSecondary} strokeWidth={1.8} />
+                <Mail size={18} color={themeColors.textSecondary} strokeWidth={1.8} />
                 <TextInput
                   ref={emailRef}
                   style={styles.input}
                   placeholder="you@company.com"
-                  placeholderTextColor={Colors.textMuted}
+                  placeholderTextColor={themeColors.textMuted}
                   value={email}
                   onChangeText={setEmail}
                   keyboardType="email-address"
@@ -281,12 +286,12 @@ export default function SignupScreen() {
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Password</Text>
               <View style={styles.inputWrapper}>
-                <Lock size={18} color={Colors.textSecondary} strokeWidth={1.8} />
+                <Lock size={18} color={themeColors.textSecondary} strokeWidth={1.8} />
                 <TextInput
                   ref={passwordRef}
                   style={styles.input}
                   placeholder="Min 8 characters"
-                  placeholderTextColor={Colors.textMuted}
+                  placeholderTextColor={themeColors.textMuted}
                   value={password}
                   onChangeText={setPassword}
                   secureTextEntry={!showPassword}
@@ -299,9 +304,9 @@ export default function SignupScreen() {
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
                   {showPassword ? (
-                    <EyeOff size={18} color={Colors.textSecondary} strokeWidth={1.8} />
+                    <EyeOff size={18} color={themeColors.textSecondary} strokeWidth={1.8} />
                   ) : (
-                    <Eye size={18} color={Colors.textSecondary} strokeWidth={1.8} />
+                    <Eye size={18} color={themeColors.textSecondary} strokeWidth={1.8} />
                   )}
                 </TouchableOpacity>
               </View>
@@ -310,12 +315,12 @@ export default function SignupScreen() {
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Confirm Password</Text>
               <View style={styles.inputWrapper}>
-                <Lock size={18} color={Colors.textSecondary} strokeWidth={1.8} />
+                <Lock size={18} color={themeColors.textSecondary} strokeWidth={1.8} />
                 <TextInput
                   ref={confirmRef}
                   style={styles.input}
                   placeholder="Re-enter password"
-                  placeholderTextColor={Colors.textMuted}
+                  placeholderTextColor={themeColors.textMuted}
                   value={confirmPassword}
                   onChangeText={setConfirmPassword}
                   secureTextEntry={!showPassword}
@@ -336,11 +341,11 @@ export default function SignupScreen() {
               testID="signup-submit"
             >
               {isSubmitting ? (
-                <ActivityIndicator color={Colors.surface} size="small" />
+                <ActivityIndicator color={themeColors.surface} size="small" />
               ) : (
                 <>
                   <Text style={styles.signupButtonText}>Create Account</Text>
-                  <ArrowRight size={18} color={Colors.surface} strokeWidth={2.5} />
+                  <ArrowRight size={18} color={themeColors.surface} strokeWidth={2.5} />
                 </>
               )}
             </TouchableOpacity>
@@ -394,13 +399,13 @@ export default function SignupScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: t.bg,
   },
   topSection: {
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
     paddingBottom: 28,
     paddingHorizontal: 20,
     borderBottomLeftRadius: 32,
@@ -433,7 +438,7 @@ const styles = StyleSheet.create({
   brandName: {
     fontSize: 24,
     fontWeight: '800' as const,
-    color: Colors.surface,
+    color: t.surface,
     letterSpacing: -0.5,
   },
   brandTagline: {
@@ -459,7 +464,7 @@ const styles = StyleSheet.create({
   },
   errorBannerText: {
     fontSize: Type.bodyCompact.fontSize,
-    color: Colors.error,
+    color: t.danger,
     fontWeight: '500' as const,
     textAlign: 'center',
   },
@@ -469,32 +474,32 @@ const styles = StyleSheet.create({
   inputLabel: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '600' as const,
-    color: Colors.text,
+    color: t.text,
     marginBottom: 8,
     marginLeft: 2,
   },
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.lg,
     paddingHorizontal: 14,
     paddingVertical: 14,
     gap: 10,
     borderWidth: 1,
-    borderColor: Colors.borderLight,
+    borderColor: t.line,
   },
   input: {
     flex: 1,
     fontSize: Type.callout.fontSize,
-    color: Colors.text,
+    color: t.text,
     fontWeight: '400' as const,
   },
   signupButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
     borderRadius: Tokens.radius.lg,
     paddingVertical: 16,
     gap: 8,
@@ -506,18 +511,18 @@ const styles = StyleSheet.create({
   signupButtonText: {
     fontSize: Type.body.fontSize,
     fontWeight: '700' as const,
-    color: Colors.surface,
+    color: t.surface,
   },
   legalText: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     textAlign: 'center',
     lineHeight: 18,
     marginTop: 14,
     paddingHorizontal: 8,
   },
   legalLink: {
-    color: Colors.primary,
+    color: t.accent,
     fontWeight: '600' as const,
     textDecorationLine: 'underline',
   },
@@ -530,12 +535,12 @@ const styles = StyleSheet.create({
   },
   loginPrompt: {
     fontSize: Type.subhead.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
   },
   loginLink: {
     fontSize: Type.subhead.fontSize,
     fontWeight: '600' as const,
-    color: Colors.primary,
+    color: t.accent,
   },
   dividerRow: {
     flexDirection: 'row',
@@ -547,11 +552,11 @@ const styles = StyleSheet.create({
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: Colors.borderLight,
+    backgroundColor: t.line,
   },
   dividerText: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.textMuted,
+    color: t.textMuted,
     fontWeight: '500' as const,
   },
   primaryAuthStack: {
@@ -574,16 +579,16 @@ const styles = StyleSheet.create({
   appleAuthButtonText: {
     fontSize: Type.callout.fontSize,
     fontWeight: '700' as const,
-    color: Colors.surface,
+    color: t.surface,
   },
   googleAuthButton: {
-    backgroundColor: Colors.surface,
-    borderColor: Colors.borderLight,
+    backgroundColor: t.surface,
+    borderColor: t.line,
   },
   googleAuthButtonText: {
     fontSize: Type.callout.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: t.text,
   },
   socialRow: {
     flexDirection: 'row',
@@ -598,13 +603,13 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: Tokens.radius.lg,
     borderWidth: 1.5,
-    borderColor: Colors.borderLight,
-    backgroundColor: Colors.surface,
+    borderColor: t.line,
+    backgroundColor: t.surface,
   },
   socialButtonText: {
     fontSize: Type.subhead.fontSize,
     fontWeight: '600' as const,
-    color: Colors.text,
+    color: t.text,
   },
   appleSocialButton: {
     backgroundColor: '#000000',
@@ -613,6 +618,6 @@ const styles = StyleSheet.create({
   appleSocialButtonText: {
     fontSize: Type.subhead.fontSize,
     fontWeight: '600' as const,
-    color: Colors.surface,
+    color: t.surface,
   },
 });

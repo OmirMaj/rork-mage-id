@@ -25,6 +25,9 @@ import {
   Layers, Calendar, Hammer,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import {
   extractSubmittalsFromSpecBook,
@@ -50,6 +53,8 @@ interface PickItem extends AiSubmittalCandidate {
 type Step = 'idle' | 'uploading' | 'analyzing' | 'review';
 
 export default function ExtractSubmittalsScreen() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
@@ -197,7 +202,7 @@ export default function ExtractSubmittalsScreen() {
           title: 'Extract Submittals',
           headerLeft: () => (
             <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }}>
-              <ChevronLeft size={24} color={Colors.primary} />
+              <ChevronLeft size={24} color={"#FF6A1A"} />
             </TouchableOpacity>
           ),
         }}
@@ -207,7 +212,7 @@ export default function ExtractSubmittalsScreen() {
           <>
             <View style={styles.hero}>
               <View style={styles.heroIconWrap}>
-                <Sparkles size={20} color={Colors.primary} />
+                <Sparkles size={20} color={"#FF6A1A"} />
               </View>
               <Text style={styles.heroTitle}>Spec book → submittal log</Text>
               <Text style={styles.heroBody}>
@@ -222,7 +227,7 @@ export default function ExtractSubmittalsScreen() {
 
             {error && (
               <View style={styles.errorBanner}>
-                <AlertCircle size={14} color={Colors.error} />
+                <AlertCircle size={14} color={"#C84038"} />
                 <Text style={styles.errorText}>{error}</Text>
               </View>
             )}
@@ -240,7 +245,7 @@ export default function ExtractSubmittalsScreen() {
 
         {(step === 'uploading' || step === 'analyzing') && (
           <View style={styles.busyWrap}>
-            <ActivityIndicator size="large" color={Colors.primary} />
+            <ActivityIndicator size="large" color={"#FF6A1A"} />
             <Text style={styles.busyText}>
               {step === 'uploading' ? 'Rendering pages…' : 'AI reading the spec book…'}
             </Text>
@@ -272,16 +277,16 @@ export default function ExtractSubmittalsScreen() {
                     <View style={styles.metaLine}>
                       {row.specSection ? (
                         <View style={styles.metaChip}>
-                          <Layers size={11} color={Colors.textMuted} />
+                          <Layers size={11} color={"#9AA3AD"} />
                           <Text style={styles.metaChipText}>{row.specSection}</Text>
                         </View>
                       ) : null}
                       <View style={styles.metaChip}>
-                        <Hammer size={11} color={Colors.textMuted} />
+                        <Hammer size={11} color={"#9AA3AD"} />
                         <Text style={styles.metaChipText}>{row.trade}</Text>
                       </View>
                       <View style={styles.metaChip}>
-                        <Calendar size={11} color={Colors.textMuted} />
+                        <Calendar size={11} color={"#9AA3AD"} />
                         <Text style={styles.metaChipText}>{row.dueRelativeDays}d lead</Text>
                       </View>
                       <View style={[styles.confChip, confColor(row.confidence)]}>
@@ -296,12 +301,12 @@ export default function ExtractSubmittalsScreen() {
                   <Switch
                     value={row.selected}
                     onValueChange={() => toggleRow(row.rowId)}
-                    trackColor={{ false: Colors.border, true: Colors.primary }}
+                    trackColor={{ false: themeColors.line, true: "#FF6A1A" }}
                     thumbColor="#FFF"
                   />
                 </View>
                 <TouchableOpacity onPress={() => dropRow(row.rowId)} style={styles.dropRow}>
-                  <Trash2 size={12} color={Colors.textMuted} />
+                  <Trash2 size={12} color={"#9AA3AD"} />
                   <Text style={styles.dropText}>Remove from list</Text>
                 </TouchableOpacity>
               </View>
@@ -332,33 +337,33 @@ export default function ExtractSubmittalsScreen() {
 }
 
 function confColor(c: 'high' | 'medium' | 'low') {
-  if (c === 'high') return { backgroundColor: Colors.success + '20' };
+  if (c === 'high') return { backgroundColor: "#2E7D44" + '20' };
   if (c === 'medium') return { backgroundColor: Colors.warning + '20' };
-  return { backgroundColor: Colors.textMuted + '20' };
+  return { backgroundColor: "#9AA3AD" + '20' };
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: t.bg },
   loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  loadingText: { fontSize: Type.body.fontSize, color: Colors.textMuted },
+  loadingText: { fontSize: Type.body.fontSize, color: t.textMuted },
 
   hero: {
     margin: 16, padding: 18, borderRadius: Tokens.radius.panel,
-    backgroundColor: Colors.primary + '0D',
-    borderWidth: 1, borderColor: Colors.primary + '20',
+    backgroundColor: t.accent + '0D',
+    borderWidth: 1, borderColor: t.accent + '20',
   },
   heroIconWrap: {
     width: 38, height: 38, borderRadius: 11,
-    backgroundColor: Colors.primary + '15',
+    backgroundColor: t.accent + '15',
     alignItems: 'center', justifyContent: 'center',
     marginBottom: 12,
   },
-  heroTitle: { fontSize: Type.title2.fontSize, fontWeight: '800', color: Colors.text, marginBottom: 8 },
-  heroBody: { fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 19 },
+  heroTitle: { fontSize: Type.title2.fontSize, fontWeight: '800', color: t.text, marginBottom: 8 },
+  heroBody: { fontSize: Type.footnote.fontSize, color: t.text, lineHeight: 19 },
 
   primaryBtn: {
     marginHorizontal: 16, paddingVertical: 14, borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
   },
   primaryBtnText: { color: '#FFF', fontSize: Type.body.fontSize, fontWeight: '700' },
@@ -366,45 +371,45 @@ const styles = StyleSheet.create({
   errorBanner: {
     marginHorizontal: 16, marginTop: 12,
     paddingHorizontal: 12, paddingVertical: 10, borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.error + '15',
-    borderWidth: 1, borderColor: Colors.error + '30',
+    backgroundColor: t.danger + '15',
+    borderWidth: 1, borderColor: t.danger + '30',
     flexDirection: 'row', alignItems: 'center', gap: 8,
   },
-  errorText: { fontSize: Type.caption1.fontSize, color: Colors.error, flex: 1, lineHeight: 17 },
+  errorText: { fontSize: Type.caption1.fontSize, color: t.danger, flex: 1, lineHeight: 17 },
 
   helperBox: {
     margin: 16, padding: 14, borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.fillTertiary,
-    borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: t.surfaceAlt,
+    borderWidth: 1, borderColor: t.line,
   },
-  helperTitle: { fontSize: Type.caption1.fontSize, fontWeight: '800', color: Colors.text, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.4 },
-  helperBody: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, lineHeight: 17 },
+  helperTitle: { fontSize: Type.caption1.fontSize, fontWeight: '800', color: t.text, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.4 },
+  helperBody: { fontSize: Type.caption1.fontSize, color: t.textMuted, lineHeight: 17 },
 
   busyWrap: { padding: 40, alignItems: 'center', gap: 12 },
-  busyText: { fontSize: Type.subhead.fontSize, fontWeight: '700', color: Colors.text },
-  busySub: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, textAlign: 'center', maxWidth: 280, lineHeight: 17 },
+  busyText: { fontSize: Type.subhead.fontSize, fontWeight: '700', color: t.text },
+  busySub: { fontSize: Type.caption1.fontSize, color: t.textMuted, textAlign: 'center', maxWidth: 280, lineHeight: 17 },
 
   itemCard: {
     marginHorizontal: 16, marginBottom: 10,
     padding: 14, borderRadius: Tokens.radius.card,
     backgroundColor: Colors.card,
-    borderWidth: 1, borderColor: Colors.border,
+    borderWidth: 1, borderColor: t.line,
   },
   itemHeader: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
-  itemTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
+  itemTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: t.text },
   metaLine: { flexDirection: 'row', gap: 6, marginTop: 6, flexWrap: 'wrap' },
   metaChip: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     paddingHorizontal: 7, paddingVertical: 3, borderRadius: 999,
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.surfaceAlt,
   },
-  metaChipText: { fontSize: 11, color: Colors.textMuted, fontWeight: '600' },
-  itemType: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, marginTop: 6 },
-  itemPages: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 4, fontStyle: 'italic' },
+  metaChipText: { fontSize: 11, color: t.textMuted, fontWeight: '600' },
+  itemType: { fontSize: Type.caption1.fontSize, color: t.textSecondary, marginTop: 6 },
+  itemPages: { fontSize: Type.caption2.fontSize, color: t.textMuted, marginTop: 4, fontStyle: 'italic' },
 
   confChip: { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 999 },
-  confText: { fontSize: 10, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.4, color: Colors.text },
+  confText: { fontSize: 10, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.4, color: t.text },
 
   dropRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10, alignSelf: 'flex-start' },
-  dropText: { fontSize: Type.caption2.fontSize, color: Colors.textMuted },
+  dropText: { fontSize: Type.caption2.fontSize, color: t.textMuted },
 });

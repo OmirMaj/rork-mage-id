@@ -26,6 +26,9 @@ import {
   Plus, Phone, Mail, Clock, TrendingUp, Mic, Sparkles, ChevronRight,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import { LEAD_STAGES, LEAD_STAGE_LABELS, LEAD_SOURCE_LABELS, type Lead, type LeadStage } from '@/types';
 import VoiceCaptureModal from '@/components/VoiceCaptureModal';
@@ -43,6 +46,8 @@ const STAGE_COLORS: Record<LeadStage, string> = {
 };
 
 export default function LeadsScreen() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { leads, addLead, getLeadsByStage } = useProjects();
@@ -143,7 +148,7 @@ export default function LeadsScreen() {
 
         {leads.length === 0 && (
           <View style={styles.emptyBanner}>
-            <Sparkles size={20} color={Colors.primary} />
+            <Sparkles size={20} color={themeColors.accent} />
             <Text style={styles.emptyBannerTitle}>No leads in the pipeline yet</Text>
             <Text style={styles.emptyBannerBody}>
               Capture every inbound — homeowner calls, web inquiries, referrals — so they don't slip past the first 24 hours. Tap the mic at the bottom to dictate a lead, or Add by hand to type one in. Leads land in the New column and move through Qualified → Proposal → Won as you work them.
@@ -190,7 +195,7 @@ export default function LeadsScreen() {
             onPress={() => router.push({ pathname: '/lead-detail' as never, params: { mode: 'new' } as never })}
             activeOpacity={0.85}
           >
-            <Plus size={18} color={Colors.text} />
+            <Plus size={18} color={themeColors.text} />
             <Text style={styles.fabSecondaryText}>Add by hand</Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -224,6 +229,8 @@ export default function LeadsScreen() {
 }
 
 function LeadCard({ lead, onPress }: { lead: Lead; onPress: () => void }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const waiting = lead.stage === 'new' && !lead.firstRespondedAt;
   const ageMs = Date.now() - new Date(lead.receivedAt).getTime();
   const ageHours = Math.floor(ageMs / 3600000);
@@ -239,7 +246,7 @@ function LeadCard({ lead, onPress }: { lead: Lead; onPress: () => void }) {
         <Text style={styles.cardName} numberOfLines={1}>{lead.name}</Text>
         {lead.score != null && (
           <View style={[styles.scoreBadge, lead.score >= 8 && styles.scoreBadgeHot]}>
-            <Sparkles size={10} color={lead.score >= 8 ? '#FFF' : Colors.primary} />
+            <Sparkles size={10} color={lead.score >= 8 ? '#FFF' : themeColors.accent} />
             <Text style={[styles.scoreBadgeText, lead.score >= 8 && styles.scoreBadgeTextHot]}>{lead.score}</Text>
           </View>
         )}
@@ -259,7 +266,7 @@ function LeadCard({ lead, onPress }: { lead: Lead; onPress: () => void }) {
       )}
       {!!lead.phone && (
         <View style={styles.cardContactRow}>
-          <Phone size={11} color={Colors.textMuted} />
+          <Phone size={11} color={themeColors.textMuted} />
           <Text style={styles.cardContactText} numberOfLines={1}>{lead.phone}</Text>
         </View>
       )}
@@ -267,25 +274,25 @@ function LeadCard({ lead, onPress }: { lead: Lead; onPress: () => void }) {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  root: { flex: 1, backgroundColor: t.bg },
   kpiBar: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Colors.cardBorder,
+    borderBottomColor: t.line,
     marginHorizontal: 12,
     borderRadius: Tokens.radius.lg,
     marginTop: 8,
   },
   kpiBlock: { flex: 1, alignItems: 'center' },
-  kpiNum: { fontSize: Type.title2.fontSize, fontWeight: '700' as const, color: Colors.text },
+  kpiNum: { fontSize: Type.title2.fontSize, fontWeight: '700' as const, color: t.text },
   kpiNumWarn: { color: Colors.warning },
-  kpiLabel: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 2, fontWeight: '500' as const },
-  kpiDivider: { width: StyleSheet.hairlineWidth, height: 32, backgroundColor: Colors.cardBorder },
+  kpiLabel: { fontSize: Type.caption2.fontSize, color: t.textMuted, marginTop: 2, fontWeight: '500' as const },
+  kpiDivider: { width: StyleSheet.hairlineWidth, height: 32, backgroundColor: t.line },
   columnsRow: { paddingHorizontal: 12, paddingTop: 12, paddingBottom: 100, gap: 12 },
   column: {
     width: 280,
@@ -299,55 +306,55 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
   },
   stageDot: { width: 10, height: 10, borderRadius: 5 },
-  columnTitle: { flex: 1, fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text, letterSpacing: 0.5, textTransform: 'uppercase' },
+  columnTitle: { flex: 1, fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: t.text, letterSpacing: 0.5, textTransform: 'uppercase' },
   countPill: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: Tokens.radius.md,
     minWidth: 24,
     alignItems: 'center',
   },
-  countPillText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: Colors.textMuted },
+  countPillText: { fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: t.textMuted },
   cardsCol: { gap: 8, paddingBottom: 12 },
-  emptyColumn: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, textAlign: 'center', paddingTop: 16 },
+  emptyColumn: { fontSize: Type.footnote.fontSize, color: t.textMuted, textAlign: 'center', paddingTop: 16 },
   emptyBanner: {
     margin: 16,
     padding: 16,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.card,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
     gap: 6,
     alignItems: 'flex-start' as const,
   },
-  emptyBannerTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: Colors.text },
-  emptyBannerBody: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, lineHeight: 20 },
+  emptyBannerTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: t.text },
+  emptyBannerBody: { fontSize: Type.bodyCompact.fontSize, color: t.textSecondary, lineHeight: 20 },
   card: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.card,
     padding: 12,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
     gap: 6,
   },
   cardHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  cardName: { flex: 1, fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text },
+  cardName: { flex: 1, fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: t.text },
   scoreBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 3,
-    backgroundColor: Colors.primary + '15',
+    backgroundColor: t.accent + '15',
     paddingHorizontal: 7,
     paddingVertical: 3,
     borderRadius: Tokens.radius.sm,
   },
-  scoreBadgeHot: { backgroundColor: Colors.primary },
-  scoreBadgeText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: Colors.primary },
+  scoreBadgeHot: { backgroundColor: t.accent },
+  scoreBadgeText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: t.accent },
   scoreBadgeTextHot: { color: '#FFF' },
-  cardLine: { fontSize: Type.footnote.fontSize, color: Colors.text },
+  cardLine: { fontSize: Type.footnote.fontSize, color: t.text },
   cardMeta: { flexDirection: 'row', gap: 10 },
-  cardMetaText: { fontSize: Type.caption1.fontSize, color: Colors.textMuted },
+  cardMetaText: { fontSize: Type.caption1.fontSize, color: t.textMuted },
   waitingPill: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -359,11 +366,11 @@ const styles = StyleSheet.create({
     borderRadius: Tokens.radius.sm,
     marginTop: 2,
   },
-  waitingPillOverdue: { backgroundColor: Colors.error },
+  waitingPillOverdue: { backgroundColor: t.danger },
   waitingText: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: Colors.warning },
   waitingTextOverdue: { color: '#FFF' },
   cardContactRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 },
-  cardContactText: { fontSize: Type.caption1.fontSize, color: Colors.textMuted },
+  cardContactText: { fontSize: Type.caption1.fontSize, color: t.textMuted },
   fabRow: {
     position: 'absolute',
     left: 16,
@@ -377,10 +384,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
     paddingVertical: 14,
     borderRadius: Tokens.radius.lg,
-    shadowColor: Colors.primary,
+    shadowColor: t.accent,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -391,12 +398,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     paddingHorizontal: 14,
     paddingVertical: 14,
     borderRadius: Tokens.radius.lg,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
   },
-  fabSecondaryText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.text },
+  fabSecondaryText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: t.text },
 });

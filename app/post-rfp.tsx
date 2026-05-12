@@ -33,6 +33,9 @@ import {
   Image as ImageIcon, Sparkles, ShieldCheck, AlertTriangle,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { uploadRfpAttachment } from '@/utils/storage';
@@ -57,6 +60,8 @@ const CATEGORIES: { id: BidCategory; label: string }[] = [
 ];
 
 export default function PostRfpScreen() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user } = useAuth();
@@ -272,7 +277,7 @@ export default function PostRfpScreen() {
 
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
-          <ChevronLeft size={26} color={Colors.primary} />
+          <ChevronLeft size={26} color={themeColors.accent} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.eyebrow}>Post a Project</Text>
@@ -293,7 +298,7 @@ export default function PostRfpScreen() {
             value={title}
             onChangeText={setTitle}
             placeholder="e.g. Kitchen remodel + island"
-            placeholderTextColor={Colors.textMuted}
+            placeholderTextColor={themeColors.textMuted}
             maxLength={80}
           />
 
@@ -325,7 +330,7 @@ export default function PostRfpScreen() {
             value={scope}
             onChangeText={setScope}
             placeholder="Describe the work you want a contractor to do…"
-            placeholderTextColor={Colors.textMuted}
+            placeholderTextColor={themeColors.textMuted}
             multiline
             numberOfLines={6}
             textAlignVertical="top"
@@ -346,7 +351,7 @@ export default function PostRfpScreen() {
               value={address}
               onChangeText={(v) => { setAddress(v); setAddressVerified(false); setLatLng(null); }}
               placeholder="123 Main St, Springfield, IL"
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={themeColors.textMuted}
             />
             <TouchableOpacity
               style={styles.verifyBtn}
@@ -365,7 +370,7 @@ export default function PostRfpScreen() {
           </View>
           {addressVerified && (
             <View style={styles.verifiedRow}>
-              <ShieldCheck size={14} color={Colors.success} />
+              <ShieldCheck size={14} color={themeColors.success} />
               <Text style={styles.verifiedText}>
                 Address verified · {latLng?.lat.toFixed(4)}, {latLng?.lng.toFixed(4)}
               </Text>
@@ -393,11 +398,11 @@ export default function PostRfpScreen() {
               </View>
             ))}
             <TouchableOpacity style={styles.addTile} onPress={pickPhotos}>
-              <ImageIcon size={20} color={Colors.primary} />
+              <ImageIcon size={20} color={themeColors.accent} />
               <Text style={styles.addTileText}>Library</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.addTile} onPress={takePhoto}>
-              <Camera size={20} color={Colors.primary} />
+              <Camera size={20} color={themeColors.accent} />
               <Text style={styles.addTileText}>Camera</Text>
             </TouchableOpacity>
           </View>
@@ -413,7 +418,7 @@ export default function PostRfpScreen() {
             {drawings.map(d => (
               <View key={d.uri} style={styles.attachmentTile}>
                 <View style={styles.drawingTilePlaceholder}>
-                  <FileText size={20} color={Colors.primary} />
+                  <FileText size={20} color={themeColors.accent} />
                   <Text style={styles.drawingTileName} numberOfLines={2}>{d.name}</Text>
                 </View>
                 <TouchableOpacity style={styles.attachmentRemove} onPress={() => removeAttachment(d.uri)} accessibilityRole="button" accessibilityLabel="Close">
@@ -422,7 +427,7 @@ export default function PostRfpScreen() {
               </View>
             ))}
             <TouchableOpacity style={styles.addTile} onPress={pickDrawings}>
-              <FileText size={20} color={Colors.primary} />
+              <FileText size={20} color={themeColors.accent} />
               <Text style={styles.addTileText}>Add file</Text>
             </TouchableOpacity>
           </View>
@@ -436,25 +441,25 @@ export default function PostRfpScreen() {
           </Text>
           <View style={styles.budgetRow}>
             <View style={styles.budgetField}>
-              <DollarSign size={14} color={Colors.textMuted} />
+              <DollarSign size={14} color={themeColors.textMuted} />
               <TextInput
                 style={styles.budgetInput}
                 value={budgetMin}
                 onChangeText={setBudgetMin}
                 placeholder="Min"
-                placeholderTextColor={Colors.textMuted}
+                placeholderTextColor={themeColors.textMuted}
                 keyboardType="numeric"
               />
             </View>
             <Text style={styles.budgetDash}>–</Text>
             <View style={styles.budgetField}>
-              <DollarSign size={14} color={Colors.textMuted} />
+              <DollarSign size={14} color={themeColors.textMuted} />
               <TextInput
                 style={styles.budgetInput}
                 value={budgetMax}
                 onChangeText={setBudgetMax}
                 placeholder="Max"
-                placeholderTextColor={Colors.textMuted}
+                placeholderTextColor={themeColors.textMuted}
                 keyboardType="numeric"
               />
             </View>
@@ -462,32 +467,32 @@ export default function PostRfpScreen() {
 
           <Text style={[styles.label, { marginTop: 14 }]}>Desired start (optional)</Text>
           <View style={styles.dateRow}>
-            <Calendar size={14} color={Colors.textMuted} />
+            <Calendar size={14} color={themeColors.textMuted} />
             <TextInput
               style={[styles.input, { flex: 1, marginLeft: 8 }]}
               value={desiredStart}
               onChangeText={setDesiredStart}
               placeholder="e.g. Mid-July or 2026-08-15"
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={themeColors.textMuted}
             />
           </View>
 
           <Text style={[styles.label, { marginTop: 14 }]}>Bid deadline (optional)</Text>
           <View style={styles.dateRow}>
-            <Calendar size={14} color={Colors.textMuted} />
+            <Calendar size={14} color={themeColors.textMuted} />
             <TextInput
               style={[styles.input, { flex: 1, marginLeft: 8 }]}
               value={deadline}
               onChangeText={setDeadline}
               placeholder="Defaults to 14 days from today"
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={themeColors.textMuted}
             />
           </View>
         </View>
 
         {error && (
           <View style={styles.errorCard}>
-            <AlertTriangle size={16} color={Colors.error} />
+            <AlertTriangle size={16} color={themeColors.danger} />
             <Text style={styles.errorText}>{error}</Text>
           </View>
         )}
@@ -527,56 +532,56 @@ function parseCityState(addr: string): { city: string; state: string } {
   return { city, state };
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: t.bg },
   header: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 10,
     paddingHorizontal: 16, paddingTop: 14, paddingBottom: 16,
-    borderBottomWidth: 1, borderBottomColor: Colors.border,
+    borderBottomWidth: 1, borderBottomColor: t.line,
   },
-  eyebrow: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.primary, letterSpacing: 1.4, textTransform: 'uppercase' },
-  title: { fontSize: Type.title2.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.4, marginTop: 4 },
+  eyebrow: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: t.accent, letterSpacing: 1.4, textTransform: 'uppercase' },
+  title: { fontSize: Type.title2.fontSize, fontWeight: '800', color: t.text, letterSpacing: -0.4, marginTop: 4 },
 
   card: {
     backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 14,
-    borderWidth: 1, borderColor: Colors.border, marginBottom: 14,
+    borderWidth: 1, borderColor: t.line, marginBottom: 14,
   },
   cardHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 8 },
-  label:  { fontSize: Type.caption1.fontSize, fontWeight: '700', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 6 },
-  helper: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginBottom: 10, lineHeight: 17 },
-  charCount: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, alignSelf: 'flex-end', marginTop: 4 },
+  label:  { fontSize: Type.caption1.fontSize, fontWeight: '700', color: t.textMuted, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 6 },
+  helper: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginBottom: 10, lineHeight: 17 },
+  charCount: { fontSize: Type.caption2.fontSize, color: t.textMuted, alignSelf: 'flex-end', marginTop: 4 },
 
   input: {
-    backgroundColor: Colors.background,
-    borderWidth: 1, borderColor: Colors.border, borderRadius: Tokens.radius.md,
+    backgroundColor: t.bg,
+    borderWidth: 1, borderColor: t.line, borderRadius: Tokens.radius.md,
     paddingHorizontal: 12, paddingVertical: 11,
-    fontSize: Type.bodyCompact.fontSize, color: Colors.text,
+    fontSize: Type.bodyCompact.fontSize, color: t.text,
   },
   inputMultiline: { minHeight: 100, paddingTop: 11 },
 
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   chip: {
     paddingHorizontal: 12, paddingVertical: 8, borderRadius: 9,
-    backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: t.bg, borderWidth: 1, borderColor: t.line,
   },
-  chipActive: { backgroundColor: Colors.text, borderColor: Colors.text },
-  chipText:  { fontSize: Type.footnote.fontSize, fontWeight: '600', color: Colors.text },
+  chipActive: { backgroundColor: t.text, borderColor: t.text },
+  chipText:  { fontSize: Type.footnote.fontSize, fontWeight: '600', color: t.text },
   chipTextActive: { color: '#FFF' },
 
   addressRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   verifyBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: 14, paddingVertical: 11, borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
   },
   verifyBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: '#FFF' },
   verifiedRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 },
-  verifiedText: { fontSize: Type.caption1.fontSize, color: Colors.success, fontWeight: '600' },
+  verifiedText: { fontSize: Type.caption1.fontSize, color: t.success, fontWeight: '600' },
 
   attachmentGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 4 },
   attachmentTile: {
     width: 88, height: 88, borderRadius: Tokens.radius.md, overflow: 'hidden',
-    backgroundColor: Colors.background, position: 'relative',
+    backgroundColor: t.bg, position: 'relative',
   },
   attachmentImage: { width: '100%', height: '100%' },
   attachmentRemove: {
@@ -588,39 +593,39 @@ const styles = StyleSheet.create({
   drawingTilePlaceholder: {
     flex: 1, alignItems: 'center', justifyContent: 'center', gap: 4, padding: 6,
   },
-  drawingTileName: { fontSize: 9, color: Colors.text, textAlign: 'center', lineHeight: 11 },
+  drawingTileName: { fontSize: 9, color: t.text, textAlign: 'center', lineHeight: 11 },
   addTile: {
     width: 88, height: 88, borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.primary + '0D',
-    borderWidth: 1.5, borderColor: Colors.primary + '40', borderStyle: 'dashed',
+    backgroundColor: t.accent + '0D',
+    borderWidth: 1.5, borderColor: t.accent + '40', borderStyle: 'dashed',
     alignItems: 'center', justifyContent: 'center', gap: 4,
   },
-  addTileText: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.primary },
+  addTileText: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: t.accent },
 
   budgetRow:    { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  budgetField:  { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: Colors.background, borderRadius: Tokens.radius.md, borderWidth: 1, borderColor: Colors.border, paddingHorizontal: 10 },
-  budgetInput:  { flex: 1, paddingVertical: 11, fontSize: Type.bodyCompact.fontSize, color: Colors.text },
-  budgetDash:   { fontSize: Type.callout.fontSize, color: Colors.textMuted },
+  budgetField:  { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: t.bg, borderRadius: Tokens.radius.md, borderWidth: 1, borderColor: t.line, paddingHorizontal: 10 },
+  budgetInput:  { flex: 1, paddingVertical: 11, fontSize: Type.bodyCompact.fontSize, color: t.text },
+  budgetDash:   { fontSize: Type.callout.fontSize, color: t.textMuted },
   dateRow:      { flexDirection: 'row', alignItems: 'center' },
 
   errorCard: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 10,
     padding: 14, borderRadius: Tokens.radius.card,
-    backgroundColor: Colors.error + '0D',
-    borderWidth: 1, borderColor: Colors.error + '30',
+    backgroundColor: t.danger + '0D',
+    borderWidth: 1, borderColor: t.danger + '30',
     marginBottom: 14,
   },
-  errorText: { flex: 1, fontSize: Type.footnote.fontSize, color: Colors.error, lineHeight: 18 },
+  errorText: { flex: 1, fontSize: Type.footnote.fontSize, color: t.danger, lineHeight: 18 },
 
   submitBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     paddingVertical: 14, borderRadius: Tokens.radius.card,
-    backgroundColor: Colors.primary,
-    shadowColor: Colors.primary, shadowOffset: { width: 0, height: 4 },
+    backgroundColor: t.accent,
+    shadowColor: t.accent, shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3, shadowRadius: 8, elevation: 4,
   },
   submitBtnDisabled: { opacity: 0.6 },
   submitBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '800', color: '#FFF', letterSpacing: 0.2 },
 
-  disclaimer: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, textAlign: 'center', marginTop: 14, fontStyle: 'italic', paddingHorizontal: 16, lineHeight: 16 },
+  disclaimer: { fontSize: Type.caption2.fontSize, color: t.textMuted, textAlign: 'center', marginTop: 14, fontStyle: 'italic', paddingHorizontal: 16, lineHeight: 16 },
 });
