@@ -7,7 +7,9 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { Sparkles, Send, X, AlertTriangle, Lightbulb, ChevronRight } from 'lucide-react-native';
-import { Colors } from '@/constants/colors';
+import { useTheme } from '@/contexts/ThemeContext';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import type { ThemeColors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useBids } from '@/contexts/BidsContext';
 import {
@@ -28,17 +30,26 @@ const SUGGESTED_PROMPTS = [
   "Draft a client update email",
 ];
 
-const PRIORITY_COLORS = {
-  urgent: { bg: Colors.errorLight, text: Colors.error, border: Colors.error },
-  important: { bg: Colors.warningLight, text: Colors.warning, border: Colors.warning },
-  suggestion: { bg: Colors.infoLight, text: Colors.info, border: Colors.info },
-} as const;
-
 function createMsgId(): string {
   return `msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
 }
 
-const MessageBubble = React.memo(function MessageBubble({ message }: { message: CopilotMessage }) {
+function getPriorityPalette(colors: ThemeColors, priority: 'urgent' | 'important' | 'suggestion') {
+  switch (priority) {
+    case 'urgent':     return { bg: colors.danger + '1F', text: colors.danger, border: colors.danger };
+    case 'important':  return { bg: colors.accentSoft, text: colors.accentLabel, border: colors.accent };
+    case 'suggestion':
+    default:           return { bg: colors.info + '1F', text: colors.info, border: colors.info };
+  }
+}
+
+interface MessageBubbleProps {
+  message: CopilotMessage;
+  styles: ReturnType<typeof makeStyles>;
+  colors: ThemeColors;
+}
+
+const MessageBubble = React.memo(function MessageBubble({ message, styles, colors }: MessageBubbleProps) {
   const isUser = message.role === 'user';
 
   return (
@@ -46,7 +57,7 @@ const MessageBubble = React.memo(function MessageBubble({ message }: { message: 
       <View style={[styles.bubble, isUser ? styles.userBubble : styles.aiBubble]}>
         {!isUser && (
           <View style={styles.aiLabel}>
-            <Sparkles size={10} color={Colors.primary} />
+            <Sparkles size={10} color={colors.accent} />
             <Text style={styles.aiLabelText}>MAGE AI</Text>
           </View>
         )}
@@ -56,12 +67,12 @@ const MessageBubble = React.memo(function MessageBubble({ message }: { message: 
         {message.actionItems && message.actionItems.length > 0 && (
           <View style={styles.actionItems}>
             {message.actionItems.map((item, idx) => {
-              const colors = PRIORITY_COLORS[item.priority];
+              const palette = getPriorityPalette(colors, item.priority);
               return (
-                <View key={idx} style={[styles.actionChip, { backgroundColor: colors.bg, borderColor: colors.border }]}>
-                  {item.priority === 'urgent' && <AlertTriangle size={11} color={colors.text} />}
-                  {item.priority === 'suggestion' && <Lightbulb size={11} color={colors.text} />}
-                  <Text style={[styles.actionChipText, { color: colors.text }]}>{item.text}</Text>
+                <View key={idx} style={[styles.actionChip, { backgroundColor: palette.bg, borderColor: palette.border }]}>
+                  {item.priority === 'urgent' && <AlertTriangle size={11} color={palette.text} />}
+                  {item.priority === 'suggestion' && <Lightbulb size={11} color={palette.text} />}
+                  <Text style={[styles.actionChipText, { color: palette.text }]}>{item.text}</Text>
                 </View>
               );
             })}
@@ -123,6 +134,8 @@ export default function AICopilot() {
   const { projects, invoices, changeOrders, subcontractors, equipment } = useProjects();
   const { bids } = useBids();
   const { tier } = useSubscription();
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<CopilotMessage[]>([]);
@@ -233,8 +246,8 @@ export default function AICopilot() {
   }, [input, isLoading, tier, projects, bids, subcontractors, equipment, invoices, changeOrders, detectRequestTier, refreshUsage]);
 
   const renderMessage = useCallback(({ item }: { item: CopilotMessage }) => (
-    <MessageBubble message={item} />
-  ), []);
+    <MessageBubble message={item} styles={styles} colors={colors} />
+  ), [styles, colors]);
 
   const keyExtractor = useCallback((item: CopilotMessage) => item.id, []);
 
@@ -245,7 +258,7 @@ export default function AICopilot() {
           onPress={handleOpen}
           style={styles.fabButton}
           activeOpacity={0.8}
-          testID="ai-copilot-fab" accessibilityRole="button" accessibilityLabel="AI"><Sparkles size={22} color={Colors.surface} /></TouchableOpacity>
+          testID="ai-copilot-fab" accessibilityRole="button" accessibilityLabel="AI"><Sparkles size={22} color={'#FFFFFF'} /></TouchableOpacity>
       </Animated.View>
 
       <Modal visible={isOpen} animationType="slide" transparent>
@@ -256,10 +269,10 @@ export default function AICopilot() {
           >
             <View style={styles.modalHeader}>
               <View style={styles.headerLeft}>
-                <Sparkles size={18} color={Colors.primary} />
+                <Sparkles size={18} color={colors.accent} />
                 <Text style={styles.headerTitle}>MAGE AI Copilot</Text>
               </View>
-              <TouchableOpacity onPress={handleClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} accessibilityRole="button" accessibilityLabel="Close"><X size={22} color={Colors.textSecondary} /></TouchableOpacity>
+              <TouchableOpacity onPress={handleClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} accessibilityRole="button" accessibilityLabel="Close"><X size={22} color={colors.textSecondary} /></TouchableOpacity>
             </View>
 
             <View style={styles.projectBadge}>
@@ -271,7 +284,7 @@ export default function AICopilot() {
             {messages.length === 0 && !isLoading ? (
               <View style={styles.emptyState}>
                 <View style={styles.emptyIcon}>
-                  <Sparkles size={32} color={Colors.primary} />
+                  <Sparkles size={32} color={colors.accent} />
                 </View>
                 <Text style={styles.emptyTitle}>Ask me anything about your project</Text>
                 <Text style={styles.emptySubtitle}>I have access to your schedule, estimate, and project data.</Text>
@@ -283,7 +296,7 @@ export default function AICopilot() {
                       onPress={() => handleSend(prompt)}
                     >
                       <Text style={styles.suggestText}>{prompt}</Text>
-                      <ChevronRight size={14} color={Colors.primary} />
+                      <ChevronRight size={14} color={colors.accent} />
                     </TouchableOpacity>
                   ))}
                 </View>
@@ -300,7 +313,7 @@ export default function AICopilot() {
                   <View style={[styles.bubbleRow, styles.bubbleRowLeft]}>
                     <View style={[styles.bubble, styles.aiBubble]}>
                       <View style={styles.typingRow}>
-                        <ActivityIndicator size="small" color={Colors.primary} />
+                        <ActivityIndicator size="small" color={colors.accent} />
                         <Text style={styles.typingText}>Analyzing your project data...</Text>
                       </View>
                     </View>
@@ -317,7 +330,7 @@ export default function AICopilot() {
                 <TextInput
                   style={styles.chatInput}
                   placeholder="Ask about your projects..."
-                  placeholderTextColor={Colors.textMuted}
+                  placeholderTextColor={colors.textMuted}
                   value={input}
                   onChangeText={setInput}
                   onSubmitEditing={() => handleSend()}
@@ -328,7 +341,7 @@ export default function AICopilot() {
                   onPress={() => handleSend()}
                   style={[styles.sendBtn, (!input.trim() || isLoading) && styles.sendBtnDisabled]}
                   disabled={!input.trim() || isLoading} accessibilityRole="button" accessibilityLabel="Send">
-                  <Send size={18} color={input.trim() && !isLoading ? Colors.surface : Colors.textMuted} />
+                  <Send size={18} color={input.trim() && !isLoading ? '#FFFFFF' : colors.textMuted} />
                 </TouchableOpacity>
               </View>
             </View>
@@ -339,20 +352,20 @@ export default function AICopilot() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   fab: {
-    position: 'absolute',
+    position: 'absolute' as const,
     right: 20,
     zIndex: 999,
   },
   fabButton: {
     width: 52,
     height: 52,
-    borderRadius: 26,
-    backgroundColor: Colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: Colors.primary,
+    borderRadius: Tokens.radius.full,
+    backgroundColor: t.accent,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    shadowColor: t.accent,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.35,
     shadowRadius: 8,
@@ -361,93 +374,93 @@ const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.4)',
-    justifyContent: 'flex-end',
+    justifyContent: 'flex-end' as const,
   },
   modalContainer: {
-    backgroundColor: Colors.background,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    maxHeight: '80%',
-    minHeight: '60%',
+    backgroundColor: t.bg,
+    borderTopLeftRadius: Tokens.radius.xl,
+    borderTopRightRadius: Tokens.radius.xl,
+    maxHeight: '80%' as const,
+    minHeight: '60%' as const,
   },
   modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'space-between' as const,
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 0.5,
-    borderBottomColor: Colors.borderLight,
-    backgroundColor: Colors.surface,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderBottomColor: t.line,
+    backgroundColor: t.surface,
+    borderTopLeftRadius: Tokens.radius.xl,
+    borderTopRightRadius: Tokens.radius.xl,
   },
   headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
     gap: 8,
   },
   headerTitle: {
     fontSize: Type.body.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: t.text,
   },
   projectBadge: {
     paddingHorizontal: 20,
     paddingVertical: 6,
-    backgroundColor: Colors.fillSecondary,
+    backgroundColor: t.surfaceAlt,
   },
   projectBadgeText: {
     fontSize: Type.caption1.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     fontWeight: '500' as const,
   },
   emptyState: {
     flex: 1,
-    alignItems: 'center',
+    alignItems: 'center' as const,
     paddingTop: 32,
     paddingHorizontal: 24,
   },
   emptyIcon: {
     width: 64,
     height: 64,
-    borderRadius: 32,
-    backgroundColor: `${Colors.primary}15`,
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderRadius: Tokens.radius.full,
+    backgroundColor: t.accentSoft,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
     marginBottom: 16,
   },
   emptyTitle: {
     fontSize: Type.subheadline.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: t.text,
     marginBottom: 6,
-    textAlign: 'center',
+    textAlign: 'center' as const,
   },
   emptySubtitle: {
     fontSize: Type.bodyCompact.fontSize,
-    color: Colors.textSecondary,
-    textAlign: 'center',
+    color: t.textSecondary,
+    textAlign: 'center' as const,
     marginBottom: 20,
   },
   suggestedPrompts: {
-    width: '100%',
+    width: '100%' as const,
     gap: 8,
   },
   suggestChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'space-between' as const,
     paddingVertical: 12,
     paddingHorizontal: 16,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.card,
     borderWidth: 1,
-    borderColor: Colors.borderLight,
+    borderColor: t.line,
   },
   suggestText: {
     fontSize: Type.bodyCompact.fontSize,
-    color: Colors.text,
+    color: t.text,
     flex: 1,
   },
   messageList: {
@@ -458,36 +471,36 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   bubbleRowRight: {
-    alignItems: 'flex-end',
+    alignItems: 'flex-end' as const,
   },
   bubbleRowLeft: {
-    alignItems: 'flex-start',
+    alignItems: 'flex-start' as const,
   },
   bubble: {
-    maxWidth: '85%',
+    maxWidth: '85%' as const,
     padding: 12,
     borderRadius: Tokens.radius.panel,
   },
   userBubble: {
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
     borderBottomRightRadius: 4,
   },
   aiBubble: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderBottomLeftRadius: 4,
     borderWidth: 0.5,
-    borderColor: Colors.borderLight,
+    borderColor: t.line,
   },
   aiLabel: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
     gap: 4,
     marginBottom: 4,
   },
   aiLabelText: {
     fontSize: 10,
     fontWeight: '600' as const,
-    color: Colors.primary,
+    color: t.accent,
     letterSpacing: 0.5,
   },
   bubbleText: {
@@ -495,18 +508,18 @@ const styles = StyleSheet.create({
     lineHeight: 21,
   },
   userText: {
-    color: Colors.surface,
+    color: '#FFFFFF',
   },
   aiText: {
-    color: Colors.text,
+    color: t.text,
   },
   actionItems: {
     marginTop: 10,
     gap: 6,
   },
   actionChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
     gap: 6,
     paddingVertical: 6,
     paddingHorizontal: 10,
@@ -520,12 +533,12 @@ const styles = StyleSheet.create({
   },
   dataGrid: {
     marginTop: 10,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: 'row' as const,
+    flexWrap: 'wrap' as const,
     gap: 6,
   },
   dataCard: {
-    backgroundColor: Colors.fillSecondary,
+    backgroundColor: t.surfaceAlt,
     paddingVertical: 6,
     paddingHorizontal: 10,
     borderRadius: Tokens.radius.sm,
@@ -533,62 +546,62 @@ const styles = StyleSheet.create({
   },
   dataLabel: {
     fontSize: 10,
-    color: Colors.textMuted,
+    color: t.textMuted,
     fontWeight: '500' as const,
   },
   dataValue: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: t.text,
   },
   typingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
     gap: 8,
   },
   typingText: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     fontStyle: 'italic' as const,
   },
   inputSection: {
     borderTopWidth: 0.5,
-    borderTopColor: Colors.borderLight,
-    backgroundColor: Colors.surface,
+    borderTopColor: t.line,
+    backgroundColor: t.surface,
   },
   usageCounter: {
     fontSize: Type.caption2.fontSize,
-    color: Colors.textMuted,
-    textAlign: 'center',
+    color: t.textMuted,
+    textAlign: 'center' as const,
     paddingTop: 6,
     fontWeight: '500' as const,
   },
   inputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
     paddingHorizontal: 16,
     paddingVertical: 10,
     gap: 8,
   },
   chatInput: {
     flex: 1,
-    backgroundColor: Colors.fillSecondary,
-    borderRadius: 20,
+    backgroundColor: t.surfaceAlt,
+    borderRadius: Tokens.radius.full,
     paddingHorizontal: 16,
     paddingVertical: 10,
     fontSize: Type.subhead.fontSize,
-    color: Colors.text,
+    color: t.text,
     maxHeight: 80,
   },
   sendBtn: {
     width: 38,
     height: 38,
-    borderRadius: 19,
-    backgroundColor: Colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderRadius: Tokens.radius.full,
+    backgroundColor: t.accent,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
   },
   sendBtnDisabled: {
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.line,
   },
 });
