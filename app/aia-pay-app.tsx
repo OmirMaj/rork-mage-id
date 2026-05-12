@@ -13,6 +13,8 @@ import {
 import EmptyState from '@/components/EmptyState';
 import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import type { ThemeColors } from '@/constants/colors';
 import ConstructionLoader from '@/components/ConstructionLoader';
 import { FeatureHeader } from '@/components/FeatureHeader';
 import { useProjects } from '@/contexts/ProjectContext';
@@ -55,6 +57,7 @@ function AIAPayAppScreenInner() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const { invoiceId } = useLocalSearchParams<{ invoiceId: string }>();
   const {
     invoices, getProject, getChangeOrdersForProject, settings,
@@ -338,10 +341,10 @@ function AIAPayAppScreenInner() {
 
   if (!invoice || !project) {
     return (
-      <View style={{ flex: 1, backgroundColor: Colors.background }}>
+      <View style={{ flex: 1, backgroundColor: themeColors.bg }}>
         <Stack.Screen options={{ title: 'AIA Pay Apps' }} />
         <EmptyState
-          icon={<FileText size={36} color={Colors.primary} strokeWidth={1.6} />}
+          icon={<FileText size={36} color={themeColors.accent} strokeWidth={1.6} />}
           title="No AIA pay app open yet"
           message="AIA pay applications (G702 / G703) bill against an existing progress invoice. To start one:"
           steps={[
@@ -372,7 +375,7 @@ function AIAPayAppScreenInner() {
           title: 'Progress Billing',
           headerLeft: () => (
             <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }} accessibilityRole="button" accessibilityLabel="Back">
-              <ChevronLeft size={24} color={Colors.primary} />
+              <ChevronLeft size={24} color={themeColors.accent} />
             </TouchableOpacity>
           ),
         }}
@@ -412,7 +415,7 @@ function AIAPayAppScreenInner() {
           </View>
           {carriedFromAppNumber !== null && (
             <View style={styles.carriedRow}>
-              <CheckCircle2 size={14} color={Colors.primary} strokeWidth={2.4} />
+              <CheckCircle2 size={14} color={themeColors.accent} strokeWidth={2.4} />
               <Text style={styles.carriedText}>
                 Carried forward from Pay App #{carriedFromAppNumber} — every line&apos;s &ldquo;from previous&rdquo; amount and the G702 &ldquo;less previous certificates&rdquo; total are pre-filled. Just enter this period&apos;s percent-complete per line.
               </Text>
@@ -431,7 +434,7 @@ function AIAPayAppScreenInner() {
             </View>
             <View style={styles.heroStat}>
               <Text style={styles.heroStatLabel}>This Period Due</Text>
-              <Text style={[styles.heroStatValue, { color: Colors.primary }]}>
+              <Text style={[styles.heroStatValue, { color: themeColors.accent }]}>
                 {formatMoney(totals.currentPaymentDue)}
               </Text>
               <Text style={styles.heroStatSub}>after retainage</Text>
@@ -449,7 +452,7 @@ function AIAPayAppScreenInner() {
               value={app.ownerName}
               onChangeText={v => setApp(p => p ? { ...p, ownerName: v } : p)}
               placeholder="Owner / Client name"
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={themeColors.textMuted}
             />
           </View>
           <View style={styles.formRow}>
@@ -459,7 +462,7 @@ function AIAPayAppScreenInner() {
               value={app.architectName ?? ''}
               onChangeText={v => setApp(p => p ? { ...p, architectName: v } : p)}
               placeholder="Optional"
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={themeColors.textMuted}
             />
           </View>
           <View style={styles.formRow}>
@@ -473,7 +476,7 @@ function AIAPayAppScreenInner() {
               }}
               keyboardType="decimal-pad"
               placeholder="0.00"
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={themeColors.textMuted}
             />
           </View>
           <View style={styles.formRow}>
@@ -610,8 +613,8 @@ function AIAPayAppScreenInner() {
             activeOpacity={0.85}
           >
             {savedFlash
-              ? <Check size={18} color={Colors.primary} />
-              : <Save size={18} color={Colors.primary} />
+              ? <Check size={18} color={themeColors.accent} />
+              : <Save size={18} color={themeColors.accent} />
             }
             <Text style={styles.saveBtnText}>
               {savedFlash ? 'Saved to project' : 'Save to project'}
@@ -708,14 +711,16 @@ function AIAPayAppScreenInner() {
 }
 
 function Row({ label, value, bold, dim, highlight }: { label: string; value: string; bold?: boolean; dim?: boolean; highlight?: boolean }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.totalsRow}>
-      <Text style={[styles.totalsLabel, dim && { color: Colors.textMuted }]}>{label}</Text>
+      <Text style={[styles.totalsLabel, dim && { color: themeColors.textMuted }]}>{label}</Text>
       <Text style={[
         styles.totalsValue,
         bold && { fontWeight: '700' },
-        dim && { color: Colors.textMuted },
-        highlight && { color: Colors.primary, fontSize: Type.body.fontSize, fontWeight: '800' },
+        dim && { color: themeColors.textMuted },
+        highlight && { color: themeColors.accent, fontSize: Type.body.fontSize, fontWeight: '800' },
       ]}>
         {value}
       </Text>
@@ -724,10 +729,11 @@ function Row({ label, value, bold, dim, highlight }: { label: string; value: str
 }
 
 function Divider() {
+  const styles = useThemedStyles(makeStyles);
   return <View style={styles.totalsDivider} />;
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   // Carry-forward indicator — sits between the hero header and the stats
   // strip. Tells the GC the prior period's billings were rolled in so they
   // know NOT to manually re-enter them.
@@ -739,119 +745,119 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderRadius: 12,
-    backgroundColor: Colors.primary + '12',
+    backgroundColor: themeColors.accent + '12',
     borderWidth: 1,
-    borderColor: Colors.primary + '30',
+    borderColor: themeColors.accent + '30',
   },
   carriedText: {
     flex: 1,
     fontSize: 12.5,
     lineHeight: 17,
-    color: Colors.text,
+    color: themeColors.text,
     fontWeight: '500' as const,
   },
-  container: { flex: 1, backgroundColor: Colors.background },
-  loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, backgroundColor: Colors.background },
-  loadingText: { fontSize: Type.bodyCompact.fontSize, color: Colors.textMuted },
+  container: { flex: 1, backgroundColor: themeColors.bg },
+  loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, backgroundColor: themeColors.bg },
+  loadingText: { fontSize: Type.bodyCompact.fontSize, color: themeColors.textMuted },
 
   hero: {
     margin: 16, padding: 16, borderRadius: Tokens.radius.panel,
-    backgroundColor: Colors.primary + '10',
-    borderWidth: 1, borderColor: Colors.primary + '30',
+    backgroundColor: themeColors.accent + '10',
+    borderWidth: 1, borderColor: themeColors.accent + '30',
   },
   heroHeaderRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   heroTitleBlock: { flex: 1 },
-  heroLabel: { fontSize: 10, color: Colors.primary, fontWeight: '700', letterSpacing: 1.5, marginBottom: 4 },
-  heroTitle: { fontSize: Type.title3.fontSize, fontWeight: '800', color: Colors.text, marginBottom: 2 },
-  heroSub: { fontSize: Type.footnote.fontSize, color: Colors.textMuted },
+  heroLabel: { fontSize: 10, color: themeColors.accent, fontWeight: '700', letterSpacing: 1.5, marginBottom: 4 },
+  heroTitle: { fontSize: Type.title3.fontSize, fontWeight: '800', color: themeColors.text, marginBottom: 2 },
+  heroSub: { fontSize: Type.footnote.fontSize, color: themeColors.textMuted },
   progressBadge: {
     alignItems: 'center', justifyContent: 'center',
-    backgroundColor: Colors.primary, borderRadius: 50,
+    backgroundColor: themeColors.accent, borderRadius: 50,
     width: 68, height: 68,
   },
   progressBadgeNum: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: '#FFF', lineHeight: 20 },
   progressBadgeLabel: { fontSize: 9, color: '#FFFFFFCC', fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
 
   heroStats: { flexDirection: 'row', gap: 12, marginTop: 14 },
-  heroStat: { flex: 1, backgroundColor: Colors.card, borderRadius: Tokens.radius.card, padding: 12, borderWidth: 1, borderColor: Colors.border },
-  heroStatLabel: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontWeight: '600', marginBottom: 4 },
-  heroStatValue: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: Colors.text },
-  heroStatSub: { fontSize: 10, color: Colors.textMuted, marginTop: 2 },
+  heroStat: { flex: 1, backgroundColor: themeColors.surface, borderRadius: Tokens.radius.card, padding: 12, borderWidth: 1, borderColor: themeColors.line },
+  heroStatLabel: { fontSize: Type.caption2.fontSize, color: themeColors.textMuted, fontWeight: '600', marginBottom: 4 },
+  heroStatValue: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: themeColors.text },
+  heroStatSub: { fontSize: 10, color: themeColors.textMuted, marginTop: 2 },
 
   section: { marginHorizontal: 16, marginBottom: 20 },
   sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  sectionTitle: { fontSize: Type.callout.fontSize, fontWeight: '700', color: Colors.text, marginBottom: 4 },
-  sectionTitleCount: { fontSize: Type.caption1.fontSize, color: Colors.textMuted },
-  sectionHint: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginBottom: 10, lineHeight: 16 },
+  sectionTitle: { fontSize: Type.callout.fontSize, fontWeight: '700', color: themeColors.text, marginBottom: 4 },
+  sectionTitleCount: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted },
+  sectionHint: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted, marginBottom: 10, lineHeight: 16 },
 
   formRow: { marginBottom: 10 },
-  formLabel: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginBottom: 4, fontWeight: '600' },
+  formLabel: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted, marginBottom: 4, fontWeight: '600' },
   formInput: {
-    backgroundColor: Colors.card, borderRadius: Tokens.radius.md, borderWidth: 1, borderColor: Colors.border,
-    paddingHorizontal: 12, paddingVertical: 10, fontSize: Type.bodyCompact.fontSize, color: Colors.text,
+    backgroundColor: themeColors.surface, borderRadius: Tokens.radius.md, borderWidth: 1, borderColor: themeColors.line,
+    paddingHorizontal: 12, paddingVertical: 10, fontSize: Type.bodyCompact.fontSize, color: themeColors.text,
   },
 
   retainageChips: { flexDirection: 'row', gap: 8, alignItems: 'center' },
   chip: {
     paddingHorizontal: 12, paddingVertical: 8, borderRadius: Tokens.radius.sm,
-    backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: themeColors.surface, borderWidth: 1, borderColor: themeColors.line,
   },
-  chipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  chipText: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: Colors.text },
+  chipActive: { backgroundColor: themeColors.accent, borderColor: themeColors.accent },
+  chipText: { fontSize: Type.footnote.fontSize, fontWeight: '600', color: themeColors.text },
   chipTextActive: { color: '#FFF' },
 
   sovCard: {
-    backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 12,
-    marginBottom: 10, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: themeColors.surface, borderRadius: Tokens.radius.lg, padding: 12,
+    marginBottom: 10, borderWidth: 1, borderColor: themeColors.line,
   },
   sovHeaderRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 10 },
   sovItemNoPill: {
     paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.xs,
-    backgroundColor: Colors.primary + '15',
+    backgroundColor: themeColors.accent + '15',
   },
-  sovItemNoText: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.primary },
-  sovDescription: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '600', color: Colors.text, lineHeight: 18 },
+  sovItemNoText: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: themeColors.accent },
+  sovDescription: { flex: 1, fontSize: Type.footnote.fontSize, fontWeight: '600', color: themeColors.text, lineHeight: 18 },
 
   sovValueRow: { flexDirection: 'row', gap: 8, marginBottom: 10 },
   sovValueCol: { flex: 1 },
-  sovValueLabel: { fontSize: 10, color: Colors.textMuted, fontWeight: '600', marginBottom: 4 },
-  sovValueNum: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
+  sovValueLabel: { fontSize: 10, color: themeColors.textMuted, fontWeight: '600', marginBottom: 4 },
+  sovValueNum: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: themeColors.text },
   sovInput: {
-    backgroundColor: Colors.background, borderRadius: Tokens.radius.sm, borderWidth: 1, borderColor: Colors.border,
-    paddingHorizontal: 8, paddingVertical: 8, fontSize: Type.footnote.fontSize, color: Colors.text,
+    backgroundColor: themeColors.bg, borderRadius: Tokens.radius.sm, borderWidth: 1, borderColor: themeColors.line,
+    paddingHorizontal: 8, paddingVertical: 8, fontSize: Type.footnote.fontSize, color: themeColors.text,
   },
 
   sovProgressRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
-  sovProgressBar: { flex: 1, height: 6, backgroundColor: Colors.border, borderRadius: 3, overflow: 'hidden' },
-  sovProgressFill: { height: '100%', backgroundColor: Colors.success, borderRadius: 3 },
-  sovProgressPct: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.text, width: 38, textAlign: 'right' },
+  sovProgressBar: { flex: 1, height: 6, backgroundColor: themeColors.line, borderRadius: 3, overflow: 'hidden' },
+  sovProgressFill: { height: '100%', backgroundColor: themeColors.success, borderRadius: 3 },
+  sovProgressPct: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: themeColors.text, width: 38, textAlign: 'right' },
 
   sovQuickRow: { flexDirection: 'row', gap: 6 },
   sovQuickBtn: {
     flex: 1, paddingVertical: 6, borderRadius: Tokens.radius.xs,
-    backgroundColor: Colors.background, alignItems: 'center',
-    borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: themeColors.bg, alignItems: 'center',
+    borderWidth: 1, borderColor: themeColors.line,
   },
-  sovQuickText: { fontSize: Type.caption2.fontSize, fontWeight: '600', color: Colors.text },
+  sovQuickText: { fontSize: Type.caption2.fontSize, fontWeight: '600', color: themeColors.text },
 
   totalsCard: {
-    backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 14,
-    borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: themeColors.surface, borderRadius: Tokens.radius.lg, padding: 14,
+    borderWidth: 1, borderColor: themeColors.line,
   },
   totalsRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 5 },
-  totalsLabel: { fontSize: Type.footnote.fontSize, color: Colors.text },
-  totalsValue: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600', color: Colors.text },
-  totalsDivider: { height: 1, backgroundColor: Colors.border, marginVertical: 6 },
+  totalsLabel: { fontSize: Type.footnote.fontSize, color: themeColors.text },
+  totalsValue: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600', color: themeColors.text },
+  totalsDivider: { height: 1, backgroundColor: themeColors.line, marginVertical: 6 },
 
   bottomBar: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
-    backgroundColor: Colors.background,
-    borderTopWidth: 1, borderTopColor: Colors.border,
+    backgroundColor: themeColors.bg,
+    borderTopWidth: 1, borderTopColor: themeColors.line,
     paddingHorizontal: 16, paddingTop: 12,
   },
   generateBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: 8, backgroundColor: Colors.primary, borderRadius: Tokens.radius.card,
+    gap: 8, backgroundColor: themeColors.accent, borderRadius: Tokens.radius.card,
     paddingVertical: 14,
   },
   generateBtnText: { fontSize: Type.subhead.fontSize, fontWeight: '700', color: '#FFF' },
@@ -859,13 +865,13 @@ const styles = StyleSheet.create({
   saveBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     gap: 6, paddingHorizontal: 14, paddingVertical: 14, borderRadius: Tokens.radius.card,
-    backgroundColor: Colors.primary + '12',
-    borderWidth: 1, borderColor: Colors.primary + '40',
+    backgroundColor: themeColors.accent + '12',
+    borderWidth: 1, borderColor: themeColors.accent + '40',
   },
-  saveBtnDone: { backgroundColor: Colors.primary + '20', borderColor: Colors.primary },
-  saveBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.primary },
+  saveBtnDone: { backgroundColor: themeColors.accent + '20', borderColor: themeColors.accent },
+  saveBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: themeColors.accent },
   bottomBarHint: {
-    fontSize: Type.caption2.fontSize, color: Colors.textMuted, textAlign: 'center',
+    fontSize: Type.caption2.fontSize, color: themeColors.textMuted, textAlign: 'center',
     marginTop: 8, lineHeight: 15,
   },
 
@@ -875,11 +881,11 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   modalCard: {
-    backgroundColor: Colors.background,
+    backgroundColor: themeColors.bg,
     borderRadius: 20,
     padding: 24,
     maxWidth: 440, width: '100%',
-    borderWidth: 1, borderColor: Colors.border,
+    borderWidth: 1, borderColor: themeColors.line,
   },
   modalIconWrap: {
     width: 48, height: 48, borderRadius: Tokens.radius.lg,
@@ -887,11 +893,11 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
     marginBottom: 14,
   },
-  modalTitle: { fontSize: Type.title3.fontSize, fontWeight: '800', color: Colors.text, marginBottom: 12, letterSpacing: -0.3 },
-  modalBody: { fontSize: Type.bodyCompact.fontSize, color: Colors.text, lineHeight: 20 },
-  modalBodyEmph: { fontWeight: '700', color: Colors.text },
+  modalTitle: { fontSize: Type.title3.fontSize, fontWeight: '800', color: themeColors.text, marginBottom: 12, letterSpacing: -0.3 },
+  modalBody: { fontSize: Type.bodyCompact.fontSize, color: themeColors.text, lineHeight: 20 },
+  modalBodyEmph: { fontWeight: '700', color: themeColors.text },
   modalCta: {
-    backgroundColor: Colors.text,
+    backgroundColor: themeColors.text,
     paddingVertical: 13, paddingHorizontal: 18,
     borderRadius: Tokens.radius.card,
     alignItems: 'center', justifyContent: 'center',
@@ -901,12 +907,12 @@ const styles = StyleSheet.create({
   modalCtaText: { color: '#FFF', fontSize: Type.bodyCompact.fontSize, fontWeight: '700' },
   modalCtaRow: { flexDirection: 'row', gap: 10, marginTop: 16 },
   modalCtaSecondary: {
-    backgroundColor: Colors.card,
+    backgroundColor: themeColors.surface,
     paddingVertical: 13, paddingHorizontal: 18,
     borderRadius: Tokens.radius.card,
-    borderWidth: 1, borderColor: Colors.border,
+    borderWidth: 1, borderColor: themeColors.line,
     alignItems: 'center', justifyContent: 'center',
     flex: 1,
   },
-  modalCtaSecondaryText: { color: Colors.text, fontSize: Type.bodyCompact.fontSize, fontWeight: '700' },
+  modalCtaSecondaryText: { color: themeColors.text, fontSize: Type.bodyCompact.fontSize, fontWeight: '700' },
 });

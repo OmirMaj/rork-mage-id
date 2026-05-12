@@ -10,6 +10,8 @@ import { Save, Plus, Link2, X, CheckCircle2, ChevronDown, Share2, Send, FileText
 import EmptyState from '@/components/EmptyState';
 import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import type { ThemeColors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { FeatureHeader } from '@/components/FeatureHeader';
 import { useTierAccess } from '@/hooks/useTierAccess';
@@ -24,14 +26,16 @@ import type { SubmittalStatus } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
-const STATUS_COLORS: Record<SubmittalStatus, string> = {
-  pending: Colors.warning,
-  in_review: Colors.info,
-  approved: Colors.success,
-  approved_as_noted: Colors.primaryLight,
-  revise_resubmit: Colors.error,
-  rejected: Colors.error,
-};
+function getStatusColor(t: ThemeColors, status: SubmittalStatus): string {
+  switch (status) {
+    case 'pending': return t.accent;
+    case 'in_review': return t.info;
+    case 'approved': return t.success;
+    case 'approved_as_noted': return t.accentHot;
+    case 'revise_resubmit':
+    case 'rejected': return t.danger;
+  }
+}
 
 const STATUS_LABELS: Record<SubmittalStatus, string> = {
   pending: 'Pending',
@@ -80,6 +84,7 @@ function SubmittalScreenInner() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   // prefill* params come from the floating-mic flow when the GC
   // dictated a submittal at the FAB. They pre-seed the new form so
   // the parsed fields land instantly without a manual re-fill.
@@ -252,10 +257,10 @@ function SubmittalScreenInner() {
 
   if (!project && !existingSubmittal) {
     return (
-      <View style={{ flex: 1, backgroundColor: Colors.background }}>
+      <View style={{ flex: 1, backgroundColor: themeColors.bg }}>
         <Stack.Screen options={{ title: 'Submittals' }} />
         <EmptyState
-          icon={<FileText size={36} color={Colors.primary} strokeWidth={1.6} />}
+          icon={<FileText size={36} color={themeColors.accent} strokeWidth={1.6} />}
           title="No submittal open yet"
           message="Submittals route product specs through the architect for sign-off, then attach to the project's record. To start one:"
           steps={[
@@ -332,7 +337,7 @@ function SubmittalScreenInner() {
           value={title}
           onChangeText={setTitle}
           placeholder="Submittal title"
-          placeholderTextColor={Colors.textMuted}
+          placeholderTextColor={themeColors.textMuted}
           testID="submittal-title"
         />
 
@@ -342,7 +347,7 @@ function SubmittalScreenInner() {
           value={specSection}
           onChangeText={setSpecSection}
           placeholder="e.g. 03300 - Cast-in-Place Concrete"
-          placeholderTextColor={Colors.textMuted}
+          placeholderTextColor={themeColors.textMuted}
         />
 
         <Text style={styles.fieldLabel}>Submitted By</Text>
@@ -351,7 +356,7 @@ function SubmittalScreenInner() {
           value={submittedBy}
           onChangeText={setSubmittedBy}
           placeholder="Subcontractor name"
-          placeholderTextColor={Colors.textMuted}
+          placeholderTextColor={themeColors.textMuted}
         />
 
         <Text style={styles.fieldLabel}>Required Date</Text>
@@ -360,7 +365,7 @@ function SubmittalScreenInner() {
           value={requiredDate}
           onChangeText={setRequiredDate}
           placeholder="YYYY-MM-DD"
-          placeholderTextColor={Colors.textMuted}
+          placeholderTextColor={themeColors.textMuted}
         />
 
         {existingSubmittal && existingSubmittal.reviewCycles.length > 0 && (
@@ -369,14 +374,14 @@ function SubmittalScreenInner() {
             {existingSubmittal.reviewCycles.map((cycle, idx) => (
               <View key={idx} style={styles.timelineItem}>
                 <View style={styles.timelineLine}>
-                  <View style={[styles.timelineDot, { backgroundColor: STATUS_COLORS[cycle.status] }]} />
+                  <View style={[styles.timelineDot, { backgroundColor: getStatusColor(themeColors, cycle.status) }]} />
                   {idx < existingSubmittal.reviewCycles.length - 1 && <View style={styles.timelineConnector} />}
                 </View>
                 <View style={styles.timelineContent}>
                   <View style={styles.timelineHeader}>
                     <Text style={styles.cycleNumber}>Cycle {cycle.cycleNumber}</Text>
-                    <View style={[styles.statusBadge, { backgroundColor: STATUS_COLORS[cycle.status] + '20' }]}>
-                      <Text style={[styles.statusBadgeText, { color: STATUS_COLORS[cycle.status] }]}>
+                    <View style={[styles.statusBadge, { backgroundColor: getStatusColor(themeColors, cycle.status) + '20' }]}>
+                      <Text style={[styles.statusBadgeText, { color: getStatusColor(themeColors, cycle.status) }]}>
                         {STATUS_LABELS[cycle.status]}
                       </Text>
                     </View>
@@ -395,7 +400,7 @@ function SubmittalScreenInner() {
           <>
             {!showAddCycle ? (
               <TouchableOpacity style={styles.addCycleBtn} onPress={() => setShowAddCycle(true)} activeOpacity={0.7}>
-                <Plus size={16} color={Colors.primary} />
+                <Plus size={16} color={themeColors.accent} />
                 <Text style={styles.addCycleBtnText}>Add Review Cycle</Text>
               </TouchableOpacity>
             ) : (
@@ -406,13 +411,13 @@ function SubmittalScreenInner() {
                   value={newReviewer}
                   onChangeText={setNewReviewer}
                   placeholder="Reviewer name"
-                  placeholderTextColor={Colors.textMuted}
+                  placeholderTextColor={themeColors.textMuted}
                 />
                 <View style={styles.statusPicker}>
                   {(Object.keys(STATUS_LABELS) as SubmittalStatus[]).map(s => (
                     <TouchableOpacity
                       key={s}
-                      style={[styles.statusChip, newCycleStatus === s && { backgroundColor: STATUS_COLORS[s] }]}
+                      style={[styles.statusChip, newCycleStatus === s && { backgroundColor: getStatusColor(themeColors, s) }]}
                       onPress={() => setNewCycleStatus(s)}
                     >
                       <Text style={[styles.statusChipText, newCycleStatus === s && { color: '#fff' }]}>
@@ -426,7 +431,7 @@ function SubmittalScreenInner() {
                   value={newCycleComments}
                   onChangeText={setNewCycleComments}
                   placeholder="Comments (optional)"
-                  placeholderTextColor={Colors.textMuted}
+                  placeholderTextColor={themeColors.textMuted}
                   multiline
                   textAlignVertical="top"
                 />
@@ -442,17 +447,17 @@ function SubmittalScreenInner() {
           <>
             <Text style={styles.fieldLabel}>Linked Schedule Task</Text>
             <TouchableOpacity style={styles.pickerBtn} onPress={() => setShowTaskPicker(true)} activeOpacity={0.7}>
-              <Link2 size={15} color={Colors.info} />
+              <Link2 size={15} color={themeColors.info} />
               <Text style={styles.pickerBtnText} numberOfLines={1}>
                 {linkedTask ? linkedTask.title : 'None — tap to link a task'}
               </Text>
-              <ChevronDown size={16} color={Colors.textMuted} />
+              <ChevronDown size={16} color={themeColors.textMuted} />
             </TouchableOpacity>
             {linkedTask && (
               <View style={styles.linkedTaskBadge}>
                 <Text style={styles.linkedTaskPhase}>{linkedTask.phase}</Text>
                 <Text style={styles.linkedTaskName} numberOfLines={1}>{linkedTask.title}</Text>
-                <TouchableOpacity onPress={() => setLinkedTaskId('')} accessibilityRole="button" accessibilityLabel="Close"><X size={14} color={Colors.error} /></TouchableOpacity>
+                <TouchableOpacity onPress={() => setLinkedTaskId('')} accessibilityRole="button" accessibilityLabel="Close"><X size={14} color={themeColors.danger} /></TouchableOpacity>
               </View>
             )}
           </>
@@ -470,7 +475,7 @@ function SubmittalScreenInner() {
         {existingSubmittal && (
           <View style={styles.exportRow}>
             <TouchableOpacity style={styles.exportBtn} onPress={handleSharePDF} activeOpacity={0.7} testID="submittal-share-pdf">
-              <Share2 size={16} color={Colors.primary} />
+              <Share2 size={16} color={themeColors.accent} />
               <Text style={styles.exportBtnText}>Share PDF</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[styles.exportBtn, styles.exportBtnPrimary]} onPress={() => setShowEmailSend(true)} activeOpacity={0.7} testID="submittal-email">
@@ -486,7 +491,7 @@ function SubmittalScreenInner() {
           <Pressable style={styles.taskPickerCard} onPress={() => undefined}>
             <View style={styles.taskPickerHeader}>
               <Text style={styles.taskPickerTitle}>Link Schedule Task</Text>
-              <TouchableOpacity onPress={() => setShowTaskPicker(false)} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={Colors.textMuted} /></TouchableOpacity>
+              <TouchableOpacity onPress={() => setShowTaskPicker(false)} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.textMuted} /></TouchableOpacity>
             </View>
             <ScrollView style={{ maxHeight: 360 }}>
               <TouchableOpacity style={[styles.taskOption, !linkedTaskId && styles.taskOptionActive]} onPress={() => { setLinkedTaskId(''); setShowTaskPicker(false); }}>
@@ -494,7 +499,7 @@ function SubmittalScreenInner() {
               </TouchableOpacity>
               {scheduleTasks.map(task => (
                 <TouchableOpacity key={task.id} style={[styles.taskOption, linkedTaskId === task.id && styles.taskOptionActive]} onPress={() => { setLinkedTaskId(task.id); setShowTaskPicker(false); }}>
-                  {linkedTaskId === task.id && <CheckCircle2 size={14} color={Colors.primary} />}
+                  {linkedTaskId === task.id && <CheckCircle2 size={14} color={themeColors.accent} />}
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.taskOptionText, linkedTaskId === task.id && styles.taskOptionTextActive]} numberOfLines={1}>{task.title}</Text>
                     <Text style={styles.taskOptionMeta}>{task.phase} · {task.durationDays}d</Text>
@@ -516,7 +521,7 @@ function SubmittalScreenInner() {
               <View style={styles.emailModalHeader}>
                 <Text style={styles.emailModalTitle}>Send Submittal</Text>
                 <TouchableOpacity onPress={() => setShowEmailSend(false)} testID="submittal-email-close" accessibilityRole="button" accessibilityLabel="Close">
-                  <X size={20} color={Colors.textMuted} />
+                  <X size={20} color={themeColors.textMuted} />
                 </TouchableOpacity>
               </View>
               <Text style={styles.emailFieldLabel}>Reviewer name</Text>
@@ -525,7 +530,7 @@ function SubmittalScreenInner() {
                 value={emailRecipientName}
                 onChangeText={setEmailRecipientName}
                 placeholder="e.g. Architect of Record"
-                placeholderTextColor={Colors.textMuted}
+                placeholderTextColor={themeColors.textMuted}
                 testID="submittal-email-name"
               />
               <Text style={styles.emailFieldLabel}>Reviewer email *</Text>
@@ -534,7 +539,7 @@ function SubmittalScreenInner() {
                 value={emailRecipient}
                 onChangeText={setEmailRecipient}
                 placeholder="reviewer@firm.com"
-                placeholderTextColor={Colors.textMuted}
+                placeholderTextColor={themeColors.textMuted}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 testID="submittal-email-recipient"
@@ -545,7 +550,7 @@ function SubmittalScreenInner() {
                 value={emailMessage}
                 onChangeText={setEmailMessage}
                 placeholder="Add context for the reviewer..."
-                placeholderTextColor={Colors.textMuted}
+                placeholderTextColor={themeColors.textMuted}
                 multiline
                 testID="submittal-email-message"
               />
@@ -567,39 +572,39 @@ function SubmittalScreenInner() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: themeColors.bg,
     padding: 16,
   },
   projectLabel: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
-    color: Colors.primary,
+    color: themeColors.accent,
     marginBottom: 16,
   },
   fieldLabel: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
     marginBottom: 6,
     marginTop: 12,
   },
   input: {
-    backgroundColor: Colors.surface,
+    backgroundColor: themeColors.surface,
     borderRadius: Tokens.radius.card,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: Type.subhead.fontSize,
-    color: Colors.text,
+    color: themeColors.text,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: themeColors.line,
   },
   sectionTitle: {
     fontSize: Type.callout.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: themeColors.text,
     marginBottom: 12,
   },
   timelineSection: {
@@ -622,14 +627,14 @@ const styles = StyleSheet.create({
   timelineConnector: {
     width: 2,
     flex: 1,
-    backgroundColor: Colors.borderLight,
+    backgroundColor: themeColors.line,
     marginVertical: 4,
   },
   timelineContent: {
     flex: 1,
     paddingLeft: 12,
     paddingBottom: 16,
-    backgroundColor: Colors.surface,
+    backgroundColor: themeColors.surface,
     borderRadius: Tokens.radius.card,
     padding: 12,
     marginBottom: 8,
@@ -643,7 +648,7 @@ const styles = StyleSheet.create({
   cycleNumber: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: themeColors.text,
   },
   statusBadge: {
     paddingHorizontal: 8,
@@ -656,12 +661,12 @@ const styles = StyleSheet.create({
   },
   cycleDetail: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
     lineHeight: 20,
   },
   cycleComments: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.text,
+    color: themeColors.text,
     marginTop: 6,
     fontStyle: 'italic',
   },
@@ -672,17 +677,17 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingVertical: 12,
     borderRadius: Tokens.radius.card,
-    backgroundColor: Colors.primary + '12',
+    backgroundColor: themeColors.accent + '12',
     marginTop: 12,
   },
   addCycleBtnText: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '600' as const,
-    color: Colors.primary,
+    color: themeColors.accent,
   },
   addCycleForm: {
     marginTop: 16,
-    backgroundColor: Colors.surface,
+    backgroundColor: themeColors.surface,
     borderRadius: Tokens.radius.panel,
     padding: 16,
     gap: 10,
@@ -696,15 +701,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: Tokens.radius.sm,
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: themeColors.line,
   },
   statusChipText: {
     fontSize: Type.caption2.fontSize,
     fontWeight: '600' as const,
-    color: Colors.textSecondary,
+    color: themeColors.textSecondary,
   },
   addCycleSubmit: {
-    backgroundColor: Colors.primary,
+    backgroundColor: themeColors.accent,
     borderRadius: Tokens.radius.md,
     paddingVertical: 12,
     alignItems: 'center',
@@ -719,11 +724,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: Colors.primary,
+    backgroundColor: themeColors.accent,
     borderRadius: Tokens.radius.lg,
     paddingVertical: 16,
     marginTop: 28,
-    shadowColor: Colors.primary,
+    shadowColor: themeColors.accent,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
     shadowRadius: 12,
@@ -735,30 +740,30 @@ const styles = StyleSheet.create({
     color: '#fff',
   },
   exportRow: { flexDirection: 'row' as const, gap: 10, marginTop: 12 },
-  exportBtn: { flex: 1, flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 8, paddingVertical: 12, borderRadius: Tokens.radius.md, borderWidth: 1, borderColor: Colors.cardBorder, backgroundColor: Colors.card },
-  exportBtnPrimary: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  exportBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.primary },
-  emailModalCard: { backgroundColor: Colors.card, marginHorizontal: 16, padding: 20, borderRadius: Tokens.radius.panel, gap: 6, borderWidth: 1, borderColor: Colors.cardBorder },
+  exportBtn: { flex: 1, flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 8, paddingVertical: 12, borderRadius: Tokens.radius.md, borderWidth: 1, borderColor: themeColors.line, backgroundColor: themeColors.surface },
+  exportBtnPrimary: { backgroundColor: themeColors.accent, borderColor: themeColors.accent },
+  exportBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: themeColors.accent },
+  emailModalCard: { backgroundColor: themeColors.surface, marginHorizontal: 16, padding: 20, borderRadius: Tokens.radius.panel, gap: 6, borderWidth: 1, borderColor: themeColors.line },
   emailModalHeader: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'space-between' as const, marginBottom: 8 },
-  emailModalTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: Colors.text },
-  emailFieldLabel: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.textSecondary, marginTop: 10 },
-  emailInput: { backgroundColor: Colors.fillTertiary, borderRadius: Tokens.radius.md, paddingHorizontal: 14, paddingVertical: 12, fontSize: Type.subhead.fontSize, color: Colors.text },
-  emailSendBtn: { marginTop: 16, flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 8, backgroundColor: Colors.primary, paddingVertical: 14, borderRadius: Tokens.radius.card },
+  emailModalTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: themeColors.text },
+  emailFieldLabel: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: themeColors.textSecondary, marginTop: 10 },
+  emailInput: { backgroundColor: themeColors.line, borderRadius: Tokens.radius.md, paddingHorizontal: 14, paddingVertical: 12, fontSize: Type.subhead.fontSize, color: themeColors.text },
+  emailSendBtn: { marginTop: 16, flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 8, backgroundColor: themeColors.accent, paddingVertical: 14, borderRadius: Tokens.radius.card },
   emailSendBtnText: { color: '#fff', fontSize: Type.subhead.fontSize, fontWeight: '700' as const },
-  pickerBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, backgroundColor: Colors.surface, borderRadius: Tokens.radius.card, paddingHorizontal: 14, paddingVertical: 12, borderWidth: 1, borderColor: Colors.cardBorder },
-  pickerBtnText: { flex: 1, fontSize: Type.subhead.fontSize, color: Colors.text },
-  linkedTaskBadge: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, backgroundColor: Colors.primary + '10', borderRadius: Tokens.radius.sm, paddingHorizontal: 10, paddingVertical: 8, marginTop: 6 },
-  linkedTaskPhase: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: Colors.primary },
-  linkedTaskName: { flex: 1, fontSize: Type.footnote.fontSize, color: Colors.text },
+  pickerBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, backgroundColor: themeColors.surface, borderRadius: Tokens.radius.card, paddingHorizontal: 14, paddingVertical: 12, borderWidth: 1, borderColor: themeColors.line },
+  pickerBtnText: { flex: 1, fontSize: Type.subhead.fontSize, color: themeColors.text },
+  linkedTaskBadge: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, backgroundColor: themeColors.accent + '10', borderRadius: Tokens.radius.sm, paddingHorizontal: 10, paddingVertical: 8, marginTop: 6 },
+  linkedTaskPhase: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: themeColors.accent },
+  linkedTaskName: { flex: 1, fontSize: Type.footnote.fontSize, color: themeColors.text },
   modalOverlay: { flex: 1, backgroundColor: '#00000060', justifyContent: 'center' as const, alignItems: 'center' as const, padding: 24 },
-  taskPickerCard: { backgroundColor: Colors.surface, borderRadius: Tokens.radius.panel, width: '100%', overflow: 'hidden' as const },
-  taskPickerHeader: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'space-between' as const, padding: 16, borderBottomWidth: 1, borderBottomColor: Colors.cardBorder },
-  taskPickerTitle: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.text },
-  taskOption: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, padding: 12, borderBottomWidth: 1, borderBottomColor: Colors.cardBorder + '80' },
-  taskOptionActive: { backgroundColor: Colors.primary + '10' },
-  taskOptionText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '500' as const, color: Colors.text },
-  taskOptionTextActive: { fontWeight: '700' as const, color: Colors.primary },
-  taskOptionMeta: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary ?? Colors.textMuted, marginTop: 1 },
+  taskPickerCard: { backgroundColor: themeColors.surface, borderRadius: Tokens.radius.panel, width: '100%', overflow: 'hidden' as const },
+  taskPickerHeader: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'space-between' as const, padding: 16, borderBottomWidth: 1, borderBottomColor: themeColors.line },
+  taskPickerTitle: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: themeColors.text },
+  taskOption: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, padding: 12, borderBottomWidth: 1, borderBottomColor: themeColors.line + '80' },
+  taskOptionActive: { backgroundColor: themeColors.accent + '10' },
+  taskOptionText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '500' as const, color: themeColors.text },
+  taskOptionTextActive: { fontWeight: '700' as const, color: themeColors.accent },
+  taskOptionMeta: { fontSize: Type.caption2.fontSize, color: themeColors.textSecondary ?? themeColors.textMuted, marginTop: 1 },
 
   pipelineWrap: {
     paddingHorizontal: 16,

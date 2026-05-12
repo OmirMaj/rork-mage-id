@@ -29,6 +29,8 @@ import {
 import EmptyState from '@/components/EmptyState';
 import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import type { ThemeColors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { FeatureHeader } from '@/components/FeatureHeader';
 import {
@@ -56,6 +58,7 @@ export default function CloseoutBinderScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
   const { getProject, commitments, warranties, projectPhotos, rfis, submittals, settings, updateProject: ctxUpdateProject, getPunchItemsForProject, getInvoicesForProject, getChangeOrdersForProject } = useProjects() as any;
   const project = projectId ? getProject(projectId) : undefined;
@@ -406,7 +409,7 @@ export default function CloseoutBinderScreen() {
       <View style={[styles.container, { backgroundColor: themeColors.bg, paddingTop: insets.top + 16 }]}>
         <Stack.Screen options={{ headerShown: false }} />
         <EmptyState
-          icon={<ShieldCheck size={36} color={Colors.primary} strokeWidth={1.6} />}
+          icon={<ShieldCheck size={36} color={themeColors.accent} strokeWidth={1.6} />}
           title="No closeout to deliver yet"
           message="The closeout binder pulls warranties, selections, and as-builts from a single project. To prepare one:"
           steps={[
@@ -443,7 +446,7 @@ export default function CloseoutBinderScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
-          <ChevronLeft size={26} color={Colors.primary} />
+          <ChevronLeft size={26} color={themeColors.accent} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.eyebrow}>{project.name}</Text>
@@ -470,7 +473,7 @@ export default function CloseoutBinderScreen() {
 
       {loading ? (
         <View style={styles.loading}>
-          <ActivityIndicator size="small" color={Colors.primary} />
+          <ActivityIndicator size="small" color={themeColors.accent} />
           <Text style={styles.loadingText}>Loading your binder…</Text>
         </View>
       ) : (
@@ -487,7 +490,7 @@ export default function CloseoutBinderScreen() {
               )}
               {sentAt && (
                 <View style={styles.timelineRow}>
-                  <Send size={13} color={Colors.successDark} />
+                  <Send size={13} color={themeColors.success} />
                   <Text style={styles.timelineText}>Delivered to homeowner {formattedAt(sentAt)}</Text>
                 </View>
               )}
@@ -497,7 +500,7 @@ export default function CloseoutBinderScreen() {
           {/* What's in it */}
           <View style={styles.previewCard}>
             <View style={styles.previewHead}>
-              <Sparkles size={14} color={Colors.primary} />
+              <Sparkles size={14} color={themeColors.accent} />
               <Text style={styles.previewTitle}>Auto-compiled from this project</Text>
             </View>
             <Text style={styles.previewBody}>
@@ -523,7 +526,7 @@ export default function CloseoutBinderScreen() {
               value={notes}
               onChangeText={setNotes}
               placeholder="Thanks for choosing us. Here's everything you need..."
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={themeColors.textMuted}
               multiline
               numberOfLines={6}
               textAlignVertical="top"
@@ -538,7 +541,7 @@ export default function CloseoutBinderScreen() {
                 <Text style={styles.cardHelper}>Routine tasks the homeowner should do. Pre-filled with sane defaults — edit, add, remove.</Text>
               </View>
               <TouchableOpacity style={styles.smallBtn} onPress={addMaintenance}>
-                <Plus size={14} color={Colors.primary} />
+                <Plus size={14} color={themeColors.accent} />
                 <Text style={styles.smallBtnText}>Add</Text>
               </TouchableOpacity>
             </View>
@@ -550,21 +553,21 @@ export default function CloseoutBinderScreen() {
                     value={m.task}
                     onChangeText={v => updateMaintenance(m.id, { task: v })}
                     placeholder="Task (e.g. HVAC filter replacement)"
-                    placeholderTextColor={Colors.textMuted}
+                    placeholderTextColor={themeColors.textMuted}
                   />
                   <View style={styles.maintMeta}>
-                    <Wrench size={11} color={Colors.textMuted} />
+                    <Wrench size={11} color={themeColors.textMuted} />
                     <TextInput
                       style={styles.maintFreq}
                       value={m.frequency}
                       onChangeText={v => updateMaintenance(m.id, { frequency: v })}
                       placeholder="Frequency"
-                      placeholderTextColor={Colors.textMuted}
+                      placeholderTextColor={themeColors.textMuted}
                     />
                   </View>
                 </View>
                 <TouchableOpacity onPress={() => removeMaintenance(m.id)} hitSlop={6} testID={`maint-remove-${m.id}`} accessibilityRole="button" accessibilityLabel="Delete">
-                  <Trash2 size={13} color={Colors.error} />
+                  <Trash2 size={13} color={themeColors.danger} />
                 </TouchableOpacity>
               </View>
             ))}
@@ -601,7 +604,7 @@ export default function CloseoutBinderScreen() {
                   <Text style={styles.aiaFormTitle}>{form.title}</Text>
                   <Text style={styles.aiaFormSub}>{form.subtitle}</Text>
                 </View>
-                <FileDown size={16} color={Colors.textMuted} />
+                <FileDown size={16} color={themeColors.textMuted} />
               </TouchableOpacity>
             ))}
             <Text style={styles.emptyHint}>
@@ -632,12 +635,12 @@ export default function CloseoutBinderScreen() {
           {status === 'draft' && (
             <>
               <TouchableOpacity style={styles.secondary} onPress={handleSave} disabled={saving} testID="binder-save-draft">
-                {saving ? <ActivityIndicator size="small" color={Colors.text} /> : <Text style={styles.secondaryText}>Save draft</Text>}
+                {saving ? <ActivityIndicator size="small" color={themeColors.text} /> : <Text style={styles.secondaryText}>Save draft</Text>}
               </TouchableOpacity>
               <TouchableOpacity style={styles.secondary} onPress={handleExport} disabled={exporting} testID="binder-pdf">
-                {exporting ? <ActivityIndicator size="small" color={Colors.text} /> : (
+                {exporting ? <ActivityIndicator size="small" color={themeColors.text} /> : (
                   <>
-                    <FileDown size={14} color={Colors.text} />
+                    <FileDown size={14} color={themeColors.text} />
                     <Text style={styles.secondaryText}>PDF</Text>
                   </>
                 )}
@@ -651,12 +654,12 @@ export default function CloseoutBinderScreen() {
           {status === 'finalized' && (
             <>
               <TouchableOpacity style={styles.secondary} onPress={handleSave} disabled={saving} testID="binder-save-final">
-                {saving ? <ActivityIndicator size="small" color={Colors.text} /> : <Text style={styles.secondaryText}>Save</Text>}
+                {saving ? <ActivityIndicator size="small" color={themeColors.text} /> : <Text style={styles.secondaryText}>Save</Text>}
               </TouchableOpacity>
               <TouchableOpacity style={styles.secondary} onPress={handleExport} disabled={exporting} testID="binder-pdf-final">
-                {exporting ? <ActivityIndicator size="small" color={Colors.text} /> : (
+                {exporting ? <ActivityIndicator size="small" color={themeColors.text} /> : (
                   <>
-                    <FileDown size={14} color={Colors.text} />
+                    <FileDown size={14} color={themeColors.text} />
                     <Text style={styles.secondaryText}>PDF</Text>
                   </>
                 )}
@@ -674,9 +677,9 @@ export default function CloseoutBinderScreen() {
           {status === 'sent' && (
             <>
               <TouchableOpacity style={styles.secondary} onPress={handleExport} disabled={exporting} testID="binder-pdf-sent">
-                {exporting ? <ActivityIndicator size="small" color={Colors.text} /> : (
+                {exporting ? <ActivityIndicator size="small" color={themeColors.text} /> : (
                   <>
-                    <FileDown size={14} color={Colors.text} />
+                    <FileDown size={14} color={themeColors.text} />
                     <Text style={styles.secondaryText}>PDF</Text>
                   </>
                 )}
@@ -698,6 +701,7 @@ export default function CloseoutBinderScreen() {
 }
 
 function PreviewRow({ label, value }: { label: string; value: string }) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.previewRow}>
       <Text style={styles.previewRowLabel}>{label}</Text>
@@ -718,7 +722,7 @@ const AIA_FORM_LIST: {
   Icon: typeof FileText;
   color: string;
 }[] = [
-  { id: 'G704',  title: 'G704 — Substantial Completion',         subtitle: 'Certifies the project is complete enough for owner to occupy. Includes punch list.', Icon: Stamp,    color: Colors.successDark },
+  { id: 'G704',  title: 'G704 — Substantial Completion',         subtitle: 'Certifies the project is complete enough for owner to occupy. Includes punch list.', Icon: Stamp,    color: '#16A34A' },
   { id: 'G706',  title: 'G706 — Affidavit of Debts & Claims',    subtitle: 'Notarized — confirms all bills and claims are paid except as listed.',               Icon: FileText, color: '#1E5BC6' },
   { id: 'G706A', title: 'G706A — Affidavit of Lien Releases',    subtitle: 'Notarized — confirms all lien waivers received except as listed.',                   Icon: FileText, color: '#1E5BC6' },
   { id: 'G707',  title: 'G707 — Consent of Surety',              subtitle: 'Surety company approves final payment to contractor without releasing bond.',         Icon: Shield,   color: '#C26A00' },
@@ -737,6 +741,9 @@ function AiaFormModal({
   onClose: () => void;
   onGenerate: (extras: Record<string, string>) => void;
 }) {
+  const styles = useThemedStyles(makeStyles);
+  const { colors: themeColors } = useTheme();
+  const modalStyles = useThemedStyles(makeModalStyles);
   const [state, setState] = useState('');
   const [county, setCounty] = useState('');
   const [exceptions, setExceptions] = useState('');
@@ -767,7 +774,7 @@ function AiaFormModal({
             <Text style={modalStyles.headSub}>Generate</Text>
             <Text style={modalStyles.headTitle}>{formMeta?.title}</Text>
           </View>
-          <TouchableOpacity onPress={onClose} hitSlop={10} testID="aia-modal-close" accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={Colors.textMuted} /></TouchableOpacity>
+          <TouchableOpacity onPress={onClose} hitSlop={10} testID="aia-modal-close" accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={themeColors.textMuted} /></TouchableOpacity>
         </View>
 
         <ScrollView style={{ maxHeight: 380 }} showsVerticalScrollIndicator={false}>
@@ -779,7 +786,7 @@ function AiaFormModal({
                 value={state}
                 onChangeText={t => setState(t.slice(0, 2).toUpperCase())}
                 placeholder="e.g. TX"
-                placeholderTextColor={Colors.textMuted}
+                placeholderTextColor={themeColors.textMuted}
                 autoCapitalize="characters"
                 maxLength={2}
                 testID="aia-state-input"
@@ -790,7 +797,7 @@ function AiaFormModal({
                 value={county}
                 onChangeText={setCounty}
                 placeholder="e.g. Travis"
-                placeholderTextColor={Colors.textMuted}
+                placeholderTextColor={themeColors.textMuted}
               />
               {isG706 && (
                 <>
@@ -800,7 +807,7 @@ function AiaFormModal({
                     value={exceptions}
                     onChangeText={setExceptions}
                     placeholder="Leave blank if all settled"
-                    placeholderTextColor={Colors.textMuted}
+                    placeholderTextColor={themeColors.textMuted}
                     multiline
                   />
                 </>
@@ -819,7 +826,7 @@ function AiaFormModal({
                 value={suretyName}
                 onChangeText={setSuretyName}
                 placeholder="e.g. Travelers Casualty and Surety"
-                placeholderTextColor={Colors.textMuted}
+                placeholderTextColor={themeColors.textMuted}
                 testID="aia-surety-input"
               />
               <Text style={modalStyles.label}>Bond number</Text>
@@ -828,7 +835,7 @@ function AiaFormModal({
                 value={bondNumber}
                 onChangeText={setBondNumber}
                 placeholder="e.g. 105-XXXX-22"
-                placeholderTextColor={Colors.textMuted}
+                placeholderTextColor={themeColors.textMuted}
               />
               <Text style={modalStyles.label}>Bond date</Text>
               <TextInput
@@ -836,7 +843,7 @@ function AiaFormModal({
                 value={bondDate}
                 onChangeText={setBondDate}
                 placeholder="YYYY-MM-DD"
-                placeholderTextColor={Colors.textMuted}
+                placeholderTextColor={themeColors.textMuted}
               />
               <Text style={modalStyles.helper}>
                 Final contract sum is auto-pulled from your linked estimate + approved change orders.
@@ -860,14 +867,14 @@ function AiaFormModal({
   );
 }
 
-const modalStyles = StyleSheet.create({
+const makeModalStyles = (themeColors: ThemeColors) => StyleSheet.create({
   backdrop: {
     position: 'absolute', inset: 0,
     backgroundColor: 'rgba(11,13,16,0.5)',
     justifyContent: 'flex-end' as const,
   } as any,
   sheet: {
-    backgroundColor: Colors.surface,
+    backgroundColor: themeColors.surface,
     borderTopLeftRadius: 20, borderTopRightRadius: 20,
     paddingHorizontal: 18, paddingTop: 16, paddingBottom: 22,
     gap: 8,
@@ -875,36 +882,36 @@ const modalStyles = StyleSheet.create({
   head: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     paddingBottom: 12, marginBottom: 4,
-    borderBottomWidth: 1, borderBottomColor: Colors.borderLight,
+    borderBottomWidth: 1, borderBottomColor: themeColors.line,
   },
   headSub: {
-    fontSize: 10, fontWeight: '800' as const, color: Colors.textMuted,
+    fontSize: 10, fontWeight: '800' as const, color: themeColors.textMuted,
     letterSpacing: 0.8, textTransform: 'uppercase' as const,
   },
   headTitle: {
-    fontSize: Type.callout.fontSize, fontWeight: '800' as const, color: Colors.text,
+    fontSize: Type.callout.fontSize, fontWeight: '800' as const, color: themeColors.text,
     marginTop: 2,
   },
   label: {
-    fontSize: Type.caption2.fontSize, fontWeight: '800' as const, color: Colors.textMuted,
+    fontSize: Type.caption2.fontSize, fontWeight: '800' as const, color: themeColors.textMuted,
     letterSpacing: 0.6, textTransform: 'uppercase' as const,
     marginTop: 12, marginBottom: 5,
   },
   input: {
-    backgroundColor: Colors.background,
-    borderWidth: 1, borderColor: Colors.border, borderRadius: Tokens.radius.md,
+    backgroundColor: themeColors.bg,
+    borderWidth: 1, borderColor: themeColors.line, borderRadius: Tokens.radius.md,
     paddingHorizontal: 12, paddingVertical: 10,
-    fontSize: Type.bodyCompact.fontSize, color: Colors.text,
+    fontSize: Type.bodyCompact.fontSize, color: themeColors.text,
   },
   helper: {
-    fontSize: Type.caption2.fontSize, color: Colors.textMuted, lineHeight: 16,
+    fontSize: Type.caption2.fontSize, color: themeColors.textMuted, lineHeight: 16,
     marginTop: 10, fontStyle: 'italic' as const,
   },
   cta: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const, justifyContent: 'center' as const,
     gap: 8,
-    backgroundColor: Colors.primary,
+    backgroundColor: themeColors.accent,
     borderRadius: Tokens.radius.card, paddingVertical: 14,
     marginTop: 14,
   },
@@ -912,48 +919,48 @@ const modalStyles = StyleSheet.create({
   ctaText: { color: '#FFF', fontSize: Type.subhead.fontSize, fontWeight: '800' as const },
 });
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: themeColors.bg },
   center: { alignItems: 'center', justifyContent: 'center' },
   loading: { padding: 30, alignItems: 'center', gap: 10 },
-  loadingText: { fontSize: Type.footnote.fontSize, color: Colors.textMuted },
+  loadingText: { fontSize: Type.footnote.fontSize, color: themeColors.textMuted },
 
   header: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 10,
     paddingHorizontal: 16, paddingTop: 14, paddingBottom: 14,
-    borderBottomWidth: 1, borderBottomColor: Colors.border,
+    borderBottomWidth: 1, borderBottomColor: themeColors.line,
   },
-  eyebrow: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.primary, letterSpacing: 1.4, textTransform: 'uppercase' },
-  title:   { fontSize: Type.title3.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.4, marginTop: 4 },
+  eyebrow: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: themeColors.accent, letterSpacing: 1.4, textTransform: 'uppercase' },
+  title:   { fontSize: Type.title3.fontSize, fontWeight: '800', color: themeColors.text, letterSpacing: -0.4, marginTop: 4 },
   statusPill: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: Tokens.radius.full, marginTop: 6 },
   statusPillText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.8 },
-  emptyTitle: { fontSize: Type.callout.fontSize, fontWeight: '800', color: Colors.text },
-  emptyBack: { marginTop: 12, paddingHorizontal: 18, paddingVertical: 10, borderRadius: Tokens.radius.md, backgroundColor: Colors.primary },
+  emptyTitle: { fontSize: Type.callout.fontSize, fontWeight: '800', color: themeColors.text },
+  emptyBack: { marginTop: 12, paddingHorizontal: 18, paddingVertical: 10, borderRadius: Tokens.radius.md, backgroundColor: themeColors.accent },
   emptyBackText: { color: '#FFF', fontWeight: '800', fontSize: Type.footnote.fontSize },
 
   timeline: { gap: 4, marginBottom: 10, paddingHorizontal: 4 },
   timelineRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  timelineText: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, fontWeight: '600' },
+  timelineText: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted, fontWeight: '600' },
 
-  previewCard: { backgroundColor: Colors.primary + '0D', borderRadius: Tokens.radius.lg, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: Colors.primary + '30', gap: 8 },
+  previewCard: { backgroundColor: themeColors.accent + '0D', borderRadius: Tokens.radius.lg, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: themeColors.accent + '30', gap: 8 },
   previewHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  previewTitle: { fontSize: Type.footnote.fontSize, fontWeight: '800', color: Colors.primary, letterSpacing: -0.2 },
-  previewBody: { fontSize: Type.caption1.fontSize, color: Colors.text, lineHeight: 17 },
+  previewTitle: { fontSize: Type.footnote.fontSize, fontWeight: '800', color: themeColors.accent, letterSpacing: -0.2 },
+  previewBody: { fontSize: Type.caption1.fontSize, color: themeColors.text, lineHeight: 17 },
   previewList: { gap: 4 },
   previewRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 4 },
-  previewRowLabel: { fontSize: Type.caption1.fontSize, color: Colors.text, fontWeight: '600' },
-  previewRowValue: { fontSize: Type.caption1.fontSize, color: Colors.primary, fontWeight: '800' },
-  emptyHint: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontStyle: 'italic', lineHeight: 16, marginTop: 4 },
+  previewRowLabel: { fontSize: Type.caption1.fontSize, color: themeColors.text, fontWeight: '600' },
+  previewRowValue: { fontSize: Type.caption1.fontSize, color: themeColors.accent, fontWeight: '800' },
+  emptyHint: { fontSize: Type.caption2.fontSize, color: themeColors.textMuted, fontStyle: 'italic', lineHeight: 16, marginTop: 4 },
 
-  card: { backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 14, borderWidth: 1, borderColor: Colors.border, marginBottom: 12 },
+  card: { backgroundColor: themeColors.surface, borderRadius: Tokens.radius.lg, padding: 14, borderWidth: 1, borderColor: themeColors.line, marginBottom: 12 },
   cardHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 4 },
-  cardLabel: { fontSize: Type.caption2.fontSize, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 6 },
-  cardHelper: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginBottom: 10, lineHeight: 17 },
+  cardLabel: { fontSize: Type.caption2.fontSize, fontWeight: '800', color: themeColors.textMuted, letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 6 },
+  cardHelper: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted, marginBottom: 10, lineHeight: 17 },
 
-  smallBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 9, backgroundColor: Colors.primary + '0D', borderWidth: 1, borderColor: Colors.primary + '30' },
-  smallBtnText: { fontSize: Type.caption1.fontSize, fontWeight: '800', color: Colors.primary },
+  smallBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 9, backgroundColor: themeColors.accent + '0D', borderWidth: 1, borderColor: themeColors.accent + '30' },
+  smallBtnText: { fontSize: Type.caption1.fontSize, fontWeight: '800', color: themeColors.accent },
 
-  textarea: { backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border, borderRadius: Tokens.radius.md, paddingHorizontal: 12, paddingVertical: 11, fontSize: Type.bodyCompact.fontSize, color: Colors.text, minHeight: 110 },
+  textarea: { backgroundColor: themeColors.bg, borderWidth: 1, borderColor: themeColors.line, borderRadius: Tokens.radius.md, paddingHorizontal: 12, paddingVertical: 11, fontSize: Type.bodyCompact.fontSize, color: themeColors.text, minHeight: 110 },
 
   // AIA closeout form rows — clean tappable list inside the binder card
   aiaFormRow: {
@@ -963,25 +970,25 @@ const styles = StyleSheet.create({
     paddingVertical: 11,
     paddingHorizontal: 4,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: themeColors.line,
   },
   aiaFormIcon: {
     width: 36, height: 36,
     borderRadius: Tokens.radius.md,
     alignItems: 'center' as const, justifyContent: 'center' as const,
   },
-  aiaFormTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.text },
-  aiaFormSub: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 2, lineHeight: 15 },
+  aiaFormTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: themeColors.text },
+  aiaFormSub: { fontSize: Type.caption2.fontSize, color: themeColors.textMuted, marginTop: 2, lineHeight: 15 },
 
-  maintRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: Colors.border },
+  maintRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: themeColors.line },
   maintMain: { flex: 1, gap: 6 },
-  maintTask: { fontSize: Type.footnote.fontSize, color: Colors.text, fontWeight: '600', padding: 0 },
+  maintTask: { fontSize: Type.footnote.fontSize, color: themeColors.text, fontWeight: '600', padding: 0 },
   maintMeta: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  maintFreq: { flex: 1, fontSize: Type.caption2.fontSize, color: Colors.textMuted, padding: 0 },
+  maintFreq: { flex: 1, fontSize: Type.caption2.fontSize, color: themeColors.textMuted, padding: 0 },
 
-  actionBar: { flexDirection: 'row', gap: 8, paddingHorizontal: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: Colors.border, backgroundColor: Colors.surface },
-  secondary: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 13, borderRadius: 11, backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border },
-  secondaryText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.text },
-  primary: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 14, borderRadius: 11, backgroundColor: Colors.primary, shadowColor: Colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.28, shadowRadius: 8, elevation: 4 },
+  actionBar: { flexDirection: 'row', gap: 8, paddingHorizontal: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: themeColors.line, backgroundColor: themeColors.surface },
+  secondary: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 13, borderRadius: 11, backgroundColor: themeColors.bg, borderWidth: 1, borderColor: themeColors.line },
+  secondaryText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: themeColors.text },
+  primary: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 14, borderRadius: 11, backgroundColor: themeColors.accent, shadowColor: themeColors.accent, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.28, shadowRadius: 8, elevation: 4 },
   primaryText: { fontSize: Type.footnote.fontSize, fontWeight: '800', color: '#FFF' },
 });

@@ -13,6 +13,8 @@ import {
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import type { ThemeColors } from '@/constants/colors';
 import ConstructionLoader from '@/components/ConstructionLoader';
 import { useProjects } from '@/contexts/ProjectContext';
 import CashFlowChart from '@/components/CashFlowChart';
@@ -142,6 +144,7 @@ function CashFlowScreenInner() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const { projectId } = useLocalSearchParams<{ projectId?: string }>();
   const { projects, invoices: allInvoices, getInvoicesForProject, changeOrders: allChangeOrders, getChangeOrdersForProject } = useProjects();
 
@@ -234,7 +237,7 @@ function CashFlowScreenInner() {
   //   • Watch    — net profit < 0 over horizon, but balance stays positive
   //   • Healthy  — net profit >= 0 and balance stays positive
   const healthStatus = useMemo(() => {
-    if (forecast.length === 0) return { kind: 'neutral' as const, label: 'Setup', color: Colors.textSecondary, bg: 'rgba(255,255,255,0.18)' };
+    if (forecast.length === 0) return { kind: 'neutral' as const, label: 'Setup', color: themeColors.textSecondary, bg: 'rgba(255,255,255,0.18)' };
     if (summary.lowestBalance < 0) return { kind: 'danger' as const, label: 'Danger', color: '#FFE0E0', bg: 'rgba(255,90,90,0.35)' };
     if (summary.netProfit < 0) return { kind: 'watch' as const, label: 'Watch', color: '#FFEBC2', bg: 'rgba(255,180,60,0.35)' };
     return { kind: 'healthy' as const, label: 'Healthy', color: '#D6FFE3', bg: 'rgba(80,220,140,0.35)' };
@@ -415,25 +418,25 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
 
   const confidenceBadge = (c: string) => {
     switch (c) {
-      case 'confirmed': return { bg: Colors.successLight, text: Colors.success, label: 'Confirmed' };
-      case 'expected': return { bg: Colors.infoLight, text: Colors.info, label: 'Expected' };
-      default: return { bg: Colors.warningLight, text: Colors.warning, label: 'Hopeful' };
+      case 'confirmed': return { bg: themeColors.successSoft, text: themeColors.success, label: 'Confirmed' };
+      case 'expected': return { bg: themeColors.info, text: themeColors.info, label: 'Expected' };
+      default: return { bg: themeColors.accentSoft, text: themeColors.accent, label: 'Hopeful' };
     }
   };
 
   const healthColor = (health: string) => {
     switch (health) {
-      case 'healthy': return Colors.success;
-      case 'caution': return Colors.warning;
-      default: return Colors.error;
+      case 'healthy': return themeColors.success;
+      case 'caution': return themeColors.accent;
+      default: return themeColors.danger;
     }
   };
 
   const priorityConfig = (p: string) => {
     switch (p) {
-      case 'urgent': return { bg: Colors.errorLight, text: Colors.error };
-      case 'important': return { bg: Colors.warningLight, text: Colors.warning };
-      default: return { bg: Colors.infoLight, text: Colors.info };
+      case 'urgent': return { bg: themeColors.danger, text: themeColors.danger };
+      case 'important': return { bg: themeColors.accentSoft, text: themeColors.accent };
+      default: return { bg: themeColors.info, text: themeColors.info };
     }
   };
 
@@ -450,15 +453,15 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
     <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
       <Stack.Screen options={{
         title: projectId ? 'Project Cash Flow' : 'Cash Flow Forecast',
-        headerStyle: { backgroundColor: Colors.background },
-        headerTintColor: Colors.primary,
-        headerTitleStyle: { fontWeight: '700' as const, color: Colors.text },
+        headerStyle: { backgroundColor: themeColors.bg },
+        headerTintColor: themeColors.accent,
+        headerTitleStyle: { fontWeight: '700' as const, color: themeColors.text },
         headerRight: () => (
           <TouchableOpacity
             onPress={() => setShowSetup(true)}
             style={{ padding: 6 }}
             activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Edit">
-            <Edit3 size={20} color={Colors.primary} />
+            <Edit3 size={20} color={themeColors.accent} />
           </TouchableOpacity>
         ),
       }} />
@@ -544,7 +547,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
                 setShowEditBalance(true);
               }}
               activeOpacity={0.75} accessibilityRole="button" accessibilityLabel="Edit">
-              <Edit3 size={14} color={Colors.surface} />
+              <Edit3 size={14} color={themeColors.surface} />
             </TouchableOpacity>
           </View>
 
@@ -616,7 +619,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
           <View style={styles.section}>
             <View style={styles.dangerCard}>
               <View style={styles.dangerHeader}>
-                <AlertTriangle size={18} color={Colors.error} />
+                <AlertTriangle size={18} color={themeColors.danger} />
                 <Text style={styles.dangerTitle}>Danger Zone</Text>
               </View>
               {summary.dangerWeeks.map((dw, i) => (
@@ -639,23 +642,23 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
             <View style={styles.weekDetailCard}>
               <View style={styles.weekDetailRow}>
                 <View style={styles.weekDetailItem}>
-                  <TrendingUp size={16} color={Colors.success} />
+                  <TrendingUp size={16} color={themeColors.success} />
                   <Text style={styles.weekDetailLabel}>Income</Text>
-                  <Text style={[styles.weekDetailValue, { color: Colors.success }]}>
+                  <Text style={[styles.weekDetailValue, { color: themeColors.success }]}>
                     {formatCurrency(selectedWeekData.totalIncome)}
                   </Text>
                 </View>
                 <View style={styles.weekDetailItem}>
-                  <TrendingDown size={16} color={Colors.error} />
+                  <TrendingDown size={16} color={themeColors.danger} />
                   <Text style={styles.weekDetailLabel}>Expenses</Text>
-                  <Text style={[styles.weekDetailValue, { color: Colors.error }]}>
+                  <Text style={[styles.weekDetailValue, { color: themeColors.danger }]}>
                     {formatCurrency(selectedWeekData.totalExpenses)}
                   </Text>
                 </View>
                 <View style={styles.weekDetailItem}>
-                  <Wallet size={16} color={Colors.info} />
+                  <Wallet size={16} color={themeColors.info} />
                   <Text style={styles.weekDetailLabel}>Balance</Text>
-                  <Text style={[styles.weekDetailValue, { color: selectedWeekData.runningBalance < 0 ? Colors.error : Colors.text }]}>
+                  <Text style={[styles.weekDetailValue, { color: selectedWeekData.runningBalance < 0 ? themeColors.danger : themeColors.text }]}>
                     {formatCurrency(selectedWeekData.runningBalance)}
                   </Text>
                 </View>
@@ -667,7 +670,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
                   {selectedWeekData.incomeItems.map((item, i) => (
                     <View key={i} style={styles.weekItemRow}>
                       <Text style={styles.weekItemName} numberOfLines={1}>{item.description}</Text>
-                      <Text style={[styles.weekItemAmount, { color: Colors.success }]}>+{formatCurrency(item.amount)}</Text>
+                      <Text style={[styles.weekItemAmount, { color: themeColors.success }]}>+{formatCurrency(item.amount)}</Text>
                     </View>
                   ))}
                 </View>
@@ -679,7 +682,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
                   {selectedWeekData.expenseItems.map((item, i) => (
                     <View key={i} style={styles.weekItemRow}>
                       <Text style={styles.weekItemName} numberOfLines={1}>{item.description}</Text>
-                      <Text style={[styles.weekItemAmount, { color: Colors.error }]}>-{formatCurrency(item.amount)}</Text>
+                      <Text style={[styles.weekItemAmount, { color: themeColors.danger }]}>-{formatCurrency(item.amount)}</Text>
                     </View>
                   ))}
                 </View>
@@ -695,32 +698,32 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>SUMMARY ({forecastWeeks} WEEKS)</Text>
           <View style={styles.summaryGrid}>
-            <View style={[styles.summaryItem, { borderLeftColor: Colors.success, borderLeftWidth: 3 }]}>
+            <View style={[styles.summaryItem, { borderLeftColor: themeColors.success, borderLeftWidth: 3 }]}>
               <View style={styles.summaryIconWrap}>
-                <View style={[styles.summaryIcon, { backgroundColor: Colors.success + '15' }]}>
-                  <TrendingUp size={14} color={Colors.success} />
+                <View style={[styles.summaryIcon, { backgroundColor: themeColors.success + '15' }]}>
+                  <TrendingUp size={14} color={themeColors.success} />
                 </View>
               </View>
               <Text style={styles.summaryItemLabel}>Total Income</Text>
-              <Text style={[styles.summaryItemValue, { color: Colors.success }]}>{formatCurrencyShort(summary.totalIncome)}</Text>
+              <Text style={[styles.summaryItemValue, { color: themeColors.success }]}>{formatCurrencyShort(summary.totalIncome)}</Text>
             </View>
-            <View style={[styles.summaryItem, { borderLeftColor: Colors.error, borderLeftWidth: 3 }]}>
+            <View style={[styles.summaryItem, { borderLeftColor: themeColors.danger, borderLeftWidth: 3 }]}>
               <View style={styles.summaryIconWrap}>
-                <View style={[styles.summaryIcon, { backgroundColor: Colors.error + '15' }]}>
-                  <TrendingDown size={14} color={Colors.error} />
+                <View style={[styles.summaryIcon, { backgroundColor: themeColors.danger + '15' }]}>
+                  <TrendingDown size={14} color={themeColors.danger} />
                 </View>
               </View>
               <Text style={styles.summaryItemLabel}>Total Expenses</Text>
-              <Text style={[styles.summaryItemValue, { color: Colors.error }]}>{formatCurrencyShort(summary.totalExpenses)}</Text>
+              <Text style={[styles.summaryItemValue, { color: themeColors.danger }]}>{formatCurrencyShort(summary.totalExpenses)}</Text>
             </View>
-            <View style={[styles.summaryItem, { borderLeftColor: summary.netProfit >= 0 ? Colors.success : Colors.error, borderLeftWidth: 3 }]}>
+            <View style={[styles.summaryItem, { borderLeftColor: summary.netProfit >= 0 ? themeColors.success : themeColors.danger, borderLeftWidth: 3 }]}>
               <View style={styles.summaryIconWrap}>
-                <View style={[styles.summaryIcon, { backgroundColor: (summary.netProfit >= 0 ? Colors.success : Colors.error) + '15' }]}>
-                  <DollarSign size={14} color={summary.netProfit >= 0 ? Colors.success : Colors.error} />
+                <View style={[styles.summaryIcon, { backgroundColor: (summary.netProfit >= 0 ? themeColors.success : themeColors.danger) + '15' }]}>
+                  <DollarSign size={14} color={summary.netProfit >= 0 ? themeColors.success : themeColors.danger} />
                 </View>
               </View>
               <Text style={styles.summaryItemLabel}>Net Profit</Text>
-              <Text style={[styles.summaryItemValue, { color: summary.netProfit >= 0 ? Colors.success : Colors.error }]}>
+              <Text style={[styles.summaryItemValue, { color: summary.netProfit >= 0 ? themeColors.success : themeColors.danger }]}>
                 {formatCurrencyShort(summary.netProfit)}
               </Text>
               {/* Tiny progress bar showing income coverage of expenses */}
@@ -728,20 +731,20 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
                 <ConcretePour
                   value={Math.min(1, summary.totalIncome / Math.max(summary.totalExpenses, 1))}
                   height={3}
-                  fillColor={summary.netProfit >= 0 ? Colors.success : Colors.error}
+                  fillColor={summary.netProfit >= 0 ? themeColors.success : themeColors.danger}
                   duration={1200}
                   style={{ marginTop: 6 }}
                 />
               )}
             </View>
-            <View style={[styles.summaryItem, { borderLeftColor: summary.lowestBalance < 0 ? Colors.error : Colors.info, borderLeftWidth: 3 }]}>
+            <View style={[styles.summaryItem, { borderLeftColor: summary.lowestBalance < 0 ? themeColors.danger : themeColors.info, borderLeftWidth: 3 }]}>
               <View style={styles.summaryIconWrap}>
-                <View style={[styles.summaryIcon, { backgroundColor: (summary.lowestBalance < 0 ? Colors.error : Colors.info) + '15' }]}>
-                  <Wallet size={14} color={summary.lowestBalance < 0 ? Colors.error : Colors.info} />
+                <View style={[styles.summaryIcon, { backgroundColor: (summary.lowestBalance < 0 ? themeColors.danger : themeColors.info) + '15' }]}>
+                  <Wallet size={14} color={summary.lowestBalance < 0 ? themeColors.danger : themeColors.info} />
                 </View>
               </View>
               <Text style={styles.summaryItemLabel}>Lowest Balance</Text>
-              <Text style={[styles.summaryItemValue, { color: summary.lowestBalance < 0 ? Colors.error : Colors.text }]}>
+              <Text style={[styles.summaryItemValue, { color: summary.lowestBalance < 0 ? themeColors.danger : themeColors.text }]}>
                 {formatCurrencyShort(summary.lowestBalance)}
               </Text>
               <Text style={styles.summaryItemSub}>Week {summary.lowestBalanceWeek}</Text>
@@ -751,10 +754,10 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
 
         <View style={styles.section}>
           <TouchableOpacity style={styles.sectionHeaderRow} onPress={() => toggleSection('expenses')} activeOpacity={0.7}>
-            <DollarSign size={18} color={Colors.error} />
+            <DollarSign size={18} color={themeColors.danger} />
             <Text style={styles.sectionTitle}>Monthly Expenses</Text>
             <Text style={styles.sectionAmount}>{formatCurrencyShort(totalMonthlyExpenses)}/mo</Text>
-            {expandedSections.expenses ? <ChevronUp size={18} color={Colors.textMuted} /> : <ChevronDown size={18} color={Colors.textMuted} />}
+            {expandedSections.expenses ? <ChevronUp size={18} color={themeColors.textMuted} /> : <ChevronDown size={18} color={themeColors.textMuted} />}
           </TouchableOpacity>
 
           {expandedSections.expenses && (
@@ -767,7 +770,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
                   </View>
                   <Text style={styles.expenseListAmount}>{formatCurrency(exp.amount)}</Text>
                   <TouchableOpacity onPress={() => handleRemoveExpense(exp.id)} style={styles.expenseDeleteBtn} accessibilityRole="button" accessibilityLabel="Delete">
-                    <Trash2 size={14} color={Colors.error} />
+                    <Trash2 size={14} color={themeColors.danger} />
                   </TouchableOpacity>
                 </View>
               ))}
@@ -775,7 +778,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
                 <Text style={styles.emptyListText}>No recurring expenses added yet</Text>
               )}
               <TouchableOpacity style={styles.addItemBtn} onPress={() => setShowAddExpense(true)} activeOpacity={0.7}>
-                <Plus size={16} color={Colors.primary} />
+                <Plus size={16} color={themeColors.accent} />
                 <Text style={styles.addItemText}>Add Expense</Text>
               </TouchableOpacity>
             </View>
@@ -784,12 +787,12 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
 
         <View style={styles.section}>
           <TouchableOpacity style={styles.sectionHeaderRow} onPress={() => toggleSection('income')} activeOpacity={0.7}>
-            <TrendingUp size={18} color={Colors.success} />
+            <TrendingUp size={18} color={themeColors.success} />
             <Text style={styles.sectionTitle}>Expected Income</Text>
-            <Text style={[styles.sectionAmount, { color: Colors.success }]}>
+            <Text style={[styles.sectionAmount, { color: themeColors.success }]}>
               {formatCurrencyShort(totalPending)} pending
             </Text>
-            {expandedSections.income ? <ChevronUp size={18} color={Colors.textMuted} /> : <ChevronDown size={18} color={Colors.textMuted} />}
+            {expandedSections.income ? <ChevronUp size={18} color={themeColors.textMuted} /> : <ChevronDown size={18} color={themeColors.textMuted} />}
           </TouchableOpacity>
 
           {expandedSections.income && (
@@ -826,7 +829,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
                     </View>
                     <Text style={styles.incomeListAmount}>{formatCurrency(ep.amount)}</Text>
                     <TouchableOpacity onPress={() => handleRemovePayment(ep.id)} style={styles.expenseDeleteBtn} accessibilityRole="button" accessibilityLabel="Delete">
-                      <Trash2 size={14} color={Colors.error} />
+                      <Trash2 size={14} color={themeColors.danger} />
                     </TouchableOpacity>
                   </View>
                 );
@@ -836,8 +839,8 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
                 <Text style={styles.emptyListText}>No income expected. Add invoices or expected payments.</Text>
               )}
               <TouchableOpacity style={styles.addItemBtn} onPress={() => setShowAddPayment(true)} activeOpacity={0.7}>
-                <Plus size={16} color={Colors.success} />
-                <Text style={[styles.addItemText, { color: Colors.success }]}>Add Expected Payment</Text>
+                <Plus size={16} color={themeColors.success} />
+                <Text style={[styles.addItemText, { color: themeColors.success }]}>Add Expected Payment</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -852,9 +855,9 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
             testID="ai-analysis-btn"
           >
             {aiLoading ? (
-              <ActivityIndicator size="small" color={Colors.textOnPrimary} />
+              <ActivityIndicator size="small" color={"#FFFFFF"} />
             ) : (
-              <Sparkles size={18} color={Colors.textOnPrimary} />
+              <Sparkles size={18} color={"#FFFFFF"} />
             )}
             <Text style={styles.aiButtonText}>
               {aiLoading ? 'Analyzing...' : 'Get AI Advice'}
@@ -862,19 +865,19 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.aiButton, { backgroundColor: Colors.accent, marginTop: 10 }]}
+            style={[styles.aiButton, { backgroundColor: themeColors.accent, marginTop: 10 }]}
             onPress={() => router.push({ pathname: '/payment-predictions' as any, params: projectId ? { projectId } : {} })}
             activeOpacity={0.85}
             testID="payment-forecast-btn"
           >
-            <TrendingUp size={18} color={Colors.textOnPrimary} />
+            <TrendingUp size={18} color={"#FFFFFF"} />
             <Text style={styles.aiButtonText}>Payment Forecast</Text>
           </TouchableOpacity>
 
           {showAiResults && aiAnalysis && (
             <View style={styles.aiResultsCard}>
               <View style={styles.aiResultsHeader}>
-                <Sparkles size={16} color={Colors.primary} />
+                <Sparkles size={16} color={themeColors.accent} />
                 <Text style={styles.aiResultsTitle}>AI Cash Flow Analysis</Text>
                 <View style={[styles.healthBadge, { backgroundColor: healthColor(aiAnalysis.overallHealth) + '20' }]}>
                   <Text style={[styles.healthBadgeText, { color: healthColor(aiAnalysis.overallHealth) }]}>
@@ -890,7 +893,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
                   <Text style={styles.aiSectionTitle}>Critical Weeks</Text>
                   {(aiAnalysis.criticalWeeks ?? []).map((cw, i) => (
                     <View key={i} style={styles.criticalWeekRow}>
-                      <AlertTriangle size={14} color={Colors.error} />
+                      <AlertTriangle size={14} color={themeColors.danger} />
                       <Text style={styles.criticalWeekText}>
                         Week {cw.weekNumber}: {formatCurrency(cw.balance)} — {cw.problem}
                       </Text>
@@ -910,7 +913,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
                           <View style={[styles.recPriorityBadge, { backgroundColor: pc.text + '20' }]}>
                             <Text style={[styles.recPriorityText, { color: pc.text }]}>{rec.priority}</Text>
                           </View>
-                          <View style={[styles.recDiffBadge, { backgroundColor: Colors.fillTertiary }]}>
+                          <View style={[styles.recDiffBadge, { backgroundColor: themeColors.line }]}>
                             <Text style={styles.recDiffText}>{rec.difficulty}</Text>
                           </View>
                         </View>
@@ -927,7 +930,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
                   <Text style={styles.aiSectionTitle}>Billing Optimizations</Text>
                   {(aiAnalysis.billingOptimizations ?? []).map((opt, i) => (
                     <View key={i} style={styles.bulletRow}>
-                      <CheckCircle size={14} color={Colors.success} />
+                      <CheckCircle size={14} color={themeColors.success} />
                       <Text style={styles.bulletText}>{opt}</Text>
                     </View>
                   ))}
@@ -953,7 +956,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Edit Balance</Text>
                 <TouchableOpacity onPress={() => setShowEditBalance(false)} accessibilityRole="button" accessibilityLabel="Close">
-                  <X size={20} color={Colors.textMuted} />
+                  <X size={20} color={themeColors.textMuted} />
                 </TouchableOpacity>
               </View>
               <Text style={styles.modalFieldLabel}>Current Bank Balance</Text>
@@ -982,16 +985,16 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Add Expense</Text>
                 <TouchableOpacity onPress={() => setShowAddExpense(false)} accessibilityRole="button" accessibilityLabel="Close">
-                  <X size={20} color={Colors.textMuted} />
+                  <X size={20} color={themeColors.textMuted} />
                 </TouchableOpacity>
               </View>
               <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                 <Text style={styles.modalFieldLabel}>Name</Text>
-                <TextInput style={styles.modalTextInput} value={newExpenseName} onChangeText={setNewExpenseName} placeholder="e.g. Payroll" placeholderTextColor={Colors.textMuted} />
+                <TextInput style={styles.modalTextInput} value={newExpenseName} onChangeText={setNewExpenseName} placeholder="e.g. Payroll" placeholderTextColor={themeColors.textMuted} />
                 <Text style={styles.modalFieldLabel}>Amount</Text>
                 <View style={styles.modalInputRow}>
                   <Text style={styles.modalDollar}>$</Text>
-                  <TextInput style={styles.modalInput} value={newExpenseAmount} onChangeText={setNewExpenseAmount} keyboardType="numeric" placeholder="0" placeholderTextColor={Colors.textMuted} />
+                  <TextInput style={styles.modalInput} value={newExpenseAmount} onChangeText={setNewExpenseAmount} keyboardType="numeric" placeholder="0" placeholderTextColor={themeColors.textMuted} />
                 </View>
                 <Text style={styles.modalFieldLabel}>Frequency</Text>
                 <View style={styles.chipGrid}>
@@ -1011,7 +1014,7 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
                 </View>
               </ScrollView>
               <TouchableOpacity style={styles.modalSaveBtn} onPress={handleAddExpense} activeOpacity={0.85}>
-                <Plus size={18} color={Colors.textOnPrimary} />
+                <Plus size={18} color={"#FFFFFF"} />
                 <Text style={styles.modalSaveBtnText}>Add Expense</Text>
               </TouchableOpacity>
             </View>
@@ -1026,18 +1029,18 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Add Expected Payment</Text>
                 <TouchableOpacity onPress={() => setShowAddPayment(false)} accessibilityRole="button" accessibilityLabel="Close">
-                  <X size={20} color={Colors.textMuted} />
+                  <X size={20} color={themeColors.textMuted} />
                 </TouchableOpacity>
               </View>
               <Text style={styles.modalFieldLabel}>Description</Text>
-              <TextInput style={styles.modalTextInput} value={newPaymentDesc} onChangeText={setNewPaymentDesc} placeholder="e.g. Deposit from River Oak" placeholderTextColor={Colors.textMuted} />
+              <TextInput style={styles.modalTextInput} value={newPaymentDesc} onChangeText={setNewPaymentDesc} placeholder="e.g. Deposit from River Oak" placeholderTextColor={themeColors.textMuted} />
               <Text style={styles.modalFieldLabel}>Amount</Text>
               <View style={styles.modalInputRow}>
                 <Text style={styles.modalDollar}>$</Text>
-                <TextInput style={styles.modalInput} value={newPaymentAmount} onChangeText={setNewPaymentAmount} keyboardType="numeric" placeholder="0" placeholderTextColor={Colors.textMuted} />
+                <TextInput style={styles.modalInput} value={newPaymentAmount} onChangeText={setNewPaymentAmount} keyboardType="numeric" placeholder="0" placeholderTextColor={themeColors.textMuted} />
               </View>
               <Text style={styles.modalFieldLabel}>Days from now</Text>
-              <TextInput style={styles.modalTextInput} value={newPaymentDate} onChangeText={setNewPaymentDate} keyboardType="numeric" placeholder="30" placeholderTextColor={Colors.textMuted} />
+              <TextInput style={styles.modalTextInput} value={newPaymentDate} onChangeText={setNewPaymentDate} keyboardType="numeric" placeholder="30" placeholderTextColor={themeColors.textMuted} />
               <Text style={styles.modalFieldLabel}>Confidence</Text>
               <View style={styles.chipGrid}>
                 {(['confirmed', 'expected', 'hopeful'] as const).map(c => {
@@ -1049,8 +1052,8 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
                   );
                 })}
               </View>
-              <TouchableOpacity style={[styles.modalSaveBtn, { backgroundColor: Colors.success }]} onPress={handleAddPayment} activeOpacity={0.85}>
-                <Plus size={18} color={Colors.textOnPrimary} />
+              <TouchableOpacity style={[styles.modalSaveBtn, { backgroundColor: themeColors.success }]} onPress={handleAddPayment} activeOpacity={0.85}>
+                <Plus size={18} color={"#FFFFFF"} />
                 <Text style={styles.modalSaveBtnText}>Add Payment</Text>
               </TouchableOpacity>
             </View>
@@ -1061,18 +1064,18 @@ Identify any weeks where the balance goes negative or dangerously low (under $5,
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: themeColors.bg },
   center: { alignItems: 'center', justifyContent: 'center' },
   heroCard: {
     marginHorizontal: 16,
     marginTop: 16,
-    backgroundColor: Colors.primary,
+    backgroundColor: themeColors.accent,
     borderRadius: Tokens.radius["2xl"],
     padding: 22,
     gap: 18,
     overflow: 'hidden' as const,
-    shadowColor: Colors.primary,
+    shadowColor: themeColors.accent,
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.25,
     shadowRadius: 18,
@@ -1085,111 +1088,111 @@ const styles = StyleSheet.create({
   heroLeft: { gap: 6, flex: 1 },
   heroLabelRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6 },
   heroLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: 'rgba(255,255,255,0.85)', textTransform: 'uppercase' as const, letterSpacing: 1 },
-  heroAmount: { fontSize: 38, fontWeight: '800' as const, color: Colors.surface, letterSpacing: -1.2 },
+  heroAmount: { fontSize: 38, fontWeight: '800' as const, color: themeColors.surface, letterSpacing: -1.2 },
   heroSubRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8, marginTop: 4 },
   heroStatusPill: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: Tokens.radius.card },
   heroStatusText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, letterSpacing: 0.3 },
   heroDelta: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: Tokens.radius.card, backgroundColor: 'rgba(255,255,255,0.15)' },
   heroDeltaText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, letterSpacing: 0.2 },
   editBalanceBtn: { width: 32, height: 32, borderRadius: Tokens.radius.panel, alignItems: 'center' as const, justifyContent: 'center' as const, backgroundColor: 'rgba(255,255,255,0.2)' },
-  editBalanceBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.surface },
+  editBalanceBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.surface },
   forecastSelector: { flexDirection: 'row', flexWrap: 'wrap' as const, gap: 6 },
   forecastChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: Tokens.radius.sm, backgroundColor: 'rgba(255,255,255,0.15)' },
   forecastChipActive: { backgroundColor: '#FFFFFF' },
   forecastChipText: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: 'rgba(255,255,255,0.8)' },
-  forecastChipTextActive: { color: Colors.primary },
+  forecastChipTextActive: { color: themeColors.accent },
   customWeeksChip: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: Tokens.radius.sm, backgroundColor: 'rgba(255,255,255,0.15)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)' },
-  customWeeksInput: { minWidth: 34, paddingVertical: 0, paddingHorizontal: 2, fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: Colors.surface, textAlign: 'center' as const },
+  customWeeksInput: { minWidth: 34, paddingVertical: 0, paddingHorizontal: 2, fontSize: Type.caption1.fontSize, fontWeight: '700' as const, color: themeColors.surface, textAlign: 'center' as const },
   customWeeksLabel: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: 'rgba(255,255,255,0.8)' },
   pendingRow: { flexDirection: 'row' as const, alignItems: 'center' as const, backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: Tokens.radius.card, paddingVertical: 10, paddingHorizontal: 14, gap: 14 },
   pendingItem: { flex: 1, gap: 2 },
   pendingLabel: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' as const, letterSpacing: 0.5 },
-  pendingValue: { fontSize: Type.subheadline.fontSize, fontWeight: '800' as const, color: Colors.surface, letterSpacing: -0.3 },
+  pendingValue: { fontSize: Type.subheadline.fontSize, fontWeight: '800' as const, color: themeColors.surface, letterSpacing: -0.3 },
   pendingDivider: { width: 1, alignSelf: 'stretch' as const, backgroundColor: 'rgba(255,255,255,0.2)' },
   section: { marginHorizontal: 16, marginTop: 20 },
-  sectionLabel: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.textMuted, letterSpacing: 0.8, textTransform: 'uppercase' as const, marginBottom: 10 },
-  sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: Colors.surface, borderRadius: Tokens.radius.lg, padding: 14, borderWidth: 1, borderColor: Colors.cardBorder },
-  sectionTitle: { flex: 1, fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: Colors.text },
-  sectionAmount: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.error, marginRight: 4 },
-  expandedContent: { backgroundColor: Colors.surface, borderRadius: Tokens.radius.lg, padding: 14, marginTop: 6, borderWidth: 1, borderColor: Colors.cardBorder, gap: 8 },
-  expenseListRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: Colors.borderLight },
+  sectionLabel: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: themeColors.textMuted, letterSpacing: 0.8, textTransform: 'uppercase' as const, marginBottom: 10 },
+  sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: themeColors.surface, borderRadius: Tokens.radius.lg, padding: 14, borderWidth: 1, borderColor: themeColors.line },
+  sectionTitle: { flex: 1, fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: themeColors.text },
+  sectionAmount: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: themeColors.danger, marginRight: 4 },
+  expandedContent: { backgroundColor: themeColors.surface, borderRadius: Tokens.radius.lg, padding: 14, marginTop: 6, borderWidth: 1, borderColor: themeColors.line, gap: 8 },
+  expenseListRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: themeColors.line },
   expenseListInfo: { flex: 1, gap: 2 },
-  expenseListName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
-  expenseListMeta: { fontSize: Type.caption1.fontSize, color: Colors.textMuted },
-  expenseListAmount: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
+  expenseListName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: themeColors.text },
+  expenseListMeta: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted },
+  expenseListAmount: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: themeColors.text },
   expenseDeleteBtn: { padding: 6 },
-  incomeListRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: Colors.borderLight },
+  incomeListRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: themeColors.line },
   incomeListInfo: { flex: 1, gap: 2 },
-  incomeListName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text },
-  incomeListMeta: { fontSize: Type.caption1.fontSize, color: Colors.textMuted },
-  incomeListAmount: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.success },
+  incomeListName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: themeColors.text },
+  incomeListMeta: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted },
+  incomeListAmount: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: themeColors.success },
   confidenceBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
   confidenceBadgeText: { fontSize: 10, fontWeight: '700' as const },
-  emptyListText: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, textAlign: 'center', paddingVertical: 12 },
+  emptyListText: { fontSize: Type.footnote.fontSize, color: themeColors.textMuted, textAlign: 'center', paddingVertical: 12 },
   addItemBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, marginTop: 4 },
-  addItemText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.primary },
-  dangerCard: { backgroundColor: Colors.errorLight, borderRadius: Tokens.radius.panel, padding: 16, borderWidth: 1, borderColor: Colors.error + '40', gap: 10, shadowColor: Colors.error, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.12, shadowRadius: 12, elevation: 2 },
+  addItemText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: themeColors.accent },
+  dangerCard: { backgroundColor: themeColors.danger, borderRadius: Tokens.radius.panel, padding: 16, borderWidth: 1, borderColor: themeColors.danger + '40', gap: 10, shadowColor: themeColors.danger, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.12, shadowRadius: 12, elevation: 2 },
   dangerHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  dangerTitle: { fontSize: Type.subhead.fontSize, fontWeight: '800' as const, color: Colors.error, letterSpacing: 0.2 },
-  dangerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingLeft: 26, paddingVertical: 4, borderTopWidth: 1, borderTopColor: Colors.error + '15' },
-  dangerDate: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, fontWeight: '500' as const },
-  dangerBalance: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800' as const, color: Colors.error, letterSpacing: -0.3 },
+  dangerTitle: { fontSize: Type.subhead.fontSize, fontWeight: '800' as const, color: themeColors.danger, letterSpacing: 0.2 },
+  dangerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingLeft: 26, paddingVertical: 4, borderTopWidth: 1, borderTopColor: themeColors.danger + '15' },
+  dangerDate: { fontSize: Type.footnote.fontSize, color: themeColors.textSecondary, fontWeight: '500' as const },
+  dangerBalance: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800' as const, color: themeColors.danger, letterSpacing: -0.3 },
   summaryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  summaryItem: { flex: 1, minWidth: '45%' as any, backgroundColor: Colors.surface, borderRadius: Tokens.radius.lg, padding: 14, borderWidth: 1, borderColor: Colors.cardBorder, gap: 6 },
+  summaryItem: { flex: 1, minWidth: '45%' as any, backgroundColor: themeColors.surface, borderRadius: Tokens.radius.lg, padding: 14, borderWidth: 1, borderColor: themeColors.line, gap: 6 },
   summaryIconWrap: { flexDirection: 'row' as const, justifyContent: 'flex-end' as const, marginBottom: -8 },
   summaryIcon: { width: 28, height: 28, borderRadius: Tokens.radius.sm, alignItems: 'center' as const, justifyContent: 'center' as const },
-  summaryItemLabel: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontWeight: '600' as const, letterSpacing: 0.3, textTransform: 'uppercase' as const },
-  summaryItemValue: { fontSize: Type.title2.fontSize, fontWeight: '800' as const, color: Colors.text, letterSpacing: -0.5 },
-  summaryItemSub: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontWeight: '500' as const },
-  weekDetailCard: { backgroundColor: Colors.surface, borderRadius: Tokens.radius.lg, padding: 14, borderWidth: 1, borderColor: Colors.cardBorder },
+  summaryItemLabel: { fontSize: Type.caption2.fontSize, color: themeColors.textMuted, fontWeight: '600' as const, letterSpacing: 0.3, textTransform: 'uppercase' as const },
+  summaryItemValue: { fontSize: Type.title2.fontSize, fontWeight: '800' as const, color: themeColors.text, letterSpacing: -0.5 },
+  summaryItemSub: { fontSize: Type.caption2.fontSize, color: themeColors.textMuted, fontWeight: '500' as const },
+  weekDetailCard: { backgroundColor: themeColors.surface, borderRadius: Tokens.radius.lg, padding: 14, borderWidth: 1, borderColor: themeColors.line },
   weekDetailRow: { flexDirection: 'row', gap: 8 },
-  weekDetailItem: { flex: 1, alignItems: 'center', backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.md, padding: 10, gap: 4 },
-  weekDetailLabel: { fontSize: Type.caption2.fontSize, fontWeight: '500' as const, color: Colors.textMuted },
+  weekDetailItem: { flex: 1, alignItems: 'center', backgroundColor: themeColors.surfaceAlt, borderRadius: Tokens.radius.md, padding: 10, gap: 4 },
+  weekDetailLabel: { fontSize: Type.caption2.fontSize, fontWeight: '500' as const, color: themeColors.textMuted },
   weekDetailValue: { fontSize: Type.callout.fontSize, fontWeight: '800' as const },
   weekItemsGroup: { marginTop: 12, gap: 4 },
-  weekItemsLabel: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.textMuted, marginBottom: 4, textTransform: 'uppercase' as const, letterSpacing: 0.5 },
+  weekItemsLabel: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: themeColors.textMuted, marginBottom: 4, textTransform: 'uppercase' as const, letterSpacing: 0.5 },
   weekItemRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 4 },
-  weekItemName: { flex: 1, fontSize: Type.footnote.fontSize, color: Colors.text, marginRight: 8 },
+  weekItemName: { flex: 1, fontSize: Type.footnote.fontSize, color: themeColors.text, marginRight: 8 },
   weekItemAmount: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const },
-  emptyWeekText: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, textAlign: 'center', paddingVertical: 16 },
-  aiButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: Colors.primary, borderRadius: Tokens.radius.lg, paddingVertical: 14, shadowColor: Colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 12, elevation: 3 },
-  aiButtonText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.textOnPrimary },
-  aiResultsCard: { backgroundColor: Colors.surface, borderRadius: Tokens.radius.panel, padding: 16, marginTop: 12, borderWidth: 1, borderColor: Colors.cardBorder, gap: 12 },
+  emptyWeekText: { fontSize: Type.footnote.fontSize, color: themeColors.textMuted, textAlign: 'center', paddingVertical: 16 },
+  aiButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: themeColors.accent, borderRadius: Tokens.radius.lg, paddingVertical: 14, shadowColor: themeColors.accent, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 12, elevation: 3 },
+  aiButtonText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: "#FFFFFF" },
+  aiResultsCard: { backgroundColor: themeColors.surface, borderRadius: Tokens.radius.panel, padding: 16, marginTop: 12, borderWidth: 1, borderColor: themeColors.line, gap: 12 },
   aiResultsHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  aiResultsTitle: { flex: 1, fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.text },
+  aiResultsTitle: { flex: 1, fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: themeColors.text },
   healthBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: Tokens.radius.sm },
   healthBadgeText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const },
-  aiSummary: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, lineHeight: 20 },
+  aiSummary: { fontSize: Type.bodyCompact.fontSize, color: themeColors.textSecondary, lineHeight: 20 },
   aiSection: { gap: 8, marginTop: 4 },
-  aiSectionTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: Colors.text, textTransform: 'uppercase' as const, letterSpacing: 0.5 },
+  aiSectionTitle: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: themeColors.text, textTransform: 'uppercase' as const, letterSpacing: 0.5 },
   criticalWeekRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingVertical: 4 },
-  criticalWeekText: { flex: 1, fontSize: Type.footnote.fontSize, color: Colors.textSecondary, lineHeight: 18 },
+  criticalWeekText: { flex: 1, fontSize: Type.footnote.fontSize, color: themeColors.textSecondary, lineHeight: 18 },
   recCard: { borderRadius: Tokens.radius.card, padding: 12, borderWidth: 1, gap: 6 },
   recHeader: { flexDirection: 'row', gap: 6 },
   recPriorityBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4 },
   recPriorityText: { fontSize: 10, fontWeight: '700' as const, textTransform: 'uppercase' as const },
   recDiffBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4 },
-  recDiffText: { fontSize: 10, fontWeight: '600' as const, color: Colors.textMuted, textTransform: 'uppercase' as const },
-  recAction: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: Colors.text, lineHeight: 19 },
-  recImpact: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary },
+  recDiffText: { fontSize: 10, fontWeight: '600' as const, color: themeColors.textMuted, textTransform: 'uppercase' as const },
+  recAction: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const, color: themeColors.text, lineHeight: 19 },
+  recImpact: { fontSize: Type.caption1.fontSize, color: themeColors.textSecondary },
   bulletRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-  bulletText: { flex: 1, fontSize: Type.footnote.fontSize, color: Colors.textSecondary, lineHeight: 18 },
-  aiGenLabel: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, textAlign: 'right', marginTop: 4 },
-  modalOverlay: { flex: 1, backgroundColor: Colors.overlay, justifyContent: 'center', padding: 24 },
-  modalCard: { backgroundColor: Colors.surface, borderRadius: 20, padding: 20, gap: 12 },
-  modalCardBottom: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: Colors.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 20, maxHeight: '80%', gap: 10 },
+  bulletText: { flex: 1, fontSize: Type.footnote.fontSize, color: themeColors.textSecondary, lineHeight: 18 },
+  aiGenLabel: { fontSize: Type.caption2.fontSize, color: themeColors.textMuted, textAlign: 'right', marginTop: 4 },
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: 'center', padding: 24 },
+  modalCard: { backgroundColor: themeColors.surface, borderRadius: 20, padding: 20, gap: 12 },
+  modalCardBottom: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: themeColors.surface, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 20, maxHeight: '80%', gap: 10 },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  modalTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: Colors.text },
-  modalFieldLabel: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: Colors.textSecondary, marginTop: 8 },
-  modalInputRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.card, paddingHorizontal: 12 },
-  modalDollar: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: Colors.primary },
-  modalInput: { flex: 1, minHeight: 48, fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: Colors.text, paddingHorizontal: 8 },
-  modalTextInput: { minHeight: 44, borderRadius: Tokens.radius.card, backgroundColor: Colors.surfaceAlt, paddingHorizontal: 14, fontSize: Type.subhead.fontSize, color: Colors.text },
+  modalTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700' as const, color: themeColors.text },
+  modalFieldLabel: { fontSize: Type.caption1.fontSize, fontWeight: '600' as const, color: themeColors.textSecondary, marginTop: 8 },
+  modalInputRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: themeColors.surfaceAlt, borderRadius: Tokens.radius.card, paddingHorizontal: 12 },
+  modalDollar: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: themeColors.accent },
+  modalInput: { flex: 1, minHeight: 48, fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: themeColors.text, paddingHorizontal: 8 },
+  modalTextInput: { minHeight: 44, borderRadius: Tokens.radius.card, backgroundColor: themeColors.surfaceAlt, paddingHorizontal: 14, fontSize: Type.subhead.fontSize, color: themeColors.text },
   chipGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 6 },
-  chip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: Tokens.radius.md, backgroundColor: Colors.fillTertiary },
-  chipActive: { backgroundColor: Colors.primary },
-  chipText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.textSecondary },
-  chipTextActive: { color: Colors.textOnPrimary },
-  modalSaveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: Colors.primary, borderRadius: Tokens.radius.lg, paddingVertical: 14, marginTop: 12 },
-  modalSaveBtnText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.textOnPrimary },
+  chip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: Tokens.radius.md, backgroundColor: themeColors.line },
+  chipActive: { backgroundColor: themeColors.accent },
+  chipText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: themeColors.textSecondary },
+  chipTextActive: { color: "#FFFFFF" },
+  modalSaveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: themeColors.accent, borderRadius: Tokens.radius.lg, paddingVertical: 14, marginTop: 12 },
+  modalSaveBtnText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: "#FFFFFF" },
 });

@@ -26,6 +26,8 @@ import {
 import EmptyState from '@/components/EmptyState';
 import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import type { ThemeColors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -61,6 +63,7 @@ export default function ContractScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
   const { getProject, updateProject: ctxUpdateProject, settings } = useProjects();
   const project = projectId ? getProject(projectId) : undefined;
@@ -341,7 +344,7 @@ export default function ContractScreen() {
       <View style={[styles.container, { paddingTop: insets.top + 16 }]}>
         <Stack.Screen options={{ headerShown: false }} />
         <EmptyState
-          icon={<FileSignature size={36} color={Colors.primary} strokeWidth={1.6} />}
+          icon={<FileSignature size={36} color={themeColors.accent} strokeWidth={1.6} />}
           title="No contract open yet"
           message="Contracts (scope, payment schedule, allowances, signatures) live inside a project. To start one:"
           steps={[
@@ -359,7 +362,7 @@ export default function ContractScreen() {
     return (
       <View style={[styles.container, styles.center, { paddingTop: insets.top + 24 }]}>
         <Stack.Screen options={{ headerShown: false }} />
-        <ActivityIndicator size="small" color={Colors.primary} />
+        <ActivityIndicator size="small" color={themeColors.accent} />
       </View>
     );
   }
@@ -374,7 +377,7 @@ export default function ContractScreen() {
 
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
-          <ChevronLeft size={26} color={Colors.primary} />
+          <ChevronLeft size={26} color={themeColors.accent} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.eyebrow}>{project.name}</Text>
@@ -403,11 +406,11 @@ export default function ContractScreen() {
             onChangeText={v => updateContract('title', v)}
             editable={!isLocked}
             placeholder="Construction Agreement"
-            placeholderTextColor={Colors.textMuted}
+            placeholderTextColor={themeColors.textMuted}
           />
           <Text style={[styles.cardLabel, { marginTop: 14 }]}>Contract value</Text>
           <View style={styles.amountField}>
-            <DollarSign size={16} color={Colors.textMuted} />
+            <DollarSign size={16} color={themeColors.textMuted} />
             <TextInput
               style={[styles.amountInput, isLocked && styles.inputDisabled]}
               value={String(contract.contractValue || '')}
@@ -415,7 +418,7 @@ export default function ContractScreen() {
               keyboardType="numeric"
               editable={!isLocked}
               placeholder="0"
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={themeColors.textMuted}
             />
           </View>
         </View>
@@ -432,7 +435,7 @@ export default function ContractScreen() {
             multiline
             numberOfLines={8}
             placeholder="Describe the scope in detail..."
-            placeholderTextColor={Colors.textMuted}
+            placeholderTextColor={themeColors.textMuted}
             textAlignVertical="top"
           />
         </View>
@@ -448,7 +451,7 @@ export default function ContractScreen() {
             </View>
             {!isLocked && (
               <TouchableOpacity style={styles.smallBtn} onPress={addMilestone}>
-                <Plus size={14} color={Colors.primary} />
+                <Plus size={14} color={themeColors.accent} />
                 <Text style={styles.smallBtnText}>Add</Text>
               </TouchableOpacity>
             )}
@@ -468,7 +471,7 @@ export default function ContractScreen() {
             <Text style={styles.scheduleTotalLabel}>Total scheduled</Text>
             <Text style={[
               styles.scheduleTotalValue,
-              !scheduleMatchesValue && { color: Colors.warning },
+              !scheduleMatchesValue && { color: themeColors.accent },
             ]}>
               {formatMoney(totalScheduled)}
             </Text>
@@ -506,7 +509,7 @@ export default function ContractScreen() {
             </View>
             {!isLocked && (
               <TouchableOpacity style={styles.smallBtn} onPress={addAllowance}>
-                <Plus size={14} color={Colors.primary} />
+                <Plus size={14} color={themeColors.accent} />
                 <Text style={styles.smallBtnText}>Add</Text>
               </TouchableOpacity>
             )}
@@ -519,10 +522,10 @@ export default function ContractScreen() {
                 onChangeText={v => updateAllowance(a.id, { category: v })}
                 editable={!isLocked}
                 placeholder="Category"
-                placeholderTextColor={Colors.textMuted}
+                placeholderTextColor={themeColors.textMuted}
               />
               <View style={styles.allowanceAmountField}>
-                <DollarSign size={12} color={Colors.textMuted} />
+                <DollarSign size={12} color={themeColors.textMuted} />
                 <TextInput
                   style={[styles.allowanceAmount, isLocked && styles.inputDisabled]}
                   value={String(a.amount || '')}
@@ -530,12 +533,12 @@ export default function ContractScreen() {
                   keyboardType="numeric"
                   editable={!isLocked}
                   placeholder="0"
-                  placeholderTextColor={Colors.textMuted}
+                  placeholderTextColor={themeColors.textMuted}
                 />
               </View>
               {!isLocked && (
                 <TouchableOpacity onPress={() => removeAllowance(a.id)} hitSlop={6} accessibilityRole="button" accessibilityLabel="Delete">
-                  <Trash2 size={14} color={Colors.error} />
+                  <Trash2 size={14} color={themeColors.danger} />
                 </TouchableOpacity>
               )}
             </View>
@@ -597,9 +600,9 @@ export default function ContractScreen() {
               disabled={saving}
               activeOpacity={0.85}
             >
-              {saving ? <ActivityIndicator size="small" color={Colors.text} /> : (
+              {saving ? <ActivityIndicator size="small" color={themeColors.text} /> : (
                 <>
-                  <Edit3 size={14} color={Colors.text} />
+                  <Edit3 size={14} color={themeColors.text} />
                   <Text style={styles.secondaryBtnText}>Save draft</Text>
                 </>
               )}
@@ -618,7 +621,7 @@ export default function ContractScreen() {
 
         {contract.status === 'sent' && (
           <View style={styles.statusBanner}>
-            <Send size={16} color={Colors.primary} />
+            <Send size={16} color={themeColors.accent} />
             <View style={{ flex: 1 }}>
               <Text style={styles.statusBannerTitle}>Sent to the homeowner</Text>
               <Text style={styles.statusBannerBody}>
@@ -629,10 +632,10 @@ export default function ContractScreen() {
         )}
 
         {contract.status === 'signed' && (
-          <View style={[styles.statusBanner, { backgroundColor: Colors.success + '0D', borderColor: Colors.success + '30' }]}>
-            <CheckCircle2 size={16} color={Colors.success} />
+          <View style={[styles.statusBanner, { backgroundColor: themeColors.success + '0D', borderColor: themeColors.success + '30' }]}>
+            <CheckCircle2 size={16} color={themeColors.success} />
             <View style={{ flex: 1 }}>
-              <Text style={[styles.statusBannerTitle, { color: Colors.success }]}>Signed by both parties</Text>
+              <Text style={[styles.statusBannerTitle, { color: themeColors.success }]}>Signed by both parties</Text>
               <Text style={styles.statusBannerBody}>
                 Binding agreement on file. Invoices on this project should reference it.
               </Text>
@@ -656,6 +659,8 @@ export default function ContractScreen() {
 // ─── Sub-components ─────────────────────────────────────────────────
 
 function StatusPill({ status }: { status: ProjectContract['status'] }) {
+  const styles = useThemedStyles(makeStyles);
+  const { colors: themeColors } = useTheme();
   // Use the shared statusPillStyle helper so SIGNED / SENT / VOID /
   // DRAFT match the same green/amber/red/gray scheme used on lien
   // waivers and the closeout binder header.
@@ -674,11 +679,13 @@ function MilestoneRow({ milestone, locked, onChange, onRemove }: {
   onChange: (patch: Partial<PaymentMilestone>) => void;
   onRemove: () => void;
 }) {
+  const styles = useThemedStyles(makeStyles);
+  const { colors: themeColors } = useTheme();
   const cfg =
-    milestone.status === 'paid'     ? { bg: Colors.success + '15', color: Colors.success, label: 'PAID' } :
-    milestone.status === 'invoiced' ? { bg: Colors.primary + '15', color: Colors.primary, label: 'INVOICED' } :
-    milestone.status === 'skipped'  ? { bg: Colors.fillSecondary,  color: Colors.textMuted, label: 'SKIPPED' } :
-                                       { bg: Colors.fillSecondary, color: Colors.textMuted, label: 'PENDING' };
+    milestone.status === 'paid'     ? { bg: themeColors.success + '15', color: themeColors.success, label: 'PAID' } :
+    milestone.status === 'invoiced' ? { bg: themeColors.accent + '15', color: themeColors.accent, label: 'INVOICED' } :
+    milestone.status === 'skipped'  ? { bg: themeColors.surfaceAlt,  color: themeColors.textMuted, label: 'SKIPPED' } :
+                                       { bg: themeColors.surfaceAlt, color: themeColors.textMuted, label: 'PENDING' };
   const triggerLabel =
     milestone.trigger === 'on_signing'   ? 'On signing'
     : milestone.trigger === 'on_final'   ? 'On final completion'
@@ -697,7 +704,7 @@ function MilestoneRow({ milestone, locked, onChange, onRemove }: {
         </View>
         <View style={{ flex: 1 }} />
         {!locked && (
-          <TouchableOpacity onPress={onRemove} hitSlop={8} style={styles.milestoneTrash} accessibilityRole="button" accessibilityLabel="Delete"><Trash2 size={14} color={Colors.error} /></TouchableOpacity>
+          <TouchableOpacity onPress={onRemove} hitSlop={8} style={styles.milestoneTrash} accessibilityRole="button" accessibilityLabel="Delete"><Trash2 size={14} color={themeColors.danger} /></TouchableOpacity>
         )}
       </View>
 
@@ -711,7 +718,7 @@ function MilestoneRow({ milestone, locked, onChange, onRemove }: {
         onChangeText={v => onChange({ label: v })}
         editable={!locked}
         placeholder="e.g. 25% Deposit"
-        placeholderTextColor={Colors.textMuted}
+        placeholderTextColor={themeColors.textMuted}
       />
 
       {/* Amount + Trigger row — two columns with explicit flex so they
@@ -721,7 +728,7 @@ function MilestoneRow({ milestone, locked, onChange, onRemove }: {
         <View style={styles.milestoneFieldCol}>
           <Text style={styles.milestoneFieldLabel}>Amount</Text>
           <View style={styles.milestoneAmountBox}>
-            <DollarSign size={14} color={Colors.textMuted} />
+            <DollarSign size={14} color={themeColors.textMuted} />
             <TextInput
               style={[styles.milestoneAmountInput, locked && styles.inputDisabled]}
               value={String(milestone.amount ?? '')}
@@ -729,7 +736,7 @@ function MilestoneRow({ milestone, locked, onChange, onRemove }: {
               keyboardType="numeric"
               editable={!locked}
               placeholder="0"
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={themeColors.textMuted}
             />
           </View>
         </View>
@@ -753,7 +760,7 @@ function MilestoneRow({ milestone, locked, onChange, onRemove }: {
             value={milestone.triggerMilestone ?? ''}
             onChangeText={v => onChange({ triggerMilestone: v })}
             placeholder="e.g. Foundation pour complete and inspected"
-            placeholderTextColor={Colors.textMuted}
+            placeholderTextColor={themeColors.textMuted}
           />
         </>
       )}
@@ -762,6 +769,7 @@ function MilestoneRow({ milestone, locked, onChange, onRemove }: {
 }
 
 function SignatureBlock({ label, name, signedAt }: { label: string; name: string; signedAt: string }) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.sigBlock}>
       <Text style={styles.sigLabel}>{label}</Text>
@@ -778,6 +786,8 @@ function SignatureModal({ visible, onClose, onSign, signing, defaultName }: {
   signing: boolean;
   defaultName: string;
 }) {
+  const styles = useThemedStyles(makeStyles);
+  const { colors: themeColors } = useTheme();
   const [paths, setPaths] = useState<string[]>([]);
   const [typedName, setTypedName] = useState('');
 
@@ -808,7 +818,7 @@ function SignatureModal({ visible, onClose, onSign, signing, defaultName }: {
             value={typedName}
             onChangeText={setTypedName}
             placeholder="Your full legal name"
-            placeholderTextColor={Colors.textMuted}
+            placeholderTextColor={themeColors.textMuted}
             autoCapitalize="words"
           />
           <View style={styles.modalActions}>
@@ -834,41 +844,41 @@ function SignatureModal({ visible, onClose, onSign, signing, defaultName }: {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: themeColors.bg },
   center: { alignItems: 'center', justifyContent: 'center' },
   header: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 10,
     paddingHorizontal: 16, paddingTop: 14, paddingBottom: 14,
-    borderBottomWidth: 1, borderBottomColor: Colors.border,
+    borderBottomWidth: 1, borderBottomColor: themeColors.line,
   },
-  eyebrow: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.primary, letterSpacing: 1.4, textTransform: 'uppercase' },
-  title:   { fontSize: Type.title3.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.4, marginTop: 4 },
+  eyebrow: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: themeColors.accent, letterSpacing: 1.4, textTransform: 'uppercase' },
+  title:   { fontSize: Type.title3.fontSize, fontWeight: '800', color: themeColors.text, letterSpacing: -0.4, marginTop: 4 },
 
   pill: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: Tokens.radius.full },
   pillText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
 
   card: {
-    backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 14,
-    borderWidth: 1, borderColor: Colors.border, marginBottom: 12,
+    backgroundColor: themeColors.surface, borderRadius: Tokens.radius.lg, padding: 14,
+    borderWidth: 1, borderColor: themeColors.line, marginBottom: 12,
   },
   cardHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 4 },
-  cardLabel: { fontSize: Type.caption2.fontSize, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 6 },
-  cardHelper: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginBottom: 10, lineHeight: 17 },
+  cardLabel: { fontSize: Type.caption2.fontSize, fontWeight: '800', color: themeColors.textMuted, letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 6 },
+  cardHelper: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted, marginBottom: 10, lineHeight: 17 },
 
   smallBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     paddingHorizontal: 10, paddingVertical: 6, borderRadius: 9,
-    backgroundColor: Colors.primary + '0D',
-    borderWidth: 1, borderColor: Colors.primary + '30',
+    backgroundColor: themeColors.accent + '0D',
+    borderWidth: 1, borderColor: themeColors.accent + '30',
   },
-  smallBtnText: { fontSize: Type.caption1.fontSize, fontWeight: '800', color: Colors.primary },
+  smallBtnText: { fontSize: Type.caption1.fontSize, fontWeight: '800', color: themeColors.accent },
 
   input: {
-    backgroundColor: Colors.background,
-    borderWidth: 1, borderColor: Colors.border, borderRadius: Tokens.radius.md,
+    backgroundColor: themeColors.bg,
+    borderWidth: 1, borderColor: themeColors.line, borderRadius: Tokens.radius.md,
     paddingHorizontal: 12, paddingVertical: 11,
-    fontSize: Type.bodyCompact.fontSize, color: Colors.text,
+    fontSize: Type.bodyCompact.fontSize, color: themeColors.text,
   },
   inputDisabled: { opacity: 0.7 },
   inputMultiline: { minHeight: 110, paddingTop: 11 },
@@ -876,11 +886,11 @@ const styles = StyleSheet.create({
 
   amountField: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: Colors.background, borderRadius: Tokens.radius.md,
-    borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: themeColors.bg, borderRadius: Tokens.radius.md,
+    borderWidth: 1, borderColor: themeColors.line,
     paddingHorizontal: 14, paddingVertical: 8,
   },
-  amountInput: { flex: 1, fontSize: Type.subheadline.fontSize, fontWeight: '800', color: Colors.text },
+  amountInput: { flex: 1, fontSize: Type.subheadline.fontSize, fontWeight: '800', color: themeColors.text },
 
   // ── Milestone row (Payment Schedule) ──
   // Redesigned to remove the cramped/overlapping look. Each input has
@@ -889,10 +899,10 @@ const styles = StyleSheet.create({
   // other. Status pill moved to its own header row to stop crowding the
   // label input.
   milestoneCard: {
-    backgroundColor: Colors.surface,
+    backgroundColor: themeColors.surface,
     borderRadius: Tokens.radius.card,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: themeColors.line,
     paddingTop: 12,
     paddingBottom: 14,
     paddingHorizontal: 14,
@@ -907,19 +917,19 @@ const styles = StyleSheet.create({
   milestoneTrash: {
     width: 28, height: 28, borderRadius: Tokens.radius.sm,
     alignItems: 'center', justifyContent: 'center',
-    backgroundColor: Colors.errorLight,
+    backgroundColor: themeColors.danger,
   },
   milestoneStatus: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: Tokens.radius.full },
   milestoneStatusText: { fontSize: 9, fontWeight: '800', letterSpacing: 0.6 },
   milestoneFieldLabel: {
-    fontSize: 10, fontWeight: '800', color: Colors.textMuted,
+    fontSize: 10, fontWeight: '800', color: themeColors.textMuted,
     letterSpacing: 0.7, textTransform: 'uppercase', marginBottom: 4,
   },
   milestoneLabelInput: {
-    backgroundColor: Colors.background,
-    borderWidth: 1, borderColor: Colors.border, borderRadius: 9,
+    backgroundColor: themeColors.bg,
+    borderWidth: 1, borderColor: themeColors.line, borderRadius: 9,
     paddingHorizontal: 12, paddingVertical: 10,
-    fontSize: Type.bodyCompact.fontSize, fontWeight: '600', color: Colors.text,
+    fontSize: Type.bodyCompact.fontSize, fontWeight: '600', color: themeColors.text,
     marginBottom: 12,
   },
   milestoneFieldsRow: {
@@ -929,48 +939,48 @@ const styles = StyleSheet.create({
   milestoneFieldCol: { flex: 1, minWidth: 0 },
   milestoneAmountBox: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: Colors.background,
-    borderWidth: 1, borderColor: Colors.border, borderRadius: 9,
+    backgroundColor: themeColors.bg,
+    borderWidth: 1, borderColor: themeColors.line, borderRadius: 9,
     paddingHorizontal: 12, paddingVertical: 10,
     minHeight: 44,
   },
   milestoneAmountInput: {
-    flex: 1, fontSize: Type.subhead.fontSize, fontWeight: '700', color: Colors.text,
+    flex: 1, fontSize: Type.subhead.fontSize, fontWeight: '700', color: themeColors.text,
     padding: 0,
     minHeight: 22,
   },
   milestoneTriggerBox: {
-    backgroundColor: Colors.fillSecondary,
-    borderWidth: 1, borderColor: Colors.border, borderRadius: 9,
+    backgroundColor: themeColors.surfaceAlt,
+    borderWidth: 1, borderColor: themeColors.line, borderRadius: 9,
     paddingHorizontal: 12, paddingVertical: 10,
     minHeight: 44,
     justifyContent: 'center',
   },
   milestoneTriggerText: {
-    fontSize: Type.footnote.fontSize, fontWeight: '600', color: Colors.text,
+    fontSize: Type.footnote.fontSize, fontWeight: '600', color: themeColors.text,
     lineHeight: 17,
   },
   milestoneTriggerInput: {
-    fontSize: Type.footnote.fontSize, color: Colors.text,
-    backgroundColor: Colors.background, borderRadius: 9,
+    fontSize: Type.footnote.fontSize, color: themeColors.text,
+    backgroundColor: themeColors.bg, borderRadius: 9,
     paddingHorizontal: 12, paddingVertical: 10,
-    borderWidth: 1, borderColor: Colors.border,
+    borderWidth: 1, borderColor: themeColors.line,
     minHeight: 44,
   },
 
   scheduleTotalRow: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingTop: 12, marginTop: 6,
-    borderTopWidth: 1, borderTopColor: Colors.border,
+    borderTopWidth: 1, borderTopColor: themeColors.line,
   },
-  scheduleTotalLabel: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: Colors.textMuted, letterSpacing: 0.4, textTransform: 'uppercase' },
-  scheduleTotalValue: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: Colors.text },
+  scheduleTotalLabel: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: themeColors.textMuted, letterSpacing: 0.4, textTransform: 'uppercase' },
+  scheduleTotalValue: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: themeColors.text },
   // Mismatch banner — its own row, amber tint, real "this is wrong" affordance
   scheduleMismatchBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: Colors.warningLight,
+    backgroundColor: themeColors.accentSoft,
     borderRadius: 9,
     paddingHorizontal: 12,
     paddingVertical: 10,
@@ -981,11 +991,11 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: Type.caption1.fontSize,
     fontWeight: '600',
-    color: Colors.warning,
+    color: themeColors.accent,
     lineHeight: 16,
   },
   rebalanceBtn: {
-    backgroundColor: Colors.warning,
+    backgroundColor: themeColors.accent,
     borderRadius: Tokens.radius.sm,
     paddingHorizontal: 10,
     paddingVertical: 6,
@@ -994,38 +1004,38 @@ const styles = StyleSheet.create({
 
   allowanceRow: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: Colors.surface, borderRadius: Tokens.radius.md,
+    backgroundColor: themeColors.surface, borderRadius: Tokens.radius.md,
     paddingHorizontal: 12, paddingVertical: 10, marginBottom: 8,
-    borderWidth: 1, borderColor: Colors.border,
+    borderWidth: 1, borderColor: themeColors.line,
     minHeight: 48,
   },
   allowanceCategory: {
-    flex: 1, fontSize: Type.bodyCompact.fontSize, color: Colors.text, padding: 0,
+    flex: 1, fontSize: Type.bodyCompact.fontSize, color: themeColors.text, padding: 0,
     fontWeight: '600',
   },
   allowanceAmountField: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     paddingHorizontal: 10, paddingVertical: 8,
-    backgroundColor: Colors.background, borderRadius: Tokens.radius.sm,
-    borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: themeColors.bg, borderRadius: Tokens.radius.sm,
+    borderWidth: 1, borderColor: themeColors.line,
     minWidth: 110,
   },
-  allowanceAmount: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text, padding: 0, flex: 1 },
-  allowanceEmpty: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, fontStyle: 'italic', textAlign: 'center', paddingVertical: 12 },
+  allowanceAmount: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: themeColors.text, padding: 0, flex: 1 },
+  allowanceEmpty: { fontSize: Type.caption1.fontSize, color: themeColors.textMuted, fontStyle: 'italic', textAlign: 'center', paddingVertical: 12 },
 
   sigBlock: {
-    paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.border,
+    paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: themeColors.line,
   },
-  sigLabel: { fontSize: 10, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.6, textTransform: 'uppercase' },
-  sigName:  { fontSize: Type.callout.fontSize, fontWeight: '800', color: Colors.text, fontStyle: 'italic', marginTop: 4 },
-  sigDate:  { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 2 },
+  sigLabel: { fontSize: 10, fontWeight: '800', color: themeColors.textMuted, letterSpacing: 0.6, textTransform: 'uppercase' },
+  sigName:  { fontSize: Type.callout.fontSize, fontWeight: '800', color: themeColors.text, fontStyle: 'italic', marginTop: 4 },
+  sigDate:  { fontSize: Type.caption2.fontSize, color: themeColors.textMuted, marginTop: 2 },
 
   actionRow: { flexDirection: 'row', gap: 10, marginTop: 10 },
   primaryBtn: {
     flex: 1.4, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     paddingVertical: 14, borderRadius: Tokens.radius.card,
-    backgroundColor: Colors.primary,
-    shadowColor: Colors.primary, shadowOffset: { width: 0, height: 4 },
+    backgroundColor: themeColors.accent,
+    shadowColor: themeColors.accent, shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.28, shadowRadius: 8, elevation: 4,
   },
   primaryBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800', color: '#FFF' },
@@ -1033,34 +1043,34 @@ const styles = StyleSheet.create({
   secondaryBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
     paddingVertical: 13, borderRadius: 11,
-    backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: themeColors.surface, borderWidth: 1, borderColor: themeColors.line,
   },
-  secondaryBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.text },
+  secondaryBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: themeColors.text },
 
   statusBanner: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 10,
     padding: 14, borderRadius: Tokens.radius.card,
-    backgroundColor: Colors.primary + '0D',
-    borderWidth: 1, borderColor: Colors.primary + '30',
+    backgroundColor: themeColors.accent + '0D',
+    borderWidth: 1, borderColor: themeColors.accent + '30',
     marginTop: 10,
   },
-  statusBannerTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800', color: Colors.primary },
-  statusBannerBody:  { fontSize: Type.caption1.fontSize, color: Colors.text, marginTop: 3, lineHeight: 17 },
+  statusBannerTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800', color: themeColors.accent },
+  statusBannerBody:  { fontSize: Type.caption1.fontSize, color: themeColors.text, marginTop: 3, lineHeight: 17 },
 
   // Modal
   modalOverlay: { flex: 1, backgroundColor: 'rgba(11, 13, 16, 0.75)', justifyContent: 'flex-end' },
-  modalCard: { backgroundColor: Colors.surface, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 20, gap: 12 },
-  modalTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: Colors.text },
-  modalBody: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, lineHeight: 18 },
+  modalCard: { backgroundColor: themeColors.surface, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 20, gap: 12 },
+  modalTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: themeColors.text },
+  modalBody: { fontSize: Type.footnote.fontSize, color: themeColors.textMuted, lineHeight: 18 },
   modalNameInput: {
-    backgroundColor: Colors.background,
-    borderWidth: 1, borderColor: Colors.border, borderRadius: Tokens.radius.md,
+    backgroundColor: themeColors.bg,
+    borderWidth: 1, borderColor: themeColors.line, borderRadius: Tokens.radius.md,
     paddingHorizontal: 14, paddingVertical: 12,
-    fontSize: Type.subhead.fontSize, fontWeight: '700', color: Colors.text,
+    fontSize: Type.subhead.fontSize, fontWeight: '700', color: themeColors.text,
   },
   modalActions: { flexDirection: 'row', gap: 10 },
-  modalCancel: { flex: 1, paddingVertical: 12, borderRadius: 11, backgroundColor: Colors.background, alignItems: 'center', borderWidth: 1, borderColor: Colors.border },
-  modalCancelText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
-  modalConfirm: { flex: 1.4, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 11, backgroundColor: Colors.primary },
+  modalCancel: { flex: 1, paddingVertical: 12, borderRadius: 11, backgroundColor: themeColors.bg, alignItems: 'center', borderWidth: 1, borderColor: themeColors.line },
+  modalCancelText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: themeColors.text },
+  modalConfirm: { flex: 1.4, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 11, backgroundColor: themeColors.accent },
   modalConfirmText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800', color: '#FFF' },
 });
