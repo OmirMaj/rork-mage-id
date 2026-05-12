@@ -17,6 +17,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { SchedulerProvider, type CpmResult as ContextCpmResult } from './SchedulerContext';
 import { SchedulerHeader } from './SchedulerHeader';
 import { GanttTab } from './tabs/GanttTab';
+import { BoardTab } from './tabs/BoardTab';
 import { TabComingSoon } from './tabs/TabComingSoon';
 import { ListTab } from './tabs/ListTab';
 import type { ProjectSchedule, ScheduleTask } from '@/types';
@@ -33,7 +34,7 @@ export type SchedulerTabKey =
 
 const TABS: { key: SchedulerTabKey; label: string; soon?: boolean }[] = [
   { key: 'gantt',     label: 'Gantt' },
-  { key: 'board',     label: 'Board',     soon: true },
+  { key: 'board',     label: 'Board' },
   { key: 'list',      label: 'List' },
   { key: 'calendar',  label: 'Calendar',  soon: true },
   { key: 'workload',  label: 'Workload',  soon: true },
@@ -161,6 +162,10 @@ function renderTab(key: SchedulerTabKey, props: SchedulerTabShellProps): ReactNo
         onBulkAskAI={props.onBulkAskAI}
       />
     );
+  }
+
+  if (key === 'board') {
+    return <BoardTab />;
   }
 
   if (key === 'calendar') {
