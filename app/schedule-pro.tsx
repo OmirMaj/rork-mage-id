@@ -43,6 +43,7 @@ import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
 import GridPane from '@/components/schedule/GridPane';
 import InteractiveGantt from '@/components/schedule/InteractiveGantt';
+import { SchedulerTabShell } from '@/components/schedule/SchedulerTabShell';
 import AIAssistantPanel from '@/components/schedule/AIAssistantPanel';
 import ClosuresModal from '@/components/schedule/ClosuresModal';
 import ScheduleSettingsMenu from '@/components/schedule/ScheduleSettingsMenu';
@@ -59,6 +60,7 @@ import { getSimulatedForecast } from '@/utils/weatherService';
 import { SubUpdatesPanel } from '@/components/schedule/SubUpdatesPanel';
 import { exportSchedulePdf, type SchedulePdfPaperSize } from '@/utils/exportSchedulePdf';
 import { runCpm, type CpmResult } from '@/utils/cpm';
+import type { CpmResult as ContextCpmResult } from '@/components/schedule/SchedulerContext';
 import { computeSummaryRollup } from '@/utils/summaryRollup';
 import { applyLevelOfEffortSpans, hasAnyLevelOfEffort } from '@/utils/scheduleLoeEngine';
 import { appendAuditToAsyncStorage, buildAuditEntry, summarizeTaskDiff } from '@/utils/scheduleAudit';
@@ -194,6 +196,16 @@ function ScheduleProScreenInner() {
     }),
     [rolledTasks, scheduleStartIso, criticalFloatThresholdDays],
   );
+
+  // SchedulerContext-shaped CPM summary for the tab shell's SchedulerProvider.
+  // Maps from the richer utils/cpm CpmResult to the leaner context shape.
+  // TODO Phase 27: wire slipDaysVsBaseline from baseline comparison once
+  // BaselineManagerModal exposes a "active baseline delta" helper.
+  const contextCpm = useMemo<ContextCpmResult>(() => ({
+    criticalPathDays: cpm.projectFinish,
+    slipDaysVsBaseline: 0, // TODO Phase 27: wire from baseline delta
+    criticalTaskIds: cpm.criticalPath,
+  }), [cpm.projectFinish, cpm.criticalPath]);
 
   // Level-of-Effort post-process: stretch LOE tasks to span their linked
   // work. Cheap when no LOE tasks exist (early-return). The result feeds
@@ -967,80 +979,73 @@ function ScheduleProScreenInner() {
         onPushTasks={handleWeatherPush}
       />
 
-      {/* Body — renders grid, gantt, both, or the resource swim-lanes
-          depending on pane mode. Resource mode replaces the grid+gantt
-          split entirely since it's a different axis (resources, not tasks). */}
-      <View style={styles.body}>
-        {paneMode === 'resources' && (
+      {/* Body — Phase 27: the new SchedulerTabShell (7-tab nav + SchedulerHeader +
+          active tab content) replaces the old manual paneMode grid/gantt/split
+          rendering. Resource swimlanes are a separate mode that lives outside
+          the tab shell since they are a different axis entirely. */}
+      {paneMode === 'resources' ? (
+        <View style={styles.body}>
           <View style={styles.paneFull}>
             <ResourceSwimlanes
               tasks={rolledTasks}
               resources={project?.schedule?.resources}
               projectStartDate={projectStartDate}
             />
-          </View>
-        )}
-        {paneMode !== 'gantt' && paneMode !== 'resources' && (
-          <View style={paneMode === 'split' ? styles.paneHalf : styles.paneFull}>
-            <GridPane
-              tasks={rolledTasks}
-              projectStartDate={projectStartDate}
-              workingDaysPerWeek={workingDaysPerWeek}
-              focusedTaskId={focusedTaskId}
-              onEdit={handleEdit}
-              onAddTask={handleAddTask}
-              onDeleteTask={handleDeleteTask}
-              selectedIds={selectedIds}
-              onSelectionChange={setSelectedIds}
-              onBulkDelete={handleBulkDelete}
-              onBulkDuplicate={handleBulkDuplicate}
-              onBulkShiftDays={handleBulkShiftDays}
-              onBulkSetPhase={handleBulkSetPhase}
-              onBulkSetCrew={handleBulkSetCrew}
-              onBulkAskAI={handleBulkAskAI}
-              // In split mode the gantt on the right already shows Start /
-              // Finish / Float visually. Hiding those three columns on the
-              // grid leaves the table as a focused "edit the fields" pane and
-              // lets the timeline breathe.
-              compact={paneMode === 'split'}
-            />
-          </View>
-        )}
-        {paneMode !== 'grid' && paneMode !== 'resources' && (
-          <View style={paneMode === 'split' ? styles.paneHalfRight : styles.paneFull}>
-            <InteractiveGantt
-              tasks={rolledTasks}
-              cpm={cpm}
-              projectStartDate={projectStartDate}
-              onEdit={handleEdit}
-              onDependencyCreate={handleDependencyCreate}
-              focusedTaskId={focusedTaskId}
-              onFocusTask={setFocusedTaskId}
-              // Hide the gantt's own task-name gutter in split view — it
-              // would repeat the task column already shown in the grid.
-              compact={paneMode === 'split'}
-            />
-          </View>
-        )}
-        {/* Task inspector — right-docked. Appears when a task has focus
-            (click a bar, or add a row-click handler to the grid). Lets
-            users view CPM numbers, flip status, and tweak progress with
-            the timeline still visible. Escape clears focus (handled in
-            the keyboard effect above). */}
-        {focusedTaskId && (() => {
-          const focusedTask = rolledTasks.find(t => t.id === focusedTaskId) ?? null;
-          return (
-            <TaskInspector
-              task={focusedTask}
-              allTasks={rolledTasks}
-              cpm={cpm}
-              projectStartDate={projectStartDate}
-              onClose={() => setFocusedTaskId(null)}
-              onEdit={handleEdit}
-            />
-          );
-        })()}
-      </View>
+        </View>
+      ) : (
+        <View style={styles.tabShellBody}>
+          <SchedulerTabShell
+            schedule={project?.schedule ?? ({
+              id: project?.id ?? '',
+              projectId: project?.id ?? '',
+              name: project?.name ?? 'Schedule',
+              tasks: rolledTasks,
+              startDate: project?.schedule?.startDate,
+              totalDurationDays: cpm.projectFinish,
+              healthScore: healthScore.score,
+            } as import('@/types').ProjectSchedule)}
+            contextCpm={contextCpm}
+            projectName={project?.name ?? 'Schedule'}
+            onExportPress={() => { void handleExportPdf(); }}
+            onBaselinePress={() => setShowBaselineManager(true)}
+            projectStartDate={projectStartDate}
+            workingDaysPerWeek={workingDaysPerWeek}
+            nonWorkingDates={project?.schedule?.nonWorkingDates}
+            utilsCpm={cpm}
+            onEdit={handleEdit}
+            onAddTask={handleAddTask}
+            onDeleteTask={handleDeleteTask}
+            onDependencyCreate={handleDependencyCreate}
+            focusedTaskId={focusedTaskId}
+            onFocusTask={setFocusedTaskId}
+            selectedIds={selectedIds}
+            onSelectionChange={setSelectedIds}
+            onBulkDelete={handleBulkDelete}
+            onBulkDuplicate={handleBulkDuplicate}
+            onBulkShiftDays={handleBulkShiftDays}
+            onBulkSetPhase={handleBulkSetPhase}
+            onBulkSetCrew={handleBulkSetCrew}
+            onBulkAskAI={handleBulkAskAI}
+          />
+          {/* Task inspector — right-docked sibling to the tab shell. Appears
+              when a task has focus (click a bar). Escape clears focus (handled
+              in the keyboard effect above). Modals stay at screen level so they
+              are unaffected by tab switching. */}
+          {focusedTaskId && (() => {
+            const focusedTask = rolledTasks.find(t => t.id === focusedTaskId) ?? null;
+            return (
+              <TaskInspector
+                task={focusedTask}
+                allTasks={rolledTasks}
+                cpm={cpm}
+                projectStartDate={projectStartDate}
+                onClose={() => setFocusedTaskId(null)}
+                onEdit={handleEdit}
+              />
+            );
+          })()}
+        </View>
+      )}
 
       {/* Closures (non-working dates) editor. */}
       <ClosuresModal
@@ -1262,6 +1267,12 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     padding: 12,
     flexDirection: 'row',
     gap: 12,
+  },
+  // Phase 27: tab shell + inspector side-by-side. No padding here — the
+  // shell renders its own internal padding. Inspector floats to the right.
+  tabShellBody: {
+    flex: 1,
+    flexDirection: 'row',
   },
   paneFull: { flex: 1 },
   // Split-view ratios. The grid's compact column set is ~900px wide at its
