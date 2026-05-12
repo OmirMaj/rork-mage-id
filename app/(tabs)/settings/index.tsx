@@ -1478,6 +1478,69 @@ export default function SettingsScreen() {
           </View>
         </View>
 
+        {/* Legal — required for App Store 5.1.1 compliance (privacy
+            disclosure accessible from "within the app"). Was previously
+            only in the paywall, which doesn't reliably count. */}
+        <Text style={styles.sectionHeader}>LEGAL</Text>
+        <View style={styles.group}>
+          <TouchableOpacity
+            style={styles.row}
+            onPress={() => {
+              Linking.openURL('https://mageid.app/privacy').catch(() => {
+                Alert.alert('Could not open', 'Visit mageid.app/privacy in your browser.');
+              });
+            }}
+            activeOpacity={0.6}
+            testID="settings-privacy"
+            accessibilityRole="link"
+            accessibilityLabel="Privacy Policy"
+          >
+            <View style={[styles.iconWrap, { backgroundColor: themeColors.textSecondary }]}>
+              <ShieldCheck size={14} color="#fff" />
+            </View>
+            <Text style={styles.rowLabel}>Privacy Policy</Text>
+            <ChevronRight size={16} color={themeColors.textMuted} />
+          </TouchableOpacity>
+          <View style={styles.rowSeparator} />
+          <TouchableOpacity
+            style={styles.row}
+            onPress={() => {
+              Linking.openURL('https://mageid.app/terms').catch(() => {
+                Alert.alert('Could not open', 'Visit mageid.app/terms in your browser.');
+              });
+            }}
+            activeOpacity={0.6}
+            testID="settings-terms"
+            accessibilityRole="link"
+            accessibilityLabel="Terms of Service"
+          >
+            <View style={[styles.iconWrap, { backgroundColor: themeColors.textSecondary }]}>
+              <FileText size={14} color="#fff" />
+            </View>
+            <Text style={styles.rowLabel}>Terms of Service</Text>
+            <ChevronRight size={16} color={themeColors.textMuted} />
+          </TouchableOpacity>
+          <View style={styles.rowSeparator} />
+          <TouchableOpacity
+            style={styles.row}
+            onPress={() => {
+              Linking.openURL('https://mageid.app/do-not-sell').catch(() => {
+                Alert.alert('Could not open', 'Visit mageid.app/do-not-sell in your browser.');
+              });
+            }}
+            activeOpacity={0.6}
+            testID="settings-do-not-sell"
+            accessibilityRole="link"
+            accessibilityLabel="Do Not Sell or Share My Personal Information"
+          >
+            <View style={[styles.iconWrap, { backgroundColor: themeColors.textSecondary }]}>
+              <ShieldCheck size={14} color="#fff" />
+            </View>
+            <Text style={styles.rowLabel}>Do Not Sell My Info (CA)</Text>
+            <ChevronRight size={16} color={themeColors.textMuted} />
+          </TouchableOpacity>
+        </View>
+
         <Text style={[styles.sectionHeader, { color: themeColors.danger }]}>DANGER ZONE</Text>
         <View style={styles.group}>
           <TouchableOpacity style={styles.row} onPress={handleClearAll} activeOpacity={0.6} testID="clear-all">
