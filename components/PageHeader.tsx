@@ -14,7 +14,7 @@ import React from 'react';
 import { View, Text, StyleSheet, TextInput, Platform, type ViewStyle } from 'react-native';
 import { Search } from 'lucide-react-native';
 import { Type } from '@/constants/typography';
-import { Tokens } from '@/constants/designTokens';
+import { Tokens, Spacing } from '@/constants/designTokens';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
@@ -99,10 +99,10 @@ const makeStyles = (t: ThemeColors) =>
     root: {
       flexDirection: 'row' as const,
       alignItems: 'center' as const,
-      paddingHorizontal: 20,
-      paddingTop: 16,
-      paddingBottom: 16,
-      gap: 16,
+      paddingHorizontal: Spacing.md,
+      paddingTop: Spacing.md,
+      paddingBottom: Spacing.md,
+      gap: Spacing.md,
     },
     left: {
       flex: 1,

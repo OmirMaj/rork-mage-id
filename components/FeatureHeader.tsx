@@ -20,10 +20,12 @@
 import React, { memo, useState, useCallback } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, type ViewStyle } from 'react-native';
 import { HelpCircle } from 'lucide-react-native';
-import { Colors } from '@/constants/colors';
 import { Type } from '@/constants/typography';
 import { FeatureExplainerSheet, type FeatureExplainerSheetProps } from '@/components/FeatureExplainerSheet';
-import { Tokens } from '@/constants/designTokens';
+import { Tokens, Spacing } from '@/constants/designTokens';
+import { useTheme } from '@/contexts/ThemeContext';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import type { ThemeColors } from '@/constants/colors';
 
 export interface FeatureHeaderProps {
   /** Formal industry term, rendered tiny + uppercase above the title.
@@ -50,6 +52,8 @@ function FeatureHeaderImpl({
   style,
   testID,
 }: FeatureHeaderProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const [explainerOpen, setExplainerOpen] = useState(false);
   const onChipPress = useCallback(() => setExplainerOpen(true), []);
   const onExplainerClose = useCallback(() => setExplainerOpen(false), []);
@@ -59,11 +63,11 @@ function FeatureHeaderImpl({
       <View style={styles.titleRow}>
         <View style={{ flex: 1, minWidth: 0 }}>
           {!!eyebrow && (
-            <Text style={[Type.eyebrow, { color: Colors.textMuted, marginBottom: 4 }]} numberOfLines={1}>
+            <Text style={[Type.eyebrow, { color: colors.textMuted, marginBottom: 4 }]} numberOfLines={1}>
               {eyebrow}
             </Text>
           )}
-          <Text style={[Type.title2, { color: Colors.text }]} numberOfLines={2}>
+          <Text style={[Type.title2, { color: colors.text }]} numberOfLines={2}>
             {title}
           </Text>
         </View>
@@ -75,12 +79,12 @@ function FeatureHeaderImpl({
             testID={testID ? `${testID}-explainer-chip` : 'feature-header-chip'}
             accessibilityLabel={`Learn more about ${title}`}
           >
-            <HelpCircle size={16} color={Colors.textSecondary} strokeWidth={2} />
+            <HelpCircle size={16} color={colors.textSecondary} strokeWidth={2} />
           </TouchableOpacity>
         )}
       </View>
       {!compact && !!subtitle && (
-        <Text style={[Type.subhead, { color: Colors.textSecondary, marginTop: 6 }]}>
+        <Text style={[Type.subhead, { color: colors.textSecondary, marginTop: 6 }]}>
           {subtitle}
         </Text>
       )}
@@ -98,24 +102,25 @@ function FeatureHeaderImpl({
 
 export const FeatureHeader = memo(FeatureHeaderImpl);
 
-const styles = StyleSheet.create({
-  root: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 8,
-  },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
-  },
-  chip: {
-    width: 32,
-    height: 32,
-    borderRadius: Tokens.radius.panel,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Colors.fillTertiary,
-    marginTop: 2,
-  },
-});
+const makeStyles = (t: ThemeColors) =>
+  StyleSheet.create({
+    root: {
+      paddingHorizontal: Spacing.md,
+      paddingTop: Spacing.sm,
+      paddingBottom: Spacing.xs,
+    },
+    titleRow: {
+      flexDirection: 'row' as const,
+      alignItems: 'flex-start' as const,
+      gap: Spacing.sm,
+    },
+    chip: {
+      width: 32,
+      height: 32,
+      borderRadius: Tokens.radius.panel,
+      alignItems: 'center' as const,
+      justifyContent: 'center' as const,
+      backgroundColor: t.surfaceAlt,
+      marginTop: 2,
+    },
+  });
