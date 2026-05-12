@@ -12,6 +12,7 @@ import {
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
+import { Button } from '@/components/ui/Button';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
@@ -218,19 +219,15 @@ export default function PaywallScreen() {
                 <Text style={[styles.currentBadgeText, { color: themeColors.success }]}>Current</Text>
               </View>
             ) : (
-              <TouchableOpacity
-                style={[styles.ctaBtn, isFallbackPricing && styles.ctaBtnDisabled]}
+              <Button
+                label="Subscribe"
                 onPress={handlePurchasePro}
-                activeOpacity={0.85}
                 disabled={isPurchasing || isFallbackPricing}
+                loading={isPurchasing}
+                size="sm"
+                fullWidth
                 testID="buy-pro"
-              >
-                {isPurchasing ? (
-                  <ActivityIndicator color="#fff" size="small" />
-                ) : (
-                  <Text style={styles.ctaBtnText}>Subscribe</Text>
-                )}
-              </TouchableOpacity>
+              />
             )}
           </View>
 
@@ -250,19 +247,15 @@ export default function PaywallScreen() {
                 <Text style={[styles.currentBadgeText, { color: themeColors.success }]}>Current</Text>
               </View>
             ) : (
-              <TouchableOpacity
-                style={[styles.ctaBtn, { backgroundColor: themeColors.accent }, isFallbackPricing && styles.ctaBtnDisabled]}
+              <Button
+                label="Subscribe"
                 onPress={handlePurchaseBusiness}
-                activeOpacity={0.85}
                 disabled={isPurchasing || isFallbackPricing}
+                loading={isPurchasing}
+                size="sm"
+                fullWidth
                 testID="buy-business"
-              >
-                {isPurchasing ? (
-                  <ActivityIndicator color="#fff" size="small" />
-                ) : (
-                  <Text style={styles.ctaBtnText}>Subscribe</Text>
-                )}
-              </TouchableOpacity>
+              />
             )}
           </View>
 
@@ -282,19 +275,15 @@ export default function PaywallScreen() {
                 <Text style={[styles.currentBadgeText, { color: themeColors.success }]}>Current</Text>
               </View>
             ) : (
-              <TouchableOpacity
-                style={[styles.ctaBtn, { backgroundColor: themeColors.accent }, isFallbackPricing && styles.ctaBtnDisabled]}
+              <Button
+                label="Subscribe"
                 onPress={handlePurchaseEnterprise}
-                activeOpacity={0.85}
                 disabled={isPurchasing || isFallbackPricing}
+                loading={isPurchasing}
+                size="sm"
+                fullWidth
                 testID="buy-enterprise"
-              >
-                {isPurchasing ? (
-                  <ActivityIndicator color="#fff" size="small" />
-                ) : (
-                  <Text style={styles.ctaBtnText}>Subscribe</Text>
-                )}
-              </TouchableOpacity>
+              />
             )}
           </View>
         </View>

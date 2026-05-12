@@ -28,6 +28,7 @@ import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
+import { Button } from '@/components/ui/Button';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -594,28 +595,21 @@ export default function ContractScreen() {
         {/* Action bar */}
         {contract.status === 'draft' && (
           <View style={styles.actionRow}>
-            <TouchableOpacity
-              style={styles.secondaryBtn}
+            <Button
+              label="Save draft"
               onPress={handleSaveDraft}
-              disabled={saving}
-              activeOpacity={0.85}
-            >
-              {saving ? <ActivityIndicator size="small" color={themeColors.text} /> : (
-                <>
-                  <Edit3 size={14} color={themeColors.text} />
-                  <Text style={styles.secondaryBtnText}>Save draft</Text>
-                </>
-              )}
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.primaryBtn, !scheduleMatchesValue && styles.primaryBtnDisabled]}
+              variant="secondary"
+              loading={saving}
+              iconLeft={<Edit3 size={14} color={themeColors.text} />}
+              style={{ flex: 1 }}
+            />
+            <Button
+              label="Sign & send"
               onPress={() => setSignatureModal(true)}
               disabled={!scheduleMatchesValue || saving}
-              activeOpacity={0.85}
-            >
-              <FileSignature size={16} color="#FFF" />
-              <Text style={styles.primaryBtnText}>Sign & send</Text>
-            </TouchableOpacity>
+              iconLeft={<FileSignature size={16} color="#FFF" />}
+              style={{ flex: 1 }}
+            />
           </View>
         )}
 

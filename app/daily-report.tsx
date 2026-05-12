@@ -19,6 +19,7 @@ import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
+import { Button } from '@/components/ui/Button';
 import { useProjects } from '@/contexts/ProjectContext';
 import ContactPickerModal from '@/components/ContactPickerModal';
 import { saveDailyReportToProjectFiles } from '@/utils/projectDocuments';
@@ -777,26 +778,19 @@ export default function DailyReportScreen() {
           </TouchableOpacity>
           {!isLocked ? (
             <View style={styles.topBarActions}>
-              <TouchableOpacity
+              <Button
+                label="Save Draft"
                 onPress={() => handleSave('draft')}
-                style={styles.topBarDraftBtn}
-                accessibilityRole="button"
-                accessibilityLabel="Save draft"
+                variant="secondary"
+                size="sm"
                 testID="save-draft-btn"
-                activeOpacity={0.7}
-              >
-                <Text style={styles.topBarDraftText}>Save Draft</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
+              />
+              <Button
+                label="Submit"
                 onPress={handleSendPress}
-                style={styles.topBarSubmitBtn}
-                accessibilityRole="button"
-                accessibilityLabel="Submit report"
+                size="sm"
                 testID="submit-report-btn"
-                activeOpacity={0.85}
-              >
-                <Text style={styles.topBarSubmitText}>Submit</Text>
-              </TouchableOpacity>
+              />
             </View>
           ) : (
             <View style={styles.topBarActions}>

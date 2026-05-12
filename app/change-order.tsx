@@ -14,6 +14,7 @@ import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useThemedStyles } from '@/hooks/useThemedStyles';
 import type { ThemeColors } from '@/constants/colors';
+import { Button } from '@/components/ui/Button';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
 import Paywall from '@/components/Paywall';
@@ -789,23 +790,20 @@ function ChangeOrderInner() {
 
         {!isLocked && (
           <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]}>
-            <TouchableOpacity
-              style={styles.saveProjectBtn}
+            <Button
+              label="Save to Project"
               onPress={() => handleSave('draft')}
-              activeOpacity={0.7}
+              variant="secondary"
+              style={{ flex: 1 }}
               testID="save-co-draft"
-            >
-              <Text style={styles.saveProjectBtnText}>Save to Project</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.sendBtn}
+            />
+            <Button
+              label="Send & Save"
               onPress={handleSendPress}
-              activeOpacity={0.7}
+              iconLeft={<Send size={16} color="#FFFFFF" />}
+              style={{ flex: 1 }}
               testID="send-co-btn"
-            >
-              <Send size={16} color={"#FFFFFF"} />
-              <Text style={styles.sendBtnText}>Send & Save</Text>
-            </TouchableOpacity>
+            />
           </View>
         )}
       </KeyboardAvoidingView>
