@@ -548,6 +548,17 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
     }),
   ).current;
 
+  // --- Last milestone ID (project completion = red diamond) ----------------
+  const lastMilestoneId = useMemo(() => {
+    return tasks
+      .filter(t => t.isMilestone || t.durationDays === 0)
+      .reduce<{ id: string; day: number } | null>((latest, t) => {
+        const day = t.startDay ?? 0;
+        if (!latest || day > latest.day) return { id: t.id, day };
+        return latest;
+      }, null)?.id ?? null;
+  }, [tasks]);
+
   // --- Dependency paths ----------------------------------------------------
   // Draws a right-angle elbow from predecessor's right edge to successor's
   // left edge (FS). For SS we'd go left-to-left; FF right-to-right; SF
@@ -1113,7 +1124,7 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                     refY={3.5}
                     orient="auto"
                   >
-                    <Polygon points="0,0 7,3.5 0,7" fill={Colors.error} />
+                    <Polygon points="0,0 7,3.5 0,7" fill={Colors.pillLate} />
                   </Marker>
                   <Marker
                     id="arrowBlue"
@@ -1123,12 +1134,16 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                     refY={3.5}
                     orient="auto"
                   >
-                    <Polygon points="0,0 7,3.5 0,7" fill={Colors.primary} />
+                    <Polygon points="0,0 7,3.5 0,7" fill="#4A5159" />
                   </Marker>
                 </Defs>
 
                 {dependencyPaths.map(dep => {
-                  const color = dep.critical ? Colors.error : Colors.primary;
+                  // CP→CP links use pillLate (#FF5A51) at 1.5px base width so
+                  // they read as a distinct red chain distinct from the error red.
+                  // Normal links stay on primary blue at the existing 1.9px.
+                  const color = dep.critical ? Colors.pillLate : '#4A5159';
+                  const baseStrokeWidth = dep.critical ? 1.5 : 1.9;
                   // Lines render solid by default — calmer than constant
                   // marching ants on every dependency. The "alive" feel
                   // appears only when a connected bar is hovered or being
@@ -1141,7 +1156,7 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                       key={dep.id}
                       d={dep.d}
                       stroke={color}
-                      strokeWidth={dep.highlighted ? 2.5 : 1.9}
+                      strokeWidth={dep.highlighted ? baseStrokeWidth + 1 : baseStrokeWidth}
                       strokeLinecap="round"
                       strokeLinejoin="round"
                       fill="none"
@@ -1276,6 +1291,7 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                     todayDayNumber={todayDayNumber}
                     dimmed={!inPath}
                     isFocusTarget={isFocusedBar}
+                    isLastMilestone={bar.isMilestone && bar.task.id === lastMilestoneId}
                     onHoverIn={() => setHoverTaskId(bar.task.id)}
                     onHoverOut={() => setHoverTaskId(null)}
                     onBeginDrag={(mode, evt) => beginDrag(bar.task, mode, evt)}
@@ -1581,6 +1597,8 @@ interface BarViewProps {
   dimmed?: boolean;
   /** When true, this bar is the focused task head (MAGE accent outline). */
   isFocusTarget?: boolean;
+  /** When true, this milestone is the latest-dated one (project completion = red). */
+  isLastMilestone?: boolean;
   onHoverIn: () => void;
   onHoverOut: () => void;
   onBeginDrag: (mode: 'move' | 'resize', evt: any) => void;
@@ -1596,7 +1614,7 @@ interface BarViewProps {
 
 function BarView({
   bar, isHovered, isDragging, isLinkTarget, linkInvalid, todayDayNumber,
-  dimmed, isFocusTarget,
+  dimmed, isFocusTarget, isLastMilestone,
   onHoverIn, onHoverOut,
   onBeginDrag, onMoveDrag, onEndDrag,
   onBeginLink, onMoveLink, onEndLink,
@@ -1751,9 +1769,12 @@ function BarView({
 
   if (bar.isMilestone) {
     // Diamond, centered at bar.x, fills its row vertically.
+    // Project-completion milestone (the last-dated one) renders in red (#FF5A51)
+    // to signal "end of project". All other milestones use the task's trade color.
     const size = BAR_HEIGHT;
     const cx = bar.x;
     const cy = bar.y + BAR_HEIGHT / 2;
+    const milestoneColor = isLastMilestone ? Colors.pillLate : barColor;
     return (
       <View
         {...(Platform.OS === 'web' && onFocus ? ({ onClick: (e: any) => { if (isDragging) return; e?.stopPropagation?.(); onFocus(); } } as any) : {})}
@@ -1766,14 +1787,14 @@ function BarView({
           alignItems: 'center',
           justifyContent: 'center',
           transform: [{ rotate: '45deg' }],
-          backgroundColor: barColor,
+          backgroundColor: milestoneColor,
           borderRadius: 4,
           borderWidth: isFocusTarget ? 2 : 0,
           borderColor: Colors.accent,
           opacity: dimmed ? 0.25 : 1,
-          shadowColor: isFocusTarget ? Colors.accent : barColor,
-          shadowOpacity: isFocusTarget ? 0.6 : (isHovered || isDragging ? 0.4 : 0.15),
-          shadowRadius: isFocusTarget ? 8 : (isHovered || isDragging ? 6 : 2),
+          shadowColor: isLastMilestone ? Colors.pillLate : (isFocusTarget ? Colors.accent : milestoneColor),
+          shadowOpacity: isLastMilestone ? 0.5 : (isFocusTarget ? 0.6 : (isHovered || isDragging ? 0.4 : 0.15)),
+          shadowRadius: isLastMilestone ? 6 : (isFocusTarget ? 8 : (isHovered || isDragging ? 6 : 2)),
           shadowOffset: { width: 0, height: 1 },
           zIndex: isDragging ? 20 : (isFocusTarget ? 10 : 2),
         }}
@@ -1803,6 +1824,30 @@ function BarView({
             borderWidth: 2,
             borderColor: targetRingColor,
             backgroundColor: targetRingColor + '22',
+            zIndex: 1,
+          }}
+        />
+      )}
+      {/* Critical-path red shell — a slightly larger halo behind the bar.
+          3px padding above/below/at-ends makes the red border visible around
+          the 20px inner bar without touching it. Shadow glow reinforces CP
+          urgency without relying on color alone (WCAG intent). */}
+      {bar.isCritical && (
+        <View
+          pointerEvents="none"
+          style={{
+            position: 'absolute',
+            left: bar.x - 3,
+            top: bar.y + (BAR_HEIGHT - 20) / 2 - 3,
+            width: bar.w + 6,
+            height: 26,
+            borderRadius: 7,
+            backgroundColor: Colors.pillLate,
+            opacity: dimmed ? 0.1 : 0.28,
+            shadowColor: Colors.pillLate,
+            shadowOffset: { width: 0, height: 0 },
+            shadowOpacity: 0.4,
+            shadowRadius: 8,
             zIndex: 1,
           }}
         />
@@ -1936,6 +1981,25 @@ function BarView({
         </Text>
       </View>
     )}
+
+    {/* --- Resource avatar: 18px circle with crew's first initial.
+        Floats at the right end of each bar when the task has a crew assigned.
+        Skip on hover state — the link handle and chips take that slot. --- */}
+    {!isHovered && (() => {
+      const crewInitial = (bar.task.crew ?? '').trim().charAt(0).toUpperCase();
+      if (!crewInitial) return null;
+      return (
+        <View
+          pointerEvents="none"
+          style={[styles.avatar, {
+            left: bar.x + bar.w + 4,
+            top: bar.y + (BAR_HEIGHT - 18) / 2,
+          }]}
+        >
+          <Text style={styles.avatarText}>{crewInitial}</Text>
+        </View>
+      );
+    })()}
 
     {/* --- Link handle (Phase 4): floats just off the right edge on hover.
         Drag it onto another bar to create a dependency. --- */}
@@ -2568,6 +2632,29 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     fontWeight: '500',
     fontStyle: 'italic',
+  },
+
+  // Resource avatar — 18px circle with crew initial (Overlay 4)
+  avatar: {
+    position: 'absolute',
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: Colors.surface,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.3,
+    shadowRadius: 2,
+    shadowOffset: { width: 0, height: 1 },
+    zIndex: 3,
+  },
+  avatarText: {
+    fontSize: 8,
+    color: Colors.text,
+    fontWeight: '700',
   },
 
   // As-built hover chips (Phase 5)
