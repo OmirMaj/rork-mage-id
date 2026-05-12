@@ -235,6 +235,30 @@ export const Colors = {
       ? 'rgba(244,239,230,0.10)'
       : 'rgba(120,120,128,0.08)';
   },
+
+  // ── Trade colors (Phase 27) — drive Gantt bar + Board phase-dot ──
+  // Industry-conventional palette. Saturation-matched for dark mode
+  // contrast against `surface` #14181D. Brand amber anchors `general`
+  // so the most common bars still feel like MAGE ID.
+  tradeColors: {
+    general:      '#FF6A1A',
+    concrete:     '#90A4AE',
+    framing:      '#8D6E63',
+    electrical:   '#4FC3F7',
+    plumbing:     '#26C6DA',
+    hvac:         '#FFA726',
+    roofing:      '#EF5350',
+    steel:        '#AB47BC',
+    demo:         '#FBC02D',
+    landscaping:  '#66BB6A',
+    finish:       '#F4EFE6',
+    closeout:     '#7986CB',
+  } as const,
+
+  // Status-pill semantic shortcuts (derived from existing tokens)
+  pillOnTrack:  '#4ED37A',
+  pillAtRisk:   '#FFA726',
+  pillLate:     '#FF5A51',
 };
 
 export default {

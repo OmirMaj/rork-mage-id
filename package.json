@@ -9,7 +9,8 @@
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
     "test:tokens": "bun run scripts/validate-design-tokens.ts",
-    "ship-check": "bun run typecheck && bun run lint && bun run test:tokens",
+    "test:colors": "bun run scripts/validate-schedule-colors.ts",
+    "ship-check": "bun run typecheck && bun run lint && bun run test:tokens && bun run test:colors",
     "android": "expo run:android",
     "ios": "expo run:ios"
   },
