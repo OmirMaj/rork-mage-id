@@ -50,16 +50,15 @@ import { useThemedStyles } from '@/hooks/useThemedStyles';
 import { useTheme } from '@/contexts/ThemeContext';
 import type { ScheduleTask } from '@/types';
 import { wouldCreateCycle, type CpmResult } from '@/utils/cpm';
-import { PHASE_COLORS } from '@/utils/scheduleEngine';
-
-// Bar fill is driven by phase, NOT critical-path. Red-only fills made every
-// dense schedule look like an emergency. We pick by phase and let the critical
-// path show through as a red outline + a red dot in the gutter, so the GC
-// keeps the at-a-glance critical-path read without losing phase scannability.
-function colorForTask(task: ScheduleTask): string {
-  return PHASE_COLORS[task.phase ?? 'General'] ?? PHASE_COLORS.General;
-}
+import { colorForTask as canonicalColorForTask } from '@/utils/scheduleColors';
+import { useBarLabel } from '@/utils/useBarLabel';
 import { getHiddenTaskIds } from '@/utils/summaryRollup';
+
+// Bar fill is trade-driven via the canonical colorForTask() from scheduleColors.
+// This delegates so existing internal call sites keep working unchanged.
+function colorForTask(task: ScheduleTask): string {
+  return canonicalColorForTask(task);
+}
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
@@ -109,10 +108,8 @@ const HEADER_HEIGHT = 56;          // month row (24) + day-number row (32)
 const LEFT_GUTTER = 240;           // task-name column baked into the scroller
 const RESIZE_HANDLE_WIDTH = 10;    // px on the right edge that triggers resize vs move
 const MIN_BAR_PX_WIDTH = 14;       // don't let bars collapse below this during drag
-// Today line moved off stark red onto a desaturated indigo. Stark red on a
-// gridded view reads as "alarm" — it's just a position marker. Indigo reads
-// as neutral and lets the actual late/critical reds in the bars carry weight.
-const TODAY_COLOR = '#5E6AD2';
+// TODAY_COLOR removed — today line now uses Colors.pillLate (#FF5A51) with a
+// labeled pill (Task 7 restyle). The old indigo SVG halo is gone.
 // Soft weekend column tint — Apple-app convention is to whisper, not shout.
 // Slate at ~3% over the surface gives a barely-perceptible Sat/Sun band.
 const WEEKEND_TINT = 'rgba(60,60,67,0.025)';
@@ -1093,29 +1090,8 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                     strokeWidth={1}
                   />
                 ))}
-                {todayVisible && (
-                  <>
-                    {/* Soft halo behind the today line — gives it depth on a
-                        flat grid without resorting to a stark dashed pattern. */}
-                    <SvgLine
-                      x1={todayX}
-                      y1={HEADER_HEIGHT}
-                      x2={todayX}
-                      y2={gridHeight}
-                      stroke={TODAY_COLOR}
-                      strokeOpacity={0.18}
-                      strokeWidth={5}
-                    />
-                    <SvgLine
-                      x1={todayX}
-                      y1={HEADER_HEIGHT}
-                      x2={todayX}
-                      y2={gridHeight}
-                      stroke={TODAY_COLOR}
-                      strokeWidth={1.5}
-                    />
-                  </>
-                )}
+                {/* Today line is rendered as a positioned View below (with label pill),
+                    so no SVG lines needed here. */}
               </Svg>
 
               {/* --- Dependency arrows with marching ants --- */}
@@ -1182,18 +1158,7 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                   );
                 })}
 
-                {/* Today label pill (rendered in SVG so it scrolls with the timeline) */}
-                {todayVisible && (
-                  <>
-                    <SvgLine
-                      x1={todayX}
-                      y1={HEADER_HEIGHT - 14}
-                      x2={todayX}
-                      y2={HEADER_HEIGHT - 14}
-                      stroke={TODAY_COLOR}
-                    />
-                  </>
-                )}
+                {/* Today line/label rendered as positioned Views below, not in SVG. */}
               </Svg>
 
               {/* --- Baseline ghost bars (Phase 5) --- */}
@@ -1284,6 +1249,18 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
                   );
                 })}
               </Svg>
+
+              {/* --- Today line + label pill --- */}
+              {todayVisible && (
+                <>
+                  <View style={[styles.todayLine, { left: todayX }]} />
+                  <View style={[styles.todayLabel, { left: todayX }]}>
+                    <Text style={styles.todayLabelText}>
+                      {`TODAY · ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }).toUpperCase()}`}
+                    </Text>
+                  </View>
+                </>
+              )}
 
               {/* --- Bars --- */}
               {bars.map(bar => {
@@ -1590,6 +1567,7 @@ export default function InteractiveGantt(props: InteractiveGanttProps) {
 interface BarViewProps {
   bar: {
     task: ScheduleTask;
+    index: number;
     startDay: number;
     duration: number;
     isMilestone: boolean;
@@ -1695,14 +1673,21 @@ function BarView({
     else varianceLabel = 'started on time';
   }
 
-  // Phase-driven fill (bright Apple palette in PHASE_COLORS). Critical-path
-  // is conveyed via the red gutter dot + red arrow lines — putting an outline
-  // on the bar itself made dense schedules where every task is critical (a
-  // common case) read as rectangular "loops" enclosing each bar.
+  // Trade-driven fill via colorForTask() (canonical scheduleColors palette).
+  // Critical-path is conveyed via the red gutter dot + red arrow lines —
+  // putting an outline on the bar itself made dense schedules where every task
+  // is critical (a common case) read as rectangular "loops" enclosing each bar.
   const barColor = colorForTask(bar.task);
-  const barBg = barColor + '1A';
-  const progressColor = barColor;
   const progressPct = Math.max(0, Math.min(1, (bar.task.progress ?? 0) / 100));
+
+  // Width-aware label — full title+id when wide, abbreviated when narrow.
+  // useBarLabel is a plain function (not a React hook), so calling it here is safe.
+  const barLabelResult = useBarLabel(bar.w, {
+    id: bar.task.id,
+    title: bar.task.title ?? '',
+    progress: bar.task.progress ?? 0,
+    displayId: `T${bar.index + 1}`,
+  });
 
   // Summary bars: rendered as a dark span with inverted "fangs" at each end
   // — visually distinct from normal bars so WBS parents read differently.
@@ -1835,26 +1820,23 @@ function BarView({
         e?.stopPropagation?.();
         onFocus();
       } } as any) : {})}
-      // Bar redesign: drop the heavy 1.5-2.5px solid border (read as
-      // "Microsoft Project bar"), keep the tinted fill, and put a 3px solid
-      // accent stripe on the left to carry category color. Soft drop shadow
-      // appears on hover/drag instead of a colored outline. Reads as an
-      // Apple-app component rather than a spreadsheet cell.
+      // Bar redesign Pt.1: solid trade color fill, white progress overlay at
+      // 22% opacity, width-aware labels via useBarLabel(). Height 20px, radius 5.
       style={{
         position: 'absolute',
         left: bar.x,
-        top: bar.y,
+        top: bar.y + (BAR_HEIGHT - 20) / 2,
         width: bar.w,
-        height: BAR_HEIGHT,
-        borderRadius: BAR_RADIUS,
-        backgroundColor: barBg,
+        height: 20,
+        borderRadius: 5,
+        backgroundColor: barColor,
         borderWidth: 0,
         overflow: 'hidden',
         opacity: dimmed ? 0.28 : 1,
         shadowColor: '#000',
-        shadowOpacity: isFocusTarget ? 0.18 : (isHovered || isDragging ? 0.14 : 0),
-        shadowRadius: isFocusTarget ? 10 : (isHovered || isDragging ? 8 : 0),
-        shadowOffset: { width: 0, height: isHovered || isDragging ? 4 : 1 },
+        shadowOpacity: isFocusTarget ? 0.35 : (isHovered || isDragging ? 0.30 : 0.30),
+        shadowRadius: isFocusTarget ? 6 : 3,
+        shadowOffset: { width: 0, height: 1 },
         zIndex: isDragging ? 20 : (isFocusTarget ? 10 : 2),
         cursor: Platform.OS === 'web' ? 'grab' : undefined,
       } as any}
@@ -1892,30 +1874,32 @@ function BarView({
           pointerEvents="none"
         />
       )}
-      {/* Progress overlay — MSP-style inner band. A thin solid bar centered
-          vertically whose width tracks % complete. Reads cleanly against the
-          tinted bar background even when the task title overflows, and the
-          solid-vs-translucent contrast makes "done so far" vs "remaining"
-          instantly scannable. Zero-progress tasks skip rendering. */}
+      {/* Progress fill — white at 22% opacity, full height, left-anchored.
+          Clips cleanly to rounded corners via overflow:'hidden' on the parent.
+          Zero-progress tasks skip rendering to avoid a stray 0-width View. */}
       {progressPct > 0 && (
         <View
           style={{
             position: 'absolute',
-            left: BAR_ACCENT_WIDTH + 2,
-            top: (BAR_HEIGHT - 6) / 2,
-            height: 6,
+            left: 0,
+            top: 0,
+            bottom: 0,
             width: `${progressPct * 100}%`,
-            backgroundColor: progressColor,
-            borderRadius: 3,
-            opacity: 0.9,
+            backgroundColor: 'rgba(255,255,255,0.22)',
+            borderTopLeftRadius: 5,
+            borderBottomLeftRadius: 5,
           }}
+          pointerEvents="none"
         />
       )}
-      {/* Title */}
-      <View style={[styles.barLabel, { paddingLeft: BAR_ACCENT_WIDTH + 8 }]}>
-        <Text style={[styles.barLabelText, { color: barColor }]} numberOfLines={1}>
-          {bar.task.title || 'Task'}
-        </Text>
+      {/* Width-aware label via useBarLabel() */}
+      <View style={[styles.barLabel, { paddingLeft: BAR_ACCENT_WIDTH + 4 }]}>
+        {barLabelResult.insideText !== '' && (
+          <Text style={styles.barLabelText} numberOfLines={1}>
+            {barLabelResult.insideText}
+            {barLabelResult.showPercent ? ` ${bar.task.progress ?? 0}%` : ''}
+          </Text>
+        )}
       </View>
       {/* Resize handle visual — subtle indicator on hover, no colored bar. */}
       <View
@@ -1939,6 +1923,26 @@ function BarView({
         }} />
       </View>
     </View>
+
+    {/* Outside label — narrow bars: name floats right in muted color */}
+    {barLabelResult.outsideText !== '' && (
+      <View
+        style={{
+          position: 'absolute',
+          left: bar.x + bar.w,
+          top: bar.y + (BAR_HEIGHT - 20) / 2,
+          height: 20,
+          justifyContent: 'center',
+          paddingLeft: 4,
+          zIndex: 2,
+        }}
+        pointerEvents="none"
+      >
+        <Text style={styles.barOutsideName} numberOfLines={1}>
+          {barLabelResult.outsideText}
+        </Text>
+      </View>
+    )}
 
     {/* --- Link handle (Phase 4): floats just off the right edge on hover.
         Drag it onto another bar to create a dependency. --- */}
@@ -2299,15 +2303,52 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
     left: 0,
   },
 
+  // Labeled TODAY line — replaces the old SVG halo stripe. The pill label
+  // floats in the header zone above the bars and the line extends through
+  // the full grid body. Colors.pillLate (#FF5A51) carries enough urgency to
+  // read as "now" without feeling like an error state.
+  todayLine: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    width: 1.5,
+    backgroundColor: Colors.pillLate,
+    zIndex: 5,
+    pointerEvents: 'none',
+  } as any,
+  todayLabel: {
+    position: 'absolute',
+    top: -1,
+    backgroundColor: Colors.pillLate,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 3,
+    zIndex: 6,
+    transform: [{ translateX: -30 }],
+    pointerEvents: 'none',
+  } as any,
+  todayLabelText: {
+    fontSize: 8,
+    color: '#0B0D10',
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+
   barLabel: {
     flex: 1,
     justifyContent: 'center',
     paddingHorizontal: 8,
   },
   barLabelText: {
-    fontSize: Type.caption2.fontSize,
-    fontWeight: '600',
-    color: t.text,
+    fontSize: 10,
+    fontWeight: '700',
+    color: 'rgba(11,13,16,0.85)',
+    zIndex: 1,
+  },
+  barOutsideName: {
+    fontSize: 10,
+    color: Colors.textMuted,
+    marginLeft: 6,
   },
 
   tooltip: {
