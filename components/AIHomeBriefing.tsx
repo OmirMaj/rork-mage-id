@@ -7,6 +7,8 @@ import * as Haptics from 'expo-haptics';
 import { Sparkles, AlertTriangle, CheckCircle2, ChevronRight, TrendingDown } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import type { ThemeColors } from '@/constants/colors';
 import {
   generateHomeBriefing, getCachedResult, setCachedResult,
   type HomeBriefingResult,
@@ -35,6 +37,7 @@ const STATUS_ICONS = {
 
 export default React.memo(function AIHomeBriefing({ projects, invoices, subscriptionTier, onViewFull }: Props) {
   const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const [result, setResult] = useState<HomeBriefingResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [usageText, setUsageText] = useState('');
@@ -105,10 +108,10 @@ export default React.memo(function AIHomeBriefing({ projects, invoices, subscrip
       outputRange: [0.4, 0.8],
     });
     return (
-      <View style={[styles.container, { backgroundColor: themeColors.surface, borderColor: themeColors.line }]}>
+      <View style={styles.container}>
         <View style={styles.header}>
           <View style={styles.headerLeft}>
-            <Sparkles size={14} color={Colors.primary} />
+            <Sparkles size={14} color={themeColors.accent} />
             <Text style={styles.headerTitle}>MAGE AI Daily Briefing</Text>
           </View>
         </View>
@@ -122,10 +125,10 @@ export default React.memo(function AIHomeBriefing({ projects, invoices, subscrip
   if (!result) return null;
 
   return (
-    <View style={[styles.container, { backgroundColor: themeColors.surface, borderColor: themeColors.line }]}>
+    <View style={styles.container}>
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Sparkles size={14} color={Colors.primary} />
+          <Sparkles size={14} color={themeColors.accent} />
           <Text style={styles.headerTitle}>MAGE AI Daily Briefing</Text>
         </View>
         <Text style={styles.aiLabel}>AI-generated</Text>
@@ -180,15 +183,15 @@ export default React.memo(function AIHomeBriefing({ projects, invoices, subscrip
   );
 });
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   container: {
     marginHorizontal: 20,
     marginBottom: 20,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.panel,
     padding: 16,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.04,
@@ -209,17 +212,17 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: t.text,
     letterSpacing: 0.2,
   },
   aiLabel: {
     fontSize: 10,
-    color: Colors.textMuted,
+    color: t.textMuted,
     fontWeight: '500' as const,
   },
   briefingText: {
     fontSize: Type.bodyCompact.fontSize,
-    color: Colors.text,
+    color: t.text,
     lineHeight: 20,
     marginBottom: 12,
   },
@@ -229,7 +232,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     paddingTop: 10,
     borderTopWidth: 0.5,
-    borderTopColor: Colors.borderLight,
+    borderTopColor: t.line,
   },
   statusDot: {
     width: 28,
@@ -246,21 +249,21 @@ const styles = StyleSheet.create({
   projectName: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '600' as const,
-    color: Colors.text,
+    color: t.text,
   },
   projectInsight: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     lineHeight: 18,
   },
   actionItem: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.primary,
+    color: t.accent,
     fontWeight: '500' as const,
     marginTop: 2,
   },
   urgentSection: {
-    backgroundColor: Colors.errorLight,
+    backgroundColor: t.danger + '1F',
     borderRadius: Tokens.radius.md,
     padding: 10,
     marginTop: 8,
@@ -273,7 +276,7 @@ const styles = StyleSheet.create({
   },
   urgentText: {
     fontSize: Type.footnote.fontSize,
-    color: '#D32F2F',
+    color: t.danger,
     flex: 1,
     lineHeight: 18,
   },
@@ -284,7 +287,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
     paddingTop: 10,
     borderTopWidth: 0.5,
-    borderTopColor: Colors.borderLight,
+    borderTopColor: t.line,
   },
   viewFullBtn: {
     flexDirection: 'row',
@@ -294,16 +297,16 @@ const styles = StyleSheet.create({
   viewFullText: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
-    color: Colors.primary,
+    color: t.accent,
   },
   usageText: {
     fontSize: Type.caption2.fontSize,
-    color: Colors.textMuted,
+    color: t.textMuted,
     fontWeight: '500' as const,
   },
   skeletonLine: {
     height: 12,
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.line,
     borderRadius: Tokens.radius.xs,
     marginBottom: 8,
     width: '100%',

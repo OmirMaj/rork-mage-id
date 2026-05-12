@@ -79,11 +79,12 @@ export const Type = {
     lineHeight: 14,
   } as TextStyle,
 
-  // ─── Serif (Fraunces) — display use only. Loaded fonts: Fraunces_500Medium.
-  //     fontFamily MUST be 'Fraunces_500Medium' to match the @expo-google-fonts package.
-  serifLargeTitle: { fontFamily: 'Fraunces_500Medium', fontSize: 36, lineHeight: 40, letterSpacing: -0.9 } as TextStyle,
-  serifTitle:      { fontFamily: 'Fraunces_500Medium', fontSize: 28, lineHeight: 32, letterSpacing: -0.56 } as TextStyle,
-  serifHeadline:   { fontFamily: 'Fraunces_500Medium', fontSize: 22, lineHeight: 26, letterSpacing: -0.22 } as TextStyle,
+  // ─── Serif (Fraunces) — display use only. Using 700 weight for strong
+  //     contrast in both light and dark themes (500 felt too thin against
+  //     ink in dark mode). 500 is also loaded if needed for soft headings.
+  serifLargeTitle: { fontFamily: 'Fraunces_700Bold', fontSize: 36, lineHeight: 40, letterSpacing: -0.9 } as TextStyle,
+  serifTitle:      { fontFamily: 'Fraunces_700Bold', fontSize: 28, lineHeight: 32, letterSpacing: -0.56 } as TextStyle,
+  serifHeadline:   { fontFamily: 'Fraunces_700Bold', fontSize: 22, lineHeight: 26, letterSpacing: -0.22 } as TextStyle,
 
   // ─── Mono (JetBrains Mono) — micro labels, eyebrows, status.
   monoEyebrow: {
