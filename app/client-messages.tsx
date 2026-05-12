@@ -8,11 +8,16 @@ import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { MessageSquare, Send, Inbox } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
 export default function ClientMessagesScreen() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -85,7 +90,7 @@ export default function ClientMessagesScreen() {
     return (
       <View style={[styles.container, { paddingTop: insets.top + 40, alignItems: 'center', paddingHorizontal: 24 }]}>
         <Stack.Screen options={{ title: 'Messages' }} />
-        <Inbox size={30} color={Colors.textMuted} />
+        <Inbox size={30} color={themeColors.textMuted} />
         <Text style={styles.muted}>Enable the client portal for this project to start a conversation.</Text>
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
           <Text style={styles.backBtnTxt}>Back to portal setup</Text>
@@ -102,7 +107,7 @@ export default function ClientMessagesScreen() {
     >
       <Stack.Screen options={{ title: project.name }} />
       <View style={styles.subheader}>
-        <MessageSquare size={14} color={Colors.primary} />
+        <MessageSquare size={14} color={themeColors.accent} />
         <Text style={styles.subheaderTxt}>
           Thread with {portal.invites?.length ?? 0} {(portal.invites?.length ?? 0) === 1 ? 'client' : 'clients'}
         </Text>
@@ -116,7 +121,7 @@ export default function ClientMessagesScreen() {
       >
         {messages.length === 0 ? (
           <View style={styles.empty}>
-            <MessageSquare size={28} color={Colors.textMuted} />
+            <MessageSquare size={28} color={themeColors.textMuted} />
             <Text style={styles.emptyTitle}>No messages yet.</Text>
             <Text style={styles.emptyHint}>
               Break the ice — send a quick hello and let your client know how to reach you.
@@ -154,7 +159,7 @@ export default function ClientMessagesScreen() {
           value={composeBody}
           onChangeText={setComposeBody}
           placeholder="Write a reply…"
-          placeholderTextColor={Colors.textMuted}
+          placeholderTextColor={themeColors.textMuted}
           multiline
           textAlignVertical="top"
           editable={!sending}
@@ -169,29 +174,29 @@ export default function ClientMessagesScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
-  muted: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, textAlign: 'center', lineHeight: 20, marginTop: 12 },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: t.bg },
+  muted: { fontSize: Type.bodyCompact.fontSize, color: t.textSecondary, textAlign: 'center', lineHeight: 20, marginTop: 12 },
   backBtn: {
     marginTop: 18, paddingHorizontal: 16, paddingVertical: 10,
-    backgroundColor: Colors.primary, borderRadius: Tokens.radius.md,
+    backgroundColor: t.accent, borderRadius: Tokens.radius.md,
   },
-  backBtnTxt: { color: Colors.textOnPrimary, fontWeight: '600', fontSize: Type.bodyCompact.fontSize },
+  backBtnTxt: { color: '#FFFFFF', fontWeight: '600', fontSize: Type.bodyCompact.fontSize },
 
   subheader: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: 16, paddingVertical: 10,
-    backgroundColor: `${Colors.primary}0A`,
-    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Colors.border,
+    backgroundColor: `${t.accent}0A`,
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: t.line,
   },
-  subheaderTxt: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, fontWeight: '600' },
+  subheaderTxt: { fontSize: Type.caption1.fontSize, color: t.textSecondary, fontWeight: '600' },
 
   scroll: { flex: 1 },
   scrollContent: { padding: 16, gap: 8 },
 
   empty: { alignItems: 'center', paddingTop: 60, paddingHorizontal: 24, gap: 8 },
-  emptyTitle: { fontSize: Type.callout.fontSize, fontWeight: '700', color: Colors.text, marginTop: 8 },
-  emptyHint: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, textAlign: 'center', lineHeight: 18 },
+  emptyTitle: { fontSize: Type.callout.fontSize, fontWeight: '700', color: t.text, marginTop: 8 },
+  emptyHint: { fontSize: Type.footnote.fontSize, color: t.textMuted, textAlign: 'center', lineHeight: 18 },
 
   row: { flexDirection: 'row' },
   rowMine: { justifyContent: 'flex-end' },
@@ -200,30 +205,30 @@ const styles = StyleSheet.create({
     maxWidth: '84%', borderRadius: Tokens.radius.lg,
     paddingHorizontal: 12, paddingVertical: 8,
   },
-  bubbleMine: { backgroundColor: Colors.primary, borderBottomRightRadius: 4 },
-  bubbleTheirs: { backgroundColor: Colors.surface, borderBottomLeftRadius: 4, borderWidth: 1, borderColor: Colors.cardBorder },
-  author: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.textSecondary, marginBottom: 2 },
+  bubbleMine: { backgroundColor: t.accent, borderBottomRightRadius: 4 },
+  bubbleTheirs: { backgroundColor: t.surface, borderBottomLeftRadius: 4, borderWidth: 1, borderColor: t.line },
+  author: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: t.textSecondary, marginBottom: 2 },
   authorMine: { color: 'rgba(255,255,255,0.85)' },
-  body: { fontSize: Type.bodyCompact.fontSize, color: Colors.text, lineHeight: 19 },
+  body: { fontSize: Type.bodyCompact.fontSize, color: t.text, lineHeight: 19 },
   bodyMine: { color: '#fff' },
-  time: { fontSize: 10, color: Colors.textMuted, marginTop: 4 },
+  time: { fontSize: 10, color: t.textMuted, marginTop: 4 },
   timeMine: { color: 'rgba(255,255,255,0.7)' },
 
   compose: {
     flexDirection: 'row', alignItems: 'flex-end', gap: 8,
     paddingHorizontal: 12, paddingTop: 10,
-    backgroundColor: Colors.surface,
-    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: Colors.border,
+    backgroundColor: t.surface,
+    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: t.line,
   },
   input: {
     flex: 1, minHeight: 40, maxHeight: 140,
-    borderWidth: 1, borderColor: Colors.border, borderRadius: Tokens.radius.md,
+    borderWidth: 1, borderColor: t.line, borderRadius: Tokens.radius.md,
     paddingHorizontal: 10, paddingVertical: 8,
-    fontSize: Type.bodyCompact.fontSize, color: Colors.text, backgroundColor: Colors.background,
+    fontSize: Type.bodyCompact.fontSize, color: t.text, backgroundColor: t.bg,
   },
   sendBtn: {
     width: 40, height: 40, borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
     alignItems: 'center', justifyContent: 'center',
   },
   sendBtnDisabled: { opacity: 0.5 },

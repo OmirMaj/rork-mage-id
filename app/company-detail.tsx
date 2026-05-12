@@ -6,6 +6,9 @@ import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { MapPin, Star, Shield, Building2, Mail, Phone, Globe, Calendar, Users, ChevronRight } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useCompanies } from '@/contexts/CompaniesContext';
 import { useBids } from '@/contexts/BidsContext';
 import { CERTIFICATIONS, CERT_COLORS } from '@/constants/certifications';
@@ -25,6 +28,8 @@ function formatCurrency(amount: number): string {
 }
 
 export default function CompanyDetailScreen() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { companies } = useCompanies();
@@ -58,9 +63,9 @@ export default function CompanyDetailScreen() {
     <View style={styles.container}>
       <Stack.Screen options={{
         title: company.companyName,
-        headerStyle: { backgroundColor: Colors.background },
-        headerTintColor: Colors.primary,
-        headerTitleStyle: { fontWeight: '700' as const, color: Colors.text },
+        headerStyle: { backgroundColor: themeColors.bg },
+        headerTintColor: themeColors.accent,
+        headerTitleStyle: { fontWeight: '700' as const, color: themeColors.text },
       }} />
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.profileHeader}>
@@ -69,7 +74,7 @@ export default function CompanyDetailScreen() {
           </View>
           <Text style={styles.companyName}>{company.companyName}</Text>
           <View style={styles.locationRow}>
-            <MapPin size={14} color={Colors.textSecondary} />
+            <MapPin size={14} color={themeColors.textSecondary} />
             <Text style={styles.locationText}>{company.city}, {company.state}</Text>
           </View>
           <View style={styles.ratingRow}>
@@ -82,25 +87,25 @@ export default function CompanyDetailScreen() {
 
         <View style={styles.statsGrid}>
           <View style={styles.statCard}>
-            <Shield size={20} color={Colors.accent} />
+            <Shield size={20} color={themeColors.accent} />
             <Text style={styles.statLabel}>Bond Capacity</Text>
             <Text style={styles.statValue}>{formatCurrency(company.bondCapacity)}</Text>
           </View>
           <View style={styles.statCard}>
-            <Building2 size={20} color={Colors.primary} />
+            <Building2 size={20} color={themeColors.accent} />
             <Text style={styles.statLabel}>Projects Done</Text>
             <Text style={styles.statValue}>{company.completedProjects}</Text>
           </View>
           {company.yearEstablished && (
             <View style={styles.statCard}>
-              <Calendar size={20} color={Colors.textSecondary} />
+              <Calendar size={20} color={themeColors.textSecondary} />
               <Text style={styles.statLabel}>Established</Text>
               <Text style={styles.statValue}>{company.yearEstablished}</Text>
             </View>
           )}
           {company.employeeCount && (
             <View style={styles.statCard}>
-              <Users size={20} color={Colors.info} />
+              <Users size={20} color={themeColors.info} />
               <Text style={styles.statLabel}>Employees</Text>
               <Text style={styles.statValue}>{company.employeeCount}</Text>
             </View>
@@ -118,7 +123,7 @@ export default function CompanyDetailScreen() {
             <View style={styles.certGrid}>
               {company.certifications.map(certId => {
                 const info = CERTIFICATIONS.find(c => c.id === certId);
-                const color = CERT_COLORS[certId] || Colors.primary;
+                const color = CERT_COLORS[certId] || themeColors.accent;
                 return (
                   <View key={certId} style={[styles.certCard, { borderLeftColor: color }]}>
                     <Text style={[styles.certShort, { color }]}>{info?.shortLabel ?? certId}</Text>
@@ -155,7 +160,7 @@ export default function CompanyDetailScreen() {
                   <Text style={styles.bidTitle} numberOfLines={1}>{bid.title}</Text>
                   <Text style={styles.bidMeta}>{bid.city}, {bid.state} · {formatCurrency(bid.estimatedValue)}</Text>
                 </View>
-                <ChevronRight size={16} color={Colors.textMuted} />
+                <ChevronRight size={16} color={themeColors.textMuted} />
               </TouchableOpacity>
             ))
           )}
@@ -177,7 +182,7 @@ export default function CompanyDetailScreen() {
               <Text style={styles.contactBtnText}>Call</Text>
             </TouchableOpacity>
             {company.website && (
-              <TouchableOpacity style={[styles.contactBtn, { backgroundColor: Colors.info }]} onPress={() => void Linking.openURL(company.website!)}>
+              <TouchableOpacity style={[styles.contactBtn, { backgroundColor: themeColors.info }]} onPress={() => void Linking.openURL(company.website!)}>
                 <Globe size={16} color="#FFF" />
                 <Text style={styles.contactBtnText}>Website</Text>
               </TouchableOpacity>
@@ -189,44 +194,44 @@ export default function CompanyDetailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: t.bg },
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 40 },
   errorContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  errorText: { fontSize: Type.callout.fontSize, color: Colors.textSecondary },
-  profileHeader: { backgroundColor: Colors.surface, alignItems: 'center', paddingVertical: 24, paddingHorizontal: 20, borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight },
-  avatarLarge: { width: 72, height: 72, borderRadius: 36, backgroundColor: Colors.primary + '15', alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
-  avatarLargeText: { fontSize: 30, fontWeight: '800' as const, color: Colors.primary },
-  companyName: { fontSize: Type.title2.fontSize, fontWeight: '800' as const, color: Colors.text, marginBottom: 4, textAlign: 'center' as const },
+  errorText: { fontSize: Type.callout.fontSize, color: t.textSecondary },
+  profileHeader: { backgroundColor: t.surface, alignItems: 'center', paddingVertical: 24, paddingHorizontal: 20, borderBottomWidth: 0.5, borderBottomColor: t.line },
+  avatarLarge: { width: 72, height: 72, borderRadius: 36, backgroundColor: t.accent + '15', alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
+  avatarLargeText: { fontSize: 30, fontWeight: '800' as const, color: t.accent },
+  companyName: { fontSize: Type.title2.fontSize, fontWeight: '800' as const, color: t.text, marginBottom: 4, textAlign: 'center' as const },
   locationRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 6 },
-  locationText: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary },
+  locationText: { fontSize: Type.bodyCompact.fontSize, color: t.textSecondary },
   ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   ratingText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: '#F5A623' },
-  ratingDivider: { color: Colors.textMuted },
-  categoryText: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary },
+  ratingDivider: { color: t.textMuted },
+  categoryText: { fontSize: Type.bodyCompact.fontSize, color: t.textSecondary },
   statsGrid: { flexDirection: 'row', flexWrap: 'wrap', padding: 12, gap: 8 },
-  statCard: { width: '47%' as any, backgroundColor: Colors.surface, padding: 14, borderRadius: Tokens.radius.card, alignItems: 'center', gap: 4 },
-  statLabel: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, textTransform: 'uppercase' as const, fontWeight: '600' as const },
-  statValue: { fontSize: Type.body.fontSize, fontWeight: '800' as const, color: Colors.text },
-  section: { backgroundColor: Colors.surface, padding: 20, marginTop: 8 },
+  statCard: { width: '47%' as any, backgroundColor: t.surface, padding: 14, borderRadius: Tokens.radius.card, alignItems: 'center', gap: 4 },
+  statLabel: { fontSize: Type.caption2.fontSize, color: t.textMuted, textTransform: 'uppercase' as const, fontWeight: '600' as const },
+  statValue: { fontSize: Type.body.fontSize, fontWeight: '800' as const, color: t.text },
+  section: { backgroundColor: t.surface, padding: 20, marginTop: 8 },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  sectionTitle: { fontSize: Type.body.fontSize, fontWeight: '700' as const, color: Colors.text, marginBottom: 8 },
-  sectionSubtitle: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, marginBottom: 12 },
-  description: { fontSize: Type.subhead.fontSize, color: Colors.text, lineHeight: 22 },
+  sectionTitle: { fontSize: Type.body.fontSize, fontWeight: '700' as const, color: t.text, marginBottom: 8 },
+  sectionSubtitle: { fontSize: Type.footnote.fontSize, color: t.textSecondary, marginBottom: 12 },
+  description: { fontSize: Type.subhead.fontSize, color: t.text, lineHeight: 22 },
   certGrid: { gap: 8 },
-  certCard: { backgroundColor: Colors.background, padding: 12, borderRadius: Tokens.radius.sm, borderLeftWidth: 3 },
+  certCard: { backgroundColor: t.bg, padding: 12, borderRadius: Tokens.radius.sm, borderLeftWidth: 3 },
   certShort: { fontSize: Type.footnote.fontSize, fontWeight: '800' as const, marginBottom: 2 },
-  certFull: { fontSize: Type.footnote.fontSize, color: Colors.text },
-  certSource: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 2 },
-  countBadge: { backgroundColor: Colors.primary, borderRadius: Tokens.radius.md, width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
+  certFull: { fontSize: Type.footnote.fontSize, color: t.text },
+  certSource: { fontSize: Type.caption2.fontSize, color: t.textMuted, marginTop: 2 },
+  countBadge: { backgroundColor: t.accent, borderRadius: Tokens.radius.md, width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
   countText: { color: '#FFF', fontSize: Type.caption1.fontSize, fontWeight: '700' as const },
-  noResults: { fontSize: Type.bodyCompact.fontSize, color: Colors.textMuted, textAlign: 'center' as const, paddingVertical: 20 },
-  bidRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight },
+  noResults: { fontSize: Type.bodyCompact.fontSize, color: t.textMuted, textAlign: 'center' as const, paddingVertical: 20 },
+  bidRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 0.5, borderBottomColor: t.line },
   bidInfo: { flex: 1 },
-  bidTitle: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: Colors.text, marginBottom: 2 },
-  bidMeta: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary },
+  bidTitle: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: t.text, marginBottom: 2 },
+  bidMeta: { fontSize: Type.footnote.fontSize, color: t.textSecondary },
   contactActions: { flexDirection: 'row', gap: 10, flexWrap: 'wrap' },
-  contactBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: Colors.primary, paddingHorizontal: 16, paddingVertical: 10, borderRadius: Tokens.radius.md },
+  contactBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: t.accent, paddingHorizontal: 16, paddingVertical: 10, borderRadius: Tokens.radius.md },
   contactBtnText: { color: '#FFF', fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const },
 });

@@ -4,6 +4,9 @@ import { useRouter, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronLeft, ChevronRight, HardHat, Inbox } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useSubSubmittedInvoices } from '@/hooks/useSubSubmittedInvoices';
 import { formatMoney } from '@/utils/formatters';
@@ -21,6 +24,8 @@ interface PairRow {
 }
 
 export default function SubPortalsListScreen() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const {
@@ -62,7 +67,7 @@ export default function SubPortalsListScreen() {
           title: 'Sub Portals',
           headerLeft: () => (
             <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }} accessibilityRole="button" accessibilityLabel="Back">
-              <ChevronLeft size={24} color={Colors.primary} />
+              <ChevronLeft size={24} color={themeColors.accent} />
             </TouchableOpacity>
           ),
         }}
@@ -80,7 +85,7 @@ export default function SubPortalsListScreen() {
         contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 32 }}
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Inbox size={32} color={Colors.textMuted} />
+            <Inbox size={32} color={themeColors.textMuted} />
             <Text style={styles.emptyTitle}>No commitments yet</Text>
             <Text style={styles.emptyBody}>Add a sub commitment to a project — that&apos;s the link between a sub and a project, and what powers their portal.</Text>
           </View>
@@ -94,6 +99,8 @@ export default function SubPortalsListScreen() {
 }
 
 function PairRowItem({ item, onPress }: { item: PairRow; onPress: () => void }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const submitted = useSubSubmittedInvoices({ projectId: item.projectId });
   const pendingForThisSub = useMemo(() =>
     submitted.pending.filter(i => i.subcontractorId === item.subId),
@@ -102,7 +109,7 @@ function PairRowItem({ item, onPress }: { item: PairRow; onPress: () => void }) 
   return (
     <TouchableOpacity style={styles.row} onPress={onPress} activeOpacity={0.7}>
       <View style={styles.rowIcon}>
-        <HardHat size={20} color={Colors.primary} />
+        <HardHat size={20} color={themeColors.accent} />
       </View>
       <View style={{ flex: 1, minWidth: 0 }}>
         <Text style={styles.rowTitle} numberOfLines={1}>{item.subName}</Text>
@@ -118,44 +125,44 @@ function PairRowItem({ item, onPress }: { item: PairRow; onPress: () => void }) 
           )}
         </View>
       </View>
-      <ChevronRight size={18} color={Colors.textMuted} />
+      <ChevronRight size={18} color={themeColors.textMuted} />
     </TouchableOpacity>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: t.bg },
   headerWrap: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 18 },
-  title: { fontSize: Type.title1.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.5 },
-  subtitle: { fontSize: Type.bodyCompact.fontSize, color: Colors.textMuted, marginTop: 6, lineHeight: 20 },
+  title: { fontSize: Type.title1.fontSize, fontWeight: '800', color: t.text, letterSpacing: -0.5 },
+  subtitle: { fontSize: Type.bodyCompact.fontSize, color: t.textMuted, marginTop: 6, lineHeight: 20 },
 
   empty: {
     alignItems: 'center', padding: 36, marginTop: 32,
     backgroundColor: Colors.card, borderRadius: Tokens.radius.lg,
-    borderWidth: 1, borderColor: Colors.border, borderStyle: 'dashed',
+    borderWidth: 1, borderColor: t.line, borderStyle: 'dashed',
     gap: 8,
   },
-  emptyTitle: { fontSize: Type.callout.fontSize, fontWeight: '700', color: Colors.text },
-  emptyBody: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, textAlign: 'center', lineHeight: 18 },
+  emptyTitle: { fontSize: Type.callout.fontSize, fontWeight: '700', color: t.text },
+  emptyBody: { fontSize: Type.footnote.fontSize, color: t.textMuted, textAlign: 'center', lineHeight: 18 },
 
   row: {
     flexDirection: 'row', alignItems: 'center', gap: 14,
     padding: 14, marginBottom: 10,
     backgroundColor: Colors.card, borderRadius: Tokens.radius.lg,
-    borderWidth: 1, borderColor: Colors.border,
+    borderWidth: 1, borderColor: t.line,
   },
   rowIcon: {
     width: 42, height: 42, borderRadius: Tokens.radius.card,
-    backgroundColor: Colors.primary + '15',
+    backgroundColor: t.accent + '15',
     alignItems: 'center', justifyContent: 'center',
   },
-  rowTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700', color: Colors.text },
-  rowMeta: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2 },
+  rowTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700', color: t.text },
+  rowMeta: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 2 },
   rowFoot: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 6 },
-  rowAmount: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
+  rowAmount: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: t.text },
   pendingBadge: {
     paddingHorizontal: 8, paddingVertical: 3, borderRadius: Tokens.radius.full,
-    backgroundColor: Colors.primary + '18',
+    backgroundColor: t.accent + '18',
   },
-  pendingBadgeText: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.primary },
+  pendingBadgeText: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: t.accent },
 });

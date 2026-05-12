@@ -33,6 +33,9 @@ import {
   ExternalLink, RefreshCw, Sparkles,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import {
@@ -43,6 +46,8 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
 export default function PaymentsSetupScreen() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user } = useAuth();
@@ -113,8 +118,8 @@ export default function PaymentsSetupScreen() {
       // browser. Returns when the user closes it OR returnUrl fires.
       const result = await WebBrowser.openBrowserAsync(res.url, {
         dismissButtonStyle: 'close',
-        toolbarColor: Colors.surface,
-        controlsColor: Colors.primary,
+        toolbarColor: themeColors.surface,
+        controlsColor: themeColors.accent,
       });
       console.log('[PaymentsSetup] WebBrowser result:', result.type);
 
@@ -159,14 +164,14 @@ export default function PaymentsSetupScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn} testID="payments-setup-back" accessibilityRole="button" accessibilityLabel="Back">
-          <ChevronLeft size={22} color={Colors.text} />
+          <ChevronLeft size={22} color={themeColors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Payments</Text>
         <TouchableOpacity onPress={() => refresh()} style={styles.headerBtn} disabled={refreshing} testID="payments-setup-refresh">
           {refreshing ? (
-            <ActivityIndicator size="small" color={Colors.primary} />
+            <ActivityIndicator size="small" color={themeColors.accent} />
           ) : (
-            <RefreshCw size={18} color={Colors.primary} />
+            <RefreshCw size={18} color={themeColors.accent} />
           )}
         </TouchableOpacity>
       </View>
@@ -174,7 +179,7 @@ export default function PaymentsSetupScreen() {
       <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}>
         {loading ? (
           <View style={styles.loadingWrap}>
-            <ActivityIndicator color={Colors.primary} />
+            <ActivityIndicator color={themeColors.accent} />
           </View>
         ) : status === 'connected' ? (
           <ConnectedCard accountId={accountId} onManage={handleManageOnStripe} />
@@ -190,7 +195,7 @@ export default function PaymentsSetupScreen() {
         )}
 
         <View style={styles.fineprint}>
-          <Lock size={11} color={Colors.textMuted} />
+          <Lock size={11} color={themeColors.textMuted} />
           <Text style={styles.fineprintText}>
             Secured by Stripe. MAGE ID never stores card data. A 1% platform fee plus standard
             Stripe processing (2.9% + 30¢) is deducted from each successful payment.
@@ -204,10 +209,12 @@ export default function PaymentsSetupScreen() {
 function NotConnectedCard({
   status, starting, onStart, companyName,
 }: { status: ConnectStatus; starting: boolean; onStart: () => void; companyName?: string }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.card}>
-      <View style={[styles.heroIcon, { backgroundColor: Colors.primary + '15' }]}>
-        <Wallet size={28} color={Colors.primary} />
+      <View style={[styles.heroIcon, { backgroundColor: themeColors.accent + '15' }]}>
+        <Wallet size={28} color={themeColors.accent} />
       </View>
       <Text style={styles.heroTitle}>Get paid faster</Text>
       <Text style={styles.heroSub}>
@@ -255,6 +262,8 @@ function NotConnectedCard({
 }
 
 function PendingCard({ onRefresh, refreshing }: { onRefresh: () => void; refreshing: boolean }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.card}>
       <View style={[styles.heroIcon, { backgroundColor: Colors.warning + '15' }]}>
@@ -283,10 +292,12 @@ function PendingCard({ onRefresh, refreshing }: { onRefresh: () => void; refresh
 }
 
 function ConnectedCard({ accountId, onManage }: { accountId?: string; onManage: () => void }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.card}>
-      <View style={[styles.heroIcon, { backgroundColor: Colors.success + '15' }]}>
-        <CheckCircle2 size={28} color={Colors.success} />
+      <View style={[styles.heroIcon, { backgroundColor: themeColors.success + '15' }]}>
+        <CheckCircle2 size={28} color={themeColors.success} />
       </View>
       <Text style={styles.heroTitle}>Payments connected</Text>
       <Text style={styles.heroSub}>
@@ -308,7 +319,7 @@ function ConnectedCard({ accountId, onManage }: { accountId?: string; onManage: 
       </View>
 
       <TouchableOpacity
-        style={[styles.cta, { backgroundColor: Colors.primary }]}
+        style={[styles.cta, { backgroundColor: themeColors.accent }]}
         onPress={onManage}
         activeOpacity={0.85}
       >
@@ -320,18 +331,20 @@ function ConnectedCard({ accountId, onManage }: { accountId?: string; onManage: 
 }
 
 function Benefit({ text }: { text: string }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.benefitRow}>
       <View style={styles.benefitDot}>
-        <CheckCircle2 size={14} color={Colors.success} />
+        <CheckCircle2 size={14} color={themeColors.success} />
       </View>
       <Text style={styles.benefitText}>{text}</Text>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: t.bg },
   header: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
@@ -339,19 +352,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: t.line,
   },
   headerBtn: { width: 36, height: 36, alignItems: 'center' as const, justifyContent: 'center' as const },
-  headerTitle: { fontSize: Type.body.fontSize, fontWeight: '700' as const, color: Colors.text },
+  headerTitle: { fontSize: Type.body.fontSize, fontWeight: '700' as const, color: t.text },
   loadingWrap: { paddingTop: 80, alignItems: 'center' as const },
   card: {
     margin: 16,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: 20,
     padding: 22,
     gap: 14,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.04,
@@ -365,42 +378,42 @@ const styles = StyleSheet.create({
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
   },
-  heroTitle: { fontSize: Type.title2.fontSize, fontWeight: '800' as const, color: Colors.text, letterSpacing: -0.5 },
-  heroSub: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, lineHeight: 20 },
+  heroTitle: { fontSize: Type.title2.fontSize, fontWeight: '800' as const, color: t.text, letterSpacing: -0.5 },
+  heroSub: { fontSize: Type.bodyCompact.fontSize, color: t.textSecondary, lineHeight: 20 },
   benefits: { gap: 10, marginTop: 4 },
   benefitRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10 },
   benefitDot: {
     width: 24,
     height: 24,
     borderRadius: Tokens.radius.card,
-    backgroundColor: Colors.success + '15',
+    backgroundColor: t.success + '15',
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
   },
-  benefitText: { flex: 1, fontSize: Type.bodyCompact.fontSize, color: Colors.text, fontWeight: '500' as const },
+  benefitText: { flex: 1, fontSize: Type.bodyCompact.fontSize, color: t.text, fontWeight: '500' as const },
   cta: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
     gap: 8,
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
     paddingVertical: 14,
     borderRadius: Tokens.radius.lg,
     marginTop: 8,
-    shadowColor: Colors.primary,
+    shadowColor: t.accent,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.18,
     shadowRadius: 10,
     elevation: 3,
   },
-  ctaText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: Colors.surface, letterSpacing: 0.2 },
-  incompleteHint: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, textAlign: 'center' as const, marginTop: 4 },
-  brandHint: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, textAlign: 'center' as const, marginTop: 4 },
-  brandHintBold: { fontWeight: '700' as const, color: Colors.text },
+  ctaText: { fontSize: Type.callout.fontSize, fontWeight: '700' as const, color: t.surface, letterSpacing: 0.2 },
+  incompleteHint: { fontSize: Type.caption1.fontSize, color: t.textMuted, textAlign: 'center' as const, marginTop: 4 },
+  brandHint: { fontSize: Type.caption1.fontSize, color: t.textMuted, textAlign: 'center' as const, marginTop: 4 },
+  brandHintBold: { fontWeight: '700' as const, color: t.text },
   statRow: { flexDirection: 'row' as const, gap: 10, marginTop: 4 },
   stat: { flex: 1, backgroundColor: Colors.surfaceAlt, borderRadius: Tokens.radius.card, padding: 12, gap: 4 },
-  statLabel: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: Colors.textMuted, letterSpacing: 0.5, textTransform: 'uppercase' as const },
-  statValue: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: Colors.text },
+  statLabel: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: t.textMuted, letterSpacing: 0.5, textTransform: 'uppercase' as const },
+  statValue: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: t.text },
   fineprint: {
     flexDirection: 'row' as const,
     alignItems: 'flex-start' as const,
@@ -408,5 +421,5 @@ const styles = StyleSheet.create({
     marginHorizontal: 28,
     marginTop: 8,
   },
-  fineprintText: { flex: 1, fontSize: Type.caption2.fontSize, color: Colors.textMuted, lineHeight: 16 },
+  fineprintText: { flex: 1, fontSize: Type.caption2.fontSize, color: t.textMuted, lineHeight: 16 },
 });

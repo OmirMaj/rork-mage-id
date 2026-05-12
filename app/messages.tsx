@@ -8,6 +8,9 @@ import { Send, ChevronDown, MessageCircle } from 'lucide-react-native';
 import EmptyState from '@/components/EmptyState';
 import * as Haptics from 'expo-haptics';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useHire } from '@/contexts/HireContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNotifications } from '@/contexts/NotificationContext';
@@ -16,6 +19,8 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
 export default function MessagesScreen() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { conversations, getConversationMessages, sendMessage } = useHire();
@@ -102,7 +107,7 @@ export default function MessagesScreen() {
       <View style={styles.container}>
         <Stack.Screen options={{ title: 'Messages' }} />
         <EmptyState
-          icon={<MessageCircle size={36} color={Colors.primary} strokeWidth={1.6} />}
+          icon={<MessageCircle size={36} color={themeColors.accent} strokeWidth={1.6} />}
           title="No conversation open yet"
           message="Messages live inside hires and subs you've connected with. To start a thread:"
           steps={[
@@ -123,9 +128,9 @@ export default function MessagesScreen() {
     <View style={styles.container}>
       <Stack.Screen options={{
         title: otherName,
-        headerStyle: { backgroundColor: Colors.surface },
-        headerTintColor: Colors.primary,
-        headerTitleStyle: { fontWeight: '700' as const, color: Colors.text },
+        headerStyle: { backgroundColor: themeColors.surface },
+        headerTintColor: themeColors.accent,
+        headerTitleStyle: { fontWeight: '700' as const, color: themeColors.text },
         headerRight: () => onlineIndicator,
       }} />
       <KeyboardAvoidingView
@@ -152,7 +157,7 @@ export default function MessagesScreen() {
         {!isAtBottom && (
           <Animated.View style={[styles.scrollToBottomBtn, { opacity: scrollIndicatorAnim }]}>
             <TouchableOpacity onPress={scrollToBottom} style={styles.scrollBtnInner}>
-              <ChevronDown size={18} color={Colors.primary} />
+              <ChevronDown size={18} color={themeColors.accent} />
               <Text style={styles.scrollBtnText}>New messages</Text>
             </TouchableOpacity>
           </Animated.View>
@@ -164,7 +169,7 @@ export default function MessagesScreen() {
             value={text}
             onChangeText={setText}
             placeholder="Type a message..."
-            placeholderTextColor={Colors.textMuted}
+            placeholderTextColor={themeColors.textMuted}
             multiline
             maxLength={1000}
             testID="message-input"
@@ -173,47 +178,47 @@ export default function MessagesScreen() {
             style={[styles.sendBtn, !text.trim() && styles.sendBtnDisabled]}
             onPress={handleSend}
             disabled={!text.trim()}
-            testID="send-button" accessibilityRole="button" accessibilityLabel="Send"><Send size={18} color={text.trim() ? '#FFF' : Colors.textMuted} /></TouchableOpacity>
+            testID="send-button" accessibilityRole="button" accessibilityLabel="Send"><Send size={18} color={text.trim() ? '#FFF' : themeColors.textMuted} /></TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: t.bg },
   kav: { flex: 1 },
   messageList: { padding: 16, paddingBottom: 8 },
   messageBubble: { maxWidth: '80%' as unknown as number, marginBottom: 8, padding: 12, borderRadius: Tokens.radius.panel },
-  myMessage: { alignSelf: 'flex-end' as const, backgroundColor: Colors.primary, borderBottomRightRadius: 4 },
-  theirMessage: { alignSelf: 'flex-start' as const, backgroundColor: Colors.surface, borderBottomLeftRadius: 4 },
-  senderName: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: Colors.primary, marginBottom: 2 },
-  messageText: { fontSize: Type.subhead.fontSize, color: Colors.text, lineHeight: 20 },
+  myMessage: { alignSelf: 'flex-end' as const, backgroundColor: t.accent, borderBottomRightRadius: 4 },
+  theirMessage: { alignSelf: 'flex-start' as const, backgroundColor: t.surface, borderBottomLeftRadius: 4 },
+  senderName: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const, color: t.accent, marginBottom: 2 },
+  messageText: { fontSize: Type.subhead.fontSize, color: t.text, lineHeight: 20 },
   myMessageText: { color: '#FFF' },
-  timestamp: { fontSize: 10, color: Colors.textMuted, marginTop: 4, alignSelf: 'flex-end' as const },
+  timestamp: { fontSize: 10, color: t.textMuted, marginTop: 4, alignSelf: 'flex-end' as const },
   myTimestamp: { color: 'rgba(255,255,255,0.7)' },
   emptyContainer: { flex: 1, justifyContent: 'center' as const, alignItems: 'center' as const, paddingTop: 100 },
-  emptyText: { fontSize: Type.subhead.fontSize, color: Colors.textMuted },
+  emptyText: { fontSize: Type.subhead.fontSize, color: t.textMuted },
   inputBar: {
     flexDirection: 'row' as const, alignItems: 'flex-end' as const, padding: 12,
-    paddingBottom: Platform.OS === 'ios' ? 24 : 12, backgroundColor: Colors.surface,
-    borderTopWidth: 0.5, borderTopColor: Colors.borderLight, gap: 8,
+    paddingBottom: Platform.OS === 'ios' ? 24 : 12, backgroundColor: t.surface,
+    borderTopWidth: 0.5, borderTopColor: t.line, gap: 8,
   },
   textInput: {
-    flex: 1, backgroundColor: Colors.background, borderRadius: 20,
-    paddingHorizontal: 16, paddingVertical: 10, fontSize: Type.subhead.fontSize, color: Colors.text, maxHeight: 100,
+    flex: 1, backgroundColor: t.bg, borderRadius: 20,
+    paddingHorizontal: 16, paddingVertical: 10, fontSize: Type.subhead.fontSize, color: t.text, maxHeight: 100,
   },
-  sendBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.primary, alignItems: 'center' as const, justifyContent: 'center' as const },
-  sendBtnDisabled: { backgroundColor: Colors.background },
+  sendBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: t.accent, alignItems: 'center' as const, justifyContent: 'center' as const },
+  sendBtnDisabled: { backgroundColor: t.bg },
   headerRight: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6, marginRight: 4 },
-  onlineDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.success },
-  onlineText: { fontSize: Type.caption1.fontSize, color: Colors.textMuted },
+  onlineDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: t.success },
+  onlineText: { fontSize: Type.caption1.fontSize, color: t.textMuted },
   scrollToBottomBtn: {
     position: 'absolute' as const, bottom: 80, alignSelf: 'center' as const,
-    backgroundColor: Colors.surface, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8,
+    backgroundColor: t.surface, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8,
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 4,
     elevation: 4, flexDirection: 'row' as const, alignItems: 'center' as const, gap: 4,
   },
   scrollBtnInner: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 4 },
-  scrollBtnText: { fontSize: Type.footnote.fontSize, color: Colors.primary, fontWeight: '600' as const },
+  scrollBtnText: { fontSize: Type.footnote.fontSize, color: t.accent, fontWeight: '600' as const },
 });

@@ -6,6 +6,9 @@ import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { MapPin, DollarSign, Clock, Award, Mail, Phone, MessageCircle, Briefcase } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useHire } from '@/contexts/HireContext';
 import { getTradeLabel } from '@/constants/trades';
 import { buildMailtoUrl, mailSignOff } from '@/utils/mailtoComposer';
@@ -21,6 +24,8 @@ const AVAILABILITY_COLORS: Record<AvailabilityStatus, string> = {
 };
 
 export default function WorkerDetailScreen() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { workers, jobs, startConversation } = useHire();
@@ -57,9 +62,9 @@ export default function WorkerDetailScreen() {
     <View style={styles.container}>
       <Stack.Screen options={{
         title: 'Worker Profile',
-        headerStyle: { backgroundColor: Colors.background },
-        headerTintColor: Colors.primary,
-        headerTitleStyle: { fontWeight: '700' as const, color: Colors.text },
+        headerStyle: { backgroundColor: themeColors.bg },
+        headerTintColor: themeColors.accent,
+        headerTitleStyle: { fontWeight: '700' as const, color: themeColors.text },
       }} />
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.profileHeader}>
@@ -76,22 +81,22 @@ export default function WorkerDetailScreen() {
 
         <View style={styles.statsGrid}>
           <View style={styles.statCard}>
-            <Clock size={18} color={Colors.primary} />
+            <Clock size={18} color={themeColors.accent} />
             <Text style={styles.statLabel}>Experience</Text>
             <Text style={styles.statValue}>{worker.yearsExperience} years</Text>
           </View>
           <View style={styles.statCard}>
-            <DollarSign size={18} color={Colors.accent} />
+            <DollarSign size={18} color={themeColors.accent} />
             <Text style={styles.statLabel}>Rate</Text>
             <Text style={styles.statValue}>${worker.hourlyRate}/hr</Text>
           </View>
           <View style={styles.statCard}>
-            <MapPin size={18} color={Colors.textSecondary} />
+            <MapPin size={18} color={themeColors.textSecondary} />
             <Text style={styles.statLabel}>Location</Text>
             <Text style={styles.statValue}>{worker.city}, {worker.state}</Text>
           </View>
           <View style={styles.statCard}>
-            <Briefcase size={18} color={Colors.info} />
+            <Briefcase size={18} color={themeColors.info} />
             <Text style={styles.statLabel}>Past Projects</Text>
             <Text style={styles.statValue}>{worker.pastProjects.length}</Text>
           </View>
@@ -107,7 +112,7 @@ export default function WorkerDetailScreen() {
             <Text style={styles.sectionTitle}>Licenses & Certifications</Text>
             {worker.licenses.map((lic, i) => (
               <View key={i} style={styles.licenseItem}>
-                <Award size={14} color={Colors.primary} />
+                <Award size={14} color={themeColors.accent} />
                 <Text style={styles.licenseLabel}>{lic}</Text>
               </View>
             ))}
@@ -158,11 +163,11 @@ export default function WorkerDetailScreen() {
               subject: `Quick question — ${worker.name}`,
               body: [`Hi ${worker.name.split(' ')[0]},`, '', '', ...mailSignOff()],
             }))}>
-              <Mail size={16} color={Colors.primary} />
+              <Mail size={16} color={themeColors.accent} />
               <Text style={styles.contactBtnText}>Email</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.contactBtn} onPress={() => void Linking.openURL(`tel:${worker.phone}`)}>
-              <Phone size={16} color={Colors.primary} />
+              <Phone size={16} color={themeColors.accent} />
               <Text style={styles.contactBtnText}>Call</Text>
             </TouchableOpacity>
           </View>
@@ -172,40 +177,40 @@ export default function WorkerDetailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: t.bg },
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 40 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  errorText: { fontSize: Type.callout.fontSize, color: Colors.textSecondary },
-  profileHeader: { backgroundColor: Colors.surface, alignItems: 'center', paddingVertical: 24, paddingHorizontal: 20, borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight },
-  avatarLarge: { width: 72, height: 72, borderRadius: 36, backgroundColor: Colors.accent + '20', alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
-  avatarText: { fontSize: 30, fontWeight: '800' as const, color: Colors.accent },
-  name: { fontSize: Type.title2.fontSize, fontWeight: '800' as const, color: Colors.text, marginBottom: 4 },
-  trade: { fontSize: Type.subhead.fontSize, color: Colors.textSecondary, marginBottom: 8 },
+  errorText: { fontSize: Type.callout.fontSize, color: t.textSecondary },
+  profileHeader: { backgroundColor: t.surface, alignItems: 'center', paddingVertical: 24, paddingHorizontal: 20, borderBottomWidth: 0.5, borderBottomColor: t.line },
+  avatarLarge: { width: 72, height: 72, borderRadius: 36, backgroundColor: t.accent + '20', alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
+  avatarText: { fontSize: 30, fontWeight: '800' as const, color: t.accent },
+  name: { fontSize: Type.title2.fontSize, fontWeight: '800' as const, color: t.text, marginBottom: 4 },
+  trade: { fontSize: Type.subhead.fontSize, color: t.textSecondary, marginBottom: 8 },
   availBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
   availDot: { width: 8, height: 8, borderRadius: 4 },
   availText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const },
   statsGrid: { flexDirection: 'row', flexWrap: 'wrap', padding: 12, gap: 8 },
-  statCard: { width: '48%' as any, backgroundColor: Colors.surface, padding: 14, borderRadius: Tokens.radius.card, alignItems: 'center', gap: 4 },
-  statLabel: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, textTransform: 'uppercase' as const, fontWeight: '600' as const },
-  statValue: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.text, textAlign: 'center' as const },
-  section: { backgroundColor: Colors.surface, padding: 20, marginTop: 8 },
-  sectionTitle: { fontSize: Type.body.fontSize, fontWeight: '700' as const, color: Colors.text, marginBottom: 10 },
-  bio: { fontSize: Type.subhead.fontSize, color: Colors.text, lineHeight: 22 },
-  licenseItem: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8, borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight },
-  licenseLabel: { fontSize: Type.bodyCompact.fontSize, color: Colors.text },
+  statCard: { width: '48%' as any, backgroundColor: t.surface, padding: 14, borderRadius: Tokens.radius.card, alignItems: 'center', gap: 4 },
+  statLabel: { fontSize: Type.caption2.fontSize, color: t.textMuted, textTransform: 'uppercase' as const, fontWeight: '600' as const },
+  statValue: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: t.text, textAlign: 'center' as const },
+  section: { backgroundColor: t.surface, padding: 20, marginTop: 8 },
+  sectionTitle: { fontSize: Type.body.fontSize, fontWeight: '700' as const, color: t.text, marginBottom: 10 },
+  bio: { fontSize: Type.subhead.fontSize, color: t.text, lineHeight: 22 },
+  licenseItem: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8, borderBottomWidth: 0.5, borderBottomColor: t.line },
+  licenseLabel: { fontSize: Type.bodyCompact.fontSize, color: t.text },
   projectItem: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8 },
-  projectDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: Colors.primary },
-  projectText: { fontSize: Type.bodyCompact.fontSize, color: Colors.text },
-  jobRow: { paddingVertical: 10, borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight },
+  projectDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: t.accent },
+  projectText: { fontSize: Type.bodyCompact.fontSize, color: t.text },
+  jobRow: { paddingVertical: 10, borderBottomWidth: 0.5, borderBottomColor: t.line },
   jobInfo: { flex: 1 },
-  jobTitle: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: Colors.text, marginBottom: 2 },
-  jobMeta: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary },
+  jobTitle: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: t.text, marginBottom: 2 },
+  jobMeta: { fontSize: Type.footnote.fontSize, color: t.textSecondary },
   actionSection: { padding: 20, gap: 12 },
-  messageBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.primary, paddingVertical: 16, borderRadius: Tokens.radius.card, gap: 8 },
+  messageBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: t.accent, paddingVertical: 16, borderRadius: Tokens.radius.card, gap: 8 },
   messageBtnText: { color: '#FFF', fontSize: Type.callout.fontSize, fontWeight: '700' as const },
   contactRow: { flexDirection: 'row', gap: 10 },
-  contactBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.primary + '12', paddingVertical: 14, borderRadius: Tokens.radius.card, gap: 8 },
-  contactBtnText: { color: Colors.primary, fontSize: Type.subhead.fontSize, fontWeight: '600' as const },
+  contactBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: t.accent + '12', paddingVertical: 14, borderRadius: Tokens.radius.card, gap: 8 },
+  contactBtnText: { color: t.accent, fontSize: Type.subhead.fontSize, fontWeight: '600' as const },
 });

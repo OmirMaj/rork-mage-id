@@ -17,6 +17,9 @@ import {
   ChevronLeft, ArrowRight, Circle as CircleIcon, Pen, Type as TypeIcon, Undo2, Trash2, Check, X } from 'lucide-react-native';
 import Svg, { Path, Circle, Line, Polygon, Text as SvgText } from 'react-native-svg';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import type { PhotoMarkup } from '@/types';
 import { generateUUID } from '@/utils/generateId';
@@ -35,6 +38,8 @@ const COLOR_HEX: Record<AnnotationColor, string> = {
 const CANVAS_SIZE = 380;       // logical canvas — actual size is responsive
 
 export default function PhotoAnnotatorScreen() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { photoId } = useLocalSearchParams<{ photoId: string }>();
@@ -247,7 +252,7 @@ export default function PhotoAnnotatorScreen() {
             fill={stroke}
             opacity={0.92}
           />
-          <SvgText x={x + 8} y={y + 2} fill={Colors.surface} fontSize={13} fontWeight="700">{m.text}</SvgText>
+          <SvgText x={x + 8} y={y + 2} fill={themeColors.surface} fontSize={13} fontWeight="700">{m.text}</SvgText>
         </React.Fragment>
       );
     }
@@ -268,11 +273,11 @@ export default function PhotoAnnotatorScreen() {
 
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.back} accessibilityRole="button" accessibilityLabel="Back">
-          <ChevronLeft size={22} color={Colors.text} />
+          <ChevronLeft size={22} color={themeColors.text} />
         </TouchableOpacity>
         <Text style={styles.title}>Markup</Text>
         <TouchableOpacity onPress={handleSave} style={styles.saveBtn}>
-          <Check size={16} color={Colors.surface} />
+          <Check size={16} color={themeColors.surface} />
           <Text style={styles.saveText}>Save</Text>
         </TouchableOpacity>
       </View>
@@ -303,14 +308,14 @@ export default function PhotoAnnotatorScreen() {
               onChangeText={setTextValue}
               onSubmitEditing={commitText}
               placeholder="Label this point…"
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={themeColors.textMuted}
               style={styles.textInput}
               maxLength={28}
               testID="annotator-text-input"
             />
-            <TouchableOpacity onPress={commitText} style={styles.textOk} accessibilityRole="button" accessibilityLabel="Confirm"><Check size={16} color={Colors.surface} /></TouchableOpacity>
+            <TouchableOpacity onPress={commitText} style={styles.textOk} accessibilityRole="button" accessibilityLabel="Confirm"><Check size={16} color={themeColors.surface} /></TouchableOpacity>
             <TouchableOpacity onPress={() => { setPendingText(null); setTextValue(''); }} style={styles.textCancel} accessibilityRole="button" accessibilityLabel="Close">
-              <X size={16} color={Colors.textMuted} />
+              <X size={16} color={themeColors.textMuted} />
             </TouchableOpacity>
           </View>
         ) : null}
@@ -328,7 +333,7 @@ export default function PhotoAnnotatorScreen() {
                 style={[styles.toolBtn, active && styles.toolBtnActive]}
                 testID={`tool-${t.tool}`}
               >
-                <TIcon size={18} color={active ? Colors.surface : Colors.text} />
+                <TIcon size={18} color={active ? themeColors.surface : themeColors.text} />
                 <Text style={[styles.toolText, active && styles.toolTextActive]}>{t.label}</Text>
               </TouchableOpacity>
             );
@@ -355,12 +360,12 @@ export default function PhotoAnnotatorScreen() {
         {/* Action row */}
         <View style={styles.actionRow}>
           <TouchableOpacity onPress={handleUndo} disabled={!markups.length} style={[styles.actionBtn, !markups.length && styles.actionDisabled]}>
-            <Undo2 size={16} color={markups.length ? Colors.text : Colors.textMuted} />
+            <Undo2 size={16} color={markups.length ? themeColors.text : themeColors.textMuted} />
             <Text style={[styles.actionText, !markups.length && styles.actionTextDisabled]}>Undo</Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={handleClear} disabled={!markups.length} style={[styles.actionBtn, !markups.length && styles.actionDisabled]}>
-            <Trash2 size={16} color={markups.length ? Colors.error : Colors.textMuted} />
-            <Text style={[styles.actionText, { color: markups.length ? Colors.error : Colors.textMuted }]}>Clear all</Text>
+            <Trash2 size={16} color={markups.length ? themeColors.danger : themeColors.textMuted} />
+            <Text style={[styles.actionText, { color: markups.length ? themeColors.danger : themeColors.textMuted }]}>Clear all</Text>
           </TouchableOpacity>
         </View>
 
@@ -372,69 +377,69 @@ export default function PhotoAnnotatorScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: Colors.background },
-  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, backgroundColor: Colors.background },
-  emptyText: { fontSize: Type.subhead.fontSize, color: Colors.textMuted, marginBottom: 12 },
-  emptyBack: { fontSize: Type.bodyCompact.fontSize, color: Colors.primary, fontWeight: '700' },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  root: { flex: 1, backgroundColor: t.bg },
+  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, backgroundColor: t.bg },
+  emptyText: { fontSize: Type.subhead.fontSize, color: t.textMuted, marginBottom: 12 },
+  emptyBack: { fontSize: Type.bodyCompact.fontSize, color: t.accent, fontWeight: '700' },
 
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1,
-    borderBottomColor: Colors.border, backgroundColor: Colors.surface,
+    borderBottomColor: t.line, backgroundColor: t.surface,
   },
   back: { padding: 4 },
-  title: { fontSize: Type.body.fontSize, fontWeight: '700', color: Colors.text },
+  title: { fontSize: Type.body.fontSize, fontWeight: '700', color: t.text },
   saveBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: 14, paddingVertical: 8,
-    backgroundColor: Colors.primary, borderRadius: Tokens.radius.md,
+    backgroundColor: t.accent, borderRadius: Tokens.radius.md,
   },
-  saveText: { color: Colors.surface, fontWeight: '800', fontSize: Type.footnote.fontSize },
+  saveText: { color: t.surface, fontWeight: '800', fontSize: Type.footnote.fontSize },
 
   body: { padding: 16, gap: 14 },
   canvas: {
     aspectRatio: 1, borderRadius: Tokens.radius.card, overflow: 'hidden',
-    backgroundColor: '#000', borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: '#000', borderWidth: 1, borderColor: t.line,
   },
 
   textRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: -4 },
   textInput: {
     flex: 1, paddingHorizontal: 12, paddingVertical: 10,
-    backgroundColor: Colors.surface, borderRadius: Tokens.radius.md,
-    borderWidth: 1, borderColor: Colors.border, fontSize: Type.bodyCompact.fontSize, color: Colors.text,
+    backgroundColor: t.surface, borderRadius: Tokens.radius.md,
+    borderWidth: 1, borderColor: t.line, fontSize: Type.bodyCompact.fontSize, color: t.text,
   },
-  textOk: { padding: 10, borderRadius: Tokens.radius.md, backgroundColor: Colors.primary },
-  textCancel: { padding: 10, borderRadius: Tokens.radius.md, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border },
+  textOk: { padding: 10, borderRadius: Tokens.radius.md, backgroundColor: t.accent },
+  textCancel: { padding: 10, borderRadius: Tokens.radius.md, backgroundColor: t.surface, borderWidth: 1, borderColor: t.line },
 
-  sectionLabel: { fontSize: Type.caption2.fontSize, fontWeight: '800', letterSpacing: 0.6, color: Colors.textMuted, textTransform: 'uppercase', marginTop: 6 },
+  sectionLabel: { fontSize: Type.caption2.fontSize, fontWeight: '800', letterSpacing: 0.6, color: t.textMuted, textTransform: 'uppercase', marginTop: 6 },
 
   toolRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   toolBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: 12, paddingVertical: 9,
-    borderRadius: Tokens.radius.md, borderWidth: 1, borderColor: Colors.border,
-    backgroundColor: Colors.surface,
+    borderRadius: Tokens.radius.md, borderWidth: 1, borderColor: t.line,
+    backgroundColor: t.surface,
   },
-  toolBtnActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  toolText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.text },
-  toolTextActive: { color: Colors.surface },
+  toolBtnActive: { backgroundColor: t.accent, borderColor: t.accent },
+  toolText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: t.text },
+  toolTextActive: { color: t.surface },
 
   colorRow: { flexDirection: 'row', gap: 12 },
   colorSwatch: {
     width: 36, height: 36, borderRadius: Tokens.radius.xl,
     borderWidth: 2, borderColor: 'transparent',
   },
-  colorSwatchActive: { borderColor: Colors.text },
+  colorSwatchActive: { borderColor: t.text },
 
   actionRow: { flexDirection: 'row', gap: 10, marginTop: 4 },
   actionBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-    paddingVertical: 10, borderRadius: Tokens.radius.md, borderWidth: 1, borderColor: Colors.border,
-    backgroundColor: Colors.surface,
+    paddingVertical: 10, borderRadius: Tokens.radius.md, borderWidth: 1, borderColor: t.line,
+    backgroundColor: t.surface,
   },
   actionDisabled: { opacity: 0.5 },
-  actionText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.text },
-  actionTextDisabled: { color: Colors.textMuted },
-  helper: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, textAlign: 'center', marginTop: 4 },
+  actionText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: t.text },
+  actionTextDisabled: { color: t.textMuted },
+  helper: { fontSize: Type.caption1.fontSize, color: t.textMuted, textAlign: 'center', marginTop: 4 },
 });

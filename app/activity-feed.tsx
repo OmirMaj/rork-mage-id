@@ -10,6 +10,9 @@ import {
   XCircle, DollarSign, Upload,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useActivityFeed, type ActivityAction, type ActivityItem } from '@/hooks/useActivityFeed';
 import { useEntityNavigation } from '@/hooks/useEntityNavigation';
@@ -20,6 +23,8 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
 export default function ActivityFeedScreen() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
@@ -53,7 +58,7 @@ export default function ActivityFeedScreen() {
           accessibilityLabel="Go back"
           testID="activity-back-btn"
         >
-          <ChevronLeft size={24} color={Colors.text} />
+          <ChevronLeft size={24} color={themeColors.text} />
         </TouchableOpacity>
         <View style={styles.headerTitleWrap}>
           <Text style={styles.headerTitle} numberOfLines={1}>{headerTitle}</Text>
@@ -64,7 +69,7 @@ export default function ActivityFeedScreen() {
 
       {items.length === 0 ? (
         <EmptyState
-          icon={<Activity size={32} color={Colors.primary} />}
+          icon={<Activity size={32} color={themeColors.accent} />}
           title="No activity yet"
           message="Every change order, RFI, daily report, invoice, and photo lands here the moment it's created — your project's heartbeat in one timeline."
           actionLabel="Back to projects"
@@ -101,6 +106,8 @@ interface RowProps {
 }
 
 function ActivityRow({ item, onPress, onLongPress }: RowProps) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const { icon: Icon, color, verb } = iconAndColor(item.action);
 
   return (
@@ -129,7 +136,7 @@ function ActivityRow({ item, onPress, onLongPress }: RowProps) {
           ) : null}
         </Text>
       </View>
-      <ChevronRight size={16} color={Colors.textMuted} />
+      <ChevronRight size={16} color={themeColors.textMuted} />
     </TouchableOpacity>
   );
 }
@@ -141,21 +148,21 @@ function ActivityRow({ item, onPress, onLongPress }: RowProps) {
 function iconAndColor(action: ActivityAction) {
   switch (action) {
     case 'created':
-      return { icon: Plus, color: Colors.primary, verb: 'Created' };
+      return { icon: Plus, color: "#FF6A1A", verb: 'Created' };
     case 'updated':
-      return { icon: RefreshCcw, color: Colors.info, verb: 'Updated' };
+      return { icon: RefreshCcw, color: "#1565C0", verb: 'Updated' };
     case 'completed':
-      return { icon: CheckCircle2, color: Colors.success, verb: 'Completed' };
+      return { icon: CheckCircle2, color: "#2E7D44", verb: 'Completed' };
     case 'closed':
-      return { icon: XCircle, color: Colors.textSecondary, verb: 'Closed' };
+      return { icon: XCircle, color: "#9AA3AD", verb: 'Closed' };
     case 'paid':
-      return { icon: DollarSign, color: Colors.success, verb: 'Paid' };
+      return { icon: DollarSign, color: "#2E7D44", verb: 'Paid' };
     case 'uploaded':
-      return { icon: Upload, color: Colors.accent, verb: 'Uploaded' };
+      return { icon: Upload, color: "#FF6A1A", verb: 'Uploaded' };
     default: {
       const _exhaustive: never = action;
       void _exhaustive;
-      return { icon: Activity, color: Colors.textSecondary, verb: 'Activity' };
+      return { icon: Activity, color: "#9AA3AD", verb: 'Activity' };
     }
   }
 }
@@ -180,21 +187,21 @@ function formatWhen(iso: string): string {
 // Styles
 // ---------------------------------------------------------------------------
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: t.bg },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
     paddingBottom: 12,
-    backgroundColor: Colors.background,
+    backgroundColor: t.bg,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Colors.border,
+    borderBottomColor: t.line,
   },
   headerBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
   headerTitleWrap: { flex: 1, alignItems: 'center' },
-  headerTitle: { fontSize: Type.body.fontSize, fontWeight: '700', color: Colors.text },
-  headerSubtitle: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2 },
+  headerTitle: { fontSize: Type.body.fontSize, fontWeight: '700', color: t.text },
+  headerSubtitle: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 2 },
 
   listContent: { paddingVertical: 4 },
   row: {
@@ -202,16 +209,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 14,
-    backgroundColor: Colors.background,
+    backgroundColor: t.bg,
     gap: 12,
   },
   rowIcon: { width: 36, height: 36, borderRadius: Tokens.radius.md, alignItems: 'center', justifyContent: 'center' },
   rowBody: { flex: 1 },
-  rowTitle: { fontSize: Type.subhead.fontSize, fontWeight: '600', color: Colors.text, marginBottom: 2 },
-  rowMeta: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary },
+  rowTitle: { fontSize: Type.subhead.fontSize, fontWeight: '600', color: t.text, marginBottom: 2 },
+  rowMeta: { fontSize: Type.caption1.fontSize, color: t.textSecondary },
   rowVerb: { fontWeight: '600' },
-  rowDot: { color: Colors.textMuted },
-  separator: { height: StyleSheet.hairlineWidth, backgroundColor: Colors.border, marginLeft: 64 },
+  rowDot: { color: t.textMuted },
+  separator: { height: StyleSheet.hairlineWidth, backgroundColor: t.line, marginLeft: 64 },
 
   emptyWrap: {
     flex: 1,
@@ -222,10 +229,10 @@ const styles = StyleSheet.create({
   },
   emptyIcon: {
     width: 56, height: 56, borderRadius: Tokens.radius.panel,
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.surfaceAlt,
     alignItems: 'center', justifyContent: 'center',
     marginBottom: 4,
   },
-  emptyTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700', color: Colors.text },
-  emptyBody: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, textAlign: 'center', lineHeight: 20 },
+  emptyTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700', color: t.text },
+  emptyBody: { fontSize: Type.bodyCompact.fontSize, color: t.textSecondary, textAlign: 'center', lineHeight: 20 },
 });

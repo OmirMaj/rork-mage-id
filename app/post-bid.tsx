@@ -6,6 +6,9 @@ import { useRouter, Stack } from 'expo-router';
 import { ChevronDown, X } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useBids } from '@/contexts/BidsContext';
 import { CERTIFICATIONS } from '@/constants/certifications';
 import { US_STATES } from '@/constants/regions';
@@ -28,6 +31,8 @@ const BID_CATEGORIES: { id: BidCategory; label: string }[] = [
 ];
 
 export default function PostBidScreen() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const router = useRouter();
   const { addBid } = useBids();
   const [title, setTitle] = useState('');
@@ -89,22 +94,22 @@ export default function PostBidScreen() {
     <View style={styles.container}>
       <Stack.Screen options={{
         title: 'Post a Bid',
-        headerStyle: { backgroundColor: Colors.background },
-        headerTintColor: Colors.primary,
-        headerTitleStyle: { fontWeight: '700' as const, color: Colors.text },
+        headerStyle: { backgroundColor: themeColors.bg },
+        headerTintColor: themeColors.accent,
+        headerTitleStyle: { fontWeight: '700' as const, color: themeColors.text },
       }} />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           <Text style={styles.label}>Title *</Text>
-          <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder="Bid title" placeholderTextColor={Colors.textMuted} testID="bid-title" />
+          <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder="Bid title" placeholderTextColor={themeColors.textMuted} testID="bid-title" />
 
           <Text style={styles.label}>Issuing Agency *</Text>
-          <TextInput style={styles.input} value={agency} onChangeText={setAgency} placeholder="Agency or company name" placeholderTextColor={Colors.textMuted} />
+          <TextInput style={styles.input} value={agency} onChangeText={setAgency} placeholder="Agency or company name" placeholderTextColor={themeColors.textMuted} />
 
           <View style={styles.row}>
             <View style={styles.halfField}>
               <Text style={styles.label}>City *</Text>
-              <TextInput style={styles.input} value={city} onChangeText={setCity} placeholder="City" placeholderTextColor={Colors.textMuted} />
+              <TextInput style={styles.input} value={city} onChangeText={setCity} placeholder="City" placeholderTextColor={themeColors.textMuted} />
             </View>
             <View style={styles.halfField}>
               <Text style={styles.label}>State *</Text>
@@ -139,32 +144,32 @@ export default function PostBidScreen() {
           <View style={styles.row}>
             <View style={styles.halfField}>
               <Text style={styles.label}>Estimated Value ($) *</Text>
-              <TextInput style={styles.input} value={estimatedValue} onChangeText={setEstimatedValue} placeholder="5000000" keyboardType="numeric" placeholderTextColor={Colors.textMuted} />
+              <TextInput style={styles.input} value={estimatedValue} onChangeText={setEstimatedValue} placeholder="5000000" keyboardType="numeric" placeholderTextColor={themeColors.textMuted} />
             </View>
             <View style={styles.halfField}>
               <Text style={styles.label}>Bond Required ($) *</Text>
-              <TextInput style={styles.input} value={bondRequired} onChangeText={setBondRequired} placeholder="2500000" keyboardType="numeric" placeholderTextColor={Colors.textMuted} />
+              <TextInput style={styles.input} value={bondRequired} onChangeText={setBondRequired} placeholder="2500000" keyboardType="numeric" placeholderTextColor={themeColors.textMuted} />
             </View>
           </View>
 
           <Text style={styles.label}>Deadline (YYYY-MM-DD) *</Text>
-          <TextInput style={styles.input} value={deadline} onChangeText={setDeadline} placeholder="2026-06-01" placeholderTextColor={Colors.textMuted} />
+          <TextInput style={styles.input} value={deadline} onChangeText={setDeadline} placeholder="2026-06-01" placeholderTextColor={themeColors.textMuted} />
 
           <Text style={styles.label}>Description</Text>
-          <TextInput style={[styles.input, styles.textArea]} value={description} onChangeText={setDescription} placeholder="Describe the project scope..." placeholderTextColor={Colors.textMuted} multiline numberOfLines={4} />
+          <TextInput style={[styles.input, styles.textArea]} value={description} onChangeText={setDescription} placeholder="Describe the project scope..." placeholderTextColor={themeColors.textMuted} multiline numberOfLines={4} />
 
           <Text style={styles.label}>Contact Email *</Text>
-          <TextInput style={styles.input} value={contactEmail} onChangeText={setContactEmail} placeholder="bids@example.com" keyboardType="email-address" autoCapitalize="none" placeholderTextColor={Colors.textMuted} />
+          <TextInput style={styles.input} value={contactEmail} onChangeText={setContactEmail} placeholder="bids@example.com" keyboardType="email-address" autoCapitalize="none" placeholderTextColor={themeColors.textMuted} />
 
           <Text style={styles.label}>Apply URL (optional)</Text>
-          <TextInput style={styles.input} value={applyUrl} onChangeText={setApplyUrl} placeholder="https://..." autoCapitalize="none" placeholderTextColor={Colors.textMuted} />
+          <TextInput style={styles.input} value={applyUrl} onChangeText={setApplyUrl} placeholder="https://..." autoCapitalize="none" placeholderTextColor={themeColors.textMuted} />
 
           <Text style={styles.label}>Required Certifications</Text>
           <TouchableOpacity style={styles.certToggle} onPress={() => setShowCertPicker(!showCertPicker)}>
             <Text style={styles.certToggleText}>
               {selectedCerts.length === 0 ? 'None selected' : `${selectedCerts.length} selected`}
             </Text>
-            <ChevronDown size={16} color={Colors.textSecondary} />
+            <ChevronDown size={16} color={themeColors.textSecondary} />
           </TouchableOpacity>
 
           {showCertPicker && (
@@ -190,7 +195,7 @@ export default function PostBidScreen() {
                 return (
                   <TouchableOpacity key={certId} style={styles.selectedCertBadge} onPress={() => toggleCert(certId)}>
                     <Text style={styles.selectedCertText}>{info?.shortLabel ?? certId}</Text>
-                    <X size={12} color={Colors.primary} />
+                    <X size={12} color={themeColors.accent} />
                   </TouchableOpacity>
                 );
               })}
@@ -206,35 +211,35 @@ export default function PostBidScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: t.bg },
   scroll: { flex: 1 },
   scrollContent: { padding: 16, paddingBottom: 60 },
-  label: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.textSecondary, marginBottom: 6, marginTop: 14, textTransform: 'uppercase' as const, letterSpacing: 0.3 },
-  input: { backgroundColor: Colors.surface, borderRadius: Tokens.radius.md, paddingHorizontal: 14, paddingVertical: 12, fontSize: Type.subhead.fontSize, color: Colors.text, borderWidth: 0.5, borderColor: Colors.borderLight },
+  label: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: t.textSecondary, marginBottom: 6, marginTop: 14, textTransform: 'uppercase' as const, letterSpacing: 0.3 },
+  input: { backgroundColor: t.surface, borderRadius: Tokens.radius.md, paddingHorizontal: 14, paddingVertical: 12, fontSize: Type.subhead.fontSize, color: t.text, borderWidth: 0.5, borderColor: t.line },
   textArea: { minHeight: 100, textAlignVertical: 'top' as const },
   row: { flexDirection: 'row', gap: 10 },
   halfField: { flex: 1 },
   stateScroll: { maxHeight: 36 },
-  stateChip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: Tokens.radius.sm, backgroundColor: Colors.surface, marginRight: 4, borderWidth: 0.5, borderColor: Colors.borderLight },
-  stateChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  stateChipText: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, fontWeight: '600' as const },
+  stateChip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: Tokens.radius.sm, backgroundColor: t.surface, marginRight: 4, borderWidth: 0.5, borderColor: t.line },
+  stateChipActive: { backgroundColor: t.accent, borderColor: t.accent },
+  stateChipText: { fontSize: Type.footnote.fontSize, color: t.textSecondary, fontWeight: '600' as const },
   stateChipTextActive: { color: '#FFF' },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  chip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: Tokens.radius.sm, backgroundColor: Colors.surface, borderWidth: 0.5, borderColor: Colors.borderLight },
-  chipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  chipText: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, fontWeight: '500' as const },
+  chip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: Tokens.radius.sm, backgroundColor: t.surface, borderWidth: 0.5, borderColor: t.line },
+  chipActive: { backgroundColor: t.accent, borderColor: t.accent },
+  chipText: { fontSize: Type.footnote.fontSize, color: t.textSecondary, fontWeight: '500' as const },
   chipTextActive: { color: '#FFF' },
-  certToggle: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: Colors.surface, borderRadius: Tokens.radius.md, paddingHorizontal: 14, paddingVertical: 12, borderWidth: 0.5, borderColor: Colors.borderLight },
-  certToggleText: { fontSize: Type.subhead.fontSize, color: Colors.textSecondary },
-  certPickerContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8, backgroundColor: Colors.surface, padding: 12, borderRadius: Tokens.radius.md },
-  certOption: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: Tokens.radius.xs, backgroundColor: Colors.background },
-  certOptionActive: { backgroundColor: Colors.primary + '20' },
-  certOptionText: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, fontWeight: '500' as const },
-  certOptionTextActive: { color: Colors.primary, fontWeight: '700' as const },
+  certToggle: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: t.surface, borderRadius: Tokens.radius.md, paddingHorizontal: 14, paddingVertical: 12, borderWidth: 0.5, borderColor: t.line },
+  certToggleText: { fontSize: Type.subhead.fontSize, color: t.textSecondary },
+  certPickerContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8, backgroundColor: t.surface, padding: 12, borderRadius: Tokens.radius.md },
+  certOption: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: Tokens.radius.xs, backgroundColor: t.bg },
+  certOptionActive: { backgroundColor: t.accent + '20' },
+  certOptionText: { fontSize: Type.caption1.fontSize, color: t.textSecondary, fontWeight: '500' as const },
+  certOptionTextActive: { color: t.accent, fontWeight: '700' as const },
   selectedCerts: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
-  selectedCertBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: Colors.primary + '15', paddingHorizontal: 8, paddingVertical: 4, borderRadius: Tokens.radius.xs },
-  selectedCertText: { fontSize: Type.caption1.fontSize, color: Colors.primary, fontWeight: '600' as const },
-  submitBtn: { backgroundColor: Colors.primary, borderRadius: Tokens.radius.card, paddingVertical: 16, alignItems: 'center', marginTop: 24 },
+  selectedCertBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: t.accent + '15', paddingHorizontal: 8, paddingVertical: 4, borderRadius: Tokens.radius.xs },
+  selectedCertText: { fontSize: Type.caption1.fontSize, color: t.accent, fontWeight: '600' as const },
+  submitBtn: { backgroundColor: t.accent, borderRadius: Tokens.radius.card, paddingVertical: 16, alignItems: 'center', marginTop: 24 },
   submitBtnText: { color: '#FFF', fontSize: Type.callout.fontSize, fontWeight: '700' as const },
 });

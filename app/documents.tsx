@@ -11,6 +11,9 @@ import {
   AlertCircle, Check, X as XIcon,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { DOCUMENT_TYPE_INFO } from '@/mocks/documents';
 import type { ProjectDocument, DocumentStatus } from '@/types';
 import { useProjects } from '@/contexts/ProjectContext';
@@ -26,6 +29,8 @@ const STATUS_CONFIG: Record<DocumentStatus, { label: string; color: string; bgCo
 };
 
 function DocumentCard({ doc, onPress }: { doc: ProjectDocument; onPress: () => void }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const typeInfo = DOCUMENT_TYPE_INFO[doc.type] ?? DOCUMENT_TYPE_INFO.other;
   const statusInfo = STATUS_CONFIG[doc.status];
@@ -75,6 +80,8 @@ function DocumentCard({ doc, onPress }: { doc: ProjectDocument; onPress: () => v
 }
 
 export default function DocumentsScreen() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   // Real aggregator. Pre-audit (May 2026) this screen rendered MOCK_DOCUMENTS
@@ -232,7 +239,7 @@ export default function DocumentsScreen() {
 
   return (
     <View style={styles.container}>
-      <Stack.Screen options={{ title: 'Documents', headerStyle: { backgroundColor: Colors.background }, headerTintColor: Colors.primary, headerTitleStyle: { fontWeight: '700' as const, color: Colors.text } }} />
+      <Stack.Screen options={{ title: 'Documents', headerStyle: { backgroundColor: themeColors.bg }, headerTintColor: themeColors.accent, headerTitleStyle: { fontWeight: '700' as const, color: themeColors.text } }} />
       <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 30 }} showsVerticalScrollIndicator={false}>
         {/* Header note — explains this is a unified read-only view. The
             actual write paths for each doc type live elsewhere
@@ -241,9 +248,9 @@ export default function DocumentsScreen() {
         <View style={{
           marginHorizontal: 16, marginTop: 12, padding: 12,
           backgroundColor: Colors.fillSecondary, borderRadius: 12,
-          borderWidth: 1, borderColor: Colors.border,
+          borderWidth: 1, borderColor: themeColors.line,
         }}>
-          <Text style={{ fontSize: 13, color: Colors.textSecondary, lineHeight: 18 }}>
+          <Text style={{ fontSize: 13, color: themeColors.textSecondary, lineHeight: 18 }}>
             All documents across your projects in one view. Tap any card to open it in its home screen for editing.
           </Text>
         </View>
@@ -316,7 +323,7 @@ export default function DocumentsScreen() {
         <View style={styles.listSection}>
           {filtered.length === 0 ? (
             <View style={styles.emptyState}>
-              <FileText size={32} color={Colors.textMuted} />
+              <FileText size={32} color={themeColors.textMuted} />
               <Text style={styles.emptyTitle}>No documents found</Text>
             </View>
           ) : (
@@ -330,8 +337,8 @@ export default function DocumentsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: t.bg },
   alertsRow: { paddingHorizontal: 16, paddingTop: 16, gap: 8 },
   alertCard: {
     flexDirection: 'row',
@@ -342,7 +349,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   alertTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600' as const },
-  alertDesc: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, marginTop: 1 },
+  alertDesc: { fontSize: Type.caption1.fontSize, color: t.textSecondary, marginTop: 1 },
   statsRow: {
     flexDirection: 'row',
     paddingHorizontal: 16,
@@ -352,18 +359,18 @@ const styles = StyleSheet.create({
   },
   statCard: {
     flex: 1,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.card,
     padding: 12,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
   },
-  statValue: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: Colors.text },
-  statLabel: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, marginTop: 2 },
+  statValue: { fontSize: Type.title3.fontSize, fontWeight: '700' as const, color: t.text },
+  statLabel: { fontSize: Type.caption2.fontSize, color: t.textSecondary, marginTop: 2 },
   createButton: {
     marginHorizontal: 16,
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
     borderRadius: Tokens.radius.lg,
     paddingVertical: 14,
     flexDirection: 'row',
@@ -371,7 +378,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     marginBottom: 16,
-    shadowColor: Colors.primary,
+    shadowColor: t.accent,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 12,
@@ -383,18 +390,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
   },
-  filterChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  filterChipText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.textSecondary },
+  filterChipActive: { backgroundColor: t.accent, borderColor: t.accent },
+  filterChipText: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: t.textSecondary },
   filterChipTextActive: { color: '#fff' },
   listSection: { paddingHorizontal: 16 },
   docCard: {
     marginBottom: 10,
     borderRadius: Tokens.radius.lg,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.04,
@@ -404,8 +411,8 @@ const styles = StyleSheet.create({
   docCardInner: { padding: 14, gap: 6 },
   docTypeTag: { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4, borderRadius: Tokens.radius.xs },
   docTypeTagText: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const },
-  docTitle: { fontSize: Type.callout.fontSize, fontWeight: '600' as const, color: Colors.text },
-  docProject: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary },
+  docTitle: { fontSize: Type.callout.fontSize, fontWeight: '600' as const, color: t.text },
+  docProject: { fontSize: Type.footnote.fontSize, color: t.textSecondary },
   expiryWarning: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -427,7 +434,7 @@ const styles = StyleSheet.create({
     borderRadius: Tokens.radius.xs,
   },
   docStatusText: { fontSize: Type.caption2.fontSize, fontWeight: '600' as const },
-  docDate: { fontSize: Type.caption1.fontSize, color: Colors.textMuted },
+  docDate: { fontSize: Type.caption1.fontSize, color: t.textMuted },
   emptyState: { alignItems: 'center', paddingVertical: 60, gap: 8 },
-  emptyTitle: { fontSize: Type.body.fontSize, fontWeight: '600' as const, color: Colors.text },
+  emptyTitle: { fontSize: Type.body.fontSize, fontWeight: '600' as const, color: t.text },
 });

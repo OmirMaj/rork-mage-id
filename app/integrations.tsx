@@ -13,12 +13,17 @@ import {
   Wifi, WifiOff, Search, X,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { MOCK_INTEGRATIONS, INTEGRATION_CATEGORIES } from '@/mocks/integrations';
 import type { Integration, IntegrationCategory } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
 function IntegrationCard({ item, onConnect }: { item: Integration; onConnect: (item: Integration) => void }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
   const statusConfig = useMemo(() => {
@@ -26,13 +31,13 @@ function IntegrationCard({ item, onConnect }: { item: Integration; onConnect: (i
       case 'connected':
         return { label: 'Connected', color: Colors.successDark, bgColor: Colors.successLight, icon: Check };
       case 'disconnected':
-        return { label: item.tier === 'link' ? 'Open' : 'Connect', color: Colors.primary, bgColor: Colors.primary + '14', icon: Plug };
+        return { label: item.tier === 'link' ? 'Open' : 'Connect', color: themeColors.accent, bgColor: themeColors.accent + '14', icon: Plug };
       case 'coming_soon':
         return { label: 'Coming Soon', color: '#9E9E9E', bgColor: '#F5F5F5', icon: Lock };
       case 'error':
         return { label: 'Error', color: Colors.errorDark, bgColor: Colors.errorLight, icon: WifiOff };
       default:
-        return { label: 'Connect', color: Colors.primary, bgColor: Colors.primary + '14', icon: Plug };
+        return { label: 'Connect', color: themeColors.accent, bgColor: themeColors.accent + '14', icon: Plug };
     }
   }, [item.status, item.tier]);
 
@@ -57,7 +62,7 @@ function IntegrationCard({ item, onConnect }: { item: Integration; onConnect: (i
           <View style={styles.cardNameRow}>
             <Text style={styles.cardName} numberOfLines={1}>{item.name}</Text>
             {item.tier === 'link' && (
-              <ExternalLink size={12} color={Colors.textMuted} style={{ marginLeft: 4 }} />
+              <ExternalLink size={12} color={themeColors.textMuted} style={{ marginLeft: 4 }} />
             )}
           </View>
           <Text style={styles.cardDesc} numberOfLines={2}>{item.description}</Text>
@@ -77,6 +82,8 @@ function IntegrationCard({ item, onConnect }: { item: Integration; onConnect: (i
 }
 
 export default function IntegrationsScreen() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { canAccess } = useTierAccess();
@@ -166,7 +173,7 @@ export default function IntegrationsScreen() {
 
   return (
     <View style={styles.container}>
-      <Stack.Screen options={{ title: 'Integrations', headerStyle: { backgroundColor: Colors.background }, headerTintColor: Colors.primary, headerTitleStyle: { fontWeight: '700' as const, color: Colors.text } }} />
+      <Stack.Screen options={{ title: 'Integrations', headerStyle: { backgroundColor: themeColors.bg }, headerTintColor: themeColors.accent, headerTitleStyle: { fontWeight: '700' as const, color: themeColors.text } }} />
       <ScrollView
         contentContainerStyle={{ paddingBottom: insets.bottom + 30 }}
         showsVerticalScrollIndicator={false}
@@ -183,19 +190,19 @@ export default function IntegrationsScreen() {
           <Text style={{ fontSize: 12, fontWeight: '800' as const, color: Colors.warning, letterSpacing: 0.5 }}>
             PREVIEW
           </Text>
-          <Text style={{ fontSize: 13, color: Colors.text, marginTop: 4, lineHeight: 18 }}>
+          <Text style={{ fontSize: 13, color: themeColors.text, marginTop: 4, lineHeight: 18 }}>
             This is a preview of the Integrations Hub. Connect buttons aren&apos;t live yet — your data won&apos;t actually sync. We&apos;ll email you when each integration ships.
           </Text>
         </View>
         <View style={styles.heroSection}>
           <View style={styles.heroIconWrap}>
-            <Wifi size={28} color={Colors.primary} />
+            <Wifi size={28} color={themeColors.accent} />
           </View>
           <Text style={styles.heroTitle}>Integrations Hub</Text>
           <Text style={styles.heroSubtitle}>Connect your favorite tools and services</Text>
           <View style={styles.heroStats}>
             <View style={styles.heroStat}>
-              <Text style={[styles.heroStatValue, { color: Colors.primary }]}>{connectedCount}</Text>
+              <Text style={[styles.heroStatValue, { color: themeColors.accent }]}>{connectedCount}</Text>
               <Text style={styles.heroStatLabel}>Connected</Text>
             </View>
             <View style={[styles.heroStatDivider]} />
@@ -237,7 +244,7 @@ export default function IntegrationsScreen() {
 
         {filtered.length === 0 ? (
           <View style={styles.emptyState}>
-            <Search size={32} color={Colors.textMuted} />
+            <Search size={32} color={themeColors.textMuted} />
             <Text style={styles.emptyTitle}>No integrations found</Text>
             <Text style={styles.emptyDesc}>Try a different category or search term</Text>
           </View>
@@ -284,8 +291,8 @@ export default function IntegrationsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: t.bg },
   heroSection: {
     alignItems: 'center',
     paddingVertical: 24,
@@ -296,7 +303,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: Colors.primary + '14',
+    backgroundColor: t.accent + '14',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 8,
@@ -304,17 +311,17 @@ const styles = StyleSheet.create({
   heroTitle: {
     fontSize: 24,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: t.text,
     letterSpacing: -0.5,
   },
   heroSubtitle: {
     fontSize: Type.subhead.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
   },
   heroStats: {
     flexDirection: 'row',
     marginTop: 16,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.panel,
     paddingVertical: 14,
     paddingHorizontal: 20,
@@ -326,9 +333,9 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   heroStat: { alignItems: 'center', flex: 1 },
-  heroStatValue: { fontSize: Type.title2.fontSize, fontWeight: '700' as const, color: Colors.text },
-  heroStatLabel: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 2 },
-  heroStatDivider: { width: 1, backgroundColor: Colors.borderLight },
+  heroStatValue: { fontSize: Type.title2.fontSize, fontWeight: '700' as const, color: t.text },
+  heroStatLabel: { fontSize: Type.caption2.fontSize, color: t.textMuted, marginTop: 2 },
+  heroStatDivider: { width: 1, backgroundColor: t.line },
   categoryRow: {
     paddingHorizontal: 16,
     gap: 8,
@@ -338,18 +345,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
   },
   categoryChipActive: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
+    backgroundColor: t.accent,
+    borderColor: t.accent,
   },
   categoryChipText: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
   },
   categoryChipTextActive: {
     color: '#fff',
@@ -360,7 +367,7 @@ const styles = StyleSheet.create({
   sectionLabel: {
     fontSize: Type.caption1.fontSize,
     fontWeight: '600' as const,
-    color: Colors.textMuted,
+    color: t.textMuted,
     letterSpacing: 0.6,
     marginBottom: 10,
     paddingHorizontal: 4,
@@ -368,7 +375,7 @@ const styles = StyleSheet.create({
   card: {
     marginBottom: 8,
     borderRadius: Tokens.radius.lg,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.04,
@@ -394,9 +401,9 @@ const styles = StyleSheet.create({
   },
   cardInfo: { flex: 1, gap: 2 },
   cardNameRow: { flexDirection: 'row', alignItems: 'center' },
-  cardName: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: Colors.text },
-  cardDesc: { fontSize: Type.caption1.fontSize, color: Colors.textSecondary, lineHeight: 16 },
-  cardConnectedDate: { fontSize: Type.caption2.fontSize, color: Colors.primary, fontWeight: '500' as const, marginTop: 2 },
+  cardName: { fontSize: Type.subhead.fontSize, fontWeight: '600' as const, color: t.text },
+  cardDesc: { fontSize: Type.caption1.fontSize, color: t.textSecondary, lineHeight: 16 },
+  cardConnectedDate: { fontSize: Type.caption2.fontSize, color: t.accent, fontWeight: '500' as const, marginTop: 2 },
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -411,6 +418,6 @@ const styles = StyleSheet.create({
     paddingVertical: 60,
     gap: 8,
   },
-  emptyTitle: { fontSize: Type.body.fontSize, fontWeight: '600' as const, color: Colors.text },
-  emptyDesc: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary },
+  emptyTitle: { fontSize: Type.body.fontSize, fontWeight: '600' as const, color: t.text },
+  emptyDesc: { fontSize: Type.bodyCompact.fontSize, color: t.textSecondary },
 });

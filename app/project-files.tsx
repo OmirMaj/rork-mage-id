@@ -15,12 +15,17 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronLeft, AlertTriangle } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 import { useProjects } from '@/contexts/ProjectContext';
 import { ProjectFilesBrowser } from '@/components/ProjectFilesBrowser';
 
 export default function ProjectFilesScreen() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { projectId } = useLocalSearchParams<{ projectId?: string }>();
@@ -63,7 +68,7 @@ export default function ProjectFilesScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.headerBar}>
         <TouchableOpacity onPress={() => router.back()} style={styles.headerBack}>
-          <ChevronLeft size={22} color={Colors.text} />
+          <ChevronLeft size={22} color={themeColors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Files</Text>
         <View style={{ width: 32 }} />
@@ -76,27 +81,27 @@ export default function ProjectFilesScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: t.bg },
   headerBar: {
     flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'space-between' as const,
     paddingHorizontal: 16, paddingVertical: 12,
-    backgroundColor: Colors.surface,
-    borderBottomWidth: 0.5, borderBottomColor: Colors.borderLight,
+    backgroundColor: t.surface,
+    borderBottomWidth: 0.5, borderBottomColor: t.line,
   },
   headerBack: {
     width: 32, height: 32, borderRadius: 16,
     alignItems: 'center' as const, justifyContent: 'center' as const,
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.surfaceAlt,
   },
-  headerTitle: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: Colors.text, letterSpacing: -0.3 },
+  headerTitle: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: t.text, letterSpacing: -0.3 },
   center: { flex: 1, alignItems: 'center' as const, justifyContent: 'center' as const, paddingHorizontal: 32, gap: 8 },
-  notFoundTitle: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: Colors.text, marginTop: 8 },
-  notFoundBody: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, textAlign: 'center' as const, lineHeight: 20 },
+  notFoundTitle: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: t.text, marginTop: 8 },
+  notFoundBody: { fontSize: Type.bodyCompact.fontSize, color: t.textSecondary, textAlign: 'center' as const, lineHeight: 20 },
   primaryBtn: {
     paddingHorizontal: 18, paddingVertical: 12, marginTop: 16,
     borderRadius: Tokens.radius.lg,
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
   },
-  primaryBtnText: { fontSize: Type.body.fontSize, fontWeight: '700' as const, color: Colors.surface },
+  primaryBtnText: { fontSize: Type.body.fontSize, fontWeight: '700' as const, color: t.surface },
 });

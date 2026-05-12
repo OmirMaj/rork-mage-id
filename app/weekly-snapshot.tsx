@@ -20,6 +20,9 @@ import {
 } from 'lucide-react-native';
 import EmptyState from '@/components/EmptyState';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import FilterChipRow, { type FilterChip } from '@/components/FilterChipRow';
 import BlueprintReveal from '@/components/animations/BlueprintReveal';
@@ -76,6 +79,8 @@ function getWindow(key: WindowKey): WindowRange {
 }
 
 export default function WeeklySnapshotScreen() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
@@ -172,7 +177,7 @@ export default function WeeklySnapshotScreen() {
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <Stack.Screen options={{ title: 'Weekly Snapshot' }} />
         <EmptyState
-          icon={<TrendingUp size={36} color={Colors.primary} strokeWidth={1.6} />}
+          icon={<TrendingUp size={36} color={themeColors.accent} strokeWidth={1.6} />}
           title="No project to snapshot yet"
           message="Weekly Snapshot rolls up DFRs, RFIs, invoices, and photos for one project across a 7-day window. To see one:"
           steps={[
@@ -205,7 +210,7 @@ export default function WeeklySnapshotScreen() {
         title: 'This Week',
         headerLeft: () => (
           <TouchableOpacity onPress={() => router.back()} style={styles.headerBack} testID="snapshot-back">
-            <ChevronLeft size={22} color={Colors.primary} />
+            <ChevronLeft size={22} color={themeColors.accent} />
             <Text style={styles.headerBackText}>Back</Text>
           </TouchableOpacity>
         ),
@@ -229,7 +234,7 @@ export default function WeeklySnapshotScreen() {
         <View style={styles.row}>
           <View style={[styles.card, styles.cardHalf]}>
             <View style={styles.cardHeader}>
-              <Cloud size={16} color={Colors.info} />
+              <Cloud size={16} color={themeColors.info} />
               <Text style={styles.cardLabel}>Weather</Text>
             </View>
             {weatherStats.high !== null ? (
@@ -243,7 +248,7 @@ export default function WeeklySnapshotScreen() {
           </View>
           <View style={[styles.card, styles.cardHalf]}>
             <View style={styles.cardHeader}>
-              <Users size={16} color={Colors.primary} />
+              <Users size={16} color={themeColors.accent} />
               <Text style={styles.cardLabel}>Manpower</Text>
             </View>
             <TapeRollNumber value={manpowerHours.totalHours} formatter={n => `${Math.round(n).toLocaleString()}`} style={styles.cardBigValue} />
@@ -262,21 +267,21 @@ export default function WeeklySnapshotScreen() {
             <Text style={styles.cardSub}>opened · closed</Text>
             {rfiStats.overdue > 0 && (
               <View style={styles.warnPill}>
-                <AlertTriangle size={11} color={Colors.error} />
+                <AlertTriangle size={11} color={themeColors.danger} />
                 <Text style={styles.warnPillText}>{rfiStats.overdue} overdue</Text>
               </View>
             )}
           </View>
           <View style={[styles.card, styles.cardHalf]}>
             <View style={styles.cardHeader}>
-              <Receipt size={16} color={Colors.success} />
+              <Receipt size={16} color={themeColors.success} />
               <Text style={styles.cardLabel}>Invoices</Text>
             </View>
             <TapeRollNumber value={invoiceStats.totalUnpaid} formatter={n => formatMoney(Math.round(n))} style={styles.cardBigValue} />
             <Text style={styles.cardSub}>unpaid balance · all-time</Text>
             {invoiceStats.paidThisWindow > 0 && (
               <View style={styles.successPill}>
-                <CheckCircle2 size={11} color={Colors.success} />
+                <CheckCircle2 size={11} color={themeColors.success} />
                 <Text style={styles.successPillText}>{formatMoney(Math.round(invoiceStats.paidThisWindow))} paid this window</Text>
               </View>
             )}
@@ -287,14 +292,14 @@ export default function WeeklySnapshotScreen() {
         <View style={styles.row}>
           <View style={[styles.card, styles.cardThird]}>
             <View style={styles.cardHeader}>
-              <Camera size={14} color={Colors.info} />
+              <Camera size={14} color={themeColors.info} />
               <Text style={styles.cardLabel}>Photos</Text>
             </View>
             <TapeRollNumber value={photoCount} formatter={n => `${Math.round(n)}`} style={styles.cardBigValueSmall} />
           </View>
           <View style={[styles.card, styles.cardThird]}>
             <View style={styles.cardHeader}>
-              <Repeat size={14} color={Colors.accent} />
+              <Repeat size={14} color={themeColors.accent} />
               <Text style={styles.cardLabel}>COs</Text>
             </View>
             <TapeRollNumber value={coCount} formatter={n => `${Math.round(n)}`} style={styles.cardBigValueSmall} />
@@ -312,11 +317,11 @@ export default function WeeklySnapshotScreen() {
         {budgetCap > 0 && (
           <View style={styles.card}>
             <View style={styles.cardHeader}>
-              {burnPct < 0.85 ? <TrendingUp size={16} color={Colors.success} /> : <TrendingDown size={16} color={Colors.warning} />}
+              {burnPct < 0.85 ? <TrendingUp size={16} color={themeColors.success} /> : <TrendingDown size={16} color={Colors.warning} />}
               <Text style={styles.cardLabel}>Budget Burn</Text>
               <Text style={styles.burnPct}>{Math.round(burnPct * 100)}%</Text>
             </View>
-            <ConcretePour value={burnPct} height={10} fillColor={burnPct < 0.85 ? Colors.success : Colors.warning} />
+            <ConcretePour value={burnPct} height={10} fillColor={burnPct < 0.85 ? themeColors.success : Colors.warning} />
             <Text style={styles.cardSub}>
               {formatMoney(Math.round(totalBilled))} billed of {formatMoney(Math.round(budgetCap))}
             </Text>
@@ -351,37 +356,37 @@ export default function WeeklySnapshotScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: t.bg },
   scroll: { paddingHorizontal: 16, gap: 12 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.background },
-  notFound: { fontSize: Type.callout.fontSize, color: Colors.textSecondary, marginBottom: 16 },
-  backBtn: { paddingHorizontal: 20, paddingVertical: 10, backgroundColor: Colors.primary, borderRadius: Tokens.radius.md },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: t.bg },
+  notFound: { fontSize: Type.callout.fontSize, color: t.textSecondary, marginBottom: 16 },
+  backBtn: { paddingHorizontal: 20, paddingVertical: 10, backgroundColor: t.accent, borderRadius: Tokens.radius.md },
   backBtnText: { color: '#fff', fontWeight: '600' },
   headerBack: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingVertical: 6, paddingLeft: 4, minWidth: 72 },
-  headerBackText: { fontSize: Type.callout.fontSize, fontWeight: '500', color: Colors.primary },
-  heroCard: { backgroundColor: Colors.primary, borderRadius: Tokens.radius.xl, padding: 18, marginTop: 4, gap: 10 },
+  headerBackText: { fontSize: Type.callout.fontSize, fontWeight: '500', color: t.accent },
+  heroCard: { backgroundColor: t.accent, borderRadius: Tokens.radius.xl, padding: 18, marginTop: 4, gap: 10 },
   heroLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: 'rgba(255,255,255,0.65)', letterSpacing: 0.6, textTransform: 'uppercase' },
   heroProject: { fontSize: Type.title2.fontSize, fontWeight: '800', color: '#fff', letterSpacing: -0.5, marginTop: -4 },
   row: { flexDirection: 'row', gap: 10 },
-  card: { backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 14, borderWidth: 1, borderColor: Colors.cardBorder, gap: 4 },
+  card: { backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 14, borderWidth: 1, borderColor: t.line, gap: 4 },
   cardHalf: { flex: 1 },
   cardThird: { flex: 1, paddingVertical: 12, paddingHorizontal: 10 },
   cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  cardLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.textSecondary, letterSpacing: 0.5, textTransform: 'uppercase' },
-  cardBigValue: { fontSize: Type.title2.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.5, marginTop: 4 },
-  cardBigValueSmall: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: Colors.text, marginTop: 4 },
-  cardSub: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, fontWeight: '500' },
-  cardEmpty: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, fontStyle: 'italic', marginTop: 4 },
-  cardArrow: { color: Colors.textMuted, fontWeight: '500' },
+  cardLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: t.textSecondary, letterSpacing: 0.5, textTransform: 'uppercase' },
+  cardBigValue: { fontSize: Type.title2.fontSize, fontWeight: '800', color: t.text, letterSpacing: -0.5, marginTop: 4 },
+  cardBigValueSmall: { fontSize: Type.subheadline.fontSize, fontWeight: '800', color: t.text, marginTop: 4 },
+  cardSub: { fontSize: Type.caption2.fontSize, color: t.textMuted, fontWeight: '500' },
+  cardEmpty: { fontSize: Type.footnote.fontSize, color: t.textMuted, fontStyle: 'italic', marginTop: 4 },
+  cardArrow: { color: t.textMuted, fontWeight: '500' },
   warnPill: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', backgroundColor: Colors.errorLight, paddingHorizontal: 7, paddingVertical: 3, borderRadius: Tokens.radius.xs, marginTop: 4 },
-  warnPillText: { fontSize: 10, fontWeight: '700', color: Colors.error },
+  warnPillText: { fontSize: 10, fontWeight: '700', color: t.danger },
   successPill: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', backgroundColor: Colors.successLight, paddingHorizontal: 7, paddingVertical: 3, borderRadius: Tokens.radius.xs, marginTop: 4 },
-  successPillText: { fontSize: 10, fontWeight: '700', color: Colors.success },
-  burnPct: { marginLeft: 'auto', fontSize: Type.footnote.fontSize, fontWeight: '800', color: Colors.text },
-  actionsCard: { backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 14, borderWidth: 1, borderColor: Colors.cardBorder },
-  actionsLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.textSecondary, letterSpacing: 0.5, textTransform: 'uppercase', marginBottom: 8 },
+  successPillText: { fontSize: 10, fontWeight: '700', color: t.success },
+  burnPct: { marginLeft: 'auto', fontSize: Type.footnote.fontSize, fontWeight: '800', color: t.text },
+  actionsCard: { backgroundColor: Colors.card, borderRadius: Tokens.radius.lg, padding: 14, borderWidth: 1, borderColor: t.line },
+  actionsLabel: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: t.textSecondary, letterSpacing: 0.5, textTransform: 'uppercase', marginBottom: 8 },
   actionsRow: { flexDirection: 'row', gap: 8 },
   actionBtn: { flex: 1, paddingVertical: 12, borderRadius: Tokens.radius.md, backgroundColor: Colors.fillSecondary, alignItems: 'center' },
-  actionBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600', color: Colors.text },
+  actionBtnText: { fontSize: Type.bodyCompact.fontSize, fontWeight: '600', color: t.text },
 });

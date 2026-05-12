@@ -31,6 +31,9 @@ import {
   ScrollText, Footprints, Send, Sparkles,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import { FeatureHeader } from '@/components/FeatureHeader';
 import { fetchSelectionsForProject } from '@/utils/selectionsEngine';
@@ -57,6 +60,8 @@ const HANDOVER_MANUAL_KEYS = ['walkthrough', 'keys'] as const;
 type ManualKey = typeof HANDOVER_MANUAL_KEYS[number];
 
 export default function HandoverScreen() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
@@ -301,7 +306,7 @@ export default function HandoverScreen() {
 
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
-          <ChevronLeft size={26} color={Colors.primary} />
+          <ChevronLeft size={26} color={themeColors.accent} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.eyebrow}>{project.name}</Text>
@@ -325,7 +330,7 @@ export default function HandoverScreen() {
 
       {loading ? (
         <View style={styles.loading}>
-          <ActivityIndicator size="small" color={Colors.primary} />
+          <ActivityIndicator size="small" color={themeColors.accent} />
           <Text style={styles.loadingText}>Computing your status…</Text>
         </View>
       ) : (
@@ -333,7 +338,7 @@ export default function HandoverScreen() {
           {/* Progress hero */}
           <View style={[styles.heroCard, allDone && styles.heroCardDone]}>
             <View style={styles.heroHead}>
-              {allDone ? <Sparkles size={16} color={Colors.successDark} /> : <AlertCircle size={16} color={Colors.primary} />}
+              {allDone ? <Sparkles size={16} color={Colors.successDark} /> : <AlertCircle size={16} color={themeColors.accent} />}
               <Text style={[styles.heroTitle, allDone && { color: Colors.successDark }]}>
                 {allDone ? 'Ready to hand over' : `${doneCount} of ${total} done`}
               </Text>
@@ -351,7 +356,7 @@ export default function HandoverScreen() {
                 styles.progressFill,
                 {
                   width: `${Math.round((doneCount / Math.max(1, total)) * 100)}%`,
-                  backgroundColor: allDone ? '#1E8E4A' : Colors.primary,
+                  backgroundColor: allDone ? '#1E8E4A' : themeColors.accent,
                 },
               ]} />
             </View>
@@ -384,11 +389,13 @@ export default function HandoverScreen() {
 }
 
 function ChecklistRow({ item, onPressItem }: { item: HandoverItem; onPressItem: () => void }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const Icon = item.icon;
   const Status = (() => {
     if (item.status === 'done') return { Comp: CheckCircle2, color: Colors.successDark };
     if (item.status === 'partial') return { Comp: AlertCircle, color: '#C26A00' };
-    return { Comp: Circle, color: Colors.textMuted };
+    return { Comp: Circle, color: themeColors.textMuted };
   })();
   const SC = Status.Comp;
   return (
@@ -409,7 +416,7 @@ function ChecklistRow({ item, onPressItem }: { item: HandoverItem; onPressItem: 
         {item.ctaLabel && !item.manual && item.status !== 'done' && (
           <View style={styles.rowCta}>
             <Text style={styles.rowCtaText}>{item.ctaLabel}</Text>
-            <ChevronRight size={13} color={Colors.primary} />
+            <ChevronRight size={13} color={themeColors.accent} />
           </View>
         )}
         {item.manual && (
@@ -422,51 +429,51 @@ function ChecklistRow({ item, onPressItem }: { item: HandoverItem; onPressItem: 
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: t.bg },
   center: { alignItems: 'center', justifyContent: 'center' },
   loading: { padding: 30, alignItems: 'center', gap: 10 },
-  loadingText: { fontSize: Type.footnote.fontSize, color: Colors.textMuted },
+  loadingText: { fontSize: Type.footnote.fontSize, color: t.textMuted },
 
   header: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 10,
     paddingHorizontal: 16, paddingTop: 14, paddingBottom: 14,
-    borderBottomWidth: 1, borderBottomColor: Colors.border,
+    borderBottomWidth: 1, borderBottomColor: t.line,
   },
-  eyebrow: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.primary, letterSpacing: 1.4, textTransform: 'uppercase' },
-  title:   { fontSize: Type.title3.fontSize, fontWeight: '800', color: Colors.text, letterSpacing: -0.4, marginTop: 4 },
-  emptyTitle: { fontSize: Type.callout.fontSize, fontWeight: '800', color: Colors.text },
-  emptyBack: { marginTop: 12, paddingHorizontal: 18, paddingVertical: 10, borderRadius: Tokens.radius.md, backgroundColor: Colors.primary },
+  eyebrow: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: t.accent, letterSpacing: 1.4, textTransform: 'uppercase' },
+  title:   { fontSize: Type.title3.fontSize, fontWeight: '800', color: t.text, letterSpacing: -0.4, marginTop: 4 },
+  emptyTitle: { fontSize: Type.callout.fontSize, fontWeight: '800', color: t.text },
+  emptyBack: { marginTop: 12, paddingHorizontal: 18, paddingVertical: 10, borderRadius: Tokens.radius.md, backgroundColor: t.accent },
   emptyBackText: { color: '#FFF', fontWeight: '800', fontSize: Type.footnote.fontSize },
 
   heroCard: {
-    backgroundColor: Colors.primary + '0D', borderWidth: 1, borderColor: Colors.primary + '30',
+    backgroundColor: t.accent + '0D', borderWidth: 1, borderColor: t.accent + '30',
     borderRadius: Tokens.radius.lg, padding: 16, marginBottom: 16,
   },
   heroCardDone: {
     backgroundColor: 'rgba(30,142,74,0.08)', borderColor: 'rgba(30,142,74,0.35)',
   },
   heroHead: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
-  heroTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800', color: Colors.primary, letterSpacing: -0.2 },
-  heroBody: { fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 18, marginBottom: 12 },
-  progressTrack: { height: 6, backgroundColor: Colors.fillTertiary, borderRadius: 4, overflow: 'hidden' },
+  heroTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '800', color: t.accent, letterSpacing: -0.2 },
+  heroBody: { fontSize: Type.footnote.fontSize, color: t.text, lineHeight: 18, marginBottom: 12 },
+  progressTrack: { height: 6, backgroundColor: t.surfaceAlt, borderRadius: 4, overflow: 'hidden' },
   progressFill: { height: '100%', borderRadius: 4 },
 
-  listLabel: { fontSize: Type.caption2.fontSize, fontWeight: '800', color: Colors.textMuted, letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 8, marginLeft: 2 },
+  listLabel: { fontSize: Type.caption2.fontSize, fontWeight: '800', color: t.textMuted, letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 8, marginLeft: 2 },
 
   row: {
     flexDirection: 'row', gap: 12, padding: 14,
-    backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: Colors.card, borderWidth: 1, borderColor: t.line,
     borderRadius: Tokens.radius.card, marginBottom: 8,
   },
   rowDone: { opacity: 0.85 },
   rowIcon: { width: 36, height: 36, borderRadius: Tokens.radius.md, alignItems: 'center', justifyContent: 'center' },
   rowHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  rowLabel: { flex: 1, fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text, letterSpacing: -0.2 },
-  rowDetail: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, lineHeight: 17, marginTop: 4 },
+  rowLabel: { flex: 1, fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: t.text, letterSpacing: -0.2 },
+  rowDetail: { fontSize: Type.caption1.fontSize, color: t.textMuted, lineHeight: 17, marginTop: 4 },
   rowCta: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 8 },
-  rowCtaText: { fontSize: Type.caption1.fontSize, fontWeight: '800', color: Colors.primary },
-  rowCtaManual: { color: Colors.textMuted, fontWeight: '700' },
+  rowCtaText: { fontSize: Type.caption1.fontSize, fontWeight: '800', color: t.accent },
+  rowCtaManual: { color: t.textMuted, fontWeight: '700' },
 
-  fineprint: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, lineHeight: 16, marginTop: 14, fontStyle: 'italic' },
+  fineprint: { fontSize: Type.caption2.fontSize, color: t.textMuted, lineHeight: 16, marginTop: 14, fontStyle: 'italic' },
 });

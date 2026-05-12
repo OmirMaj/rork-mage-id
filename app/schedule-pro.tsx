@@ -34,6 +34,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { ChevronLeft, Zap, Activity, Share2, Undo2, Redo2, Columns, Table2, BarChart2, Sparkles, RefreshCcw, Bookmark, Download, CalendarX, Settings, Users, FileText, Mic } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTierAccess } from '@/hooks/useTierAccess';
@@ -85,6 +88,8 @@ const SPLIT_BREAKPOINT = 1600;
 type PaneMode = 'grid' | 'split' | 'gantt' | 'resources';
 
 export default function ScheduleProScreen() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const router = useRouter();
   const { canAccess } = useTierAccess();
   if (!canAccess('schedule_gantt_pdf')) {
@@ -101,6 +106,8 @@ export default function ScheduleProScreen() {
 }
 
 function ScheduleProScreenInner() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { width } = useWindowDimensions();
@@ -848,7 +855,7 @@ function ScheduleProScreenInner() {
     return (
       <View style={[styles.container, styles.centered, { paddingTop: insets.top + 24 }]}>
         <Stack.Screen options={{ title: 'Schedule Pro' }} />
-        <Zap size={28} color={Colors.primary} />
+        <Zap size={28} color={themeColors.accent} />
         <Text style={styles.emptyTitle}>Best on a bigger screen</Text>
         <Text style={styles.emptyBody}>
           Schedule Pro is built for laptops and iPad. On a phone, the
@@ -884,7 +891,7 @@ function ScheduleProScreenInner() {
       {/* Custom header — the RN stack header is too cramped for our action row */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.headerBack} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-          <ChevronLeft size={20} color={Colors.primary} />
+          <ChevronLeft size={20} color={themeColors.accent} />
           <Text style={styles.headerBackText}>Back</Text>
         </TouchableOpacity>
 
@@ -1158,13 +1165,15 @@ function ScheduleProScreenInner() {
 function PaneBtn({
   icon: Icon, label, active, onPress,
 }: { icon: any; label: string; active: boolean; onPress: () => void }) {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   return (
     <TouchableOpacity
       style={[styles.paneBtn, active && styles.paneBtnActive]}
       onPress={onPress}
       activeOpacity={0.7}
     >
-      <Icon size={13} color={active ? Colors.primary : Colors.textSecondary} />
+      <Icon size={13} color={active ? themeColors.accent : themeColors.textSecondary} />
       <Text style={[styles.paneBtnText, active && styles.paneBtnTextActive]}>{label}</Text>
     </TouchableOpacity>
   );
@@ -1184,7 +1193,9 @@ function HeaderBtn({
   disabled?: boolean;
   highlighted?: boolean;
 }) {
-  const tint = disabled ? Colors.textMuted : highlighted ? '#fff' : Colors.primary;
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+  const tint = disabled ? themeColors.textMuted : highlighted ? '#fff' : themeColors.accent;
   return (
     <TouchableOpacity
       style={[
@@ -1207,16 +1218,16 @@ function HeaderBtn({
 // Styles
 // ---------------------------------------------------------------------------
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: t.bg },
   centered: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, gap: 12 },
-  emptyTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700', color: Colors.text, marginTop: 8 },
-  emptyBody: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, textAlign: 'center', lineHeight: 20, maxWidth: 440 },
+  emptyTitle: { fontSize: Type.subheadline.fontSize, fontWeight: '700', color: t.text, marginTop: 8 },
+  emptyBody: { fontSize: Type.bodyCompact.fontSize, color: t.textSecondary, textAlign: 'center', lineHeight: 20, maxWidth: 440 },
   primaryBtn: {
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
     paddingHorizontal: 20, paddingVertical: 12, borderRadius: Tokens.radius.md, marginTop: 12,
   },
-  primaryBtnText: { color: Colors.textOnPrimary, fontWeight: '700', fontSize: Type.bodyCompact.fontSize },
+  primaryBtnText: { color: '#FFFFFF', fontWeight: '700', fontSize: Type.bodyCompact.fontSize },
 
   header: {
     flexDirection: 'row',
@@ -1225,26 +1236,26 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     gap: 16,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.cardBorder,
-    backgroundColor: Colors.surface,
+    borderBottomColor: t.line,
+    backgroundColor: t.surface,
   },
   headerBack: {
     flexDirection: 'row', alignItems: 'center', gap: 2,
   },
-  headerBackText: { color: Colors.primary, fontSize: Type.bodyCompact.fontSize, fontWeight: '600' },
+  headerBackText: { color: t.accent, fontSize: Type.bodyCompact.fontSize, fontWeight: '600' },
   headerTitleWrap: { flex: 1, marginHorizontal: 12 },
-  headerTitle: { fontSize: Type.callout.fontSize, fontWeight: '700', color: Colors.text },
-  headerSub: { fontSize: Type.caption2.fontSize, color: Colors.textSecondary, marginTop: 2 },
+  headerTitle: { fontSize: Type.callout.fontSize, fontWeight: '700', color: t.text },
+  headerSub: { fontSize: Type.caption2.fontSize, color: t.textSecondary, marginTop: 2 },
   headerActions: { flexDirection: 'row', gap: 8 },
   headerBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
     paddingHorizontal: 10, paddingVertical: 6,
     borderRadius: Tokens.radius.sm,
-    backgroundColor: Colors.primary + '12',
+    backgroundColor: t.accent + '12',
   },
-  headerBtnDisabled: { backgroundColor: Colors.fillTertiary, opacity: 0.6 },
-  headerBtnHighlighted: { backgroundColor: Colors.primary },
-  headerBtnText: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: Colors.primary },
+  headerBtnDisabled: { backgroundColor: t.surfaceAlt, opacity: 0.6 },
+  headerBtnHighlighted: { backgroundColor: t.accent },
+  headerBtnText: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: t.accent },
 
   body: {
     flex: 1,
@@ -1261,7 +1272,7 @@ const styles = StyleSheet.create({
 
   paneToggle: {
     flexDirection: 'row',
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.surfaceAlt,
     borderRadius: Tokens.radius.sm,
     padding: 2,
     marginRight: 4,
@@ -1275,7 +1286,7 @@ const styles = StyleSheet.create({
     borderRadius: Tokens.radius.xs,
   },
   paneBtnActive: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     shadowColor: '#000',
     shadowOpacity: 0.06,
     shadowRadius: 4,
@@ -1284,9 +1295,9 @@ const styles = StyleSheet.create({
   paneBtnText: {
     fontSize: Type.caption2.fontSize,
     fontWeight: '700',
-    color: Colors.textSecondary,
+    color: t.textSecondary,
   },
   paneBtnTextActive: {
-    color: Colors.primary,
+    color: t.accent,
   },
 });

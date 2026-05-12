@@ -21,6 +21,9 @@ import { Stack, useRouter, Redirect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { ChevronLeft, Sparkles, Database, Trash2, AlertTriangle } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import { isOwner } from '@/utils/owner';
@@ -37,6 +40,8 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
 export default function DevSeederScreen() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user } = useAuth();
@@ -553,7 +558,7 @@ export default function DevSeederScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn} accessibilityRole="button" accessibilityLabel="Back">
-          <ChevronLeft size={22} color={Colors.text} />
+          <ChevronLeft size={22} color={themeColors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Dev — Demo Seeder</Text>
         <View style={{ width: 36 }} />
@@ -569,8 +574,8 @@ export default function DevSeederScreen() {
         </View>
 
         <View style={styles.card}>
-          <View style={[styles.cardIcon, { backgroundColor: Colors.primary + '15' }]}>
-            <Sparkles size={28} color={Colors.primary} />
+          <View style={[styles.cardIcon, { backgroundColor: themeColors.accent + '15' }]}>
+            <Sparkles size={28} color={themeColors.accent} />
           </View>
           <Text style={styles.cardTitle}>Load demo project</Text>
           <Text style={styles.cardSub}>
@@ -597,19 +602,19 @@ export default function DevSeederScreen() {
             activeOpacity={0.85}
           >
             {seeding ? (
-              <ActivityIndicator color={Colors.surface} />
+              <ActivityIndicator color={themeColors.surface} />
             ) : (
               <>
-                <Database size={16} color={Colors.surface} />
+                <Database size={16} color={themeColors.surface} />
                 <Text style={styles.ctaText}>Load demo project</Text>
               </>
             )}
           </TouchableOpacity>
         </View>
 
-        <View style={[styles.card, { marginTop: 16, borderColor: Colors.error + '40' }]}>
-          <View style={[styles.cardIcon, { backgroundColor: Colors.error + '15' }]}>
-            <Trash2 size={28} color={Colors.error} />
+        <View style={[styles.card, { marginTop: 16, borderColor: themeColors.danger + '40' }]}>
+          <View style={[styles.cardIcon, { backgroundColor: themeColors.danger + '15' }]}>
+            <Trash2 size={28} color={themeColors.danger} />
           </View>
           <Text style={styles.cardTitle}>Wipe all projects</Text>
           <Text style={styles.cardSub}>
@@ -617,11 +622,11 @@ export default function DevSeederScreen() {
             Currently {projects.length} project{projects.length === 1 ? '' : 's'} on the account.
           </Text>
           <TouchableOpacity
-            style={[styles.cta, { backgroundColor: Colors.error }]}
+            style={[styles.cta, { backgroundColor: themeColors.danger }]}
             onPress={wipeAllProjects}
             activeOpacity={0.85}
           >
-            <Trash2 size={16} color={Colors.surface} />
+            <Trash2 size={16} color={themeColors.surface} />
             <Text style={styles.ctaText}>Wipe all projects</Text>
           </TouchableOpacity>
         </View>
@@ -630,8 +635,8 @@ export default function DevSeederScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: t.bg },
   header: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
@@ -639,10 +644,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
+    borderBottomColor: t.line,
   },
   headerBtn: { width: 36, height: 36, alignItems: 'center' as const, justifyContent: 'center' as const },
-  headerTitle: { fontSize: Type.body.fontSize, fontWeight: '700' as const, color: Colors.text },
+  headerTitle: { fontSize: Type.body.fontSize, fontWeight: '700' as const, color: t.text },
   warningCard: {
     flexDirection: 'row' as const,
     alignItems: 'flex-start' as const,
@@ -654,14 +659,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.warning + '30',
   },
-  warningText: { flex: 1, fontSize: Type.caption1.fontSize, color: Colors.text, lineHeight: 17 },
+  warningText: { flex: 1, fontSize: Type.caption1.fontSize, color: t.text, lineHeight: 17 },
   card: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.panel,
     padding: 22,
     gap: 12,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
   },
   cardIcon: {
     width: 56,
@@ -670,20 +675,20 @@ const styles = StyleSheet.create({
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
   },
-  cardTitle: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: Colors.text, letterSpacing: -0.4 },
-  cardSub: { fontSize: Type.bodyCompact.fontSize, color: Colors.textSecondary, lineHeight: 20 },
-  cardSubFine: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, lineHeight: 17, marginTop: 6, fontStyle: 'italic' as const },
+  cardTitle: { fontSize: Type.title3.fontSize, fontWeight: '800' as const, color: t.text, letterSpacing: -0.4 },
+  cardSub: { fontSize: Type.bodyCompact.fontSize, color: t.textSecondary, lineHeight: 20 },
+  cardSubFine: { fontSize: Type.caption1.fontSize, color: t.textMuted, lineHeight: 17, marginTop: 6, fontStyle: 'italic' as const },
   bulletList: { gap: 4, marginTop: 8, marginBottom: 8 },
-  bullet: { fontSize: Type.caption1.fontSize, color: Colors.text, lineHeight: 17 },
+  bullet: { fontSize: Type.caption1.fontSize, color: t.text, lineHeight: 17 },
   cta: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
     gap: 8,
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
     paddingVertical: 14,
     borderRadius: Tokens.radius.card,
     marginTop: 8,
   },
-  ctaText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: Colors.surface },
+  ctaText: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: t.surface },
 });

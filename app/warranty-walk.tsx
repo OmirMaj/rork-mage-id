@@ -20,6 +20,9 @@ import {
   ChevronLeft, ShieldCheck, CheckCircle2, Circle, AlertTriangle, Send, Mail,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import { sendEmail } from '@/utils/emailService';
 import { wrapEmailHtml, escapeHtml } from '@/utils/emailLayout';
@@ -63,6 +66,8 @@ interface ItemState {
 }
 
 export default function WarrantyWalkScreen() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
@@ -215,7 +220,7 @@ export default function WarrantyWalkScreen() {
           title: '11-month walk',
           headerLeft: () => (
             <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }}>
-              <ChevronLeft size={24} color={Colors.primary} />
+              <ChevronLeft size={24} color={themeColors.accent} />
             </TouchableOpacity>
           ),
         }}
@@ -223,7 +228,7 @@ export default function WarrantyWalkScreen() {
       <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}>
         <View style={styles.hero}>
           <View style={styles.heroIconWrap}>
-            <ShieldCheck size={20} color={Colors.primary} />
+            <ShieldCheck size={20} color={themeColors.accent} />
           </View>
           <Text style={styles.heroTitle}>{project.name}</Text>
           <Text style={styles.heroBody}>
@@ -231,7 +236,7 @@ export default function WarrantyWalkScreen() {
           </Text>
           {alreadyDone && (
             <View style={styles.doneBadge}>
-              <CheckCircle2 size={14} color={Colors.success} />
+              <CheckCircle2 size={14} color={themeColors.success} />
               <Text style={styles.doneBadgeText}>
                 Walk completed {new Date(project.warrantyWalkCompletedAt!).toLocaleDateString()}
               </Text>
@@ -264,15 +269,15 @@ export default function WarrantyWalkScreen() {
                   <View style={styles.itemHeader}>
                     <TouchableOpacity onPress={() => toggleChecked(it.id)} style={styles.checkbox} activeOpacity={0.85}>
                       {state.checked
-                        ? <CheckCircle2 size={20} color={Colors.success} />
-                        : <Circle size={20} color={Colors.textMuted} />}
+                        ? <CheckCircle2 size={20} color={themeColors.success} />
+                        : <Circle size={20} color={themeColors.textMuted} />}
                     </TouchableOpacity>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.itemTitle}>{it.title}</Text>
                       <Text style={styles.itemHint}>{it.hint}</Text>
                     </View>
                     <TouchableOpacity onPress={() => toggleAttention(it.id)} style={styles.flagBtn} activeOpacity={0.85}>
-                      <AlertTriangle size={16} color={state.needsAttention ? Colors.warning : Colors.textMuted} />
+                      <AlertTriangle size={16} color={state.needsAttention ? Colors.warning : themeColors.textMuted} />
                     </TouchableOpacity>
                   </View>
                   {(state.checked || state.needsAttention) && (
@@ -281,7 +286,7 @@ export default function WarrantyWalkScreen() {
                       value={state.notes}
                       onChangeText={t => setItemNotes(it.id, t)}
                       placeholder={state.needsAttention ? 'What needs follow-up?' : 'Notes (optional)'}
-                      placeholderTextColor={Colors.textMuted}
+                      placeholderTextColor={themeColors.textMuted}
                       multiline
                     />
                   )}
@@ -297,7 +302,7 @@ export default function WarrantyWalkScreen() {
           value={overallNotes}
           onChangeText={setOverallNotes}
           placeholder="Anything the homeowner asked about, big-picture observations, etc."
-          placeholderTextColor={Colors.textMuted}
+          placeholderTextColor={themeColors.textMuted}
           multiline
         />
 
@@ -307,7 +312,7 @@ export default function WarrantyWalkScreen() {
           activeOpacity={0.85}
           style={[styles.secondaryBtn, (emailing || (totals.checkedCount === 0 && totals.flaggedCount === 0)) && { opacity: 0.6 }]}
         >
-          {emailing ? <ActivityIndicator color={Colors.primary} /> : <Mail size={16} color={Colors.primary} />}
+          {emailing ? <ActivityIndicator color={themeColors.accent} /> : <Mail size={16} color={themeColors.accent} />}
           <Text style={styles.secondaryBtnText}>Email summary to homeowner</Text>
         </TouchableOpacity>
 
@@ -327,87 +332,87 @@ export default function WarrantyWalkScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: t.bg },
   loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  loadingText: { fontSize: Type.body.fontSize, color: Colors.textMuted },
+  loadingText: { fontSize: Type.body.fontSize, color: t.textMuted },
 
   hero: {
     margin: 16, padding: 18, borderRadius: Tokens.radius.panel,
-    backgroundColor: Colors.primary + '0D',
-    borderWidth: 1, borderColor: Colors.primary + '20',
+    backgroundColor: t.accent + '0D',
+    borderWidth: 1, borderColor: t.accent + '20',
   },
   heroIconWrap: {
     width: 38, height: 38, borderRadius: 11,
-    backgroundColor: Colors.primary + '15',
+    backgroundColor: t.accent + '15',
     alignItems: 'center', justifyContent: 'center',
     marginBottom: 12,
   },
-  heroTitle: { fontSize: Type.title2.fontSize, fontWeight: '800', color: Colors.text, marginBottom: 8 },
-  heroBody: { fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 19 },
+  heroTitle: { fontSize: Type.title2.fontSize, fontWeight: '800', color: t.text, marginBottom: 8 },
+  heroBody: { fontSize: Type.footnote.fontSize, color: t.text, lineHeight: 19 },
   doneBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     marginTop: 12, padding: 8, borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.success + '14', alignSelf: 'flex-start',
+    backgroundColor: t.success + '14', alignSelf: 'flex-start',
   },
-  doneBadgeText: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: Colors.success },
+  doneBadgeText: { fontSize: Type.caption1.fontSize, fontWeight: '700', color: t.success },
 
   summaryRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, marginBottom: 12 },
   summaryCell: {
     flex: 1, padding: 12, borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: Colors.card, borderWidth: 1, borderColor: t.line,
     alignItems: 'center',
   },
-  summaryValue: { fontSize: Type.title3.fontSize, fontWeight: '800', color: Colors.text },
-  summaryLabel: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 2, textTransform: 'uppercase', letterSpacing: 0.4 },
+  summaryValue: { fontSize: Type.title3.fontSize, fontWeight: '800', color: t.text },
+  summaryLabel: { fontSize: Type.caption2.fontSize, color: t.textMuted, marginTop: 2, textTransform: 'uppercase', letterSpacing: 0.4 },
 
   phaseGroup: { marginBottom: 12 },
   phaseLabel: {
     paddingHorizontal: 16, marginTop: 6, marginBottom: 6,
-    fontSize: Type.caption2.fontSize, fontWeight: '800', color: Colors.textMuted,
+    fontSize: Type.caption2.fontSize, fontWeight: '800', color: t.textMuted,
     textTransform: 'uppercase', letterSpacing: 0.6,
   },
   itemCard: {
     marginHorizontal: 16, marginBottom: 6, padding: 12,
     borderRadius: Tokens.radius.card,
-    backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: Colors.card, borderWidth: 1, borderColor: t.line,
   },
   itemHeader: { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
   checkbox: { paddingTop: 2 },
-  itemTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
-  itemHint: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2, lineHeight: 16 },
+  itemTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: t.text },
+  itemHint: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 2, lineHeight: 16 },
   flagBtn: { padding: 6 },
   itemNotes: {
     marginTop: 10, padding: 10, borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.fillTertiary, fontSize: Type.caption1.fontSize, color: Colors.text,
+    backgroundColor: t.surfaceAlt, fontSize: Type.caption1.fontSize, color: t.text,
     minHeight: 50, textAlignVertical: 'top' as const,
   },
 
   sectionLabel: {
     paddingHorizontal: 16, marginTop: 6, marginBottom: 6,
-    fontSize: Type.caption2.fontSize, fontWeight: '800', color: Colors.textMuted,
+    fontSize: Type.caption2.fontSize, fontWeight: '800', color: t.textMuted,
     textTransform: 'uppercase', letterSpacing: 0.6,
   },
   overallNotes: {
     marginHorizontal: 16, padding: 12, borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,
-    minHeight: 80, fontSize: Type.bodyCompact.fontSize, color: Colors.text,
+    backgroundColor: Colors.card, borderWidth: 1, borderColor: t.line,
+    minHeight: 80, fontSize: Type.bodyCompact.fontSize, color: t.text,
     textAlignVertical: 'top' as const,
   },
 
   primaryBtn: {
     marginHorizontal: 16, marginTop: 12,
     paddingVertical: 14, borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
   },
   primaryBtnText: { color: '#FFF', fontSize: Type.body.fontSize, fontWeight: '700' },
   secondaryBtn: {
     marginHorizontal: 16, marginTop: 12,
     paddingVertical: 12, borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.primary + '12',
-    borderWidth: 1, borderColor: Colors.primary + '30',
+    backgroundColor: t.accent + '12',
+    borderWidth: 1, borderColor: t.accent + '30',
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
   },
-  secondaryBtnText: { color: Colors.primary, fontSize: Type.footnote.fontSize, fontWeight: '700' },
+  secondaryBtnText: { color: t.accent, fontSize: Type.footnote.fontSize, fontWeight: '700' },
 });

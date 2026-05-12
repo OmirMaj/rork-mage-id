@@ -6,6 +6,9 @@ import { useRouter, Stack } from 'expo-router';
 
 import * as Haptics from 'expo-haptics';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useHire } from '@/contexts/HireContext';
 import { TRADE_CATEGORIES } from '@/constants/trades';
 import { US_STATES } from '@/constants/regions';
@@ -25,6 +28,8 @@ const EXP_LEVELS: { id: ExperienceLevel; label: string }[] = [
 ];
 
 export default function PostJobScreen() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const router = useRouter();
   const { addJob } = useHire();
   const [title, setTitle] = useState('');
@@ -78,14 +83,14 @@ export default function PostJobScreen() {
     <View style={styles.container}>
       <Stack.Screen options={{
         title: 'Post a Job',
-        headerStyle: { backgroundColor: Colors.background },
-        headerTintColor: Colors.primary,
-        headerTitleStyle: { fontWeight: '700' as const, color: Colors.text },
+        headerStyle: { backgroundColor: themeColors.bg },
+        headerTintColor: themeColors.accent,
+        headerTitleStyle: { fontWeight: '700' as const, color: themeColors.text },
       }} />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           <Text style={styles.label}>Job Title *</Text>
-          <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder="e.g. Journeyman Electrician" placeholderTextColor={Colors.textMuted} />
+          <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder="e.g. Journeyman Electrician" placeholderTextColor={themeColors.textMuted} />
 
           <Text style={styles.label}>Trade / Skill Category *</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.scrollRow}>
@@ -99,7 +104,7 @@ export default function PostJobScreen() {
           <View style={styles.row}>
             <View style={styles.halfField}>
               <Text style={styles.label}>City *</Text>
-              <TextInput style={styles.input} value={city} onChangeText={setCity} placeholder="City" placeholderTextColor={Colors.textMuted} />
+              <TextInput style={styles.input} value={city} onChangeText={setCity} placeholder="City" placeholderTextColor={themeColors.textMuted} />
             </View>
             <View style={styles.halfField}>
               <Text style={styles.label}>State *</Text>
@@ -126,11 +131,11 @@ export default function PostJobScreen() {
           <View style={styles.row}>
             <View style={styles.halfField}>
               <Text style={styles.label}>{payType === 'hourly' ? 'Min $/hr *' : 'Min $/yr *'}</Text>
-              <TextInput style={styles.input} value={payMin} onChangeText={setPayMin} placeholder={payType === 'hourly' ? '35' : '60000'} keyboardType="numeric" placeholderTextColor={Colors.textMuted} />
+              <TextInput style={styles.input} value={payMin} onChangeText={setPayMin} placeholder={payType === 'hourly' ? '35' : '60000'} keyboardType="numeric" placeholderTextColor={themeColors.textMuted} />
             </View>
             <View style={styles.halfField}>
               <Text style={styles.label}>{payType === 'hourly' ? 'Max $/hr *' : 'Max $/yr *'}</Text>
-              <TextInput style={styles.input} value={payMax} onChangeText={setPayMax} placeholder={payType === 'hourly' ? '55' : '90000'} keyboardType="numeric" placeholderTextColor={Colors.textMuted} />
+              <TextInput style={styles.input} value={payMax} onChangeText={setPayMax} placeholder={payType === 'hourly' ? '55' : '90000'} keyboardType="numeric" placeholderTextColor={themeColors.textMuted} />
             </View>
           </View>
 
@@ -153,13 +158,13 @@ export default function PostJobScreen() {
           </View>
 
           <Text style={styles.label}>Start Date (YYYY-MM-DD) *</Text>
-          <TextInput style={styles.input} value={startDate} onChangeText={setStartDate} placeholder="2026-05-01" placeholderTextColor={Colors.textMuted} />
+          <TextInput style={styles.input} value={startDate} onChangeText={setStartDate} placeholder="2026-05-01" placeholderTextColor={themeColors.textMuted} />
 
           <Text style={styles.label}>Description</Text>
-          <TextInput style={[styles.input, styles.textArea]} value={description} onChangeText={setDescription} placeholder="Describe the role..." placeholderTextColor={Colors.textMuted} multiline numberOfLines={4} />
+          <TextInput style={[styles.input, styles.textArea]} value={description} onChangeText={setDescription} placeholder="Describe the role..." placeholderTextColor={themeColors.textMuted} multiline numberOfLines={4} />
 
           <Text style={styles.label}>Required Licenses (comma separated)</Text>
-          <TextInput style={styles.input} value={licenses} onChangeText={setLicenses} placeholder="OSHA 30, SST Card, CDL" placeholderTextColor={Colors.textMuted} />
+          <TextInput style={styles.input} value={licenses} onChangeText={setLicenses} placeholder="OSHA 30, SST Card, CDL" placeholderTextColor={themeColors.textMuted} />
 
           <TouchableOpacity style={styles.submitBtn} onPress={handleSubmit} testID="submit-job">
             <Text style={styles.submitBtnText}>Publish Job</Text>
@@ -170,26 +175,26 @@ export default function PostJobScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: t.bg },
   scroll: { flex: 1 },
   scrollContent: { padding: 16, paddingBottom: 60 },
-  label: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: Colors.textSecondary, marginBottom: 6, marginTop: 14, textTransform: 'uppercase' as const, letterSpacing: 0.3 },
-  input: { backgroundColor: Colors.surface, borderRadius: Tokens.radius.md, paddingHorizontal: 14, paddingVertical: 12, fontSize: Type.subhead.fontSize, color: Colors.text, borderWidth: 0.5, borderColor: Colors.borderLight },
+  label: { fontSize: Type.footnote.fontSize, fontWeight: '600' as const, color: t.textSecondary, marginBottom: 6, marginTop: 14, textTransform: 'uppercase' as const, letterSpacing: 0.3 },
+  input: { backgroundColor: t.surface, borderRadius: Tokens.radius.md, paddingHorizontal: 14, paddingVertical: 12, fontSize: Type.subhead.fontSize, color: t.text, borderWidth: 0.5, borderColor: t.line },
   textArea: { minHeight: 100, textAlignVertical: 'top' as const },
   row: { flexDirection: 'row', gap: 10 },
   halfField: { flex: 1 },
   scrollRow: { maxHeight: 36 },
   stateScroll: { maxHeight: 36 },
-  stateChip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: Tokens.radius.sm, backgroundColor: Colors.surface, marginRight: 4, borderWidth: 0.5, borderColor: Colors.borderLight },
-  stateChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  stateChipText: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, fontWeight: '600' as const },
+  stateChip: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: Tokens.radius.sm, backgroundColor: t.surface, marginRight: 4, borderWidth: 0.5, borderColor: t.line },
+  stateChipActive: { backgroundColor: t.accent, borderColor: t.accent },
+  stateChipText: { fontSize: Type.footnote.fontSize, color: t.textSecondary, fontWeight: '600' as const },
   stateChipTextActive: { color: '#FFF' },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  chip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: Tokens.radius.sm, backgroundColor: Colors.surface, borderWidth: 0.5, borderColor: Colors.borderLight },
-  chipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  chipText: { fontSize: Type.footnote.fontSize, color: Colors.textSecondary, fontWeight: '500' as const },
+  chip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: Tokens.radius.sm, backgroundColor: t.surface, borderWidth: 0.5, borderColor: t.line },
+  chipActive: { backgroundColor: t.accent, borderColor: t.accent },
+  chipText: { fontSize: Type.footnote.fontSize, color: t.textSecondary, fontWeight: '500' as const },
   chipTextActive: { color: '#FFF' },
-  submitBtn: { backgroundColor: Colors.primary, borderRadius: Tokens.radius.card, paddingVertical: 16, alignItems: 'center', marginTop: 24 },
+  submitBtn: { backgroundColor: t.accent, borderRadius: Tokens.radius.card, paddingVertical: 16, alignItems: 'center', marginTop: 24 },
   submitBtnText: { color: '#FFF', fontSize: Type.callout.fontSize, fontWeight: '700' as const },
 });

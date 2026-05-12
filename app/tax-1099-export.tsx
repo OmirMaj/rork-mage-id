@@ -20,6 +20,9 @@ import {
   ChevronLeft, FileSpreadsheet, Calendar, AlertTriangle, CheckCircle2, Share2,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { buildTax1099Dataset, tax1099DatasetToCsv, type Tax1099Row } from '@/utils/tax1099Export';
@@ -28,6 +31,8 @@ import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
 export default function Tax1099ExportScreen() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { subcontractors, commitments } = useProjects();
@@ -156,7 +161,7 @@ export default function Tax1099ExportScreen() {
           title: '1099-NEC Export',
           headerLeft: () => (
             <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }}>
-              <ChevronLeft size={24} color={Colors.primary} />
+              <ChevronLeft size={24} color={themeColors.accent} />
             </TouchableOpacity>
           ),
         }}
@@ -164,7 +169,7 @@ export default function Tax1099ExportScreen() {
       <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}>
         <View style={styles.hero}>
           <View style={styles.heroIconWrap}>
-            <FileSpreadsheet size={20} color={Colors.primary} />
+            <FileSpreadsheet size={20} color={themeColors.accent} />
           </View>
           <Text style={styles.heroTitle}>Year-end 1099-NEC export</Text>
           <Text style={styles.heroBody}>
@@ -181,7 +186,7 @@ export default function Tax1099ExportScreen() {
               activeOpacity={0.85}
               style={[styles.yearChip, year === y && styles.yearChipActive]}
             >
-              <Calendar size={12} color={year === y ? '#FFF' : Colors.textMuted} />
+              <Calendar size={12} color={year === y ? '#FFF' : themeColors.textMuted} />
               <Text style={[styles.yearChipText, year === y && styles.yearChipTextActive]}>{y}</Text>
             </TouchableOpacity>
           ))}
@@ -189,7 +194,7 @@ export default function Tax1099ExportScreen() {
 
         {loadingInvoices ? (
           <View style={styles.busyWrap}>
-            <ActivityIndicator color={Colors.primary} />
+            <ActivityIndicator color={themeColors.accent} />
             <Text style={styles.busyText}>Loading sub payments…</Text>
           </View>
         ) : (
@@ -243,8 +248,8 @@ export default function Tax1099ExportScreen() {
                     </View>
                   )}
                   {!r.required1099 && r.totalPaid > 0 && (
-                    <View style={[styles.flag, { backgroundColor: Colors.success + '14', borderColor: Colors.success }]}>
-                      <CheckCircle2 size={11} color={Colors.success} />
+                    <View style={[styles.flag, { backgroundColor: themeColors.success + '14', borderColor: themeColors.success }]}>
+                      <CheckCircle2 size={11} color={themeColors.success} />
                     </View>
                   )}
                 </View>
@@ -277,44 +282,44 @@ export default function Tax1099ExportScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: t.bg },
   hero: {
     margin: 16, padding: 18, borderRadius: Tokens.radius.panel,
-    backgroundColor: Colors.primary + '0D',
-    borderWidth: 1, borderColor: Colors.primary + '20',
+    backgroundColor: t.accent + '0D',
+    borderWidth: 1, borderColor: t.accent + '20',
   },
   heroIconWrap: {
     width: 38, height: 38, borderRadius: 11,
-    backgroundColor: Colors.primary + '15',
+    backgroundColor: t.accent + '15',
     alignItems: 'center', justifyContent: 'center',
     marginBottom: 12,
   },
-  heroTitle: { fontSize: Type.title2.fontSize, fontWeight: '800', color: Colors.text, marginBottom: 8 },
-  heroBody: { fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 19 },
+  heroTitle: { fontSize: Type.title2.fontSize, fontWeight: '800', color: t.text, marginBottom: 8 },
+  heroBody: { fontSize: Type.footnote.fontSize, color: t.text, lineHeight: 19 },
   sectionLabel: {
     marginHorizontal: 16, marginTop: 8, marginBottom: 6,
-    fontSize: Type.caption1.fontSize, fontWeight: '800', color: Colors.textMuted,
+    fontSize: Type.caption1.fontSize, fontWeight: '800', color: t.textMuted,
     textTransform: 'uppercase', letterSpacing: 0.6,
   },
   yearRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, marginBottom: 12 },
   yearChip: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999,
-    backgroundColor: Colors.fillTertiary, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: t.surfaceAlt, borderWidth: 1, borderColor: t.line,
   },
-  yearChipActive: { backgroundColor: Colors.text, borderColor: Colors.text },
-  yearChipText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.text },
+  yearChipActive: { backgroundColor: t.text, borderColor: t.text },
+  yearChipText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: t.text },
   yearChipTextActive: { color: '#FFF' },
   busyWrap: { padding: 24, alignItems: 'center', gap: 8 },
-  busyText: { fontSize: Type.caption1.fontSize, color: Colors.textMuted },
+  busyText: { fontSize: Type.caption1.fontSize, color: t.textMuted },
   summaryGrid: { flexDirection: 'row', gap: 8, marginHorizontal: 16, marginBottom: 12 },
   summaryCell: {
     flex: 1, padding: 14, borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: Colors.card, borderWidth: 1, borderColor: t.line,
   },
-  summaryValue: { fontSize: Type.title2.fontSize, fontWeight: '800', color: Colors.text },
-  summaryLabel: { fontSize: Type.caption2.fontSize, color: Colors.textMuted, marginTop: 4 },
+  summaryValue: { fontSize: Type.title2.fontSize, fontWeight: '800', color: t.text },
+  summaryLabel: { fontSize: Type.caption2.fontSize, color: t.textMuted, marginTop: 4 },
   warnBanner: {
     flexDirection: 'row', gap: 8, alignItems: 'flex-start',
     marginHorizontal: 16, marginBottom: 12, padding: 12,
@@ -325,17 +330,17 @@ const styles = StyleSheet.create({
   warnBody: { fontSize: Type.caption2.fontSize, color: '#7A4500', lineHeight: 16 },
   emptyCard: {
     margin: 16, padding: 16, borderRadius: Tokens.radius.card,
-    backgroundColor: Colors.fillTertiary, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: t.surfaceAlt, borderWidth: 1, borderColor: t.line,
   },
-  emptyText: { fontSize: Type.footnote.fontSize, color: Colors.textMuted, textAlign: 'center' },
+  emptyText: { fontSize: Type.footnote.fontSize, color: t.textMuted, textAlign: 'center' },
   row: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     marginHorizontal: 16, marginBottom: 6, padding: 12,
     backgroundColor: Colors.card, borderRadius: Tokens.radius.md,
-    borderWidth: 1, borderColor: Colors.border,
+    borderWidth: 1, borderColor: t.line,
   },
-  rowName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
-  rowMeta: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2 },
+  rowName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: t.text },
+  rowMeta: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 2 },
   rowNotes: { fontSize: 11, color: '#7A4500', marginTop: 4, fontStyle: 'italic' },
   flag: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, borderWidth: 1 },
   flagText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.4 },
@@ -343,11 +348,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     marginHorizontal: 16, marginTop: 14,
     paddingVertical: 14, borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
   },
   exportBtnText: { color: '#FFF', fontSize: Type.body.fontSize, fontWeight: '700' },
   disclaimerText: {
     marginHorizontal: 16, marginTop: 12,
-    fontSize: 11, color: Colors.textMuted, lineHeight: 16, fontStyle: 'italic',
+    fontSize: 11, color: t.textMuted, lineHeight: 16, fontStyle: 'italic',
   },
 });

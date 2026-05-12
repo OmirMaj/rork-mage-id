@@ -7,12 +7,17 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams, Stack } from 'expo-router';
 import { Lock, CheckCircle, ArrowRight } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
 
 export default function ResetPasswordScreen() {
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const params = useLocalSearchParams();
@@ -72,7 +77,7 @@ export default function ResetPasswordScreen() {
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.successContainer}>
           <View style={styles.successIcon}>
-            <CheckCircle size={48} color={Colors.success} strokeWidth={1.5} />
+            <CheckCircle size={48} color={themeColors.success} strokeWidth={1.5} />
           </View>
           <Text style={styles.successTitle}>Password Updated</Text>
           <Text style={styles.successText}>
@@ -92,7 +97,7 @@ export default function ResetPasswordScreen() {
       >
         <View style={[styles.content, { paddingTop: insets.top + 60 }]}>
           <View style={styles.iconWrap}>
-            <Lock size={32} color={Colors.primary} strokeWidth={1.5} />
+            <Lock size={32} color={themeColors.accent} strokeWidth={1.5} />
           </View>
           <Text style={styles.title}>Set New Password</Text>
           <Text style={styles.subtitle}>
@@ -102,16 +107,16 @@ export default function ResetPasswordScreen() {
           <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>New Password</Text>
             <View style={styles.inputWrapper}>
-              <Lock size={18} color={Colors.textSecondary} strokeWidth={1.8} />
+              <Lock size={18} color={themeColors.textSecondary} strokeWidth={1.8} />
               <TextInput
                 style={styles.input}
                 placeholder="Minimum 6 characters"
-                placeholderTextColor={Colors.textMuted}
+                placeholderTextColor={themeColors.textMuted}
                 value={newPassword}
                 onChangeText={setNewPassword}
                 secureTextEntry
                 autoCapitalize="none"
-                selectionColor={Colors.primary}
+                selectionColor={themeColors.accent}
                 testID="reset-new-password"
               />
             </View>
@@ -120,16 +125,16 @@ export default function ResetPasswordScreen() {
           <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>Confirm Password</Text>
             <View style={styles.inputWrapper}>
-              <Lock size={18} color={Colors.textSecondary} strokeWidth={1.8} />
+              <Lock size={18} color={themeColors.textSecondary} strokeWidth={1.8} />
               <TextInput
                 style={styles.input}
                 placeholder="Re-enter password"
-                placeholderTextColor={Colors.textMuted}
+                placeholderTextColor={themeColors.textMuted}
                 value={confirmPassword}
                 onChangeText={setConfirmPassword}
                 secureTextEntry
                 autoCapitalize="none"
-                selectionColor={Colors.primary}
+                selectionColor={themeColors.accent}
                 onSubmitEditing={handleSubmit}
                 testID="reset-confirm-password"
               />
@@ -144,11 +149,11 @@ export default function ResetPasswordScreen() {
             testID="reset-submit"
           >
             {isSubmitting ? (
-              <ActivityIndicator color={Colors.surface} size="small" />
+              <ActivityIndicator color={themeColors.surface} size="small" />
             ) : (
               <>
                 <Text style={styles.submitButtonText}>Update Password</Text>
-                <ArrowRight size={18} color={Colors.surface} strokeWidth={2.5} />
+                <ArrowRight size={18} color={themeColors.surface} strokeWidth={2.5} />
               </>
             )}
           </TouchableOpacity>
@@ -166,10 +171,10 @@ export default function ResetPasswordScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: t.bg,
   },
   inner: {
     flex: 1,
@@ -181,7 +186,7 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 20,
-    backgroundColor: Colors.primary + '15',
+    backgroundColor: t.accent + '15',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 20,
@@ -190,13 +195,13 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 26,
     fontWeight: '800' as const,
-    color: Colors.text,
+    color: t.text,
     textAlign: 'center',
     marginBottom: 8,
   },
   subtitle: {
     fontSize: Type.subhead.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     textAlign: 'center',
     marginBottom: 32,
   },
@@ -206,32 +211,32 @@ const styles = StyleSheet.create({
   inputLabel: {
     fontSize: Type.bodyCompact.fontSize,
     fontWeight: '600' as const,
-    color: Colors.text,
+    color: t.text,
     marginBottom: 8,
     marginLeft: 2,
   },
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.lg,
     paddingHorizontal: 14,
     paddingVertical: 14,
     gap: 10,
     borderWidth: 1,
-    borderColor: Colors.borderLight,
+    borderColor: t.line,
   },
   input: {
     flex: 1,
     fontSize: Type.callout.fontSize,
-    color: Colors.text,
+    color: t.text,
     fontWeight: '400' as const,
   },
   submitButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
     borderRadius: Tokens.radius.lg,
     paddingVertical: 16,
     gap: 8,
@@ -243,7 +248,7 @@ const styles = StyleSheet.create({
   submitButtonText: {
     fontSize: Type.body.fontSize,
     fontWeight: '700' as const,
-    color: Colors.surface,
+    color: t.surface,
   },
   backButton: {
     alignSelf: 'center',
@@ -251,7 +256,7 @@ const styles = StyleSheet.create({
   },
   backText: {
     fontSize: Type.subhead.fontSize,
-    color: Colors.primary,
+    color: t.accent,
     fontWeight: '500' as const,
   },
   successContainer: {
@@ -264,12 +269,12 @@ const styles = StyleSheet.create({
   successTitle: {
     fontSize: 24,
     fontWeight: '800' as const,
-    color: Colors.text,
+    color: t.text,
     marginBottom: 8,
   },
   successText: {
     fontSize: Type.subhead.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     textAlign: 'center',
   },
 });
