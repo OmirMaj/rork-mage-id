@@ -8,9 +8,13 @@
 // schedule-pro (callbacks, derived CPM from utils/cpm, projectStartDate,
 // etc.). They live at the screen level so the undo stack / persist
 // debounce stays in one place.
+//
+// Phone fallback (bp === 'phone') moves the tab bar to the BOTTOM with 4
+// visible tabs (Gantt · Board · Dash · More). "More" opens a sheet for the
+// remaining tabs (List, Calendar, Workload, Timeline). iOS convention.
 
 import { useState, type ReactNode } from 'react';
-import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, Pressable, ScrollView, StyleSheet, Modal } from 'react-native';
 import { Colors } from '@/constants/colors';
 import { Type } from '@/constants/typography';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -21,6 +25,7 @@ import { BoardTab } from './tabs/BoardTab';
 import { DashboardTab } from './tabs/DashboardTab';
 import { TabComingSoon } from './tabs/TabComingSoon';
 import { ListTab } from './tabs/ListTab';
+import { useResponsive } from '@/utils/useResponsive';
 import type { ProjectSchedule, ScheduleTask } from '@/types';
 import type { CpmResult as UtilsCpmResult } from '@/utils/cpm';
 
@@ -78,7 +83,24 @@ export interface SchedulerTabShellProps {
 
 export function SchedulerTabShell(props: SchedulerTabShellProps) {
   useTheme();
+  const { bp } = useResponsive();
   const [active, setActive] = useState<SchedulerTabKey>('gantt');
+
+  if (bp === 'phone') {
+    return (
+      <SchedulerProvider schedule={props.schedule} cpm={props.contextCpm}>
+        <SchedulerHeader
+          projectName={props.projectName}
+          onExportPress={props.onExportPress}
+          onBaselinePress={props.onBaselinePress}
+        />
+        <View style={styles.body}>
+          {renderTab(active, props)}
+        </View>
+        <PhoneTabBar active={active} onChange={setActive} />
+      </SchedulerProvider>
+    );
+  }
 
   return (
     <SchedulerProvider schedule={props.schedule} cpm={props.contextCpm}>
@@ -114,6 +136,66 @@ export function SchedulerTabShell(props: SchedulerTabShellProps) {
         {renderTab(active, props)}
       </View>
     </SchedulerProvider>
+  );
+}
+
+interface PhoneTabBarProps {
+  active: SchedulerTabKey;
+  onChange: (k: SchedulerTabKey) => void;
+}
+
+function PhoneTabBar({ active, onChange }: PhoneTabBarProps) {
+  const [overflowOpen, setOverflowOpen] = useState(false);
+  const VISIBLE: { key: SchedulerTabKey; icon: string; label: string }[] = [
+    { key: 'gantt',     icon: '⬚', label: 'Gantt' },
+    { key: 'board',     icon: '⊞', label: 'Board' },
+    { key: 'dashboard', icon: '◐', label: 'Dash' },
+  ];
+  const OVERFLOW: SchedulerTabKey[] = ['list', 'calendar', 'workload', 'timeline'];
+  const isOverflowActive = OVERFLOW.includes(active);
+
+  return (
+    <View style={styles.bottomTabBar}>
+      {VISIBLE.map(t => {
+        const isActive = active === t.key;
+        return (
+          <Pressable key={t.key} onPress={() => onChange(t.key)} style={styles.bottomTab} hitSlop={4}>
+            <Text style={[styles.bottomTabIcon, isActive && styles.bottomTabActive]}>{t.icon}</Text>
+            <Text style={[styles.bottomTabLabel, isActive && styles.bottomTabActive]}>{t.label}</Text>
+          </Pressable>
+        );
+      })}
+      <Pressable onPress={() => setOverflowOpen(true)} style={styles.bottomTab} hitSlop={4}>
+        <Text style={[styles.bottomTabIcon, isOverflowActive && styles.bottomTabActive]}>⋯</Text>
+        <Text style={[styles.bottomTabLabel, isOverflowActive && styles.bottomTabActive]}>More</Text>
+      </Pressable>
+      <Modal
+        visible={overflowOpen}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setOverflowOpen(false)}
+      >
+        <Pressable style={styles.overflowBackdrop} onPress={() => setOverflowOpen(false)} />
+        <View style={styles.overflowSheet}>
+          <View style={styles.overflowHandle} />
+          {OVERFLOW.map(k => {
+            const tabMeta = TABS.find(t => t.key === k);
+            if (!tabMeta) return null;
+            return (
+              <Pressable
+                key={k}
+                onPress={() => { onChange(k); setOverflowOpen(false); }}
+                style={styles.overflowItem}
+              >
+                <Text style={[styles.overflowText, active === k && styles.bottomTabActive]}>
+                  {tabMeta.label}{tabMeta.soon ? ' · soon' : ''}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </Modal>
+    </View>
   );
 }
 
@@ -308,4 +390,40 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     maxWidth: 280,
   },
+
+  // ---- Phone bottom tab bar ----
+  bottomTabBar: {
+    flexDirection: 'row',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: Colors.border,
+    paddingVertical: 6,
+    paddingBottom: 12,
+    backgroundColor: Colors.surface,
+  },
+  bottomTab: { flex: 1, alignItems: 'center', paddingVertical: 4, gap: 2 },
+  bottomTabIcon: { fontSize: 17, color: Colors.textSecondary },
+  bottomTabLabel: { fontSize: 8, color: Colors.textSecondary, fontWeight: '600' },
+  bottomTabActive: { color: Colors.tradeColors.general },
+  overflowBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
+  overflowSheet: {
+    backgroundColor: Colors.surface,
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
+    padding: 16,
+    paddingBottom: 28,
+  },
+  overflowHandle: {
+    alignSelf: 'center',
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: Colors.fillTertiary,
+    marginBottom: 12,
+  },
+  overflowItem: {
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(31,37,45,0.6)',
+  },
+  overflowText: { color: Colors.text, fontSize: 14, fontWeight: '500' },
 });

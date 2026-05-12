@@ -5,14 +5,21 @@
 //
 // Reads context for tasks/cpm/viewScale. The progress donut is an SVG
 // conic gradient via react-native-svg (already in deps).
+//
+// Phone fallback (bp === 'phone') compresses to a vertical layout:
+//   title row → status + finish + slip subtitle → horizontal KPI chip rail.
+// The view/baseline pickers move into a `⋯` overflow path (Task 18 keeps
+// them visible elsewhere — the chip rail is the primary scan target on
+// phone; pickers stay accessible from the More tab on the bottom bar).
 
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
 import Svg, { Circle, G } from 'react-native-svg';
 import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { StatusPill } from './StatusPill';
 import { useScheduler, type ViewScale } from './SchedulerContext';
 import { computePillStatus } from '@/utils/scheduleHealth';
+import { useResponsive } from '@/utils/useResponsive';
 
 export interface SchedulerHeaderProps {
   projectName: string;
@@ -22,6 +29,7 @@ export interface SchedulerHeaderProps {
 
 export function SchedulerHeader({ projectName, onExportPress, onBaselinePress }: SchedulerHeaderProps) {
   useTheme();
+  const { bp } = useResponsive();
   const { tasks, cpm, schedule, viewScale, setViewScale } = useScheduler();
 
   // KPI derivations
@@ -51,6 +59,44 @@ export function SchedulerHeader({ projectName, onExportPress, onBaselinePress }:
     overdueCount,
     healthScore: schedule.healthScore ?? 100,
   });
+
+  if (bp === 'phone') {
+    const slipLabel = cpm.slipDaysVsBaseline > 0
+      ? `+${cpm.slipDaysVsBaseline}d slip`
+      : cpm.slipDaysVsBaseline < 0
+      ? `${cpm.slipDaysVsBaseline}d ahead`
+      : 'on baseline';
+    return (
+      <View style={styles.phoneRoot}>
+        <View style={styles.titleRow}>
+          <Text style={styles.title} numberOfLines={1}>{projectName}</Text>
+          <Pressable onPress={onExportPress} style={styles.phoneExportBtn} hitSlop={8}>
+            <Text style={styles.phoneExportBtnText}>⤓ Export</Text>
+          </Pressable>
+        </View>
+        <View style={styles.phoneMeta}>
+          <StatusPill status={pillStatus} />
+          <Text style={styles.subtitle}>{finishDate} · {slipLabel}</Text>
+        </View>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.phoneChipRail}
+          contentContainerStyle={styles.phoneChipRailContent}
+        >
+          <KpiChip label="Progress" value={`${progress}%`} />
+          <KpiChip label="Duration" value={`${totalDuration}d`} />
+          <KpiChip label="Done" value={`${completed}/${total}`} color={Colors.pillOnTrack} />
+          <KpiChip
+            label="Overdue"
+            value={String(overdueCount)}
+            color={overdueCount > 0 ? Colors.pillLate : undefined}
+          />
+          <KpiChip label="Crit Path" value={`${cpm.criticalPathDays}d`} />
+        </ScrollView>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.root}>
@@ -103,6 +149,15 @@ function Kpi({ label, value, color }: { label: string; value: string; color?: st
   );
 }
 
+function KpiChip({ label, value, color }: { label: string; value: string; color?: string }) {
+  return (
+    <View style={styles.chip}>
+      <Text style={styles.chipLabel}>{label.toUpperCase()}</Text>
+      <Text style={[styles.chipValue, color ? { color } : undefined]}>{value}</Text>
+    </View>
+  );
+}
+
 const VIEW_SCALE_ORDER: ReadonlyArray<ViewScale> = ['days', 'weeks', 'months'];
 
 function ViewScalePicker({ value, onChange }: { value: ViewScale; onChange: (s: ViewScale) => void }) {
@@ -151,7 +206,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
   },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  title: { fontSize: 22, fontWeight: '700', color: Colors.text, letterSpacing: -0.3 },
+  title: { fontSize: 22, fontWeight: '700', color: Colors.text, letterSpacing: -0.3, flex: 1 },
   subtitle: { fontSize: 11, color: Colors.textSecondary, marginTop: 4 },
   kpiStrip: { flexDirection: 'row', alignItems: 'flex-end', gap: 24, marginTop: 14, flexWrap: 'wrap' },
   kpi: { gap: 2 },
@@ -164,4 +219,35 @@ const styles = StyleSheet.create({
   pickerText: { fontSize: 11, color: Colors.text, fontWeight: '500' },
   exportBtn: { paddingHorizontal: 12, paddingVertical: 8, backgroundColor: Colors.tradeColors.general, borderRadius: 8, alignSelf: 'flex-end', minHeight: 44, justifyContent: 'center' },
   exportBtnText: { fontSize: 11, color: '#0B0D10', fontWeight: '700' },
+
+  // ---- Phone layout ----
+  phoneRoot: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Colors.border,
+    backgroundColor: Colors.surface,
+  },
+  phoneMeta: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 },
+  phoneChipRail: { marginTop: 10 },
+  phoneChipRailContent: { paddingRight: 6 },
+  phoneExportBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: Colors.tradeColors.general,
+    borderRadius: 8,
+    minHeight: 32,
+    justifyContent: 'center',
+  },
+  phoneExportBtnText: { fontSize: 11, color: '#0B0D10', fontWeight: '700' },
+  chip: {
+    backgroundColor: Colors.surfaceAlt,
+    borderRadius: 9,
+    paddingHorizontal: 11,
+    paddingVertical: 7,
+    marginRight: 6,
+    minWidth: 74,
+  },
+  chipLabel: { fontSize: 8, color: Colors.textSecondary, letterSpacing: 0.5, fontWeight: '700' },
+  chipValue: { fontSize: 13, color: Colors.text, fontWeight: '700', marginTop: 2 },
 });

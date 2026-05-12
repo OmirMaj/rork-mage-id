@@ -6,6 +6,9 @@
 // All metrics derive from existing data — no new schema. Health score
 // is schedule.healthScore. CPI from existing earned-value calc (if
 // the project has EV data; otherwise CPI cell shows "—").
+//
+// Phone fallback (bp === 'phone'): the 4 stat tiles wrap to 2x2 instead
+// of a single 4-wide row, and the EV / status charts stack vertically.
 
 import { useMemo } from 'react';
 import { View, Text, ScrollView, StyleSheet } from 'react-native';
@@ -14,9 +17,12 @@ import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useScheduler } from '../SchedulerContext';
 import { tradeKeyForTask, tradeLabel } from '@/utils/scheduleColors';
+import { useResponsive } from '@/utils/useResponsive';
 
 export function DashboardTab() {
   useTheme();
+  const { bp } = useResponsive();
+  const isPhone = bp === 'phone';
   const { tasks, schedule, cpm } = useScheduler();
 
   const stats = useMemo(() => {
@@ -43,23 +49,26 @@ export function DashboardTab() {
 
   return (
     <ScrollView style={styles.root} contentContainerStyle={styles.content}>
-      {/* Stat tiles */}
-      <View style={styles.statRow}>
+      {/* Stat tiles — desktop: single 4-col row; phone: 2x2 wrap */}
+      <View style={[styles.statRow, isPhone && styles.statRowPhone]}>
         <StatCard
           label="HEALTH SCORE"
           value={String(healthScore)}
           valueColor={healthColor}
           delta={cpm.slipDaysVsBaseline === 0 ? 'On baseline' : `${cpm.slipDaysVsBaseline > 0 ? '↘' : '↑'} ${Math.abs(cpm.slipDaysVsBaseline)}d ${cpm.slipDaysVsBaseline > 0 ? 'slip' : 'ahead'}`}
+          phone={isPhone}
         />
         <StatCard
           label="CRITICAL PATH"
           value={`${cpm.criticalPathDays}d`}
           delta={`${critical.length} task${critical.length === 1 ? '' : 's'}`}
+          phone={isPhone}
         />
         <StatCard
           label="COST PERF. (CPI)"
           value="—"
           delta="Wire EV in follow-up"
+          phone={isPhone}
         />
         <StatCard
           label="OVERDUE"
@@ -67,12 +76,13 @@ export function DashboardTab() {
           valueColor={stats.overdue > 0 ? Colors.pillLate : undefined}
           delta={stats.overdueTaskName ?? 'None'}
           deltaBad={stats.overdue > 0}
+          phone={isPhone}
         />
       </View>
 
-      {/* Charts row */}
-      <View style={styles.chartsRow}>
-        <View style={[styles.chartCard, { flex: 1.4 }]}>
+      {/* Charts row — desktop: side-by-side; phone: stacked */}
+      <View style={[styles.chartsRow, isPhone && styles.chartsRowPhone]}>
+        <View style={[styles.chartCard, isPhone ? styles.chartCardPhone : { flex: 1.4 }]}>
           <View style={styles.chartHeader}>
             <Text style={styles.chartTitle}>Earned Value</Text>
             <View style={styles.legend}>
@@ -92,7 +102,7 @@ export function DashboardTab() {
           </View>
         </View>
 
-        <View style={[styles.chartCard, { flex: 1 }]}>
+        <View style={[styles.chartCard, isPhone ? styles.chartCardPhone : { flex: 1 }]}>
           <View style={styles.chartHeader}>
             <Text style={styles.chartTitle}>Tasks by Status</Text>
             <Text style={styles.chartHint}>{stats.total} total</Text>
@@ -140,12 +150,12 @@ export function DashboardTab() {
   );
 }
 
-function StatCard({ label, value, valueColor, delta, deltaBad }: { label: string; value: string; valueColor?: string; delta: string; deltaBad?: boolean }) {
+function StatCard({ label, value, valueColor, delta, deltaBad, phone }: { label: string; value: string; valueColor?: string; delta: string; deltaBad?: boolean; phone?: boolean }) {
   return (
-    <View style={styles.statCard}>
+    <View style={[styles.statCard, phone && styles.statCardPhone]}>
       <Text style={styles.statLabel}>{label}</Text>
       <Text style={[styles.statValue, valueColor ? { color: valueColor } : undefined]}>{value}</Text>
-      <Text style={[styles.statDelta, deltaBad ? { color: Colors.pillLate } : undefined]}>{delta}</Text>
+      <Text style={[styles.statDelta, deltaBad ? { color: Colors.pillLate } : undefined]} numberOfLines={1}>{delta}</Text>
     </View>
   );
 }
@@ -241,4 +251,14 @@ const styles = StyleSheet.create({
   cpFloat: { width: 60, color: Colors.pillLate, fontSize: 11 },
   cpDue: { width: 50, color: Colors.textSecondary, fontSize: 11, textAlign: 'right' },
   emptyText: { color: Colors.textMuted, fontSize: 11, textAlign: 'center', paddingVertical: 14, fontStyle: 'italic' },
+
+  // ---- Phone overrides (Task 18): 2x2 stat wrap + stacked charts ----
+  statRowPhone: { flexWrap: 'wrap', gap: 10 },
+  statCardPhone: {
+    flex: 0,
+    flexBasis: '47%',
+    flexGrow: 1,
+  },
+  chartsRowPhone: { flexDirection: 'column', gap: 10 },
+  chartCardPhone: { flex: 0 },
 });

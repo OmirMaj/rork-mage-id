@@ -7,14 +7,19 @@
 //
 // Each card: phase dot + phase label + task name + donut + due date +
 // optional red "CP" badge for critical-path tasks.
+//
+// Phone fallback (bp === 'phone'): only one column is visible at a time;
+// the user toggles via a status-tab strip at the top. iOS Kanban
+// convention — desktop side-by-side is unreadable below 600px.
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
 import Svg, { Circle, G } from 'react-native-svg';
 import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useScheduler } from '../SchedulerContext';
 import { tradeKeyForTask, tradeLabel } from '@/utils/scheduleColors';
+import { useResponsive } from '@/utils/useResponsive';
 import type { ScheduleTask, TaskStatus } from '@/types';
 
 const COLUMNS: { key: TaskStatus; title: string }[] = [
@@ -25,7 +30,9 @@ const COLUMNS: { key: TaskStatus; title: string }[] = [
 
 export function BoardTab() {
   useTheme();
+  const { bp } = useResponsive();
   const { tasks, cpm, setSelectedTaskId } = useScheduler();
+  const [phoneCol, setPhoneCol] = useState<TaskStatus>('in_progress');
 
   const grouped = useMemo(() => {
     const map = new Map<TaskStatus, ScheduleTask[]>();
@@ -38,6 +45,47 @@ export function BoardTab() {
     }
     return map;
   }, [tasks]);
+
+  if (bp === 'phone') {
+    const colTasks = grouped.get(phoneCol) ?? [];
+    return (
+      <View style={styles.phoneRoot}>
+        <View style={styles.phoneColSwitcher}>
+          {COLUMNS.map(c => {
+            const isActive = phoneCol === c.key;
+            const count = (grouped.get(c.key) ?? []).length;
+            return (
+              <Pressable
+                key={c.key}
+                onPress={() => setPhoneCol(c.key)}
+                style={[styles.phoneSwitcherTab, isActive && styles.phoneSwitcherTabActive]}
+              >
+                <Text style={[styles.phoneSwitcherLabel, isActive && styles.phoneSwitcherLabelActive]}>
+                  {c.title}
+                </Text>
+                <Text style={[styles.phoneSwitcherCount, isActive && styles.phoneSwitcherCountActive]}>
+                  {count}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+        <ScrollView style={styles.phoneCol} contentContainerStyle={styles.phoneColContent}>
+          {colTasks.length === 0 && (
+            <Text style={styles.emptyHint}>No tasks here yet.</Text>
+          )}
+          {colTasks.map(task => (
+            <BoardCard
+              key={task.id}
+              task={task}
+              isCritical={cpm.criticalTaskIds.includes(task.id)}
+              onPress={() => setSelectedTaskId(task.id)}
+            />
+          ))}
+        </ScrollView>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.root}>
@@ -225,4 +273,51 @@ const styles = StyleSheet.create({
     paddingVertical: 20,
     fontStyle: 'italic',
   },
+
+  // ---- Phone single-column layout (Task 18) ----
+  phoneRoot: { flex: 1 },
+  phoneColSwitcher: {
+    flexDirection: 'row',
+    paddingHorizontal: 10,
+    paddingTop: 10,
+    paddingBottom: 8,
+    gap: 6,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Colors.border,
+    backgroundColor: Colors.surface,
+  },
+  phoneSwitcherTab: {
+    flex: 1,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 6,
+    borderRadius: 7,
+    backgroundColor: Colors.surfaceAlt,
+  },
+  phoneSwitcherTabActive: {
+    backgroundColor: Colors.tradeColors.general,
+  },
+  phoneSwitcherLabel: {
+    color: Colors.textSecondary,
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  phoneSwitcherLabelActive: {
+    color: '#0B0D10',
+    fontWeight: '700',
+  },
+  phoneSwitcherCount: {
+    color: Colors.textMuted,
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  phoneSwitcherCountActive: {
+    color: '#0B0D10',
+    fontWeight: '700',
+  },
+  phoneCol: { flex: 1, backgroundColor: Colors.surfaceAlt },
+  phoneColContent: { padding: 12, gap: 8 },
 });
