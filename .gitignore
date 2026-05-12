@@ -23,6 +23,9 @@ android/
 .vscode/
 .idea/
 
+# Brainstorming session mockups (visual companion)
+.superpowers/
+
 # Supabase CLI temp files
 supabase/.temp/
 
