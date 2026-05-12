@@ -29,8 +29,9 @@ import {
   AlertCircle, ClipboardList, MessageSquare, FileText, Image as ImageIcon, Sparkle,
 } from 'lucide-react-native';
 import EmptyState from '@/components/EmptyState';
-import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import type { ThemeColors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import {
   type PunchItem, type PunchItemPriority, type SubTrade, type DailyFieldReport, type RFI,
@@ -79,13 +80,24 @@ interface ReviewEntry extends AiTriageEntry {
   discarded?: boolean;
 }
 
-const CLASS_META: Record<AiTriageClass, { label: string; color: string; icon: React.FC<{ size: number; color: string }>; helper: string }> = {
-  punch:    { label: 'Punch list',  color: Colors.warning,  icon: ClipboardList, helper: 'Becomes a punch item' },
-  rfi:      { label: 'RFI',         color: Colors.info,     icon: MessageSquare, helper: 'Becomes an open RFI' },
-  dfr:      { label: 'Daily report',color: Colors.primary,  icon: FileText,      helper: 'Goes into today\'s DFR' },
-  progress: { label: 'Progress',    color: Colors.success,  icon: ImageIcon,     helper: 'Saved as a progress photo' },
-  noise:    { label: 'Skip',        color: Colors.textMuted,icon: Trash2,        helper: 'Blurry / accidental — discard' },
+const CLASS_META: Record<AiTriageClass, { label: string; icon: React.FC<{ size: number; color: string }>; helper: string }> = {
+  punch:    { label: 'Punch list',  icon: ClipboardList, helper: 'Becomes a punch item' },
+  rfi:      { label: 'RFI',         icon: MessageSquare, helper: 'Becomes an open RFI' },
+  dfr:      { label: 'Daily report', icon: FileText,      helper: 'Goes into today\'s DFR' },
+  progress: { label: 'Progress',    icon: ImageIcon,     helper: 'Saved as a progress photo' },
+  noise:    { label: 'Skip',        icon: Trash2,        helper: 'Blurry / accidental — discard' },
 };
+
+function classColor(t: ThemeColors, cls: AiTriageClass): string {
+  switch (cls) {
+    case 'punch': return t.accent;
+    case 'rfi': return t.info;
+    case 'dfr': return t.accent;
+    case 'progress': return t.success;
+    case 'noise':
+    default: return t.textMuted;
+  }
+}
 
 const ORDER: AiTriageClass[] = ['punch', 'rfi', 'dfr', 'progress', 'noise'];
 
@@ -93,6 +105,7 @@ export default function PhotoTriageScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
   const { getProject, getPhotosForProject, addPunchItem, addRFI, addDailyReport, settings } = useProjects();
   const { tier } = useSubscription();
@@ -314,10 +327,10 @@ export default function PhotoTriageScreen() {
   // ── Render ─────────────────────────────────────────────────────
   if (!project) {
     return (
-      <View style={{ flex: 1, backgroundColor: Colors.background }}>
+      <View style={{ flex: 1, backgroundColor: themeColors.bg }}>
         <Stack.Screen options={{ title: 'Photo Triage' }} />
         <EmptyState
-          icon={<Camera size={36} color={Colors.primary} strokeWidth={1.6} />}
+          icon={<Camera size={36} color={themeColors.accent} strokeWidth={1.6} />}
           title="No project to triage yet"
           message="Photo Triage uploads field photos to a project so AI can flag punch items, RFIs, or progress shots. To run a batch:"
           steps={[
@@ -342,7 +355,7 @@ export default function PhotoTriageScreen() {
           title: 'AI Photo Triage',
           headerLeft: () => (
             <TouchableOpacity onPress={() => router.back()} style={{ marginLeft: 4 }}>
-              <ChevronLeft size={24} color={Colors.primary} />
+              <ChevronLeft size={24} color={themeColors.accent} />
             </TouchableOpacity>
           ),
         }}
@@ -352,7 +365,7 @@ export default function PhotoTriageScreen() {
           <>
             <View style={styles.hero}>
               <View style={styles.heroIconWrap}>
-                <Sparkles size={20} color={Colors.primary} />
+                <Sparkles size={20} color={themeColors.accent} />
               </View>
               <Text style={styles.heroTitle}>One walk, every record</Text>
               <Text style={styles.heroBody}>
@@ -363,11 +376,11 @@ export default function PhotoTriageScreen() {
             {/* Picker actions */}
             <View style={styles.actionRow}>
               <TouchableOpacity onPress={handleTakePhoto} style={styles.actionBtn} activeOpacity={0.85}>
-                <Camera size={16} color={Colors.text} />
+                <Camera size={16} color={themeColors.text} />
                 <Text style={styles.actionBtnText}>Camera</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={handlePickFromCameraRoll} style={styles.actionBtn} activeOpacity={0.85}>
-                <ImagePlus size={16} color={Colors.text} />
+                <ImagePlus size={16} color={themeColors.text} />
                 <Text style={styles.actionBtnText}>Library</Text>
               </TouchableOpacity>
             </View>
@@ -438,7 +451,7 @@ export default function PhotoTriageScreen() {
 
             {error && (
               <View style={styles.errorBanner}>
-                <AlertCircle size={14} color={Colors.error} />
+                <AlertCircle size={14} color={themeColors.danger} />
                 <Text style={styles.errorText}>{error}</Text>
               </View>
             )}
@@ -459,10 +472,11 @@ export default function PhotoTriageScreen() {
               if (list.length === 0) return null;
               const meta = CLASS_META[cls];
               const Icon = meta.icon;
+              const color = classColor(themeColors, cls);
               return (
                 <View key={cls} style={styles.bucket}>
                   <View style={styles.bucketHeader}>
-                    <View style={[styles.bucketBadge, { backgroundColor: meta.color }]}>
+                    <View style={[styles.bucketBadge, { backgroundColor: color }]}>
                       <Icon size={12} color="#FFF" />
                       <Text style={styles.bucketBadgeText}>{meta.label}</Text>
                     </View>
@@ -475,38 +489,41 @@ export default function PhotoTriageScreen() {
                       {e.photoUri ? (
                         <Image source={{ uri: e.photoUri }} style={styles.entryThumb} />
                       ) : (
-                        <View style={[styles.entryThumb, { backgroundColor: Colors.fillTertiary }]} />
+                        <View style={[styles.entryThumb, { backgroundColor: themeColors.surfaceAlt }]} />
                       )}
                       <View style={{ flex: 1 }}>
                         <Text style={styles.entryTitle}>{e.editedTitle || e.title}</Text>
                         {e.editedLocation ? <Text style={styles.entryMeta}>{e.editedLocation}</Text> : null}
                         {e.rationale ? <Text style={styles.entryRationale}>{e.rationale}</Text> : null}
                         <View style={styles.classChips}>
-                          {ORDER.map(c => (
-                            <TouchableOpacity
-                              key={c}
-                              onPress={() => setEntryClass(e.id, c)}
-                              style={[
-                                styles.classChip,
-                                e.editedClassification === c && {
-                                  backgroundColor: CLASS_META[c].color,
-                                  borderColor: CLASS_META[c].color,
-                                },
-                              ]}
-                              activeOpacity={0.7}
-                            >
-                              <Text style={[
-                                styles.classChipText,
-                                e.editedClassification === c && { color: '#FFF' },
-                              ]}>
-                                {CLASS_META[c].label}
-                              </Text>
-                            </TouchableOpacity>
-                          ))}
+                          {ORDER.map(c => {
+                            const cColor = classColor(themeColors, c);
+                            return (
+                              <TouchableOpacity
+                                key={c}
+                                onPress={() => setEntryClass(e.id, c)}
+                                style={[
+                                  styles.classChip,
+                                  e.editedClassification === c && {
+                                    backgroundColor: cColor,
+                                    borderColor: cColor,
+                                  },
+                                ]}
+                                activeOpacity={0.7}
+                              >
+                                <Text style={[
+                                  styles.classChipText,
+                                  e.editedClassification === c && { color: '#FFF' },
+                                ]}>
+                                  {CLASS_META[c].label}
+                                </Text>
+                              </TouchableOpacity>
+                            );
+                          })}
                         </View>
                       </View>
                       <TouchableOpacity onPress={() => discardEntry(e.id)} style={styles.discardBtn}>
-                        <Trash2 size={14} color={Colors.textMuted} />
+                        <Trash2 size={14} color={themeColors.textMuted} />
                       </TouchableOpacity>
                     </View>
                   ))}
@@ -531,108 +548,108 @@ export default function PhotoTriageScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
-  loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  loadingText: { fontSize: Type.body.fontSize, color: Colors.textMuted },
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: t.bg },
+  loadingContainer: { flex: 1, alignItems: 'center' as const, justifyContent: 'center' as const },
+  loadingText: { fontSize: Type.body.fontSize, color: t.textMuted },
 
   hero: {
     margin: 16, padding: 18, borderRadius: Tokens.radius.panel,
-    backgroundColor: Colors.primary + '0D',
-    borderWidth: 1, borderColor: Colors.primary + '20',
+    backgroundColor: t.accentSoft,
+    borderWidth: 1, borderColor: t.accent + '33',
   },
   heroIconWrap: {
     width: 38, height: 38, borderRadius: 11,
-    backgroundColor: Colors.primary + '15',
-    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: t.accentSoft,
+    alignItems: 'center' as const, justifyContent: 'center' as const,
     marginBottom: 12,
   },
-  heroTitle: { fontSize: Type.title2.fontSize, fontWeight: '800', color: Colors.text, marginBottom: 8 },
-  heroBody: { fontSize: Type.footnote.fontSize, color: Colors.text, lineHeight: 19 },
+  heroTitle: { fontSize: Type.title2.fontSize, fontWeight: '800' as const, color: t.text, marginBottom: 8 },
+  heroBody: { fontSize: Type.footnote.fontSize, color: t.text, lineHeight: 19 },
 
-  actionRow: { flexDirection: 'row', gap: 10, marginHorizontal: 16, marginBottom: 16 },
+  actionRow: { flexDirection: 'row' as const, gap: 10, marginHorizontal: 16, marginBottom: 16 },
   actionBtn: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    flex: 1, flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 6,
     paddingVertical: 12, borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: t.surface, borderWidth: 1, borderColor: t.line,
   },
-  actionBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700', color: Colors.text },
+  actionBtnText: { fontSize: Type.footnote.fontSize, fontWeight: '700' as const, color: t.text },
 
   gallerySection: { marginHorizontal: 16, marginBottom: 16 },
   pickedSection: { marginHorizontal: 16, marginBottom: 16 },
-  sectionTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700', color: Colors.text, marginBottom: 8 },
+  sectionTitle: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: t.text, marginBottom: 8 },
   galleryScroll: { gap: 8, paddingVertical: 4 },
   galleryThumb: {
     width: 84, height: 84, borderRadius: Tokens.radius.md,
-    overflow: 'hidden', borderWidth: 2, borderColor: 'transparent',
+    overflow: 'hidden' as const, borderWidth: 2, borderColor: 'transparent',
   },
-  galleryThumbActive: { borderColor: Colors.primary },
-  galleryImage: { width: '100%', height: '100%' },
+  galleryThumbActive: { borderColor: t.accent },
+  galleryImage: { width: '100%' as const, height: '100%' as const },
   galleryCheck: {
-    position: 'absolute', top: 4, right: 4,
+    position: 'absolute' as const, top: 4, right: 4,
     width: 18, height: 18, borderRadius: 9,
-    backgroundColor: Colors.primary,
-    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: t.accent,
+    alignItems: 'center' as const, justifyContent: 'center' as const,
   },
-  pickedThumb: { width: 84, height: 84, borderRadius: Tokens.radius.md, overflow: 'hidden' },
+  pickedThumb: { width: 84, height: 84, borderRadius: Tokens.radius.md, overflow: 'hidden' as const },
   removeChip: {
-    position: 'absolute', top: 4, right: 4,
+    position: 'absolute' as const, top: 4, right: 4,
     width: 18, height: 18, borderRadius: 9,
     backgroundColor: '#0009',
-    alignItems: 'center', justifyContent: 'center',
+    alignItems: 'center' as const, justifyContent: 'center' as const,
   },
 
   analyzeBtn: {
     marginHorizontal: 16, paddingVertical: 14, borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.primary,
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: t.accent,
+    flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 8,
   },
-  analyzeText: { color: '#FFF', fontSize: Type.body.fontSize, fontWeight: '700' },
+  analyzeText: { color: '#FFF', fontSize: Type.body.fontSize, fontWeight: '700' as const },
 
   errorBanner: {
     marginHorizontal: 16, marginTop: 12,
     paddingHorizontal: 12, paddingVertical: 10, borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.error + '15',
-    borderWidth: 1, borderColor: Colors.error + '30',
-    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: t.danger + '1F',
+    borderWidth: 1, borderColor: t.danger + '33',
+    flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8,
   },
-  errorText: { fontSize: Type.caption1.fontSize, color: Colors.error, flex: 1, lineHeight: 17 },
+  errorText: { fontSize: Type.caption1.fontSize, color: t.danger, flex: 1, lineHeight: 17 },
 
   bucket: { marginHorizontal: 16, marginBottom: 18 },
-  bucketHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
+  bucketHeader: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'space-between' as const, marginBottom: 4 },
   bucketBadge: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
+    flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6,
     paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999,
   },
-  bucketBadgeText: { color: '#FFF', fontSize: Type.caption2.fontSize, fontWeight: '800', letterSpacing: 0.4 },
-  bucketCount: { fontSize: Type.subhead.fontSize, fontWeight: '700', color: Colors.text },
-  bucketHelper: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginBottom: 8 },
+  bucketBadgeText: { color: '#FFF', fontSize: Type.caption2.fontSize, fontWeight: '800' as const, letterSpacing: 0.4 },
+  bucketCount: { fontSize: Type.subhead.fontSize, fontWeight: '700' as const, color: t.text },
+  bucketHelper: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginBottom: 8 },
 
   entryCard: {
-    flexDirection: 'row', gap: 12,
-    backgroundColor: Colors.card, borderRadius: Tokens.radius.card,
-    borderWidth: 1, borderColor: Colors.border,
+    flexDirection: 'row' as const, gap: 12,
+    backgroundColor: t.surface, borderRadius: Tokens.radius.card,
+    borderWidth: 1, borderColor: t.line,
     padding: 12, marginBottom: 8,
   },
   entryThumb: { width: 64, height: 64, borderRadius: Tokens.radius.md },
-  entryTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: Colors.text },
-  entryMeta: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 2 },
-  entryRationale: { fontSize: Type.caption1.fontSize, color: Colors.textMuted, marginTop: 4, fontStyle: 'italic' },
+  entryTitle: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700' as const, color: t.text },
+  entryMeta: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 2 },
+  entryRationale: { fontSize: Type.caption1.fontSize, color: t.textMuted, marginTop: 4, fontStyle: 'italic' as const },
 
-  classChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
+  classChips: { flexDirection: 'row' as const, flexWrap: 'wrap' as const, gap: 6, marginTop: 8 },
   classChip: {
     paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999,
-    backgroundColor: Colors.fillTertiary,
-    borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: t.surfaceAlt,
+    borderWidth: 1, borderColor: t.line,
   },
-  classChipText: { fontSize: Type.caption2.fontSize, fontWeight: '700', color: Colors.text },
+  classChipText: { fontSize: Type.caption2.fontSize, fontWeight: '700' as const, color: t.text },
 
   discardBtn: { padding: 6 },
 
   applyBtn: {
     marginHorizontal: 16, marginTop: 8, paddingVertical: 14, borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.text,
-    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: t.text,
+    alignItems: 'center' as const, justifyContent: 'center' as const,
   },
-  applyText: { color: '#FFF', fontSize: Type.body.fontSize, fontWeight: '700' },
+  applyText: { color: '#FFF', fontSize: Type.body.fontSize, fontWeight: '700' as const },
 });

@@ -14,8 +14,9 @@ import {
 } from 'lucide-react-native';
 import EmptyState from '@/components/EmptyState';
 import Svg, { Path, Line } from 'react-native-svg';
-import { Colors } from '@/constants/colors';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import type { ThemeColors } from '@/constants/colors';
 import { useProjects } from '@/contexts/ProjectContext';
 import { calculateEVM, generateCashFlowData } from '@/utils/earnedValueEngine';
 import { mageAI } from '@/utils/mageAI';
@@ -33,10 +34,10 @@ function formatCurrency(n: number): string {
   return '$' + n.toFixed(0);
 }
 
-function getMetricColor(value: number): string {
-  if (value >= 1.0) return Colors.success;
-  if (value >= 0.9) return Colors.warning;
-  return Colors.error;
+function getMetricColor(value: number, t: ThemeColors): string {
+  if (value >= 1.0) return t.success;
+  if (value >= 0.9) return t.accent;
+  return t.danger;
 }
 
 export default function BudgetDashboardScreen() {
@@ -59,6 +60,7 @@ function BudgetDashboardScreenInner() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const { projectId } = useLocalSearchParams<{ projectId: string }>();
   const { getProject, invoices } = useProjects();
 
@@ -146,7 +148,7 @@ Be specific and actionable. Use construction industry terminology.`;
       <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
         <Stack.Screen options={{ title: 'Budget Dashboard' }} />
         <EmptyState
-          icon={<BarChart3 size={36} color={Colors.primary} strokeWidth={1.6} />}
+          icon={<BarChart3 size={36} color={themeColors.accent} strokeWidth={1.6} />}
           title="No project to chart yet"
           message="The budget dashboard tracks earned value (CPI / SPI) against an estimate. To see one:"
           steps={[
@@ -162,28 +164,28 @@ Be specific and actionable. Use construction industry terminology.`;
   }
 
   const metricCards = [
-    { label: 'CPI', value: metrics.costPerformanceIndex.toFixed(2), icon: DollarSign, color: getMetricColor(metrics.costPerformanceIndex) },
-    { label: 'SPI', value: metrics.schedulePerformanceIndex.toFixed(2), icon: Clock, color: getMetricColor(metrics.schedulePerformanceIndex) },
-    { label: 'Cost Variance', value: formatCurrency(metrics.costVariance), icon: metrics.costVariance >= 0 ? TrendingUp : TrendingDown, color: metrics.costVariance >= 0 ? Colors.success : Colors.error },
-    { label: 'Schedule Variance', value: formatCurrency(metrics.scheduleVariance), icon: metrics.scheduleVariance >= 0 ? TrendingUp : TrendingDown, color: metrics.scheduleVariance >= 0 ? Colors.success : Colors.error },
-    { label: 'Est. at Completion', value: formatCurrency(metrics.estimateAtCompletion), icon: Target, color: Colors.info },
-    { label: 'Variance at Comp.', value: formatCurrency(metrics.varianceAtCompletion), icon: BarChart3, color: metrics.varianceAtCompletion >= 0 ? Colors.success : Colors.error },
+    { label: 'CPI', value: metrics.costPerformanceIndex.toFixed(2), icon: DollarSign, color: getMetricColor(metrics.costPerformanceIndex, themeColors) },
+    { label: 'SPI', value: metrics.schedulePerformanceIndex.toFixed(2), icon: Clock, color: getMetricColor(metrics.schedulePerformanceIndex, themeColors) },
+    { label: 'Cost Variance', value: formatCurrency(metrics.costVariance), icon: metrics.costVariance >= 0 ? TrendingUp : TrendingDown, color: metrics.costVariance >= 0 ? themeColors.success : themeColors.danger },
+    { label: 'Schedule Variance', value: formatCurrency(metrics.scheduleVariance), icon: metrics.scheduleVariance >= 0 ? TrendingUp : TrendingDown, color: metrics.scheduleVariance >= 0 ? themeColors.success : themeColors.danger },
+    { label: 'Est. at Completion', value: formatCurrency(metrics.estimateAtCompletion), icon: Target, color: themeColors.info },
+    { label: 'Variance at Comp.', value: formatCurrency(metrics.varianceAtCompletion), icon: BarChart3, color: metrics.varianceAtCompletion >= 0 ? themeColors.success : themeColors.danger },
   ];
 
   return (
     <View style={styles.container}>
       <Stack.Screen options={{
         title: 'Budget Dashboard',
-        headerStyle: { backgroundColor: Colors.background },
-        headerTintColor: Colors.primary,
-        headerTitleStyle: { fontWeight: '700' as const, color: Colors.text },
+        headerStyle: { backgroundColor: themeColors.bg },
+        headerTintColor: themeColors.accent,
+        headerTitleStyle: { fontWeight: '700' as const, color: themeColors.text },
       }} />
       <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 20 }]} showsVerticalScrollIndicator={false}>
         <View style={styles.projectHeader}>
           <Text style={styles.projectName}>{project.name}</Text>
           <Text style={styles.projectBudget}>Budget: {formatCurrency(metrics.budgetAtCompletion)}</Text>
           <View style={styles.progressBarContainer}>
-            <View style={[styles.progressBar, { width: `${Math.min(metrics.percentComplete, 100)}%` as any, backgroundColor: getMetricColor(metrics.costPerformanceIndex) }]} />
+            <View style={[styles.progressBar, { width: `${Math.min(metrics.percentComplete, 100)}%` as any, backgroundColor: getMetricColor(metrics.costPerformanceIndex, themeColors) }]} />
           </View>
           <Text style={styles.progressText}>{metrics.percentComplete.toFixed(1)}% Complete</Text>
         </View>
@@ -204,24 +206,24 @@ Be specific and actionable. Use construction industry terminology.`;
         <Text style={styles.sectionTitle}>Cash Flow S-Curve</Text>
         <View style={styles.chartCard}>
           <Svg width={CHART_WIDTH} height={CHART_HEIGHT}>
-            <Line x1={CHART_PADDING} y1={CHART_HEIGHT - CHART_PADDING} x2={CHART_WIDTH - CHART_PADDING} y2={CHART_HEIGHT - CHART_PADDING} stroke={Colors.borderLight} strokeWidth={1} />
-            <Line x1={CHART_PADDING} y1={CHART_PADDING} x2={CHART_PADDING} y2={CHART_HEIGHT - CHART_PADDING} stroke={Colors.borderLight} strokeWidth={1} />
+            <Line x1={CHART_PADDING} y1={CHART_HEIGHT - CHART_PADDING} x2={CHART_WIDTH - CHART_PADDING} y2={CHART_HEIGHT - CHART_PADDING} stroke={themeColors.line} strokeWidth={1} />
+            <Line x1={CHART_PADDING} y1={CHART_PADDING} x2={CHART_PADDING} y2={CHART_HEIGHT - CHART_PADDING} stroke={themeColors.line} strokeWidth={1} />
 
-            {chartPath.planned && <Path d={chartPath.planned} stroke={Colors.info} strokeWidth={2.5} fill="none" />}
-            {chartPath.actual && <Path d={chartPath.actual} stroke={Colors.success} strokeWidth={2.5} fill="none" />}
-            {chartPath.forecast && <Path d={chartPath.forecast} stroke={Colors.warning} strokeWidth={2} fill="none" strokeDasharray="6,4" />}
+            {chartPath.planned && <Path d={chartPath.planned} stroke={themeColors.info} strokeWidth={2.5} fill="none" />}
+            {chartPath.actual && <Path d={chartPath.actual} stroke={themeColors.success} strokeWidth={2.5} fill="none" />}
+            {chartPath.forecast && <Path d={chartPath.forecast} stroke={themeColors.accent} strokeWidth={2} fill="none" strokeDasharray="6,4" />}
           </Svg>
           <View style={styles.chartLegend}>
             <View style={styles.legendItem}>
-              <View style={[styles.legendDot, { backgroundColor: Colors.info }]} />
+              <View style={[styles.legendDot, { backgroundColor: themeColors.info }]} />
               <Text style={styles.legendText}>Planned</Text>
             </View>
             <View style={styles.legendItem}>
-              <View style={[styles.legendDot, { backgroundColor: Colors.success }]} />
+              <View style={[styles.legendDot, { backgroundColor: themeColors.success }]} />
               <Text style={styles.legendText}>Actual</Text>
             </View>
             <View style={styles.legendItem}>
-              <View style={[styles.legendDot, { backgroundColor: Colors.warning }]} />
+              <View style={[styles.legendDot, { backgroundColor: themeColors.accent }]} />
               <Text style={styles.legendText}>Forecast</Text>
             </View>
           </View>
@@ -258,46 +260,46 @@ Be specific and actionable. Use construction industry terminology.`;
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: t.bg,
   },
   center: {
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: 'center' as const,
+    alignItems: 'center' as const,
   },
   emptyText: {
     fontSize: Type.callout.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
   },
   scrollContent: {
     padding: 16,
   },
   projectHeader: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.panel,
     padding: 18,
     marginBottom: 20,
     gap: 6,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
   },
   projectName: {
     fontSize: Type.title3.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: t.text,
   },
   projectBudget: {
     fontSize: Type.bodyCompact.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
   },
   progressBarContainer: {
     height: 8,
-    backgroundColor: Colors.fillTertiary,
+    backgroundColor: t.line,
     borderRadius: 4,
     marginTop: 8,
-    overflow: 'hidden',
+    overflow: 'hidden' as const,
   },
   progressBar: {
     height: 8,
@@ -306,64 +308,62 @@ const styles = StyleSheet.create({
   progressText: {
     fontSize: Type.footnote.fontSize,
     fontWeight: '600' as const,
-    color: Colors.text,
+    color: t.text,
     marginTop: 4,
   },
   sectionTitle: {
     fontSize: Type.subheadline.fontSize,
     fontWeight: '700' as const,
-    color: Colors.text,
+    color: t.text,
     marginBottom: 12,
   },
   metricsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: 'row' as const,
+    flexWrap: 'wrap' as const,
     gap: 10,
     marginBottom: 24,
   },
   metricCard: {
     width: '48%' as any,
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.lg,
     padding: 14,
-    // Black outline + colored left accent stripe (the borderLeft is
-    // overridden inline by the metric's category color).
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
     borderLeftWidth: 4,
     gap: 6,
   },
   metricHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
     gap: 6,
   },
   metricLabel: {
     fontSize: Type.caption1.fontSize,
     fontWeight: '600' as const,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
   },
   metricValue: {
     fontSize: Type.title2.fontSize,
     fontWeight: '800' as const,
   },
   chartCard: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.panel,
     padding: 16,
-    alignItems: 'center',
+    alignItems: 'center' as const,
     marginBottom: 24,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
   },
   chartLegend: {
-    flexDirection: 'row',
+    flexDirection: 'row' as const,
     gap: 20,
     marginTop: 12,
   },
   legendItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
     gap: 6,
   },
   legendDot: {
@@ -373,35 +373,35 @@ const styles = StyleSheet.create({
   },
   legendText: {
     fontSize: Type.caption1.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     fontWeight: '500' as const,
   },
   forecastCard: {
-    backgroundColor: Colors.surface,
+    backgroundColor: t.surface,
     borderRadius: Tokens.radius.panel,
     padding: 18,
     gap: 14,
     marginBottom: 20,
     borderWidth: 1,
-    borderColor: Colors.cardBorder,
+    borderColor: t.line,
   },
   forecastText: {
     fontSize: Type.bodyCompact.fontSize,
-    color: Colors.text,
+    color: t.text,
     lineHeight: 22,
   },
   forecastPlaceholder: {
     fontSize: Type.bodyCompact.fontSize,
-    color: Colors.textMuted,
+    color: t.textMuted,
     lineHeight: 20,
-    fontStyle: 'italic',
+    fontStyle: 'italic' as const,
   },
   forecastBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
     gap: 8,
-    backgroundColor: Colors.primary,
+    backgroundColor: t.accent,
     borderRadius: Tokens.radius.card,
     paddingVertical: 14,
   },
