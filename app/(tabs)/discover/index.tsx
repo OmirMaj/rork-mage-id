@@ -8,6 +8,7 @@ import * as Haptics from 'expo-haptics';
 import {
   Gavel, Building2, Briefcase, ExternalLink,
   Plus, Search, Award, Sparkles, CalendarDays, ChevronRight, DollarSign,
+  Wrench,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
 import type { ThemeColors } from '@/constants/colors';
@@ -86,7 +87,7 @@ const LIVE_BID_SOURCES: BidSource[] = [
   },
 ];
 
-type DiscoverTab = 'overview' | 'bids' | 'companies' | 'hire' | 'estimate' | 'schedule' | 'materials';
+type DiscoverTab = 'overview' | 'tools' | 'bids' | 'companies' | 'hire' | 'estimate' | 'schedule' | 'materials';
 
 interface TabDef {
   id: DiscoverTab;
@@ -94,8 +95,13 @@ interface TabDef {
   icon?: React.ElementType;
 }
 
+// Tools sits second — every cross-project workflow (Approvals,
+// Compliance hub, Permit calendar, Cash flow, Pipeline, 1099-NEC,
+// etc.) lives there. Previously a top-level tab; now consolidated
+// inside Discover.
 const TABS: TabDef[] = [
   { id: 'overview', label: 'Overview' },
+  { id: 'tools', label: 'Tools', icon: Wrench },
   { id: 'bids', label: 'Public Bids', icon: Gavel },
   { id: 'companies', label: 'Companies', icon: Building2 },
   { id: 'hire', label: 'Direct Hire', icon: Briefcase },
@@ -169,6 +175,7 @@ export default function DiscoverScreen() {
     if (Platform.OS !== 'web') void Haptics.selectionAsync();
     if (tab === 'overview') return;
     const routes: Record<string, string> = {
+      tools: '/(tabs)/discover/tools',
       bids: '/(tabs)/discover/bids',
       companies: '/(tabs)/discover/companies',
       hire: '/(tabs)/discover/hire',
@@ -192,8 +199,8 @@ export default function DiscoverScreen() {
   return (
     <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
       <View style={[styles.headerArea, { paddingTop: insets.top }]}>
-        <Text style={styles.largeTitle}>Find Work</Text>
-        <Text style={styles.headerSubtitle}>Bids · companies · AI tools · marketplace</Text>
+        <Text style={styles.largeTitle}>Discover</Text>
+        <Text style={styles.headerSubtitle}>Tools · bids · companies · AI · marketplace</Text>
 
         <ScrollView
           ref={tabScrollRef}
@@ -259,6 +266,28 @@ export default function DiscoverScreen() {
             <Text style={styles.quickActionLabel}>My Profile</Text>
           </TouchableOpacity>
         </View>
+
+        {/* Tools — the cross-project workflow hub (Approvals, OAC
+            actions, sub change requests, deliveries, draws, cash flow,
+            pipeline, 1099-NEC, compliance, permits, expeditors, reports
+            inbox). Lifted out of a bottom-tab; surfaced here as the
+            first NavigationCard so the user lands on it quickly. */}
+        <View style={styles.sectionHeaderRow}>
+          <View style={[styles.sectionAccent, { backgroundColor: '#D97706' }]} />
+          <View>
+            <Text style={styles.sectionLabel}>MANAGE WORK</Text>
+            <Text style={styles.sectionHint}>Approvals, cash flow, permits, compliance & 14 more</Text>
+          </View>
+        </View>
+
+        <NavigationCard
+          icon={Wrench}
+          iconColor="#D97706"
+          iconBg={'#D97706' + '15'}
+          title="Tools"
+          subtitle="Every cross-project workflow in one place"
+          onPress={() => navigateTo('/(tabs)/discover/tools')}
+        />
 
         <View style={styles.sectionHeaderRow}>
           <View style={[styles.sectionAccent, { backgroundColor: Colors.primary }]} />

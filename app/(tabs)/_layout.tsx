@@ -113,7 +113,7 @@ export default function TabLayout() {
           >
             <Tabs.Screen name="summary" options={{ title: 'Summary' }} />
             <Tabs.Screen name="(home)" options={{ title: 'Your Projects' }} />
-            <Tabs.Screen name="discover" options={{ title: 'Find Work' }} />
+            <Tabs.Screen name="discover" options={{ title: 'Discover' }} />
             <Tabs.Screen name="settings" options={{ title: 'Settings' }} />
             <Tabs.Screen name="mage-id-bids" options={{ title: 'MAGE ID Bids' }} />
             <Tabs.Screen name="construction-ai" options={{ href: null }} />
@@ -187,7 +187,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="discover"
         options={{
-          title: 'Find Work',
+          title: 'Discover',
           tabBarIcon: ({ color, focused }) => (
             <TabIcon Icon={Compass} color={color} focused={focused} />
           ),

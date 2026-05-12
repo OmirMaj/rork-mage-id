@@ -1,0 +1,468 @@
+// app/(tabs)/discover/tools.tsx — cross-project workflow hub.
+//
+// Re-added Phase 17 after Tools was orphaned by an earlier tab-removal
+// phase. Lives inside Discover as a pushed sub-route — both the
+// "Tools" soft-tab pill on Discover overview and the MANAGE WORK
+// NavigationCard route here.
+//
+// Section order is intent-based, not alphabetical:
+//   1. AI Hub      — marquee AI features
+//   2. Decisions   — what's waiting on the GC to approve
+//   3. Field       — what crews + owners are doing day-to-day
+//   4. Money       — cash, draws, taxes, sales pipeline
+//   5. Compliance  — COI, permits, warranties
+//   6. Closeout    — substantial completion + handover
+//   7. Reporting   — daily report inbox, snapshots, data exports
+//
+// Route targets verified against the actual app/ directory — every
+// NavRow links to a route file that exists. Tones constrained to
+// NavRow's 7-tone palette (neutral/primary/success/warning/error/info/
+// accent) so color carries semantic weight.
+
+import React from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
+import {
+  Sparkles, MessageSquare, FileText, Calendar, Users,
+  ClipboardList, Camera, ListChecks, Layers, Clock, ImageIcon,
+  Wallet, BarChart3, Banknote, FileSignature, ShieldCheck,
+  Trophy, UserPlus, Gavel, FileDown, FileCheck, AlertTriangle,
+  PackageCheck, Inbox, TrendingUp, Download, Wrench, ArrowLeft,
+} from 'lucide-react-native';
+import { Colors } from '@/constants/colors';
+import type { ThemeColors } from '@/constants/colors';
+import { useTheme } from '@/contexts/ThemeContext';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import { Type } from '@/constants/typography';
+import { Tokens } from '@/constants/designTokens';
+import { NavRow } from '@/components/NavRow';
+import EmptyState from '@/components/EmptyState';
+import { useProjects } from '@/contexts/ProjectContext';
+
+export default function DiscoverToolsScreen() {
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const { colors: themeColors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
+
+  const { projects } = useProjects();
+  const hasProjects = projects.length > 0;
+
+  return (
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <View style={styles.header}>
+        <View style={styles.headerTop}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.backBtn}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Back"
+            testID="tools-back-btn"
+          >
+            <ArrowLeft size={20} color={themeColors.text} />
+          </TouchableOpacity>
+          <View style={styles.headerTitleStack}>
+            <Text style={styles.headerTitle}>Tools</Text>
+            <Text style={styles.headerSubtitle}>Every cross-project workflow</Text>
+          </View>
+        </View>
+      </View>
+
+      <ScrollView
+        contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* AI Hub — marquee feature. Construction AI is the home for
+            DOB code check + AI assistance across the app. */}
+        <Section title="AI HUB" styles={styles}>
+          <NavRow
+            Icon={Sparkles}
+            title="Construction AI"
+            subtitle="Building code check, scope assistant, AI takeoffs"
+            tone="accent"
+            onPress={() => router.push('/(tabs)/construction-ai' as never)}
+            testID="tools-construction-ai"
+          />
+        </Section>
+
+        {/* Decisions — what's waiting on the GC to act on. */}
+        {hasProjects && (
+          <Section title="DECISIONS" styles={styles}>
+            <NavRow
+              Icon={MessageSquare}
+              title="Change orders"
+              subtitle="Review, approve, send to client"
+              tone="success"
+              onPress={() => router.push('/change-order' as never)}
+              testID="tools-change-orders"
+            />
+            <Divider styles={styles} />
+            <NavRow
+              Icon={FileText}
+              title="RFIs"
+              subtitle="Requests for information across all projects"
+              tone="info"
+              onPress={() => router.push('/rfi' as never)}
+              testID="tools-rfi"
+            />
+            <Divider styles={styles} />
+            <NavRow
+              Icon={FileCheck}
+              title="Submittals"
+              subtitle="Spec submittals waiting for review"
+              tone="info"
+              onPress={() => router.push('/submittal' as never)}
+              testID="tools-submittal"
+            />
+            <Divider styles={styles} />
+            <NavRow
+              Icon={Calendar}
+              title="OAC meetings"
+              subtitle="Owner-architect-contractor meetings & follow-ups"
+              tone="primary"
+              onPress={() => router.push('/oac-meeting' as never)}
+              testID="tools-oac-meeting"
+            />
+          </Section>
+        )}
+
+        {/* Field — what crews + owners do day-to-day. */}
+        {hasProjects && (
+          <Section title="FIELD" styles={styles}>
+            <NavRow
+              Icon={ClipboardList}
+              title="Daily reports"
+              subtitle="Voice-first DFRs with photo + GPS"
+              tone="primary"
+              onPress={() => router.push('/daily-report' as never)}
+              testID="tools-daily-report"
+            />
+            <Divider styles={styles} />
+            <NavRow
+              Icon={Camera}
+              title="Photo triage"
+              subtitle="Tag, organize & file jobsite photos"
+              tone="info"
+              onPress={() => router.push('/photo-triage' as never)}
+              testID="tools-photo-triage"
+            />
+            <Divider styles={styles} />
+            <NavRow
+              Icon={ListChecks}
+              title="Punch list"
+              subtitle="Walk-through items + closeout"
+              tone="warning"
+              onPress={() => router.push('/punch-list' as never)}
+              testID="tools-punch-list"
+            />
+            <Divider styles={styles} />
+            <NavRow
+              Icon={Layers}
+              title="Selections"
+              subtitle="Finish picks, fixtures, appliances"
+              tone="accent"
+              onPress={() => router.push('/selections' as never)}
+              testID="tools-selections"
+            />
+            <Divider styles={styles} />
+            <NavRow
+              Icon={Clock}
+              title="Time tracking"
+              subtitle="Crew hours & labor cost rollups"
+              tone="primary"
+              onPress={() => router.push('/time-tracking' as never)}
+              testID="tools-time-tracking"
+            />
+            <Divider styles={styles} />
+            <NavRow
+              Icon={ImageIcon}
+              title="Plans & drawings"
+              subtitle="Markup, compare versions, share"
+              tone="info"
+              onPress={() => router.push('/plans' as never)}
+              testID="tools-plans"
+            />
+          </Section>
+        )}
+
+        {/* Money — every cash-related workflow. */}
+        <Section title="MONEY" styles={styles}>
+          {hasProjects && (
+            <>
+              <NavRow
+                Icon={Wallet}
+                title="Cash flow"
+                subtitle="Multi-week forecast across all projects"
+                tone="primary"
+                onPress={() => router.push('/cash-flow' as never)}
+                testID="tools-cash-flow"
+              />
+              <Divider styles={styles} />
+              <NavRow
+                Icon={BarChart3}
+                title="Budget dashboard"
+                subtitle="Planned vs actual across the portfolio"
+                tone="success"
+                onPress={() => router.push('/budget-dashboard' as never)}
+                testID="tools-budget-dashboard"
+              />
+              <Divider styles={styles} />
+              <NavRow
+                Icon={Banknote}
+                title="Payments"
+                subtitle="Client payment status & history"
+                tone="success"
+                onPress={() => router.push('/payments' as never)}
+                testID="tools-payments"
+              />
+              <Divider styles={styles} />
+              <NavRow
+                Icon={FileSignature}
+                title="AIA pay applications"
+                subtitle="G702/G703 auto-populated from invoices"
+                tone="success"
+                onPress={() => router.push('/aia-pay-app' as never)}
+                testID="tools-aia-pay-app"
+              />
+              <Divider styles={styles} />
+              <NavRow
+                Icon={ShieldCheck}
+                title="Lien waivers"
+                subtitle="Generate & track conditional / unconditional"
+                tone="info"
+                onPress={() => router.push('/lien-waivers' as never)}
+                testID="tools-lien-waivers"
+              />
+              <Divider styles={styles} />
+            </>
+          )}
+          <NavRow
+            Icon={UserPlus}
+            title="Pipeline"
+            subtitle="Inquiries → qualified → proposal → won"
+            tone="accent"
+            onPress={() => router.push('/leads' as never)}
+            testID="tools-pipeline"
+          />
+          <Divider styles={styles} />
+          <NavRow
+            Icon={Gavel}
+            title="Buyout"
+            subtitle="Sub package builder + bid award flow"
+            tone="info"
+            onPress={() => router.push('/buyout' as never)}
+            testID="tools-buyout"
+          />
+          <Divider styles={styles} />
+          <NavRow
+            Icon={FileDown}
+            title="1099-NEC export"
+            subtitle="Year-end CSV for your CPA — flags subs paid ≥ $600"
+            tone="success"
+            onPress={() => router.push('/tax-1099-export' as never)}
+            testID="tools-tax-1099"
+          />
+        </Section>
+
+        {/* Compliance — the regulatory side. */}
+        {hasProjects && (
+          <Section title="COMPLIANCE" styles={styles}>
+            <NavRow
+              Icon={ShieldCheck}
+              title="COI vault"
+              subtitle="Sub insurance certificates + expiry tracking"
+              tone="info"
+              onPress={() => router.push('/coi-vault' as never)}
+              testID="tools-coi-vault"
+            />
+            <Divider styles={styles} />
+            <NavRow
+              Icon={AlertTriangle}
+              title="Permits"
+              subtitle="Filings, inspections, expirations"
+              tone="warning"
+              onPress={() => router.push('/permits' as never)}
+              testID="tools-permits"
+            />
+            <Divider styles={styles} />
+            <NavRow
+              Icon={ShieldCheck}
+              title="Warranties"
+              subtitle="Workmanship + product warranties on file"
+              tone="primary"
+              onPress={() => router.push('/warranties' as never)}
+              testID="tools-warranties"
+            />
+          </Section>
+        )}
+
+        {/* Closeout — substantial completion + handover. */}
+        {hasProjects && (
+          <Section title="CLOSEOUT" styles={styles}>
+            <NavRow
+              Icon={PackageCheck}
+              title="Closeout binder"
+              subtitle="Manuals, warranties, as-builts in one PDF"
+              tone="success"
+              onPress={() => router.push('/closeout-binder' as never)}
+              testID="tools-closeout-binder"
+            />
+            <Divider styles={styles} />
+            <NavRow
+              Icon={Users}
+              title="Handover"
+              subtitle="Walkthrough checklist + signature capture"
+              tone="primary"
+              onPress={() => router.push('/handover' as never)}
+              testID="tools-handover"
+            />
+          </Section>
+        )}
+
+        {/* Reporting — what came in + scheduled digests + raw exports. */}
+        {hasProjects && (
+          <Section title="REPORTING" styles={styles}>
+            <NavRow
+              Icon={Inbox}
+              title="Reports inbox"
+              subtitle="Daily field reports waiting for review"
+              tone="info"
+              onPress={() => router.push('/report-inbox' as never)}
+              testID="tools-reports-inbox"
+            />
+            <Divider styles={styles} />
+            <NavRow
+              Icon={TrendingUp}
+              title="Weekly snapshot"
+              subtitle="Auto-generated portfolio rollup, every Monday"
+              tone="primary"
+              onPress={() => router.push('/weekly-snapshot' as never)}
+              testID="tools-weekly-snapshot"
+            />
+            <Divider styles={styles} />
+            <NavRow
+              Icon={Download}
+              title="Data export"
+              subtitle="Full project export — CSVs of everything"
+              tone="neutral"
+              onPress={() => router.push('/data-export' as never)}
+              testID="tools-data-export"
+            />
+          </Section>
+        )}
+
+        {!hasProjects && (
+          <View style={styles.emptyWrap}>
+            <EmptyState
+              icon={<Wrench size={32} color={Colors.primary} />}
+              title="More tools unlock with projects"
+              message="Most tools (Daily reports, Compliance, Closeout, Reporting) are project-aware. Create your first project to unlock them."
+              actionLabel="Open Projects"
+              onAction={() => router.push('/(tabs)/(home)' as never)}
+            />
+          </View>
+        )}
+      </ScrollView>
+    </View>
+  );
+}
+
+// Local Section component — uppercase eyebrow title + bordered card
+// container. iOS Settings vibe, consistent with the existing tools
+// pattern. Local to this file because Discover overview uses a
+// different visual rhythm (NavigationCard with side accent).
+function Section({
+  title,
+  children,
+  styles,
+}: {
+  title: string;
+  children: React.ReactNode;
+  styles: ReturnType<typeof makeStyles>;
+}) {
+  return (
+    <View style={styles.sectionWrap}>
+      <Text style={styles.sectionTitle}>{title}</Text>
+      <View style={styles.sectionCard}>{children}</View>
+    </View>
+  );
+}
+
+// Divider — thin hairline between NavRows inside a Section card.
+// iOS-Settings style: indented from the left so it doesn't cut under
+// the icon column.
+function Divider({ styles }: { styles: ReturnType<typeof makeStyles> }) {
+  return <View style={styles.divider} />;
+}
+
+function makeStyles(c: ThemeColors) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: c.bg },
+    header: {
+      paddingHorizontal: Tokens.spacing.md,
+      paddingTop: Tokens.spacing.sm,
+      paddingBottom: Tokens.spacing.sm,
+      backgroundColor: c.bg,
+      borderBottomWidth: 0.5,
+      borderBottomColor: c.line,
+    },
+    headerTop: {
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      gap: Tokens.spacing.sm,
+    },
+    backBtn: {
+      width: 40,
+      height: 40,
+      borderRadius: Tokens.radius.full,
+      alignItems: 'center' as const,
+      justifyContent: 'center' as const,
+      backgroundColor: c.surface,
+    },
+    headerTitleStack: {
+      flex: 1,
+      gap: 2,
+    },
+    headerTitle: {
+      fontSize: Type.title2.fontSize,
+      fontWeight: '700' as const,
+      color: c.text,
+      letterSpacing: -0.3,
+    },
+    headerSubtitle: {
+      fontSize: Type.caption1.fontSize,
+      color: c.textSecondary,
+    },
+    sectionWrap: {
+      marginTop: Tokens.spacing.md,
+      paddingHorizontal: Tokens.spacing.md,
+    },
+    sectionTitle: {
+      fontSize: Type.caption1.fontSize,
+      color: c.textSecondary,
+      textTransform: 'uppercase' as const,
+      letterSpacing: 0.6,
+      fontWeight: '600' as const,
+      paddingHorizontal: Tokens.spacing.xxs,
+      paddingBottom: Tokens.spacing.xs,
+    },
+    sectionCard: {
+      backgroundColor: c.surface,
+      borderRadius: Tokens.radius.lg,
+      borderWidth: 1,
+      borderColor: c.line,
+      overflow: 'hidden' as const,
+    },
+    divider: {
+      height: 1,
+      backgroundColor: c.line,
+      marginLeft: 56, // align past the icon column
+    },
+    emptyWrap: {
+      marginTop: Tokens.spacing.md,
+      paddingHorizontal: Tokens.spacing.md,
+    },
+  });
+}
