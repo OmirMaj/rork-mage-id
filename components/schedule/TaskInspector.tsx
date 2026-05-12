@@ -16,7 +16,8 @@
 // matches a phone's portrait so it acts like a full-screen drawer.
 
 import React, { useMemo, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, Image, TextInput, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, TextInput, Alert } from 'react-native';
+import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
 import { X, Anchor, Flag, Users, CalendarClock, Info, Camera, Bell, Plus, Trash2 } from 'lucide-react-native';
@@ -280,7 +281,7 @@ export default function TaskInspector({
           <View style={styles.photoGrid}>
             {(task.photos ?? []).map((p, i) => (
               <View key={`${p.uri}-${i}`} style={styles.photoTile}>
-                <Image source={{ uri: p.uri }} style={styles.photoImg} resizeMode="cover" />
+                <Image source={{ uri: p.uri }} style={styles.photoImg} contentFit="cover" />
                 <TouchableOpacity
                   style={styles.photoRemove}
                   onPress={() => handleRemovePhoto(i)}

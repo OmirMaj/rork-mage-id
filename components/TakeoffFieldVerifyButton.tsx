@@ -9,7 +9,8 @@
 // silently.
 
 import React, { memo, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform, Alert, TextInput, Modal, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Platform, Alert, TextInput, Modal } from 'react-native';
+import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import * as Haptics from 'expo-haptics';
@@ -153,7 +154,7 @@ function TakeoffFieldVerifyButtonImpl({
                   <X size={18} color={Colors.text} />
                 </TouchableOpacity>
               </View>
-              <Image source={{ uri: existing.photoUri }} style={styles.modalImage} resizeMode="contain" />
+              <Image source={{ uri: existing.photoUri }} style={styles.modalImage} contentFit="contain" />
               <View style={styles.modalBody}>
                 <View style={styles.compareRow}>
                   <View style={styles.compareItem}>
@@ -222,7 +223,7 @@ function TakeoffFieldVerifyButtonImpl({
               </TouchableOpacity>
             </View>
             {draft?.photoUri && (
-              <Image source={{ uri: draft.photoUri }} style={styles.modalImage} resizeMode="contain" />
+              <Image source={{ uri: draft.photoUri }} style={styles.modalImage} contentFit="contain" />
             )}
             <View style={styles.modalBody}>
               <Text style={styles.modalLabel}>What you measured ({unit})</Text>

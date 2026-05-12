@@ -386,6 +386,15 @@ export default function HomeScreen() {
         renderItem={renderProject}
         keyExtractor={keyExtractor}
         ListFooterComponent={denseProjectList}
+        // FlatList perf knobs: render only the first 6 cards initially, keep
+        // off-screen cards in 11 windows (~5 above + 5 below current), and
+        // clip subviews on Android (no-op on iOS). Tuned for the common case
+        // (10-30 projects) — doesn't materially help past ~50 items, which
+        // is where FlashList would matter.
+        initialNumToRender={6}
+        maxToRenderPerBatch={8}
+        windowSize={11}
+        removeClippedSubviews={Platform.OS === 'android'}
         refreshControl={
           <MageRefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
         }

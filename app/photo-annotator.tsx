@@ -8,7 +8,8 @@
 // or the static portal.
 
 import React, { useState, useRef, useCallback, useMemo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, Platform, PanResponder, Alert, ScrollView, TextInput, } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Platform, PanResponder, Alert, ScrollView, TextInput, } from 'react-native';
+import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -285,7 +286,7 @@ export default function PhotoAnnotatorScreen() {
           onTouchEnd={handleCanvasPress}
           {...panResponder.panHandlers}
         >
-          <Image source={{ uri: photo.uri }} style={[StyleSheet.absoluteFill, { borderRadius: Tokens.radius.card }]} resizeMode="cover" />
+          <Image source={{ uri: photo.uri }} style={[StyleSheet.absoluteFill, { borderRadius: Tokens.radius.card }]} contentFit="cover" />
           <Svg width={canvasW} height={canvasW} style={StyleSheet.absoluteFill}>
             {markups.map((m, i) => renderMarkup(m, `m-${i}`))}
             {drawing ? renderMarkup(drawing, 'd-current') : null}
