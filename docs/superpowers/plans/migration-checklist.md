@@ -28,27 +28,28 @@ Generated 2026-05-11 after Phase 1 foundation shipped on the `phase1-foundation`
 - [x] `app/(tabs)/settings/appearance.tsx` (created, fully themed)
 - [x] `app/(tabs)/settings/index.tsx` (Appearance nav row added)
 
-## High-priority remaining (Phase 1.5)
+## Phase 1.5 high-priority — status
 
-These appear most often in user flow and should get migrated next:
+- [x] `components/PageHeader.tsx` — fully themed + Fraunces title
+- [x] `components/DesktopSidebar.tsx` — brand mark + active pill use accent
+- [x] `components/DesktopActionRail.tsx` — fully themed
+- [x] `components/EmptyState.tsx` — fully themed + Fraunces title
+- [x] `components/ProjectRow.tsx` — fully themed + uses Badge primitive
+- [x] `components/AIHomeBriefing.tsx` — outer surface theme-aware (inner deferred)
+- [x] `components/SmartInbox.tsx` — outer surface theme-aware (inner deferred)
+- [x] `components/OnboardingChecklist.tsx` — outer surface theme-aware (inner deferred)
+- [x] `components/FilterChipRow.tsx` — fully themed
+- [x] `components/EntityActionSheet.tsx` — fully themed
+- [x] `app/(tabs)/_layout.tsx` — tab bar uses accent + theme surface
+- [x] `app/(tabs)/discover/index.tsx` — outer container theme-aware
+- [x] `app/(tabs)/summary/index.tsx` — outer container theme-aware (all 3 render paths)
 
-- [ ] `components/PageHeader.tsx`
-- [ ] `components/AICopilot.tsx`
-- [ ] `components/AIHomeBriefing.tsx`
-- [ ] `components/SmartInbox.tsx`
-- [ ] `components/OnboardingChecklist.tsx`
-- [ ] `components/DesktopSidebar.tsx`
-- [ ] `components/DesktopActionRail.tsx`
-- [ ] `components/EmptyState.tsx`
-- [ ] `components/Tutorial.tsx`
-- [ ] `components/ProjectRow.tsx`
-- [ ] `components/EntityActionSheet.tsx`
-- [ ] `components/FilterChipRow.tsx`
-- [ ] `app/(tabs)/_layout.tsx`
-- [ ] `app/(tabs)/discover/index.tsx`
-- [ ] `app/(tabs)/summary/index.tsx`
-- [ ] `app/(tabs)/schedule/index.tsx`
-- [ ] `app/(tabs)/settings/index.tsx` (full body — only Appearance row is done)
+Deferred from Phase 1.5 due to size (full migrations scheduled for Phase 1.6+):
+
+- [ ] `components/AICopilot.tsx` (594 lines, 43 refs)
+- [ ] `components/Tutorial.tsx` (1159 lines, 66 refs)
+- [ ] `app/(tabs)/schedule/index.tsx` (3601 lines)
+- [ ] `app/(tabs)/settings/index.tsx` full body (2496 lines — only Appearance row + nav row done)
 
 ## Backlog — remaining 170 files
 
