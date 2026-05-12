@@ -11,6 +11,7 @@ import {
   Inbox, Wallet, UserPlus, Gavel,
 } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useProjects } from '@/contexts/ProjectContext';
 import ConstructionLoader from '@/components/ConstructionLoader';
 import EmptyState from '@/components/EmptyState';
@@ -141,6 +142,7 @@ export default function SummaryScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { projects, invoices, punchItems, changeOrders, isLoading } = useProjects();
+  const { colors: themeColors } = useTheme();
 
   const active = useMemo(
     () => projects.filter(p => p.status !== 'closed' && p.status !== 'completed'),
@@ -199,7 +201,7 @@ export default function SummaryScreen() {
 
   if (isLoading) {
     return (
-      <View style={[styles.container, styles.center]}>
+      <View style={[styles.container, styles.center, { backgroundColor: themeColors.bg }]}>
         <ConstructionLoader size="lg" />
       </View>
     );
@@ -207,7 +209,7 @@ export default function SummaryScreen() {
 
   if (projects.length === 0) {
     return (
-      <View style={[styles.container, { paddingTop: insets.top + 24 }]}>
+      <View style={[styles.container, { backgroundColor: themeColors.bg, paddingTop: insets.top + 24 }]}>
         <Text style={styles.heading}>Summary</Text>
         <EmptyState
           icon={<FolderOpen size={36} color={Colors.primary} />}
@@ -226,7 +228,7 @@ export default function SummaryScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
       <ScrollView
         contentContainerStyle={{ paddingTop: insets.top + 16, paddingBottom: insets.bottom + 40 }}
         showsVerticalScrollIndicator={false}

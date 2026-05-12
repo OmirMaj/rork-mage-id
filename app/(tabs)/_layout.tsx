@@ -3,6 +3,7 @@ import { View, StyleSheet, Platform, Animated, Easing } from 'react-native';
 import { Tabs, Slot } from 'expo-router';
 import { Home, Compass, Settings, LayoutDashboard } from 'lucide-react-native';
 import { Colors } from '@/constants/colors';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useResponsiveLayout } from '@/utils/useResponsiveLayout';
 import DesktopSidebar from '@/components/DesktopSidebar';
 import DesktopActionRail from '@/components/DesktopActionRail';
@@ -87,6 +88,7 @@ const tabIconStyles = StyleSheet.create({
 export default function TabLayout() {
   const layout = useResponsiveLayout();
   const { counts } = useSmartInbox();
+  const { colors: themeColors } = useTheme();
   const inboxBadge = counts.all > 0
     ? (counts.all > 99 ? '99+' : String(counts.all))
     : undefined;
@@ -136,11 +138,11 @@ export default function TabLayout() {
       initialRouteName="(home)"
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: Colors.primary,
-        tabBarInactiveTintColor: Colors.textMuted,
+        tabBarActiveTintColor: themeColors.accent,
+        tabBarInactiveTintColor: themeColors.textMuted,
         tabBarStyle: {
-          backgroundColor: Colors.surface,
-          borderTopColor: Colors.borderLight,
+          backgroundColor: themeColors.surface,
+          borderTopColor: themeColors.line,
           borderTopWidth: 0.5,
         },
         tabBarLabelStyle: {
@@ -168,7 +170,7 @@ export default function TabLayout() {
         options={{
           title: 'Your Projects',
           tabBarBadge: inboxBadge,
-          tabBarBadgeStyle: { backgroundColor: Colors.error, color: Colors.surface },
+          tabBarBadgeStyle: { backgroundColor: themeColors.danger, color: '#FFFFFF' },
           tabBarIcon: ({ color, focused }) => (
             <TabIcon Icon={Home} color={color} focused={focused} />
           ),

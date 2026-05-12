@@ -12,6 +12,7 @@ import {
 import { Colors } from '@/constants/colors';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { useTheme } from '@/contexts/ThemeContext';
 
 interface BidSource {
   name: string;
@@ -155,6 +156,7 @@ export default function DiscoverScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const tabScrollRef = useRef<ScrollView>(null);
+  const { colors: themeColors } = useTheme();
 
   console.log('[Discover] Rendering DiscoverScreen v2');
 
@@ -183,7 +185,7 @@ export default function DiscoverScreen() {
   }, [router]);
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: themeColors.bg }]}>
       <View style={[styles.headerArea, { paddingTop: insets.top }]}>
         <Text style={styles.largeTitle}>Find Work</Text>
         <Text style={styles.headerSubtitle}>Bids · companies · AI tools · marketplace</Text>
