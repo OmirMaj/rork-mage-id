@@ -18,6 +18,7 @@ import { SchedulerProvider, type CpmResult as ContextCpmResult } from './Schedul
 import { SchedulerHeader } from './SchedulerHeader';
 import { GanttTab } from './tabs/GanttTab';
 import { BoardTab } from './tabs/BoardTab';
+import { DashboardTab } from './tabs/DashboardTab';
 import { TabComingSoon } from './tabs/TabComingSoon';
 import { ListTab } from './tabs/ListTab';
 import type { ProjectSchedule, ScheduleTask } from '@/types';
@@ -38,7 +39,7 @@ const TABS: { key: SchedulerTabKey; label: string; soon?: boolean }[] = [
   { key: 'list',      label: 'List' },
   { key: 'calendar',  label: 'Calendar',  soon: true },
   { key: 'workload',  label: 'Workload',  soon: true },
-  { key: 'dashboard', label: 'Dashboard', soon: true },
+  { key: 'dashboard', label: 'Dashboard' },
   { key: 'timeline',  label: 'Timeline',  soon: true },
 ];
 
@@ -201,7 +202,11 @@ function renderTab(key: SchedulerTabKey, props: SchedulerTabShellProps): ReactNo
     );
   }
 
-  // board, list, dashboard handled in later tasks — generic placeholder for now
+  if (key === 'dashboard') {
+    return <DashboardTab />;
+  }
+
+  // list, handled in later tasks — generic placeholder for now
   return (
     <View style={styles.comingSoon}>
       <Text style={styles.comingSoonTitle}>Coming soon</Text>
