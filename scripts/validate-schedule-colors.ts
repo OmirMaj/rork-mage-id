@@ -27,7 +27,7 @@ expect('HVAC Rough-in → hvac', inferTradeFromName('HVAC Rough-in'), 'hvac');
 expect('Plumbing Rough-in → plumbing', inferTradeFromName('Plumbing Rough-in'), 'plumbing');
 expect('Frame Walls → framing', inferTradeFromName('Frame Walls'), 'framing');
 expect('Drywall and Paint → finish', inferTradeFromName('Drywall and Paint'), 'finish');
-expect('Demo existing → demo', inferTradeFromName('Demo existing'), 'demo');
+expect('Demolish existing → demo', inferTradeFromName('Demolish existing'), 'demo');
 expect('Final Punchlist → closeout', inferTradeFromName('Final Punchlist'), 'closeout');
 expect('Sod Installation → landscaping', inferTradeFromName('Sod Installation'), 'landscaping');
 
@@ -46,6 +46,14 @@ expect('No tradeKey → infer from name', tradeKeyForTask(task2), 'concrete');
 
 // colorForTask returns a hex string from the palette
 expect('colorForTask → palette hex', colorForTask(task2), Colors.tradeColors.concrete);
+
+// False-positive guards — these must NOT match
+expect('"Owner Demo Meeting" → general', inferTradeFromName('Owner Demo Meeting'), 'general');
+expect('"Plant Safety Briefing" → general', inferTradeFromName('Plant Safety Briefing'), 'general');
+expect('"Solar Panel Review" → general (panel removed from electrical)', inferTradeFromName('Solar Panel Review'), 'general');
+expect('"Time Punch Audit" → general (bare punch removed)', inferTradeFromName('Time Punch Audit'), 'general');
+expect('"Demolition Phase" → demo', inferTradeFromName('Demolition Phase'), 'demo');  // still works
+expect('"Punchlist Walk" → closeout', inferTradeFromName('Punchlist Walk'), 'closeout');  // still works
 
 // All TRADE_KEYS have entries in palette + labels
 for (const k of TRADE_KEYS) {
