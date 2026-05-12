@@ -1152,32 +1152,67 @@ export default function ProjectDetailScreen() {
           // should scan for "what needs me right now?". Group headers keep
           // their soft category tint to differentiate workflow domains.
           const NEUTRAL = themeColors.textSecondary;
+          // Per-tile color palette — Phase 16. Was: every tile rendered with
+          // NEUTRAL (grey), so the section grid looked uniformly dull. Each
+          // tile now gets a curated brand color picked to (a) reinforce the
+          // section's purpose (money = green, photos = blue, etc.) and
+          // (b) match what mature construction tools (Procore, Buildertrend)
+          // do on their dashboards. Hex values chosen to read well on both
+          // light cream and dark ink backgrounds at 15% bg tint.
+          const TILE_COLOR: Partial<Record<SectionKey, string>> = {
+            linkedEstimate:  '#FF6A1A', // amber — money source of truth
+            schedule:        '#0EA5E9', // sky blue — calendar/time
+            collaborators:   '#8B5CF6', // violet — people
+            contract:        '#475569', // slate — legal/formal
+            selections:      '#EC4899', // pink — finishes/aesthetic
+            lienWaivers:     '#DC2626', // red — legal protection
+            closeoutBinder:  '#6366F1', // indigo — wrap-up document
+            handover:        '#0D9488', // teal — final delivery
+            changeOrders:    '#F97316', // orange — modification
+            invoices:        '#16A34A', // green — money in
+            dailyReports:    '#7C3AED', // deep purple — field log
+            timeTracking:    '#EAB308', // yellow — time
+            punchList:       '#10B981', // emerald — completion
+            rfis:            '#3B82F6', // blue — questions
+            submittals:      '#06B6D4', // cyan — review chain
+            oacMeetings:     '#A855F7', // bright purple — group meeting
+            permits:         '#EF4444', // bright red — legal/regulatory
+            projectFiles:    '#D97706', // amber-dark — documents
+            budget:          '#15803D', // dark green — financial health
+            photos:          '#2563EB', // royal blue — visual record
+            plans:           '#9333EA', // purple — drawings
+            clientPortal:    '#0891B2', // dark cyan — external surface
+            communications:  '#4F46E5', // indigo — email/log
+            activity:        '#65A30D', // lime — events stream
+            calendar:        '#0284C7', // sky — ics feed
+          };
+          const colorFor = (k: SectionKey): string => TILE_COLOR[k] ?? NEUTRAL;
           const allTiles: Tile[] = [
-            ...(hasAnyEstimate ? [{ key: 'linkedEstimate' as SectionKey, label: 'Estimate Items', icon: ShoppingCart, color: NEUTRAL, count: linkedItems.length || estimate?.materials.length || 0 }] : []),
-            ...(project.schedule ? [{ key: 'schedule' as SectionKey, label: 'Schedule', icon: CalendarDays, color: NEUTRAL, count: Array.isArray(project.schedule.tasks) ? project.schedule.tasks.length : 0 }] : []),
-            { key: 'collaborators', label: 'Team', icon: Users, color: NEUTRAL, count: collaborators.length + 1 },
-            { key: 'contract', label: 'Contract', icon: FileText, color: NEUTRAL, count: null as number | null },
-            { key: 'selections', label: 'Selections', icon: ShoppingCart, color: NEUTRAL, count: null as number | null },
-            { key: 'lienWaivers', label: 'Lien Waivers', icon: ScrollText, color: NEUTRAL, count: null as number | null },
-            { key: 'closeoutBinder', label: 'Closeout Binder', icon: BookOpen, color: NEUTRAL, count: null as number | null },
-            { key: 'handover', label: 'Handover Checklist', icon: Footprints, color: NEUTRAL, count: null as number | null },
-            { key: 'changeOrders', label: 'Change Orders', icon: Repeat, color: NEUTRAL, count: changeOrders.length },
-            { key: 'invoices', label: 'Invoices', icon: Receipt, color: NEUTRAL, count: projectInvoices.length },
-            { key: 'dailyReports', label: 'Daily Reports', icon: ClipboardList, color: NEUTRAL, count: dailyReports.length },
-            { key: 'timeTracking', label: 'Time Tracking', icon: Clock, color: NEUTRAL, count: null as number | null },
-            { key: 'punchList', label: 'Punch List', icon: CheckSquare, color: NEUTRAL, count: punchItems.length },
-            { key: 'rfis', label: 'RFIs', icon: FileText, color: NEUTRAL, count: projectRFIs.length },
-            { key: 'submittals', label: 'Submittals', icon: FileText, color: NEUTRAL, count: projectSubmittals.length },
-            { key: 'oacMeetings', label: 'OAC Meetings', icon: Users, color: NEUTRAL, count: projectOACMeetings.length },
-            { key: 'permits', label: 'Permits', icon: Shield, color: NEUTRAL, count: projectPermits.length },
-            { key: 'projectFiles', label: 'Project Files', icon: FolderOpen, color: NEUTRAL, count: null as number | null },
-            ...(hasAnyEstimate ? [{ key: 'budget' as SectionKey, label: 'Financial Health', icon: DollarSign, color: NEUTRAL, count: null as number | null }] : []),
-            { key: 'photos', label: 'Photos', icon: Camera, color: NEUTRAL, count: projectPhotos.length },
-            { key: 'plans', label: 'Plans', icon: Layers, color: NEUTRAL, count: projectPlans.length },
-            { key: 'clientPortal', label: 'Client Portal', icon: Globe, color: NEUTRAL, count: null as number | null },
-            { key: 'communications', label: 'Communications', icon: Mail, color: NEUTRAL, count: commEvents.length },
-            { key: 'activity', label: 'Activity', icon: Activity, color: NEUTRAL, count: null as number | null },
-            { key: 'calendar', label: 'Calendar Feed', icon: CalendarDays, color: NEUTRAL, count: null as number | null },
+            ...(hasAnyEstimate ? [{ key: 'linkedEstimate' as SectionKey, label: 'Estimate Items', icon: ShoppingCart, color: colorFor('linkedEstimate'), count: linkedItems.length || estimate?.materials.length || 0 }] : []),
+            ...(project.schedule ? [{ key: 'schedule' as SectionKey, label: 'Schedule', icon: CalendarDays, color: colorFor('schedule'), count: Array.isArray(project.schedule.tasks) ? project.schedule.tasks.length : 0 }] : []),
+            { key: 'collaborators', label: 'Team', icon: Users, color: colorFor('collaborators'), count: collaborators.length + 1 },
+            { key: 'contract', label: 'Contract', icon: FileText, color: colorFor('contract'), count: null as number | null },
+            { key: 'selections', label: 'Selections', icon: ShoppingCart, color: colorFor('selections'), count: null as number | null },
+            { key: 'lienWaivers', label: 'Lien Waivers', icon: ScrollText, color: colorFor('lienWaivers'), count: null as number | null },
+            { key: 'closeoutBinder', label: 'Closeout Binder', icon: BookOpen, color: colorFor('closeoutBinder'), count: null as number | null },
+            { key: 'handover', label: 'Handover Checklist', icon: Footprints, color: colorFor('handover'), count: null as number | null },
+            { key: 'changeOrders', label: 'Change Orders', icon: Repeat, color: colorFor('changeOrders'), count: changeOrders.length },
+            { key: 'invoices', label: 'Invoices', icon: Receipt, color: colorFor('invoices'), count: projectInvoices.length },
+            { key: 'dailyReports', label: 'Daily Reports', icon: ClipboardList, color: colorFor('dailyReports'), count: dailyReports.length },
+            { key: 'timeTracking', label: 'Time Tracking', icon: Clock, color: colorFor('timeTracking'), count: null as number | null },
+            { key: 'punchList', label: 'Punch List', icon: CheckSquare, color: colorFor('punchList'), count: punchItems.length },
+            { key: 'rfis', label: 'RFIs', icon: FileText, color: colorFor('rfis'), count: projectRFIs.length },
+            { key: 'submittals', label: 'Submittals', icon: FileText, color: colorFor('submittals'), count: projectSubmittals.length },
+            { key: 'oacMeetings', label: 'OAC Meetings', icon: Users, color: colorFor('oacMeetings'), count: projectOACMeetings.length },
+            { key: 'permits', label: 'Permits', icon: Shield, color: colorFor('permits'), count: projectPermits.length },
+            { key: 'projectFiles', label: 'Project Files', icon: FolderOpen, color: colorFor('projectFiles'), count: null as number | null },
+            ...(hasAnyEstimate ? [{ key: 'budget' as SectionKey, label: 'Financial Health', icon: DollarSign, color: colorFor('budget'), count: null as number | null }] : []),
+            { key: 'photos', label: 'Photos', icon: Camera, color: colorFor('photos'), count: projectPhotos.length },
+            { key: 'plans', label: 'Plans', icon: Layers, color: colorFor('plans'), count: projectPlans.length },
+            { key: 'clientPortal', label: 'Client Portal', icon: Globe, color: colorFor('clientPortal'), count: null as number | null },
+            { key: 'communications', label: 'Communications', icon: Mail, color: colorFor('communications'), count: commEvents.length },
+            { key: 'activity', label: 'Activity', icon: Activity, color: colorFor('activity'), count: null as number | null },
+            { key: 'calendar', label: 'Calendar Feed', icon: CalendarDays, color: colorFor('calendar'), count: null as number | null },
           ];
 
           const groups: { key: TileGroupKey; label: string; icon: React.ComponentType<{ size?: number; color?: string }>; color: string; tileKeys: SectionKey[] }[] = [
