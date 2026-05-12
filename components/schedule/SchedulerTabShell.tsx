@@ -17,6 +17,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { SchedulerProvider, type CpmResult as ContextCpmResult } from './SchedulerContext';
 import { SchedulerHeader } from './SchedulerHeader';
 import { GanttTab } from './tabs/GanttTab';
+import { TabComingSoon } from './tabs/TabComingSoon';
 import type { ProjectSchedule, ScheduleTask } from '@/types';
 import type { CpmResult as UtilsCpmResult } from '@/utils/cpm';
 
@@ -139,12 +140,88 @@ function renderTab(key: SchedulerTabKey, props: SchedulerTabShellProps): ReactNo
     );
   }
 
+  if (key === 'calendar') {
+    return (
+      <TabComingSoon
+        tabName="Calendar"
+        eventKey="scheduler_calendar_tab"
+        tagline="Month view with tasks plotted on dates. Drag to reschedule."
+        previewMock={<CalendarPreviewMock />}
+      />
+    );
+  }
+
+  if (key === 'workload') {
+    return (
+      <TabComingSoon
+        tabName="Workload"
+        eventKey="scheduler_workload_tab"
+        tagline="Resource-by-day heatmap. Overallocations flagged. Click a cell to see the stack."
+        previewMock={<WorkloadPreviewMock />}
+      />
+    );
+  }
+
+  if (key === 'timeline') {
+    return (
+      <TabComingSoon
+        tabName="Timeline"
+        eventKey="scheduler_timeline_tab"
+        tagline="Slim Gantt without the grid. One-page view for owner / stakeholder sharing."
+        previewMock={<TimelinePreviewMock />}
+      />
+    );
+  }
+
+  // board, list, dashboard handled in later tasks — generic placeholder for now
   return (
     <View style={styles.comingSoon}>
       <Text style={styles.comingSoonTitle}>Coming soon</Text>
       <Text style={styles.comingSoonSub}>
         This tab ships next week. The Gantt tab is your current home.
       </Text>
+    </View>
+  );
+}
+
+function CalendarPreviewMock() {
+  return (
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 3 }}>
+      {Array.from({ length: 21 }).map((_, i) => (
+        <View key={i} style={{ width: 30, height: 30, backgroundColor: Colors.surface, borderRadius: 4 }}>
+          {(i % 5 === 0 || i % 7 === 0) && (
+            <View style={{ position: 'absolute', bottom: 2, left: 2, width: 4, height: 4, borderRadius: 2, backgroundColor: Colors.tradeColors.general }} />
+          )}
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function WorkloadPreviewMock() {
+  return (
+    <View style={{ gap: 4 }}>
+      {[0.3, 0.7, 0.9, 0.4].map((density, row) => (
+        <View key={row} style={{ flexDirection: 'row', gap: 2 }}>
+          {Array.from({ length: 10 }).map((_, c) => (
+            <View key={c} style={{
+              flex: 1, height: 10, borderRadius: 2,
+              backgroundColor: (row * 10 + c) % 3 < density * 3 ? Colors.tradeColors.general + '99' : Colors.surface,
+            }} />
+          ))}
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function TimelinePreviewMock() {
+  return (
+    <View style={{ gap: 6, justifyContent: 'center', flex: 1 }}>
+      <View style={{ height: 8, width: '40%', backgroundColor: Colors.tradeColors.general, borderRadius: 2 }} />
+      <View style={{ height: 8, width: '75%', backgroundColor: Colors.tradeColors.framing, borderRadius: 2 }} />
+      <View style={{ height: 8, width: '55%', marginLeft: '20%', backgroundColor: Colors.tradeColors.electrical, borderRadius: 2 }} />
+      <View style={{ height: 8, width: '30%', marginLeft: '60%', backgroundColor: Colors.tradeColors.closeout, borderRadius: 2 }} />
     </View>
   );
 }
