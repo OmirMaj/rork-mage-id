@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Animated } from 'react-native';
 import { AlertTriangle, TrendingUp, Clock, X, ChevronRight } from 'lucide-react-native';
-import { Colors } from '@/constants/colors';
 import { useRouter } from 'expo-router';
 import type { CashFlowWeek } from '@/utils/cashFlowEngine';
 import { formatCurrency } from '@/utils/cashFlowEngine';
 import type { Invoice } from '@/types';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { useTheme } from '@/contexts/ThemeContext';
+import { useThemedStyles } from '@/hooks/useThemedStyles';
+import type { ThemeColors } from '@/constants/colors';
 
 export interface CashFlowAlert {
   id: string;
@@ -94,24 +96,32 @@ function generateAlerts(forecast: CashFlowWeek[] | null, invoices: Invoice[]): C
   return alerts.slice(0, 3);
 }
 
-const ALERT_CONFIG: Record<CashFlowAlert['type'], { bg: string; border: string; iconColor: string; icon: typeof AlertTriangle }> = {
-  critical: { bg: Colors.errorLight, border: Colors.error + '40', iconColor: Colors.error, icon: AlertTriangle },
-  warning: { bg: Colors.warningLight, border: Colors.warning + '40', iconColor: Colors.warning, icon: AlertTriangle },
-  positive: { bg: Colors.successLight, border: Colors.success + '40', iconColor: Colors.success, icon: TrendingUp },
-  payment_due: { bg: Colors.infoLight, border: Colors.info + '40', iconColor: Colors.info, icon: Clock },
-  overdue: { bg: Colors.errorLight, border: Colors.error + '40', iconColor: Colors.error, icon: Clock },
-};
+function getAlertConfig(t: ThemeColors, type: CashFlowAlert['type']) {
+  switch (type) {
+    case 'critical':
+    case 'overdue':
+      return { bg: t.danger + '1F', border: t.danger + '40', iconColor: t.danger, icon: type === 'overdue' ? Clock : AlertTriangle };
+    case 'warning':
+      return { bg: t.accentSoft, border: t.accent + '40', iconColor: t.accentLabel, icon: AlertTriangle };
+    case 'positive':
+      return { bg: t.successSoft, border: t.success + '40', iconColor: t.success, icon: TrendingUp };
+    case 'payment_due':
+      return { bg: t.info + '1F', border: t.info + '40', iconColor: t.info, icon: Clock };
+  }
+}
 
-const AlertCard = React.memo(function AlertCard({
-  alert,
-  onDismiss,
-  onAction,
-}: {
+interface AlertCardProps {
   alert: CashFlowAlert;
   onDismiss: (id: string) => void;
   onAction: () => void;
-}) {
-  const config = ALERT_CONFIG[alert.type];
+  styles: ReturnType<typeof makeStyles>;
+  colors: ThemeColors;
+}
+
+const AlertCard = React.memo(function AlertCard({
+  alert, onDismiss, onAction, styles, colors,
+}: AlertCardProps) {
+  const config = getAlertConfig(colors, alert.type);
   const IconComponent = config.icon;
 
   return (
@@ -122,7 +132,7 @@ const AlertCard = React.memo(function AlertCard({
           {alert.title}
         </Text>
         <TouchableOpacity onPress={() => onDismiss(alert.id)} style={styles.dismissBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel="Close">
-          <X size={14} color={Colors.textMuted} />
+          <X size={14} color={colors.textMuted} />
         </TouchableOpacity>
       </View>
       <Text style={styles.alertMessage} numberOfLines={2}>{alert.message}</Text>
@@ -138,6 +148,8 @@ const AlertCard = React.memo(function AlertCard({
 
 export default function CashFlowAlerts({ forecast, invoices }: CashFlowAlertsProps) {
   const router = useRouter();
+  const { colors } = useTheme();
+  const styles = useThemedStyles(makeStyles);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
 
   const alerts = useMemo(() => generateAlerts(forecast, invoices), [forecast, invoices]);
@@ -161,13 +173,15 @@ export default function CashFlowAlerts({ forecast, invoices }: CashFlowAlertsPro
           alert={alert}
           onDismiss={handleDismiss}
           onAction={handleAction}
+          styles={styles}
+          colors={colors}
         />
       ))}
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (t: ThemeColors) => StyleSheet.create({
   container: {
     paddingHorizontal: 20,
     gap: 8,
@@ -180,8 +194,8 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   alertTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
     gap: 8,
   },
   alertTitle: {
@@ -193,19 +207,19 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: Tokens.radius.card,
-    backgroundColor: 'rgba(0,0,0,0.06)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: t.line,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
   },
   alertMessage: {
     fontSize: Type.footnote.fontSize,
-    color: Colors.textSecondary,
+    color: t.textSecondary,
     lineHeight: 18,
     paddingLeft: 26,
   },
   alertAction: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
     gap: 4,
     paddingLeft: 26,
     marginTop: 2,

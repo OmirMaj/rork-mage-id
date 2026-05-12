@@ -26,6 +26,7 @@ import type { CashFlowWeek } from '@/utils/cashFlowEngine';
 import { formatCurrencyShort } from '@/utils/cashFlowEngine';
 import { Type } from '@/constants/typography';
 import { Tokens } from '@/constants/designTokens';
+import { useTheme } from '@/contexts/ThemeContext';
 
 interface CashFlowChartProps {
   weeks: CashFlowWeek[];
@@ -44,6 +45,7 @@ const CashFlowChart = React.memo(function CashFlowChart({
   onWeekPress,
   selectedWeek,
 }: CashFlowChartProps) {
+  const { colors: themeColors } = useTheme();
   const scrollRef = useRef<ScrollView>(null);
 
   // One Animated.Value per bar — grows from 0 to 1 on mount/data-change.
@@ -133,7 +135,7 @@ const CashFlowChart = React.memo(function CashFlowChart({
   const midY = CHART_HEIGHT / 2;
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: themeColors.surface, borderColor: themeColors.line }]}>
       <View style={styles.yAxisLabels} pointerEvents="none">
         <Text style={styles.yLabelTop}>+{formatCurrencyShort(maxAbsNet)}</Text>
         <Text style={styles.yLabelMid}>$0</Text>

@@ -33,7 +33,10 @@ const TERMS_OPTIONS = [
   { value: 'due_on_receipt', label: 'Due on Receipt' },
 ];
 
+import { useTheme } from '@/contexts/ThemeContext';
+
 export default function CashFlowSetup({ visible, onComplete, onClose }: CashFlowSetupProps) {
+  const { colors: themeColors } = useTheme();
   const insets = useSafeAreaInsets();
   const [step, setStep] = useState(0);
   const [startingBalance, setStartingBalance] = useState('');
@@ -265,7 +268,7 @@ export default function CashFlowSetup({ visible, onComplete, onClose }: CashFlow
   return (
     <Modal visible={visible} animationType="slide" presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : undefined} onRequestClose={onClose}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-        <View style={[styles.container, { paddingTop: Platform.OS === 'ios' ? 12 : insets.top + 8 }]}>
+        <View style={[styles.container, { backgroundColor: themeColors.bg, paddingTop: Platform.OS === 'ios' ? 12 : insets.top + 8 }]}>
           <View style={styles.handle} />
           <View style={styles.header}>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close"><X size={20} color={Colors.textMuted} /></TouchableOpacity>
