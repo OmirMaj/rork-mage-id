@@ -39,7 +39,13 @@ export interface EntityAction {
 const UNIVERSAL: EntityActionId[] = ['open', 'copyLink', 'share'];
 
 const CAPABILITIES: Record<EntityKind, EntityActionId[]> = {
-  project:      [...UNIVERSAL],
+  // Duplicate on a project = "use as template" — copies scope (name +
+  // " (copy)", type, sf, quality, location, contract model, linked
+  // estimate) into a fresh draft. Skips execution artifacts (photos,
+  // DFRs, invoices, RFIs, contacts, closeout dates). Common pain
+  // point: GCs running repeat kitchens / ADUs / bath remodels with
+  // the same trade lineup re-create everything by hand otherwise.
+  project:      [...UNIVERSAL, 'duplicate'],
   task:         [...UNIVERSAL, 'markComplete'],
   photo:        [...UNIVERSAL, 'delete'],
   rfi:          [...UNIVERSAL, 'markComplete'],

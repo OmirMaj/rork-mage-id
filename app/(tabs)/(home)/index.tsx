@@ -747,6 +747,48 @@ export default function HomeScreen() {
       <EntityActionSheet
         entityRef={actionSheetRef}
         onClose={() => setActionSheetRef(null)}
+        onAction={(id, ref) => {
+          if (id !== 'duplicate' || ref.kind !== 'project') return;
+          const source = projects.find(p => p.id === ref.id);
+          if (!source) return;
+          // Scope-only clone: keep the inputs that took effort to set
+          // up (name, type, sf, quality, location, contract model,
+          // linked estimate). Drop the execution artifacts — they
+          // belong to the original job, not the template. Resetting
+          // status='draft' and createdAt=now lets the new project flow
+          // through the normal new-project setup (geocode, etc.).
+          const now = new Date().toISOString();
+          const clone: Project = {
+            ...source,
+            id: generateUUID(),
+            name: `${source.name} (copy)`,
+            status: 'draft',
+            createdAt: now,
+            updatedAt: now,
+            // Reset closeout / warranty state — those refer to the
+            // source project's lifecycle, not the clone's.
+            closedAt: undefined,
+            substantialCompletionDate: undefined,
+            warrantyWalkCompletedAt: undefined,
+            // Re-geocode after the user adjusts the address (if any).
+            locationLatitude: undefined,
+            locationLongitude: undefined,
+            locationGeocodedAt: undefined,
+            // Photos / DFRs / invoices / RFIs / change orders / contacts
+            // live in their own contexts keyed by project_id — we don't
+            // copy them here. The clone starts as a clean execution surface.
+            photoCount: 0,
+            // Strip collaborators + public portfolio — opt in per project.
+            collaborators: undefined,
+            publicProfile: undefined,
+          };
+          addProject(clone);
+          if (Platform.OS !== 'web') {
+            void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          }
+          // Navigate to the new draft so the user can adjust right away.
+          router.push({ pathname: '/project-detail', params: { id: clone.id } } as never);
+        }}
       />
 
       {/* Always-rendered FAB — internally hides itself if there are no
