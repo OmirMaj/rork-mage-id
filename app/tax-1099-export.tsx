@@ -316,7 +316,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   summaryGrid: { flexDirection: 'row', gap: 8, marginHorizontal: 16, marginBottom: 12 },
   summaryCell: {
     flex: 1, padding: 14, borderRadius: Tokens.radius.md,
-    backgroundColor: Colors.card, borderWidth: 1, borderColor: t.line,
+    backgroundColor: t.surface, borderWidth: 1, borderColor: t.line,
   },
   summaryValue: { fontSize: Type.title2.fontSize, fontWeight: '800', color: t.text },
   summaryLabel: { fontSize: Type.caption2.fontSize, color: t.textMuted, marginTop: 4 },
@@ -336,7 +336,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   row: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     marginHorizontal: 16, marginBottom: 6, padding: 12,
-    backgroundColor: Colors.card, borderRadius: Tokens.radius.md,
+    backgroundColor: t.surface, borderRadius: Tokens.radius.md,
     borderWidth: 1, borderColor: t.line,
   },
   rowName: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: t.text },

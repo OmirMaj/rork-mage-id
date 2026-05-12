@@ -334,7 +334,7 @@ const makeStyles = (t: ThemeColors) => StyleSheet.create({
   headerBackText: { fontSize: Type.callout.fontSize, fontWeight: '500', color: t.accent },
   filtersBar: { backgroundColor: t.surface, borderBottomWidth: 0.5, borderBottomColor: t.line, paddingBottom: 4 },
   listContent: { padding: 12, gap: 8 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: Colors.card, borderRadius: Tokens.radius.card, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderColor: t.line },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: t.surface, borderRadius: Tokens.radius.card, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderColor: t.line },
   rowIcon: { width: 32, height: 32, borderRadius: Tokens.radius.sm, alignItems: 'center', justifyContent: 'center' },
   rowMain: { flex: 1 },
   rowPrimary: { fontSize: Type.bodyCompact.fontSize, fontWeight: '700', color: t.text },

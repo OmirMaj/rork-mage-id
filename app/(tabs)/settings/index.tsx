@@ -2065,7 +2065,10 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: Tokens.radius.sm,
-    backgroundColor: themeColors.danger,
+    // Tinted bg + solid fg matches the "Change" button next to it. Was
+    // backgroundColor: themeColors.danger which collided with the text
+    // color and made the button look like a solid red block.
+    backgroundColor: themeColors.danger + '15',
   },
   logoRemoveBtnText: {
     fontSize: Type.footnote.fontSize,
@@ -2132,7 +2135,10 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: Tokens.radius.sm,
-    backgroundColor: themeColors.danger,
+    // Same fix as logoRemoveBtn — was solid danger bg colliding with
+    // danger text color. Tinted bg (15% alpha) keeps the destructive
+    // signal without making the button invisible.
+    backgroundColor: themeColors.danger + '15',
   },
   signatureRemoveBtnText: {
     fontSize: Type.footnote.fontSize,
@@ -2152,14 +2158,20 @@ const makeStyles = (themeColors: ThemeColors) => StyleSheet.create({
     gap: 10,
     marginHorizontal: 16,
     marginBottom: 20,
-    backgroundColor: themeColors.info,
+    // Tinted bg (15% alpha) instead of solid info bg. Was solid blue
+    // and the text was also info-blue — same-color-on-same-color =
+    // invisible. The tint reads as a soft info callout without
+    // collapsing legibility.
+    backgroundColor: themeColors.info + '15',
     borderRadius: Tokens.radius.card,
     padding: 14,
+    borderWidth: 1,
+    borderColor: themeColors.info + '30',
   },
   pdfPreviewNoteText: {
     flex: 1,
     fontSize: Type.footnote.fontSize,
-    color: themeColors.info,
+    color: themeColors.text,
     lineHeight: 18,
   },
   saveButton: {

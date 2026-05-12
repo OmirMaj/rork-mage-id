@@ -10,10 +10,7 @@
 //
 // Fire-and-forget by design — we don't want a failed email to block UX.
 
-import { supabase, isSupabaseConfigured } from '@/lib/supabase';
-
-const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://nteoqhcswappxxjlpvap.supabase.co';
-const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
+import { supabase, isSupabaseConfigured, SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/supabase';
 
 /**
  * Notify event types this helper supports.

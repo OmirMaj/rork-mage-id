@@ -1,12 +1,13 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { supabase } from '@/lib/supabase';
+import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/supabase';
 
-// Build the URL from env so a Supabase project rotation (or a test against a
-// branch DB) doesn't require a code change. The hardcoded fallback matches
-// the production project and is what we used to ship pre-audit; keep it as a
-// safety net so existing OTAs keep working if the env var is somehow missing.
-const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://nteoqhcswappxxjlpvap.supabase.co';
-const SUPABASE_ANON = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
+// AI endpoint URL — derived from the single-source-of-truth constants
+// in lib/supabase.ts. Critical: this used to read process.env directly
+// with `|| ''` as the anon-key fallback, which silently 401'd every AI
+// call whenever .env was missing (it shipped that way after a rebase).
+// Now we share lib/supabase.ts's hardcoded fallback so AI keeps working
+// even without env vars present.
+const SUPABASE_ANON = SUPABASE_ANON_KEY;
 const AI_URL = `${SUPABASE_URL}/functions/v1/ai`;
 const CACHE_PREFIX = "mage_ai_cache_";
 
